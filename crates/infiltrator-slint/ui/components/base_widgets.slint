@@ -1,5 +1,6 @@
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "theme.slint";
+import { SegmentedItem } from "@material";
 
 export component LayoutOutline inherits Rectangle {
     in property <color> outline-color: #FF2D55;
@@ -127,24 +128,35 @@ export component NavButton inherits Rectangle {
     in property <image> active-icon;
     callback clicked();
     height: compact ? 48 * LumenUiScale.unit : 44 * LumenUiScale.unit;
-    border-radius: compact ? 22 * LumenUiScale.unit : 14 * LumenUiScale.unit;
-    background: active ? LumenTheme.accent-soft : (nav-touch.has-hover ? LumenTheme.surface-muted : transparent);
+    background: transparent;
     nav-touch := TouchArea { width: parent.width; height: parent.height; clicked => { root.clicked(); } }
-    if compact: Image {
-        x: (parent.width - 23 * LumenUiScale.unit) / 2; y: 0 * LumenUiScale.unit;
-        source: root.active ? root.active-icon : root.icon;
-        width: 23 * LumenUiScale.unit; height: 23 * LumenUiScale.unit; image-fit: contain;
-    }
-    if compact: Text {
-        x: 0 * LumenUiScale.unit; y: 22 * LumenUiScale.unit; width: parent.width; height: 18 * LumenUiScale.unit;
-        text: root.label; color: root.active ? LumenTheme.accent : LumenTheme.text-secondary;
-        font-size: 12 * LumenUiScale.unit; horizontal-alignment: center; vertical-alignment: center;
-    }
-    if !compact: HorizontalLayout {
-        x: 12 * LumenUiScale.unit; width: parent.width - 24 * LumenUiScale.unit; height: parent.height; spacing: 12 * LumenUiScale.unit;
-        alignment: center;
-        Image { source: root.active ? root.active-icon : root.icon; width: 21 * LumenUiScale.unit; height: 21 * LumenUiScale.unit; image-fit: contain; }
-        Text { text: root.label; color: root.active ? LumenTheme.accent : LumenTheme.text-secondary; font-size: 14 * LumenUiScale.unit; vertical-alignment: center; }
+    // EFFECTS-039 #160/#161/#13: hover lifts the face -1px with the
+    // hairline glow; every state change rides the 120ms ease-out ramp.
+    face := Rectangle {
+        y: nav-touch.has-hover && !root.active ? -1 * LumenUiScale.unit : 0 * LumenUiScale.unit;
+        width: parent.width;
+        height: parent.height;
+        border-radius: root.compact ? 22 * LumenUiScale.unit : 14 * LumenUiScale.unit;
+        background: root.active ? LumenTheme.accent-soft : (nav-touch.has-hover ? LumenTheme.surface-muted : transparent);
+        border-width: nav-touch.has-hover && !root.active ? 1px : 0px;
+        border-color: LumenTheme.hairline-glow;
+        animate y, background, border-width { duration: 120ms; easing: ease-out; }
+        if root.compact: Image {
+            x: (parent.width - 23 * LumenUiScale.unit) / 2; y: 0 * LumenUiScale.unit;
+            source: root.active ? root.active-icon : root.icon;
+            width: 23 * LumenUiScale.unit; height: 23 * LumenUiScale.unit; image-fit: contain;
+        }
+        if root.compact: Text {
+            x: 0 * LumenUiScale.unit; y: 22 * LumenUiScale.unit; width: parent.width; height: 18 * LumenUiScale.unit;
+            text: root.label; color: root.active ? LumenTheme.accent : LumenTheme.text-secondary;
+            font-size: 12 * LumenUiScale.unit; horizontal-alignment: center; vertical-alignment: center;
+        }
+        if !root.compact: HorizontalLayout {
+            x: 12 * LumenUiScale.unit; width: parent.width - 24 * LumenUiScale.unit; height: parent.height; spacing: 12 * LumenUiScale.unit;
+            alignment: center;
+            Image { source: root.active ? root.active-icon : root.icon; width: 21 * LumenUiScale.unit; height: 21 * LumenUiScale.unit; image-fit: contain; }
+            Text { text: root.label; color: root.active ? LumenTheme.accent : LumenTheme.text-secondary; font-size: 14 * LumenUiScale.unit; vertical-alignment: center; }
+        }
     }
 }
 
@@ -369,6 +381,82 @@ export component SettingRow inherits Rectangle {
             Image { source: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/chevron-right.svg"); width: 22 * LumenUiScale.unit; height: 22 * LumenUiScale.unit; image-fit: contain; vertical-alignment: center; }
         }
     }
-    TouchArea { width: parent.width; height: parent.height; clicked => { root.clicked(); } }
+    row-touch := TouchArea { width: parent.width; height: parent.height; clicked => { root.clicked(); } }
+    // EFFECTS-039 #160/#161: the row answers hover with the zinc wash and
+    // the hairline glow on the 120ms ease-out ramp; no lift — rows live in
+    // scroll lists where movement reads as jitter.
+    states [
+        hovered when row-touch.has-hover: {
+            background: LumenTheme.zinc-2;
+            border-width: 1px; border-color: LumenTheme.hairline-glow;
+            in-out { animate background, border-width { duration: 120ms; easing: ease-out; } }
+        }
+    ]
     if LumenTheme.show-layout-bounds: LayoutOutline { outline-color: #FF2D55; }
+}
+
+// EFFECTS-039 #162/#14: the shell's own segmented selector — the selection
+// capsule physically slides between items with a slight overshoot
+// (cubic-bezier spring), instead of the vendored per-item instant highlight.
+// The item type stays the vendored SegmentedItem so call sites keep their
+// item tables.
+export component SegmentedControl {
+    in property <[SegmentedItem]> items;
+    in-out property <int> current-index: 0;
+    callback index-changed(int);
+
+    min-height: 40 * LumenUiScale.unit;
+    accessible-role: list;
+    accessible-item-count: root.items.length;
+
+    track := Rectangle {
+        clip: true;
+        border-radius: self.height / 2;
+        background: LumenTheme.zinc-3;
+        border-width: 1 * LumenUiScale.unit;
+        border-color: LumenTheme.hairline-glow;
+
+        // The sliding capsule: its slot width is the track divided by the
+        // item count, so the geometry is derived, never per-item constant.
+        capsule := Rectangle {
+            width: root.items.length > 0 ? track.width / root.items.length : 0 * LumenUiScale.unit;
+            height: parent.height;
+            x: self.width * root.current-index;
+            border-radius: self.height / 2;
+            background: LumenTheme.accent-soft;
+            // The elastic move: overshoot bezier, 280ms.
+            animate x { duration: 280ms; easing: cubic-bezier(0.34, 1.56, 0.64, 1.0); }
+        }
+
+        layout := HorizontalLayout {
+            for item[index] in root.items: Rectangle {
+                width: root.items.length > 0 ? track.width / root.items.length : 0 * LumenUiScale.unit;
+                horizontal-stretch: 0;
+                item-touch := TouchArea {
+                    width: parent.width; height: parent.height;
+                    accessible-role: list-item;
+                    accessible-label: item.text;
+                    accessible-item-selectable: true;
+                    accessible-item-selected: index == root.current-index;
+                    accessible-item-index: index;
+                    clicked => {
+                        root.current-index = index;
+                        root.index-changed(index);
+                    }
+                }
+                VerticalLayout {
+                    alignment: center;
+                    Text {
+                        text: item.text;
+                        color: index == root.current-index ? LumenTheme.accent : LumenTheme.text-secondary;
+                        font-size: LumenTheme.supporting-size;
+                        font-weight: index == root.current-index ? 650 : 400;
+                        horizontal-alignment: center;
+                        overflow: elide;
+                        animate color, font-weight { duration: 120ms; easing: ease-out; }
+                    }
+                }
+            }
+        }
+    }
 }

@@ -1,10 +1,9 @@
 import { Button, CheckBox, LineEdit, TextEdit } from "std-widgets.slint";
-import { SegmentedButton } from "@material";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "../components/theme.slint";
 import { OverrideCard } from "../components/models.slint";
 import {
-    AppPreferenceGroup, AppPreferenceRow, SettingRow
+    AppPreferenceGroup, AppPreferenceRow, SegmentedControl, SettingRow
 } from "../components/base_widgets.slint";
 import { SectionCard } from "../components/cards.slint";
 import { NetworkMode, RouteMode, RuntimeStatus, ThemeMode } from "../components/domain_enums.slint";
@@ -108,7 +107,7 @@ export component PageNetwork inherits VerticalLayout {
 
     SectionCard {
         heading: @tr("代理模式"); detail: @tr("应用后由 Mihomo 核心回读实际模式。");
-        SegmentedButton {
+        SegmentedControl {
             width: max(0 * LumenUiScale.unit, parent.width - 2 * LumenTheme.space-4);
             height: 48 * LumenUiScale.unit;
             items: [{ text: @tr("规则") }, { text: @tr("全局") }, { text: @tr("直连") }];

@@ -795,3 +795,12 @@
   - 计划：系统性重构 ui/*.slint 布局声明。
   - 备注：2026-10-24 交付（实测复核 + 三腿实物）——**#155 全量分类**：86 处 `background: transparent` 实测分为三类：96 处次 stretch 填充（`horizontal-stretch:1` 的合法 Slint 惯用法）、捕获驱动的动态间距（`root.home-*-gap` 由投影/捕获按视口注入，静态 spacing 无法表达，属合法机制非 hack）、静态字面间距约 7 处（紧凑档 `spacing:0`+显式 spacer 的节奏系统）；本批删除 page_home 两处 `height: 0` 纯 no-op（零视觉差的真 hack），静态 spacer 原生化与像素回归同批（PARITY）。**#158 实测复核**：仓内 `changed =>` 旧式手写回拷为 0、`<=>` 为 104 处——台账所记「旧式单向赋值 5」已在后续开发中自然清零，#158 判定达成。**#159 死属性删除**：233 条属性声明逐条对 `.slint` 引用与 Rust ABI（kebab↔snake 映射）双侧核验，23 个候选中 15 个为 Rust 活 ABI（capture_bounds_*、search_text、traffic_samples 等，保留），8 个双侧全死删除（back-gesture-progress/active、back-preview-image/available——已被 cache/commit-back-preview 回调方案取代、notification-permission-granted、override-import-revision、recents-screenshot-supported、theme-color-save-revision），233→225。**#156/#157** 引用台账既有收口结论。结构门 EXIT=0；Slint 编译回执随统一 cargo 批次。
 
+### 12.16 Slint states 与弹性胶囊（2026-10-24 交付，1条 / 3pt）
+
+- [ ] EFFECTS-039 [kind: slint] [priority: P1] [points: 3] [owner: infiltrator-slint] [status: Integrated] 交互组件声明式 states 注入与贝塞尔平滑动效（#160~#162）
+  - 产物：实现 #160 交互组件全量注入声明式 states 状态机、#161 120ms ease-out 贝塞尔平滑动效、#162 SegmentedButton 弹性滑动胶囊动画。
+  - 依赖：EFFECTS-037。
+  - 验收：按钮卡片鼠标悬停与点击呈现丝滑微抬升与高光，切换 Tab 滑轨顺畅。
+  - 计划：在 base_widgets.slint 与 cards.slint 注入 states 与 transitions。
+  - 备注：2026-10-24 交付——**#161/#162 本批**：base_widgets 新增仓内自有 `SegmentedControl`（vendored material-1.1.0 上游源码按纪律不可改）：胶囊 Rectangle 的 x 由 `current-index × 槽宽`（track.width / item.length）**推导**、非每项常量，`animate x { 280ms; cubic-bezier(0.34,1.56,0.64,1) }` 弹性过冲滑动（registry/上游源核实 cubic-bezier 语法，material_animations.slint 同款写法）；选中态 accent 色 + 650 字重 120ms ease-out 渐变；item 类型保持 vendored `SegmentedItem`，调用点 API 兼容；accessible list/list-item 语义随槽挂。调用点迁移：page_settings 代理模式三段、page_proxies 模式选择两处由 @material SegmentedButton → 仓内 SegmentedControl，仓内 SegmentedButton 引用清零（page_proxies/lumen-app 的 @material import 一并收敛）。**#160/#161 states 注入**：NavButton 重构为 face 层——悬停 y -1px 微抬升 + hairline-glow 高光描边 + surface-muted 渐亮，全部 `animate { 120ms; ease-out }`（compact 与展开两种形态的内容随之入 face，无错位）；SettingRow 注入 hovered states（zinc-2 洗色 + 高光描边，120ms ease-out；行在滚动列表内刻意不做位移动画——防抖动裁决）。**既有在树**：cards.slint FilledButton pressed states（120ms）与 HomeRoundActionButton/HomeActionButton face 形变（110/120ms ease-out）已在（E-037 前既存，引用在案）。**#15 脉冲呼吸**（SLINTUI-003 同源）随像素批定值。静态卡片（SurfaceCard）不给 hover 抬升：TouchArea 会拦截卡内按钮事件，且静态面无 hover 语义——诚实裁决在案。结构门 EXIT=0；Slint 编译与动效像素回执随统一 cargo 批次。
+

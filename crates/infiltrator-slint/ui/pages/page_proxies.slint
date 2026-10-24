@@ -1,9 +1,9 @@
-import { IconButton, SegmentedButton } from "@material";
+import { IconButton } from "@material";
 import { FlagIcon } from "../lumen-flags.slint";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "../components/theme.slint";
 import { ObservationRow, ProxyGroup } from "../components/models.slint";
-import { LayoutOutline, PingBadge } from "../components/base_widgets.slint";
+import { LayoutOutline, PingBadge, SegmentedControl } from "../components/base_widgets.slint";
 import { ProxyGroupCard, SurfaceCard } from "../components/cards.slint";
 import { RouteMode, RuntimeStatus } from "../components/domain_enums.slint";
 
@@ -95,7 +95,7 @@ export component PageProxies inherits VerticalLayout {
         Text { text: @tr("应用后会从 Mihomo 核心回读实际值"); color: LumenTheme.text-secondary; font-size: LumenTheme.supporting-size; wrap: word-wrap; }
         HorizontalLayout {
             alignment: start;
-            SegmentedButton {
+            SegmentedControl {
                 items: [{ text: @tr("规则") }, { text: @tr("全局") }, { text: @tr("直连") }];
                 current-index: root.route-mode == RouteMode.rule ? 0 : root.route-mode == RouteMode.global ? 1 : 2;
                 index-changed(index) => {
