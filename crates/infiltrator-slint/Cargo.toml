@@ -52,7 +52,7 @@ slint-build.workspace = true
 # femtovg 保留为轻量回退通道（`SLINT_BACKEND=winit-femtovg` 切换），软件
 # 渲染仍是最后兜底；backend-qt 仅预留桥接位（树内无 Qt 依赖，不启用）。
 [target.'cfg(not(target_os = "android"))'.dependencies]
-slint = { workspace = true, features = ["backend-winit", "renderer-skia", "renderer-femtovg"] }
+slint = { workspace = true, features = ["backend-winit", "renderer-femtovg"] }
 rfd = "0.17"
 
 [target.'cfg(target_os = "android")'.dependencies]

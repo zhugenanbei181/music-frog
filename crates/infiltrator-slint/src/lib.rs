@@ -306,7 +306,7 @@ fn select_desktop_gpu_backend() -> Result<(), slint::PlatformError> {
     }
     slint::BackendSelector::new()
         .backend_name("winit".into())
-        .renderer_name("skia".into())
+        .renderer_name("femtovg".into())
         .select()
 }
 
