@@ -452,7 +452,7 @@
 - [ ] EFFECTS-019 [kind: widget] [priority: P1] [points: 3] [owner: infiltrator-bevy-widgets] [status: Integrated] 现代外发光输入框与集成式 SearchBar（#65~#67）
 - [ ] EFFECTS-020 [kind: widget] [priority: P1] [points: 2] [owner: infiltrator-bevy-widgets] [status: Integrated] 共享弹出组件家族补齐
   - 备注：原条目体（产物/依赖/验收/计划）在过去佛归档迁移中被截断丢失；范围以代码实际实现与本板 §十 的 200 点规格为准，本条仅保留台账字段完整性与待复验状态。pristine 身份是「居中模态卡片、就近操作组与抽屉（#68~#75）」，`adaptive_modal.rs`/`drawer.rs`/`accordion.rs` 在树；points 2026-10-24 依 pristine 复位为 2（原误记 3）。
-### 10.4 Layer 3: Bevy UI 0.20 渲染管线与 WESL 材质深化（5条 / 15pt，涵盖 #76~#115）
+### 10.4 Layer 3: Bevy UI 0.20 渲染管线与 WESL 材质深化（6条 / 18pt，涵盖 #76~#115）
 
 - [ ] EFFECTS-021 [kind: bevy] [priority: P0] [points: 3] [owner: infiltrator-bevy-ui] [status: Integrated] InlineBox 全面攻坚与图文徽标混排（#76~#78）
   - 产物：彻底攻坚 #76 bevy_text::InlineBox（消灭 TEXT-01）、#77 日志行级别 Badge 随文混排、#78 连接行状态点与域名文字基线物理居中对齐。
@@ -478,6 +478,13 @@
   - 验收：动效由 ECS 系统统一调度，首帧挂载无异步竞态，批量销毁彻底。
   - 计划：实现 infiltrator-bevy-ui::motion_plugin。
   - 备注：**2026-10-24 记录找回，交付形态命名差异**——#93/#94 以 `bevy-widgets::motion` 的 `SpringAnimationPlugin`（`lib.rs` 注册全部弹簧系统进 `Update`）与 `Spring`/`SpringAnimator`/`sync_spring_*` 系统族交付（headless `motion_tests` 在树，含 StaggeredEnter/按钮回弹/开关滑块/路径转场/卡片悬停）；#95~#97（Ready 订阅、despawn_all、bsn_list!）由 `BEVYCAP-002.1` 机器强制收口（存量使用在树）。待验证：统一 cargo 批次复跑。
+
+- [ ] EFFECTS-028 [kind: bevy] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Integrated] 核心页面表现重构与 WgpuSettings 动态限额（#100~#115）
+  - 产物：收口 #100~#113 全部 14 项页面缺陷（侧栏文字重叠、截断、电光蓝重构、大蓝块平衡、法律文本折叠等）及 #114 弹窗 MODAL 圆角，#115 WgpuSettings 移动端动态限额。
+  - 依赖：EFFECTS-021～027。
+  - 验收：Bevy 7 大页面在标准/紧凑双视口下全部消除像素缺陷，移动端内存稳定。
+  - 计划：逐页应用新材质与组件。
+  - 备注：**2026-10-24 记录找回 + 补缺**——#100~#113 的 14 项页面缺陷与 Bevy UI 105 点视觉攻坚是同一缺陷宇宙的两份编号，已由 `BEVYUI-001`~`007` 逐簇交付（壳层重叠/截断、总览电光蓝与大蓝块、代理、规则、日志、DNS/设置法律文本折叠等，均带捕获回执，归档见 `TODO.md` 归档表）；#114 弹窗圆角由 `BEVYCAP-002.1` 机器规则（胶囊圆角/圆角阶梯 token）与 `BEVYUI-004`/`007` 的弹窗收拢覆盖；#115 本批交付——`infiltrator-bevy-ui/src/lib.rs` 新增 `gpu_profile_render_plugin()`：Android 上以 `RenderCreation::Automatic(WgpuSettings)` 封顶纹理上限（2D 4096/3D 1024/数组层 256）并将内存分配切到 `MemoryHints::MemoryUsage`，桌面保持平台默认（API 依 registry 内 bevy_render 0.20.0/wgpu-types 27.0.1 源码核对）。待验证：统一 cargo 批次编译、Android 实机内存曲线（真机腿随斗战胜佛取证）。
 
 - [ ] EFFECTS-022 [kind: bevy] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Integrated] 官方菜单与滑块双向绑定（#79~#81）
   - 产物：实现 #79 菜单迁回官方 MenuPopup/MenuItem（消灭 MENU-01）、#80 接入官方 Scrollbar 控件（消灭 SCROLL-01）、#81 接入官方 ScrollIntoView 事件（消灭 SCROLL-02）。
@@ -556,6 +563,22 @@
   - 依赖：与 manifest 批次同次改完。
   - 验收：`grep -rn anyhow crates/infiltrator-contract` 零命中（2026-10-24 词法复核 src/tests/build.rs 均 0 处）；feature-matrix/toolchain 守卫全绿。
   - 待验证：`cargo check -p infiltrator-contract --all-targets`（统一 cargo 批次）。
+
+- [ ] ENG-002.3 [kind: evidence] [priority: P2] [points: 2] [owner: workspace] [status: Integrated] 覆盖率与变异测试作为可选审计证据接入
+  - 产物：本地可跑的覆盖率报告（`cargo llvm-cov`）与关键 crate 的变异测试（`cargo mutants`）入口写入根目录的测试与证据文档，先出基线报告再谈门槛；不把覆盖率数字写进结构门，避免用数字替代行为证据。
+  - 依赖：cargo 专责流统一执行（覆盖率与变异测试是重 cargo 任务，按并行纪律统一跑一次）。
+  - 验收：文档入口可复跑；基线报告归档到本地证据目录；如发现真实行为缺口，按缺陷回流现在佛登记。
+  - 事实依据：2026-10-22 实测——本机已装 `cargo-llvm-cov` 与 `cargo-mutants`，但仓库无任何覆盖率或变异测试入口，测试证据只有「跑通/没跑通」两层。
+  - 计划：先出一次覆盖率基线报告，再决定是否对核心 crate 开变异测试门槛。
+  - 备注：文档入口已交付——`TESTING.md`「可选审计工具（非门禁）」节登记两条命令与「补充证据、不进结构门」的裁决口径；待验证腿：覆盖率/变异测试基线报告按本批「不跑 cargo」约束留给统一 cargo 批次归档。
+
+- [ ] ENG-003.1 [kind: compliance] [priority: P0] [points: 3] [owner: infiltrator-android + release] [status: Integrated] Android APK 随包分发 GPL-3.0-or-later（`socks5-impl`）——必须换依赖或明确分发模型
+  - 产物：Android host 的 userspace 隧道不再链接 copyleft 依赖（换实现或换 crate），或者发布物显式附带对应许可文本与源码提供；`deny.toml` 里那条 `socks5-impl` 的逐 crate 例外随之删除。
+  - 依赖：无（可推）。真实取证依赖 CI 的 tag 构建腿与最终 APK。
+  - 验收：`cargo deny check licenses` 在移除例外后仍全绿；第三方声明文件的 §13 按结论改写或删除；APK 侧的许可披露与产出一致。
+  - 事实依据：2026-10-22 实测——`crates/infiltrator-android/Cargo.toml` 直接依赖 `tun2proxy` 0.5.4 与 `tun2` 3.1.8，`tun2proxy` 又依赖 `socks5-impl` 0.5.17（GPL-3.0-or-later，随 APK 编译分发）。
+  - 计划：先在 Android host 侧评估替换方案（隧道实现与 SOCKS5 客户端是否可自持），再决定是换依赖还是补分发披露。
+  - 备注：**2026-10-24 分发模型裁决：走披露路线**——`android/app/src/main/assets/third-party/` 随每个 release 构建打包 `NOTICES.md`（源码提供方式=公开 release tag + `Cargo.lock` 精确版本）与 `LICENSE-GPL-3.0.txt`（全文 674 行，取自 registry 内 `socks5-impl` 0.5.17 的上游 LICENSE）；`THIRD-PARTY-NOTICES.md` §13 与 `deny.toml` 例外注释同步改写为已裁决口径；`dependency-policy-guard --mode enforce` 复跑通过（deny.toml 与披露一致）。自持 SOCKS5 客户端以删除例外为长期出口，另立后续条目时引用本条。待验证：release APK 的资产清单含 `third-party/NOTICES.md` 与许可全文（tag 构建腿）。
 
 ## 十二、波次 A 效果地基与平台能力（已交付，9条 / 27pt）
 

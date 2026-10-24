@@ -77,6 +77,35 @@ use lurker_core_contract::error::Failure;
 use std::sync::Arc;
 use std::time::Duration;
 
+/// The render plugin profiled for the running platform (EFFECTS-028 #115).
+///
+/// A mid-range mobile GPU must not be handed the desktop's default device
+/// limits: on Android the texture ceilings are capped and allocation favours
+/// memory usage, so a large raster or a stray surface cannot pin the heap.
+/// Desktop keeps the platform default.
+fn gpu_profile_render_plugin() -> bevy::render::RenderPlugin {
+    #[cfg(target_os = "android")]
+    {
+        use bevy::render::settings::{MemoryHints, RenderCreation, WgpuLimits, WgpuSettings};
+        let mut settings = WgpuSettings::default();
+        settings.limits = WgpuLimits {
+            max_texture_dimension_2d: 4096,
+            max_texture_dimension_3d: 1024,
+            max_texture_array_layers: 256,
+            ..settings.limits
+        };
+        settings.memory_hints = MemoryHints::MemoryUsage;
+        bevy::render::RenderPlugin {
+            render_creation: RenderCreation::Automatic(Box::new(settings)),
+            ..Default::default()
+        }
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        bevy::render::RenderPlugin::default()
+    }
+}
+
 /// Explicit isolated composition for screenshots and UI development.
 #[cfg(feature = "capture-tools")]
 pub fn run_demo() {
@@ -209,19 +238,23 @@ fn run_with_command_sink_and_composition(
     let interaction_capture_source = composition.interaction_capture_source();
 
     let mut app = App::new();
-    app.add_plugins(DefaultPlugins.set(WindowPlugin {
-        primary_window: Some(Window {
-            title: "MusicFrog Infiltrator — Bevy".into(),
-            resolution: WindowResolution::new(width, height),
-            // DUAL-15-13: the shell runs the shared frameless chrome shape;
-            // the mounted chrome bar owns dragging and the window controls.
-            decorations: chrome::chrome_shape().os_decorations(),
-            transparent: true,
-            ..Window::default()
-        }),
-        exit_condition: ExitCondition::OnPrimaryClosed,
-        ..WindowPlugin::default()
-    }));
+    app.add_plugins(
+        DefaultPlugins
+            .set(WindowPlugin {
+                primary_window: Some(Window {
+                    title: "MusicFrog Infiltrator — Bevy".into(),
+                    resolution: WindowResolution::new(width, height),
+                    // DUAL-15-13: the shell runs the shared frameless chrome shape;
+                    // the mounted chrome bar owns dragging and the window controls.
+                    decorations: chrome::chrome_shape().os_decorations(),
+                    transparent: true,
+                    ..Window::default()
+                }),
+                exit_condition: ExitCondition::OnPrimaryClosed,
+                ..WindowPlugin::default()
+            })
+            .set(gpu_profile_render_plugin()),
+    );
     app.insert_resource(ClipboardHost);
     app.add_plugins(app::ShellPlugin::new_with_width(preference, width as f32));
     // The rem channel makes the root font size the only scaling entry

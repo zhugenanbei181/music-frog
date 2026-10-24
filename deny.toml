@@ -109,10 +109,12 @@ crate = "slint@1.18.1"
 allow = ["LicenseRef-Slint-Royalty-free-2.0"]
 
 # The Android host tunnels through `tun2proxy`, whose SOCKS5 implementation is
-# GPL-3.0-or-later. This is the one copyleft crate that ships inside the APK,
-# so it is allowed here, disclosed in `THIRD-PARTY-NOTICES.md`, and tracked as
-# an open item: the Android host has to move off it or the distribution model
-# has to change.
+# GPL-3.0-or-later. This is the one copyleft crate that ships inside the APK.
+# The distribution model is adjudicated (ENG-003.1): every release build
+# carries the license text and the source-offer notice in
+# `android/app/src/main/assets/third-party/`, disclosed in
+# `THIRD-PARTY-NOTICES.md` §13; replacing the SOCKS5 client leg is the tracked
+# long-term exit that would delete this exception.
 [[licenses.exceptions]]
 crate = "socks5-impl@0.5.17"
 allow = ["GPL-3.0-or-later"]

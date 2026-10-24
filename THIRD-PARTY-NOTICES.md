@@ -291,8 +291,13 @@ checkouts (`~/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/`). /
   needs a per-crate exception in `deny.toml`; the disclosure lives here and
   the open item is tracked in the engineering ledger.
 - Why it is here: the Android host opens the userspace tunnel through this
-  stack, so the crate is compiled into the shipped APK. The distribution model
-  of the product therefore has to account for it: either the host stops
-  linking a GPL-3.0-or-later crate, or the release explicitly ships the
-  corresponding license text and source offer. Do not remove this section
-  while the dependency is still in the lock file.
+  stack, so the crate is compiled into the shipped APK. **Distribution-model
+  adjudication (2026-10-24, ENG-003.1): the release explicitly ships the
+  corresponding license text and source offer.** Every release build carries
+  the GPL-3.0 text and this disclosure at
+  `android/app/src/main/assets/third-party/` (`NOTICES.md` +
+  `LICENSE-GPL-3.0.txt`), and the corresponding source ships with each public
+  release tag of this repository. Replacing the SOCKS5 client leg with a
+  self-held implementation remains the tracked long-term exit — it is what
+  would delete the `deny.toml` exception. Do not remove this section while
+  the dependency is still in the lock file.
