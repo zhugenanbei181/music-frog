@@ -1,3 +1,4 @@
+use crate::charset::CharsetProfile;
 use crate::terminal_capability::{ColorDepth, GraphicsProtocol, TerminalCapabilities};
 
 use super::{CapabilityReport, QuantizeReport, capability_rows, parse_hex_color, quantize_rows};
@@ -7,13 +8,16 @@ fn capability_rows_report_the_negotiated_tiers() {
     let report = CapabilityReport::new(TerminalCapabilities {
         color_depth: ColorDepth::Ansi256,
         graphics_protocol: GraphicsProtocol::Sixel,
+        charset: CharsetProfile::Unicode,
     });
     let rows = capability_rows(&report);
-    assert_eq!(rows.len(), 2);
+    assert_eq!(rows.len(), 3);
     assert_eq!(rows[0][0], "color depth");
     assert_eq!(rows[0][1], "ansi256 (256 colors)");
     assert_eq!(rows[1][0], "graphics protocol");
     assert_eq!(rows[1][1], "sixel");
+    assert_eq!(rows[2][0], "charset");
+    assert_eq!(rows[2][1], "unicode");
 }
 
 #[test]

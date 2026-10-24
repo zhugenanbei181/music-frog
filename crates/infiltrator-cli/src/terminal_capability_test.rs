@@ -151,6 +151,7 @@ fn negotiation_is_a_pure_function_of_the_reported_signals() {
         TerminalCapabilities {
             color_depth: ColorDepth::TrueColor,
             graphics_protocol: GraphicsProtocol::Sixel,
+            charset: crate::charset::CharsetProfile::Unicode,
         }
     );
 }

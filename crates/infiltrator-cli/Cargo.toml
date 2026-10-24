@@ -14,6 +14,8 @@ lurker-core-ports = { path = "../lurker-core-ports" }
 lurker-core-contract = { path = "../lurker-core-contract" }
 anyhow = { workspace = true }
 clap = { workspace = true }
+infiltrator-shared = { path = "../infiltrator-shared" }
+toml = { workspace = true }
 futures-util = { workspace = true }
 infiltrator-application = { path = "../infiltrator-application" }
 infiltrator-composition = { path = "../infiltrator-composition" }

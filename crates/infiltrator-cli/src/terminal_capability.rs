@@ -74,6 +74,8 @@ pub(crate) struct TerminalCapabilities {
     pub(crate) color_depth: ColorDepth,
     /// 可用的图形协议。
     pub(crate) graphics_protocol: GraphicsProtocol,
+    /// 输出字符集档案（EFFECTS-043 #174~#175）。
+    pub(crate) charset: crate::charset::CharsetProfile,
 }
 
 /// 终端自报的环境信号快照。
@@ -97,6 +99,8 @@ pub(crate) struct TerminalEnvironment {
     pub(crate) no_color: Option<String>,
     /// `FORCE_COLOR`：强制彩色输出的档位。
     pub(crate) force_color: Option<String>,
+    /// `INFILTRATOR_UNICODE`：字符集档案的显式覆盖（`simple`/`full`）。
+    pub(crate) unicode_override: Option<String>,
 }
 
 impl TerminalEnvironment {
@@ -111,6 +115,7 @@ impl TerminalEnvironment {
             wt_session: env::var("WT_SESSION").ok(),
             no_color: env::var("NO_COLOR").ok(),
             force_color: env::var("FORCE_COLOR").ok(),
+            unicode_override: env::var("INFILTRATOR_UNICODE").ok(),
         }
     }
 }
@@ -120,6 +125,7 @@ pub(crate) fn negotiate(environment: &TerminalEnvironment) -> TerminalCapabiliti
     TerminalCapabilities {
         color_depth: negotiate_color_depth(environment),
         graphics_protocol: negotiate_graphics_protocol(environment),
+        charset: crate::charset::negotiate_charset(environment),
     }
 }
 

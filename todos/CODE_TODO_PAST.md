@@ -647,3 +647,26 @@
   - 验收：桌面运行确认 Skia GPU 渲染器加载，帧率稳定在 60~120fps，CPU 占用降至个位数。
   - 计划：更新 Cargo.toml 配置桌面 target 的 renderer-skia 特性，配置 Winit 后端。
   - 备注：与 `EFFECTS-036`（#146~#149）同一交付，同一代码路径，见上条备注；两条看板 ID 各自记账、事实同一份。待验证同上。
+
+### 12.2 CLI 终端输出表现力（2026-10-24 交付，3条 / 8pt）
+
+- [ ] EFFECTS-043 [kind: tui] [priority: P1] [points: 3] [owner: infiltrator-cli] [status: Integrated] CLI 输出的 Unicode 字符集与纯 ASCII 降级（#174~#175）
+  - 产物：实现 #174 CLI 表格与分区输出的 Unicode 圆角/双线字符边框（╭ ╮ ╯ ╰）、#175 unicode = simple 纯 ASCII 简易字符安全回退模式，回退与否由终端能力协商结果决定。
+  - 依赖：EFFECTS-042。
+  - 验收：现代终端呈现圆角线框，老旧或受限终端自动回退纯 ASCII 结构。
+  - 计划：在 infiltrator-cli 内实现字符集选择与输出渲染。
+  - 备注：2026-10-24 交付——新模块 `charset`（`CharsetProfile` 协商：显式 `INFILTRATOR_UNICODE=simple|full` 覆盖 → `TERM=dumb/linux/cons25/vt100` 受限名单 → Unicode；`FrameGlyphs` 两套同构字形），`TerminalCapabilities` 增 `charset` 轴并进协商报告第三行；`output::print_table` 重绘为完整圆角线框（╭─┬╮ … ╰─┴╯ / `+---+`），宽度改按共享字符宽度表的显示列计算。伴生 `charset_test` 四用例。
+
+- [ ] EFFECTS-044 [kind: tui] [priority: P1] [points: 3] [owner: infiltrator-cli] [status: Integrated] 终端字符动效与字符图表（#176~#180）
+  - 产物：实现 #176 CLI 输出的轻量状态转场动效（就地刷新、结束后立即停止）、#177 动效范围严格局限与即停机制、#178 终端图片的字符艺术回退、#179 Halfblock 字符艺术回退、#180 Braille 盲文高密度流量波形图。
+  - 依赖：EFFECTS-042。
+  - 验收：状态变更带轻量字符扫光动效，动效完成立即停止 tick，图表波形精细。
+  - 计划：在 infiltrator-cli 内实现终端动效与字符图表，不引入外部动效或图片库。
+  - 备注：2026-10-24 交付——新模块 `char_fx`：盲文波形（2×4 点阵位序量化，`braille_waveform`）、半块回退（`halfblock_rows`，上像素前景/下像素背景，颜色经 `color_quantize` 按档位量化，16 色档走 30..37/90..97 与 40..47/100..107 双段）、转场动效（`ProgressAnimation::for_progress` 进度区专用构造 + `frame_at` 超时返回 `None` 的结束即停 tick 契约）；`output::progress_frame_line` 提供 `\r` 就地刷新行构造。伴生 `char_fx_test` 三用例。长轮询 handler 的动效接线为渐进采用点。
+
+- [ ] EFFECTS-045 [kind: tui] [priority: P1] [points: 2] [owner: infiltrator-cli] [status: Integrated] 终端输出守卫、字符对齐校准与配置覆盖（#181~#185）
+  - 产物：实现 #181 终端输出状态守卫（颜色/光标/回显在正常结束、提前返回与 panic 时必定恢复）、#182 输出分区与居中的降级策略、#183 CJK 宽字符与 Emoji 对齐校准、#184 panic 钩子里的终端恢复、#185 终端输出配置覆盖（infiltrator-terminal.toml）。
+  - 依赖：EFFECTS-042。
+  - 验收：中英文字符对齐无跳行，程序即使崩溃也能 100% 恢复光标与终端回显。
+  - 计划：在 infiltrator-cli 内实现 terminal_guard 与字符宽度校准。
+  - 备注：2026-10-24 交付——新模块 `terminal_guard`：`TerminalGuard::install` 链式 panic 钩子（先复位再调原钩子）+ Drop 复位覆盖正常/提前返回/panic 三条路径（复位序列 = 属性 + 光标 + 自动折行；termios 回显位未由本 CLI 关闭故无需恢复）；显示宽度按共享字符宽度表（EFFECTS-005 #21）全角 2/半角 1/零宽 0；`center_or_left` 居中降级策略 + `output::print_section` 消费；`infiltrator-terminal.toml` 三键覆盖（unicode/animation/color，自当前目录向上四级查找，坏文件按空处理）经 `toml` workspace 依赖解析。伴生 `terminal_guard_test` 五用例。待验证：统一 cargo 批次（新依赖 toml 与 infiltrator-shared 的锁文件解析、编译与测试）。

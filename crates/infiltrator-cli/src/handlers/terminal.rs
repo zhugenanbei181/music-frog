@@ -42,6 +42,8 @@ struct CapabilityReport {
     color_palette_size: u32,
     /// 图形协议标识。
     graphics_protocol: &'static str,
+    /// 输出字符集档案标识（EFFECTS-043）。
+    charset: &'static str,
 }
 
 impl CapabilityReport {
@@ -50,6 +52,7 @@ impl CapabilityReport {
             color_depth: capabilities.color_depth.label(),
             color_palette_size: capabilities.color_depth.palette_size(),
             graphics_protocol: capabilities.graphics_protocol.label(),
+            charset: capabilities.charset.label(),
         }
     }
 }
@@ -67,6 +70,10 @@ fn capability_rows(report: &CapabilityReport) -> Vec<Vec<String>> {
         vec![
             "graphics protocol".to_string(),
             report.graphics_protocol.to_string(),
+        ],
+        vec![
+            "charset".to_string(),
+            report.charset.to_string(),
         ],
     ]
 }
