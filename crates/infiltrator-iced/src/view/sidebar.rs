@@ -57,10 +57,30 @@ pub fn sidebar(state: &AppState) -> Element<'_, Message> {
 
 /// Sidebar content column (header, routing control, toggles, nav shortcuts).
 /// Padding is owned by the surrounding container so rail/standard/wide share it.
+/// Primary navigation rows (#132): the five destinations every tier mounts,
+/// as one ordered table — the same architecture as the Bevy rail — so the
+/// vertical sidebar and the compact bottom bar can never drift apart.
+pub const NAV_PRIMARY: [(Route, &'static str, Icon); 5] = [
+    (Route::Overview, "nav_overview", Icon::LayoutGrid),
+    (Route::Proxies, "nav_proxies", Icon::Globe),
+    (Route::Rules, "nav_rules", Icon::Shield),
+    (Route::Runtime, "nav_runtime", Icon::Activity),
+    (Route::Settings, "nav_settings", Icon::Settings),
+];
+
+/// Secondary destinations the vertical sidebar keeps below the divider; the
+/// compact bottom bar has no room for them.
+pub const NAV_SECONDARY: [(Route, &'static str, Icon); 3] = [
+    (Route::AppRouting, "nav_app_routing", Icon::Network),
+    (Route::Doctor, "nav_doctor", Icon::ListChecks),
+    (Route::Sync, "nav_sync", Icon::RefreshCw),
+];
+
 fn sidebar_inner(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
-
-    column![
+    // #132: the nav rows below come from NAV_PRIMARY/NAV_SECONDARY, so this
+    // column stops at the divider.
+    let mut sidebar_column = column![
         header(state),
         routing_intent_control(state, &lang),
         toggles(state, &lang),
@@ -68,55 +88,36 @@ fn sidebar_inner(state: &AppState) -> Element<'_, Message> {
         shortcut_matrix(state, &lang),
         speed_footer(state, &lang),
         divider(),
-        nav_button(
-            lang.tr("nav_overview").into_owned(),
-            Route::Overview,
-            &state.shell.current_route,
-        ),
-        nav_button(
-            lang.tr("nav_app_routing").into_owned(),
-            Route::AppRouting,
-            &state.shell.current_route,
-        ),
-        nav_button(
-            lang.tr("nav_doctor").into_owned(),
-            Route::Doctor,
-            &state.shell.current_route,
-        ),
-        nav_button(
-            lang.tr("nav_sync").into_owned(),
-            Route::Sync,
-            &state.shell.current_route,
-        ),
-        nav_button(
-            lang.tr("nav_settings").into_owned(),
-            Route::Settings,
-            &state.shell.current_route,
-        ),
-        Space::new().height(Length::Fill),
     ]
     .spacing(theme::SP_SM)
-    .width(Length::Fill)
-    .into()
+    .width(Length::Fill);
+    // #132: every nav row comes from the single tables — primary first,
+    // secondary below — the same architecture the Bevy rail mounts.
+    for (route, key, _) in NAV_PRIMARY.iter().chain(NAV_SECONDARY.iter()) {
+        sidebar_column = sidebar_column.push(nav_button(
+            lang.tr(key).into_owned(),
+            *route,
+            &state.shell.current_route,
+        ));
+    }
+    sidebar_column
+        .push(Space::new().height(Length::Fill))
+        .into()
 }
 
 /// Compact bottom navigation bar for the `< 600px` tier: a horizontal strip of
 /// icon + label entries replacing the vertical sidebar entirely.
 fn sidebar_bottom_nav(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
-    let routes = [
-        (Route::Overview, "nav_overview", Icon::LayoutGrid),
-        (Route::Proxies, "nav_proxies", Icon::Globe),
-        (Route::Rules, "nav_rules", Icon::Shield),
-        (Route::Runtime, "nav_runtime", Icon::Activity),
-        (Route::Settings, "nav_settings", Icon::Settings),
-    ];
+    // #132: the compact bar mounts the same primary rows as the vertical
+    // sidebar — one table, two morphologies.
+    let routes = NAV_PRIMARY;
 
     let mut bar = row![]
         .spacing(theme::SP_XS)
         .padding([theme::SP_XS, theme::SP_SM]);
-    for (route, key, icon) in routes {
-        let is_active = route == state.shell.current_route;
+    for (route, key, icon) in routes.iter() {
+        let is_active = *route == state.shell.current_route;
         let glyph = icon_themed(icon, 18.0, move |t: &Theme| {
             if is_active {
                 theme::tokens(t).accent
@@ -132,7 +133,7 @@ fn sidebar_bottom_nav(state: &AppState) -> Element<'_, Message> {
             )
             .width(Length::Fill)
             .padding(6)
-            .on_press(Message::Navigate(route))
+            .on_press(Message::Navigate(*route))
             .style(move |t: &Theme, status| {
                 let tk = theme::tokens(t);
                 button::Style {

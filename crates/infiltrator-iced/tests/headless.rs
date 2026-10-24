@@ -29,6 +29,9 @@ mod spline_tests;
 #[path = "headless/flow_shader_tests.rs"]
 mod flow_shader_tests;
 
+#[path = "headless/sidebar_nav_tests.rs"]
+mod sidebar_nav_tests;
+
 #[path = "headless/i18n_parity_tests.rs"]
 mod i18n_parity_tests;
 

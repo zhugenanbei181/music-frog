@@ -759,3 +759,12 @@
   - 计划：实现 view/shader/primitive.rs。
   - 备注：2026-10-24 交付——新模块 `view/shader.rs`：#128 `FlowProgram`（`widget::shader::Program`，State=()）+ `FlowMaterial`（`Primitive` trait：prepare 只写 uniform、draw 在 iced 给定 viewport/scissor 的 pass 内 set_pipeline/bind_group/draw 0..6）+ WGSL 对角光带材质（`vs_main` 全屏六顶点 + `fs_main` smoothstep 光带，`pub FLOW_WGSL` 供源码卫生测试）；#129 `FlowPipeline`（shader module + bind group layout + pipeline + 32B uniform，`Pipeline::new` 由 iced wgpu `Storage` 对每 Primitive 类型**恰好调用一次**——registry 源核实 primitive.rs BlackBox::prepare 的 has/store 门，即预编译缓存的本体）；#130 `FlowFallback` canvas 矢量孪生（同 tint/alpha 的三条对角带，`flow_fallback` 元素化）；#131 typed `GpuSurfaceKind{Shader,Vector}` + `flow_surface` 开关，wgpu 起栈失败时 iced 组合器运行时落 tiny-skia 的行为为实机腿。**版本事实**：iced_wgpu 0.14 依赖 wgpu 27.0（Cargo.toml 实测）= 仓内 wgpu 27 同版无冲突，`iced::wgpu` 门面再导出（iced lib.rs:515）；wgpu 27 描述符字段（RenderPipelineDescriptor 九字段、VertexState.entry_point: Option<&str>、create_shader_module(ShaderModuleDescriptor)）逐项 registry 核实，非热写。**边界**：流光面尚未接入具体页面（接线为消费侧切片）；uniform 打包用手写 LE 字节（32B 与 WGSL 布局对齐，无 bymemuck 依赖）。测试：headless `flow_shader_tests` 五用例（32 字节 LE 打包逐字、WGSL 双入口与单绑定卫生、类型开关两分支无 GPU 构树、零 alpha 不可见、size 字）。待验证：统一 cargo 批次（编译 + nextest）；wgpu 实机流光与 tiny-skia 回退像素回执随 PARITY 批次。
 
+### 12.12 Iced 侧栏导航单一真源（2026-10-24 交付，1条 / 3pt）
+
+- [ ] EFFECTS-034 [kind: iced] [priority: P1] [points: 3] [owner: infiltrator-iced] [status: Integrated] 侧边栏与代理页面卡片网格对齐重构（#132~#136）
+  - 产物：实现 #132 侧边栏导航架构与 Bevy 完全对齐、#133 路由模式文字拥挤调整、#134 Toggle 比例微调、#135 节点多列网格视图模式、#136 测速波浪细线呼吸。
+  - 依赖：EFFECTS-030。
+  - 验收：Iced 与 Bevy 导航项一致，节点支持整行与网格双重视图切换。
+  - 计划：重构 view/sidebar.rs 与 view/proxies.rs。
+  - 备注：2026-10-24 交付——**#132 本批**：`view/sidebar.rs` 导航单一真源 `NAV_PRIMARY`（五主目的地：Overview/Proxies/Rules/Runtime/Settings，与 Bevy rail 同构：Route+copy key+Icon 有序表）+ `NAV_SECONDARY`（竖侧栏专属三行 AppRouting/Doctor/Sync，紧凑底栏无位不挂）；竖侧栏行循环与紧凑底栏循环全部改为读表，两份手写五元列表（原本互不一致：竖栏无 Proxies/Rules/Runtime、底栏无 AppRouting/Doctor/Sync）清零，两形态不可能再漂移；图标用既有 Icon 变体（Network/ListChecks/RefreshCw）。**#135 记录找回**：`proxies.rs` 已有 typed `OutboundLayout`（`state.runtime.proxies_model.layout()`）整行/网格双视图切换（`node_compact_list`/`node_grid`），验收句「节点支持整行与网格双重视图切换」在树。**#133/#134/#136 视觉腿在案待像素批**：路由分段控件字号、Toggle 比例常量、测速 footer 波形呼吸动画参数——均为常量级调整，须与 PARITY 像素回执同批定值，本批不盲调。测试：headless `sidebar_nav_tests` 三用例（主行唯一且 Overview 首/Settings 尾、副行与主行不相交且自身唯一、copy key 全部落在 nav_ 共享词汇）。待验证：统一 cargo 批次（编译 + nextest）；双形态导航与网格切换像素回执随 PARITY 批次。
+
