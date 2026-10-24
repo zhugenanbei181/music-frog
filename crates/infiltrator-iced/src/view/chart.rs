@@ -7,6 +7,8 @@
 //! immediately every frame (#125). The layer split is structural: the
 //! crosshair simply has no cache to hold.
 
+use crate::view::chart::spline::{CubicSegment, pulse_positions};
+
 use iced::widget::canvas::Cache;
 use std::cell::RefCell;
 
@@ -87,3 +89,6 @@ impl ChartLayers {
         &self.data
     }
 }
+
+/// Cubic spline and flow-pulse math (#126-#127).
+pub mod spline;

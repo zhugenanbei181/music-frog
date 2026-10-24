@@ -741,3 +741,12 @@
   - 计划：重构 view/overview/chart.rs。
   - 备注：2026-10-24 交付——新模块 `view/chart.rs`（三层架构）：#122 typed 分层（背景/数据几何两缓存 + 十字星**结构性无缓存**——#125 靠「没有可缓存的字段」保证而非约定）；#123 `BackgroundFacts{width,height,skin}` 事实比较（含皮肤身份，主题切换必重绘缓存色）；#124 `DataFacts{width,height,skin,samples,head}`（窗口滑动改 head、采样落地改 samples，均为增量失效事实）+ `needs_rebuild` 纯函数 + `ChartLayers`（`Program::State: Default+'static` 约束下用 RefCell 记账，`Cache::clear` 本身内可变，registry 源核实 iced_graphics geometry/cache.rs）。主消费者 `waveform.rs` `TrafficChart` 迁移：`State=ChartLayers`，网格进背景缓存、双曲线面积填充+发光描边进数据缓存、既有十字星+HUD tooltip（UI-04-04）改为每帧即时 overlay（返回 `[grid, data, overlay]` 三层）。**边界**：`runtime/traffic.rs` 大图表与 Mini 波形条仍为单层路径，迁移为后续切片（模式已在案）；仓内其零 cargo 验证由统一批次承担。测试：headless `chart_layers_tests` 五用例（首建必重建、同事实不重建、尺寸/皮肤变化重建背景、窗口头滑动与长度变化重建数据几何、ChartLayers 双同步幂等）。
 
+### 12.10 Iced 贝塞尔曲线与水流脉冲（2026-10-24 交付，1条 / 3pt）
+
+- [ ] EFFECTS-032 [kind: iced] [priority: P1] [points: 3] [owner: infiltrator-iced] [status: Integrated] 贝塞尔平滑吞吐曲线与拓扑流动水流自绘（#126~#127）
+  - 产物：实现 #126 Canvas 贝塞尔平滑流量曲线与渐变阴影填充、#127 代理节点连线与活跃水流脉冲粒子自绘。
+  - 依赖：EFFECTS-031。
+  - 验收：实时吞吐平滑流动，连线光点根据流量速率动态调节流动频率。
+  - 计划：实现 view/chart/spline.rs。
+  - 备注：2026-10-24 交付——**#126 本批**：新模块 `view/chart/spline.rs`：`CubicSegment` + `catmull_rom_segments(points, tension)`（样条严格穿过每个采样点，tension 0..=1 收放切向手柄；两端用饱和邻居处理边界）+ `pulse_positions(phase, count)`；`waveform.rs` `TrafficChart` 双曲线由 line_to 折线改为 Catmull-Rom→`bezier_curve_to` 三次贝塞尔（EFFECTS-031 数据缓存层内），面积填充由单色 0.12/0.08 换为竖向 `Gradient::Linear` 双 stop 渐变（下载 0.22→0.02 accent、上传 0.16→0.01 success，`Fill: From<Gradient>` registry 源核实）。**#127 记录找回**：`view/topology.rs` 早已自绘活跃链路脉冲粒子（相位 0.19/链路偏移、halo+核心双圆、`update/ui.rs` 以 `flow_speed_hz()` 按流量速率推进 `topology_flow_phase`），本批把硬编码 `[0.0, 0.52]` 偏移环改为共享 `pulse_positions(phase, 2)`——视觉等价、数学单一真源。测试：headless `spline_tests` 五用例（样条穿过每采样、退化输入零/一段、零张力手柄落锚点、单调 x 手柄不越段、脉冲均匀偏移且相位回卷）。待验证：统一 cargo 批次（编译 + nextest）；曲线/脉冲实机像素回执随 PARITY 批次。
+

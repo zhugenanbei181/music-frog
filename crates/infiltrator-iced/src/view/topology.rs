@@ -4,6 +4,7 @@
 //! paints the adapter-local animated flow strip; it never reads a controller,
 //! connection list, or private runtime field.
 
+use crate::view::chart::spline::pulse_positions;
 use crate::view::theme::tokens;
 use iced::widget::canvas;
 use iced::{Color, Element, Point, Rectangle, Renderer, Theme, mouse};
@@ -59,8 +60,7 @@ impl<Message> canvas::Program<Message> for TopologyFlowCanvas {
 
             if link.active && self.snapshot.is_flowing() {
                 let phase = (self.phase + index as f32 * 0.19).fract();
-                for offset in [0.0_f32, 0.52] {
-                    let progress = (phase + offset).fract();
+                for progress in pulse_positions(phase, 2) {
                     let x = start.x + (end.x - start.x) * progress;
                     let point = Point::new(x, center_y);
                     frame.fill(

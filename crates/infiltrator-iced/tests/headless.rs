@@ -23,6 +23,9 @@ mod theme_wash_tests;
 #[path = "headless/chart_layers_tests.rs"]
 mod chart_layers_tests;
 
+#[path = "headless/spline_tests.rs"]
+mod spline_tests;
+
 #[path = "headless/i18n_parity_tests.rs"]
 mod i18n_parity_tests;
 
