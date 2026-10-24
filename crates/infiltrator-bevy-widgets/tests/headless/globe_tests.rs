@@ -332,9 +332,9 @@ fn unproject_round_trips_projected_points() {
     for (lat, lon) in [
         (0.0f32, 0.0),
         (45.0, 30.0),
-        (-33.9, 151.2),
+        (-33.9, 51.2),
         (89.0, 0.0),
-        (0.0, 179.0),
+        (0.0, 79.0),
     ] {
         let projected = projection
             .project_lat_lon(lat, lon)

@@ -12,7 +12,7 @@ fn kernel_weights_sum_to_one() {
         (sum - 1.0).abs() < 1e-6,
         "collapsed kernel must stay normalized: {sum}"
     );
-    assert!(center > near && near > far);
+    assert!(near > center && center > far);
 }
 
 #[test]

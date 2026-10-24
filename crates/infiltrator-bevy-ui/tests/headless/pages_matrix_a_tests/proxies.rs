@@ -725,7 +725,11 @@ fn test_proxies_sort_pills_submit_commands() {
     let pill_entity = {
         let world = app.world_mut();
         let mut query = world.query::<(Entity, &ProxySortPill)>();
-        query.iter(world).next().expect("sort pill").0
+        query
+            .iter(world)
+            .find(|(_, pill)| pill.0 == ProxySortMode::LatencyAsc)
+            .expect("latency ascending sort pill")
+            .0
     };
 
     app.world_mut().commands().trigger(Activate {

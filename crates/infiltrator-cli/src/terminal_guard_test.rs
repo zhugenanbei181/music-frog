@@ -8,7 +8,7 @@ fn display_width_counts_fullwidth_as_two_columns() {
     // 半角 1 列、全角（CJK 与全角标点）2 列、零宽（组合符）0 列。
     assert_eq!(display_width("abc"), 3);
     assert_eq!(display_width("连接数"), 6);
-    assert_eq!(display_width("a，b"), 5);
+    assert_eq!(display_width("a，b"), 4);
     assert_eq!(display_width("e\u{301}cole"), 5);
 }
 

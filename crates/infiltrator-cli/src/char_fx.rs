@@ -17,7 +17,8 @@ const BRAILLE_ROWS: usize = 4;
 /// 值量化到 0..4 的点高度，左列点占低 8 位、右列点占高 8 位（Unicode 盲文
 /// 的位序）。采样不足两列时静默输出空串。
 pub(crate) fn braille_waveform(samples: &[f32]) -> String {
-    const DOT: [u32; 4] = [0x01, 0x02, 0x04, 0x08];
+    const LEFT_DOTS: [u32; 4] = [0x01, 0x02, 0x04, 0x40];
+    const RIGHT_DOTS: [u32; 4] = [0x08, 0x10, 0x20, 0x80];
     let mut out = String::with_capacity(samples.len() / 2 + 1);
     let pair = samples.chunks(2);
     for chunk in pair {
@@ -25,8 +26,9 @@ pub(crate) fn braille_waveform(samples: &[f32]) -> String {
         for (column, sample) in chunk.iter().enumerate() {
             let clamped = sample.clamp(0.0, 1.0);
             let height = (clamped * BRAILLE_ROWS as f32).ceil() as usize;
+            let dots = if column == 0 { &LEFT_DOTS } else { &RIGHT_DOTS };
             for level in 0..height.min(BRAILLE_ROWS) {
-                codepoint |= DOT[level] << (column * 8);
+                codepoint |= dots[level];
             }
         }
         out.push(char::from_u32(codepoint).expect("盲文码位恒有效"));

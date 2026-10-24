@@ -66,21 +66,21 @@ fn a_healthy_streak_resets_the_counter() {
 #[test]
 fn the_texture_ledger_allows_within_and_denies_beyond_the_tier_budget() {
     let mut ledger = TextureBudgetLedger::new(VisualTier::Simplified);
-    assert_eq!(ledger.budget_bytes(), 64 * 1024 * 1024);
-    assert_eq!(ledger.request(32 * 1024 * 1024), BudgetDecision::Allow);
-    assert_eq!(ledger.resident_bytes(), 32 * 1024 * 1024);
+    assert_eq!(ledger.budget_bytes(), 32 * 1024 * 1024);
+    assert_eq!(ledger.request(16 * 1024 * 1024), BudgetDecision::Allow);
+    assert_eq!(ledger.resident_bytes(), 16 * 1024 * 1024);
     // 第二笔同样大小超预算：typed 拒绝且不记账。
     assert_eq!(
-        ledger.request(32 * 1024 * 1024 + 1),
+        ledger.request(16 * 1024 * 1024 + 1),
         BudgetDecision::Deny {
-            resident_bytes: 32 * 1024 * 1024,
-            budget_bytes: 64 * 1024 * 1024,
+            resident_bytes: 16 * 1024 * 1024,
+            budget_bytes: 32 * 1024 * 1024,
         }
     );
-    assert_eq!(ledger.resident_bytes(), 32 * 1024 * 1024);
+    assert_eq!(ledger.resident_bytes(), 16 * 1024 * 1024);
     // 释放后同额申请重新放行。
-    ledger.release(32 * 1024 * 1024);
-    assert_eq!(ledger.request(64 * 1024 * 1024), BudgetDecision::Allow);
+    ledger.release(16 * 1024 * 1024);
+    assert_eq!(ledger.request(32 * 1024 * 1024), BudgetDecision::Allow);
 }
 
 #[test]
@@ -89,15 +89,15 @@ fn the_ledger_rebudgets_when_the_tier_changes() {
     assert_eq!(ledger.request(200 * 1024 * 1024), BudgetDecision::Allow);
     // 降到 Simplified：常驻量保留，预算按新档位取，追加被拒。
     ledger.retier(VisualTier::Simplified);
-    assert_eq!(ledger.budget_bytes(), 64 * 1024 * 1024);
+    assert_eq!(ledger.budget_bytes(), 32 * 1024 * 1024);
     assert_eq!(
         ledger.request(1),
         BudgetDecision::Deny {
             resident_bytes: 200 * 1024 * 1024,
-            budget_bytes: 64 * 1024 * 1024,
+            budget_bytes: 32 * 1024 * 1024,
         }
     );
     // 释放到预算内后恢复放行。
-    ledger.release(150 * 1024 * 1024);
+    ledger.release(170 * 1024 * 1024);
     assert_eq!(ledger.request(1), BudgetDecision::Allow);
 }

@@ -26,6 +26,13 @@ pub fn catmull_rom_segments(points: &[Point], tension: f32) -> Vec<CubicSegment>
     if points.len() < 2 {
         return segments;
     }
+    if points.len() == 2 {
+        return vec![CubicSegment {
+            control_a: points[0],
+            control_b: points[1],
+            to: points[1],
+        }];
+    }
     let tension = tension.clamp(0.0, 1.0) / 6.0;
     for index in 0..points.len() - 1 {
         let p0 = points[index.saturating_sub(1)];
