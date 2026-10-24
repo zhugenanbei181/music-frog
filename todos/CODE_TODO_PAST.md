@@ -723,3 +723,12 @@
   - 计划：在 infiltrator-iced 建立 animation 协调器。
   - 备注：2026-10-24 交付——新模块 `infiltrator-iced` `animation.rs`：`Presence`（官方 `iced::Animation<bool>` 驱动 + 由其派生的 value/is_animating/opacity/is_presented 投影，无计时器、无影子业务态）与 `AnimationCoordinator`（route + drawer 两个 presence；`route_changed` 走 snap-hidden→`go_mut(true)` 的官方重定向路径，路由淡入时长维持旧手写 300ms 线性——lilt 默认缓动即 Linear，视觉零变化）。#116：全部动画事实收敛到官方驱动；#117：订阅门 `transition.start_time.is_some()` 换成 `animations.is_animating(now)`，静止 shell 依旧零帧；#118：命令面板抽屉 `is_presented`（value ∨ animating）在退场淡出期间保留渲染，scrim 透明度乘以 `drawer_opacity`（view_root 渲染门与 command_palette 遮罩同步换腿）。同批清退旧隐式状态机：`types::app::Transition`（previous_route+start_time 双 Option 阶段表，且 previous_route 从未被读）整型删除，三处 Navigate 写点、TickFrame 手工清理块、view_root 手写进度式全部迁到协调器，仓内 `.transition` 引用清零。API 全按 registry 源核实（iced_core-0.14.0/src/animation.rs 全文 + lilt-0.8.2 Easing 默认 Linear）。测试：headless `animation_coordinator_tests` 四用例（淡入全程 0/0.5/1、静止零帧、关闭退场 200ms 保留与 midpoint 透明度、value 跟随业务目标）。待验证：统一 cargo 批次（编译 + nextest）；抽屉淡入淡出的实机像素回执随 PARITY 批次。
 
+### 12.8 Iced 语义 Token 与渐变投影（2026-10-24 交付，1条 / 3pt）
+
+- [ ] EFFECTS-030 [kind: iced] [priority: P1] [points: 3] [owner: infiltrator-iced] [status: Integrated] container::Style 语义映射与多色标线性渐变（#119~#121）
+  - 产物：实现 #119 container::Style 映射语义 Token Catalog、#120 最多 8 色标线性渐变应用、#121 Shadow 分阶投影。
+  - 依赖：EFFECTS-001。
+  - 验收：控件外观由主题驱动，按钮与顶栏呈现柔和渐变与高光边框。
+  - 计划：重构 infiltrator-iced::style。
+  - 备注：2026-10-24 交付——`view/theme` 拆分为 theme.rs（类型/分级/选择器）+ `theme/skins.rs`（四皮肤常量，行预算门 800 适配）：#119 `Tokens` 目录新增 `hero_wash`/`control_wash`（官方 `Gradient::Linear`，`Linear.stops` 即 8 色标官方上限）与 `highlight_border`（`toward_white` const 混白）；`soft_wash` const 构造器保持双 stop（0.0/1.0 单调），wgpu 与 tiny-skia 两后端合成一致（registry 源核实 iced_tiny_skia engine.rs 线性渐变腿）。#120 应用位：chrome 顶栏背景 `sidebar→canvas` 双 stop 竖向 hero_wash + 底部 hairline 换 highlight_border；侧栏活动行按钮背景换 control_wash（accent_soft 单色退役）+ 活动态高光 hairline。#121 typed `Elevation{Card,Lifted,Floating}` 阶梯 + `Tokens::elevation_shadow` 单一权威，四个双层阴影面（card/floating ambient+key）全部改为按阶取影；既有单层 hover_lift 保留单层物理不动。皮肤常量消费者（components WEB_ACCENT/WEB_SUCCESS、gui multimodal 四臂、headless 新测试）全部迁 `theme::skins` 路径，仓内 `theme::LIGHT` 旧路径清零。测试：headless `theme_wash_tests` 四用例（四皮肤双 wash 恒两 stop 且偏移单调在 8 上限内、hero 顶 stop 钉在 sidebar 色、升降阶梯 Card≠Floating 且 Lifted=Floating、高光边框严格亮于卡片 hairline）。待验证：统一 cargo 批次（编译 + nextest）；渐变/高光实机像素回执随 PARITY 批次。
+

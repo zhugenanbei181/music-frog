@@ -11,6 +11,7 @@ use crate::types::message::Message;
 use crate::view::chrome::strip_height_px;
 use crate::view::mini_hud::mini_hud_view;
 use crate::view::theme::type_scale::{BODY, CAPTION, DISPLAY, HEADING, MONO, TAG, TITLE};
+use crate::view::theme::skins::{AMOLED, DARK, FOREST, LIGHT};
 use crate::view::theme::{is_amoled, is_forest};
 use crate::window_chrome::{support, window_settings};
 use iced::window::Id;
@@ -448,10 +449,10 @@ fn the_iced_tokens_resolve_the_shared_design_contract() {
     use infiltrator_contract::theme::ThemeSkin;
 
     let tokens_for = |skin: ThemeSkin| match skin {
-        ThemeSkin::Dark => &theme::DARK,
-        ThemeSkin::Light => &theme::LIGHT,
-        ThemeSkin::Forest => &theme::FOREST,
-        ThemeSkin::Amoled => &theme::AMOLED,
+        ThemeSkin::Dark => &DARK,
+        ThemeSkin::Light => &LIGHT,
+        ThemeSkin::Forest => &FOREST,
+        ThemeSkin::Amoled => &AMOLED,
     };
     let assert_color = |color: iced::Color, token: RgbaToken, field: &str| {
         assert_eq!(

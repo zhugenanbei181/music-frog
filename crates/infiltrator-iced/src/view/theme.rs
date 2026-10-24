@@ -20,31 +20,10 @@
 use iced::font::{Family, Weight};
 use iced::theme::Palette;
 use iced::{Color, Shadow, Theme, Vector};
-use infiltrator_contract::design_tokens::{
-    RgbaToken, SkinCorePalette, SkinInteractionPalette, metrics, radius, skin_core,
-    skin_interaction, space,
-};
+
+use infiltrator_contract::design_tokens::{metrics, radius, space};
 use infiltrator_contract::theme::ThemeSkin;
 
-/// Resolve a shared token into an Iced color.
-const fn token_color(token: RgbaToken) -> Color {
-    Color {
-        r: token.r,
-        g: token.g,
-        b: token.b,
-        a: token.a,
-    }
-}
-
-const LIGHT_CORE: SkinCorePalette = skin_core(ThemeSkin::Light);
-const DARK_CORE: SkinCorePalette = skin_core(ThemeSkin::Dark);
-const FOREST_CORE: SkinCorePalette = skin_core(ThemeSkin::Forest);
-const AMOLED_CORE: SkinCorePalette = skin_core(ThemeSkin::Amoled);
-
-const LIGHT_INTERACTION: SkinInteractionPalette = skin_interaction(ThemeSkin::Light);
-const DARK_INTERACTION: SkinInteractionPalette = skin_interaction(ThemeSkin::Dark);
-const FOREST_INTERACTION: SkinInteractionPalette = skin_interaction(ThemeSkin::Forest);
-const AMOLED_INTERACTION: SkinInteractionPalette = skin_interaction(ThemeSkin::Amoled);
 
 /// Spacing scale (logical pixels), from the shared contract ladder. Use these
 /// instead of raw numbers so rhythm stays consistent across pages.
@@ -104,6 +83,9 @@ pub const FONT_MEDIUM: iced::Font = iced::Font {
     ..iced::Font::DEFAULT
 };
 
+/// The four skin constants, composed from the shared contract palettes.
+pub mod skins;
+
 /// Dual-layer physical shadow: key light (contact crisp shadow) + ambient light (soft diffuse aura).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DualShadow {
@@ -117,6 +99,44 @@ impl DualShadow {
     pub const fn new(key: Shadow, ambient: Shadow) -> Self {
         Self { key, ambient }
     }
+}
+
+
+/// A soft two-stop linear gradient (#120): `top` fading into `bottom` along
+/// `angle`. The official cap is eight stops; themed washes stay at two so
+/// the wgpu and tiny-skia renderers composite them identically.
+const fn soft_wash(angle: Radians, top: Color, bottom: Color) -> Gradient {
+    Gradient::Linear(Linear {
+        angle,
+        stops: [
+            Some(ColorStop {
+                offset: 0.0,
+                color: top,
+            }),
+            Some(ColorStop {
+                offset: 1.0,
+                color: bottom,
+            }),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        ],
+    })
+}
+
+/// The typed elevation ladder (#121): surfaces ask by tier, so the shadow
+/// physics (blur, alpha, offset) has exactly one authority per skin.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Elevation {
+    /// A resting in-flow card.
+    Card,
+    /// A hovered / lifted card: one tier up from [`Elevation::Card`].
+    Lifted,
+    /// A floating popover, menu, or modal dialog.
+    Floating,
 }
 
 /// Semantic color roles for one appearance (light, dark, forest, or amoled).
@@ -138,6 +158,14 @@ pub struct Tokens {
     pub card_dual_shadow: DualShadow,
     /// Dual-layer composite shadow for floating modals & dialogs (Key Light + Ambient Light).
     pub floating_dual_shadow: DualShadow,
+    /// Top-bar / hero wash (#120): a soft two-stop vertical gradient from the
+    /// sidebar tone into the canvas tone.
+    pub hero_wash: Gradient,
+    /// Control wash (#120): a subtle top sheen over the control surface.
+    pub control_wash: Gradient,
+    /// Hairline highlight on gradient surfaces (#119): the card hairline
+    /// blended toward white.
+    pub highlight_border: Color,
     /// Interactive tint of `accent` (e.g. selected nav row, soft badges).
     pub accent: Color,
     pub accent_soft: Color,
@@ -181,441 +209,6 @@ pub struct Tokens {
     pub switch_knob: Color,
 }
 
-/// Soft warm-paper light appearance (anti-glare).
-pub const LIGHT: Tokens = Tokens {
-    canvas: token_color(LIGHT_CORE.canvas),
-    sidebar: token_color(LIGHT_CORE.sidebar),
-    card_bg: token_color(LIGHT_CORE.card),
-    card_border: token_color(LIGHT_CORE.card_border),
-    card_shadow: Shadow {
-        color: Color {
-            a: 0.05,
-            ..Color::from_rgb(0.08, 0.12, 0.10)
-        },
-        offset: Vector::new(0.0, 1.0),
-        blur_radius: 3.0,
-    },
-    floating_shadow: Shadow {
-        color: Color {
-            a: 0.14,
-            ..Color::from_rgb(0.08, 0.12, 0.10)
-        },
-        offset: Vector::new(0.0, 4.0),
-        blur_radius: 12.0,
-    },
-    card_dual_shadow: DualShadow {
-        key: Shadow {
-            color: Color {
-                a: 0.04,
-                ..Color::from_rgb(0.08, 0.12, 0.10)
-            },
-            offset: Vector::new(0.0, 1.0),
-            blur_radius: 2.0,
-        },
-        ambient: Shadow {
-            color: Color {
-                a: 0.03,
-                ..Color::from_rgb(0.08, 0.12, 0.10)
-            },
-            offset: Vector::new(0.0, 3.0),
-            blur_radius: 8.0,
-        },
-    },
-    floating_dual_shadow: DualShadow {
-        key: Shadow {
-            color: Color {
-                a: 0.08,
-                ..Color::from_rgb(0.08, 0.12, 0.10)
-            },
-            offset: Vector::new(0.0, 2.0),
-            blur_radius: 4.0,
-        },
-        ambient: Shadow {
-            color: Color {
-                a: 0.10,
-                ..Color::from_rgb(0.08, 0.12, 0.10)
-            },
-            offset: Vector::new(0.0, 8.0),
-            blur_radius: 20.0,
-        },
-    },
-    accent: token_color(LIGHT_CORE.accent),
-    accent_soft: Color {
-        a: 0.12,
-        ..token_color(LIGHT_CORE.accent)
-    },
-    on_accent: token_color(LIGHT_CORE.on_accent),
-    badge_accent: Color::from_rgb(0.04, 0.44, 0.88),
-    text_primary: token_color(LIGHT_CORE.ink),
-    text_secondary: token_color(LIGHT_CORE.ink_dim),
-    text_tertiary: token_color(LIGHT_INTERACTION.disabled_ink),
-    success: token_color(LIGHT_CORE.success),
-    warning: token_color(LIGHT_CORE.warning),
-    danger: token_color(LIGHT_CORE.danger),
-    chip_bg: Color {
-        a: 0.06,
-        ..Color::BLACK
-    },
-    divider: Color {
-        a: 0.08,
-        ..Color::BLACK
-    },
-    sidebar_text: Color::from_rgb(0.12, 0.15, 0.14),
-    sidebar_text_muted: Color {
-        a: 0.55,
-        ..Color::from_rgb(0.24, 0.28, 0.26)
-    },
-    control_bg: token_color(LIGHT_CORE.control_bg),
-    hover: token_color(LIGHT_INTERACTION.hover),
-    pressed: token_color(LIGHT_INTERACTION.pressed),
-    focus_ring: token_color(LIGHT_INTERACTION.focus_ring),
-    scrim: token_color(LIGHT_INTERACTION.scrim),
-    overlay: Color {
-        a: 0.90,
-        ..Color::BLACK
-    },
-    overlay_text: Color::WHITE,
-    overlay_text_muted: Color {
-        a: 0.75,
-        ..Color::WHITE
-    },
-    overlay_border: Color {
-        a: 0.25,
-        ..Color::WHITE
-    },
-    switch_track: Color {
-        a: 0.32,
-        ..Color::from_rgb(0.47, 0.47, 0.50)
-    },
-    switch_knob: Color::WHITE,
-};
-
-/// Soft dark appearance (deep balanced charcoal).
-pub const DARK: Tokens = Tokens {
-    canvas: token_color(DARK_CORE.canvas),
-    sidebar: token_color(DARK_CORE.sidebar),
-    card_bg: token_color(DARK_CORE.card),
-    card_border: token_color(DARK_CORE.card_border),
-    card_shadow: Shadow {
-        color: Color {
-            a: 0.32,
-            ..Color::BLACK
-        },
-        offset: Vector::new(0.0, 1.0),
-        blur_radius: 4.0,
-    },
-    floating_shadow: Shadow {
-        color: Color {
-            a: 0.55,
-            ..Color::BLACK
-        },
-        offset: Vector::new(0.0, 4.0),
-        blur_radius: 14.0,
-    },
-    card_dual_shadow: DualShadow {
-        key: Shadow {
-            color: Color {
-                a: 0.25,
-                ..Color::BLACK
-            },
-            offset: Vector::new(0.0, 1.0),
-            blur_radius: 2.0,
-        },
-        ambient: Shadow {
-            color: Color {
-                a: 0.15,
-                ..Color::BLACK
-            },
-            offset: Vector::new(0.0, 4.0),
-            blur_radius: 10.0,
-        },
-    },
-    floating_dual_shadow: DualShadow {
-        key: Shadow {
-            color: Color {
-                a: 0.40,
-                ..Color::BLACK
-            },
-            offset: Vector::new(0.0, 3.0),
-            blur_radius: 6.0,
-        },
-        ambient: Shadow {
-            color: Color {
-                a: 0.30,
-                ..Color::BLACK
-            },
-            offset: Vector::new(0.0, 10.0),
-            blur_radius: 24.0,
-        },
-    },
-    accent: token_color(DARK_CORE.accent),
-    accent_soft: Color {
-        a: 0.16,
-        ..token_color(DARK_CORE.accent)
-    },
-    on_accent: token_color(DARK_CORE.on_accent),
-    badge_accent: Color::from_rgb(0.46, 0.72, 1.0), // #76B8FF
-    text_primary: token_color(DARK_CORE.ink),
-    text_secondary: token_color(DARK_CORE.ink_dim),
-    text_tertiary: token_color(DARK_INTERACTION.disabled_ink),
-    success: token_color(DARK_CORE.success),
-    warning: token_color(DARK_CORE.warning),
-    danger: token_color(DARK_CORE.danger),
-    chip_bg: Color {
-        a: 0.10,
-        ..Color::WHITE
-    },
-    divider: Color {
-        a: 0.10,
-        ..Color::WHITE
-    },
-    sidebar_text: Color::WHITE,
-    sidebar_text_muted: Color {
-        a: 0.45,
-        ..Color::WHITE
-    },
-    control_bg: token_color(DARK_CORE.control_bg),
-    hover: token_color(DARK_INTERACTION.hover),
-    pressed: token_color(DARK_INTERACTION.pressed),
-    focus_ring: token_color(DARK_INTERACTION.focus_ring),
-    scrim: token_color(DARK_INTERACTION.scrim),
-    overlay: Color {
-        a: 0.92,
-        ..Color::from_rgb(0.11, 0.11, 0.12)
-    },
-    overlay_text: Color::WHITE,
-    overlay_text_muted: Color {
-        a: 0.75,
-        ..Color::WHITE
-    },
-    overlay_border: Color {
-        a: 0.20,
-        ..Color::WHITE
-    },
-    switch_track: Color {
-        a: 0.32,
-        ..Color::from_rgb(0.47, 0.47, 0.50)
-    },
-    switch_knob: Color::WHITE,
-};
-
-/// Eye-care forest appearance (EyeForest, TaskForest-inspired).
-pub const FOREST: Tokens = Tokens {
-    canvas: token_color(FOREST_CORE.canvas),
-    sidebar: token_color(FOREST_CORE.sidebar),
-    card_bg: token_color(FOREST_CORE.card),
-    card_border: token_color(FOREST_CORE.card_border),
-    card_shadow: Shadow {
-        color: Color {
-            a: 0.06,
-            ..Color::from_rgb(0.12, 0.21, 0.14)
-        },
-        offset: Vector::new(0.0, 1.0),
-        blur_radius: 3.0,
-    },
-    floating_shadow: Shadow {
-        color: Color {
-            a: 0.16,
-            ..Color::from_rgb(0.12, 0.21, 0.14)
-        },
-        offset: Vector::new(0.0, 4.0),
-        blur_radius: 12.0,
-    },
-    card_dual_shadow: DualShadow {
-        key: Shadow {
-            color: Color {
-                a: 0.05,
-                ..Color::from_rgb(0.12, 0.21, 0.14)
-            },
-            offset: Vector::new(0.0, 1.0),
-            blur_radius: 2.0,
-        },
-        ambient: Shadow {
-            color: Color {
-                a: 0.04,
-                ..Color::from_rgb(0.12, 0.21, 0.14)
-            },
-            offset: Vector::new(0.0, 4.0),
-            blur_radius: 8.0,
-        },
-    },
-    floating_dual_shadow: DualShadow {
-        key: Shadow {
-            color: Color {
-                a: 0.10,
-                ..Color::from_rgb(0.12, 0.21, 0.14)
-            },
-            offset: Vector::new(0.0, 2.0),
-            blur_radius: 4.0,
-        },
-        ambient: Shadow {
-            color: Color {
-                a: 0.12,
-                ..Color::from_rgb(0.12, 0.21, 0.14)
-            },
-            offset: Vector::new(0.0, 8.0),
-            blur_radius: 20.0,
-        },
-    },
-    accent: token_color(FOREST_CORE.accent),
-    accent_soft: Color {
-        a: 0.14,
-        ..token_color(FOREST_CORE.accent)
-    },
-    on_accent: token_color(FOREST_CORE.on_accent),
-    badge_accent: Color::from_rgb(0.188, 0.435, 0.306),
-    text_primary: token_color(FOREST_CORE.ink),
-    text_secondary: token_color(FOREST_CORE.ink_dim),
-    text_tertiary: token_color(FOREST_INTERACTION.disabled_ink),
-    success: token_color(FOREST_CORE.success),
-    warning: token_color(FOREST_CORE.warning),
-    danger: token_color(FOREST_CORE.danger),
-    chip_bg: Color {
-        a: 0.12,
-        ..Color::from_rgb(0.341, 0.439, 0.353)
-    },
-    divider: Color {
-        a: 0.16,
-        ..Color::from_rgb(0.341, 0.439, 0.353)
-    },
-    sidebar_text: Color::from_rgb(0.122, 0.208, 0.145),
-    sidebar_text_muted: Color {
-        a: 0.65,
-        ..Color::from_rgb(0.341, 0.439, 0.353)
-    },
-    control_bg: token_color(FOREST_CORE.control_bg),
-    hover: token_color(FOREST_INTERACTION.hover),
-    pressed: token_color(FOREST_INTERACTION.pressed),
-    focus_ring: token_color(FOREST_INTERACTION.focus_ring),
-    scrim: token_color(FOREST_INTERACTION.scrim),
-    overlay: Color {
-        a: 0.94,
-        ..Color::from_rgb(0.122, 0.208, 0.145)
-    },
-    overlay_text: Color::from_rgb(0.973, 0.984, 0.961),
-    overlay_text_muted: Color {
-        a: 0.75,
-        ..Color::from_rgb(0.973, 0.984, 0.961)
-    },
-    overlay_border: Color {
-        a: 0.25,
-        ..Color::from_rgb(0.973, 0.984, 0.961)
-    },
-    switch_track: Color {
-        a: 0.35,
-        ..Color::from_rgb(0.40, 0.48, 0.42)
-    },
-    switch_knob: Color::WHITE,
-};
-
-/// Pure pitch-black appearance optimized for OLED displays and battery savings.
-pub const AMOLED: Tokens = Tokens {
-    canvas: token_color(AMOLED_CORE.canvas),
-    sidebar: token_color(AMOLED_CORE.sidebar),
-    card_bg: token_color(AMOLED_CORE.card),
-    card_border: token_color(AMOLED_CORE.card_border),
-    card_shadow: Shadow {
-        color: Color {
-            a: 0.45,
-            ..Color::BLACK
-        },
-        offset: Vector::new(0.0, 1.0),
-        blur_radius: 4.0,
-    },
-    floating_shadow: Shadow {
-        color: Color {
-            a: 0.75,
-            ..Color::BLACK
-        },
-        offset: Vector::new(0.0, 4.0),
-        blur_radius: 16.0,
-    },
-    card_dual_shadow: DualShadow {
-        key: Shadow {
-            color: Color {
-                a: 0.35,
-                ..Color::BLACK
-            },
-            offset: Vector::new(0.0, 1.0),
-            blur_radius: 2.0,
-        },
-        ambient: Shadow {
-            color: Color {
-                a: 0.25,
-                ..Color::BLACK
-            },
-            offset: Vector::new(0.0, 4.0),
-            blur_radius: 8.0,
-        },
-    },
-    floating_dual_shadow: DualShadow {
-        key: Shadow {
-            color: Color {
-                a: 0.50,
-                ..Color::BLACK
-            },
-            offset: Vector::new(0.0, 2.0),
-            blur_radius: 4.0,
-        },
-        ambient: Shadow {
-            color: Color {
-                a: 0.60,
-                ..Color::BLACK
-            },
-            offset: Vector::new(0.0, 8.0),
-            blur_radius: 24.0,
-        },
-    },
-    accent: token_color(AMOLED_CORE.accent),
-    accent_soft: Color {
-        a: 0.18,
-        ..token_color(AMOLED_CORE.accent)
-    },
-    on_accent: token_color(AMOLED_CORE.on_accent),
-    badge_accent: Color::from_rgb(0.46, 0.72, 1.0), // #76B8FF
-    text_primary: token_color(AMOLED_CORE.ink),
-    text_secondary: token_color(AMOLED_CORE.ink_dim),
-    text_tertiary: token_color(AMOLED_INTERACTION.disabled_ink),
-    success: token_color(AMOLED_CORE.success),
-    warning: token_color(AMOLED_CORE.warning),
-    danger: token_color(AMOLED_CORE.danger),
-    chip_bg: Color {
-        a: 0.12,
-        ..Color::WHITE
-    },
-    divider: Color {
-        a: 0.12,
-        ..Color::WHITE
-    },
-    sidebar_text: Color::from_rgb(0.973, 0.980, 0.988),
-    sidebar_text_muted: Color {
-        a: 0.50,
-        ..Color::WHITE
-    },
-    control_bg: token_color(AMOLED_CORE.control_bg),
-    hover: token_color(AMOLED_INTERACTION.hover),
-    pressed: token_color(AMOLED_INTERACTION.pressed),
-    focus_ring: token_color(AMOLED_INTERACTION.focus_ring),
-    scrim: token_color(AMOLED_INTERACTION.scrim),
-    overlay: Color {
-        a: 0.95,
-        ..Color::from_rgb(0.05, 0.06, 0.07)
-    },
-    overlay_text: Color::from_rgb(0.973, 0.980, 0.988),
-    overlay_text_muted: Color {
-        a: 0.75,
-        ..Color::WHITE
-    },
-    overlay_border: Color {
-        a: 0.22,
-        ..Color::WHITE
-    },
-    switch_track: Color {
-        a: 0.35,
-        ..Color::from_rgb(0.47, 0.47, 0.50)
-    },
-    switch_knob: Color::WHITE,
-};
 
 /// Predefined accent color presets for custom branding and personalization.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -795,12 +388,23 @@ pub fn is_amoled(theme: &Theme) -> bool {
 }
 
 /// Resolve the token set for the active theme.
+impl Tokens {
+    /// The dual-layer shadow of one elevation tier (#121): the single
+    /// authority every dual-layer surface reads its physics from.
+    pub const fn elevation_shadow(&self, tier: Elevation) -> DualShadow {
+        match tier {
+            Elevation::Card => self.card_dual_shadow,
+            Elevation::Lifted | Elevation::Floating => self.floating_dual_shadow,
+        }
+    }
+}
+
 pub fn tokens(theme: &Theme) -> &'static Tokens {
     if is_forest(theme) {
-        return &FOREST;
+        return &skins::FOREST;
     }
     if is_amoled(theme) {
-        return &AMOLED;
+        return &skins::AMOLED;
     }
     match theme {
         Theme::Light
@@ -808,8 +412,8 @@ pub fn tokens(theme: &Theme) -> &'static Tokens {
         | Theme::GruvboxLight
         | Theme::CatppuccinLatte
         | Theme::TokyoNightLight
-        | Theme::KanagawaLotus => &LIGHT,
-        _ => &DARK,
+        | Theme::KanagawaLotus => &skins::LIGHT,
+        _ => &skins::DARK,
     }
 }
 

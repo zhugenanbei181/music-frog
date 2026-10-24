@@ -8,7 +8,7 @@ use crate::types::app::Route;
 use crate::types::message::Message;
 use crate::view::component_card::card;
 use crate::view::svg_icons::Icon;
-use crate::view::theme::Tokens;
+use crate::view::theme::{Elevation, Tokens, skins};
 use crate::view::{svg_icons, theme};
 use canvas::gradient::Linear;
 use iced::advanced::text::Renderer;
@@ -26,8 +26,8 @@ use zhuge_ui_tokens::surface::SurfaceColors;
 // Legacy palette constants (pre-token pages still import these).
 // New code must take colors from `theme::tokens` instead.
 // ---------------------------------------------------------------------------
-pub const WEB_ACCENT: Color = theme::LIGHT.accent;
-pub const WEB_SUCCESS: Color = theme::LIGHT.success;
+pub const WEB_ACCENT: Color = skins::LIGHT.accent;
+pub const WEB_SUCCESS: Color = skins::LIGHT.success;
 pub const WEB_SURFACE: Color = Color::from_rgba(0.06, 0.09, 0.16, 0.82);
 pub const SCROLLBAR_GUTTER: f32 = ScrollbarMetrics::DEFAULT.content_gutter_px;
 
@@ -112,7 +112,7 @@ pub fn card_ambient_surface(t: &Theme) -> container::Style {
             width: 0.0,
             color: Color::TRANSPARENT,
         },
-        shadow: tk.card_dual_shadow.ambient,
+        shadow: tk.elevation_shadow(Elevation::Card).ambient,
         ..Default::default()
     }
 }
@@ -127,7 +127,7 @@ pub fn card_key_surface(t: &Theme) -> container::Style {
             width: theme::HAIRLINE,
             color: tk.card_border,
         },
-        shadow: tk.card_dual_shadow.key,
+        shadow: tk.elevation_shadow(Elevation::Card).key,
         ..Default::default()
     }
 }
@@ -142,7 +142,7 @@ pub fn floating_ambient_surface(t: &Theme) -> container::Style {
             width: 0.0,
             color: Color::TRANSPARENT,
         },
-        shadow: tk.floating_dual_shadow.ambient,
+        shadow: tk.elevation_shadow(Elevation::Floating).ambient,
         ..Default::default()
     }
 }
@@ -157,7 +157,7 @@ pub fn floating_key_surface(t: &Theme) -> container::Style {
             width: theme::HAIRLINE,
             color: tk.card_border,
         },
-        shadow: tk.floating_dual_shadow.key,
+        shadow: tk.elevation_shadow(Elevation::Floating).key,
         ..Default::default()
     }
 }
@@ -889,8 +889,10 @@ pub fn nav_rail_icon<'a>(route: Route, current_route: &Route) -> Element<'a, Mes
         .padding([8, 8])
         .style(move |t: &Theme, status| {
             let tk = theme::tokens(t);
+            // #120: the active row wears the control wash and the highlight
+            // hairline; idle rows stay bare.
             let bg = if is_active {
-                Some(tk.accent_soft.into())
+                Some(tk.control_wash.into())
             } else if matches!(status, button::Status::Hovered) {
                 Some(tk.control_bg.into())
             } else {
@@ -900,6 +902,12 @@ pub fn nav_rail_icon<'a>(route: Route, current_route: &Route) -> Element<'a, Mes
                 background: bg,
                 border: Border {
                     radius: border::Radius::from(theme::R_CONTROL),
+                    width: if is_active { theme::HAIRLINE } else { 0.0 },
+                    color: if is_active {
+                        tk.highlight_border
+                    } else {
+                        Color::TRANSPARENT
+                    },
                     ..Default::default()
                 },
                 ..Default::default()

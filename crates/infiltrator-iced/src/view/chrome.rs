@@ -77,14 +77,14 @@ pub fn chrome_strip(state: &AppState) -> Element<'_, Message> {
     .height(strip_height_px())
     .padding([0.0, theme::SP_SM])
     .style(|theme: &Theme| container::Style {
-        background: Some(theme::tokens(theme).sidebar.into()),
+        background: Some(theme::tokens(theme).hero_wash.into()),
         ..Default::default()
     });
 
     let hairline = container(Space::new().height(theme::HAIRLINE))
         .width(Length::Fill)
         .style(|theme: &Theme| container::Style {
-            background: Some(theme::tokens(theme).card_border.into()),
+            background: Some(theme::tokens(theme).highlight_border.into()),
             ..Default::default()
         });
 
