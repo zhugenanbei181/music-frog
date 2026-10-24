@@ -6,7 +6,7 @@
 
 桌面由 `DesktopProductSession` 组合既有 application、Core 与系统 adapter。Android flavor 通过 `infiltrator-android` 的产品 IPC 提交相同 `CommandIntent`，快照由 Android 唯一 owner 发布；NativeActivity 只初始化 Slint renderer 并挂载页面。
 
-同一组件根据可用宽度响应式切换：Android 恒用 compact 布局，桌面窗口低于 `760px × UI scale` 也切换为紧凑导航和单列内容；较宽桌面保留侧边导航和更宽的内容区。控件尺寸随页面缩放因子调整，旗帜、图标、窗口图标、字体及其 license provenance 由共享资源目录提供。布局差异只属于呈现，不改变命令语义。
+同一组件根据可用宽度响应式切换：Android 恒用 compact 布局，桌面根据契约响应式视口阶梯切换（Compact `< 600px` 紧凑底栏导航与单列内容，Medium `600–839px` 导航栏，Expanded `840–1199px` 标准侧栏，Ultra `≥ 1200px` 宽屏展示）；较宽桌面保留侧边导航和更宽的内容区。控件尺寸随页面缩放因子调整，旗帜、图标、窗口图标、字体及其 license provenance 由共享资源目录提供。布局差异只属于呈现，不改变命令语义。
 
 页面读取 owner 快照：
 

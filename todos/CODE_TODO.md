@@ -21,8 +21,8 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261024-v272`：现在佛 95 pt（33 条）/ 过去佛 208 pt（80 条）/ 斗战胜佛 51 pt（17 条）/ 未来佛 26 pt（15 条），联合未办结分母 380 pt；已归档交付 727 pt（290 条）；累计 1107 pt，严格归档完成率 65.7%。
-- 本板 33 条 = 像素认证收口 1 条（`PARITY-001.5` 5 pt）+ Bevy 捕获证据 1 条（`BEVYCAP-002` 3 pt）+ 200 点表现攻坚现存 21 条（`EFFECTS-024`、`027`~`041`、`043`~`045`、`048`~`050`，61 pt）+ Slint 34 点质感攻坚 7 条（`SLINTUI-001`~`007`，20 pt）+ 工程约束门禁 3 条（`ENG-002.2`、`ENG-003.2`、`ENG-003.3`，6 pt）。
+- Point 基线 `musicfrog-todo-20261024-v272`：现在佛 94 pt（33 条）/ 过去佛 209 pt（80 条）/ 斗战胜佛 51 pt（17 条）/ 未来佛 26 pt（15 条），联合未办结分母 380 pt；已归档交付 727 pt（290 条）；累计 1107 pt，严格归档完成率 65.7%。
+- 本板 33 条 = 像素认证收口 1 条（`PARITY-001.5` 5 pt）+ Bevy 捕获证据 1 条（`BEVYCAP-002` 3 pt）+ 200 点表现攻坚现存 21 条（`EFFECTS-024`、`027`~`041`、`043`~`045`、`048`~`050`，61 pt）+ Slint 34 点质感攻坚 7 条（`SLINTUI-001`~`007`，20 pt）+ 工程约束门禁 3 条（`ENG-002.2`、`ENG-003.2`、`ENG-003.3`，5 pt）。
 - 2026-10-24 第四交付批次：`EFFECTS-028`（#100~#114 记录找回=BEVYUI 整改面，#115 WgpuSettings 移动端限额本批交付）、`ENG-002.3`（TESTING.md 可选审计入口）、`ENG-003.1`（GPL 分发模型裁决：披露路线，APK 资产随包带许可全文与源码提供声明）。
 - 2026-10-24 迁移损伤修复（依 168b83c pristine 复位；证据 = e680ed8/1e00aa3 两次波次提交信息 + 代码实测）：e680ed8/3887ef6/1e00aa3 三次看板迁移的行拼接乱码逐行修复；`EFFECTS-003`（残形「TS-003」）与 `EFFECTS-008`（被截断并入 007 尾部且曾误回登本板）复位重建；`EFFECTS-013` 与 `EFFECTS-015`（`ButtonHierarchy`/`ButtonPressScale` 已在树）由误标的 Planned 复位 Integrated；Layer 2 的 `EFFECTS-016`~`020` 错位 ID 全部复位；`EFFECTS-006`/`013`/`020` 的 points 依 pristine 复位（3→2）；本板误留的 `EFFECTS-008` 与 `EFFECTS-020`（曾误标 019）重复项删除，`EFFECTS-012`/`014` 归位本板；空壳节（§四/§五/§六/5.1）与 EFFECTS-007 孤儿残句清除；§7.1 过期事实按强制化台账刷新；`TODO.md` 波次 A 日志的羽化条目 ID 复位为 018。修复前实测两板为 44 条/122 pt 与 68 条/180 pt（v268 所记过去佛 69 条/183 pt 与当时实际不符），修复后以本行实测为准。
 - Slint 九条来自 2026-10-19 的表面审计实测：缺 7 类页面导致 19 条业务无载体、只派发 42 种 `CommandIntent`、59 条业务里 2 条完整实现 / 18 条部分实现 / 39 条未实现且今天零锚点、4 个测试文件重实现 Slint 逻辑构成第二业务真源、2 个已声明回调无调用点。
@@ -136,13 +136,8 @@
   - 验收：复杂列表视觉噪点大幅收敛，命令面板呼出呈现优雅毛玻璃层级。
   - 计划：重构 view/rules.rs、view/connections.rs 与 view/shell.rs。
 
-### 10.6 Layer 5: Slint 1.18+ Skia 硬件加速、桌面多列网格与原生状态机（6条 / 17pt，涵盖 #146~#170）
+### 10.6 Layer 5: Slint 1.18+ Skia 硬件加速、桌面多列网格与原生状态机（5条 / 14pt，涵盖 #146~#170）
 
-- [ ] EFFECTS-036 [kind: slint] [priority: P1] [points: 3] [owner: infiltrator-slint] [status: Planned] Winit+Skia 硬件加速升级与 GPU VSync 垂直同步（#146~#149）
-  - 产物：实现 #146 桌面端启用 renderer-skia 特性、#147 开启 GPU VSync 垂直同步、#148 保留 renderer-femtovg 轻量通道、#149 预留 backend-qt 原生桥接。
-  - 依赖：无。
-  - 验收：桌面确认 Skia GPU 加载，帧率稳定在 60~120fps，CPU 占用降至个位数。
-  - 计划：更新 Cargo.toml 与 build.rs。
 - [ ] EFFECTS-037 [kind: slint] [priority: P1] [points: 3] [owner: infiltrator-slint] [status: Planned] Zinc 多阶暗底系统与桌面多列仪表板网格（#150~#154）
   - 产物：实现 #150 Zinc 8 阶微差暗色底板系统、#151 原生 drop-shadow 漫反射双阶阴影、#152 1px 半透明内描边、#153 桌面多列响应式 GridLayout、#154 消除 70% 纯黑空洞。
   - 依赖：EFFECTS-036。
@@ -205,13 +200,8 @@
   - 验收：CI 流水线一键复跑所有 UI 双视口像素差比对，无感知视觉退化被拒。
   - 计划：更新 scripts/parity/ 自动化取证套件。
 
-### 10.9 Slint 质感与架构攻坚（7条 / 20pt，涵盖 #1~#34）
+### 10.9 Slint 质感与架构攻坚（6条 / 17pt，涵盖 #1~#34）
 
-- [ ] SLINTUI-001 [kind: infra] [priority: P1] [points: 3] [owner: infiltrator-slint] [status: Planned] 渲染管线升级 —— 接入 Skia GPU 硬件加速与 VSync（#1~#4）
-  - 产物：解决 #1 桌面端脱离 CPU 软件光栅化引入 renderer-skia、#2 保留 renderer-femtovg 轻量通道、#3 预留 backend-qt 原生桥接支持、#4 开启 GPU VSync 垂直同步消除宽屏撕裂。
-  - 依赖：infiltrator-slint/Cargo.toml。
-  - 验收：桌面运行确认 Skia GPU 渲染器加载，帧率稳定在 60~120fps，CPU 占用降至个位数。
-  - 计划：更新 Cargo.toml 配置桌面 target 的 renderer-skia 特性，配置 Winit 后端。
 - [ ] SLINTUI-002 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-slint] [status: Planned] 桌面设计系统重构 —— 响应式多列网格与 Zinc 空间光影（#5~#10）
   - 产物：解决 #5 终结移动端竖屏拉伸重构为桌面多列仪表板、#6 根除 1180x780 桌面端 70% 纯黑空洞、#7 建立 Zinc 8 阶微差暗色底板系统、#8 引入 Slint 原生 drop-shadow 柔和漫反射两阶阴影、#9 卡片增加 1px 微发光半透明内描边、#10 规范化全局圆角阶梯与内边距 Token。
   - 依赖：SLINTUI-001。

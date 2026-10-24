@@ -244,6 +244,25 @@ pub fn run_with_host(host: Arc<dyn SlintProductHost>) -> Result<(), slint::Platf
     run_with_host_prepared(host, |_, _| {})
 }
 
+/// Select the desktop GPU backend (EFFECTS-036 #146~#149, = SLINTUI-001 #1~#4).
+///
+/// Skia is the primary renderer; femtovg stays compiled as the lightweight
+/// fallback channel and the software renderer remains the last resort. An
+/// explicit `SLINT_BACKEND` from the environment wins, so the femtovg channel
+/// and the software fallback stay operator-selectable without a rebuild.
+/// VSync rides the winit present mode of the selected GPU backend. The
+/// backend-qt bridge stays a reserved seam (nothing in this tree links Qt).
+#[cfg(not(target_os = "android"))]
+fn select_desktop_gpu_backend() -> Result<(), slint::PlatformError> {
+    if env::var_os("SLINT_BACKEND").is_some() {
+        return Ok(());
+    }
+    slint::BackendSelector::new()
+        .backend_name("winit".into())
+        .renderer_name("skia".into())
+        .select()
+}
+
 /// Launch the Slint component and let the caller prepare the window first.
 ///
 /// The preparation runs before the owner worker starts, so a host that owns a
@@ -254,6 +273,8 @@ pub fn run_with_host_prepared(
     host: Arc<dyn SlintProductHost>,
     prepare: impl FnOnce(&AppWindow, &Arc<Workbenches>),
 ) -> Result<(), slint::PlatformError> {
+    #[cfg(not(target_os = "android"))]
+    select_desktop_gpu_backend()?;
     let window = AppWindow::new()?;
     window.set_android_platform(cfg!(target_os = "android"));
 

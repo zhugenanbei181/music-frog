@@ -583,6 +583,7 @@
 ## 十二、波次 A 效果地基与平台能力（已交付，9条 / 27pt）
 
 > 2026-10-24 迁移损伤修复：`EFFECTS-016`（TabList）与 `EFFECTS-018`（羽化遮罩）曾错位为 015/017，已依 168b83c pristine 复位；误并入 `EFFECTS-004`/`EFFECTS-010` 条目体的两段 Planned 残块（006 智能截断、012 测速波浪）已清除——006 与 012 均经 2026-10-24 代码实测复核为已交付（各自条目在案），012 登记于本节。
+
 - [ ] EFFECTS-002 [kind: contract] [priority: P1] [points: 3] [owner: infiltrator-contract] [status: Integrated] 网格间距、圆角与物理尺寸白名单（#6~#9）
   - 产物：在 design_tokens 规范 #6 8pt/4pt 严格网格阶梯、#7 互斥圆角阶梯裁决、#8 物理像素白名单闭集（发丝线/光标/触控区）、#9 Elevation 空间阴影多阶定义。
   - 依赖：EFFECTS-001。
@@ -630,3 +631,19 @@
   - 依赖：无。
   - 验收：列表滑动绝不误触发子项点击，Activity 挂起恢复无黑屏崩溃。
   - 计划：更新 infiltrator-android 驱动生命周期处理。
+
+### 12.1 Slint 桌面 GPU 后端（2026-10-24 交付，2条 / 5pt）
+
+- [ ] EFFECTS-036 [kind: slint] [priority: P1] [points: 3] [owner: infiltrator-slint] [status: Integrated] Winit+Skia 硬件加速升级与 GPU VSync 垂直同步（#146~#149）
+  - 产物：实现 #146 桌面端启用 renderer-skia 特性、#147 开启 GPU VSync 垂直同步、#148 保留 renderer-femtovg 轻量通道、#149 预留 backend-qt 原生桥接。
+  - 依赖：无。
+  - 验收：桌面确认 Skia GPU 加载，帧率稳定在 60~120fps，CPU 占用降至个位数。
+  - 计划：更新 Cargo.toml 与 build.rs。
+  - 备注：2026-10-24 交付——桌面 target 依赖加 `renderer-skia` + `renderer-femtovg`（软件渲染仍是 workspace 基座兜底）；`lib.rs` 新增 `select_desktop_gpu_backend()` 在窗口创建前经官方 `slint::BackendSelector` 显式选 `winit+skia`（API 依 registry 内 slint 1.18.1 `i-slint-backend-selector` 源码核对），环境变量 `SLINT_BACKEND` 优先作为 femtovg/软件通道的逃生口，VSync 随所选 GPU 后端的 winit present 模式；backend-qt 仅在 manifest 注释预留桥接位。待验证：统一 cargo 批次编译 + 桌面运行时确认 Skia 加载与帧率/CPU 曲线（运行回执腿）。
+
+- [ ] SLINTUI-001 [kind: infra] [priority: P1] [points: 3] [owner: infiltrator-slint] [status: Integrated] 渲染管线升级 —— 接入 Skia GPU 硬件加速与 VSync（#1~#4）
+  - 产物：解决 #1 桌面端脱离 CPU 软件光栅化引入 renderer-skia、#2 保留 renderer-femtovg 轻量通道、#3 预留 backend-qt 原生桥接支持、#4 开启 GPU VSync 垂直同步消除宽屏撕裂。
+  - 依赖：infiltrator-slint/Cargo.toml。
+  - 验收：桌面运行确认 Skia GPU 渲染器加载，帧率稳定在 60~120fps，CPU 占用降至个位数。
+  - 计划：更新 Cargo.toml 配置桌面 target 的 renderer-skia 特性，配置 Winit 后端。
+  - 备注：与 `EFFECTS-036`（#146~#149）同一交付，同一代码路径，见上条备注；两条看板 ID 各自记账、事实同一份。待验证同上。

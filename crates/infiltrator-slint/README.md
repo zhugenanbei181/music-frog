@@ -21,6 +21,7 @@ Slint 及编译器 crate 固定为当前最新稳定版 `1.18.1`，并使用 `=1
 ## 文档
 
 - [SURFACE.md](docs/SURFACE.md)：前端边界、共享 owner 接入方式和当前功能范围。
+- [PARITY_GAPS.md](docs/PARITY_GAPS.md)：Slint 表面业务承载页与取证矩阵台账。
 - [PLATFORM_BUILD.md](docs/PLATFORM_BUILD.md)：Slint 版本依据、Windows/Linux/Android 构建入口与验证边界。
 - [导入源归档](lumen-source/README.md)：原始 ZIP 文件覆盖、逐文件完整性清单与只读历史源码说明。
 - [Material 组件改动记录](lumen-source/material-1.1.0/LUMEN-PATCHES.md)：vendored Slint Material 组件的产品适配和系统主题读取接口。
