@@ -14,7 +14,7 @@ import { ProfileCard, OverrideCard, ProfileOverrideChoice, ObservationRow, Proxy
 import { ProfileOverlays } from "components/profile_overlays.slint";
 import { OverviewOrderOverlay } from "components/overview_order.slint";
 import { SettingsOverlays } from "components/settings_overlays.slint";
-import { AppBottomBar, ClearTrafficDialog, NoticeBanner, SettingsMessageBanner, ProfileSettingsTypeMenu, ProxySortMenu } from "components/app_chrome.slint";
+import { AppBottomBar, ClearTrafficDialog, DesktopTitleBar, NoticeBanner, SettingsMessageBanner, ProfileSettingsTypeMenu, ProxySortMenu } from "components/app_chrome.slint";
 import { AppBody } from "components/app_body.slint";
 import { PageWorkbench } from "pages/page_workbench.slint";
 import { ConnectionSort, LogLevel, NetworkMode, RouteMode, RuntimeStatus, ThemeMode, TrafficRange } from "components/domain_enums.slint";
@@ -28,6 +28,11 @@ export component AppWindow inherits MaterialWindow {
     property <bool> compact-layout: root.android-platform || root.width < 760 * LumenUiScale.unit;
     property <bool> platform-dark-mode: MaterialPalette.color-scheme == ColorScheme.dark;
     in-out property <bool> frameless: false;
+    // EFFECTS-041 #167: the frameless desktop chrome's window controls.
+    callback window-minimize();
+    callback window-toggle-maximize();
+    callback window-close();
+    in-out property <bool> maximized: false;
     in-out property <bool> android-platform: false;
     in-out property <string> product-version: "0.1.0";
     in-out property <bool> layout-debug-tools-enabled: false;
@@ -392,8 +397,16 @@ export component AppWindow inherits MaterialWindow {
         else { if root.predictive-back-enabled { root.commit-back-preview(); } root.page = "Settings"; root.navigate("Settings"); }
     }
 
+    if !root.android-platform: DesktopTitleBar {
+        // EFFECTS-041 #167: the frameless chrome; callbacks land on the
+        // real window via lib.rs's installer.
+        x: root.safe-area-insets.left; y: root.safe-area-insets.top;
+        width: max(0 * LumenUiScale.unit, root.width - root.safe-area-insets.left - root.safe-area-insets.right);
+        maximized: root.maximized;
+        window-minimize => { root.window-minimize(); } window-toggle-maximize => { root.window-toggle-maximize(); } window-close => { root.window-close(); }
+    }
     app-body := AppBody {
-        x: root.safe-area-insets.left; y: root.safe-area-insets.top; width: max(0 * LumenUiScale.unit, root.width - root.safe-area-insets.left - root.safe-area-insets.right); height: max(0 * LumenUiScale.unit, root.height - root.safe-area-insets.top - root.safe-area-insets.bottom);
+        x: root.safe-area-insets.left; y: root.safe-area-insets.top + (!root.android-platform ? DesktopTitleBar.height : 0 * LumenUiScale.unit); width: max(0 * LumenUiScale.unit, root.width - root.safe-area-insets.left - root.safe-area-insets.right); height: max(0 * LumenUiScale.unit, root.height - root.safe-area-insets.top - root.safe-area-insets.bottom - (!root.android-platform ? DesktopTitleBar.height : 0 * LumenUiScale.unit));
         page: root.page; page-origin: root.page-origin; compact-layout: root.compact-layout; primary-page: root.primary-page; android-platform: root.android-platform; application-dark-mode: root.application-dark-mode; layout-debug-bounds: root.layout-debug-bounds;
         layout-debug-tools-enabled: root.layout-debug-tools-enabled; predictive-back-enabled: root.predictive-back-enabled; predictive-back-supported: root.predictive-back-supported; safe-top: root.safe-area-insets.top; safe-bottom: root.safe-area-insets.bottom; safe-left: root.safe-area-insets.left; safe-right: root.safe-area-insets.right;
         bottom-bar-visible <=> root.bottom-bar-visible; hide-bottom-bar-on-scroll: root.hide-bottom-bar-on-scroll;

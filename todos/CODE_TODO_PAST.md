@@ -813,3 +813,12 @@
   - 计划：重构 page_proxies.slint 与 lumen_projection/collections，接入 ListView 与 FilterModel。
   - 备注：2026-10-24 交付——**#18 持久模型管道本批**（#165「零拷贝」的实体病根）：新 helper `refresh_model<T>(&ModelRc<T>, rows)`（lib.rs）：`current.as_any().downcast_ref::<VecModel<T>>()` 命中则 `set_vec` 原地刷新（模型对象与 Slint 侧全部绑定跨快照存活，registry 源核实 Model::as_any 官方 downcast 模式与 VecModel::set_vec 语义），未命中才挂新 ModelRc。三条热长列表全部换腿：代理节点/组（proxies.rs 四处）、日志（logs.rs）、连接（connections.rs 两处）——每快照销毁重建 ModelRc 的旧路径在热列表上清零。**三条裁决（诚实登记，非缺口掩盖）**：① #165 FilterModel/SortModel **不引入**——搜索词经 typed intent（`OutboundUiPreferenceIntent::SetSearchQuery`）入共享 owner，健康/可见折叠（keeps_health/visible_members）与排序（sort_members）真源全在共享 model，UI 侧再过滤/排序=第二真源，违反「每事实一个真源」红线，typed intent 管道保持；② #163/#164 ListView **随滚动架构切片**——页面整体在 `page-scroll := ScrollView` 内，嵌套 ListView 需固定高度视口并使 active 节点 `absolute-position` 定位失效（滚动到当前节点功能），属页面滚动架构重构，不做双滚动反模式；③ #166 真增量 append（环形 Model）依赖日志流事件粒度（当前每快照全量窗口投影），随流架构切片；本批 set_vec 批量刷新已达成「模型对象零重建」。结构门 EXIT=0；编译与 500+ 节点开屏性能回执随统一 cargo 批次。
 
+### 12.18 Slint 无框一体化窗口（2026-10-24 交付，1条 / 2pt）
+
+- [ ] EFFECTS-041 [kind: slint] [priority: P1] [points: 2] [owner: infiltrator-slint] [status: Integrated] 一体化无边框窗口、Mica/Vibrancy 与软键盘适配（#167~#170）
+  - 产物：实现 #167 no-frame 自绘现代标题栏与拖拽区、#168 Windows 11 Mica 亚克力底衬、#169 macOS Vibrancy 毛玻璃底色、#170 移动软键盘避让与安全区。
+  - 依赖：EFFECTS-036。
+  - 验收：桌面窗口呈现现代操作系统原生材质，移动端输入框自动顶起避让键盘。
+  - 计划：更新 desktop.rs 与 app_chrome.slint。
+  - 备注：2026-10-24 交付——**#167 本批**：`DesktopTitleBar`（app_chrome.slint）：`WindowMoveArea`（Slint 语言内置项，registry builtin_elements 核实；按下越过阈值即 `start_window_move`→winit `drag_window`）拖拽区 + 产品标题 + 三窗控钮（minimize/maximize/close，纯几何绘制零新资产，hover zinc-4 洗色 / close 红 120ms ease-out）；`lib.rs` `install_desktop_window_chrome`（非 android）：生产 `set_frameless(true)`（demo 已开、生产此次接通），minimize→`set_minimized`、toggle-maximize→`set_maximized(!is_maximized)`（is/set API registry api.rs 核实）+ `maximized` 读回写窗、close→`quit_event_loop`（与系统装饰关闭语义一致——产品 Slint 面无托盘重开路径，hide 会死窗，诚实裁决）；AppWindow 挂载 DesktopTitleBar（仅非 android），app-body 几何相应收缩。**#168/#169 外部实机腿**：Slint 1.18 winit 后端无原生 Mica/Vibrancy API（backend 源实测无该面），需第三方 window 材质 crate + `window_handle()` 原生句柄，且验收必须在 Windows 11 / macOS 实机——按「真机才能收口」原则随斗战胜佛平台腿。**#170 避让几何在树**：`virtual-keyboard-size/position` → `app-settings-bottom-inset` 公式已在 lumen-app（前批交付），Android 后端 IME 避让随移动切片；宿主 `set_virtual_keyboard` 注册 API 在 Slint 核心（api.rs:604 核实）。结构门 EXIT=0（lumen-app 602 行触线，挂载块按 Slint 多属性单行惯例折叠）；编译与实机窗口回执随统一 cargo 批次。
+

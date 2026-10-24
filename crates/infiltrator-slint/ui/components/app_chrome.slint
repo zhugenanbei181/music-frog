@@ -242,3 +242,97 @@ export component ProxySortMenu inherits PopupMenu {
         }
     }
 }
+
+
+// EFFECTS-041 #167: the frameless desktop window's own chrome — a drag
+// region (the builtin WindowMoveArea), the product title, and three window
+// controls drawn from pure geometry so no icon asset is needed. The
+// callbacks land in the host (lib.rs installs them on the real window).
+export component DesktopTitleBar inherits Rectangle {
+    in property <bool> maximized;
+    callback window-minimize();
+    callback window-toggle-maximize();
+    callback window-close();
+    height: 40 * LumenUiScale.unit;
+    background: LumenTheme.zinc-1;
+    clip: true;
+
+    Text {
+        x: 14 * LumenUiScale.unit;
+        y: 0 * LumenUiScale.unit;
+        height: parent.height;
+        text: "MusicFrog Infiltrator";
+        color: LumenTheme.text-secondary;
+        font-size: 12 * LumenUiScale.unit;
+        vertical-alignment: center;
+    }
+
+    title-buttons := HorizontalLayout {
+        x: parent.width - self.width;
+        width: 138 * LumenUiScale.unit;
+        height: parent.height;
+
+        component WindowControlButton inherits Rectangle {
+            in property <bool> danger: false;
+            callback clicked();
+            width: 46 * LumenUiScale.unit;
+            height: parent.height;
+            button-touch := TouchArea {
+                width: parent.width;
+                height: parent.height;
+                clicked => { root.clicked(); }
+            }
+            background: button-touch.has-hover
+                ? (root.danger ? LumenTheme.error.with_alpha(80%) : LumenTheme.zinc-4)
+                : transparent;
+            animate background { duration: 120ms; easing: ease-out; }
+        }
+
+        WindowControlButton {
+            clicked => { root.window-minimize(); }
+            Rectangle {
+                x: (parent.width - 10 * LumenUiScale.unit) / 2;
+                y: (parent.height - 1 * LumenUiScale.unit) / 2;
+                width: 10 * LumenUiScale.unit;
+                height: 1 * LumenUiScale.unit;
+                background: LumenTheme.text-secondary;
+            }
+        }
+        WindowControlButton {
+            clicked => { root.window-toggle-maximize(); }
+            Rectangle {
+                x: (parent.width - 10 * LumenUiScale.unit) / 2;
+                y: (parent.height - 10 * LumenUiScale.unit) / 2;
+                width: 10 * LumenUiScale.unit;
+                height: 10 * LumenUiScale.unit;
+                border-width: 1 * LumenUiScale.unit;
+                border-color: LumenTheme.text-secondary;
+                background: transparent;
+            }
+        }
+        WindowControlButton {
+            danger: true;
+            clicked => { root.window-close(); }
+            Path {
+                width: 10 * LumenUiScale.unit;
+                height: 10 * LumenUiScale.unit;
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                viewbox-width: 10;
+                viewbox-height: 10;
+                commands: "M 0 0 L 10 10 M 10 0 L 0 10";
+                stroke: LumenTheme.text-secondary;
+                stroke-width: 1px;
+            }
+        }
+    }
+
+    // The drag region fills the rest of the bar; declared last so the
+    // buttons above stay interactive (their TouchArea wins the hit test).
+    WindowMoveArea {
+        x: 0 * LumenUiScale.unit;
+        y: 0 * LumenUiScale.unit;
+        width: parent.width - title-buttons.width;
+        height: parent.height;
+    }
+}
