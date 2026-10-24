@@ -534,16 +534,18 @@ fn picked_record_restamps_the_detail_line() {
         "the idle detail line states that no pick happened"
     );
 
-    app.world_mut().insert_resource(GlobePicked(Some(GlobePickRecord {
-        id: "london".to_owned(),
-        label: "london".to_owned(),
-        lat_deg: 51.5,
-        lon_deg: -0.1,
-    })));
+    app.world_mut()
+        .insert_resource(GlobePicked(Some(GlobePickRecord {
+            id: "london".to_owned(),
+            label: "london".to_owned(),
+            lat_deg: 51.5,
+            lon_deg: -0.1,
+        })));
     app.update();
 
+    let root = globe_root(&mut app);
     assert!(
-        subtree_has_text(app.world(), globe_root(&mut app), "london — 51.50°, -0.10°"),
+        subtree_has_text(app.world(), root, "london — 51.50°, -0.10°"),
         "the detail line restamps from the pick record"
     );
 }

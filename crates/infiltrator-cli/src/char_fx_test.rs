@@ -26,10 +26,7 @@ fn the_halfblock_fallback_pairs_rows_foreground_and_background() {
 
     // 单行图片：下行按黑色补齐。
     let single = halfblock_rows(&[white], ColorDepth::TrueColor);
-    assert_eq!(
-        single[0],
-        "\x1b[38;2;255;255;255;48;2;0;0;0m▀\x1b[0m"
-    );
+    assert_eq!(single[0], "\x1b[38;2;255;255;255;48;2;0;0;0m▀\x1b[0m");
 
     // 16 色档：前景白（亮段 97）、背景黑（40）。
     let sixteen = halfblock_rows(&[white, black], ColorDepth::Ansi16);

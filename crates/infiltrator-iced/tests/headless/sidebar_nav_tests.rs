@@ -25,7 +25,11 @@ fn secondary_rows_are_disjoint_from_primary() {
     }
     let mut routes: Vec<Route> = NAV_SECONDARY.iter().map(|(route, _, _)| *route).collect();
     routes.dedup();
-    assert_eq!(routes.len(), NAV_SECONDARY.len(), "no duplicate secondary rows");
+    assert_eq!(
+        routes.len(),
+        NAV_SECONDARY.len(),
+        "no duplicate secondary rows"
+    );
 }
 
 #[test]

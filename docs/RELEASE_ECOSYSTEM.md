@@ -6,7 +6,7 @@
 
 ## 1. SemVer 兼容守卫（PUB-006.10）
 
-已发布的中性 crate 的公开 API 是承诺：能对 `lurker-core-contract 0.68.0` 编译的消费者必须能对下一个版本继续编译。守卫用两层实现同一件事。
+已发布的中性 crate 的公开 API 是承诺：能对 `lurker-core-contract 0.68.1` 编译的消费者必须能对下一个版本继续编译。守卫用两层实现同一件事。
 
 | 层 | 实现 | 语义 |
 | --- | --- | --- |
@@ -89,6 +89,10 @@ bash scripts/blocked/release-keystore-evidence.sh --dry-run
 RELEASE_KEYSTORE_BASE64=... RELEASE_KEYSTORE_PASSWORD=... RELEASE_KEY_ALIAS=... RELEASE_KEY_PASSWORD=... \
   bash scripts/blocked/release-keystore-evidence.sh --apk-a dist/app-compose-universal-release.apk
 ```
+
+## 发布流程与链条契约
+
+中性 crate 发布到 crates.io 的拓扑顺序、dry-run 演练与本地脚本调用契约见 [中性 crate 发布说明](../scripts/neutral-crate-release.md)。
 
 ## 验证入口
 

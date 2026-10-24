@@ -4,10 +4,7 @@ use iced::Point;
 use infiltrator_iced::view::chart::spline::{catmull_rom_segments, pulse_positions};
 
 fn polyline(points: &[(f32, f32)]) -> Vec<Point> {
-    points
-        .iter()
-        .map(|(x, y)| Point::new(*x, *y))
-        .collect()
+    points.iter().map(|(x, y)| Point::new(*x, *y)).collect()
 }
 
 #[test]

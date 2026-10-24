@@ -1,10 +1,10 @@
 //! Shell owner.
 
 use crate::admin_server::{AdminServerManager, AdminSharedRuntime, SharedAdminCommandReceiver};
+use crate::animation::AnimationCoordinator;
 use crate::capture_frame::CaptureFrameGate;
 use crate::tray::SharedTrayEventReceiver;
 use crate::tray::spec::TrayController;
-use crate::animation::AnimationCoordinator;
 use crate::types::app::{ConfirmAction, Route, RouteHistory, ToastStatus};
 use crate::view::theme::theme_for_skin;
 use iced::Rectangle;

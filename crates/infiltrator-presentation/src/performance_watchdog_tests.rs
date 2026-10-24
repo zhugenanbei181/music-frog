@@ -51,7 +51,11 @@ fn a_healthy_streak_resets_the_counter() {
     // 一帧健康帧清零计数，随后需要重新攒满 30 帧。
     governor.observe(5.0);
     for frame in 0..(DEMOTION_STREAK_FRAMES - 1) {
-        assert_eq!(governor.observe(20.0), GovernorDecision::Hold, "frame {frame}");
+        assert_eq!(
+            governor.observe(20.0),
+            GovernorDecision::Hold,
+            "frame {frame}"
+        );
     }
     assert_eq!(
         governor.observe(20.0),

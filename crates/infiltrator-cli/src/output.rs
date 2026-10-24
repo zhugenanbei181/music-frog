@@ -54,12 +54,8 @@ pub fn print_section(title: &str) {
 /// Build one in-place progress line (EFFECTS-044 #176~#177): the caller prints
 /// the returned string with a carriage return before it and re-polls; once the
 /// animation reports no frame the caller stops ticking and clears the line.
-pub(crate) fn progress_frame_line(
-    label: &str,
-    elapsed_ms: u32,
-) -> Option<String> {
-    let frame = ProgressAnimation::for_progress()
-        .frame_at(elapsed_ms)?;
+pub(crate) fn progress_frame_line(label: &str, elapsed_ms: u32) -> Option<String> {
+    let frame = ProgressAnimation::for_progress().frame_at(elapsed_ms)?;
     Some(format!("{frame} {label}"))
 }
 
@@ -91,7 +87,14 @@ pub fn print_table(headers: &[&str], rows: &[Vec<String>]) {
     let mut out = stdout.lock();
     let header_cells: Vec<String> = headers.iter().map(|header| header.to_string()).collect();
     let _ = writeln!(out);
-    write_frame_edge(&mut out, &widths, &glyphs, glyphs.top_left, glyphs.top_tee, glyphs.top_right);
+    write_frame_edge(
+        &mut out,
+        &widths,
+        &glyphs,
+        glyphs.top_left,
+        glyphs.top_tee,
+        glyphs.top_right,
+    );
     write_row(&mut out, &header_cells, &widths, &glyphs);
     write_frame_edge(
         &mut out,
@@ -127,7 +130,11 @@ fn write_frame_edge(
     let _ = write!(out, "{left}");
     for (index, width) in widths.iter().enumerate() {
         let _ = write!(out, "{}", glyphs.horizontal.repeat(width + 2));
-        let joiner = if index + 1 < widths.len() { middle } else { right };
+        let joiner = if index + 1 < widths.len() {
+            middle
+        } else {
+            right
+        };
         let _ = write!(out, "{joiner}");
     }
     let _ = writeln!(out);

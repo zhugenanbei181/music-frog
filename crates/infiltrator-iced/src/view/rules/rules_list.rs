@@ -26,7 +26,9 @@ use crate::view::{svg_icons, theme};
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::lazy;
 use iced::widget::scrollable::Viewport;
-use iced::widget::{Id, Space, button, column, container, mouse_area, pick_list, row, text, text_input};
+use iced::widget::{
+    Id, Space, button, column, container, mouse_area, pick_list, row, text, text_input,
+};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_contract::rule_document::RuleRowId;
 use infiltrator_domain::rules::edit::CUSTOM_RULE_TYPE_CHOICES;
@@ -234,7 +236,8 @@ fn rule_row_element(band: &RuleRowBand) -> Element<'static, Message> {
     } else {
         band.target.clone()
     };
-    let row_container = container(row![
+    let row_container = container(
+        row![
             toggle_switch(is_enabled, move |_| Message::ToggleRuleEnabled(row_id)),
             Space::new().width(theme::SP_SM),
             badge(band.display_type.clone(), band.badge_kind()),

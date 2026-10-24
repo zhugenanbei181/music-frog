@@ -4,12 +4,9 @@
 
 Iced 产品入口见 [crate README](../README.md)。
 
-## 消费端架构纪律（强制遵照执行）
+## 消费端架构纪律
 
-Iced 表面严格作为纯被动消费端，必须遵照执行自底向上裁决铁律：
-- 严禁在 Iced 状态、消息、更新流程或视图中就地修补底层架构未决问题；
-- 严禁在 UI 表面自行推导业务事实（如通过比对 ID 猜测活动状态、使用临时布尔标志模拟未裁决的生命周期阶段）；
-- 遇底层能力缺失、契约模糊或状态不全时，必须立即暂停上层开发，等待底层 Core 与契约收口完成后再行接入，不得留下空实现或临时垫片。
+Iced 表面严格作为纯被动消费端：只消费 `SurfaceSnapshot` 权威快照并向底层发送 typed `CommandIntent`；禁止在 `Message`、`update()` 或视图组件中派生私有业务真源或暂存未决生命周期状态。
 
 - `screenshots/`：Iced 页面截图及 manifest。
 
@@ -24,7 +21,7 @@ INFILTRATOR_CAPTURE_SCENARIOS='<scenario>' bash scripts/capture-iced-matrix.sh
 
 场景参数来自 `scripts/capture_iced_scenarios.tsv`。发布截图位于本目录的 `screenshots/`，最近运行的清单由脚本生成；完整运行日志与原始证据保存在 `.evidence/captures/iced/`。
 
-Overview 的旧截图不属于当前 RoutingIntent UI，已从发布截图集合移除。新的 Overview 截图将在共享移动端视觉整改完成后统一捕获；此前不得引用缓存图作为当前界面证据。
+Overview（含 dark/forest/light 三套主题）与各业务场景 standard/compact 双视口截图已由捕获流水线完成捕获并登记入 `screenshots/manifest.tsv`；截图严格绑定当前产品构建，严禁引用旧版缓存图作为当前界面证据。
 
 ### 验收约束
 

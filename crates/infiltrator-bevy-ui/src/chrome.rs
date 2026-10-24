@@ -49,11 +49,9 @@ use bevy::ui_widgets::Button;
 use bevy::window::{PrimaryWindow, Window};
 #[cfg(not(target_os = "android"))]
 use infiltrator_bevy_widgets::button::{ButtonVariant, ButtonVariantStyle, ControlVisual};
-#[cfg(not(target_os = "android"))]
 use infiltrator_bevy_widgets::feathers_theme::Token;
 #[cfg(not(target_os = "android"))]
 use infiltrator_bevy_widgets::icon::{IconId, icon_scene_val};
-#[cfg(not(target_os = "android"))]
 use infiltrator_bevy_widgets::palette::UiPalette;
 #[cfg(not(target_os = "android"))]
 use infiltrator_bevy_widgets::palette::rem;
@@ -106,11 +104,20 @@ pub const fn chrome_shape() -> WindowChrome {
 /// `native_shadow` stays `Absent`: Bevy exposes no shadow knob, so no custom
 /// shadow is requested on the frameless window's behalf.
 pub const fn support() -> WindowChromeSupport {
-    WindowChromeSupport::Hosted {
-        drag: true,
-        minimize: true,
-        maximize: true,
-        native_shadow: NativeShadow::Absent,
+    #[cfg(target_os = "android")]
+    {
+        WindowChromeSupport::Unsupported {
+            reason: "mobile-surface-has-no-window-chrome",
+        }
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        WindowChromeSupport::Hosted {
+            drag: true,
+            minimize: true,
+            maximize: true,
+            native_shadow: NativeShadow::Absent,
+        }
     }
 }
 
@@ -142,19 +149,25 @@ pub struct WindowChromePlugin;
 impl Plugin for WindowChromePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<WindowChromeReport>()
-            .init_resource::<ChromeMaximizeLatch>()
-            .add_systems(Startup, apply_window_chrome)
-            .add_observer(on_drag_bar_pressed)
-            .add_observer(on_drag_bar_clicked)
-            .add_observer(on_minimize_activated)
-            .add_observer(on_maximize_activated)
-            .add_observer(on_close_activated);
+            .init_resource::<ChromeMaximizeLatch>();
+        #[cfg(not(target_os = "android"))]
+        {
+            if support().is_hosted() {
+                app.add_systems(Startup, apply_window_chrome)
+                    .add_observer(on_drag_bar_pressed)
+                    .add_observer(on_drag_bar_clicked)
+                    .add_observer(on_minimize_activated)
+                    .add_observer(on_maximize_activated)
+                    .add_observer(on_close_activated);
+            }
+        }
     }
 }
 
 /// Apply the shared chrome style to the shell window, but only when the
 /// capability report says this host really runs it. Only the primary window is
 /// touched: the Mini HUD is an in-window overlay, not a second OS window.
+#[cfg(not(target_os = "android"))]
 fn apply_window_chrome(
     report: Res<WindowChromeReport>,
     mut windows: Query<&mut Window, With<PrimaryWindow>>,
@@ -169,6 +182,7 @@ fn apply_window_chrome(
 }
 
 /// Press on the bar starts the OS drag move (winit's `drag_window`).
+#[cfg(not(target_os = "android"))]
 fn on_drag_bar_pressed(
     press: On<PointerPress>,
     bars: Query<(), With<ChromeDragBar>>,
@@ -183,6 +197,7 @@ fn on_drag_bar_pressed(
 }
 
 /// A double click on the bar toggles maximize.
+#[cfg(not(target_os = "android"))]
 fn on_drag_bar_clicked(
     click: On<PointerClick>,
     bars: Query<(), With<ChromeDragBar>>,
@@ -199,6 +214,7 @@ fn on_drag_bar_clicked(
     }
 }
 
+#[cfg(not(target_os = "android"))]
 fn on_minimize_activated(
     activate: On<Activate>,
     buttons: Query<(), With<ChromeMinimizeButton>>,
@@ -212,6 +228,7 @@ fn on_minimize_activated(
     }
 }
 
+#[cfg(not(target_os = "android"))]
 fn on_maximize_activated(
     activate: On<Activate>,
     buttons: Query<(), With<ChromeMaximizeButton>>,
@@ -228,6 +245,7 @@ fn on_maximize_activated(
     }
 }
 
+#[cfg(not(target_os = "android"))]
 fn on_close_activated(
     activate: On<Activate>,
     buttons: Query<(), With<ChromeCloseButton>>,

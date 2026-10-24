@@ -3,7 +3,7 @@
 //! test-intent: behavior
 use iced::{Color, Size};
 use infiltrator_iced::view::shader::{
-    FlowProgram, FlowUniform, FLOW_WGSL, GpuSurfaceKind, flow_surface,
+    FLOW_WGSL, FlowProgram, FlowUniform, GpuSurfaceKind, flow_surface,
 };
 
 #[test]
@@ -23,7 +23,10 @@ fn the_uniform_packs_little_endian_into_32_bytes() {
     assert_eq!(&bytes[16..20], &0.5_f32.to_le_bytes());
     assert_eq!(&bytes[20..24], &0.75_f32.to_le_bytes());
     assert_eq!(&bytes[24..28], &0.8_f32.to_le_bytes());
-    assert!(bytes[28..32].iter().all(|byte| *byte == 0), "tail padding is zero");
+    assert!(
+        bytes[28..32].iter().all(|byte| *byte == 0),
+        "tail padding is zero"
+    );
 }
 
 #[test]

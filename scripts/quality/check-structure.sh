@@ -45,6 +45,8 @@ python3 scripts/quality/closure-questions-guard.py --self-test
 python3 scripts/quality/closure-questions-guard.py
 python3 scripts/quality/android-bevy-driver-dependency-guard.py --self-test
 python3 scripts/quality/android-bevy-driver-dependency-guard.py
+python3 scripts/quality/mobile-cfg-discipline-guard.py --self-test
+python3 scripts/quality/mobile-cfg-discipline-guard.py --mode enforce
 python3 scripts/quality/bevy-desktop-host-boundary-guard.py --self-test
 python3 scripts/quality/bevy-desktop-host-boundary-guard.py
 python3 scripts/quality/android-owner-client-guard.py --self-test

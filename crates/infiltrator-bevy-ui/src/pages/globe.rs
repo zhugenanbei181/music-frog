@@ -46,7 +46,7 @@ use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::feathers::theme::ThemeBackgroundColor;
-use bevy::math::Vec2;
+use bevy::math::{Vec2, Vec3Swizzles};
 use bevy::picking::events::PointerClick;
 use bevy::picking::pointer::PointerButton;
 use bevy::scene::{CommandsSceneExt, Scene, bsn};
@@ -301,9 +301,9 @@ fn header_scene(data: &GlobeData) -> impl Scene + use<> {
                     Text({ "Geo Globe".to_owned() }) TextRole(Role::Heading)
                 ]
                 --
-                Text(summary) TextRole(Role::BodyStrong)
+                Text({ summary }) TextRole(Role::BodyStrong)
                 --
-                Text(GLOBE_PICK_DEFAULT_TEXT.to_owned()) TextRole(Role::Body) GlobePickedDetail
+                Text({ GLOBE_PICK_DEFAULT_TEXT.to_owned() }) TextRole(Role::Body) GlobePickedDetail
             ]
     }
 }
@@ -531,7 +531,7 @@ fn on_globe_plate_clicked(
         lat_deg: point.lat_deg(),
         lon_deg: point.lon_deg(),
     };
-    plate.hovered_node = Some(record.id.clone());
+    plate.0.hovered_node = Some(record.id.clone());
     if picked.0.as_ref() != Some(&record) {
         picked.0 = Some(record.clone());
     }

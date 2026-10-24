@@ -26,6 +26,7 @@
 | ⑤ 行内内容 | 人工评审 | 只迁到 `InlineImage`（`bevy_ui::widget::InlineImage`，6 处：状态点与图标）；`bevy_text::InlineBox` **直接使用 0 处**，行内文字/徽标仍随文本流动这条语义未落地；无守卫（判定需语义规则） | 行内文字内容迁到 `InlineBox`，或按 ⑤ 的落点清单逐条证明不需要 |
 | ⑥ 官方行为层优先 | 机器：全部模态面（共享 modal、命令面板、13 个产品模态页、adaptive modal）挂载官方 `ModalDialogBarrier`／`ModalDialog`／`RequestClose`，barrier 点击外关闭、焦点圈闭（`Dialog` → `TabGroup { modal: true }`）、`DialogStack` 与 Esc 拦截由 Bevy 提供；打开时把输入焦点交接进对话框（`TabIndex` + `AcquireFocus`），关闭时释放，手写 Esc 分支已删除；模态阶段为 typed `ModalStage{Hidden,Open,Dismissed}`（旧 bool 对已消失）；**menu 层已迁回官方**（`infiltrator-bevy-widgets/src/menu.rs` 用官方 `MenuButton`/`MenuPopup`/`MenuItem`/`MenuEvent`/`MenuFocusState`；本地 `MenuState`/`MenuNav`/`MenuNavEvent`/`Menu`/`MenuScrim`/`menu_overlay_scene`/`advance_menus` 与 `context_menu.rs` 的 `ContextMenuPlacement`/`ContextMenuState.is_open` 已删除）；无守卫（判定需语义规则）；圆角角色按契约阶梯互斥裁决：**居中**模态对话框/居中命令面板 = `MODAL`(24)，面板式对话框卡/浮层面板 = `CARD`(16)，底部抽屉 = `BOTTOM_SHEET`(28)，旧 `DIALOG` 档已退役（阶梯不得有两种读法） | 无 |
 | ⑦ 小件收敛 | 机器：`scripts/quality/bevy_bsn_guard.py`（`BEVY-BSN-008` 列表场景必须 `bsn_list!`、`BEVY-BSN-009` 批量退役必须 `despawn_all`、`BEVY-BSN-010` 胶囊必须 `BorderRadius::MAX`、`BEVY-BSN-007` `template_value` 硬零）+ 评审口径（`Ready` 事件语义无法词法判定） | 6 处真实列表场景改 `bsn_list!` + `SceneList`；1 处挂载后初始化改订阅 `bevy_scene::Ready`；1 处批量退役改 `despawn_all`；胶囊圆角 29 处全量 `BorderRadius::MAX`；固定 2–3 个手写子项的静态 `Children [ ... ]` 明确保留（非列表场景） | 真实交互与像素验收随本批截图批次 |
+| ⑧ 跨端条件编译与诚实能力 | 机器：`scripts/quality/mobile-cfg-discipline-guard.py`（禁平台排除通用类型、禁公开函数悬垂签名、移动端禁谎报桌面窗口能力） | 全仓跨端 UI 生产树零违例：`UiPalette`/`Token` 无条件通用，`chrome.rs` Android 诚实声明 `Unsupported` 并按能力挂载 observers | 无，本口径已闭合 |
 
 ### 0.20 未采用能力台账（2026-10-21 实测）
 
@@ -35,7 +36,7 @@
 
 | 编号 | 0.20 能力 | 实测 | 事实与处置 |
 | --- | --- | --- | --- |
-| SCROLL-01 | `bevy_ui_widgets::Scrollbar` / `ScrollbarThumb` / `ScrollbarPlugin` | 0 处 | 本仓只挂了 `ScrollAreaPlugin`（官方滚动容器），**没有滚动条**：既未用官方滑块，也无自有滑块；规则列表只有一行文字页码指示器。处置：接官方 `Scrollbar`+`ScrollbarThumb`（滑块需 `Scrollbar::new(target, orientation, min_thumb_length)`），并把列表容器的滚动位置与滑块绑定。 |
+| SCROLL-01 | `bevy_ui_widgets::Scrollbar` / `ScrollbarThumb` / `ScrollbarPlugin` | 0 处 | 本仓只挂了 `ScrollAreaPlugin`（官方滚动容器），**没有滚动条**：既未用官方滑块，也无自有滑块；规则列表只有一行文字页码指示器。处置：接官方 `Scrollbar`+`ScrollbarThumb`（滑块需 `Scrollbar::new(target, orientation, min_thumb_length)`），并把列表容器的滚动位置与滑块绑定；几何比例与交互阶段严格对齐 `infiltrator-contract::scrollbar`（`ScrollbarMetrics` / `ScrollbarPhase`）跨端单一权威。 |
 | SCROLL-02 | `bevy_ui_widgets::ScrollIntoView`（事件） | 0 处 | 官方 `ScrollAreaPlugin` 已注册 `on_scroll_into_view` 观察者，但本仓**从不触发该事件**，而是在 `infiltrator-bevy-widgets/src/list.rs` 自算偏移（`scroll_to_item`）。处置：改为触发官方 `ScrollIntoView`，删除自算偏移路径。 |
 | MENU-01 | `bevy_ui_widgets::MenuPopup` / `MenuItem` / `MenuFocusState` / `MenuLayout` | **已采用**（2026-10-21 迁完） | 官方 `MenuButton`/`MenuPopup`/`MenuItem`/`MenuEvent`/`MenuFocusState` 接管打开/关闭/方向键导航/焦点圈闭；本地菜单状态机与手写视口翻转（`ContextMenuPlacement`）已删除。宿主需具备 `InputDispatchPlugin`（键盘→焦点实体）、`PointerFocusPlugin`（点外关闭）与可见性传播（`VisibilityPlugin` + mesh asset store），否则官方焦点账本够不到条目。 |
 | TEXT-01 | `bevy_text::InlineBox`（`InFlow`/`OutOfFlow`） | 0 处 | 只用了 `InlineImage`（图片侧）。行内文字/徽标随文流动这条语义未落地，见台账 ⑤。 |
@@ -139,3 +140,25 @@
 - Picking 在同一实体持续悬停时，拖动释放仍可能产生低层 `PointerClick`；`PointerDragStart` 会清除此指针/按键的 tap 资格，保证拖动列表行不触发按钮。原始 `PointerAction::Cancel` 也要直接清理手势、滚动和按下控件，因为取消时可能没有可供 Picking 命中的实体。
 - 该适配只消费完整的 `DragStart → Drag → DragEnd/Cancel` 序列；`ScrollMotion::{Direct,Coasting}`、`ScrollMotionPreference`、`ScrollVelocitySampling`、`SoftKeyboardState::{Closed,Open}` 与 `PointerGesture::{Pressed,Dragging}` 显式表达状态，不从缺失事件或布尔组合推断状态。它负责坐标尺度映射、按当前内容尺寸夹紧、减少动效与有界惯性；滚轮行为仍由官方控件负责。
 - 复审触发条件：上游提供同时覆盖 touch drag、点击仲裁和原始取消清理的官方 API 后，迁移到该 API，并在同一切片移除本地状态、观察者和被取代的回归路径。
+
+## ⑧ 跨端测试分层与条件编译纪律
+
+对齐 Bevy 0.20 自动化测试标准，UI 验证体系分为三层独立通道，不得以一类替代另一类：
+
+1. **通道一：状态与 View Model（无渲染无头 ECS 测试）**：
+   - 入口为 `tests/headless/`，基于 `MinimalPlugins + AssetPlugin + ScenePlugin`，不申请 GPU device，不创建 OS 窗口。
+   - 职责：验证纯数据投影、ECS 实体关系挂载、BSN 结构生成、输入事件处理（通过 `PointerPress`/`PointerClick`/`Activate` 真实派发）、状态机迁移（如 `WindowChromeReport`）。
+   - 速度：数十毫秒完成整组用例，提供极速反馈。
+2. **通道二：真实布局与文本度量边界防范**：
+   - 注意：无渲染无头测试由于未加载字体栅格引擎（HarfBuzz/Swash），无法测量真实字形物理尺寸与换行折行。
+   - 规则：关键卡片与列表容器必须显式定义裁剪（`Overflow::clip()`）或滚动容器，防范字形撑爆；不得单凭无头测试通过宣称文本不溢出。
+3. **通道三：真实像素与物理交互取证**：
+   - 依赖真实进程在真实或虚拟显示合成器（Wayland/X11）下的渲染回执（`scripts/parity/visual_receipts.py`）。
+   - 强制绑定进程 PID、二进制摘要 SHA-256、ROI 交互包围盒与有效像素亮度标准差（`luma_stddev > 2`），彻底杜绝空白帧假阳性。
+4. **时间域受控推进**：
+   - 涉及定时器、双击阈值判定（`CHROME_DOUBLE_CLICK_INTERVAL_MS`）或过渡动画（如 `BackdropBlur` 渐变、`ModernCard` lift）的测试，提倡注入受控时间步进（`TimeUpdateStrategy`），禁止依赖无参 `app.update()` 假定时间推进。
+5. **跨平台条件编译纪律（机器红线）**：
+   - 严禁对全平台通用主题与契约类型（`UiPalette`、`Theme`、`Token`、`WindowChrome` 等）施加 `#[cfg(not(target_os = "android"))]` 排除。
+   - 跨端暴露的公开 API 函数签名中，所有参数与返回值类型在全平台必须具备完整引用。
+   - 移动端宿主能力必须诚实声明：Android 等无桌面窗口平台必须报告 `WindowChromeSupport::Unsupported`，严禁谎报 `Hosted`。
+   - 机器守卫：`scripts/quality/mobile-cfg-discipline-guard.py` 纳入 CI 结构门禁强制执行。

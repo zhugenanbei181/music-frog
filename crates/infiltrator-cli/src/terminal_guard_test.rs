@@ -25,9 +25,8 @@ fn centering_degrades_to_left_when_the_row_is_tight() {
 
 #[test]
 fn overrides_parse_all_three_keys() {
-    let overrides = TerminalOverrides::parse(
-        "unicode = \"simple\"\nanimation = false\ncolor = \"ansi256\"\n",
-    );
+    let overrides =
+        TerminalOverrides::parse("unicode = \"simple\"\nanimation = false\ncolor = \"ansi256\"\n");
     assert_eq!(overrides.unicode.as_deref(), Some("simple"));
     assert_eq!(overrides.animation, Some(false));
     assert_eq!(overrides.color.as_deref(), Some("ansi256"));

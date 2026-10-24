@@ -521,11 +521,7 @@ impl GlobeProjection {
         // backwards from (u, v, depth) to recover the world direction.
         let x1 = depth * cos_pitch - v * sin_pitch;
         let y1 = depth * sin_pitch + v * cos_pitch;
-        let direction = Vec3::new(
-            x1 * cos_yaw - u * sin_yaw,
-            y1,
-            x1 * sin_yaw + u * cos_yaw,
-        );
+        let direction = Vec3::new(x1 * cos_yaw - u * sin_yaw, y1, x1 * sin_yaw + u * cos_yaw);
         let lat_deg = direction.y.asin().to_degrees();
         let lon_deg = direction.z.atan2(direction.x).to_degrees();
         Some(GlobeHit {

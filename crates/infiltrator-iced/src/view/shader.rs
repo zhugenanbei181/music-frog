@@ -11,10 +11,10 @@
 
 use crate::types::message::Message;
 use crate::view::theme;
+use iced::wgpu;
 use iced::widget::canvas::{self, canvas};
 use iced::widget::shader::{Pipeline, Primitive, Program, Shader, Viewport};
 use iced::{Color, Element, Length, Rectangle, Renderer, Theme, mouse};
-use iced::wgpu;
 
 /// Which drawing engine a surface may use (#131). The wgpu backend carries
 /// the shader material; the tiny-skia software renderer keeps the vector
@@ -119,21 +119,19 @@ impl Pipeline for FlowPipeline {
             label: Some("infiltrator-flow-shader"),
             source: wgpu::ShaderSource::Wgsl(FLOW_WGSL.into()),
         });
-        let bind_group_layout = device.create_bind_group_layout(
-            &wgpu::BindGroupLayoutDescriptor {
-                label: Some("infiltrator-flow-bind-group-layout"),
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-            },
-        );
+        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("infiltrator-flow-bind-group-layout"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        });
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("infiltrator-flow-pipeline-layout"),
             bind_group_layouts: &[&bind_group_layout],
@@ -233,11 +231,7 @@ impl Primitive for FlowMaterial {
         queue.write_buffer(&_pipeline.uniform, 0, &self.uniform.to_bytes());
     }
 
-    fn draw(
-        &self,
-        pipeline: &Self::Pipeline,
-        render_pass: &mut wgpu::RenderPass<'_>,
-    ) -> bool {
+    fn draw(&self, pipeline: &Self::Pipeline, render_pass: &mut wgpu::RenderPass<'_>) -> bool {
         render_pass.set_pipeline(&pipeline.pipeline);
         render_pass.set_bind_group(0, &pipeline.bind_group, &[]);
         render_pass.draw(0..6, 0..1);
@@ -269,19 +263,17 @@ impl Program<Message> for FlowProgram {
     type State = ();
     type Primitive = FlowMaterial;
 
-    fn draw(
-        &self,
-        _state: &(),
-        _cursor: mouse::Cursor,
-        _bounds: Rectangle,
-    ) -> Self::Primitive {
+    fn draw(&self, _state: &(), _cursor: mouse::Cursor, _bounds: Rectangle) -> Self::Primitive {
         FlowMaterial::new(self.time, self.size, self.tint, self.alpha)
     }
 }
 
 /// The flow surface on the wgpu backend (#128).
 pub fn flow_shader(program: FlowProgram) -> Element<'static, Message> {
-    Shader::new(program).width(Length::Fill).height(Length::Fill).into()
+    Shader::new(program)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into()
 }
 
 /// The tiny-skia vector twin (#130): the same diagonal band composition in

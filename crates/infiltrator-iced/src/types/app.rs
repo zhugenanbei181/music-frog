@@ -181,7 +181,6 @@ pub struct CoreDownloadProgress {
     pub speed_bytes: u64,
 }
 
-#[derive(Debug, Clone, PartialEq)]
 // The command-palette catalogue, its categories and its typed targets live in
 // the shared contract (`infiltrator_contract::command_catalogue`); the Iced
 // types module keeps no second local command model.

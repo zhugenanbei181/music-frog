@@ -67,12 +67,13 @@ pub mod tray_status;
 use crate::command::UiCommandSink;
 use crate::command_execution::UnavailableCommandSink;
 use crate::pages::connections_clipboard::ClipboardHost;
+use crate::post_process::backdrop_blur::BackdropBlurPlugin;
 use crate::surface::host_insets::WindowInsetsInputReceiver;
 use bevy::DefaultPlugins;
 use bevy::app::{App, PluginGroup};
+use bevy::render::RenderPlugin;
 #[cfg(feature = "capture-tools")]
 use bevy::text::RemSize;
-use bevy::render::RenderPlugin;
 use bevy::window::{ExitCondition, Window, WindowPlugin, WindowResolution};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use lurker_core_contract::error::Failure;
@@ -268,7 +269,7 @@ fn run_with_command_sink_and_composition(
     }
     app.add_plugins(ModernSurfacePlugin);
     // EFFECTS-024: the modal backdrop blur Core2d post-process.
-    app.add_plugins(post_process::BackdropBlurPlugin);
+    app.add_plugins(BackdropBlurPlugin);
     // DUAL-15-08: the real Bevy power knob follows the shared render cadence.
     app.add_plugins(cadence::CadencePlugin);
     // DUAL-15-13 / DUAL-15-02: the frameless chrome path and the honest tray

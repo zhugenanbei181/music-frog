@@ -24,7 +24,6 @@ use iced::{Color, Shadow, Theme, Vector};
 use infiltrator_contract::design_tokens::{metrics, radius, space};
 use infiltrator_contract::theme::ThemeSkin;
 
-
 /// Spacing scale (logical pixels), from the shared contract ladder. Use these
 /// instead of raw numbers so rhythm stays consistent across pages.
 pub const SP_XS: f32 = space::XS;
@@ -100,7 +99,6 @@ impl DualShadow {
         Self { key, ambient }
     }
 }
-
 
 /// A soft two-stop linear gradient (#120): `top` fading into `bottom` along
 /// `angle`. The official cap is eight stops; themed washes stay at two so
@@ -208,7 +206,6 @@ pub struct Tokens {
     pub switch_track: Color,
     pub switch_knob: Color,
 }
-
 
 /// Predefined accent color presets for custom branding and personalization.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

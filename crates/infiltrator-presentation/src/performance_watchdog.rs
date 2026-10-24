@@ -128,7 +128,10 @@ pub enum BudgetDecision {
     /// 预算内，放行。
     Allow,
     /// 超出档位预算，拒绝（携带当前占用与预算字节）。
-    Deny { resident_bytes: u64, budget_bytes: u64 },
+    Deny {
+        resident_bytes: u64,
+        budget_bytes: u64,
+    },
 }
 
 /// 纹理预算台账（#195）：按契约档位预算记账。

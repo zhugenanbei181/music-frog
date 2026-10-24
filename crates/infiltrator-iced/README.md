@@ -15,6 +15,3 @@ MusicFrog 的 Iced 桌面产品。负责路由、视图、输入、托盘呈现�
 产品默认构建不包含 demo fixture；截图构建由 `capture-tools` feature 显式启用。统一测试脚本为 Iced/Bevy 测试启用该 feature，发布产品不启用。
 
 代理页排序使用 `OutboundSortOrder` 与 Core-owned outbound preferences；运行诊断页使用独立的 `RuntimeDelaySortOrder`。probe URL/timeout 由 Core 持有的 `RuntimeProbeSettings` 统一投影到 Iced/Bevy；旧无版本 TOML 键只在 Core 设置加载器中迁移到 schema v2。
-
-通用 UI 功能先扩展对应 `zhuge-ui-*` owner，再在本 crate 接入；不得复制共享实现。
-产品适配保留业务职责，更新共享依赖时同时验证其他消费者和可见行为。

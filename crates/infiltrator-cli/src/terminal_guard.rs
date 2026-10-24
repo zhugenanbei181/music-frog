@@ -29,13 +29,12 @@ impl TerminalGuard {
     /// 安装守卫：链式 panic 钩子 + 进程退出时的 Drop 复位。
     pub(crate) fn install() -> Self {
         let previous = take_hook();
-        let chained: Box<dyn Fn(&PanicHookInfo<'_>) + Sync + Send> =
-            Box::new(move |info| {
-                restore_terminal();
-                if let Some(hook) = previous.as_ref() {
-                    hook(info);
-                }
-            });
+        let chained: Box<dyn Fn(&PanicHookInfo<'_>) + Sync + Send> = Box::new(move |info| {
+            restore_terminal();
+            if let Some(hook) = previous.as_ref() {
+                hook(info);
+            }
+        });
         set_hook(chained);
         Self
     }
@@ -111,8 +110,8 @@ impl TerminalOverrides {
 
     /// 解析配置文本；非法键值逐项忽略。
     pub(crate) fn parse(text: &str) -> Self {
-        let parsed: toml::Value = toml::from_str(text)
-            .unwrap_or_else(|_| toml::Value::Table(Map::new()));
+        let parsed: toml::Value =
+            toml::from_str(text).unwrap_or_else(|_| toml::Value::Table(Map::new()));
         let table = parsed.as_table().cloned().unwrap_or_default();
         Self {
             unicode: table

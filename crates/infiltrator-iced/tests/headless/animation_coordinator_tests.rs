@@ -2,7 +2,7 @@
 //! (EFFECTS-029 #116-#118): fade windows, the on-demand frame gate, and the
 //! drawer's exit retention.
 //! test-intent: behavior
-use infiltrator_iced::animation::{AnimationCoordinator, Presence, DRAWER_FADE, ROUTE_FADE};
+use infiltrator_iced::animation::{AnimationCoordinator, DRAWER_FADE, Presence, ROUTE_FADE};
 use std::time::{Duration, Instant};
 
 #[test]
@@ -42,7 +42,10 @@ fn a_closing_drawer_keeps_its_exit_animation() {
     let mid = close_at + Duration::from_millis(100);
     assert!(coordinator.drawer_presented(mid), "#118 exit retention");
     let opacity = coordinator.drawer_opacity(mid);
-    assert!((opacity - 0.5).abs() < 1e-3, "linear exit midpoint, got {opacity}");
+    assert!(
+        (opacity - 0.5).abs() < 1e-3,
+        "linear exit midpoint, got {opacity}"
+    );
 
     // Gone once the exit fade settles.
     let settled = close_at + DRAWER_FADE + Duration::from_millis(1);

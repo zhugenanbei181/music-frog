@@ -216,3 +216,61 @@ fn the_mounted_shell_carries_the_chrome_bar_and_its_controls() {
         .count();
     assert_eq!(buttons, 3, "minimize/maximize/close are all mounted");
 }
+
+#[test]
+fn a_single_click_does_not_toggle_maximize() {
+    let (mut app, window) = chrome_app();
+    let bar = app.world_mut().spawn(ChromeDragBar).id();
+    assert!(!app.world().resource::<ChromeMaximizeLatch>().0);
+
+    press_on(&mut app, window, bar, 1);
+    app.update();
+
+    let mut entity = app.world_mut().entity_mut(window);
+    let mut window_component = entity.get_mut::<Window>().expect("window mounted");
+    assert_eq!(
+        window_component.internal.take_maximize_request(),
+        None,
+        "single click must not trigger a maximize toggle"
+    );
+    assert!(!app.world().resource::<ChromeMaximizeLatch>().0);
+}
+
+#[test]
+fn an_unsupported_host_reports_typed_boundary_and_skips_frameless_mutation() {
+    use infiltrator_contract::window_chrome::WindowChromeSupport;
+
+    let unsupported = WindowChromeSupport::Unsupported {
+        reason: "mobile-surface-has-no-window-chrome",
+    };
+    assert!(!unsupported.is_hosted());
+    assert!(!unsupported.drag());
+    assert!(!unsupported.maximize());
+    assert_eq!(
+        unsupported.unsupported_reason(),
+        Some("mobile-surface-has-no-window-chrome")
+    );
+
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    app.insert_resource(WindowChromeReport(unsupported));
+    app.add_plugins(WindowChromePlugin);
+    let window = app
+        .world_mut()
+        .spawn((
+            Window {
+                decorations: true,
+                ..Default::default()
+            },
+            PrimaryWindow,
+        ))
+        .id();
+    app.update();
+
+    let entity = app.world().entity(window);
+    let window_component = entity.get::<Window>().expect("window mounted");
+    assert!(
+        window_component.decorations,
+        "unsupported host must never clear window decorations"
+    );
+}

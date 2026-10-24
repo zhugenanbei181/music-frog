@@ -20,13 +20,15 @@ fn linear_stops(gradient: &Gradient) -> Vec<f32> {
 
 fn first_stop_color(gradient: &Gradient) -> iced::Color {
     match gradient {
-        Gradient::Linear(linear) => linear
-            .stops
-            .iter()
-            .flatten()
-            .next()
-            .expect("themed washes always carry stops")
-            .color,
+        Gradient::Linear(linear) => {
+            linear
+                .stops
+                .iter()
+                .flatten()
+                .next()
+                .expect("themed washes always carry stops")
+                .color
+        }
         _ => panic!("themed washes are linear"),
     }
 }
@@ -48,7 +50,10 @@ fn every_skin_washes_with_two_ordered_stops_inside_the_cap() {
 fn hero_wash_starts_at_the_sidebar_tone() {
     for tokens in [LIGHT, DARK, FOREST, AMOLED] {
         let top = first_stop_color(&tokens.hero_wash);
-        assert_eq!(top, tokens.sidebar, "hero wash top stop is the sidebar tone");
+        assert_eq!(
+            top, tokens.sidebar,
+            "hero wash top stop is the sidebar tone"
+        );
     }
 }
 

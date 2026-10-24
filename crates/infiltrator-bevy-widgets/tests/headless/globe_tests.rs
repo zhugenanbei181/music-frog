@@ -14,8 +14,8 @@ use infiltrator_bevy_widgets::globe::raster::rasterize_globe;
 use infiltrator_bevy_widgets::globe::{
     ARC_ALTITUDE_FRACTION, GeoLocation, GeoPoint, GeoPrecision, GeoSource, GeoUnknown, GlobeLink,
     GlobeMode, GlobeNode, GlobeNodeCategory, GlobePlate, GlobeProjection, GlobeSpec,
-    angular_distance_deg, build_globe_arcs, build_globe_particles, globe_scene,
-    project_flat_nodes, project_globe_nodes,
+    angular_distance_deg, build_globe_arcs, build_globe_particles, globe_scene, project_flat_nodes,
+    project_globe_nodes,
 };
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::theme::Theme;
@@ -329,7 +329,13 @@ fn globe_one_hundred_mount_retire_cycles_return_assets_to_baseline() {
 #[test]
 fn unproject_round_trips_projected_points() {
     let projection = GlobeProjection::new(0.0, 0.0, 100.0, Vec2::new(100.0, 100.0));
-    for (lat, lon) in [(0.0f32, 0.0), (45.0, 30.0), (-33.9, 151.2), (89.0, 0.0), (0.0, 179.0)] {
+    for (lat, lon) in [
+        (0.0f32, 0.0),
+        (45.0, 30.0),
+        (-33.9, 151.2),
+        (89.0, 0.0),
+        (0.0, 179.0),
+    ] {
         let projected = projection
             .project_lat_lon(lat, lon)
             .expect("front-hemisphere coordinate projects");
@@ -353,7 +359,12 @@ fn unproject_round_trips_projected_points() {
 fn unproject_round_trips_under_rotation() {
     let projection = GlobeProjection::new(37.0, -22.0, 80.0, Vec2::new(80.0, 80.0));
     // Points around the rotated view center (latitude -22, longitude 37).
-    for (lat, lon) in [(-22.0f32, 37.0), (-10.0, 37.0), (-22.0, 50.0), (-40.0, 20.0)] {
+    for (lat, lon) in [
+        (-22.0f32, 37.0),
+        (-10.0, 37.0),
+        (-22.0, 50.0),
+        (-40.0, 20.0),
+    ] {
         let projected = projection
             .project_lat_lon(lat, lon)
             .expect("rotated front-hemisphere coordinate projects");
@@ -399,8 +410,18 @@ fn angular_distance_is_great_circle_degrees() {
 #[test]
 fn nearest_node_picks_within_tolerance_and_rejects_beyond() {
     let nodes = vec![
-        GlobeNode::new("london", "London", known(51.5, -0.1), GlobeNodeCategory::Home),
-        GlobeNode::new("sf", "San Francisco", known(37.7, -122.4), GlobeNodeCategory::Exit),
+        GlobeNode::new(
+            "london",
+            "London",
+            known(51.5, -0.1),
+            GlobeNodeCategory::Home,
+        ),
+        GlobeNode::new(
+            "sf",
+            "San Francisco",
+            known(37.7, -122.4),
+            GlobeNodeCategory::Exit,
+        ),
     ];
     let spec = GlobeSpec::new(nodes, Vec::new(), 200, 200).with_view(-0.1, 51.5);
     let projection = GlobeProjection::from_spec(&spec);

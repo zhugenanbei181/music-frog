@@ -1,6 +1,6 @@
 use super::backdrop_blur::{
-    kernel_weights, pass_texel_size, quarter_size, BackdropBlur, DEFAULT_SPAN, KERNEL_FAR_OFFSET,
-    KERNEL_NEAR_OFFSET,
+    BackdropBlur, DEFAULT_SPAN, KERNEL_FAR_OFFSET, KERNEL_NEAR_OFFSET, kernel_weights,
+    pass_texel_size, quarter_size,
 };
 use bevy::math::{UVec2, Vec2};
 
@@ -37,7 +37,10 @@ fn quarter_size_never_returns_zero() {
     for width in 0..12u32 {
         for height in 0..12u32 {
             let size = quarter_size(UVec2::new(width, height));
-            assert!(size.x >= 1 && size.y >= 1, "quarter of {width}x{height} must stay drawable");
+            assert!(
+                size.x >= 1 && size.y >= 1,
+                "quarter of {width}x{height} must stay drawable"
+            );
         }
     }
 }

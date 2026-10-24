@@ -63,6 +63,9 @@ fn the_two_frame_sets_keep_the_same_structure() {
         ascii.bottom_tee,
         ascii.cross,
     ] {
-        assert!(glyph.is_ascii(), "ASCII 档案里混入了非 ASCII 字形 {glyph:?}");
+        assert!(
+            glyph.is_ascii(),
+            "ASCII 档案里混入了非 ASCII 字形 {glyph:?}"
+        );
     }
 }

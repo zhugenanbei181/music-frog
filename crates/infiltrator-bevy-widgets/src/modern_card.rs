@@ -18,6 +18,8 @@ use crate::palette::rem;
 use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
+use bevy::ecs::hierarchy::Children;
+use bevy::ecs::query::With;
 use bevy::ecs::system::{Commands, Query, Res};
 use bevy::picking::hover::PickingInteraction;
 use bevy::scene::{Scene, bsn};
@@ -173,7 +175,7 @@ pub fn modern_card_scene(content: Box<dyn Scene>, palette: &UiPalette) -> impl S
             border: UiRect::all(Val::Px(palette.hairline_px)),
             border_radius: BorderRadius::all(rem(palette.card_radius_px)),
         }
-        BackgroundColor(palette.surface_elevated)
+        BackgroundColor({ palette.surface_elevated })
         BorderColor { top: edge, right: edge, bottom: edge, left: edge }
         ModernCard
         ModernCardMarked(false)
@@ -193,27 +195,22 @@ pub fn modern_card_scene(content: Box<dyn Scene>, palette: &UiPalette) -> impl S
 pub fn sync_modern_card_paint(
     palette: Res<UiPalette>,
     mut commands: Commands,
-    mut cards: Query<(
-        Entity,
-        &ModernCardMarked,
-        Option<&ButtonDisabled>,
-        Option<&PickingInteraction>,
-        &mut BackgroundColor,
-        &mut BorderColor,
-        Option<&mut BoxShadow>,
-        &mut UiTransform,
-    ), With<ModernCard>>,
+    mut cards: Query<
+        (
+            Entity,
+            &ModernCardMarked,
+            Option<&ButtonDisabled>,
+            Option<&PickingInteraction>,
+            &mut BackgroundColor,
+            &mut BorderColor,
+            Option<&mut BoxShadow>,
+            &mut UiTransform,
+        ),
+        With<ModernCard>,
+    >,
 ) {
-    for (
-        entity,
-        marked,
-        disabled,
-        interaction,
-        mut fill,
-        mut border,
-        mut shadow,
-        mut transform,
-    ) in &mut cards
+    for (entity, marked, disabled, interaction, mut fill, mut border, mut shadow, mut transform) in
+        &mut cards
     {
         if disabled.is_some_and(|disabled| disabled.0) {
             continue;

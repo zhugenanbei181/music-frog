@@ -71,10 +71,7 @@ fn capability_rows(report: &CapabilityReport) -> Vec<Vec<String>> {
             "graphics protocol".to_string(),
             report.graphics_protocol.to_string(),
         ],
-        vec![
-            "charset".to_string(),
-            report.charset.to_string(),
-        ],
+        vec!["charset".to_string(), report.charset.to_string()],
     ]
 }
 

@@ -15,7 +15,6 @@ RenderPlugin 已注册的 Shader 存储不得重复初始化，避免使在途�
 
 图标与字体从共享视觉资源目录嵌入；稳定 ID、SVG/PNG/ICO/字体格式变体和许可证来源由同级 crate [infiltrator-shared](../infiltrator-shared/README.md) 的资源 catalog 统一维护。
 
-通用 UI 功能先扩展对应 `zhuge-ui-*` owner，再在本 crate 接入；不得复制共享实现。
 固定行高视口范围、overscan 与滚动边界，以及变高列表的前缀索引与可见窗口，
 由 `zhuge-ui-core::virtual_list` 唯一计算。本 crate 只把共享窗口映射为 ECS 列表
 所需的 spacer 投影；实体池和业务行身份仍属于 Bevy 适配层。触摸拖动与有界惯性

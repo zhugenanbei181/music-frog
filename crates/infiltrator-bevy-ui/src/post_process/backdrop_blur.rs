@@ -17,32 +17,34 @@
 use std::collections::HashMap;
 
 use bevy::app::{App, Plugin, Update};
-use bevy::asset::{load_embedded_asset, AssetServer, Handle};
+use bevy::asset::{AssetServer, Handle, load_embedded_asset};
 use bevy::camera::{Camera, Camera2d};
-use bevy::core_pipeline::core_2d::Core2dSystems;
+use bevy::core_pipeline::Core2dSystems;
 use bevy::core_pipeline::tonemapping::tonemapping;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::query::With;
+use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
-use bevy::ecs::system::{Commands, Local, Query, Res, ResMut, Resource};
+use bevy::ecs::system::{Commands, Local, Query, Res, ResMut};
 use bevy::math::{UVec2, Vec2};
 use bevy::render::camera::ExtractedCamera;
 use bevy::render::extract_component::{ExtractComponent, ExtractComponentPlugin};
 use bevy::render::render_resource::{
-    binding_types::{sampler, texture_2d, uniform_buffer},
-    encase::UniformBuffer,
     AddressMode, BindGroupEntries, BindGroupLayout, BindGroupLayoutDescriptor,
     BindGroupLayoutEntries, BufferBinding, BufferInitDescriptor, BufferUsages,
     CachedRenderPipelineId, ColorTargetState, ColorWrites, Extent3d, FilterMode, FragmentState,
     LoadOp, Operations, PipelineCache, RenderPassColorAttachment, RenderPassDescriptor,
     RenderPipeline, RenderPipelineDescriptor, Sampler, SamplerBindingType, SamplerDescriptor,
-    Shader, ShaderStages, ShaderType, StoreOp, TextureDescriptor, TextureDimension, TextureFormat,
+    ShaderStages, ShaderType, StoreOp, TextureDescriptor, TextureDimension, TextureFormat,
     TextureSampleType, TextureUsages, TextureView, TextureViewDescriptor, VertexState,
+    binding_types::{sampler, texture_2d, uniform_buffer},
+    encase::UniformBuffer,
 };
 use bevy::render::renderer::{RenderContext, RenderDevice, ViewQuery};
 use bevy::render::view::ViewTarget;
 use bevy::render::{Render, RenderApp, RenderStartup};
+use bevy::shader::Shader;
 use infiltrator_bevy_widgets::modal::{ModalStage, ModalState};
 
 /// Weight of the gaussian center tap in the collapsed nine-tap kernel.
@@ -62,11 +64,7 @@ pub const DEFAULT_SPAN: f32 = 1.0;
 /// sum to 1.0 once the two pairs count twice, so a span of 0 degenerates to
 /// an identity bilinear copy.
 pub fn kernel_weights() -> [f32; 3] {
-    [
-        KERNEL_CENTER_WEIGHT,
-        KERNEL_NEAR_WEIGHT,
-        KERNEL_FAR_WEIGHT,
-    ]
+    [KERNEL_CENTER_WEIGHT, KERNEL_NEAR_WEIGHT, KERNEL_FAR_WEIGHT]
 }
 
 /// Quarter-resolution blur target size: each axis divides by four with a
@@ -95,9 +93,7 @@ pub struct BackdropBlur {
 
 impl Default for BackdropBlur {
     fn default() -> Self {
-        Self {
-            span: DEFAULT_SPAN,
-        }
+        Self { span: DEFAULT_SPAN }
     }
 }
 
@@ -122,7 +118,7 @@ pub struct BackdropBlurParams {
 
 /// The two offscreen quarter-resolution intermediates for one blurred view.
 /// They reallocate only when the quarter size or texture format changes.
-struct QuarterTargets {
+pub struct QuarterTargets {
     size: UVec2,
     format: TextureFormat,
     horizontal: TextureView,
@@ -245,7 +241,8 @@ pub fn init_backdrop_blur_pipeline(
 /// removes the pass. [`ModalStage`] stays the single business authority —
 /// this gate holds no second copy of the stage, only the projection of it.
 pub fn sync_backdrop_blur_gate(
-    mut cameras: Query<(Entity, Option<&BackdropBlur>), With<Camera2d>>,
+    mut commands: Commands,
+    cameras: Query<(Entity, Option<&BackdropBlur>), With<Camera2d>>,
     modals: Query<&ModalState>,
 ) {
     let blurred = modals.iter().any(|modal| modal.stage != ModalStage::Hidden);
@@ -259,10 +256,10 @@ pub fn sync_backdrop_blur_gate(
         }
     }
     for entity in to_insert {
-        cameras.entity_mut(entity).insert(BackdropBlur::modal());
+        commands.entity(entity).insert(BackdropBlur::modal());
     }
     for entity in to_remove {
-        cameras.entity_mut(entity).remove::<BackdropBlur>();
+        commands.entity(entity).remove::<BackdropBlur>();
     }
 }
 

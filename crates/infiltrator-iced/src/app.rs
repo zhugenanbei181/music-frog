@@ -1,4 +1,5 @@
 use crate::admin_server::{ADMIN_DEFAULT_PORT, AdminServerManager, AdminSharedRuntime};
+use crate::animation::AnimationCoordinator;
 use crate::configs_dir::config_manager;
 use crate::host::desktop::{read_system_proxy_state, system_proxy_port};
 use crate::mini_hud_window::install_host_handle;
@@ -15,7 +16,6 @@ use crate::state::runtime::{
     TunServiceInstallState,
 };
 use crate::state::shell::ShellState;
-use crate::animation::AnimationCoordinator;
 use crate::types::app::RouteHistory;
 use crate::types::dns::AdvancedValidationState;
 use crate::types::doctor::DoctorPanelState;

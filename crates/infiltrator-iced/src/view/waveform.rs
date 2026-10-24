@@ -3,10 +3,9 @@
 use crate::view::chart::spline;
 use crate::view::chart::{self, ChartLayers};
 use crate::view::theme;
-use iced::widget::canvas;
 use iced::gradient::Linear;
+use iced::widget::canvas;
 use iced::{Color, Element, Gradient, Point, Radians, Rectangle, Renderer, Theme, border, mouse};
-use std::f32::consts::FRAC_PI_2;
 use infiltrator_contract::mini_hud::MiniHudWaveformStrip;
 use infiltrator_contract::traffic_scale::TrafficScaleSnapshot;
 use infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot;
@@ -14,6 +13,7 @@ use infiltrator_domain::traffic_scale::compute_from_rates;
 use infiltrator_domain::traffic_waveform::smooth_dual_series;
 use infiltrator_shared::byte_units::format_bytes;
 use std::collections::VecDeque;
+use std::f32::consts::FRAC_PI_2;
 
 // ---------------------------------------------------------------------------
 // High-Fidelity GPU Canvas Traffic Chart & Waveforms
@@ -97,100 +97,99 @@ impl<Message> canvas::Program<Message> for TrafficChart {
             head: (upload_raw[0], download_raw[0]),
         });
         let data = state.data().draw(renderer, bounds.size(), |frame| {
-        // 2. Download area fill & glowing curve — a Catmull-Rom bezier through
-        // the smoothed samples (#126) with a vertical accent wash fading to
-        // the baseline.
-        let down_points: Vec<Point> = download_curve
-            .iter()
-            .enumerate()
-            .map(|(i, down)| Point::new(left_pad + i as f32 * x_step, scale(*down as f64)))
-            .collect();
-        let down_area = canvas::Path::new(|p| {
-            p.move_to(Point::new(left_pad, height));
-            p.move_to(down_points[0]);
-            for segment in spline::catmull_rom_segments(&down_points, 1.0) {
-                p.bezier_curve_to(segment.control_a, segment.control_b, segment.to);
-            }
-            p.line_to(
-                down_points
-                    .last()
-                    .copied()
-                    .map(|point| Point::new(point.x, height))
-                    .unwrap_or(Point::new(left_pad, height)),
+            // 2. Download area fill & glowing curve — a Catmull-Rom bezier through
+            // the smoothed samples (#126) with a vertical accent wash fading to
+            // the baseline.
+            let down_points: Vec<Point> = download_curve
+                .iter()
+                .enumerate()
+                .map(|(i, down)| Point::new(left_pad + i as f32 * x_step, scale(*down as f64)))
+                .collect();
+            let down_area = canvas::Path::new(|p| {
+                p.move_to(Point::new(left_pad, height));
+                p.move_to(down_points[0]);
+                for segment in spline::catmull_rom_segments(&down_points, 1.0) {
+                    p.bezier_curve_to(segment.control_a, segment.control_b, segment.to);
+                }
+                p.line_to(
+                    down_points
+                        .last()
+                        .copied()
+                        .map(|point| Point::new(point.x, height))
+                        .unwrap_or(Point::new(left_pad, height)),
+                );
+                p.close();
+            });
+            let down_wash = Gradient::Linear(
+                Linear::new(Radians(FRAC_PI_2))
+                    .add_stop(0.0, Color { a: 0.22, ..accent })
+                    .add_stop(1.0, Color { a: 0.02, ..accent }),
             );
-            p.close();
-        });
-        let down_wash = Gradient::Linear(
-            Linear::new(Radians(FRAC_PI_2))
-                .add_stop(0.0, Color { a: 0.22, ..accent })
-                .add_stop(1.0, Color { a: 0.02, ..accent }),
-        );
-        frame.fill(&down_area, down_wash);
+            frame.fill(&down_area, down_wash);
 
-        let down_line = canvas::Path::new(|p| {
-            p.move_to(down_points[0]);
-            for segment in spline::catmull_rom_segments(&down_points, 1.0) {
-                p.bezier_curve_to(segment.control_a, segment.control_b, segment.to);
-            }
-        });
-        frame.stroke(
-            &down_line,
-            canvas::Stroke::default()
-                .with_color(Color { a: 0.16, ..accent })
-                .with_width(7.0),
-        );
-        frame.stroke(
-            &down_line,
-            canvas::Stroke::default().with_color(accent).with_width(2.5),
-        );
-
-        // 3. Upload area fill & glowing curve (#126: bezier + vertical wash).
-        let up_points: Vec<Point> = upload_curve
-            .iter()
-            .enumerate()
-            .map(|(i, up)| Point::new(left_pad + i as f32 * x_step, scale(*up as f64)))
-            .collect();
-        let up_area = canvas::Path::new(|p| {
-            p.move_to(Point::new(left_pad, height));
-            p.move_to(up_points[0]);
-            for segment in spline::catmull_rom_segments(&up_points, 1.0) {
-                p.bezier_curve_to(segment.control_a, segment.control_b, segment.to);
-            }
-            p.line_to(
-                up_points
-                    .last()
-                    .copied()
-                    .map(|point| Point::new(point.x, height))
-                    .unwrap_or(Point::new(left_pad, height)),
+            let down_line = canvas::Path::new(|p| {
+                p.move_to(down_points[0]);
+                for segment in spline::catmull_rom_segments(&down_points, 1.0) {
+                    p.bezier_curve_to(segment.control_a, segment.control_b, segment.to);
+                }
+            });
+            frame.stroke(
+                &down_line,
+                canvas::Stroke::default()
+                    .with_color(Color { a: 0.16, ..accent })
+                    .with_width(7.0),
             );
-            p.close();
-        });
-        let up_wash = Gradient::Linear(
-            Linear::new(Radians(FRAC_PI_2))
-                .add_stop(0.0, Color { a: 0.16, ..success })
-                .add_stop(1.0, Color { a: 0.01, ..success }),
-        );
-        frame.fill(&up_area, up_wash);
+            frame.stroke(
+                &down_line,
+                canvas::Stroke::default().with_color(accent).with_width(2.5),
+            );
 
-        let up_line = canvas::Path::new(|p| {
-            p.move_to(up_points[0]);
-            for segment in spline::catmull_rom_segments(&up_points, 1.0) {
-                p.bezier_curve_to(segment.control_a, segment.control_b, segment.to);
-            }
-        });
-        frame.stroke(
-            &up_line,
-            canvas::Stroke::default()
-                .with_color(Color { a: 0.14, ..success })
-                .with_width(6.0),
-        );
-        frame.stroke(
-            &up_line,
-            canvas::Stroke::default()
-                .with_color(success)
-                .with_width(2.0),
-        );
+            // 3. Upload area fill & glowing curve (#126: bezier + vertical wash).
+            let up_points: Vec<Point> = upload_curve
+                .iter()
+                .enumerate()
+                .map(|(i, up)| Point::new(left_pad + i as f32 * x_step, scale(*up as f64)))
+                .collect();
+            let up_area = canvas::Path::new(|p| {
+                p.move_to(Point::new(left_pad, height));
+                p.move_to(up_points[0]);
+                for segment in spline::catmull_rom_segments(&up_points, 1.0) {
+                    p.bezier_curve_to(segment.control_a, segment.control_b, segment.to);
+                }
+                p.line_to(
+                    up_points
+                        .last()
+                        .copied()
+                        .map(|point| Point::new(point.x, height))
+                        .unwrap_or(Point::new(left_pad, height)),
+                );
+                p.close();
+            });
+            let up_wash = Gradient::Linear(
+                Linear::new(Radians(FRAC_PI_2))
+                    .add_stop(0.0, Color { a: 0.16, ..success })
+                    .add_stop(1.0, Color { a: 0.01, ..success }),
+            );
+            frame.fill(&up_area, up_wash);
 
+            let up_line = canvas::Path::new(|p| {
+                p.move_to(up_points[0]);
+                for segment in spline::catmull_rom_segments(&up_points, 1.0) {
+                    p.bezier_curve_to(segment.control_a, segment.control_b, segment.to);
+                }
+            });
+            frame.stroke(
+                &up_line,
+                canvas::Stroke::default()
+                    .with_color(Color { a: 0.14, ..success })
+                    .with_width(6.0),
+            );
+            frame.stroke(
+                &up_line,
+                canvas::Stroke::default()
+                    .with_color(success)
+                    .with_width(2.0),
+            );
         });
 
         // Layer 3 (#125): the crosshair and its HUD tooltip draw immediately
