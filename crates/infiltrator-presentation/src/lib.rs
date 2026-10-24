@@ -54,6 +54,7 @@ pub mod mixin_studio_projection;
 pub mod network_status_projection;
 pub mod operation_phase;
 pub mod overview_page_model;
+pub mod performance_watchdog;
 pub mod profile_edit_session;
 pub mod profile_edit_status_projection;
 pub mod profile_editor_projection;

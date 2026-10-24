@@ -670,3 +670,19 @@
   - 验收：中英文字符对齐无跳行，程序即使崩溃也能 100% 恢复光标与终端回显。
   - 计划：在 infiltrator-cli 内实现 terminal_guard 与字符宽度校准。
   - 备注：2026-10-24 交付——新模块 `terminal_guard`：`TerminalGuard::install` 链式 panic 钩子（先复位再调原钩子）+ Drop 复位覆盖正常/提前返回/panic 三条路径（复位序列 = 属性 + 光标 + 自动折行；termios 回显位未由本 CLI 关闭故无需恢复）；显示宽度按共享字符宽度表（EFFECTS-005 #21）全角 2/半角 1/零宽 0；`center_or_left` 居中降级策略 + `output::print_section` 消费；`infiltrator-terminal.toml` 三键覆盖（unicode/animation/color，自当前目录向上四级查找，坏文件按空处理）经 `toml` workspace 依赖解析。伴生 `terminal_guard_test` 五用例。待验证：统一 cargo 批次（新依赖 toml 与 infiltrator-shared 的锁文件解析、编译与测试）。
+
+### 12.3 画质自适应与读屏树（2026-10-24 交付，2条 / 6pt）
+
+- [ ] EFFECTS-048 [kind: quality] [priority: P1] [points: 3] [owner: infiltrator-presentation + desktop] [status: Integrated] 动态画质自适应切换与大纹理显存配额管理（#193~#195）
+  - 产物：实现 #193 后台最小化自动暂停高频刷新（1fps/休眠）、#194 帧率自适应动态画质降级引擎（>16.6ms 自动退至 Standard）、#195 显存 64MB 上限限额管理。
+  - 依赖：EFFECTS-006。
+  - 验收：低性能机器上自动降低采样率与阴影等级，后台挂起 CPU 占用归零。
+  - 计划：实现 presentation::performance_watchdog。
+  - 备注：**分腿交付**——#193 已由 bevy-ui `cadence`（后台 2fps reactive_low_power/挂起 + winit 低功耗档，契约 `RenderCadence` 镜像）交付；#195 的预算事实已由契约 `VisualTier::texture_budget_bytes`（Simplified=64MB/Standard=96MB/Enhanced=256MB，EFFECTS-006 波次）交付；#194 本批交付——新模块 `presentation::performance_watchdog`：`FrameTimeGovernor`（>16.6ms 持续 30 帧降一档 + 120 帧冷却，typed `Tracking`/`Cooling` 两态互斥，降档自动、升档手动防振荡，最低档保持不再连降）与 `TextureBudgetLedger`（按档位预算的 typed Allow/Deny 记账、换档重挂）。伴生六用例。待验证：统一 cargo 批次；宿主帧时长喂入与降档生效的实机曲线。
+
+- [ ] EFFECTS-049 [kind: a11y] [priority: P1] [points: 3] [owner: 三大 UI owner] [status: Integrated] 辅助功能读屏树（AccessKit）标准角色注册（#196）
+  - 产物：实现 #196 为 Iced、Bevy、Slint 常用控件注册 AccessibleRole、AccessibleName 与操作动作。
+  - 依赖：无。
+  - 验收：系统读屏软件（如 Orca / NVDA）能正确读出核心按钮角色、标签与状态。
+  - 计划：在各前端适配器注册 a11y 语义树。
+  - 备注：**2026-10-24 记录找回**——三端各自的注册面已在树：Bevy UI 31 个文件挂真实 `accesskit::Node`（Region/Button/Dialog 等角色遍布 overview/rules/settings/sync 等页面）；共享语法在契约 `a11y` 模块（`A11yRole`/`ShellA11yNode`/`label_key`/`shell_a11y_specs` 带测试）；Slint 用内建 `accessible-role`/`accessible-label`（如 `lumen-flags` 的 image 角色）；Iced 0.14 无 AccessKit 集成，诚实桥接为共享语法标签 + hover tooltip（`accessibility.rs` 文档在案，group 守卫禁止假装发布语义树）。待验证：Orca/NVDA 实机读屏回执（外部环境腿，按验收口径登记）。
