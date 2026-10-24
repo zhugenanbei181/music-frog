@@ -8,6 +8,7 @@
 //! 协商结果是纯函数式的快照，同一组信号永远得到同一份能力，渲染层因此可以在
 //! 绘制时直接按档位取色，不必反复探测终端。
 
+use crate::charset::{CharsetProfile, negotiate_charset};
 use std::env;
 
 /// 终端色彩深度档位。
@@ -75,7 +76,7 @@ pub(crate) struct TerminalCapabilities {
     /// 可用的图形协议。
     pub(crate) graphics_protocol: GraphicsProtocol,
     /// 输出字符集档案（EFFECTS-043 #174~#175）。
-    pub(crate) charset: crate::charset::CharsetProfile,
+    pub(crate) charset: CharsetProfile,
 }
 
 /// 终端自报的环境信号快照。
@@ -125,7 +126,7 @@ pub(crate) fn negotiate(environment: &TerminalEnvironment) -> TerminalCapabiliti
     TerminalCapabilities {
         color_depth: negotiate_color_depth(environment),
         graphics_protocol: negotiate_graphics_protocol(environment),
-        charset: crate::charset::negotiate_charset(environment),
+        charset: negotiate_charset(environment),
     }
 }
 

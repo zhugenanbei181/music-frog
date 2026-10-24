@@ -570,7 +570,7 @@
   - 验收：文档入口可复跑；基线报告归档到本地证据目录；如发现真实行为缺口，按缺陷回流现在佛登记。
   - 事实依据：2026-10-22 实测——本机已装 `cargo-llvm-cov` 与 `cargo-mutants`，但仓库无任何覆盖率或变异测试入口，测试证据只有「跑通/没跑通」两层。
   - 计划：先出一次覆盖率基线报告，再决定是否对核心 crate 开变异测试门槛。
-  - 备注：文档入口已交付——`TESTING.md`「可选审计工具（非门禁）」节登记两条命令与「补充证据、不进结构门」的裁决口径；待验证腿：覆盖率/变异测试基线报告按本批「不跑 cargo」约束留给统一 cargo 批次归档。
+  - 备注：文档入口已交付——根测试文档「可选审计工具（非门禁）」节登记两条命令与「补充证据、不进结构门」的裁决口径；待验证腿：覆盖率/变异测试基线报告按本批「不跑 cargo」约束留给统一 cargo 批次归档。
 
 - [ ] ENG-003.1 [kind: compliance] [priority: P0] [points: 3] [owner: infiltrator-android + release] [status: Integrated] Android APK 随包分发 GPL-3.0-or-later（`socks5-impl`）——必须换依赖或明确分发模型
   - 产物：Android host 的 userspace 隧道不再链接 copyleft 依赖（换实现或换 crate），或者发布物显式附带对应许可文本与源码提供；`deny.toml` 里那条 `socks5-impl` 的逐 crate 例外随之删除。
@@ -578,7 +578,7 @@
   - 验收：`cargo deny check licenses` 在移除例外后仍全绿；第三方声明文件的 §13 按结论改写或删除；APK 侧的许可披露与产出一致。
   - 事实依据：2026-10-22 实测——`crates/infiltrator-android/Cargo.toml` 直接依赖 `tun2proxy` 0.5.4 与 `tun2` 3.1.8，`tun2proxy` 又依赖 `socks5-impl` 0.5.17（GPL-3.0-or-later，随 APK 编译分发）。
   - 计划：先在 Android host 侧评估替换方案（隧道实现与 SOCKS5 客户端是否可自持），再决定是换依赖还是补分发披露。
-  - 备注：**2026-10-24 分发模型裁决：走披露路线**——`android/app/src/main/assets/third-party/` 随每个 release 构建打包 `NOTICES.md`（源码提供方式=公开 release tag + `Cargo.lock` 精确版本）与 `LICENSE-GPL-3.0.txt`（全文 674 行，取自 registry 内 `socks5-impl` 0.5.17 的上游 LICENSE）；`THIRD-PARTY-NOTICES.md` §13 与 `deny.toml` 例外注释同步改写为已裁决口径；`dependency-policy-guard --mode enforce` 复跑通过（deny.toml 与披露一致）。自持 SOCKS5 客户端以删除例外为长期出口，另立后续条目时引用本条。待验证：release APK 的资产清单含 `third-party/NOTICES.md` 与许可全文（tag 构建腿）。
+  - 备注：**2026-10-24 分发模型裁决：走披露路线**——Android 资产目录 `third-party/` 随每个 release 构建打包 NOTICES（源码提供方式=公开 release tag + `Cargo.lock` 精确版本）与 LICENSE-GPL-3.0.txt（全文 674 行，取自 registry 内 `socks5-impl` 0.5.17 的上游 LICENSE）；仓库根第三方声明的 §13 与 `deny.toml` 例外注释同步改写为已裁决口径；`dependency-policy-guard --mode enforce` 复跑通过（deny.toml 与披露一致）。自持 SOCKS5 客户端以删除例外为长期出口，另立后续条目时引用本条。待验证：release APK 的资产清单含 third-party 声明与许可全文（tag 构建腿）。
 
 ## 十二、波次 A 效果地基与平台能力（已交付，9条 / 27pt）
 

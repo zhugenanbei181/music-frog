@@ -29,17 +29,17 @@ fn content_scene() -> Box<dyn Scene> {
 
 #[test]
 fn the_state_ladder_resolves_every_fact_combination() {
-    use PickingInteraction::{Hovered, None as NoInteraction, Pressed};
+
     assert_eq!(
-        resolve_modern_card_state(false, Some(Pressed)),
+        resolve_modern_card_state(false, Some(PickingInteraction::Pressed)),
         ModernCardState::Pressed
     );
     assert_eq!(
-        resolve_modern_card_state(false, Some(Hovered)),
+        resolve_modern_card_state(false, Some(PickingInteraction::Hovered)),
         ModernCardState::Hovered
     );
     assert_eq!(
-        resolve_modern_card_state(false, Some(NoInteraction)),
+        resolve_modern_card_state(false, Some(PickingInteraction::None)),
         ModernCardState::Resting
     );
     assert_eq!(
@@ -48,11 +48,11 @@ fn the_state_ladder_resolves_every_fact_combination() {
     );
     assert_eq!(resolve_modern_card_state(true, None), ModernCardState::Marked);
     assert_eq!(
-        resolve_modern_card_state(true, Some(Hovered)),
+        resolve_modern_card_state(true, Some(PickingInteraction::Hovered)),
         ModernCardState::MarkedHovered
     );
     assert_eq!(
-        resolve_modern_card_state(true, Some(Pressed)),
+        resolve_modern_card_state(true, Some(PickingInteraction::Pressed)),
         ModernCardState::MarkedPressed
     );
 }

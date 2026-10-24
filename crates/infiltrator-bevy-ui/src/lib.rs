@@ -71,6 +71,7 @@ use bevy::DefaultPlugins;
 use bevy::app::{App, PluginGroup};
 #[cfg(feature = "capture-tools")]
 use bevy::text::RemSize;
+use bevy::render::RenderPlugin;
 use bevy::window::{ExitCondition, Window, WindowPlugin, WindowResolution};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use lurker_core_contract::error::Failure;
@@ -83,7 +84,7 @@ use std::time::Duration;
 /// limits: on Android the texture ceilings are capped and allocation favours
 /// memory usage, so a large raster or a stray surface cannot pin the heap.
 /// Desktop keeps the platform default.
-fn gpu_profile_render_plugin() -> bevy::render::RenderPlugin {
+fn gpu_profile_render_plugin() -> RenderPlugin {
     #[cfg(target_os = "android")]
     {
         use bevy::render::settings::{MemoryHints, RenderCreation, WgpuLimits, WgpuSettings};
@@ -95,14 +96,14 @@ fn gpu_profile_render_plugin() -> bevy::render::RenderPlugin {
             ..settings.limits
         };
         settings.memory_hints = MemoryHints::MemoryUsage;
-        bevy::render::RenderPlugin {
+        RenderPlugin {
             render_creation: RenderCreation::Automatic(Box::new(settings)),
             ..Default::default()
         }
     }
     #[cfg(not(target_os = "android"))]
     {
-        bevy::render::RenderPlugin::default()
+        RenderPlugin::default()
     }
 }
 

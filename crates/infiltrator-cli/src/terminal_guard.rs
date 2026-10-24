@@ -9,8 +9,10 @@
 use infiltrator_shared::effect_assets::char_width_class;
 use std::env;
 use std::fs;
-use std::io::Write;
+use std::io::{Write, stderr};
+use std::panic::{PanicHookInfo, set_hook, take_hook};
 use std::path::PathBuf;
+use toml::map::Map;
 
 /// 终端复位序列：属性复位、光标显示、自动折行开启。
 pub(crate) const RESTORE_SEQUENCE: &str = "\x1b[0m\x1b[?25h\x1b[?7h";
@@ -26,15 +28,15 @@ pub(crate) struct TerminalGuard;
 impl TerminalGuard {
     /// 安装守卫：链式 panic 钩子 + 进程退出时的 Drop 复位。
     pub(crate) fn install() -> Self {
-        let previous = std::panic::take_hook();
-        let chained: Box<dyn Fn(&std::panic::PanicHookInfo<'_>) + Sync + Send> =
+        let previous = take_hook();
+        let chained: Box<dyn Fn(&PanicHookInfo<'_>) + Sync + Send> =
             Box::new(move |info| {
                 restore_terminal();
                 if let Some(hook) = previous.as_ref() {
                     hook(info);
                 }
             });
-        std::panic::set_hook(chained);
+        set_hook(chained);
         Self
     }
 
@@ -52,7 +54,7 @@ impl Drop for TerminalGuard {
 
 /// 把复位序列写到 stderr（panic 路径上 stdout 可能正被占用）。
 fn restore_terminal() {
-    let mut stderr = std::io::stderr();
+    let mut stderr = stderr();
     let _ = stderr.write_all(RESTORE_SEQUENCE.as_bytes());
     let _ = stderr.flush();
 }
@@ -110,7 +112,7 @@ impl TerminalOverrides {
     /// 解析配置文本；非法键值逐项忽略。
     pub(crate) fn parse(text: &str) -> Self {
         let parsed: toml::Value = toml::from_str(text)
-            .unwrap_or_else(|_| toml::Value::Table(toml::map::Map::new()));
+            .unwrap_or_else(|_| toml::Value::Table(Map::new()));
         let table = parsed.as_table().cloned().unwrap_or_default();
         Self {
             unicode: table

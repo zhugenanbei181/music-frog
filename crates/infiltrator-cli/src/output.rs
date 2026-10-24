@@ -1,6 +1,8 @@
-use crate::charset::CharsetProfile;
-use crate::terminal_guard::display_width;
+use crate::char_fx::ProgressAnimation;
+use crate::charset::{CharsetProfile, FrameGlyphs};
+use crate::terminal_guard::{center_or_left, display_width};
 use serde::Serialize;
+use std::env;
 use std::io;
 use std::io::Write;
 use std::sync::OnceLock;
@@ -41,11 +43,11 @@ pub(crate) fn configure_table_charset(profile: CharsetProfile) {
 /// never truncated. The width comes from `COLUMNS` when the terminal exports
 /// it, 80 otherwise.
 pub fn print_section(title: &str) {
-    let available = std::env::var("COLUMNS")
+    let available = env::var("COLUMNS")
         .ok()
         .and_then(|value| value.trim().parse::<usize>().ok())
         .unwrap_or(80);
-    let (line, _) = crate::terminal_guard::center_or_left(title, available);
+    let (line, _) = center_or_left(title, available);
     println!("{line}");
 }
 
@@ -56,7 +58,7 @@ pub(crate) fn progress_frame_line(
     label: &str,
     elapsed_ms: u32,
 ) -> Option<String> {
-    let frame = crate::char_fx::ProgressAnimation::for_progress()
+    let frame = ProgressAnimation::for_progress()
         .frame_at(elapsed_ms)?;
     Some(format!("{frame} {label}"))
 }
@@ -117,7 +119,7 @@ pub fn print_table(headers: &[&str], rows: &[Vec<String>]) {
 fn write_frame_edge(
     out: &mut dyn Write,
     widths: &[usize],
-    glyphs: &crate::charset::FrameGlyphs,
+    glyphs: &FrameGlyphs,
     left: &str,
     middle: &str,
     right: &str,
@@ -131,7 +133,7 @@ fn write_frame_edge(
     let _ = writeln!(out);
 }
 
-fn write_row(out: &mut dyn Write, cells: &[String], widths: &[usize], glyphs: &crate::charset::FrameGlyphs) {
+fn write_row(out: &mut dyn Write, cells: &[String], widths: &[usize], glyphs: &FrameGlyphs) {
     let _ = write!(out, "{}", glyphs.vertical);
     for (index, cell) in cells.iter().enumerate().take(widths.len()) {
         let _ = write!(out, " {}", pad(cell, widths[index]));
