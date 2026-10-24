@@ -26,7 +26,7 @@ use crate::view::{svg_icons, theme};
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::lazy;
 use iced::widget::scrollable::Viewport;
-use iced::widget::{Id, Space, button, column, container, pick_list, row, text, text_input};
+use iced::widget::{Id, Space, button, column, container, mouse_area, pick_list, row, text, text_input};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_contract::rule_document::RuleRowId;
 use infiltrator_domain::rules::edit::CUSTOM_RULE_TYPE_CHOICES;
@@ -173,6 +173,9 @@ struct RuleRowBand {
     target: String,
     can_move_up: bool,
     can_move_down: bool,
+    /// #137: whether the row's action buttons are revealed. Part of the
+    /// band's identity so a hover change lazily rebuilds exactly that row.
+    actions_visible: bool,
     /// The width the band is painted with, in whole pixels.
     width: u32,
 }
@@ -212,12 +215,16 @@ fn rules_row_width(state: &AppState) -> u32 {
 fn rule_row_element(band: &RuleRowBand) -> Element<'static, Message> {
     let row_id = band.row_id;
     let is_enabled = band.enabled;
-    let up_button = if band.can_move_up {
+    // #137: the reorder actions fade in on row hover — the placeholders
+    // keep the row geometry stable so nothing shifts when they reveal.
+    let actions_live = band.actions_visible && band.can_move_up;
+    let up_button = if actions_live {
         icon_button(Icon::ArrowUp, 13.0, Message::MoveRuleUp(row_id))
     } else {
         Space::new().width(26).height(26).into()
     };
-    let down_button = if band.can_move_down {
+    let actions_live = band.actions_visible && band.can_move_down;
+    let down_button = if actions_live {
         icon_button(Icon::ArrowDown, 13.0, Message::MoveRuleDown(row_id))
     } else {
         Space::new().width(26).height(26).into()
@@ -227,8 +234,7 @@ fn rule_row_element(band: &RuleRowBand) -> Element<'static, Message> {
     } else {
         band.target.clone()
     };
-    container(
-        row![
+    let row_container = container(row![
             toggle_switch(is_enabled, move |_| Message::ToggleRuleEnabled(row_id)),
             Space::new().width(theme::SP_SM),
             badge(band.display_type.clone(), band.badge_kind()),
@@ -290,8 +296,13 @@ fn rule_row_element(band: &RuleRowBand) -> Element<'static, Message> {
     // instead of pushing the row taller.
     .height(Length::Fixed(RULE_ROW_HEIGHT_PX))
     .clip(true)
-    .style(row_card_surface)
-    .into()
+    .style(row_card_surface);
+    // #137: hover reveals the reorder actions; leaving the row fades them
+    // back out. The focus fact lives in the editor state, not the band.
+    mouse_area(row_container)
+        .on_enter(Message::RuleRowFocused(Some(row_id)))
+        .on_exit(Message::RuleRowFocused(None))
+        .into()
 }
 
 fn add_rule_panel<'a>(
@@ -543,6 +554,7 @@ pub(super) fn rules_list_view<'a>(
                 target: item.target.clone(),
                 can_move_up: source_index > 0,
                 can_move_down: source_index + 1 < state.editor.rule_list.draft.len(),
+                actions_visible: state.editor.rules_row_focus == Some(row_id),
             };
             rules_list = rules_list.push(lazy(band, rule_row_element));
         }

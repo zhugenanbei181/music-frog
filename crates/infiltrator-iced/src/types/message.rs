@@ -330,6 +330,9 @@ pub enum Message {
     UpdateNewRuleTarget(String),
     AddCustomRule,
     ToggleRuleEnabled(rule_document::RuleRowId),
+    /// EFFECTS-035 #137: the rules row the pointer currently hovers, or
+    /// `None` when it left every row. Reveal gate of the reorder actions.
+    RuleRowFocused(Option<rule_document::RuleRowId>),
     MoveRuleUp(rule_document::RuleRowId),
     MoveRuleDown(rule_document::RuleRowId),
     SaveRules,

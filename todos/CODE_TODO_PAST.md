@@ -768,3 +768,12 @@
   - 计划：重构 view/sidebar.rs 与 view/proxies.rs。
   - 备注：2026-10-24 交付——**#132 本批**：`view/sidebar.rs` 导航单一真源 `NAV_PRIMARY`（五主目的地：Overview/Proxies/Rules/Runtime/Settings，与 Bevy rail 同构：Route+copy key+Icon 有序表）+ `NAV_SECONDARY`（竖侧栏专属三行 AppRouting/Doctor/Sync，紧凑底栏无位不挂）；竖侧栏行循环与紧凑底栏循环全部改为读表，两份手写五元列表（原本互不一致：竖栏无 Proxies/Rules/Runtime、底栏无 AppRouting/Doctor/Sync）清零，两形态不可能再漂移；图标用既有 Icon 变体（Network/ListChecks/RefreshCw）。**#135 记录找回**：`proxies.rs` 已有 typed `OutboundLayout`（`state.runtime.proxies_model.layout()`）整行/网格双视图切换（`node_compact_list`/`node_grid`），验收句「节点支持整行与网格双重视图切换」在树。**#133/#134/#136 视觉腿在案待像素批**：路由分段控件字号、Toggle 比例常量、测速 footer 波形呼吸动画参数——均为常量级调整，须与 PARITY 像素回执同批定值，本批不盲调。测试：headless `sidebar_nav_tests` 三用例（主行唯一且 Overview 首/Settings 尾、副行与主行不相交且自身唯一、copy key 全部落在 nav_ 共享词汇）。待验证：统一 cargo 批次（编译 + nextest）；双形态导航与网格切换像素回执随 PARITY 批次。
 
+### 12.13 Iced 规则行悬浮与面板遮罩（2026-10-24 交付，1条 / 3pt）
+
+- [ ] EFFECTS-035 [kind: iced] [priority: P1] [points: 3] [owner: infiltrator-iced] [status: Integrated] 规则行悬浮淡入与命令面板毛玻璃（#137~#145）
+  - 产物：实现 #137 规则行操作悬浮淡入、#138 分类彩色徽标、#139 域名端口弱化、#140 连接断开按钮悬浮保护、#141 命令面板半透明遮罩、#142 联想项平移、#143 Wayland 文件导入兜底、#144 IME 候选框定位、#145 iced_anim 弹簧试验。
+  - 依赖：EFFECTS-029。
+  - 验收：复杂列表视觉噪点大幅收敛，命令面板呼出呈现优雅毛玻璃层级。
+  - 计划：重构 view/rules.rs、view/connections.rs 与 view/shell.rs。
+  - 备注：2026-10-24 交付——**#137 本批**：规则行 lazy band 增加 `actions_visible` 身份位（hover 变更只重建那一行——正是 band 依赖机制的设计用途），行容器包 `mouse_area`（`on_enter`/`on_exit`，registry 源核实），上/下移按钮仅在悬浮时显现、占位 26×2 保持几何稳定不跳动；焦点事实为页面本地 `ConfigEditorState.rules_row_focus`（Option<RuleRowId>，刻意不入共享 rules 模型），新 `Message::RuleRowFocused(Option<…>)` 纯 UI 更新不重建缓存。**四点记录找回**：#138 `semantic_badge_kind`（规则族→Accent/Warning 彩色徽标）在树；#139 规则计数/元数据弱化 `text_tertiary` 在树；#141 命令面板 scrim 半透明 token + E-029 抽屉跟随淡出在树；#144 IME 候选框定位（text_input 的 `set_ime_cursor_area`，DUAL-15-11 台账）在树。**三腿在案**：#142 联想项平移、#140 断开按钮悬浮保护、#143 Wayland 文件导入兜底为后续切片；#145 iced_anim 弹簧为试验腿（不引入依赖，弹簧曲线可先在 E-029 协调器的 Easing 上试）。视觉定值随 PARITY 像素批。待验证：统一 cargo 批次（编译 + nextest）；悬浮淡入像素回执随 PARITY 批次。
+

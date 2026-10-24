@@ -300,6 +300,7 @@ impl AppState {
                 next_editor_read: 0,
                 rule_list: Default::default(),
                 rules_loaded_once: false,
+                rules_row_focus: None,
                 rules_model: RulesPageModel::default(),
                 rules_page: 0,
                 rules_page_size: 200,

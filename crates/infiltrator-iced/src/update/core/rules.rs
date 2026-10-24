@@ -486,6 +486,14 @@ impl AppState {
                 }
                 Task::none()
             }
+            // EFFECTS-035 #137: pure UI focus fact — no cache rebuild, the
+            // hovered row's band identity changes and only that row rebuilds.
+            Message::RuleRowFocused(row_id) => {
+                if self.editor.rules_row_focus != row_id {
+                    self.editor.rules_row_focus = row_id;
+                }
+                Task::none()
+            }
             Message::ToggleRuleEnabled(index) => {
                 if self.editor.rule_list.toggle(index) {
                     self.rebuild_rules_render_cache();

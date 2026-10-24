@@ -7,6 +7,7 @@ use crate::types::options::{EditorPane, MrsProviderDetail};
 use crate::types::rules::{ProviderUnpackState, RuleRenderItem};
 use iced::widget::text_editor;
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
+use infiltrator_contract::rule_document::RuleRowId;
 use infiltrator_contract::dns::FakeIpMappingPool;
 use infiltrator_contract::dns_form::DnsWorkbenchForm;
 use infiltrator_contract::dns_latency::DnsLatencyReport;
@@ -171,6 +172,10 @@ pub struct ConfigEditorState {
     pub sniffer_enabled: bool,
     pub rule_list: RuleListEditor,
     pub rules_loaded_once: bool,
+    /// EFFECTS-035 #137: the rules row the pointer hovers; the reveal gate
+    /// of the row's reorder actions. Page-local UI fact, deliberately not
+    /// part of the shared rules model.
+    pub rules_row_focus: Option<RuleRowId>,
     /// The one page model of the rules page: the active tab, the active JSON
     /// section, the JSON document drafts and the eight operation phases.
     pub rules_model: RulesPageModel,
