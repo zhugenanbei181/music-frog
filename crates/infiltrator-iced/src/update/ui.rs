@@ -44,8 +44,7 @@ impl AppState {
                     self.diag.dns_cache_actions.cancel();
                     self.diag.dns_query.cancel();
                     self.shell.history.push(route);
-                    self.shell.transition.previous_route = Some(self.shell.current_route);
-                    self.shell.transition.start_time = Some(Instant::now());
+                    self.shell.animations.route_changed(Instant::now());
                     self.diag.last_frame_time = Instant::now();
                     self.diag.perf_nav_started_at = Some(Instant::now());
                     self.diag.perf_nav_route = Some(route);
@@ -95,8 +94,7 @@ impl AppState {
             }
             Message::NavigateBack => {
                 if let Some(target) = self.shell.history.go_back() {
-                    self.shell.transition.previous_route = Some(self.shell.current_route);
-                    self.shell.transition.start_time = Some(Instant::now());
+                    self.shell.animations.route_changed(Instant::now());
                     self.diag.last_frame_time = Instant::now();
                     self.diag.perf_nav_started_at = Some(Instant::now());
                     self.diag.perf_nav_route = Some(target);
@@ -133,8 +131,7 @@ impl AppState {
             }
             Message::NavigateForward => {
                 if let Some(target) = self.shell.history.go_forward() {
-                    self.shell.transition.previous_route = Some(self.shell.current_route);
-                    self.shell.transition.start_time = Some(Instant::now());
+                    self.shell.animations.route_changed(Instant::now());
                     self.diag.last_frame_time = Instant::now();
                     self.diag.perf_nav_started_at = Some(Instant::now());
                     self.diag.perf_nav_route = Some(target);
@@ -222,13 +219,6 @@ impl AppState {
                     self.diag.perf_nav_route = None;
                 }
 
-                if let Some(start) = self.shell.transition.start_time {
-                    // 动画结束清理
-                    if now.duration_since(start) >= self.shell.transition.duration {
-                        self.shell.transition.previous_route = None;
-                        self.shell.transition.start_time = None;
-                    }
-                }
                 Task::batch([self.capture_geometry_task(), self.capture_frame_task()])
             }
             Message::TogglePerfPanel => {
@@ -394,6 +384,9 @@ impl AppState {
                     self.shell.command_query.clear();
                     self.shell.command_selected_index = 0;
                 }
+                self.shell
+                    .animations
+                    .drawer_redirect(self.shell.command_palette_open, Instant::now());
                 Task::none()
             }
             Message::OpenCommandPalette => {
@@ -401,12 +394,14 @@ impl AppState {
                 self.rebuild_command_catalogue();
                 self.shell.command_query.clear();
                 self.shell.command_selected_index = 0;
+                self.shell.animations.drawer_redirect(true, Instant::now());
                 Task::none()
             }
             Message::CloseCommandPalette => {
                 self.shell.command_palette_open = false;
                 self.shell.command_query.clear();
                 self.shell.command_selected_index = 0;
+                self.shell.animations.drawer_redirect(false, Instant::now());
                 Task::none()
             }
             Message::SetCommandQuery(query) => {

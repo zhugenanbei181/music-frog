@@ -59,14 +59,8 @@ impl AppState {
         let tier = self.shell.viewport.tier;
         let sidebar = sidebar_for_tier(self);
 
-        // 声明式动画进度计算
-        let progress = if let Some(start) = self.shell.transition.start_time {
-            let elapsed = Instant::now().duration_since(start).as_millis() as f32;
-            let duration = self.shell.transition.duration.as_millis() as f32;
-            (elapsed / duration).clamp(0.0, 1.0)
-        } else {
-            1.0
-        };
+        // 声明式动画进度：官方 Animation 驱动，按时间戳采样
+        let progress = self.shell.animations.route_opacity(Instant::now());
 
         // 核心性能优化：不再同时渲染两个页面。转场时只渲染新页面并做淡入。
         let page = match self.shell.current_route {
@@ -336,7 +330,8 @@ impl AppState {
             layers.push(connection_drawer::connection_drawer_modal(self, conn_id));
         }
 
-        if self.shell.command_palette_open {
+        // #118：抽屉退出期间保留渲染，遮罩随退场淡出
+        if self.shell.animations.drawer_presented(Instant::now()) {
             layers.push(command_palette::command_palette_modal(self));
         }
 

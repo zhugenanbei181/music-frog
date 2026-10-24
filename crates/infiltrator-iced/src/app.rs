@@ -15,7 +15,8 @@ use crate::state::runtime::{
     TunServiceInstallState,
 };
 use crate::state::shell::ShellState;
-use crate::types::app::{RouteHistory, Transition};
+use crate::animation::AnimationCoordinator;
+use crate::types::app::RouteHistory;
 use crate::types::dns::AdvancedValidationState;
 use crate::types::doctor::DoctorPanelState;
 use crate::types::options::EditorPane;
@@ -463,7 +464,7 @@ impl AppState {
                 current_route: Route::Overview,
                 history: RouteHistory::default(),
                 viewport: ResponsiveViewportSnapshot::default(),
-                transition: Transition::default(),
+                animations: AnimationCoordinator::default(),
                 error_msg: None,
                 lang: get_system_language(),
                 language_choice: Default::default(),

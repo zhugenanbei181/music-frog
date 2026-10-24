@@ -22,6 +22,7 @@ use infiltrator_contract::command_catalogue::{CommandCategory, CommandTarget, Sh
 use infiltrator_presentation::command_palette_projection::localized_title;
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::routing_intent::RoutingIntent;
+use std::time::Instant;
 
 /// The Iced icon for a shared command target (presentation only).
 pub fn command_icon(target: &CommandTarget) -> Icon {
@@ -363,6 +364,8 @@ pub fn command_palette_modal(state: &AppState) -> Element<'_, Message> {
             }
         });
 
+    // #118：抽屉淡入/退场期间，遮罩透明度跟随时序投影
+    let scrim_opacity = state.shell.animations.drawer_opacity(Instant::now());
     container(
         container(card)
             .center_x(Length::Fill)
@@ -370,9 +373,16 @@ pub fn command_palette_modal(state: &AppState) -> Element<'_, Message> {
     )
     .width(Length::Fill)
     .height(Length::Fill)
-    .style(|t: &Theme| container::Style {
-        background: Some(tokens(t).scrim.into()),
+    .style(move |t: &Theme| container::Style {
+        background: Some(scrim_at_presence(tokens(t).scrim, scrim_opacity).into()),
         ..Default::default()
     })
     .into()
+}
+
+/// The scrim at the drawer's current presence (#118): the mask keeps fading
+/// with the exit animation instead of vanishing on the close message.
+fn scrim_at_presence(mut scrim: Color, opacity: f32) -> Color {
+    scrim.a *= opacity.clamp(0.0, 1.0);
+    scrim
 }

@@ -444,7 +444,7 @@ impl AppState {
         //    帧信号，后台 2 FPS）。
         let capture_pending = self.capture_geometry_pending();
         if capture_pending
-            || self.shell.transition.start_time.is_some()
+            || self.shell.animations.is_animating(Instant::now())
             || (self.shell.current_route == Route::Overview
                 && self.runtime.traffic_topology.is_flowing())
             || (self.shell.current_route == Route::Runtime && self.diag.connection_pulse_active())

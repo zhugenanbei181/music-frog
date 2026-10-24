@@ -14,6 +14,9 @@ mod demo_fixture_tests;
 #[path = "headless/confirmation_tests.rs"]
 mod confirmation_tests;
 
+#[path = "headless/animation_coordinator_tests.rs"]
+mod animation_coordinator_tests;
+
 #[path = "headless/i18n_parity_tests.rs"]
 mod i18n_parity_tests;
 

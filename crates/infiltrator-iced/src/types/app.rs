@@ -4,7 +4,6 @@ use infiltrator_contract::command_catalogue::ShellPage;
 use infiltrator_contract::rule_tracer::TracerRuleOverride;
 use std::path::PathBuf;
 use std::time;
-use std::time::Instant;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Route {
@@ -183,22 +182,6 @@ pub struct CoreDownloadProgress {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Transition {
-    pub previous_route: Option<Route>,
-    pub start_time: Option<Instant>,
-    pub duration: time::Duration,
-}
-
-impl Default for Transition {
-    fn default() -> Self {
-        Self {
-            previous_route: None,
-            start_time: None,
-            duration: time::Duration::from_millis(300),
-        }
-    }
-}
-
 // The command-palette catalogue, its categories and its typed targets live in
 // the shared contract (`infiltrator_contract::command_catalogue`); the Iced
 // types module keeps no second local command model.

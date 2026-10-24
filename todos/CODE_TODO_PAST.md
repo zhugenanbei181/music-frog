@@ -714,3 +714,12 @@
   - 计划：重构 pages/globe.rs。
   - 备注：2026-10-24 交付——**#99 本批主体**：widgets `globe` 新增逆映射层 `GlobeProjection::unproject`（视口 px → 正交射线 → 前半球命中：经纬度 + 世界单位向量 + 深度；与 `project_direction` 的 yaw→pitch 旋转逐步反解，rim r²>1 判 miss）、`angular_distance_deg`（单位向量大圆角）与 `GlobeSpec::nearest_node_to`（可绘图节点 + 前半球可见性门 + 容差内最近者；无兜底命中，背半球节点穿透不选；投影唯一真源复用 `from_spec`）。页面 `pages/globe.rs` 新增点击观察者 `on_globe_plate_clicked`：UI 拾取后端的节点归一化命中位（±0.5，registry 源核实）→ 栅格 px → unproject → 最近节点 → 置 `hovered_node`（光栅既有高亮腿）+ typed `GlobeNodePicked` 意图（`Commands::trigger`）+ `GlobePicked` 单一拾取真源；头部详情行 `GlobePickedDetail`（`Text(pub String)` 原位 restamp，先例 appearance.rs）随拾取显示「label — lat, lon」（坐标取节点自己的观测值，非点击点重构）。**#98 分腿既有 + 架构裁决**：纹理腿已由 `ChartTextureView` CPU 光栅化进 `Assets<Image>` 承担（既有，sleep/预算纪律齐全）；GPU 3D 相机腿被裁决不引入——需 `bevy_pbr` 新依赖且与 EFFECTS-048 档位纪律冲突，球体唯一业务真源保持 CPU 正射投影，本裁决在案。测试：widgets `globe_tests` 六新用例（0°/旋转往返、盘外 miss + rim 命中、大圆角、容差命中/拒绝、背半球不可穿透拾取）；bevy-ui `globe_tests` 一新用例（详情行 idle 文案 + 拾取 restamp）。待验证：统一 cargo 批次（编译 + nextest）；点击观察者的实机交互回执（PointerClick 构造依赖真实拾取后端，留给 capture/交互批次）与「弹出详情」像素回执随 PARITY 批次。
 
+### 12.7 Iced 动画协调器（2026-10-24 交付，1条 / 3pt）
+
+- [ ] EFFECTS-029 [kind: iced] [priority: P1] [points: 3] [owner: infiltrator-iced] [status: Integrated] Iced 0.14 官方 Animation 状态插值与帧订阅（#116~#118）
+  - 产物：实现 #116 官方 iced::Animation 接入、#117 按需订阅 window::frames()、#118 模态抽屉退出动画保留（Presence）。
+  - 依赖：EFFECTS-003。
+  - 验收：更新消息触发 go_mut 重定向，动画活跃时推进帧，静止时注销订阅。
+  - 计划：在 infiltrator-iced 建立 animation 协调器。
+  - 备注：2026-10-24 交付——新模块 `infiltrator-iced` `animation.rs`：`Presence`（官方 `iced::Animation<bool>` 驱动 + 由其派生的 value/is_animating/opacity/is_presented 投影，无计时器、无影子业务态）与 `AnimationCoordinator`（route + drawer 两个 presence；`route_changed` 走 snap-hidden→`go_mut(true)` 的官方重定向路径，路由淡入时长维持旧手写 300ms 线性——lilt 默认缓动即 Linear，视觉零变化）。#116：全部动画事实收敛到官方驱动；#117：订阅门 `transition.start_time.is_some()` 换成 `animations.is_animating(now)`，静止 shell 依旧零帧；#118：命令面板抽屉 `is_presented`（value ∨ animating）在退场淡出期间保留渲染，scrim 透明度乘以 `drawer_opacity`（view_root 渲染门与 command_palette 遮罩同步换腿）。同批清退旧隐式状态机：`types::app::Transition`（previous_route+start_time 双 Option 阶段表，且 previous_route 从未被读）整型删除，三处 Navigate 写点、TickFrame 手工清理块、view_root 手写进度式全部迁到协调器，仓内 `.transition` 引用清零。API 全按 registry 源核实（iced_core-0.14.0/src/animation.rs 全文 + lilt-0.8.2 Easing 默认 Linear）。测试：headless `animation_coordinator_tests` 四用例（淡入全程 0/0.5/1、静止零帧、关闭退场 200ms 保留与 midpoint 透明度、value 跟随业务目标）。待验证：统一 cargo 批次（编译 + nextest）；抽屉淡入淡出的实机像素回执随 PARITY 批次。
+

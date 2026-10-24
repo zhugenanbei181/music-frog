@@ -4,7 +4,8 @@ use crate::admin_server::{AdminServerManager, AdminSharedRuntime, SharedAdminCom
 use crate::capture_frame::CaptureFrameGate;
 use crate::tray::SharedTrayEventReceiver;
 use crate::tray::spec::TrayController;
-use crate::types::app::{ConfirmAction, Route, RouteHistory, ToastStatus, Transition};
+use crate::animation::AnimationCoordinator;
+use crate::types::app::{ConfirmAction, Route, RouteHistory, ToastStatus};
 use crate::view::theme::theme_for_skin;
 use iced::Rectangle;
 use iced::Theme;
@@ -35,7 +36,7 @@ pub struct ShellState {
     /// and page grids derive from this single source.
     pub viewport: ResponsiveViewportSnapshot,
     pub error_msg: Option<String>,
-    pub transition: Transition,
+    pub animations: AnimationCoordinator,
     pub lang: String,
     pub language_choice: LanguageChoiceState,
     pub language_user_selected: bool,
