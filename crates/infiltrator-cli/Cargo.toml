@@ -25,7 +25,7 @@ infiltrator-core = { path = "../infiltrator-core" }
 infiltrator-domain = { path = "../infiltrator-domain" }
 infiltrator-http = { path = "../infiltrator-http" }
 mihomo-api = { path = "../mihomo-api" }
-mihomo-driver = { version = "0.68.1", path = "../mihomo-driver" }
+mihomo-driver = { version = "0.68.2", path = "../mihomo-driver" }
 mihomo-config = { path = "../mihomo-config" }
 infiltrator-platform = { path = "../infiltrator-platform" }
 mihomo-version = { path = "../mihomo-version" }

@@ -61,9 +61,9 @@ impl MyWindow {
 ```toml
 [dependencies]
 # 核心契约与抽象端口（完全中立）
-lurker-core-contract = { version = "0.68.1", path = "../../crates/lurker-core-contract" }
-lurker-core-ports = { version = "0.68.1", path = "../../crates/lurker-core-ports" }
-infiltrator-ports = { version = "0.68.1", path = "../../crates/infiltrator-ports" }
+lurker-core-contract = { version = "0.68.2", path = "../../crates/lurker-core-contract" }
+lurker-core-ports = { version = "0.68.2", path = "../../crates/lurker-core-ports" }
+infiltrator-ports = { version = "0.68.2", path = "../../crates/infiltrator-ports" }
 ```
 
 ---

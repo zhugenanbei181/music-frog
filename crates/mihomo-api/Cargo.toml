@@ -6,9 +6,9 @@ rust-version.workspace = true
 publish = false
 
 [dependencies]
-lurker-core-ports = { version = "0.68.1", path = "../lurker-core-ports" }
-lurker-core-contract = { version = "0.68.1", path = "../lurker-core-contract" }
-mihomo-driver = { version = "0.68.1", path = "../mihomo-driver", default-features = false, features = [
+lurker-core-ports = { version = "0.68.2", path = "../lurker-core-ports" }
+lurker-core-contract = { version = "0.68.2", path = "../lurker-core-contract" }
+mihomo-driver = { version = "0.68.2", path = "../mihomo-driver", default-features = false, features = [
   "http",
 ] }
 async-trait = { workspace = true }
