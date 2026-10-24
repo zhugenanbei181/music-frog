@@ -50,6 +50,7 @@ pub mod mini_hud_refresh;
 pub mod mini_hud_shell;
 pub mod pages;
 pub mod pipeline;
+pub mod post_process;
 pub mod projection;
 pub mod route;
 pub mod shell_rail;
@@ -266,6 +267,8 @@ fn run_with_command_sink_and_composition(
         app.insert_resource(RemSize(REM_BASE * scale));
     }
     app.add_plugins(ModernSurfacePlugin);
+    // EFFECTS-024: the modal backdrop blur Core2d post-process.
+    app.add_plugins(post_process::BackdropBlurPlugin);
     // DUAL-15-08: the real Bevy power knob follows the shared render cadence.
     app.add_plugins(cadence::CadencePlugin);
     // DUAL-15-13 / DUAL-15-02: the frameless chrome path and the honest tray

@@ -695,3 +695,12 @@
   - 验收：CI 流水线一键复跑所有 UI 双视口像素差比对，无感知视觉退化被拒。
   - 计划：更新 scripts/parity/ 自动化取证套件。
   - 备注：**分腿交付**——#198 已由 `interaction_delta.py`（双基线噪声地板 + 激活差判据）与 `accept_surface_interactions.py`（逐格 certified/uncertified）承担且被 PARITY-001.5 的认证批次实测使用；#200 已由 `certification_summary.py`/`evidence_progress.py` 与 parity 注册表（`feature_evidence.tsv`/`cross_surface_manifest.tsv`）承担；#199 的取证流由 `PARITY-001.4` 交付（`scripts/android-emulator-tests.sh` 的模拟器腿，真机腿在斗战胜佛）；#197 本批交付——新脚本 `scripts/parity/wayland_offscreen_capture.sh`：headless Niri（WLR_BACKENDS=headless + pixman）独立 socket 起栈、固定 1180x780 输出、双视口各跑一次 capture 构建并经 niri IPC 截屏落 `standard.png`/`compact.png`、`receipt.tsv` 记录运行身份（bash -n 通过；niri 台架执行回执随取证批次）。待验证：带 niri 的离线台架实跑 + CI 接线。
+
+### 12.5 Core2d 后处理毛玻璃（2026-10-24 交付，1条 / 3pt）
+
+- [ ] EFFECTS-024 [kind: bevy] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Integrated] ViewTarget 离屏多 pass 降采样高斯模糊（#86~#89）
+  - 产物：实现 #86 基于 RenderApp 与 ViewTarget 的离屏高斯模糊、#87 4x 降采样双 pass 优化、#88 输入输出纹理防冲突分离、#89 前景清晰文字最后顶层合成。
+  - 依赖：EFFECTS-023。
+  - 验收：弹窗背景呈现平滑高斯模糊，文字刀刻般清晰，显存带宽占用降低 75%。
+  - 计划：在 infiltrator-bevy-ui 建立后处理渲染调度子图。
+  - 备注：2026-10-24 交付——新模块 `infiltrator-bevy-ui` `post_process::backdrop_blur`（.rs + `backdrop_blur.wesl`，lib 装配 `BackdropBlurPlugin`）：#86/#87/#88 为一次 `ViewTarget::post_process_write` 的三 pass 管线——全分辨率 source → 1/4 离屏纹理 H 向高斯降采样 → 第二张 1/4 纹理 V 向高斯 → span=0 恒等双线性升采样回 destination；系统排 `Core2dSystems::PostProcess` 且 `.before(tonemapping)`；九 tap 高斯以线性采样坍缩为五次 `textureSample`（权重 0.2270270270/0.3162162162/0.0702702703，和恒 1，span 0 即恒等——升采样 pass 依赖此性质，见 `kernel_weights` 用例）；#88 防冲突由 post-process 契约的 source/destination 对 + 两张 `RENDER_ATTACHMENT|TEXTURE_BINDING` 1/4 纹理（仅视口/格式变化时重建，`QuarterTargets`）承担；pipeline 按 `main_texture_format` 在 `BackdropBlurPipeline` 内去重入 `PipelineCache`（queue 不去重，故每格式只排一次）；主世界 `sync_backdrop_blur_gate` 把共享包 typed `ModalStage`（Hidden/Open/Dismissed，Open 与退场 Dismissed 都糊）投影为相机 `BackdropBlur{span}` 挂/摘——单一业务真源在 ModalStage，本模块不藏第二状态机。全部 API 按 bevy 0.20 registry 源逐项核实（FullscreenMaterialPlugin 构造形态、tonemapping 系统签名与 pass descriptor 字段、`post_process_write`/`main_texture_format`、`BindGroupLayoutDescriptor::new`+`binding_types`、encase 再导出），非热写。#89 前景合成仍为集成边界：弹窗前景层由 modal 表面切片接线（模块文档在案），本条按 #86~#88 主体交付登记。伴生 `backdrop_blur_tests` 六用例（kernel 归一/quarter 数学含退化视口/texel 倒数/span 正值）。待验证：统一 cargo 批次（编译 + nextest）；实机弹窗模糊与 75% 带宽降低的像素/性能回执随 PARITY 批次。
