@@ -285,7 +285,7 @@ export component AppBody inherits Rectangle {
                 ? max(0 * LumenUiScale.unit, parent.height - (root.bottom-bar-visible ? LumenTheme.navigation-height + 20 * LumenUiScale.unit : 0 * LumenUiScale.unit))
                 : parent.height;
             clip: true;
-            background: LumenTheme.canvas;
+            background: LumenTheme.zinc-0; // #154: the page void is zinc-0, never raw black
 
             VerticalLayout {
                 width: parent.width;

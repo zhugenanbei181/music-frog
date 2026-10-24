@@ -147,7 +147,29 @@ export global LumenTheme {
     out property <length> radius-control: 14 * LumenUiScale.unit;
     out property <length> radius-card: 24 * LumenUiScale.unit;
     out property <length> radius-sheet: 28 * LumenUiScale.unit;
-    out property <length> min-touch-target: 48 * LumenUiScale.unit;
+    // EFFECTS-037 #150: Zinc micro-step bases — every surface asks by tier,
+    // never by raw color. zinc-0 is the deepest page void, zinc-7 the
+    // highest raised panel; light and forest map the same ladder onto the
+    // paper ramp so callers stay theme-blind.
+    out property <color> zinc-0: root.amoled-mode ? #000000 : root.forest-mode ? #E3ECDF : root.dark-mode ? #09090B : #F7F7F8;
+    out property <color> zinc-1: root.amoled-mode ? #050505 : root.forest-mode ? #EAF1E5 : root.dark-mode ? #0F0F11 : #FBFBFC;
+    out property <color> zinc-2: root.amoled-mode ? #0A0A0A : root.forest-mode ? #E0EAD9 : root.dark-mode ? #141416 : #F4F4F5;
+    out property <color> zinc-3: root.amoled-mode ? #101010 : root.forest-mode ? #D5E2CC : root.dark-mode ? #18181B : #EDEDEF;
+    out property <color> zinc-4: root.amoled-mode ? #161616 : root.forest-mode ? #C9D8BF : root.dark-mode ? #1E1E21 : #E4E4E7;
+    out property <color> zinc-5: root.amoled-mode ? #1C1C1C : root.forest-mode ? #BDCFAF : root.dark-mode ? #232326 : #DCDCE0;
+    out property <color> zinc-6: root.amoled-mode ? #222222 : root.forest-mode ? #B0C5A4 : root.dark-mode ? #27272A : #C8C8CD;
+    out property <color> zinc-7: root.amoled-mode ? #282828 : root.forest-mode ? #A3BB98 : root.dark-mode ? #2C2C30 : #BDBDC3;
+    // EFFECTS-037 #151: diffuse two-tier shadows — ambient under resting
+    // cards on the panel, key under raised interactive surfaces.
+    out property <color> shadow-ambient-color: root.dark-mode || root.amoled-mode ? #00000055 : #0F172A22;
+    out property <length> shadow-ambient-blur: 24px;
+    out property <length> shadow-ambient-offset-y: 6px;
+    out property <color> shadow-key-color: root.dark-mode || root.amoled-mode ? #00000070 : #0F172A38;
+    out property <length> shadow-key-blur: 8px;
+    out property <length> shadow-key-offset-y: 2px;
+    // EFFECTS-037 #152: the 1px semi-transparent inner hairline of cards.
+    out property <color> hairline-glow: root.dark-mode || root.amoled-mode ? #FFFFFF14 : #0F172A0F;
+        out property <length> min-touch-target: 48 * LumenUiScale.unit;
     out property <length> page-padding: 16 * LumenUiScale.unit;
     out property <length> navigation-height: 56 * LumenUiScale.unit;
     out property <length> title-size: 28 * LumenUiScale.unit;

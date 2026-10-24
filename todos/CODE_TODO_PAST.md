@@ -777,3 +777,12 @@
   - 计划：重构 view/rules.rs、view/connections.rs 与 view/shell.rs。
   - 备注：2026-10-24 交付——**#137 本批**：规则行 lazy band 增加 `actions_visible` 身份位（hover 变更只重建那一行——正是 band 依赖机制的设计用途），行容器包 `mouse_area`（`on_enter`/`on_exit`，registry 源核实），上/下移按钮仅在悬浮时显现、占位 26×2 保持几何稳定不跳动；焦点事实为页面本地 `ConfigEditorState.rules_row_focus`（Option<RuleRowId>，刻意不入共享 rules 模型），新 `Message::RuleRowFocused(Option<…>)` 纯 UI 更新不重建缓存。**四点记录找回**：#138 `semantic_badge_kind`（规则族→Accent/Warning 彩色徽标）在树；#139 规则计数/元数据弱化 `text_tertiary` 在树；#141 命令面板 scrim 半透明 token + E-029 抽屉跟随淡出在树；#144 IME 候选框定位（text_input 的 `set_ime_cursor_area`，DUAL-15-11 台账）在树。**三腿在案**：#142 联想项平移、#140 断开按钮悬浮保护、#143 Wayland 文件导入兜底为后续切片；#145 iced_anim 弹簧为试验腿（不引入依赖，弹簧曲线可先在 E-029 协调器的 Easing 上试）。视觉定值随 PARITY 像素批。待验证：统一 cargo 批次（编译 + nextest）；悬浮淡入像素回执随 PARITY 批次。
 
+### 12.14 Slint Zinc 阶梯与桌面网格（2026-10-24 交付，1条 / 3pt）
+
+- [ ] EFFECTS-037 [kind: slint] [priority: P1] [points: 3] [owner: infiltrator-slint] [status: Integrated] Zinc 多阶暗底系统与桌面多列仪表板网格（#150~#154）
+  - 产物：实现 #150 Zinc 8 阶微差暗色底板系统、#151 原生 drop-shadow 漫反射双阶阴影、#152 1px 半透明内描边、#153 桌面多列响应式 GridLayout、#154 消除 70% 纯黑空洞。
+  - 依赖：EFFECTS-036。
+  - 验收：1180x780 桌面呈现饱满双列网格，消灭纯黑 void，空间利用率大幅提升。
+  - 计划：重构 theme.slint、page_home.slint 与 page_proxies.slint。
+  - 备注：2026-10-24 交付——`theme.slint` 新增 #150 `zinc-0..zinc-7` 八阶微差底板（dark 走 #09090B→#2C2C30 暗梯，amoled 纯黑微梯，light/forest 映射纸面坡，调用方按阶取色不看模式）；#151 双阶漫反射阴影 token（`shadow-ambient-*` 24px 模糊/6px 下沉 与 `shadow-key-*` 8px/2px，Slint 原生 `drop-shadow-blur/offset-y/color`）；#152 `hairline-glow` 1px 半透明内描边（暗模式白 8% / 亮模式墨 6%）。应用位：`SectionCard` 底色升 zinc-2 + ambient 阴影 + 内描边，`SurfaceCard` 升 zinc-3 + key 阴影（比 SectionCard 高一阶）+ 内描边，页面画布 `app_body` 由 canvas 改 zinc-0（不再可能整面纯黑），`sidebar` 改 zinc-2；#153 `page_home.slint` 桌面分支（`!compact-layout`，断点 760unit 既有）重构为 `GridLayout`：速度卡与运行概况卡同排双列、今日流量卡 `col-span: 2` 整行、空态卡整行，紧凑档单列原样。#154 消除空洞随 zinc 底板 + 双列布局结构落地，量值（70%→多少）待像素回执。**边界**：`page_proxies.slint` 网格化与亮/森模式的阴影数值微调随 PARITY 像素批定值；Slint 编译回执随统一 cargo 批次（build.rs 编译 .slint）。结构门 EXIT=0。
+

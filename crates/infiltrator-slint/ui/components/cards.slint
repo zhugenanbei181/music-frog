@@ -14,8 +14,13 @@ export component SectionCard inherits Rectangle {
     min-height: card-layout.min-height;
     preferred-height: card-layout.min-height;
     border-radius: 24 * LumenUiScale.unit;
-    background: LumenTheme.surface;
-    border-width: 0 * LumenUiScale.unit;
+    background: LumenTheme.zinc-2;
+    // #151/#152: ambient diffuse shadow plus the 1px inner hairline.
+    drop-shadow-blur: LumenTheme.shadow-ambient-blur;
+    drop-shadow-offset-y: LumenTheme.shadow-ambient-offset-y;
+    drop-shadow-color: LumenTheme.shadow-ambient-color;
+    border-width: 1 * LumenUiScale.unit;
+    border-color: LumenTheme.hairline-glow;
     card-layout := VerticalLayout {
         x: 18 * LumenUiScale.unit; y: 0 * LumenUiScale.unit; width: parent.width - 36 * LumenUiScale.unit;
         padding-top: root.vertical-padding; padding-bottom: root.vertical-padding;
@@ -34,9 +39,14 @@ export component SurfaceCard inherits Rectangle {
     min-height: content.min-height;
     preferred-height: content.min-height;
     border-radius: LumenTheme.radius-card;
-    background: LumenTheme.surface;
+    background: LumenTheme.zinc-3;
+    // #151/#152: key shadow (one tier up from SectionCard's ambient) and
+    // the inner hairline.
+    drop-shadow-blur: LumenTheme.shadow-key-blur;
+    drop-shadow-offset-y: LumenTheme.shadow-key-offset-y;
+    drop-shadow-color: LumenTheme.shadow-key-color;
     border-width: 1 * LumenUiScale.unit;
-    border-color: LumenTheme.border;
+    border-color: LumenTheme.hairline-glow;
 
     content := VerticalLayout {
         x: root.inset;
