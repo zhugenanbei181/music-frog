@@ -3177,7 +3177,6 @@ dependencies = [
 name = "infiltrator-contract"
 version = "0.68.2"
 dependencies = [
- "anyhow",
  "lurker-core-contract",
  "serde",
  "serde_json",
