@@ -82,7 +82,6 @@ export component PageHome inherits VerticalLayout {
                 route-mode: root.route-mode;
             }
         }
-        Rectangle { height: 0 * LumenUiScale.unit; background: transparent; }
         HorizontalLayout {
             width: parent.width;
             height: 130 * LumenUiScale.unit;
@@ -118,7 +117,6 @@ export component PageHome inherits VerticalLayout {
             Text { text: @tr("上传"); color: LumenTheme.text-secondary; font-size: 14 * LumenUiScale.unit; horizontal-stretch: 0; vertical-alignment: center; }
             Text { text: root.runtime-status == RuntimeStatus.running ? root.stat-up-compact : "0 B"; color: LumenTheme.accent; font-size: 24 * LumenUiScale.unit; horizontal-stretch: 0; vertical-alignment: center; }
         }
-        Rectangle { height: 0 * LumenUiScale.unit; background: transparent; }
         if root.runtime-status == RuntimeStatus.running: HorizontalLayout {
             width: parent.width; height: 48 * LumenUiScale.unit; spacing: 8 * LumenUiScale.unit;
             HomeStatusChip {

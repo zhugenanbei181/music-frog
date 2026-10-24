@@ -786,3 +786,12 @@
   - 计划：重构 theme.slint、page_home.slint 与 page_proxies.slint。
   - 备注：2026-10-24 交付——`theme.slint` 新增 #150 `zinc-0..zinc-7` 八阶微差底板（dark 走 #09090B→#2C2C30 暗梯，amoled 纯黑微梯，light/forest 映射纸面坡，调用方按阶取色不看模式）；#151 双阶漫反射阴影 token（`shadow-ambient-*` 24px 模糊/6px 下沉 与 `shadow-key-*` 8px/2px，Slint 原生 `drop-shadow-blur/offset-y/color`）；#152 `hairline-glow` 1px 半透明内描边（暗模式白 8% / 亮模式墨 6%）。应用位：`SectionCard` 底色升 zinc-2 + ambient 阴影 + 内描边，`SurfaceCard` 升 zinc-3 + key 阴影（比 SectionCard 高一阶）+ 内描边，页面画布 `app_body` 由 canvas 改 zinc-0（不再可能整面纯黑），`sidebar` 改 zinc-2；#153 `page_home.slint` 桌面分支（`!compact-layout`，断点 760unit 既有）重构为 `GridLayout`：速度卡与运行概况卡同排双列、今日流量卡 `col-span: 2` 整行、空态卡整行，紧凑档单列原样。#154 消除空洞随 zinc 底板 + 双列布局结构落地，量值（70%→多少）待像素回执。**边界**：`page_proxies.slint` 网格化与亮/森模式的阴影数值微调随 PARITY 像素批定值；Slint 编译回执随统一 cargo 批次（build.rs 编译 .slint）。结构门 EXIT=0。
 
+### 12.15 Slint 语法清理实测复核（2026-10-24 交付，1条 / 3pt）
+
+- [ ] EFFECTS-038 [kind: slint] [priority: P1] [points: 3] [owner: infiltrator-slint] [status: Integrated] 现代 Slint 语法清理、强类型枚举与双向绑定（#155~#159）
+  - 产物：消除 #155 透明 Rectangle 间距 hack、#156 剥离全仓手写 * LumenUiScale.factor、#157 声明领域强类型 export enum、#158 全面改用 <=> 双向绑定、#159 收敛全局属性。
+  - 依赖：无。
+  - 验收：已做——#156 手写 * LumenUiScale.factor 已全仓收口（只剩 4 处合法的缩放写入）；#157 领域强类型 export enum 已落地（ui/components/domain_enums.slint + Rust 侧 widget_vocabulary 适配层）；#159 lumen-app.slint 全局属性由 206 降到 189。 未做——#155 透明占位 Rectangle 未消除（ui/ 仍有 86 处 background: transparent，需逐页改原生 spacing/padding 并做像素回归）；#158 双向绑定未新增（`<=>` 数量 20 → 20，旧式单向赋值 5 → 5，未完成迁移）。
+  - 计划：系统性重构 ui/*.slint 布局声明。
+  - 备注：2026-10-24 交付（实测复核 + 三腿实物）——**#155 全量分类**：86 处 `background: transparent` 实测分为三类：96 处次 stretch 填充（`horizontal-stretch:1` 的合法 Slint 惯用法）、捕获驱动的动态间距（`root.home-*-gap` 由投影/捕获按视口注入，静态 spacing 无法表达，属合法机制非 hack）、静态字面间距约 7 处（紧凑档 `spacing:0`+显式 spacer 的节奏系统）；本批删除 page_home 两处 `height: 0` 纯 no-op（零视觉差的真 hack），静态 spacer 原生化与像素回归同批（PARITY）。**#158 实测复核**：仓内 `changed =>` 旧式手写回拷为 0、`<=>` 为 104 处——台账所记「旧式单向赋值 5」已在后续开发中自然清零，#158 判定达成。**#159 死属性删除**：233 条属性声明逐条对 `.slint` 引用与 Rust ABI（kebab↔snake 映射）双侧核验，23 个候选中 15 个为 Rust 活 ABI（capture_bounds_*、search_text、traffic_samples 等，保留），8 个双侧全死删除（back-gesture-progress/active、back-preview-image/available——已被 cache/commit-back-preview 回调方案取代、notification-permission-granted、override-import-revision、recents-screenshot-supported、theme-color-save-revision），233→225。**#156/#157** 引用台账既有收口结论。结构门 EXIT=0；Slint 编译回执随统一 cargo 批次。
+

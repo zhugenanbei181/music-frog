@@ -53,9 +53,7 @@ export component AppWindow inherits MaterialWindow {
     in-out property <bool> predictive-back-enabled: false;
     in-out property <bool> predictive-back-supported: false;
     in-out property <bool> hide-background-card: false;
-    in-out property <bool> recents-screenshot-supported: false;
     in-out property <bool> show-traffic-notification: false;
-    in-out property <bool> notification-permission-granted: false;
     in-out property <bool> release-ui-when-background: false;
     in-out property <bool> ignore-battery-optimizations: false;
     in-out property <int> app-settings-preview-section: -1;
@@ -69,7 +67,6 @@ export component AppWindow inherits MaterialWindow {
     in-out property <string> theme-color-error: "";
     in-out property <bool> theme-color-saving: false;
     in-out property <bool> theme-color-code-edited: false;
-    in-out property <int> theme-color-save-revision: 0;
     in-out property <int> theme-color-result-revision: 0;
     in-out property <int> page-scale-draft: 100;
     in-out property <bool> page-scale-dialog-open: false;
@@ -94,10 +91,6 @@ export component AppWindow inherits MaterialWindow {
     out property <length> capture-bounds-width: root.capture-page-open ? root.width : root.profile-add-open ? profile-overlays.add-sheet-width : root.overview-order-open ? overview-order-overlay.order-sheet-width : profile-overlays.delete-sheet-width;
     out property <length> capture-bounds-height: root.capture-page-open ? root.height : root.profile-add-open ? profile-overlays.add-sheet-height : root.overview-order-open ? overview-order-overlay.order-sheet-height : profile-overlays.delete-sheet-height;
     in-out property <int> back-request-revision: 0;
-    in-out property <float> back-gesture-progress: 0;
-    in-out property <bool> back-gesture-active: false;
-    in-out property <image> back-preview-image: @image-url("../../infiltrator-shared/assets/ui/lumen/svg/home.svg");
-    in-out property <bool> back-preview-available: false;
     property <length> profile-sheet-width: min(640 * LumenUiScale.unit, max(0 * LumenUiScale.unit, root.width - 48 * LumenUiScale.unit));
     property <length> app-settings-bottom-inset: max(root.safe-area-insets.bottom, root.virtual-keyboard-size.height > 0 * LumenUiScale.unit ? max(0 * LumenUiScale.unit, root.height - root.virtual-keyboard-position.y) : 0 * LumenUiScale.unit);
     property <length> profile-sheet-content-width: max(0 * LumenUiScale.unit, root.profile-sheet-width - 16 * LumenUiScale.unit);
@@ -143,7 +136,7 @@ export component AppWindow inherits MaterialWindow {
     in-out property <string> profile-name: ""; in-out property <string> profile-url: ""; in-out property <string> profile-age-key: "";
     in-out property <string> proxy-search: ""; in-out property <string> override-name: "";
     in-out property <string> override-body: ""; in-out property <string> override-url: "";
-    in-out property <bool> override-importing: false; in-out property <string> override-import-error: ""; in-out property <int> override-import-revision: 0;
+    in-out property <bool> override-importing: false; in-out property <string> override-import-error: "";
     in-out property <string> search-text: ""; in-out property <string> connection-search: "";
     in-out property <ConnectionSort> connection-sort: ConnectionSort.time; in-out property <bool> connection-show-closed: false;
     in-out property <string> connection-detail-host: ""; in-out property <string> connection-detail-id: "";
