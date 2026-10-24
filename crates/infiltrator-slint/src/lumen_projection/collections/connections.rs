@@ -11,7 +11,7 @@
 //! bucket instead of inventing a process name.
 
 use crate::widget_vocabulary;
-use crate::{AppWindow, ObservationRow, slint_model};
+use crate::{AppWindow, ObservationRow, refresh_model};
 use infiltrator_contract::surface_snapshot::{ConnectionSnapshot, SurfaceSnapshot};
 use infiltrator_contract::traffic_history::ClosedConnectionSnapshot;
 use infiltrator_domain::connection_view::ConnectionView;
@@ -21,7 +21,7 @@ use infiltrator_shared::byte_units::format_bytes;
 /// Projects the connections page from the shared page model.
 pub(super) fn project_connections(window: &AppWindow, snapshot: &SurfaceSnapshot) {
     if window.get_connection_show_closed() {
-        window.set_connections(slint_model(closed_connection_rows(window, snapshot)));
+        window.set_connections(refresh_model(&window.get_connections(), closed_connection_rows(window, snapshot)));
         return;
     }
     let mut model = ConnectionsPageModel::<ConnectionSnapshot>::default();
@@ -39,7 +39,7 @@ pub(super) fn project_connections(window: &AppWindow, snapshot: &SurfaceSnapshot
         .collect::<Vec<ConnectionSnapshot>>();
     // The row order is the shared reduction for the model's own sort key.
     model.sort_rows(&mut rows);
-    window.set_connections(slint_model(
+    window.set_connections(refresh_model(&window.get_connections(), 
         rows.into_iter().map(connection_row).collect::<Vec<_>>(),
     ));
 }

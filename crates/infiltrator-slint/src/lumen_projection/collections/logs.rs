@@ -7,7 +7,7 @@
 
 use super::super::snapshot_language;
 use crate::widget_vocabulary;
-use crate::{AppWindow, ObservationRow, slint_model};
+use crate::{AppWindow, ObservationRow, refresh_model};
 use infiltrator_contract::logs::LogStreamState;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_presentation::log_page_model::{LogLevelFilter, LogsPageModel};
@@ -65,7 +65,7 @@ pub(super) fn project_logs(window: &AppWindow, snapshot: &SurfaceSnapshot) {
         })
         .collect::<Vec<_>>();
     window.set_log_level(widget_vocabulary::log_level_value(active_level));
-    window.set_logs(slint_model(rows));
+    window.set_logs(refresh_model(&window.get_logs(), rows));
     window.set_log_stream_status(log_stream_copy(&model.stream(), &lang).into());
     // The invalid pattern is the shared model's own outcome, so the page
     // shows the reason the shared search reports instead of an empty list

@@ -59,6 +59,25 @@ pub(crate) fn slint_model<T: Clone + 'static>(items: Vec<T>) -> slint::ModelRc<T
     slint::ModelRc::new(slint::VecModel::from(items))
 }
 
+/// Refresh a long-list property in place (EFFECTS-040 #18): when the window
+/// still carries a `VecModel` of the same row type, only the row data is
+/// replaced (`set_vec`), so the model object and every binding that reached
+/// it survive the snapshot; a fresh `ModelRc` is mounted only when there is
+/// nothing to refresh yet. The per-snapshot destroy-and-rebuild of the old
+/// `slint_model` call is the thing this helper retires.
+pub(crate) fn refresh_model<T: Clone + 'static>(
+    current: &slint::ModelRc<T>,
+    rows: Vec<T>,
+) -> slint::ModelRc<T> {
+    match current.as_any().downcast_ref::<slint::VecModel<T>>() {
+        Some(vec_model) => {
+            vec_model.set_vec(rows);
+            current.clone()
+        }
+        None => slint_model(rows),
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum VpnPermissionOutcome {
     Granted,

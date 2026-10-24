@@ -13,7 +13,7 @@
 use super::super::flag_assets;
 use super::super::snapshot_language;
 use crate::widget_vocabulary;
-use crate::{AppWindow, ObservationRow, ProxyGroup, slint_model};
+use crate::{AppWindow, ObservationRow, ProxyGroup, refresh_model};
 use infiltrator_contract::active_exit::ActiveExitStatus;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_presentation::proxies_page_model::{
@@ -270,15 +270,15 @@ pub(super) fn project_proxies(window: &AppWindow, snapshot: &SurfaceSnapshot) {
         })
         .unwrap_or_default();
     let has_nodes = !nodes.is_empty();
-    window.set_proxy_groups(slint_model(groups));
-    window.set_proxy_nodes(slint_model(nodes));
+    window.set_proxy_groups(refresh_model(&window.get_proxy_groups(), groups));
+    window.set_proxy_nodes(refresh_model(&window.get_proxy_nodes(), nodes));
     window.set_proxy_current_node_available(has_nodes);
 }
 
 /// Clears the proxies page when the owner published no inventory.
 fn clear_proxies(window: &AppWindow) {
-    window.set_proxy_groups(slint_model(Vec::<ProxyGroup>::new()));
-    window.set_proxy_nodes(slint_model(Vec::<ObservationRow>::new()));
+    window.set_proxy_groups(refresh_model(&window.get_proxy_groups(), Vec::new()));
+    window.set_proxy_nodes(refresh_model(&window.get_proxy_nodes(), Vec::new()));
     window.set_proxy_current_node_available(false);
     window.set_selected_group("".into());
 }
