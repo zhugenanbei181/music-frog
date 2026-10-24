@@ -26,6 +26,9 @@ mod chart_layers_tests;
 #[path = "headless/spline_tests.rs"]
 mod spline_tests;
 
+#[path = "headless/flow_shader_tests.rs"]
+mod flow_shader_tests;
+
 #[path = "headless/i18n_parity_tests.rs"]
 mod i18n_parity_tests;
 

@@ -750,3 +750,12 @@
   - 计划：实现 view/chart/spline.rs。
   - 备注：2026-10-24 交付——**#126 本批**：新模块 `view/chart/spline.rs`：`CubicSegment` + `catmull_rom_segments(points, tension)`（样条严格穿过每个采样点，tension 0..=1 收放切向手柄；两端用饱和邻居处理边界）+ `pulse_positions(phase, count)`；`waveform.rs` `TrafficChart` 双曲线由 line_to 折线改为 Catmull-Rom→`bezier_curve_to` 三次贝塞尔（EFFECTS-031 数据缓存层内），面积填充由单色 0.12/0.08 换为竖向 `Gradient::Linear` 双 stop 渐变（下载 0.22→0.02 accent、上传 0.16→0.01 success，`Fill: From<Gradient>` registry 源核实）。**#127 记录找回**：`view/topology.rs` 早已自绘活跃链路脉冲粒子（相位 0.19/链路偏移、halo+核心双圆、`update/ui.rs` 以 `flow_speed_hz()` 按流量速率推进 `topology_flow_phase`），本批把硬编码 `[0.0, 0.52]` 偏移环改为共享 `pulse_positions(phase, 2)`——视觉等价、数学单一真源。测试：headless `spline_tests` 五用例（样条穿过每采样、退化输入零/一段、零张力手柄落锚点、单调 x 手柄不越段、脉冲均匀偏移且相位回卷）。待验证：统一 cargo 批次（编译 + nextest）；曲线/脉冲实机像素回执随 PARITY 批次。
 
+### 12.11 Iced wgpu 流光 Shader 与矢量孪生（2026-10-24 交付，1条 / 3pt）
+
+- [ ] EFFECTS-033 [kind: iced] [priority: P1] [points: 3] [owner: infiltrator-iced] [status: Integrated] wgpu 自定义 Shader 控件与 tiny-skia 兜底（#128~#131）
+  - 产物：实现 #128 widget::Shader 控件扩展、#129 Pipeline/BindGroup 预编译缓存、#130 tiny-skia 软件光栅化静态替代画面、#131 运行时后端降级侦测。
+  - 依赖：EFFECTS-004。
+  - 验收：wgpu 下显示动态流光材质，软件渲染模式下平滑回退至 Canvas 矢量画面。
+  - 计划：实现 view/shader/primitive.rs。
+  - 备注：2026-10-24 交付——新模块 `view/shader.rs`：#128 `FlowProgram`（`widget::shader::Program`，State=()）+ `FlowMaterial`（`Primitive` trait：prepare 只写 uniform、draw 在 iced 给定 viewport/scissor 的 pass 内 set_pipeline/bind_group/draw 0..6）+ WGSL 对角光带材质（`vs_main` 全屏六顶点 + `fs_main` smoothstep 光带，`pub FLOW_WGSL` 供源码卫生测试）；#129 `FlowPipeline`（shader module + bind group layout + pipeline + 32B uniform，`Pipeline::new` 由 iced wgpu `Storage` 对每 Primitive 类型**恰好调用一次**——registry 源核实 primitive.rs BlackBox::prepare 的 has/store 门，即预编译缓存的本体）；#130 `FlowFallback` canvas 矢量孪生（同 tint/alpha 的三条对角带，`flow_fallback` 元素化）；#131 typed `GpuSurfaceKind{Shader,Vector}` + `flow_surface` 开关，wgpu 起栈失败时 iced 组合器运行时落 tiny-skia 的行为为实机腿。**版本事实**：iced_wgpu 0.14 依赖 wgpu 27.0（Cargo.toml 实测）= 仓内 wgpu 27 同版无冲突，`iced::wgpu` 门面再导出（iced lib.rs:515）；wgpu 27 描述符字段（RenderPipelineDescriptor 九字段、VertexState.entry_point: Option<&str>、create_shader_module(ShaderModuleDescriptor)）逐项 registry 核实，非热写。**边界**：流光面尚未接入具体页面（接线为消费侧切片）；uniform 打包用手写 LE 字节（32B 与 WGSL 布局对齐，无 bymemuck 依赖）。测试：headless `flow_shader_tests` 五用例（32 字节 LE 打包逐字、WGSL 双入口与单绑定卫生、类型开关两分支无 GPU 构树、零 alpha 不可见、size 字）。待验证：统一 cargo 批次（编译 + nextest）；wgpu 实机流光与 tiny-skia 回退像素回执随 PARITY 批次。
+

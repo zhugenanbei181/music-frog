@@ -54,6 +54,7 @@ pub mod runtime;
 pub mod script_console;
 pub mod script_export;
 pub mod settings;
+pub mod shader;
 pub mod sidebar;
 pub mod speedtest_modal;
 pub mod stun_probe_panel;
