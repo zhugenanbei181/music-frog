@@ -44,6 +44,7 @@ use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::CoreScope;
 use lurker_core_contract::profile_document_identity::ProfileId;
 use lurker_core_contract::profile_protection::ProfileWriteProtection;
+use slint::Model;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -78,7 +79,7 @@ fn install_desktop_window_chrome(window: &AppWindow) {
         if let Some(window) = handle_weak.upgrade() {
             let maximized = !window.window().is_maximized();
             window.window().set_maximized(maximized);
-            window.set_maximized(maximized);
+            window.set_is_maximized(maximized);
         }
     });
     window.on_window_close(|| {

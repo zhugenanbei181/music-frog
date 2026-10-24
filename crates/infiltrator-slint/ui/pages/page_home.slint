@@ -246,7 +246,7 @@ export component PageHome inherits VerticalLayout {
         spacing: LumenTheme.space-4;
         Row {
             if root.profiles.length == 0: SurfaceCard {
-                col-span: 2;
+                colspan: 2;
         Text { text: @tr("尚未添加配置"); color: LumenTheme.text-primary; font-size: 20 * LumenUiScale.unit; font-weight: 600; }
         Text { text: @tr("添加订阅或导入 YAML 文件后即可启动 Mihomo。"); color: LumenTheme.text-secondary; font-size: LumenTheme.body-size; wrap: word-wrap; }
         FilledButton {
@@ -333,7 +333,7 @@ export component PageHome inherits VerticalLayout {
         }
         Row {
             if root.traffic-today-has-data: SurfaceCard {
-                col-span: 2;
+                colspan: 2;
         HorizontalLayout { spacing: LumenTheme.space-2;
             Text { text: @tr("今日流量"); color: LumenTheme.text-primary; font-size: 18 * LumenUiScale.unit; font-weight: 600; }
             Rectangle { horizontal-stretch: 1; background: transparent; }

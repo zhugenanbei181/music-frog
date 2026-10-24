@@ -118,7 +118,7 @@ fn sidebar_bottom_nav(state: &AppState) -> Element<'_, Message> {
         .padding([theme::SP_XS, theme::SP_SM]);
     for (route, key, icon) in routes.iter() {
         let is_active = *route == state.shell.current_route;
-        let glyph = icon_themed(icon, 18.0, move |t: &Theme| {
+        let glyph = icon_themed(*icon, 18.0, move |t: &Theme| {
             if is_active {
                 theme::tokens(t).accent
             } else {

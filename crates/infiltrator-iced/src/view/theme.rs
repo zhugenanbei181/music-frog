@@ -18,8 +18,9 @@
 //! - AMOLED: pitch-black OLED appearance with high-contrast surfaces.
 
 use iced::font::{Family, Weight};
+use iced::gradient::{ColorStop, Linear};
 use iced::theme::Palette;
-use iced::{Color, Shadow, Theme, Vector};
+use iced::{Color, Gradient, Radians, Shadow, Theme};
 
 use infiltrator_contract::design_tokens::{metrics, radius, space};
 use infiltrator_contract::theme::ThemeSkin;
@@ -333,12 +334,12 @@ pub fn forest_theme() -> Theme {
     Theme::custom(
         "Forest".to_string(),
         Palette {
-            background: FOREST.canvas,
-            text: FOREST.text_primary,
-            primary: FOREST.accent,
-            success: FOREST.success,
-            danger: FOREST.danger,
-            warning: FOREST.warning,
+            background: skins::FOREST.canvas,
+            text: skins::FOREST.text_primary,
+            primary: skins::FOREST.accent,
+            success: skins::FOREST.success,
+            danger: skins::FOREST.danger,
+            warning: skins::FOREST.warning,
         },
     )
 }
@@ -348,12 +349,12 @@ pub fn amoled_theme() -> Theme {
     Theme::custom(
         "AMOLED".to_string(),
         Palette {
-            background: AMOLED.canvas,
-            text: AMOLED.text_primary,
-            primary: AMOLED.accent,
-            success: AMOLED.success,
-            danger: AMOLED.danger,
-            warning: AMOLED.warning,
+            background: skins::AMOLED.canvas,
+            text: skins::AMOLED.text_primary,
+            primary: skins::AMOLED.accent,
+            success: skins::AMOLED.success,
+            danger: skins::AMOLED.danger,
+            warning: skins::AMOLED.warning,
         },
     )
 }

@@ -32,7 +32,7 @@ export component AppWindow inherits MaterialWindow {
     callback window-minimize();
     callback window-toggle-maximize();
     callback window-close();
-    in-out property <bool> maximized: false;
+    in-out property <bool> is-maximized: false;
     in-out property <bool> android-platform: false;
     in-out property <string> product-version: "0.1.0";
     in-out property <bool> layout-debug-tools-enabled: false;
@@ -402,11 +402,11 @@ export component AppWindow inherits MaterialWindow {
         // real window via lib.rs's installer.
         x: root.safe-area-insets.left; y: root.safe-area-insets.top;
         width: max(0 * LumenUiScale.unit, root.width - root.safe-area-insets.left - root.safe-area-insets.right);
-        maximized: root.maximized;
+        maximized: root.is-maximized;
         window-minimize => { root.window-minimize(); } window-toggle-maximize => { root.window-toggle-maximize(); } window-close => { root.window-close(); }
     }
     app-body := AppBody {
-        x: root.safe-area-insets.left; y: root.safe-area-insets.top + (!root.android-platform ? DesktopTitleBar.height : 0 * LumenUiScale.unit); width: max(0 * LumenUiScale.unit, root.width - root.safe-area-insets.left - root.safe-area-insets.right); height: max(0 * LumenUiScale.unit, root.height - root.safe-area-insets.top - root.safe-area-insets.bottom - (!root.android-platform ? DesktopTitleBar.height : 0 * LumenUiScale.unit));
+        x: root.safe-area-insets.left; y: root.safe-area-insets.top + (!root.android-platform ? 40 * LumenUiScale.unit : 0 * LumenUiScale.unit); width: max(0 * LumenUiScale.unit, root.width - root.safe-area-insets.left - root.safe-area-insets.right); height: max(0 * LumenUiScale.unit, root.height - root.safe-area-insets.top - root.safe-area-insets.bottom - (!root.android-platform ? 40 * LumenUiScale.unit : 0 * LumenUiScale.unit));
         page: root.page; page-origin: root.page-origin; compact-layout: root.compact-layout; primary-page: root.primary-page; android-platform: root.android-platform; application-dark-mode: root.application-dark-mode; layout-debug-bounds: root.layout-debug-bounds;
         layout-debug-tools-enabled: root.layout-debug-tools-enabled; predictive-back-enabled: root.predictive-back-enabled; predictive-back-supported: root.predictive-back-supported; safe-top: root.safe-area-insets.top; safe-bottom: root.safe-area-insets.bottom; safe-left: root.safe-area-insets.left; safe-right: root.safe-area-insets.right;
         bottom-bar-visible <=> root.bottom-bar-visible; hide-bottom-bar-on-scroll: root.hide-bottom-bar-on-scroll;

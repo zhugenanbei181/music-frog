@@ -96,6 +96,7 @@ export component PageProxies inherits VerticalLayout {
         HorizontalLayout {
             alignment: start;
             SegmentedControl {
+                width: 260 * LumenUiScale.unit;
                 items: [{ text: @tr("规则") }, { text: @tr("全局") }, { text: @tr("直连") }];
                 current-index: root.route-mode == RouteMode.rule ? 0 : root.route-mode == RouteMode.global ? 1 : 2;
                 index-changed(index) => {

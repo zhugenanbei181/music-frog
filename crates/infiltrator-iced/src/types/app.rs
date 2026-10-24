@@ -3,7 +3,6 @@
 use infiltrator_contract::command_catalogue::ShellPage;
 use infiltrator_contract::rule_tracer::TracerRuleOverride;
 use std::path::PathBuf;
-use std::time;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Route {

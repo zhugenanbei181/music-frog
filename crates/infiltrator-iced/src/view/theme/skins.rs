@@ -2,14 +2,16 @@
 //! color, wash and shadow tier of one appearance, composed from the shared
 //! contract palettes.
 
-use super::{DualShadow, Tokens};
-use iced::gradient::{ColorStop, Linear};
-use iced::{Color, Gradient, Radians, Shadow, Vector};
-use infiltrator_contract::design_tokens::{RgbaToken, skin_core, skin_interaction};
+use super::{DualShadow, Tokens, soft_wash};
+use iced::{Color, Radians, Shadow, Vector};
+use infiltrator_contract::design_tokens::{
+    RgbaToken, SkinCorePalette, SkinInteractionPalette, skin_core, skin_interaction,
+};
+use infiltrator_contract::theme::ThemeSkin;
 use std::f32::consts::FRAC_PI_2;
 
 /// Resolve a shared token into an Iced color.
-const fn token_color(token: RgbaToken) -> Color {
+pub(crate) const fn token_color(token: RgbaToken) -> Color {
     Color {
         r: token.r,
         g: token.g,

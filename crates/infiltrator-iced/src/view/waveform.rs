@@ -3,9 +3,9 @@
 use crate::view::chart::spline;
 use crate::view::chart::{self, ChartLayers};
 use crate::view::theme;
-use iced::gradient::Linear;
+use canvas::gradient::Linear;
 use iced::widget::canvas;
-use iced::{Color, Element, Gradient, Point, Radians, Rectangle, Renderer, Theme, border, mouse};
+use iced::{Color, Element, Point, Rectangle, Renderer, Theme, border, mouse};
 use infiltrator_contract::mini_hud::MiniHudWaveformStrip;
 use infiltrator_contract::traffic_scale::TrafficScaleSnapshot;
 use infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot;
@@ -13,7 +13,6 @@ use infiltrator_domain::traffic_scale::compute_from_rates;
 use infiltrator_domain::traffic_waveform::smooth_dual_series;
 use infiltrator_shared::byte_units::format_bytes;
 use std::collections::VecDeque;
-use std::f32::consts::FRAC_PI_2;
 
 // ---------------------------------------------------------------------------
 // High-Fidelity GPU Canvas Traffic Chart & Waveforms
@@ -94,7 +93,7 @@ impl<Message> canvas::Program<Message> for TrafficChart {
             height,
             skin,
             samples: curve_count,
-            head: (upload_raw[0], download_raw[0]),
+            head: (upload_raw[0] as u64, download_raw[0] as u64),
         });
         let data = state.data().draw(renderer, bounds.size(), |frame| {
             // 2. Download area fill & glowing curve — a Catmull-Rom bezier through
@@ -120,11 +119,9 @@ impl<Message> canvas::Program<Message> for TrafficChart {
                 );
                 p.close();
             });
-            let down_wash = Gradient::Linear(
-                Linear::new(Radians(FRAC_PI_2))
-                    .add_stop(0.0, Color { a: 0.22, ..accent })
-                    .add_stop(1.0, Color { a: 0.02, ..accent }),
-            );
+            let down_wash = Linear::new(Point::new(0.0, 0.0), Point::new(0.0, height))
+                .add_stop(0.0, Color { a: 0.22, ..accent })
+                .add_stop(1.0, Color { a: 0.02, ..accent });
             frame.fill(&down_area, down_wash);
 
             let down_line = canvas::Path::new(|p| {
@@ -165,11 +162,9 @@ impl<Message> canvas::Program<Message> for TrafficChart {
                 );
                 p.close();
             });
-            let up_wash = Gradient::Linear(
-                Linear::new(Radians(FRAC_PI_2))
-                    .add_stop(0.0, Color { a: 0.16, ..success })
-                    .add_stop(1.0, Color { a: 0.01, ..success }),
-            );
+            let up_wash = Linear::new(Point::new(0.0, 0.0), Point::new(0.0, height))
+                .add_stop(0.0, Color { a: 0.16, ..success })
+                .add_stop(1.0, Color { a: 0.01, ..success });
             frame.fill(&up_area, up_wash);
 
             let up_line = canvas::Path::new(|p| {

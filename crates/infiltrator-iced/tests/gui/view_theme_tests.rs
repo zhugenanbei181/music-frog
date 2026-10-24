@@ -1,4 +1,5 @@
 use super::*;
+use crate::view::theme::skins::{AMOLED, DARK, FOREST, LIGHT, token_color};
 
 #[test]
 fn test_theme_names_and_detection() {

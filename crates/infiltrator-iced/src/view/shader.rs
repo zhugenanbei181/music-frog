@@ -11,10 +11,10 @@
 
 use crate::types::message::Message;
 use crate::view::theme;
-use iced::wgpu;
-use iced::widget::canvas::{self, canvas};
+use iced::widget::canvas;
 use iced::widget::shader::{Pipeline, Primitive, Program, Shader, Viewport};
 use iced::{Color, Element, Length, Rectangle, Renderer, Theme, mouse};
+use wgpu;
 
 /// Which drawing engine a surface may use (#131). The wgpu backend carries
 /// the shader material; the tiny-skia software renderer keeps the vector
@@ -328,7 +328,10 @@ impl<Message> canvas::Program<Message> for FlowFallback {
 
 /// The vector-twin surface element.
 pub fn flow_fallback(flow: FlowFallback) -> Element<'static, Message> {
-    canvas(flow).width(Length::Fill).height(Length::Fill).into()
+    canvas::Canvas::new(flow)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into()
 }
 
 /// Pick the flow surface for the engine kind (#131): the shader material on

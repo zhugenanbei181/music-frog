@@ -244,6 +244,22 @@ export component ProxySortMenu inherits PopupMenu {
 }
 
 
+component WindowControlButton inherits Rectangle {
+    in property <bool> danger: false;
+    callback clicked();
+    width: 46 * LumenUiScale.unit;
+    height: 100%;
+    button-touch := TouchArea {
+        width: parent.width;
+        height: parent.height;
+        clicked => { root.clicked(); }
+    }
+    background: button-touch.has-hover
+        ? (root.danger ? LumenTheme.error.with_alpha(80%) : LumenTheme.zinc-4)
+        : transparent;
+    animate background { duration: 120ms; easing: ease-out; }
+}
+
 // EFFECTS-041 #167: the frameless desktop window's own chrome — a drag
 // region (the builtin WindowMoveArea), the product title, and three window
 // controls drawn from pure geometry so no icon asset is needed. The
@@ -271,22 +287,6 @@ export component DesktopTitleBar inherits Rectangle {
         x: parent.width - self.width;
         width: 138 * LumenUiScale.unit;
         height: parent.height;
-
-        component WindowControlButton inherits Rectangle {
-            in property <bool> danger: false;
-            callback clicked();
-            width: 46 * LumenUiScale.unit;
-            height: parent.height;
-            button-touch := TouchArea {
-                width: parent.width;
-                height: parent.height;
-                clicked => { root.clicked(); }
-            }
-            background: button-touch.has-hover
-                ? (root.danger ? LumenTheme.error.with_alpha(80%) : LumenTheme.zinc-4)
-                : transparent;
-            animate background { duration: 120ms; easing: ease-out; }
-        }
 
         WindowControlButton {
             clicked => { root.window-minimize(); }

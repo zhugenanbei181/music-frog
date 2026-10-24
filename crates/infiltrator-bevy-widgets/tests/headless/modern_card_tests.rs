@@ -103,7 +103,7 @@ fn the_mounted_card_repaints_in_place_under_the_pointer() {
 
     let card = {
         let world = app.world_mut();
-        let mut cards = world.query::<Entity, With<ModernCard>>();
+        let mut cards = world.query_filtered::<Entity, With<ModernCard>>();
         let Some(card) = cards.iter(world).next() else {
             panic!("the modern card scene mounted no ModernCard entity");
         };

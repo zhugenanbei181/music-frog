@@ -5,7 +5,8 @@
 //! 停止 tick。动效只允许出现在进度区（[`ProgressAnimation`] 只能从
 //! [`ProgressAnimation::for_progress`] 构造），列表与静态输出不允许有动效。
 
-use crate::color_quantize::{ColorDepth, QuantizedColor, quantize};
+use crate::color_quantize::{QuantizedColor, quantize};
+use crate::terminal_capability::ColorDepth;
 
 /// 盲文点阵一列的采样档数：每个盲文字符上下 4 行点。
 const BRAILLE_ROWS: usize = 4;

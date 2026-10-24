@@ -31,9 +31,7 @@ impl TerminalGuard {
         let previous = take_hook();
         let chained: Box<dyn Fn(&PanicHookInfo<'_>) + Sync + Send> = Box::new(move |info| {
             restore_terminal();
-            if let Some(hook) = previous.as_ref() {
-                hook(info);
-            }
+            previous(info);
         });
         set_hook(chained);
         Self

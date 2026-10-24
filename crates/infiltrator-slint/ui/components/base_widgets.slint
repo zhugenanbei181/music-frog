@@ -1,6 +1,9 @@
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "theme.slint";
-import { SegmentedItem } from "@material";
+export struct SegmentedItem {
+    icon: image,
+    text: string,
+}
 
 export component LayoutOutline inherits Rectangle {
     in property <color> outline-color: #FF2D55;
@@ -406,6 +409,7 @@ export component SegmentedControl {
     callback index-changed(int);
 
     min-height: 40 * LumenUiScale.unit;
+    min-width: 240 * LumenUiScale.unit;
     accessible-role: list;
     accessible-item-count: root.items.length;
 
@@ -429,9 +433,10 @@ export component SegmentedControl {
         }
 
         layout := HorizontalLayout {
+            width: parent.width;
+            height: parent.height;
             for item[index] in root.items: Rectangle {
-                width: root.items.length > 0 ? track.width / root.items.length : 0 * LumenUiScale.unit;
-                horizontal-stretch: 0;
+                horizontal-stretch: 1;
                 item-touch := TouchArea {
                     width: parent.width; height: parent.height;
                     accessible-role: list-item;
