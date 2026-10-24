@@ -92,6 +92,8 @@ export component SummaryRow inherits Rectangle {
             text: root.value;
             color: root.emphasized ? LumenTheme.accent : LumenTheme.text-primary;
             font-size: LumenTheme.body-size;
+            // SLINTUI-007 #31: metric values ride the mono family.
+            font-family: LumenTheme.mono-family;
             font-weight: root.emphasized ? 600 : 450;
             min-width: 0 * LumenUiScale.unit;
             horizontal-stretch: 1;

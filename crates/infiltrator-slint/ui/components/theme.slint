@@ -1,5 +1,8 @@
 import { MaterialSchemes } from "@material";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
+// EFFECTS-041 / SLINTUI-007 #31: the tabular-figure family for live
+// numerals; registered at compile time from the shared asset bundle.
+import "../../../infiltrator-shared/assets/fonts/JetBrainsMono-Regular.ttf";
 
 export global LumenTheme {
     in-out property <bool> dark-mode: false;
@@ -169,6 +172,9 @@ export global LumenTheme {
     out property <length> shadow-key-offset-y: 2px;
     // EFFECTS-037 #152: the 1px semi-transparent inner hairline of cards.
     out property <color> hairline-glow: root.dark-mode || root.amoled-mode ? #FFFFFF14 : #0F172A0F;
+        // SLINTUI-007 #31: the mono family for live-updating numerals — fixed
+    // advance widths keep counters from jittering as digits change.
+    out property <string> mono-family: "JetBrains Mono";
         out property <length> min-touch-target: 48 * LumenUiScale.unit;
     out property <length> page-padding: 16 * LumenUiScale.unit;
     out property <length> navigation-height: 56 * LumenUiScale.unit;

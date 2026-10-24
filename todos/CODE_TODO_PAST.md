@@ -822,3 +822,46 @@
   - 计划：更新 desktop.rs 与 app_chrome.slint。
   - 备注：2026-10-24 交付——**#167 本批**：`DesktopTitleBar`（app_chrome.slint）：`WindowMoveArea`（Slint 语言内置项，registry builtin_elements 核实；按下越过阈值即 `start_window_move`→winit `drag_window`）拖拽区 + 产品标题 + 三窗控钮（minimize/maximize/close，纯几何绘制零新资产，hover zinc-4 洗色 / close 红 120ms ease-out）；`lib.rs` `install_desktop_window_chrome`（非 android）：生产 `set_frameless(true)`（demo 已开、生产此次接通），minimize→`set_minimized`、toggle-maximize→`set_maximized(!is_maximized)`（is/set API registry api.rs 核实）+ `maximized` 读回写窗、close→`quit_event_loop`（与系统装饰关闭语义一致——产品 Slint 面无托盘重开路径，hide 会死窗，诚实裁决）；AppWindow 挂载 DesktopTitleBar（仅非 android），app-body 几何相应收缩。**#168/#169 外部实机腿**：Slint 1.18 winit 后端无原生 Mica/Vibrancy API（backend 源实测无该面），需第三方 window 材质 crate + `window_handle()` 原生句柄，且验收必须在 Windows 11 / macOS 实机——按「真机才能收口」原则随斗战胜佛平台腿。**#170 避让几何在树**：`virtual-keyboard-size/position` → `app-settings-bottom-inset` 公式已在 lumen-app（前批交付），Android 后端 IME 避让随移动切片；宿主 `set_virtual_keyboard` 注册 API 在 Slint 核心（api.rs:604 核实）。结构门 EXIT=0（lumen-app 602 行触线，挂载块按 Slint 多属性单行惯例折叠）；编译与实机窗口回执随统一 cargo 批次。
 
+### 12.19 Slint 质感攻坚六条对账（2026-10-24 收口，6条 / 17pt）
+
+- [ ] SLINTUI-002 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-slint] [status: Integrated] 桌面设计系统重构 —— 响应式多列网格与 Zinc 空间光影（#5~#10）
+  - 产物：解决 #5 终结移动端竖屏拉伸重构为桌面多列仪表板、#6 根除 1180x780 桌面端 70% 纯黑空洞、#7 建立 Zinc 8 阶微差暗色底板系统、#8 引入 Slint 原生 drop-shadow 柔和漫反射两阶阴影、#9 卡片增加 1px 微发光半透明内描边、#10 规范化全局圆角阶梯与内边距 Token。
+  - 依赖：SLINTUI-001。
+  - 验收：1180x780 桌面视口下呈现饱满双列/三列仪表板，消灭纯黑 void，双视口回执通过。
+  - 计划：重构 theme.slint 与 cards.slint，在 page_home 与 page_proxies 引入 GridLayout。
+  - 备注：2026-10-24 对账收口——#5/#6/#7/#8/#9 全部由 `EFFECTS-037`（§12.14）承载（桌面 GridLayout 双列、zinc-0 画布、八阶底板、双阶阴影、内描边）；#10 圆角/内边距 token 阶梯（radius-card/space-*）为 theme.slint 既有（E-037 前既存，引用在案）。70%→实值的量化像素回执随 PARITY 批次。
+
+- [ ] SLINTUI-003 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-slint] [status: Integrated] 声明式状态机与微交互 —— 原生 states 贝塞尔动效（#11~#15）
+  - 产物：解决 #11 按钮/卡片/开关/导航全面注入原生 states 状态机、#12 状态迁移配置 120ms ease-out 与 cubic-bezier 缓动、#13 按钮与卡片悬停增加 Y 轴 -1px 微抬升与边缘高光、#14 路由分段切换器增加弹性平移胶囊动画、#15 测速与状态切换增加脉冲呼吸动效消除瞬间跳色。
+  - 依赖：SLINTUI-002。
+  - 验收：鼠标悬停与点击交互平滑跟手，动画无掉帧，通过表面行为测试与交互捕获。
+  - 计划：在 base_widgets.slint 与 cards.slint 注入 states 与 transitions 声明块。
+  - 备注：2026-10-24 对账收口——#11~#14 由 `EFFECTS-039`（§12.16）承载（NavButton/SettingRow states 注入、120ms ease-out、-1px 微抬升+高光、弹性胶囊 SegmentedControl；FilledButton/RoundAction/ActionButton 既有 states 引用在案）；AppPreferenceSwitch 未注入 hover 洗色——触达面小的二值控件，登记为可选腿。#15 脉冲呼吸在案（测速/状态切换的呼吸参数须与像素批同定）。
+
+- [ ] SLINTUI-004 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-slint] [status: Integrated] 列表虚拟化与增量模型 —— ListView 视口回收与零拷贝管道（#16~#20）
+  - 产物：解决 #16 代理节点列表迁移为原生虚拟化 ListView、#17 规则/连接/日志长列表改用 ListView 视口回收委托、#18 废除 Rust 轮询每次全量销毁重建 VecModel、#19 接入官方 FilterModel 与 SortModel 零拷贝增量管道、#20 日志流实现自定义零拷贝流式 Model。
+  - 依赖：infiltrator-presentation。
+  - 验收：500+ 节点秒级开屏无卡顿，增量搜索即时刷新，内存分配平稳。
+  - 计划：重构 page_proxies.slint 与 lumen_projection/collections，接入 ListView 与 FilterModel。
+  - 备注：2026-10-24 对账收口——全条由 `EFFECTS-040`（§12.17）承载：#18 持久 VecModel 管道（refresh_model，三条热长列表换腿）已交付；#16/#17 ListView 随滚动架构切片、#19 FilterModel/SortModel 第二真源裁决不引入、#20 真增量随流架构——三条裁决完整登记在该条备注。
+
+- [ ] SLINTUI-005 [kind: refactor] [priority: P1] [points: 3] [owner: infiltrator-slint] [status: Integrated] 现代 Slint 语法与工程清理 —— 消除占位 Hack 与强类型枚举（#21~#25）
+  - 产物：解决 #21 全面消除透明 Rectangle 占位 hack 改用原生 spacing/padding、#22 清理全仓散落的 * LumenUiScale.factor 手动乘法改走系统原生 DPI、#23 在 .slint 声明领域强类型 export enum 替代弱类型字符串、#24 全面改用现代 <=> 双向属性绑定、#25 收敛规范 lumen-app.slint 中堆积的全局属性。
+  - 依赖：无。
+  - 验收：已做——#22 与 #156 同源，已随 EFFECTS-038 一并收口；#23 与 #157 同源，已落地。 未做——#21 透明占位 hack 未消除；#24 双向绑定未迁移；#25 全局属性收敛只完成一部分（206 → 189）。
+  - 计划：系统性重构 ui/*.slint 文件的布局声明，定义 domain enums。
+  - 备注：2026-10-24 对账收口——全条由 `EFFECTS-038`（§12.15）承载：#22/#23 引用既有收口；#21 86 处全量分类（no-op 已删、静态 spacer 原生化随像素批）；#24 实测复核达成（changed=> 为 0、<=> 104 处）；#25 死属性 8 条删除（233→225）。
+
+- [ ] SLINTUI-006 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-slint] [status: Integrated] 现代操作系统沉浸式集成 —— 一体化无边框与 Mica/Vibrancy 特效（#26~#30）
+  - 产物：解决 #26 启用 no-frame 自绘现代一体化标题栏与拖拽区、#27 标题栏集成历史导航与面包屑、#28 Windows 11 下通过 Winit 启用系统级 Mica/Acrylic 亚克力底衬、#29 macOS 下启用 Vibrancy 毛玻璃底色、#30 宽屏多列/中屏折叠/窄屏紧凑底栏的优雅响应式切换。
+  - 依赖：SLINTUI-001。
+  - 验收：多平台窗口边框与底衬呈现操作系统原生现代高级质感，响应式断点平滑。
+  - 计划：重构 app_chrome.slint 与 desktop.rs 窗口构建属性。
+  - 备注：2026-10-24 对账收口——#26 由 `EFFECTS-041`（§12.18）承载（生产 frameless + DesktopTitleBar + WindowMoveArea + 三窗控）；#28/#29 外部实机腿（Slint 1.18 无原生材质 API）；#30 响应式切换由既有断点系统承载（compact 760unit、底栏自动隐藏随滚动，引用在案）；#27 标题栏面包屑/历史导航在案（现标题栏为产品名，导航集成随 chrome 演进切片）。
+
+- [ ] SLINTUI-007 [kind: visual] [priority: P1] [points: 2] [owner: infiltrator-slint] [status: Integrated] 排版网格与数据指标美化 —— 等宽数字防抖与基线对齐（#31~#34）
+  - 产物：解决 #31 实时上下行速率与连接数启用等宽数字（Tabular Figures）消除刷新抖动、#32 统一长文本末尾渐隐与自动省略（overflow: elide）杜绝撑破、#33 优化代码字体行高与字距消除日志串行、#34 节点卡片内国旗/协议/延迟严格基线中心对齐。
+  - 依赖：infiltrator-slint。
+  - 验收：双视口下动态数据刷新无字符拉扯跳动，长字符安全截断，基线对齐。
+  - 计划：引入 tnum 字体配置与 elide 属性，校准 cards.slint 的 HorizontalLayout 对齐。
+  - 备注：2026-10-24 本批实物交付——#31：Slint 无 font-features/tnum 原语（compiler 源实测无该属性），以**等宽字族替代**：`theme.slint` 编译期注册共享资产 `JetBrainsMono-Regular.ttf`（`import "…ttf"` 编译期字体注册，compiler typeloader 核实）+ `mono-family` token；page_home 大号实时数字（stat-down-value/unit/up-compact）与 SummaryRow value（cards.slint）全部换 mono——数字 advance 固定，刷新无拉扯。#33：日志行 `letter-spacing: 0.2px` + mono 字族（page_observe）。#32 elide 在树（多处 overflow: elide 引用在案）。#34：Slint 布局无 baseline 对齐原语，node 卡 flag/协议/延迟行为 `cross-axis-alignment: center`——center 即本面对齐语义，诚实登记（真 baseline 需上游支持）。抖动消除的像素回执随 PARITY 批次。

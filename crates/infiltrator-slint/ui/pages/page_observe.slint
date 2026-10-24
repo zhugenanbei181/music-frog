@@ -129,7 +129,7 @@ export component PageLogs inherits VerticalLayout {
             Button { text: (root.log-level == LogLevel.error ? "✓ " : "") + @tr("Error"); clicked => { root.log-level = LogLevel.error; root.set-level(LogLevel.error); } }
         }
         if root.log-search-error != "": Text { text: root.log-search-error; color: LumenTheme.error; font-size: 13 * LumenUiScale.unit; wrap: word-wrap; }
-        for row in root.logs: Text { text: row.title + "  [" + row.subtitle + "]  " + row.trailing; color: LumenTheme.text-secondary; font-size: 12 * LumenUiScale.unit; wrap: word-wrap; }
+        for row in root.logs: Text { text: row.title + "  [" + row.subtitle + "]  " + row.trailing; color: LumenTheme.text-secondary; font-size: 12 * LumenUiScale.unit; letter-spacing: 0.2px; font-family: LumenTheme.mono-family; wrap: word-wrap; }
         if root.logs.length == 0: Text { text: root.runtime-status != RuntimeStatus.running ? @tr("Runtime 未运行，日志不可用") : (root.log-search != "" || root.log-level != LogLevel.all ? @tr("没有匹配的日志") : (root.log-stream-status == "正在重连" ? @tr("正在重连日志流") : @tr("等待 Mihomo 日志流"))); color: LumenTheme.text-secondary; font-size: 13 * LumenUiScale.unit; }
     }
 }

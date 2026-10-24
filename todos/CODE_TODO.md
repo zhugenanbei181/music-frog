@@ -21,8 +21,9 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261024-v290`：现在佛 30 pt（11 条）/ 过去佛 273 pt（102 条）/ 斗战胜佛 51 pt（17 条）/ 未来佛 26 pt（15 条），联合未办结分母 380 pt；已归档交付 727 pt（290 条）；累计 1107 pt，严格归档完成率 65.7%。
-- 本板 11 条 = 像素认证收口 1 条（`PARITY-001.5` 5 pt）+ Bevy 捕获证据 1 条（`BEVYCAP-002` 3 pt）+ Slint 34 点质感攻坚 6 条（`SLINTUI-002`~`007`，17 pt）+ 工程约束门禁 3 条（`ENG-002.2`、`ENG-003.2`、`ENG-003.3`，5 pt）。
+- Point 基线 `musicfrog-todo-20261024-v291`：现在佛 13 pt（5 条）/ 过去佛 290 pt（108 条）/ 斗战胜佛 51 pt（17 条）/ 未来佛 26 pt（15 条），联合未办结分母 380 pt；已归档交付 727 pt（290 条）；累计 1107 pt，严格归档完成率 65.7%。
+- 本板 5 条 = 像素认证收口 1 条（`PARITY-001.5` 5 pt）+ Bevy 捕获证据 1 条（`BEVYCAP-002` 3 pt）+ 工程约束门禁 3 条（`ENG-002.2`、`ENG-003.2`、`ENG-003.3`，5 pt）。
+- 2026-10-24 第二十三交付批次：`SLINTUI-002`~`007` 六条对账收口（#31 mono 数字本批实物、其余与 E-037~041 同源点逐条核符，见过去佛 §12.19）；第二十二批次见 v290 行（E-041）。
 - 2026-10-24 第二十二交付批次：`EFFECTS-041`（#167 无框自绘标题栏本批交付；#168/#169 平台材质为外部实机腿、#170 避让几何在树，见过去佛 §12.18）；第二十一批次见 v289 行（E-040）。
 - 2026-10-24 第二十一交付批次：`EFFECTS-040`（#18 持久模型管道本批交付；#163/#164 ListView 随滚动架构切片、#165 FilterModel 第二真源裁决不引入、#166 真增量随流架构，见过去佛 §12.17）；第二十批次见 v288 行（E-039）。
 - 2026-10-24 第二十交付批次：`EFFECTS-039`（#160/#161 states 注入 + #162 弹性胶囊控件本批交付，见过去佛 §12.16）；第十九批次见 v287 行（E-038）。
@@ -43,7 +44,7 @@
 - Bevy UI 能力四条源自 2026-10-20 的强制化实测审计；执行状态（机器强制还是人工评审、存量欠账多少）以 Bevy UI 能力规范文档「强制化台账」为单一事实源，本板不另记第二份。
 <!-- POINT_LEDGER:END -->
 
-- **执行次序（2026-10-24 第二十二批次后复核）**：本板条目按 **Core-first** 排成一条可推的链——① Slint 表面（`EFFECTS-037`~`041`）→ ③ Slint 表面（`EFFECTS-037`~`041`）→ ④ Slint 表面专项（`SLINTUI-002`~`007`）→ ⑤ Bevy 捕获证据（`BEVYCAP-002`）→ ⑥ 工程约束门禁（`ENG-002.2`）→ ⑦ 像素认证收口（`PARITY-001.5`）。上层条目在前置落地前不得开工；`ENG-003.2`/`003.3` 等统一 cargo 批次解锁。
+- **执行次序（2026-10-24 第二十三批次后复核）**：本板条目按 **Core-first** 排成一条可推的链——① Slint 表面（`EFFECTS-037`~`041`）→ ③ Slint 表面（`EFFECTS-037`~`041`）→ ④ Bevy 捕获证据（`BEVYCAP-002`）→ ⑤ 工程约束门禁（`ENG-002.2`）→ ⑥ 像素认证收口（`PARITY-001.5`）。上层条目在前置落地前不得开工；`ENG-003.2`/`003.3` 等统一 cargo 批次解锁。
 - **cargo 纪律（减少被 cargo 阻塞）**：同一时刻只有一条流允许跑 cargo；并行期只写代码，编译与像素取证由收口流**统一跑一次**（全仓 nextest → 守卫 → fmt → clippy → 三表面捕获 → 重建回执账本 → 全局验收）。**只有真正因缺少实际环境而无法在本机取回执的验收项**才进[未来佛](CODE_TODO_FUTURE.md)；排队等 cargo lane 不构成阻塞，那些条目留在本板按上面的次序推进。
 
 ## 一、大计划主线与推进顺序
@@ -106,40 +107,9 @@
 
 ### 10.6 Layer 5: Slint 1.18+ Skia 硬件加速、桌面多列网格与原生状态机（0条，已清空，涵盖 #146~#170）
 
-### 10.9 Slint 质感与架构攻坚（6条 / 17pt，涵盖 #1~#34）
+### 10.9 Slint 质感与架构攻坚（0条，已清空，涵盖 #1~#34；逐条见过去佛 §12.19）
 
-- [ ] SLINTUI-002 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-slint] [status: Planned] 桌面设计系统重构 —— 响应式多列网格与 Zinc 空间光影（#5~#10）
-  - 产物：解决 #5 终结移动端竖屏拉伸重构为桌面多列仪表板、#6 根除 1180x780 桌面端 70% 纯黑空洞、#7 建立 Zinc 8 阶微差暗色底板系统、#8 引入 Slint 原生 drop-shadow 柔和漫反射两阶阴影、#9 卡片增加 1px 微发光半透明内描边、#10 规范化全局圆角阶梯与内边距 Token。
-  - 依赖：SLINTUI-001。
-  - 验收：1180x780 桌面视口下呈现饱满双列/三列仪表板，消灭纯黑 void，双视口回执通过。
-  - 计划：重构 theme.slint 与 cards.slint，在 page_home 与 page_proxies 引入 GridLayout。
-- [ ] SLINTUI-003 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-slint] [status: Planned] 声明式状态机与微交互 —— 原生 states 贝塞尔动效（#11~#15）
-  - 产物：解决 #11 按钮/卡片/开关/导航全面注入原生 states 状态机、#12 状态迁移配置 120ms ease-out 与 cubic-bezier 缓动、#13 按钮与卡片悬停增加 Y 轴 -1px 微抬升与边缘高光、#14 路由分段切换器增加弹性平移胶囊动画、#15 测速与状态切换增加脉冲呼吸动效消除瞬间跳色。
-  - 依赖：SLINTUI-002。
-  - 验收：鼠标悬停与点击交互平滑跟手，动画无掉帧，通过表面行为测试与交互捕获。
-  - 计划：在 base_widgets.slint 与 cards.slint 注入 states 与 transitions 声明块。
-- [ ] SLINTUI-004 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-slint] [status: Planned] 列表虚拟化与增量模型 —— ListView 视口回收与零拷贝管道（#16~#20）
-  - 产物：解决 #16 代理节点列表迁移为原生虚拟化 ListView、#17 规则/连接/日志长列表改用 ListView 视口回收委托、#18 废除 Rust 轮询每次全量销毁重建 VecModel、#19 接入官方 FilterModel 与 SortModel 零拷贝增量管道、#20 日志流实现自定义零拷贝流式 Model。
-  - 依赖：infiltrator-presentation。
-  - 验收：已做——无：#16~#20（原生 ListView 视口回收、FilterModel/SortModel 零拷贝管道、日志流零拷贝 Model）均未落地。 未做——#16/#17 未改用原生 ListView（ui/ 内 ListView 引用仅 1 处且非虚拟化用法）；#18 仍走 Rust 侧每轮 `slint::VecModel::from(items)` 全量重建；#19/#20 未接入官方 FilterModel/SortModel，也未实现自定义零拷贝流式 Model。
-  - 计划：重构 page_proxies.slint 与 lumen_projection/collections，接入 ListView 与 FilterModel。
-- [ ] SLINTUI-005 [kind: refactor] [priority: P1] [points: 3] [owner: infiltrator-slint] [status: Planned] 现代 Slint 语法与工程清理 —— 消除占位 Hack 与强类型枚举（#21~#25）
-  - 产物：解决 #21 全面消除透明 Rectangle 占位 hack 改用原生 spacing/padding、#22 清理全仓散落的 * LumenUiScale.factor 手动乘法改走系统原生 DPI、#23 在 .slint 声明领域强类型 export enum 替代弱类型字符串、#24 全面改用现代 <=> 双向属性绑定、#25 收敛规范 lumen-app.slint 中堆积的全局属性。
-  - 依赖：无。
-  - 验收：已做——#22 与 #156 同源，已随 EFFECTS-038 一并收口；#23 与 #157 同源，已落地。 未做——#21 透明占位 hack 未消除；#24 双向绑定未迁移；#25 全局属性收敛只完成一部分（206 → 189）。
-  - 计划：系统性重构 ui/*.slint 文件的布局声明，定义 domain enums。
-- [ ] SLINTUI-006 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-slint] [status: Planned] 现代操作系统沉浸式集成 —— 一体化无边框与 Mica/Vibrancy 特效（#26~#30）
-  - 产物：解决 #26 启用 no-frame 自绘现代一体化标题栏与拖拽区、#27 标题栏集成历史导航与面包屑、#28 Windows 11 下通过 Winit 启用系统级 Mica/Acrylic 亚克力底衬、#29 macOS 下启用 Vibrancy 毛玻璃底色、#30 宽屏多列/中屏折叠/窄屏紧凑底栏的优雅响应式切换。
-  - 依赖：SLINTUI-001。
-  - 验收：多平台窗口边框与底衬呈现操作系统原生现代高级质感，响应式断点平滑。
-  - 计划：重构 app_chrome.slint 与 desktop.rs 窗口构建属性。
-- [ ] SLINTUI-007 [kind: visual] [priority: P1] [points: 2] [owner: infiltrator-slint] [status: Planned] 排版网格与数据指标美化 —— 等宽数字防抖与基线对齐（#31~#34）
-  - 产物：解决 #31 实时上下行速率与连接数启用等宽数字（Tabular Figures）消除刷新抖动、#32 统一长文本末尾渐隐与自动省略（overflow: elide）杜绝撑破、#33 优化代码字体行高与字距消除日志串行、#34 节点卡片内国旗/协议/延迟严格基线中心对齐。
-  - 依赖：infiltrator-slint。
-  - 验收：双视口下动态数据刷新无字符拉扯跳动，长字符安全截断，基线对齐。
-  - 计划：引入 tnum 字体配置与 elide 属性，校准 cards.slint 的 HorizontalLayout 对齐。
-
-### 10.10 像素认证收口（1条 / 5pt）
+## 10.10 像素认证收口（1条 / 5pt）
 
 - [ ] PARITY-001.5 [kind: evidence] [priority: P0] [points: 5] [owner: infiltrator-iced + infiltrator-bevy-ui] [status: InProgress] 桌面两端剩余业务的真实捕获与像素回执
   - 产物：Iced 与 Bevy 两端尚未认证的业务各有一条真实交互与双视口像素回执；缺载体或缺可滚动身份的业务逐条立项。
