@@ -93,11 +93,11 @@
 
 立项与现状（2026-10-20 实测立项，2026-10-24 复核刷新）：`bsn!` 场景律法与 rem/em 尺寸通道均已机器强制——产品守卫 `scripts/quality/bevy_rem_guard.py` 是唯一阻塞执行器（命名/派生 px 值、硬编码 px 字面量、非 rem 字号、字面量 `em` 全部拦截，存量台账 `scripts/quality/bevy_rem_inventory.json` 已归零，180 处存量迁移由 `BEVYCAP-001.2` 收口），共享包场景门 `scripts/quality/bevy_scene_gate.py` 为上游 advisory 镜像；⑦ 小件收敛（`bsn_list!`/`Ready`/`despawn_all`/胶囊圆角）已由 `BEVYCAP-002.1` 机器化。执行状态的单一事实源是 Bevy UI 能力规范文档的「强制化台账」一节，本节不另记第二份。剩余未闭环：字号档位的像素回执（唯一证据项）与 `BEVYCAP-002` 的 17 格捕获。
 
-- [ ] BEVYCAP-002 [kind: evidence] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Planned] Bevy 九个业务仍缺捕获模块（17 格）
-  - 产物：为 `core-version-rollback-confirm`、`editor-snippet-insertion`、`editor-yaml-error-navigation`、`profiles-aggregator-preview`、`profiles-import-modal`、`rules-provider-refresh-error`、`settings-lan-security`、`sync-conflict-resolver`（各 standard+compact）与 `proxies-group-expanded` 补捕获模块（owner 装配 + typed 命令 + 能力闸 + 观测）；`proxies-group-expanded` 的观测要量「折叠→展开」的**可见差异**，而不是量展开节点自身的框。
-  - 依赖：表面控件与生产回调都已在树里，只差 capture 侧接线。
-  - 验收：三表面捕获矩阵全绿；这 17 格拿到像素回执并被验收认证为 `ready`。
-  - 事实依据：2026-10-22 Bevy 捕获流逐格分类的结论（缺 capture 模块，非环境阻塞，故留本板）。
+- [ ] BEVYCAP-002 [kind: evidence] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: InProgress] Bevy 九个业务仍缺捕获模块（17 格；逐格复核后实际 16 格：`proxies-group-expanded` 模块已在 `interaction_capture/proxies.rs`）
+  - 产物：为 `core-version-rollback-confirm`、`editor-snippet-insertion`、`editor-yaml-error-navigation`、`profiles-aggregator-preview`、`profiles-import-modal`、`rules-provider-refresh-error`、`settings-lan-security`、`sync-conflict-resolver`（各 standard+compact）补捕获模块（owner 装配 + typed 命令 + 能力闸 + 观测）；`proxies-group-expanded` 的观测要量「折叠→展开」的**可见差异**，而不是量展开节点自身的框。
+  - 依赖：表面控件与生产回调大都已在树里；**2026-10-24 逐格复核修正**：① `proxies-group-expanded` 的捕获模块已在树（`interaction_capture/proxies.rs` 挂 `FeatureId::ProxiesGroupExpanded`），该格实际不缺；② `core-version-rollback-confirm` 的 Bevy 页面**没有确认模态**——`CoreRollbackButton` 激活直接 `handle.submit(UiCommand::RollbackCore)`（settings.rs），确认 UI 本身缺失，须先补页面确认模态（页面功能切片）再接 capture，不能由 capture 模块给不存在的 UI 拍照；③ 其余七业务按 settings→editor→profiles→rules→sync 域逐批接模块。
+  - 验收：三表面捕获矩阵全绿；这 16 格拿到像素回执并被验收认证为 `ready`。
+  - 事实依据：2026-10-22 Bevy 捕获流逐格分类（缺 capture 模块）+ 2026-10-24 逐格复核（proxies 格已在树、rollback 确认 UI 缺失）。下一动作：settings 域两业务（`settings-lan-security`、rollback 前置确认模态）先行。
 
 ## 十、跨平台 GUI/CLI 表现深化 200 点自底向上攻坚（报告实施；现存 6 条 / 17 pt（SLINTUI），已交付 37 条见[过去佛](CODE_TODO_PAST.md)）
 
