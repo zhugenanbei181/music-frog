@@ -10,14 +10,34 @@ pub struct SystemProxyObservation {
     pub bypass: Option<String>,
 }
 
-/// The last proxy target confirmed by the application. Host adapters use a
-/// shared store for this value so command and surface compositions can
-/// reconcile the same ownership even when they wrap the port separately.
+/// The most recently confirmed target. Host adapters share this read model
+/// between command and surface compositions in one process.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SystemProxyDesiredState {
     pub enabled: bool,
     pub endpoint: Option<String>,
     pub bypass: Option<String>,
+}
+
+/// Exact previous and desired host state recorded for a proxy claim.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SystemProxyClaim {
+    pub revision: u64,
+    pub owner_pid: u32,
+    #[serde(default)]
+    pub owner_start_time: u64,
+    pub previous: SystemProxyObservation,
+    pub desired: SystemProxyDesiredState,
+    /// Exact value read back from the host after claim application.
+    pub observed: SystemProxyObservation,
+}
+
+/// Explicit single-owner claim state shared by command and readback compositions.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SystemProxyClaimState {
+    #[default]
+    Unclaimed,
+    Claimed(SystemProxyClaim),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -169,6 +189,48 @@ impl SystemProxySnapshot {
     }
 }
 
+impl SystemProxyDesiredState {
+    /// Whether the host still reflects the value this application claimed.
+    pub fn matches(&self, observation: &SystemProxyObservation) -> bool {
+        if self.enabled != observation.enabled {
+            return false;
+        }
+        !self.enabled
+            || (self.endpoint == observation.endpoint
+                && self
+                    .bypass
+                    .as_ref()
+                    .is_none_or(|bypass| observation.bypass.as_ref() == Some(bypass)))
+    }
+}
+
+/// Result of releasing the application's system-proxy claim.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SystemProxyReleaseReport {
+    /// No durable application claim exists; the observed host value is left alone.
+    NoClaim { observed: SystemProxyObservation },
+    /// The host still matched the claim and the pre-claim value was restored.
+    Restored {
+        previous: SystemProxyObservation,
+        restored: SystemProxyObservation,
+    },
+    /// The host no longer matched the claim, so the third-party value was preserved.
+    SkippedExternal {
+        expected: SystemProxyClaim,
+        observed: SystemProxyObservation,
+    },
+    /// The durable claim does not match the claim this caller is releasing.
+    SkippedStaleClaim {
+        current: SystemProxyClaim,
+        observed: SystemProxyObservation,
+    },
+    /// Another live process owns the durable claim; this caller did not change it.
+    SkippedLiveOwner {
+        current: SystemProxyClaim,
+        observed: SystemProxyObservation,
+    },
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -197,5 +259,29 @@ mod tests {
             snapshot.status,
             SystemProxyStatus::Unsupported { .. }
         ));
+    }
+
+    #[test]
+    fn desired_state_requires_the_owned_endpoint_and_declared_bypass() {
+        let desired = SystemProxyDesiredState {
+            enabled: true,
+            endpoint: Some("127.0.0.1:7890".to_owned()),
+            bypass: Some("localhost".to_owned()),
+        };
+        assert!(desired.matches(&SystemProxyObservation {
+            enabled: true,
+            endpoint: Some("127.0.0.1:7890".to_owned()),
+            bypass: Some("localhost".to_owned()),
+        }));
+        assert!(!desired.matches(&SystemProxyObservation {
+            enabled: true,
+            endpoint: Some("127.0.0.1:8080".to_owned()),
+            bypass: Some("localhost".to_owned()),
+        }));
+        assert!(!desired.matches(&SystemProxyObservation {
+            enabled: true,
+            endpoint: Some("127.0.0.1:7890".to_owned()),
+            bypass: Some("127.0.0.1".to_owned()),
+        }));
     }
 }

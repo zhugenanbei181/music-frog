@@ -1,8 +1,10 @@
 //! System HTTP/SOCKS proxy use-case over a host-owned port.
 
+use futures_util::lock;
 use infiltrator_contract::system_proxy::{
-    SystemProxyDesiredState, SystemProxyObservation, SystemProxyRecoveryReport,
-    SystemProxyRecoverySnapshot, SystemProxyRecoveryStatus, SystemProxySnapshot,
+    SystemProxyClaim, SystemProxyClaimState, SystemProxyDesiredState, SystemProxyObservation,
+    SystemProxyRecoveryReport, SystemProxyRecoverySnapshot, SystemProxyRecoveryStatus,
+    SystemProxyReleaseReport, SystemProxySnapshot,
 };
 use infiltrator_ports::system_proxy::SystemProxyPort;
 use lurker_core_contract::error::{ErrorCode, Failure};
@@ -17,23 +19,29 @@ pub const SYSTEM_PROXY_SNAPSHOT_CACHE_TTL: Duration = Duration::from_secs(3);
 pub struct SystemProxyApplication {
     port: Arc<dyn SystemProxyPort>,
     next_revision: Arc<AtomicU64>,
-    last_snapshot: Arc<Mutex<Option<(Instant, SystemProxySnapshot)>>>,
-    desired: Arc<Mutex<Option<SystemProxyDesiredState>>>,
+    last_snapshot: Arc<Mutex<Option<(Instant, u64, SystemProxySnapshot)>>>,
+    claim: Arc<Mutex<SystemProxyClaimState>>,
     repair_count: Arc<AtomicU64>,
     recovery: Arc<Mutex<SystemProxyRecoverySnapshot>>,
+    operation: Arc<lock::Mutex<()>>,
+    snapshot_generation: Arc<AtomicU64>,
 }
 
 impl SystemProxyApplication {
     pub fn new(port: Arc<dyn SystemProxyPort>) -> Self {
-        let desired = port.shared_target();
+        let claim = port.shared_claim();
         let recovery = port.shared_recovery();
+        let operation = port.shared_operation();
+        let snapshot_generation = port.shared_snapshot_generation();
         Self {
             port,
             next_revision: Arc::new(AtomicU64::new(1)),
             last_snapshot: Arc::new(Mutex::new(None)),
-            desired,
+            claim,
             repair_count: Arc::new(AtomicU64::new(0)),
             recovery,
+            operation,
+            snapshot_generation,
         }
     }
 
@@ -49,6 +57,8 @@ impl SystemProxyApplication {
     }
 
     pub async fn recover_orphaned(&self) -> SystemProxyRecoverySnapshot {
+        let _operation = self.operation.lock().await;
+        self.advance_snapshot_generation();
         let revision = self.next_revision.fetch_add(1, Ordering::Relaxed);
         let status = match self.port.recover_orphaned().await {
             Ok(SystemProxyRecoveryReport::NotNeeded) => SystemProxyRecoveryStatus::NotNeeded,
@@ -79,28 +89,31 @@ impl SystemProxyApplication {
         snapshot
     }
 
-    pub async fn clear_recovery(&self) -> Result<(), Failure> {
-        self.port.clear_recovery().await.map_err(Failure::from)
-    }
-
     pub async fn snapshot(&self) -> SystemProxySnapshot {
-        let snapshot = self.reconcile_fresh().await;
-        self.cache(snapshot.clone());
-        snapshot
+        let _operation = self.operation.lock().await;
+        self.snapshot_and_cache().await
     }
 
     pub async fn snapshot_cached(&self) -> SystemProxySnapshot {
-        if let Some((observed_at, snapshot)) = self
+        let _operation = self.operation.lock().await;
+        if let Some((observed_at, generation, snapshot)) = self
             .last_snapshot
             .lock()
             .expect("system proxy snapshot cache lock")
             .as_ref()
             .cloned()
+            && generation == self.snapshot_generation.load(Ordering::Acquire)
             && observed_at.elapsed() < SYSTEM_PROXY_SNAPSHOT_CACHE_TTL
         {
             return snapshot;
         }
-        self.snapshot().await
+        self.snapshot_and_cache().await
+    }
+
+    async fn snapshot_and_cache(&self) -> SystemProxySnapshot {
+        let snapshot = self.reconcile_fresh().await;
+        self.cache(snapshot.clone());
+        snapshot
     }
 
     /// Apply and read back the host proxy state. A successful OS command that
@@ -111,6 +124,7 @@ impl SystemProxyApplication {
         endpoint: Option<String>,
         bypass: Option<String>,
     ) -> Result<SystemProxySnapshot, Failure> {
+        let _operation = self.operation.lock().await;
         if enabled
             && endpoint
                 .as_deref()
@@ -122,61 +136,65 @@ impl SystemProxyApplication {
                 true,
             ));
         }
-        let target = SystemProxyDesiredState {
-            enabled,
-            endpoint: endpoint.clone(),
-            bypass: bypass.clone(),
-        };
-
-        // Disabling is a clean ownership release. Apply and read back first,
-        // then remove the crash-recovery journal; otherwise a crash after a
-        // user-initiated disable could incorrectly restore the old proxy on
-        // the next startup.
+        self.advance_snapshot_generation();
         if !enabled {
-            self.port.apply(None, None).await.map_err(Failure::from)?;
-            let observation = self.port.snapshot().await.map_err(Failure::from)?;
-            if !target_matches(&target, &observation) {
-                return Err(Failure::new(
-                    ErrorCode::InvalidState,
-                    format!(
-                        "system proxy readback mismatch: requested {:?}, observed {:?}",
-                        target, observation
-                    ),
-                    true,
-                ));
-            }
-            self.port.clear_recovery().await.map_err(Failure::from)?;
-            *self.desired.lock().expect("system proxy target lock") = None;
-            let snapshot = SystemProxySnapshot::from_observation(
-                self.next_revision.fetch_add(1, Ordering::Relaxed),
-                observation,
-            )
-            .with_repair_count(self.repair_count.load(Ordering::Relaxed));
+            let revision = self.next_revision.fetch_add(1, Ordering::Relaxed);
+            let report = self.release_current_claim().await?;
+            let snapshot = match report {
+                SystemProxyReleaseReport::SkippedLiveOwner { current, .. } => {
+                    return Err(Failure::new(
+                        ErrorCode::InvalidState,
+                        format!(
+                            "system proxy claim is owned by live process {}",
+                            current.owner_pid
+                        ),
+                        true,
+                    ));
+                }
+                SystemProxyReleaseReport::SkippedStaleClaim { current, .. } => {
+                    return Err(Failure::new(
+                        ErrorCode::InvalidState,
+                        format!(
+                            "system proxy claim changed to revision {}; retry with the current claim",
+                            current.revision
+                        ),
+                        true,
+                    ));
+                }
+                report => self.snapshot_after_release(revision, report),
+            };
             self.cache(snapshot.clone());
             return Ok(snapshot);
         }
 
-        let previous = self.port.snapshot().await.map_err(Failure::from)?;
-        self.port
-            .arm_recovery(previous, target.clone())
+        let desired = SystemProxyDesiredState {
+            enabled: true,
+            endpoint,
+            bypass,
+        };
+        let (claim, observation) = self
+            .port
+            .claim_and_apply(desired)
             .await
             .map_err(Failure::from)?;
-        self.port
-            .apply(endpoint, bypass)
-            .await
-            .map_err(Failure::from)?;
-        let observation = self.port.snapshot().await.map_err(Failure::from)?;
-        if !target_matches(&target, &observation) {
+        if claim.observed != observation {
             return Err(Failure::new(
                 ErrorCode::InvalidState,
                 format!(
-                    "system proxy readback mismatch: requested {:?}, observed {:?}",
-                    target, observation
+                    "system proxy readback mismatch: claim {:?}, observed {:?}",
+                    claim.desired, observation
                 ),
                 true,
             ));
         }
-        *self.desired.lock().expect("system proxy target lock") = Some(target);
+        let shared_claim = self.claim.lock().expect("system proxy claim lock").clone();
+        if shared_claim != SystemProxyClaimState::Claimed(claim) {
+            return Err(Failure::new(
+                ErrorCode::InvalidState,
+                "system proxy claim was not published by the host owner",
+                true,
+            ));
+        }
         let snapshot = SystemProxySnapshot::from_observation(
             self.next_revision.fetch_add(1, Ordering::Relaxed),
             observation,
@@ -185,6 +203,38 @@ impl SystemProxyApplication {
         .with_repair_count(self.repair_count.load(Ordering::Relaxed));
         self.cache(snapshot.clone());
         Ok(snapshot)
+    }
+
+    async fn release_current_claim(&self) -> Result<SystemProxyReleaseReport, Failure> {
+        let claim = { self.claim.lock().expect("system proxy claim lock").clone() };
+        match claim {
+            SystemProxyClaimState::Unclaimed => self
+                .port
+                .snapshot()
+                .await
+                .map(|observed| SystemProxyReleaseReport::NoClaim { observed })
+                .map_err(Failure::from),
+            SystemProxyClaimState::Claimed(claim) => self.release_expected_claim(&claim).await,
+        }
+    }
+
+    async fn release_expected_claim(
+        &self,
+        expected: &SystemProxyClaim,
+    ) -> Result<SystemProxyReleaseReport, Failure> {
+        let report = self
+            .port
+            .release_owned(expected)
+            .await
+            .map_err(Failure::from)?;
+        match report {
+            SystemProxyReleaseReport::NoClaim { .. } => Err(Failure::new(
+                ErrorCode::InvalidState,
+                "system proxy claim exists locally but is missing from the host owner",
+                true,
+            )),
+            report => Ok(report),
+        }
     }
 
     async fn reconcile_fresh(&self) -> SystemProxySnapshot {
@@ -196,69 +246,102 @@ impl SystemProxyApplication {
             }
             Err(error) => return SystemProxySnapshot::failed(revision, Failure::from(error)),
         };
-        let target = self
-            .desired
-            .lock()
-            .expect("system proxy target lock")
-            .clone();
-        let Some(target) = target else {
+        let claim = self.claim.lock().expect("system proxy claim lock").clone();
+        let SystemProxyClaimState::Claimed(claim) = claim else {
             return SystemProxySnapshot::from_observation(revision, observation);
         };
         let repair_count = self.repair_count.load(Ordering::Relaxed);
-        if target_matches(&target, &observation) {
+        if claim.observed == observation {
             return SystemProxySnapshot::from_observation(revision, observation)
                 .with_owned()
                 .with_repair_count(repair_count);
         }
-
-        if let Err(error) = self
-            .port
-            .apply(target.endpoint.clone(), target.bypass.clone())
-            .await
-        {
-            return SystemProxySnapshot::failed(revision, Failure::from(error));
-        }
-        let repaired = match self.port.snapshot().await {
-            Ok(observation) => observation,
-            Err(error) => return SystemProxySnapshot::failed(revision, Failure::from(error)),
+        self.advance_snapshot_generation();
+        let report = match self.release_expected_claim(&claim).await {
+            Ok(report) => report,
+            Err(failure) => return SystemProxySnapshot::failed(revision, failure),
         };
-        if !target_matches(&target, &repaired) {
-            return SystemProxySnapshot::failed(
-                revision,
-                Failure::new(
-                    ErrorCode::InvalidState,
-                    format!(
-                        "system proxy repair readback mismatch: target {:?}, observed {:?}",
-                        target, repaired
-                    ),
-                    true,
-                ),
-            );
+        self.snapshot_after_release(revision, report)
+    }
+
+    fn snapshot_after_release(
+        &self,
+        revision: u64,
+        report: SystemProxyReleaseReport,
+    ) -> SystemProxySnapshot {
+        match report {
+            SystemProxyReleaseReport::NoClaim { observed }
+            | SystemProxyReleaseReport::SkippedExternal { observed, .. } => {
+                self.snapshot_for_current_claim(revision, observed)
+            }
+            SystemProxyReleaseReport::Restored { restored, .. } => {
+                self.snapshot_for_current_claim(revision, restored)
+            }
+            SystemProxyReleaseReport::SkippedStaleClaim { current, observed } => {
+                self.snapshot_for_claim_readback(revision, current, observed)
+            }
+            SystemProxyReleaseReport::SkippedLiveOwner { current, observed } => {
+                self.snapshot_for_claim_readback(revision, current, observed)
+            }
         }
-        let repair_count = self.repair_count.fetch_add(1, Ordering::Relaxed) + 1;
-        SystemProxySnapshot::from_observation(revision, repaired).with_repaired(repair_count)
+    }
+
+    fn snapshot_for_claim_readback(
+        &self,
+        revision: u64,
+        current: SystemProxyClaim,
+        observed: SystemProxyObservation,
+    ) -> SystemProxySnapshot {
+        let shared_claim = self.claim.lock().expect("system proxy claim lock").clone();
+        if current.observed == observed
+            && shared_claim == SystemProxyClaimState::Claimed(current.clone())
+        {
+            return SystemProxySnapshot::from_observation(revision, observed)
+                .with_owned()
+                .with_repair_count(self.repair_count.load(Ordering::Relaxed));
+        }
+        SystemProxySnapshot::failed(
+            revision,
+            Failure::new(
+                ErrorCode::InvalidState,
+                format!(
+                    "system proxy claim revision {} does not match host readback",
+                    current.revision
+                ),
+                true,
+            ),
+        )
+    }
+
+    fn snapshot_for_current_claim(
+        &self,
+        revision: u64,
+        observed: SystemProxyObservation,
+    ) -> SystemProxySnapshot {
+        let claim = self.claim.lock().expect("system proxy claim lock").clone();
+        match claim {
+            SystemProxyClaimState::Unclaimed => {
+                SystemProxySnapshot::from_observation(revision, observed)
+                    .with_repair_count(self.repair_count.load(Ordering::Relaxed))
+            }
+            SystemProxyClaimState::Claimed(claim) => {
+                self.snapshot_for_claim_readback(revision, claim, observed)
+            }
+        }
     }
 
     fn cache(&self, snapshot: SystemProxySnapshot) {
+        let generation = self.snapshot_generation.load(Ordering::Acquire);
         *self
             .last_snapshot
             .lock()
-            .expect("system proxy snapshot cache lock") = Some((Instant::now(), snapshot));
+            .expect("system proxy snapshot cache lock") =
+            Some((Instant::now(), generation, snapshot));
     }
-}
 
-fn target_matches(target: &SystemProxyDesiredState, observation: &SystemProxyObservation) -> bool {
-    if target.enabled != observation.enabled {
-        return false;
+    fn advance_snapshot_generation(&self) {
+        self.snapshot_generation.fetch_add(1, Ordering::AcqRel);
     }
-    if !target.enabled {
-        return true;
-    }
-    target.endpoint == observation.endpoint
-        && target
-            .bypass
-            .as_ref()
-            .is_none_or(|bypass| observation.bypass.as_ref() == Some(bypass))
 }
 
 #[cfg(test)]
@@ -266,38 +349,124 @@ mod tests {
     use super::*;
     use async_trait::async_trait;
     use infiltrator_contract::system_proxy::{
-        SystemProxyObservation, SystemProxyOwnership, SystemProxyRecoveryStatus, SystemProxyStatus,
+        SystemProxyClaim, SystemProxyClaimState, SystemProxyOwnership, SystemProxyStatus,
     };
+    use std::process::id;
     use std::sync::atomic::AtomicUsize;
 
     struct TestPort {
         observation: Mutex<SystemProxyObservation>,
         apply_calls: AtomicUsize,
         snapshot_calls: AtomicUsize,
-        arm_calls: AtomicUsize,
-        clear_calls: AtomicUsize,
-        target: Arc<Mutex<Option<SystemProxyDesiredState>>>,
+        claim: Arc<Mutex<SystemProxyClaimState>>,
+        operation: Arc<lock::Mutex<()>>,
+        snapshot_generation: Arc<AtomicU64>,
         recovery_report: Mutex<Option<SystemProxyRecoveryReport>>,
+        release_override: Mutex<Option<SystemProxyReleaseReport>>,
+    }
+
+    impl TestPort {
+        fn new(observation: SystemProxyObservation) -> Self {
+            Self {
+                observation: Mutex::new(observation),
+                apply_calls: AtomicUsize::new(0),
+                snapshot_calls: AtomicUsize::new(0),
+                claim: Arc::new(Mutex::new(SystemProxyClaimState::Unclaimed)),
+                operation: Arc::new(lock::Mutex::new(())),
+                snapshot_generation: Arc::new(AtomicU64::new(0)),
+                recovery_report: Mutex::new(None),
+                release_override: Mutex::new(None),
+            }
+        }
     }
 
     #[async_trait]
     impl SystemProxyPort for TestPort {
-        fn shared_target(&self) -> Arc<Mutex<Option<SystemProxyDesiredState>>> {
-            self.target.clone()
+        fn shared_claim(&self) -> Arc<Mutex<SystemProxyClaimState>> {
+            self.claim.clone()
         }
 
-        async fn arm_recovery(
+        fn shared_operation(&self) -> Arc<lock::Mutex<()>> {
+            self.operation.clone()
+        }
+
+        fn shared_snapshot_generation(&self) -> Arc<AtomicU64> {
+            self.snapshot_generation.clone()
+        }
+
+        async fn claim_and_apply(
             &self,
-            _previous: SystemProxyObservation,
-            _desired: SystemProxyDesiredState,
-        ) -> Result<(), PortError> {
-            self.arm_calls.fetch_add(1, Ordering::SeqCst);
-            Ok(())
+            desired: SystemProxyDesiredState,
+        ) -> Result<(SystemProxyClaim, SystemProxyObservation), PortError> {
+            let mut state = self.claim.lock().expect("claim lock");
+            let previous = self.observation.lock().expect("proxy lock").clone();
+            let revision = match &*state {
+                SystemProxyClaimState::Unclaimed => 1,
+                SystemProxyClaimState::Claimed(claim) => claim.revision.saturating_add(1),
+            };
+            let observed = SystemProxyObservation {
+                enabled: desired.enabled,
+                endpoint: desired.endpoint.clone(),
+                bypass: desired.bypass.clone(),
+            };
+            *self.observation.lock().expect("proxy lock") = observed.clone();
+            self.apply_calls.fetch_add(1, Ordering::SeqCst);
+            let claim = SystemProxyClaim {
+                revision,
+                owner_pid: id(),
+                owner_start_time: 1,
+                previous,
+                desired,
+                observed: observed.clone(),
+            };
+            *state = SystemProxyClaimState::Claimed(claim.clone());
+            Ok((claim, observed))
         }
 
-        async fn clear_recovery(&self) -> Result<(), PortError> {
-            self.clear_calls.fetch_add(1, Ordering::SeqCst);
-            Ok(())
+        async fn release_owned(
+            &self,
+            expected: &SystemProxyClaim,
+        ) -> Result<SystemProxyReleaseReport, PortError> {
+            let observed = self.observation.lock().expect("proxy lock").clone();
+            if let Some(report) = self
+                .release_override
+                .lock()
+                .expect("release override lock")
+                .take()
+            {
+                if let SystemProxyReleaseReport::SkippedStaleClaim { current, .. }
+                | SystemProxyReleaseReport::SkippedLiveOwner { current, .. } = &report
+                {
+                    *self.claim.lock().expect("claim lock") =
+                        SystemProxyClaimState::Claimed(current.clone());
+                }
+                return Ok(report);
+            }
+            let mut state = self.claim.lock().expect("claim lock");
+            let current = match &*state {
+                SystemProxyClaimState::Unclaimed => {
+                    return Ok(SystemProxyReleaseReport::NoClaim { observed });
+                }
+                SystemProxyClaimState::Claimed(claim) => claim.clone(),
+            };
+            if current != *expected {
+                return Ok(SystemProxyReleaseReport::SkippedStaleClaim { current, observed });
+            }
+            if current.observed != observed {
+                *state = SystemProxyClaimState::Unclaimed;
+                return Ok(SystemProxyReleaseReport::SkippedExternal {
+                    expected: current,
+                    observed,
+                });
+            }
+            let restored = current.previous.clone();
+            *self.observation.lock().expect("proxy lock") = restored.clone();
+            *state = SystemProxyClaimState::Unclaimed;
+            self.apply_calls.fetch_add(1, Ordering::SeqCst);
+            Ok(SystemProxyReleaseReport::Restored {
+                previous: current.previous,
+                restored,
+            })
         }
 
         async fn recover_orphaned(&self) -> Result<SystemProxyRecoveryReport, PortError> {
@@ -313,58 +482,295 @@ mod tests {
             self.snapshot_calls.fetch_add(1, Ordering::SeqCst);
             Ok(self.observation.lock().expect("proxy lock").clone())
         }
+    }
 
-        async fn apply(
-            &self,
-            endpoint: Option<String>,
-            bypass: Option<String>,
-        ) -> Result<(), PortError> {
-            self.apply_calls.fetch_add(1, Ordering::SeqCst);
-            let mut observation = self.observation.lock().expect("proxy lock");
-            observation.endpoint = endpoint.clone();
-            observation.bypass = bypass;
-            observation.enabled = endpoint.is_some();
-            Ok(())
+    fn third_party_proxy() -> SystemProxyObservation {
+        SystemProxyObservation {
+            enabled: true,
+            endpoint: Some("proxy.example:8080".to_owned()),
+            bypass: Some("localhost".to_owned()),
         }
     }
 
     #[tokio::test]
-    async fn application_applies_and_reads_back_proxy_state() {
-        let port = Arc::new(TestPort {
-            observation: Mutex::new(SystemProxyObservation::default()),
-            apply_calls: AtomicUsize::new(0),
-            snapshot_calls: AtomicUsize::new(0),
-            arm_calls: AtomicUsize::new(0),
-            clear_calls: AtomicUsize::new(0),
-            target: Arc::new(Mutex::new(None)),
-            recovery_report: Mutex::new(None),
-        });
-        let application = SystemProxyApplication::new(port.clone());
-        let snapshot = application
-            .set_enabled(
-                true,
-                Some("127.0.0.1:7890".to_owned()),
-                Some("localhost".to_owned()),
-            )
-            .await
-            .expect("proxy apply");
-        assert_eq!(snapshot.status, SystemProxyStatus::Enabled);
-        assert_eq!(snapshot.ownership, SystemProxyOwnership::Owned);
-        assert_eq!(port.apply_calls.load(Ordering::SeqCst), 1);
-        assert_eq!(port.arm_calls.load(Ordering::SeqCst), 1);
+    async fn separate_compositions_share_the_same_operation_lock() {
+        let port = Arc::new(TestPort::new(SystemProxyObservation::default()));
+        let command_application = SystemProxyApplication::new(port.clone());
+        let surface_application = SystemProxyApplication::new(port);
+
+        assert!(Arc::ptr_eq(
+            &command_application.operation,
+            &surface_application.operation
+        ));
     }
 
     #[tokio::test]
-    async fn application_caches_surface_observations() {
-        let port = Arc::new(TestPort {
-            observation: Mutex::new(SystemProxyObservation::default()),
-            apply_calls: AtomicUsize::new(0),
-            snapshot_calls: AtomicUsize::new(0),
-            arm_calls: AtomicUsize::new(0),
-            clear_calls: AtomicUsize::new(0),
-            target: Arc::new(Mutex::new(None)),
-            recovery_report: Mutex::new(None),
-        });
+    async fn application_claims_and_reads_back_owned_proxy_state() {
+        let port = Arc::new(TestPort::new(SystemProxyObservation::default()));
+        let application = SystemProxyApplication::new(port.clone());
+        let snapshot = application
+            .set_enabled(true, Some("127.0.0.1:7890".to_owned()), None)
+            .await
+            .expect("claim proxy");
+
+        assert_eq!(snapshot.status, SystemProxyStatus::Enabled);
+        assert_eq!(snapshot.ownership, SystemProxyOwnership::Owned);
+        assert_eq!(port.apply_calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn separate_compositions_share_the_same_claim_readback() {
+        let port = Arc::new(TestPort::new(SystemProxyObservation::default()));
+        let command_application = SystemProxyApplication::new(port.clone());
+        let surface_application = SystemProxyApplication::new(port.clone());
+        assert!(Arc::ptr_eq(
+            &command_application.operation,
+            &surface_application.operation
+        ));
+        command_application
+            .set_enabled(true, Some("127.0.0.1:7890".to_owned()), None)
+            .await
+            .expect("claim proxy");
+
+        let snapshot = surface_application.snapshot().await;
+        assert_eq!(snapshot.ownership, SystemProxyOwnership::Owned);
+        assert_eq!(port.apply_calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn disabling_without_a_claim_preserves_an_external_proxy() {
+        let external = third_party_proxy();
+        let port = Arc::new(TestPort::new(external.clone()));
+        let application = SystemProxyApplication::new(port.clone());
+        let snapshot = application
+            .set_enabled(false, None, None)
+            .await
+            .expect("safe no-claim release");
+
+        assert_eq!(snapshot.status, SystemProxyStatus::Enabled);
+        assert_eq!(snapshot.ownership, SystemProxyOwnership::Unmanaged);
+        assert_eq!(snapshot.endpoint.as_deref(), Some("proxy.example:8080"));
+        assert_eq!(port.apply_calls.load(Ordering::SeqCst), 0);
+        assert_eq!(*port.observation.lock().expect("proxy lock"), external);
+    }
+
+    #[tokio::test]
+    async fn disabling_restores_the_value_that_preceded_our_claim() {
+        let external = third_party_proxy();
+        let port = Arc::new(TestPort::new(external.clone()));
+        let application = SystemProxyApplication::new(port.clone());
+        application
+            .set_enabled(true, Some("127.0.0.1:7890".to_owned()), None)
+            .await
+            .expect("claim proxy");
+
+        let snapshot = application
+            .set_enabled(false, None, None)
+            .await
+            .expect("release own claim");
+        assert_eq!(snapshot.status, SystemProxyStatus::Enabled);
+        assert_eq!(snapshot.ownership, SystemProxyOwnership::Unmanaged);
+        assert_eq!(snapshot.endpoint.as_deref(), Some("proxy.example:8080"));
+        assert_eq!(*port.observation.lock().expect("proxy lock"), external);
+        assert_eq!(
+            *port.claim.lock().expect("claim lock"),
+            SystemProxyClaimState::Unclaimed
+        );
+    }
+
+    #[tokio::test]
+    async fn disabling_fails_closed_when_the_host_owner_has_no_matching_claim() {
+        let port = Arc::new(TestPort::new(SystemProxyObservation::default()));
+        let application = SystemProxyApplication::new(port.clone());
+        application
+            .set_enabled(true, Some("127.0.0.1:7890".to_owned()), None)
+            .await
+            .expect("claim proxy");
+        let observed = port.observation.lock().expect("proxy lock").clone();
+        *port.release_override.lock().expect("release override lock") =
+            Some(SystemProxyReleaseReport::NoClaim {
+                observed: observed.clone(),
+            });
+
+        let failure = application
+            .set_enabled(false, None, None)
+            .await
+            .expect_err("a missing host claim must not report a successful disable");
+
+        assert_eq!(failure.code, ErrorCode::InvalidState);
+        assert!(failure.retryable);
+        assert_eq!(*port.observation.lock().expect("proxy lock"), observed);
+        assert!(matches!(
+            *port.claim.lock().expect("claim lock"),
+            SystemProxyClaimState::Claimed(_)
+        ));
+        assert_eq!(port.apply_calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn disabling_with_a_stale_claim_fails_retryably_and_preserves_the_current_claim() {
+        let port = Arc::new(TestPort::new(SystemProxyObservation::default()));
+        let application = SystemProxyApplication::new(port.clone());
+        application
+            .set_enabled(true, Some("127.0.0.1:7890".to_owned()), None)
+            .await
+            .expect("claim proxy");
+        let (desired, current_observation) = {
+            let state = port.claim.lock().expect("claim lock");
+            let SystemProxyClaimState::Claimed(claim) = &*state else {
+                panic!("claim must be published")
+            };
+            (claim.desired.clone(), claim.observed.clone())
+        };
+        let current = SystemProxyClaim {
+            revision: 2,
+            owner_pid: id(),
+            owner_start_time: 1,
+            previous: SystemProxyObservation::default(),
+            desired,
+            observed: current_observation.clone(),
+        };
+        *port.release_override.lock().expect("release override lock") =
+            Some(SystemProxyReleaseReport::SkippedStaleClaim {
+                current: current.clone(),
+                observed: current_observation,
+            });
+
+        let failure = application
+            .set_enabled(false, None, None)
+            .await
+            .expect_err("stale claim must not report a successful disable");
+
+        assert_eq!(failure.code, ErrorCode::InvalidState);
+        assert!(failure.retryable);
+        assert_eq!(
+            *port.claim.lock().expect("claim lock"),
+            SystemProxyClaimState::Claimed(current)
+        );
+        assert_eq!(port.apply_calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn snapshot_reconciles_a_new_claim_from_authoritative_release_readback() {
+        let port = Arc::new(TestPort::new(SystemProxyObservation::default()));
+        let application = SystemProxyApplication::new(port.clone());
+        application
+            .set_enabled(true, Some("127.0.0.1:7890".to_owned()), None)
+            .await
+            .expect("initial claim");
+        let mut current = match &*port.claim.lock().expect("claim lock") {
+            SystemProxyClaimState::Claimed(claim) => claim.clone(),
+            SystemProxyClaimState::Unclaimed => panic!("claim must be published"),
+        };
+        current.revision += 1;
+        let current_observation = SystemProxyObservation {
+            enabled: true,
+            endpoint: Some("127.0.0.1:7891".to_owned()),
+            bypass: None,
+        };
+        current.desired.endpoint = current_observation.endpoint.clone();
+        current.observed = current_observation.clone();
+        *port.observation.lock().expect("proxy lock") = current_observation.clone();
+        *port.release_override.lock().expect("release override lock") =
+            Some(SystemProxyReleaseReport::SkippedStaleClaim {
+                current: current.clone(),
+                observed: current_observation,
+            });
+
+        let snapshot = application.snapshot().await;
+
+        assert_eq!(snapshot.status, SystemProxyStatus::Enabled);
+        assert_eq!(snapshot.ownership, SystemProxyOwnership::Owned);
+        assert_eq!(snapshot.endpoint.as_deref(), Some("127.0.0.1:7891"));
+        assert_eq!(
+            *port.claim.lock().expect("claim lock"),
+            SystemProxyClaimState::Claimed(current)
+        );
+    }
+
+    #[tokio::test]
+    async fn snapshot_fails_closed_when_release_readback_has_no_matching_claim() {
+        let port = Arc::new(TestPort::new(SystemProxyObservation::default()));
+        let application = SystemProxyApplication::new(port.clone());
+        application
+            .set_enabled(true, Some("127.0.0.1:7890".to_owned()), None)
+            .await
+            .expect("claim proxy");
+        let external = third_party_proxy();
+        *port.observation.lock().expect("proxy lock") = external.clone();
+        *port.release_override.lock().expect("release override lock") =
+            Some(SystemProxyReleaseReport::NoClaim {
+                observed: external.clone(),
+            });
+
+        let snapshot = application.snapshot().await;
+
+        match snapshot.status {
+            SystemProxyStatus::Failed { failure } => {
+                assert_eq!(failure.code, ErrorCode::InvalidState);
+                assert!(failure.retryable);
+            }
+            status => panic!("expected fail-closed snapshot, got {status:?}"),
+        }
+        assert_eq!(snapshot.ownership, SystemProxyOwnership::Unknown);
+        assert_eq!(*port.observation.lock().expect("proxy lock"), external);
+        assert!(matches!(
+            *port.claim.lock().expect("claim lock"),
+            SystemProxyClaimState::Claimed(_)
+        ));
+        assert_eq!(port.apply_calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn disabling_after_external_change_preserves_the_external_value() {
+        let port = Arc::new(TestPort::new(SystemProxyObservation::default()));
+        let application = SystemProxyApplication::new(port.clone());
+        application
+            .set_enabled(true, Some("127.0.0.1:7890".to_owned()), None)
+            .await
+            .expect("claim proxy");
+        let external = third_party_proxy();
+        *port.observation.lock().expect("proxy lock") = external.clone();
+
+        let snapshot = application
+            .set_enabled(false, None, None)
+            .await
+            .expect("release stale claim safely");
+        assert_eq!(snapshot.status, SystemProxyStatus::Enabled);
+        assert_eq!(snapshot.ownership, SystemProxyOwnership::Unmanaged);
+        assert_eq!(*port.observation.lock().expect("proxy lock"), external);
+        assert_eq!(
+            *port.claim.lock().expect("claim lock"),
+            SystemProxyClaimState::Unclaimed
+        );
+    }
+
+    #[tokio::test]
+    async fn observation_of_external_override_relinquishes_claim_without_repairing_it() {
+        let port = Arc::new(TestPort::new(SystemProxyObservation::default()));
+        let application = SystemProxyApplication::new(port.clone());
+        application
+            .set_enabled(true, Some("127.0.0.1:7890".to_owned()), None)
+            .await
+            .expect("claim proxy");
+        let external = third_party_proxy();
+        *port.observation.lock().expect("proxy lock") = external.clone();
+
+        let snapshot = application.snapshot().await;
+        assert_eq!(snapshot.status, SystemProxyStatus::Enabled);
+        assert_eq!(snapshot.ownership, SystemProxyOwnership::Unmanaged);
+        assert_eq!(snapshot.endpoint.as_deref(), Some("proxy.example:8080"));
+        assert_eq!(port.apply_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(*port.observation.lock().expect("proxy lock"), external);
+        assert_eq!(
+            *port.claim.lock().expect("claim lock"),
+            SystemProxyClaimState::Unclaimed
+        );
+    }
+
+    #[tokio::test]
+    async fn application_caches_unowned_surface_observations() {
+        let port = Arc::new(TestPort::new(SystemProxyObservation::default()));
         let application = SystemProxyApplication::new(port.clone());
         let first = application.snapshot_cached().await;
         let second = application.snapshot_cached().await;
@@ -374,108 +780,30 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn application_repairs_external_override_and_reports_one_warning_state() {
-        let port = Arc::new(TestPort {
-            observation: Mutex::new(SystemProxyObservation::default()),
-            apply_calls: AtomicUsize::new(0),
-            snapshot_calls: AtomicUsize::new(0),
-            arm_calls: AtomicUsize::new(0),
-            clear_calls: AtomicUsize::new(0),
-            target: Arc::new(Mutex::new(None)),
-            recovery_report: Mutex::new(None),
-        });
-        let application = SystemProxyApplication::new(port.clone());
-        application
-            .set_enabled(
-                true,
-                Some("127.0.0.1:7890".to_owned()),
-                Some("localhost".to_owned()),
-            )
-            .await
-            .expect("initial proxy apply");
-        *port.observation.lock().expect("proxy lock") = SystemProxyObservation {
-            enabled: true,
-            endpoint: Some("127.0.0.1:9999".to_owned()),
-            bypass: Some("example.com".to_owned()),
-        };
-
-        let snapshot = application.snapshot().await;
-        assert_eq!(snapshot.status, SystemProxyStatus::Enabled);
-        assert_eq!(snapshot.ownership, SystemProxyOwnership::Repaired);
-        assert_eq!(snapshot.repair_count, 1);
-        assert_eq!(snapshot.endpoint.as_deref(), Some("127.0.0.1:7890"));
-        assert_eq!(port.apply_calls.load(Ordering::SeqCst), 2);
-    }
-
-    #[tokio::test]
-    async fn separate_compositions_share_proxy_ownership_through_the_port() {
-        let port = Arc::new(TestPort {
-            observation: Mutex::new(SystemProxyObservation::default()),
-            apply_calls: AtomicUsize::new(0),
-            snapshot_calls: AtomicUsize::new(0),
-            arm_calls: AtomicUsize::new(0),
-            clear_calls: AtomicUsize::new(0),
-            target: Arc::new(Mutex::new(None)),
-            recovery_report: Mutex::new(None),
-        });
+    async fn separate_composition_claim_invalidates_cached_surface_snapshot() {
+        let port = Arc::new(TestPort::new(SystemProxyObservation::default()));
         let command_application = SystemProxyApplication::new(port.clone());
         let surface_application = SystemProxyApplication::new(port.clone());
+        let cached = surface_application.snapshot_cached().await;
+        assert_eq!(cached.ownership, SystemProxyOwnership::Unmanaged);
+        assert_eq!(port.snapshot_calls.load(Ordering::SeqCst), 1);
+
         command_application
             .set_enabled(true, Some("127.0.0.1:7890".to_owned()), None)
             .await
-            .expect("command composition apply");
+            .expect("claim proxy from command composition");
 
-        let snapshot = surface_application.snapshot().await;
-        assert_eq!(snapshot.ownership, SystemProxyOwnership::Owned);
-        assert_eq!(port.apply_calls.load(Ordering::SeqCst), 1);
-    }
-
-    #[tokio::test]
-    async fn disabling_proxy_releases_ownership_and_clears_recovery() {
-        let port = Arc::new(TestPort {
-            observation: Mutex::new(SystemProxyObservation {
-                enabled: true,
-                endpoint: Some("127.0.0.1:7890".to_owned()),
-                bypass: None,
-            }),
-            apply_calls: AtomicUsize::new(0),
-            snapshot_calls: AtomicUsize::new(0),
-            arm_calls: AtomicUsize::new(0),
-            clear_calls: AtomicUsize::new(0),
-            target: Arc::new(Mutex::new(Some(SystemProxyDesiredState {
-                enabled: true,
-                endpoint: Some("127.0.0.1:7890".to_owned()),
-                bypass: None,
-            }))),
-            recovery_report: Mutex::new(None),
-        });
-        let application = SystemProxyApplication::new(port.clone());
-        let snapshot = application
-            .set_enabled(false, None, None)
-            .await
-            .expect("proxy disable");
-
-        assert_eq!(snapshot.status, SystemProxyStatus::Disabled);
-        assert_eq!(snapshot.ownership, SystemProxyOwnership::Unmanaged);
-        assert_eq!(port.apply_calls.load(Ordering::SeqCst), 1);
-        assert_eq!(port.arm_calls.load(Ordering::SeqCst), 0);
-        assert_eq!(port.clear_calls.load(Ordering::SeqCst), 1);
-        assert!(port.target.lock().expect("proxy target lock").is_none());
+        let refreshed = surface_application.snapshot_cached().await;
+        assert_eq!(refreshed.ownership, SystemProxyOwnership::Owned);
+        assert_eq!(refreshed.endpoint.as_deref(), Some("127.0.0.1:7890"));
+        assert_eq!(port.snapshot_calls.load(Ordering::SeqCst), 2);
     }
 
     #[tokio::test]
     async fn application_publishes_typed_startup_recovery_result() {
-        let port = Arc::new(TestPort {
-            observation: Mutex::new(SystemProxyObservation::default()),
-            apply_calls: AtomicUsize::new(0),
-            snapshot_calls: AtomicUsize::new(0),
-            arm_calls: AtomicUsize::new(0),
-            clear_calls: AtomicUsize::new(0),
-            target: Arc::new(Mutex::new(None)),
-            recovery_report: Mutex::new(Some(SystemProxyRecoveryReport::SkippedLiveOwner {
-                owner_pid: 4242,
-            })),
-        });
+        let port = Arc::new(TestPort::new(SystemProxyObservation::default()));
+        *port.recovery_report.lock().expect("recovery report lock") =
+            Some(SystemProxyRecoveryReport::SkippedLiveOwner { owner_pid: 4242 });
         let application = SystemProxyApplication::new(port);
         let snapshot = application.recover_orphaned().await;
         assert!(matches!(

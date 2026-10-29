@@ -59,12 +59,18 @@ pub(super) fn apply(endpoint: Option<&str>, bypass: Option<&str>) -> anyhow::Res
             run_networksetup(&[&format!("{proxy_type}state"), &service, "on"])?;
         }
 
-        if let Some(b) = bypass {
-            let parts: Vec<&str> = b.split(';').filter(|s| !s.is_empty()).collect();
-            let mut args = vec!["-setproxybypassdomains", &service];
+        let parts: Vec<&str> = bypass
+            .unwrap_or_default()
+            .split(';')
+            .filter(|s| !s.is_empty())
+            .collect();
+        let mut args = vec!["-setproxybypassdomains", &service];
+        if parts.is_empty() {
+            args.push("Empty");
+        } else {
             args.extend(parts);
-            run_networksetup(&args)?;
         }
+        run_networksetup(&args)?;
     } else {
         for proxy_type in &[
             "-setwebproxystate",
@@ -102,14 +108,17 @@ pub(super) fn read_state() -> anyhow::Result<SystemProxyState> {
     };
 
     let mut bypass = None;
-    let bypass_stdout = run_networksetup(&["-getproxybypassdomains", &service])?;
-    let parts: Vec<String> = bypass_stdout
-        .lines()
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty() && s != "There aren't any bypass domains set on Wi-Fi.")
-        .collect();
-    if !parts.is_empty() {
-        bypass = Some(parts.join(";"));
+    if enabled {
+        let bypass_stdout = run_networksetup(&["-getproxybypassdomains", &service])?;
+        let empty_bypass = format!("There aren't any bypass domains set on {service}.");
+        let parts: Vec<String> = bypass_stdout
+            .lines()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty() && s != &empty_bypass)
+            .collect();
+        if !parts.is_empty() {
+            bypass = Some(parts.join(";"));
+        }
     }
 
     Ok(SystemProxyState {

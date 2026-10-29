@@ -3,8 +3,9 @@ use anyhow::anyhow;
 use std::collections::{HashMap, HashSet};
 use std::env::var;
 use std::fs::{create_dir_all, read_to_string, write};
+use std::io::ErrorKind;
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Output};
 
 /// KDE Plasma 桌面环境代理后端（基于 `kwriteconfig5`/`kwriteconfig6` 与 `kconfig` / `kioslaverc`）。
 /// 查找可用的 KDE 配置写入工具（优先 kwriteconfig6，其次 kwriteconfig5）。
@@ -137,19 +138,17 @@ pub fn generate_write_commands(
                 "socksProxy".into(),
                 socks_url,
             ]);
-            if let Some(b) = bypass {
-                let kde_b = format_bypass_for_kde(b);
-                cmds.push(vec![
-                    tool.into(),
-                    "--file".into(),
-                    "kioslaverc".into(),
-                    "--group".into(),
-                    "Proxy Settings".into(),
-                    "--key".into(),
-                    "NoProxyFor".into(),
-                    kde_b,
-                ]);
-            }
+            let kde_b = bypass.map(format_bypass_for_kde).unwrap_or_default();
+            cmds.push(vec![
+                tool.into(),
+                "--file".into(),
+                "kioslaverc".into(),
+                "--group".into(),
+                "Proxy Settings".into(),
+                "--key".into(),
+                "NoProxyFor".into(),
+                kde_b,
+            ]);
         }
     } else {
         cmds.push(vec![
@@ -219,9 +218,10 @@ pub fn update_kioslaverc_content(
             keys_to_write.insert("httpsProxy".to_string(), http_url.clone());
             keys_to_write.insert("ftpProxy".to_string(), http_url);
             keys_to_write.insert("socksProxy".to_string(), socks_url);
-            if let Some(b) = bypass {
-                keys_to_write.insert("NoProxyFor".to_string(), format_bypass_for_kde(b));
-            }
+            keys_to_write.insert(
+                "NoProxyFor".to_string(),
+                bypass.map(format_bypass_for_kde).unwrap_or_default(),
+            );
         }
     } else {
         keys_to_write.insert("ProxyType".to_string(), "0".to_string());
@@ -389,7 +389,11 @@ pub fn apply(endpoint: Option<&str>, bypass: Option<&str>) -> anyhow::Result<()>
         if let Some(parent) = path.parent() {
             create_dir_all(parent)?;
         }
-        let existing = read_to_string(&path).unwrap_or_default();
+        let existing = match read_to_string(&path) {
+            Ok(content) => content,
+            Err(error) if error.kind() == ErrorKind::NotFound => String::new(),
+            Err(error) => return Err(error.into()),
+        };
         let new_content = update_kioslaverc_content(&existing, endpoint, bypass);
         write(&path, new_content)?;
         notify_kio();
@@ -401,33 +405,44 @@ pub fn apply(endpoint: Option<&str>, bypass: Option<&str>) -> anyhow::Result<()>
     ))
 }
 
+pub(super) fn run_kreadconfig(command: &[String]) -> anyhow::Result<String> {
+    let Some(program) = command.first() else {
+        return Err(anyhow!("kreadconfig command was empty"));
+    };
+    let output = Command::new(program)
+        .args(&command[1..])
+        .output()
+        .map_err(|error| anyhow!("{program} spawn failed: {error}"))?;
+    read_kreadconfig_output(program, output)
+}
+
+pub(super) fn read_kreadconfig_output(program: &str, output: Output) -> anyhow::Result<String> {
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(anyhow!(
+            "{program} failed with exit code {:?}: {}",
+            output.status.code(),
+            stderr.trim()
+        ));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
+}
+
 /// 读取 KDE 代理状态。
 pub fn read_state() -> anyhow::Result<SystemProxyState> {
     if let Some(tool) = find_kreadconfig() {
         let (cmd_type, cmd_http, cmd_bypass) = generate_read_commands(tool);
-        let out_type = Command::new(&cmd_type[0])
-            .args(&cmd_type[1..])
-            .output()
-            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-            .unwrap_or_default();
+        let out_type = run_kreadconfig(&cmd_type)?;
 
         let enabled = out_type == "1" || out_type == "4";
         let mut endpoint = None;
         let mut bypass = None;
 
         if enabled {
-            let out_http = Command::new(&cmd_http[0])
-                .args(&cmd_http[1..])
-                .output()
-                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-                .unwrap_or_default();
+            let out_http = run_kreadconfig(&cmd_http)?;
             endpoint = parse_url_to_endpoint(&out_http);
 
-            let out_bypass = Command::new(&cmd_bypass[0])
-                .args(&cmd_bypass[1..])
-                .output()
-                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-                .unwrap_or_default();
+            let out_bypass = run_kreadconfig(&cmd_bypass)?;
             if !out_bypass.is_empty() {
                 bypass = Some(format_bypass_from_kde(&out_bypass));
             }
@@ -441,11 +456,12 @@ pub fn read_state() -> anyhow::Result<SystemProxyState> {
     }
 
     // 回退：直接读取 kioslaverc 文件
-    if let Some(path) = kioslaverc_path()
-        && path.exists()
-    {
-        let content = read_to_string(&path)?;
-        return Ok(parse_kioslaverc_content(&content));
+    if let Some(path) = kioslaverc_path() {
+        match read_to_string(&path) {
+            Ok(content) => return Ok(parse_kioslaverc_content(&content)),
+            Err(error) if error.kind() == ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
     }
 
     Ok(SystemProxyState::default())

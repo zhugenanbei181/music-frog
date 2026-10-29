@@ -70,17 +70,18 @@
 13. **cargo 并行预算与分组收口（2026-10-20 起强制，仿 ZhuGeTower 组批节奏）：** 构建资源全局共享（本机两条 cargo lane），并行流的 cargo 调用必须错峰：同一时刻只允许一条流跑 cargo，其余流只写源码与测试；**重构按组推进、一组一收口**——同一主题的重构（同一 owner 结构、同一族类型、同一契约面）作为一组同时落地，由收口方统一跑一次该组验证（一次 `--workspace` nextest + 一次结构门 + 该组专属 guard），禁止每条改动各跑一遍全仓；收口顺序：各流先交付源码，最后一条流统一构建、统一验证、统一提交。
 14. **同仓多会话的所有权纪律（2026-10-20 起强制）**：同一仓库可能同时被多个会话操作——动一个文件前先以工作树未提交改动与修改时间确认它当前归谁，**正在被别的会话写的文件一律不碰**（不修、不格式化、不提交）；自己派出的并行流必须把 crate 目录写进所有权清单，跨界只读不改；宁可把半成品留在工作树等对方落地，也不要在对方写到一半时插进同一批文件——两个会话改同一文件的结果是双方都丢改动。
 
-## Points 与完成度台账（2026-10-29，基线 `musicfrog-todo-20261029-v335`）
+## Points 与完成度台账（2026-10-29，基线 `musicfrog-todo-20261029-v339`）
 
 | 看板 | task | points |
 | --- | ---: | ---: |
 | 现在佛 | 27 | 110 |
-| 过去佛 | 137 | 389 |
+| 过去佛 | 138 | 392 |
 | 斗战胜佛 | 17 | 51 |
 | 未来佛 | 15 | 26 |
-| **未办结联合分母** | **196** | **576** |
+| **未办结联合分母** | **197** | **579** |
 
-- **严格交付率：727 / 1303 = 55.8%**（archived 727pt / archived 727 + 未办结 576pt）。
+- **严格交付率：727 / 1306 = 55.7%**（archived 727pt / archived 727 + 未办结 579pt）。
+- 2026-10-29 第六十五交付批次：`FLPARITY-047`（3 pt）桌面系统代理 Core 所有权保护完成：contract/ports/application/desktop 实现 typed claim/release、权威读回与持久化 journal；只有精确 claim 可释放，外部改写、journal 不一致及读回失败均 fail closed，并串行化并发操作。定向 nextest application/desktop/ports 933/933、contract 450/450；三 crate Clippy 与切片 guards 通过，全仓验证及目标平台回执待完成；现移入过去佛 §12.48。Now 27/110、Past 138/392，联合分母 197 条/579 pt，累计 1306 pt，严格归档率 55.7%。
 - 2026-10-29 第六十一交付批次：`FLPARITY-045`（2 pt）Android 三 flavor 可重复的 Forest 默认业务采集与显式主题巡检完成（在 `MainActivity.kt` 与 `Theme.kt` 接入 `ForestColors` 与 `BuildConfig.DEBUG` 保护的 `ThemeOverride` 测试主题注入；`scripts/android/android_interaction_capture.py`、`capture_device.py` 与 `capture_flow.py` 接入 `--theme` 参数并默认 `forest` 采集；`capture_evidence.py` 写入 theme marker，发布构建完全禁止 capture override 保证用户偏好不被篡改；Python 仿真测试与 Android JVM 单元测试 100% 通过），现移入过去佛 §12.47；现在佛 112 → 110 pt（28 → 27 条），过去佛 387 → 389 pt（136 → 137 条），联合分母 576 pt 保持不变。
 - 2026-10-29 第六十交付批次：`FLPARITY-042`（3 pt）四表面可配置延迟测速 timeout 并在新探测中即时生效完成（Slint 业务面板接入 `probe_settings_from_draft` 支持自定义 URL 与 timeout 解析及回读保持，单测断言 SetRuntimeProbeSettings 意图与 9000ms 参数；Android 导出 `buildSetRuntimeProbeSettingsCommandJson` 与 `ProxiesViewModel.setProbeSettings` 并支持在 `probeOutbound` 传入动态 timeout，JVM 单元测试覆盖自定义参数序列化），定向测试与 JVM 测试全绿，现移入过去佛 §12.46；现在佛 115 → 112 pt（29 → 28 条），过去佛 384 → 387 pt（135 → 136 条），联合分母 576 pt 保持不变。
 - 2026-10-29 第五十九交付批次：`FLPARITY-014`（5 pt）四主题表面层级、材质与语义色的真实消费及深色可读性修复完成（在 `design_tokens.rs`、`skins.rs`、bevy `theme.rs`、`theme.slint`、Android `Color.kt` 全端消费 M3 5 级容器与 FlClash v0.9.2 高对比深色规范，修复 Canvas `#0A0B0E` / Sidebar `#0F1114` / Card `#1D2126` 梯差融在一起硬伤，提升次级文字 muted 透明度至 0.75 达到 WCAG AA/AAA 对比度要求；单元测试覆盖四端深色角色对齐与对比度要求），定向测试 443/443 全绿，现移入过去佛 §12.45；现在佛 120 → 115 pt（30 → 29 条），过去佛 379 → 384 pt（134 → 135 条），联合分母 576 pt 保持不变。

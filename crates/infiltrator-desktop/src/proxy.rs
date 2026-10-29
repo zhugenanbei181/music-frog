@@ -21,7 +21,7 @@ mod other;
 #[cfg(target_os = "windows")]
 mod windows;
 
-const DEFAULT_BYPASS: &str = "localhost;127.*;10.*;172.16.*;192.168.*;<local>";
+pub(crate) const DEFAULT_BYPASS: &str = "localhost;127.*;10.*;172.16.*;192.168.*;<local>";
 
 #[derive(Clone, Default, Debug, PartialEq)]
 pub struct SystemProxyState {

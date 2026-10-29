@@ -27,14 +27,25 @@
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | 中性内核 x64/arm64 × Windows/Linux/Android/macOS **八个组合**全部通过；本机交叉复跑入口 `scripts/cross-check.sh`（zig 0.14.1 + `cargo-zigbuild`、`cargo-xwin`）与 `scripts/android-check.sh`（NDK 29.0.14206865）保持全绿；本批修掉了交叉腿实测报出的一个真实缺陷（`infiltrator-slint` 的 `clippy::missing-const-for-thread-local`，已改为 `const { Cell::new(false) }` 初始化），该腿由 `scripts/blocked/foreign-target-evidence.sh` 复跑验证；最终安装包与目标设备证据仍缺，由 CI runner 与设备矩阵取证（GAP-1.1） |
-| 2 | 部分 | C（旧 commit）+ L | Windows/Linux v0.42.6 四条腿 success（旧源码）；macOS `Unsupported`（无 CI/无产物，GAP-2.2）；安装包未验证（GAP-2.1）；Windows 安装包与 macOS/iOS 目标机腿已整条迁入斗战胜佛并写明阻塞方，Linux 打包腿在现在佛 `APPID-001.3`；**本批：release 作业的签名前置改为 fail closed**——缺 secret 时在昂贵的三 flavor release 构建之前就明确失败，桌面产物不再由 debug key 背书 |
-| 3 | 部分 | L | Android 源码级接通，Bevy host driver lockfile 已同步 0.50.0 解决 buildRustDriver 101 错误；**本批：Android 静态质量门成为真门**（Lint 68→0、ktlint 5046→0、Detekt 项目配置 0 条、架构红线守卫 ARCH001–007 扫描 137 点 0 违例并带 23 条负例，已接入结构门）；Android 单测 192 core host + 391 app 全绿；**release 变体改用用户持久 keystore 签名**，无 secret 时 Gradle 配置期即以缺失清单失败，debug key 不再用于任何 release 产物；APK 真实产物与真机仍缺，APK/真机腿在斗战胜佛；iOS `Unsupported`（626 行 stub，GAP-3.2）；模拟器 M1 腿可推（`PARITY-001.4`、过去佛 `BANDROID-002.1`/`002.2`） |
-| 4 | 部分 | L | Iced/Bevy/Slint 全面深入接入；四大 UI 表面统一经中立 `SurfaceReader` + `CommandSink` 单向管道交互；GAP-7.5 的布局修复有本地代码证据，但不能据 capture 配色宣称运行时主题或暗色对比已收口。Iced/Bevy/Slint 业务 capture TSV 的 118 个视口行/表面默认 `forest`，另有 64 个 dark/light/forest/amoled 主题巡检行；Android 采集走产品/系统主题，不可外推成 Forest 支持。capture skin 不是产品运行时默认主题，也不能证明主题可读性。运行时表面/色彩 consumer 与 dark 对比在 `FLPARITY-014`，真实 HCT 算法在 `FLPARITY-024`，默认色板对标/校准在 `FLPARITY-044` |
-| 5 | 部分 | L | 共享 ports/kernel/kits 已复用；Slint 无 kit；PUB-001.3 part 3 租约切换下沉；GAP-5.1/5.1.1、GAP-5.2、GAP-5.2.1 已完成；0.44 UI 管道与 0.5x 四大 UI 脚手架模板全部办结归档；presentation 纯净化与开源合规审计全绿；六个 owner 明确收敛（release 签名决策、圆角阶梯、中性 API 基线、页面状态推导、契约层页面事实、命令由真实 owner 回答带令牌与 stale 拒绝）；三端删除各自的私有推导，共享层事实唯一 |
-| 6 | 部分 | L | **对标 FlClash v0.9.2 当前建档 45 个 ID / 174 pt：过去佛 26 项 / 88 pt 待统一验证，现在佛 19 项 / 86 pt 待实现或补证。** `FLPARITY-014`（5 pt，四表面层级与可读性消费）、`FLPARITY-024`（5 pt，CAM16-HCT 算法）、`FLPARITY-044`（3 pt，默认色板校准与 WCAG AA/AAA 对比度）、`FLPARITY-042`（3 pt，四表面测速 timeout 可配与回读）与 `FLPARITY-045`（2 pt，Android 三 flavor 可重复 Forest 采集）均已完成并移入过去佛；`FLPARITY-036`～`041` 与 `043` 覆盖种子色、用户本地代理、通用覆写、系统材质、长文档、图标审计与 Mihomo 基线升级。Forest 现作为全端（桌面三端 118 个业务 capture + Android 交互 capture）默认采集配置；capture skin 不是运行时主题默认值或 dark/amoled 像素证据。 |
-| 7 | 部分 | L | 文件级模块化完成（<=800/600 行全绿，全仓 mod.rs 清退至 0，严格遵照 foo.rs + foo/ 模式，并在 check-structure.sh 接入 mod-rs-guard 永久禁止）；隐式状态机语义审计 + 判决台账常驻（22 条候选逐条人工判决，未判决或 open 即门禁失败），16 处阶段表已改 typed enum + typed transition；Slint 拆分遵循 `SLINT-001` 单文件预算守卫；九个页面模型与两个共用基座成为页面状态的唯一 owner；无跨 UI 私有业务真源 |
-| 8 | 部分 | L | 已补 `--locked` 与 main 守卫门禁（仅 fmt+guards，不编译）；修复 main-gate.yml 缺失 setup-python/Pillow 问题；扩大 Gradle JVM 堆至 6GB 并将三大 flavor 分离独立进程构建彻底解决 OOM；交付 Android CI 套件 flavor/模拟器裁剪与 Gradle 缓存复用；release 作业在构建前校验签名材料缺 secret 秒级失败；全套单测（三端 1,091 项）与结构门（`check-structure.sh` 40+ 项守卫）全绿；`cargo fmt --all --check` 100% 通过；版本号按身份改动一次升至 0.51.0 |
+| 1 | 部分 | L | 本批为平台无关的 Contract、Ports、Application 与 Desktop adapter 改动；没有重跑 x86_64/aarch64 交叉构建或目标产物，架构结论不外推 |
+| 2 | 部分 | L | Linux 定向代理适配器测试通过；Windows/macOS adapter 的目标构建与真实系统读回未运行，分别由 Windows/macOS 目标环境收口 |
+| 3 | 部分 | L | 本批未新增 Android 桌面代理接线或移动端验证；iOS 对桌面系统代理能力为 Unsupported，不据此声称移动平台支持 |
+| 4 | 部分 | L | 本批未改 Iced、Bevy、Slint 或 Compose，也未声称 UI 接入、parity cell 或像素验收；FLPARITY-047 范围仅为 Core 与桌面 adapter |
+| 5 | 部分 | L | Contract 定义 typed claim/release 与权威 readback；Ports 提供唯一端口；Application 编排；Desktop 持有 OS adapter 与 journal。精确 claim 才可释放，外部改写与 journal 不一致时 fail closed |
+| 6 | 部分 | L | 本提交只交付并迁入过去佛 `FLPARITY-047`（3 pt，§12.48）；其余任务保持 main 基线。定向测试通过，全仓集成验证与目标平台读回待完成；不宣称 UI/parity 像素证据 |
+| 7 | 部分 | L | journal 拆为 `system_proxy.rs` + `system_proxy/journal.rs`，没有新增 `mod.rs`；切片路径的 mod-rs、typed-state、implicit-state、line 与 import 守卫通过；不涉及 UI 私有业务真源 |
+| 8 | 部分 | L | 定向 nextest 933/933 + 450/450 与三 crate Clippy `--all-targets -D warnings` 通过；全仓 nextest 未完成，workspace Clippy 有 5 项非本切片 lint，结构门未通过；未运行 CI/目标平台回执 |
+
+## 最近一批问答（2026-10-29 桌面系统代理所有权安全交付批次）
+
+1. x86_64/aarch64：本批为平台无关的 Contract、Ports、Application 与 Desktop 代理适配器改动；未重跑交叉构建，架构结论不外推 → 部分（L）。
+2. Windows/Linux/macOS：GNOME/KDE、Windows 与 macOS 适配器接入权威读回和 fail-closed 检查；Linux 定向测试通过，但本批未运行 Windows/macOS 目标构建或目标系统读回 → 部分（L）。
+3. Android/iOS：本批只覆盖桌面系统代理 Core 与 adapter，未新增移动端接线或移动端验证；iOS 对桌面 OS 代理能力为 Unsupported → 部分（L）。
+4. 各 UI：本批没有改动 Iced、Bevy、Slint 或 Compose，也未声称 UI 接入或像素验收；FLPARITY-047 当前范围仅为 Core 与桌面 adapter → 部分（L）。
+5. 复用：infiltrator-contract 定义 typed claim/release 与 readback 模型，infiltrator-ports 提供唯一端口，infiltrator-application 编排，infiltrator-desktop 是 OS 代理 owner；release 只接受精确 claim，外部修改与 journal 不一致时 fail closed → 部分（L）。
+6. 功能接入：FLPARITY-047（3 pt）已迁入过去佛 §12.48；application/desktop/ports 定向 nextest 933/933、contract 450/450，所有权读回和释放行为有测试；统一全仓及目标平台证据仍待完成 → 部分（L）。
+7. 模块化：journal 拆为 system_proxy.rs + system_proxy/journal.rs，没有新增 mod.rs；切片路径的 mod-rs、typed-state、implicit-state、line 与 import 守卫通过；不涉及 UI 私有业务真源 → 部分（L）。
+8. CI：三 crate 定向 Clippy --all-targets -D warnings 通过；全仓 nextest 未完成，workspace Clippy 有 5 项非本切片 lint，结构门未通过；未运行 CI 或真实目标平台回执 → 部分（L）。
 
 ## 最近一批问答（2026-10-29 FlClash 对标复核与当前任务立项）
 

@@ -101,15 +101,12 @@ pub fn generate_gsettings_commands(
                     port_str.clone(),
                 ]);
             }
-            if let Some(b) = bypass {
-                let ignore_hosts = format_ignore_hosts_array(Some(b));
-                cmds.push(vec![
-                    "set".into(),
-                    "org.gnome.system.proxy".into(),
-                    "ignore-hosts".into(),
-                    ignore_hosts,
-                ]);
-            }
+            cmds.push(vec![
+                "set".into(),
+                "org.gnome.system.proxy".into(),
+                "ignore-hosts".into(),
+                format_ignore_hosts_array(bypass),
+            ]);
         }
     } else {
         cmds.push(vec![
@@ -146,33 +143,32 @@ pub fn read_state() -> anyhow::Result<SystemProxyState> {
         }));
     }
 
-    let mode = run_gsettings(&["get", "org.gnome.system.proxy", "mode"]).unwrap_or_default();
+    let mode = run_gsettings(&["get", "org.gnome.system.proxy", "mode"])?;
     let enabled = mode.contains("'manual'");
 
     let mut endpoint = None;
-    if enabled
-        && let Ok(host) = run_gsettings(&["get", "org.gnome.system.proxy.http", "host"])
-        && let Ok(port) = run_gsettings(&["get", "org.gnome.system.proxy.http", "port"])
-    {
-        let h = host.trim_matches('\'');
-        if !h.is_empty() {
-            endpoint = Some(format!("{}:{}", h, port));
+    if enabled {
+        let host = run_gsettings(&["get", "org.gnome.system.proxy.http", "host"])?;
+        let port = run_gsettings(&["get", "org.gnome.system.proxy.http", "port"])?;
+        let host = host.trim_matches('\'');
+        if !host.is_empty() {
+            endpoint = Some(format!("{host}:{port}"));
         }
     }
 
     let mut bypass = None;
-    if let Ok(hosts) = run_gsettings(&["get", "org.gnome.system.proxy", "ignore-hosts"])
-        && hosts != "@as []"
-        && hosts != "[]"
-    {
-        let hosts = hosts.trim_matches('[').trim_matches(']');
-        let parts: Vec<String> = hosts
-            .split(',')
-            .map(|s| s.trim().trim_matches('\'').to_string())
-            .filter(|s| !s.is_empty())
-            .collect();
-        if !parts.is_empty() {
-            bypass = Some(parts.join(";"));
+    if enabled {
+        let hosts = run_gsettings(&["get", "org.gnome.system.proxy", "ignore-hosts"])?;
+        if hosts != "@as []" && hosts != "[]" {
+            let hosts = hosts.trim_matches('[').trim_matches(']');
+            let parts: Vec<String> = hosts
+                .split(',')
+                .map(|s| s.trim().trim_matches('\'').to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+            if !parts.is_empty() {
+                bypass = Some(parts.join(";"));
+            }
         }
     }
 

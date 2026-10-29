@@ -2,6 +2,7 @@ use super::*;
 use crate::proxy::linux::gnome::UnsupportedDesktopError;
 use anyhow::anyhow;
 use std::collections::HashMap;
+use std::process::{ExitStatus, Output};
 
 #[test]
 fn test_unsupported_desktop_error_is_typed_and_explicit() {
@@ -300,6 +301,13 @@ fn test_kde_generate_write_commands_enable() {
 }
 
 #[test]
+fn test_kde_generate_write_commands_clear_enabled_bypass() {
+    let cmds = kde::generate_write_commands("kwriteconfig6", Some("127.0.0.1:7890"), None);
+    assert_eq!(cmds.len(), 6);
+    assert_eq!(cmds[5].last().map(String::as_str), Some(""));
+}
+
+#[test]
 fn test_kde_generate_write_commands_disable() {
     let cmds = kde::generate_write_commands("kwriteconfig5", None, None);
     assert_eq!(cmds.len(), 1);
@@ -357,6 +365,21 @@ fn test_kde_generate_read_commands() {
             "NoProxyFor"
         ]
     );
+}
+
+#[test]
+fn test_kreadconfig_nonzero_exit_is_an_error() {
+    use std::os::unix::process::ExitStatusExt;
+
+    let output = Output {
+        status: ExitStatus::from_raw(7 << 8),
+        stdout: b"1".to_vec(),
+        stderr: b"permission denied".to_vec(),
+    };
+    let error = kde::read_kreadconfig_output("kreadconfig6", output)
+        .expect_err("nonzero command status must not become an empty value");
+    assert!(error.to_string().contains("exit code Some(7)"));
+    assert!(error.to_string().contains("permission denied"));
 }
 
 #[test]
@@ -473,6 +496,9 @@ fn test_gnome_command_generation() {
             "['localhost', '127.*']"
         ]
     );
+    let clear_bypass = gnome::generate_gsettings_commands(Some("127.0.0.1:7890"), None);
+    assert_eq!(clear_bypass.len(), 8);
+    assert_eq!(clear_bypass[7][3], "[]");
 
     let disable_cmds = gnome::generate_gsettings_commands(None, None);
     assert_eq!(disable_cmds.len(), 1);

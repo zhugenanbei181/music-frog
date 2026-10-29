@@ -1196,3 +1196,10 @@ timeout` 灵活入参，在未指定 timeout 时自动回读保持 `snapshot.pro
   - 当前证据（L）：`scripts/quality/tests/test_android_interaction_flow.py` 4 项单测全绿；Android `testComposeDebugUnitTest` 34 项任务全绿；`kt-line-guard.py` 0 违规；`line-guard.py` 0 违规；`closure-questions-guard.py` 8/8 通过；`cargo fmt --check` 0 偏差。
   - 待验证：统一全仓 nextest、Clippy 与模拟器真实 Forest 截图回执生成。
   - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+
+## 12.48 桌面系统代理所有权安全 claim/release（2026-10-29 交付，1条 / 3pt）
+
+- [ ] FLPARITY-047 [kind: mechanism] [priority: P0] [points: 3] [owner: infiltrator-contract + infiltrator-ports + infiltrator-application + infiltrator-desktop] [status: Integrated] 系统代理显式关闭的 Core 所有权保护
+  - 实现：typed claim/release 与权威读回；journal 持久化所有权，只有精确匹配的 claim 才能释放，外部改写、journal 不一致与读回失败均 fail closed；并发操作与过期快照受保护。
+  - 验收：定向 nextest：application/desktop/ports 933/933、contract 450/450；三 crate Clippy `--all-targets -D warnings` 通过；尚待统一全仓验证与目标平台回执。
+  - 本机可执行动作：统一 nextest/结构门收口并核对 Linux、Windows、macOS 真实代理读回行为。
