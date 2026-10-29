@@ -136,8 +136,8 @@ pub const LIGHT: Tokens = Tokens {
     },
     sidebar_text: Color::from_rgb(0.12, 0.15, 0.14),
     sidebar_text_muted: Color {
-        a: 0.55,
-        ..Color::from_rgb(0.24, 0.28, 0.26)
+        a: 0.82,
+        ..Color::from_rgb(0.20, 0.24, 0.22)
     },
     control_bg: token_color(LIGHT_CORE.control_bg),
     hover: token_color(LIGHT_INTERACTION.hover),
@@ -256,7 +256,7 @@ pub const DARK: Tokens = Tokens {
     },
     sidebar_text: Color::WHITE,
     sidebar_text_muted: Color {
-        a: 0.45,
+        a: 0.75,
         ..Color::WHITE
     },
     control_bg: token_color(DARK_CORE.control_bg),
@@ -376,8 +376,8 @@ pub const FOREST: Tokens = Tokens {
     },
     sidebar_text: Color::from_rgb(0.122, 0.208, 0.145),
     sidebar_text_muted: Color {
-        a: 0.65,
-        ..Color::from_rgb(0.341, 0.439, 0.353)
+        a: 0.85,
+        ..Color::from_rgb(0.18, 0.28, 0.20)
     },
     control_bg: token_color(FOREST_CORE.control_bg),
     hover: token_color(FOREST_INTERACTION.hover),

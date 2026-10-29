@@ -1,13 +1,14 @@
 //! Iced adapter for the shared active-exit-node read model.
 
 use crate::state::AppState;
+use crate::types::app::Route;
 use crate::types::message::Message;
 use crate::view::components::{BadgeKind, badge, card_surface, chip};
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme;
 use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
-use iced::widget::{Space, column, container, row, text};
-use iced::{Alignment, Element, Length, Theme};
+use iced::widget::{Space, button, column, container, row, text};
+use iced::{Alignment, Border, Element, Length, Theme, border};
 use infiltrator_contract::active_exit::{ActiveExitSnapshot, ActiveExitStatus};
 use infiltrator_shared::country_flags::match_region;
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -43,6 +44,36 @@ pub fn active_exit_card<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a,
         .align_y(Alignment::Center),
         Space::new().width(Length::Fill),
         badge(delay, delay_kind),
+        Space::new().width(theme::SP_SM),
+        button(
+            row![
+                text(lang.tr("common_details").to_string())
+                    .size(11)
+                    .font(FONT_MEDIUM)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).accent)
+                    }),
+                icon_themed(Icon::ChevronRight, 12.0, |t: &Theme| tokens(t).accent),
+            ]
+            .spacing(2)
+            .align_y(Alignment::Center),
+        )
+        .padding([4, 8])
+        .style(|t: &Theme, status| {
+            button::Style {
+                background: if matches!(status, button::Status::Hovered) {
+                    Some(tokens(t).control_bg.into())
+                } else {
+                    None
+                },
+                border: Border {
+                    radius: border::Radius::from(theme::R_XS),
+                    ..Default::default()
+                },
+                ..Default::default()
+            }
+        })
+        .on_press(Message::Navigate(Route::Proxies)),
     ]
     .align_y(Alignment::Center)
     .width(Length::Fill);

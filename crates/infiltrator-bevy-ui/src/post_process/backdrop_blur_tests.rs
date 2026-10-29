@@ -19,9 +19,9 @@ fn kernel_weights_sum_to_one() {
 fn kernel_offsets_are_the_linear_sampling_reach() {
     // Paired-tap offsets of the linear-sampling collapse; mirrored in
     // backdrop_blur.wesl.
-    assert!((KERNEL_NEAR_OFFSET - 1.3846153846).abs() < 1e-9);
-    assert!((KERNEL_FAR_OFFSET - 3.2307692308).abs() < 1e-9);
-    assert!(KERNEL_FAR_OFFSET > KERNEL_NEAR_OFFSET);
+    assert!((KERNEL_NEAR_OFFSET - 1.384_615_4).abs() < 1e-6);
+    assert!((KERNEL_FAR_OFFSET - 3.230_769_2).abs() < 1e-6);
+    const { assert!(KERNEL_FAR_OFFSET > KERNEL_NEAR_OFFSET) };
 }
 
 #[test]

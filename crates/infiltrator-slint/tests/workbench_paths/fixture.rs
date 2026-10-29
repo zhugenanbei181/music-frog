@@ -240,6 +240,7 @@ pub fn dns_cache_snapshot() -> DnsCacheSnapshot {
             },
         },
         failure: None,
+        auto_flush_generation: None,
     }
 }
 

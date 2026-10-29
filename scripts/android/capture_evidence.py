@@ -89,10 +89,12 @@ class StepReceipt:
     state_readback: dict[str, object] | None
     actions: tuple[dict[str, object], ...]
     activity: dict[str, object]
+    theme: str = "forest"
 
     def as_record(self, root: pathlib.Path) -> dict[str, object]:
         return {
             "feature_id": self.business_id,
+            "theme": self.theme,
             "business_id": self.business_id,
             "surface": self.flavor,
             "step_id": self.step_id,
@@ -127,10 +129,12 @@ class FlavorReceipt:
     guest: dict[str, object]
     steps: tuple[StepReceipt, ...]
     unproven: tuple[dict[str, object], ...]
+    theme: str = "forest"
 
     def as_record(self, root: pathlib.Path) -> dict[str, object]:
         return {
             "flavor": self.flavor,
+            "theme": self.theme,
             "apk": {
                 "path": str(self.apk_path.relative_to(root)),
                 "sha256": self.apk_sha256,

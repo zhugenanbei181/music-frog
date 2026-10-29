@@ -10,7 +10,11 @@ use infiltrator_application::core_application::CoreApplication;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::command_output::CommandOutput;
+use infiltrator_contract::profile_document::DocumentInspection;
+use lurker_core_contract::error::Failure;
 use lurker_core_contract::outbound::preferences::OutboundUiPreferenceIntent;
+use lurker_core_contract::profile_document_identity::ProfileDocumentIdentity;
+use lurker_core_ports::profile_document_codec::ProfileDocumentSnippetOutcome;
 use mem::take;
 use std::mem;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -168,7 +172,7 @@ impl UiCommandSink for CaptureCommandSink {
                     )
                     | (
                         CaptureCapability::RuleList,
-                        UiCommand::CommitRuleList { .. }
+                        UiCommand::CommitRuleList { .. } | UiCommand::RefreshRuleProvider { .. }
                     )
                     | (CaptureCapability::AppRouting, UiCommand::SetAppRule { .. })
                     | (
@@ -184,6 +188,7 @@ impl UiCommandSink for CaptureCommandSink {
                         UiCommand::RepairPortConflicts
                             | UiCommand::PrepareServiceMode
                             | UiCommand::RunPrivilegedNetworkRegression
+                            | UiCommand::RollbackCore
                     )
                     | (
                         CaptureCapability::Profiles,
@@ -248,5 +253,36 @@ impl UiCommandSink for CaptureCommandSink {
             results.extend(sink.drain_results());
         }
         results
+    }
+
+    fn inspect_profile_buffer(
+        &self,
+        identity: &ProfileDocumentIdentity,
+        content: &str,
+    ) -> Result<DocumentInspection, Failure> {
+        match &self.route {
+            CaptureRoute::Scoped(sink) => sink.inspect_profile_buffer(identity, content),
+            CaptureRoute::Unscoped(_) => Err(Failure::unsupported(
+                "unscoped capture does not compose profile buffer inspection",
+            )),
+        }
+    }
+
+    fn insert_profile_snippet(
+        &self,
+        identity: &ProfileDocumentIdentity,
+        content: &str,
+        snippet_id: &str,
+        line: usize,
+        column: usize,
+    ) -> Result<ProfileDocumentSnippetOutcome, Failure> {
+        match &self.route {
+            CaptureRoute::Scoped(sink) => {
+                sink.insert_profile_snippet(identity, content, snippet_id, line, column)
+            }
+            CaptureRoute::Unscoped(_) => Err(Failure::unsupported(
+                "unscoped capture does not compose profile snippet insertion",
+            )),
+        }
     }
 }

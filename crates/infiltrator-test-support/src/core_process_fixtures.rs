@@ -60,6 +60,20 @@ impl CoreCaptureProcess {
         }
     }
 
+    /// Constructs an isolated core process that is already in the `Running` state.
+    pub fn running(engine: &str, instance: &str) -> Self {
+        Self {
+            identity: CoreIdentity::new(
+                EngineId::new(engine).expect("valid capture engine ID"),
+                CoreInstanceId::new(instance).expect("valid capture instance ID"),
+                Some(CoreVersion::new(CAPTURE_CORE_VERSION).expect("valid capture core version")),
+            ),
+            behaviour: CoreCaptureBehaviour::Ready,
+            lifecycle: Mutex::new(CoreLifecycle::Running),
+            starts: Mutex::new(1),
+        }
+    }
+
     /// Selects the behaviour the capture needs.
     pub fn with_behaviour(mut self, behaviour: CoreCaptureBehaviour) -> Self {
         self.behaviour = behaviour;

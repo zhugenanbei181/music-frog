@@ -234,7 +234,7 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
     // emitting a bogus empty pattern.
     let rule_spec =
         connection_view::quick_rule_spec(conn, connection_view::DEFAULT_QUICK_RULE_TARGET);
-    let actions_bar = row![
+    let operations_bar = row![
         button(
             row![
                 icon_themed(Icon::Trash2, 14.0, |t: &Theme| tokens(t).danger),
@@ -246,7 +246,7 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
             .align_y(Alignment::Center)
         )
         .style(style_danger)
-        .padding([8, 14])
+        .padding([8, 12])
         .on_press(Message::CloseConnection(close_conn_id)),
         Space::new().width(theme::SP_SM),
         button(
@@ -258,7 +258,7 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
             .align_y(Alignment::Center)
         )
         .style(style_accent)
-        .padding([8, 14])
+        .padding([8, 12])
         .on_press_maybe(rule_spec.is_draftable().then(|| {
             Message::AddQuickRuleFromConnection {
                 pattern: rule_spec.pattern.clone(),
@@ -277,19 +277,26 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
             .align_y(Alignment::Center)
         )
         .style(style_ghost)
-        .padding([8, 14])
+        .padding([8, 12])
         .on_press(Message::CopyConnectionHost),
-        Space::new().width(Length::Fill),
-        button(
-            text(lang.tr("conn_drawer_close"))
-                .size(12)
-                .font(FONT_MEDIUM)
-        )
-        .style(style_ghost)
-        .padding([8, 16])
-        .on_press(Message::InspectConnection(None)),
     ]
     .align_y(Alignment::Center);
+
+    let close_drawer_btn = button(
+        container(
+            text(lang.tr("conn_drawer_close"))
+                .size(12)
+                .font(FONT_MEDIUM),
+        )
+        .width(Length::Fill)
+        .align_x(Alignment::Center),
+    )
+    .width(Length::Fill)
+    .style(style_ghost)
+    .padding([8, 16])
+    .on_press(Message::InspectConnection(None));
+
+    let actions_bar = column![operations_bar, close_drawer_btn].spacing(theme::SP_SM);
 
     let content = column![
         header,

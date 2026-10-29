@@ -2,6 +2,7 @@
 //! test-intent: behavior
 
 use super::*;
+use infiltrator_bevy_ui::pages::overview_topology::TopologyArrow;
 use infiltrator_bevy_widgets::chart::topology::TopologyPlate;
 use infiltrator_contract::traffic_topology::{TrafficTopologySnapshot, TrafficTopologyStage};
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -60,7 +61,10 @@ fn test_topology_chain_card_mounts_with_five_stages_and_flow_plate() {
     assert!(texts.iter().any(|t| t == "香港 01 · BGP 专线"));
 
     // Connecting arrows
-    let arrow_count = texts.iter().filter(|t| t.as_str() == ">").count();
+    let arrow_count = all_descendants
+        .iter()
+        .filter(|e| world.get::<TopologyArrow>(**e).is_some())
+        .count();
     assert_eq!(
         arrow_count, 4,
         "must have exactly 4 connecting arrows between the 5 stages"

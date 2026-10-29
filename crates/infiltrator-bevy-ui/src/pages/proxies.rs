@@ -264,8 +264,8 @@ pub fn latency_color(tier: LatencyBand, palette: &UiPalette) -> Color {
     match tier {
         LatencyBand::Fast => palette.success,
         LatencyBand::Medium => palette.warning,
-        LatencyBand::Slow => palette.danger,
-        LatencyBand::NotObserved | LatencyBand::UnconfirmedZero => palette.ink_dim,
+        LatencyBand::Slow | LatencyBand::UnconfirmedZero => palette.danger,
+        LatencyBand::NotObserved => palette.ink_dim,
     }
 }
 
@@ -352,6 +352,24 @@ pub struct ProxiesProjection {
     pub custom_node: ProtocolStudioSnapshot,
 }
 
+#[cfg(any(feature = "capture-tools", test))]
+fn demo_node_latency_samples(delay_ms: u32) -> Vec<OutboundLatencySample> {
+    vec![
+        OutboundLatencySample {
+            observed_at: "2026-10-21T08:00:00Z".into(),
+            delay_ms: delay_ms.saturating_add(18),
+        },
+        OutboundLatencySample {
+            observed_at: "2026-10-21T08:01:00Z".into(),
+            delay_ms: delay_ms.saturating_add(7),
+        },
+        OutboundLatencySample {
+            observed_at: "2026-10-21T08:02:00Z".into(),
+            delay_ms,
+        },
+    ]
+}
+
 impl ProxiesProjection {
     /// Believable demo fixture for the Proxies page.
     #[cfg(any(feature = "capture-tools", test))]
@@ -380,7 +398,7 @@ impl ProxiesProjection {
                             name: HK_PRIMARY.to_owned(),
                             node_type: "Shadowsocks".to_owned(),
                             delay_ms: Some(38),
-                            latency_samples: Vec::new(),
+                            latency_samples: demo_node_latency_samples(38),
                             health: OutboundHealthObservation::Unknown,
                             selected: true,
                             favorite: true,
@@ -391,7 +409,7 @@ impl ProxiesProjection {
                             name: JP.to_owned(),
                             node_type: "Vmess".to_owned(),
                             delay_ms: Some(65),
-                            latency_samples: Vec::new(),
+                            latency_samples: demo_node_latency_samples(65),
                             health: OutboundHealthObservation::Unknown,
                             selected: false,
                             favorite: false,
@@ -402,7 +420,7 @@ impl ProxiesProjection {
                             name: SG.to_owned(),
                             node_type: "Trojan".to_owned(),
                             delay_ms: Some(72),
-                            latency_samples: Vec::new(),
+                            latency_samples: demo_node_latency_samples(72),
                             health: OutboundHealthObservation::Unknown,
                             selected: false,
                             favorite: false,
@@ -413,7 +431,7 @@ impl ProxiesProjection {
                             name: US.to_owned(),
                             node_type: "Hysteria2".to_owned(),
                             delay_ms: Some(152),
-                            latency_samples: Vec::new(),
+                            latency_samples: demo_node_latency_samples(152),
                             health: OutboundHealthObservation::Unknown,
                             selected: false,
                             favorite: false,
@@ -435,7 +453,7 @@ impl ProxiesProjection {
                             name: HK_PRIMARY.to_owned(),
                             node_type: "Shadowsocks".to_owned(),
                             delay_ms: Some(38),
-                            latency_samples: Vec::new(),
+                            latency_samples: demo_node_latency_samples(38),
                             health: OutboundHealthObservation::Unknown,
                             selected: true,
                             favorite: true,
@@ -446,7 +464,7 @@ impl ProxiesProjection {
                             name: JP.to_owned(),
                             node_type: "Vmess".to_owned(),
                             delay_ms: Some(65),
-                            latency_samples: Vec::new(),
+                            latency_samples: demo_node_latency_samples(65),
                             health: OutboundHealthObservation::Unknown,
                             selected: false,
                             favorite: false,
@@ -468,7 +486,7 @@ impl ProxiesProjection {
                             name: SG.to_owned(),
                             node_type: "Trojan".to_owned(),
                             delay_ms: Some(72),
-                            latency_samples: Vec::new(),
+                            latency_samples: demo_node_latency_samples(72),
                             health: OutboundHealthObservation::Unknown,
                             selected: true,
                             favorite: false,
@@ -479,7 +497,7 @@ impl ProxiesProjection {
                             name: US.to_owned(),
                             node_type: "Hysteria2".to_owned(),
                             delay_ms: Some(152),
-                            latency_samples: Vec::new(),
+                            latency_samples: demo_node_latency_samples(152),
                             health: OutboundHealthObservation::Unknown,
                             selected: false,
                             favorite: false,

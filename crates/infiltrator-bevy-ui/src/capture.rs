@@ -31,6 +31,7 @@ use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Query, Res, ResMut, SystemParam};
+use bevy::ecs::{event::Event, observer::On};
 use bevy::window::{PrimaryWindow, Window};
 use infiltrator_bevy_widgets::theme::ThemeSkin;
 use std::path::PathBuf;
@@ -153,6 +154,22 @@ pub fn capture_marker_line(route: Route, skin: ThemeSkin) -> String {
 #[derive(Resource, Clone, Debug)]
 struct CaptureMarkerPath(PathBuf);
 
+/// Present only in a real capture run. Interaction captures use this gate to
+/// defer a post-shot confirmation until the screenshot harness has had time
+/// to capture the visible review state.
+#[derive(Resource, Clone, Copy, Debug, Default)]
+pub(crate) struct CaptureInteractionGate;
+
+/// A capture-only business gesture reached its owner-backed terminal readback.
+///
+/// The marker writer stores this beside the readiness marker, so the launcher
+/// can verify that the interaction happened after the screenshot was taken.
+#[derive(Event, Clone, Debug)]
+pub(crate) struct CaptureInteractionCommitted {
+    pub scenario: &'static str,
+    pub readback: String,
+}
+
 /// Whether the readiness marker must wait for the live pump's data: a
 /// delivered snapshot plus a drawable trend ring. Demo captures mount no
 /// pump, so the gate is a plain bool resource the writer reads.
@@ -191,8 +208,10 @@ impl CapturePlugin {
 impl Plugin for CapturePlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(CaptureMarkerPath(self.marker_path.clone()));
+        app.insert_resource(CaptureInteractionGate);
         app.insert_resource(WaitForLiveSnapshot(self.waiting_for_first_snapshot));
         app.init_resource::<CaptureProgress>();
+        app.add_observer(write_interaction_marker);
         app.add_systems(
             PostUpdate,
             write_capture_marker.after(CaptureObservationSet),
@@ -324,6 +343,18 @@ fn write_capture_marker(mut marker: MarkerInputs) {
     if fs::write(&marker.path.0, line).is_ok() {
         marker.progress.done = true;
     }
+}
+
+fn write_interaction_marker(
+    commit: On<CaptureInteractionCommitted>,
+    marker: Res<CaptureMarkerPath>,
+) {
+    let path = marker.0.with_extension("interaction");
+    let line = format!(
+        "CAPTURE_INTERACTION scenario={} readback={}\n",
+        commit.scenario, commit.readback
+    );
+    let _ = fs::write(path, line);
 }
 
 fn visible_bounds(

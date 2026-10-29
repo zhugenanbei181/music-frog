@@ -66,6 +66,14 @@ async fn rollback_selects_the_previous_installed_version() {
         .expect("rollback");
 
     assert_eq!(selected, CAPTURE_ROLLBACK_VERSION);
+    assert_eq!(
+        port.installed_versions()
+            .into_iter()
+            .find(|entry| entry.is_default)
+            .map(|entry| entry.version),
+        Some(CAPTURE_ROLLBACK_VERSION.to_owned()),
+        "the owner readback must show the selected version as active"
+    );
 }
 
 #[tokio::test]

@@ -1,0 +1,98 @@
+import { LumenUiScale } from "../lumen-ui-scale.slint";
+import { LumenTheme } from "../components/theme.slint";
+import { WorkbenchCard, ItemHeader, ItemText, ItemRow, SectionLabel } from "../components/workbench_parts.slint";
+import { WorkbenchButton } from "../components/workbench_button.slint";
+import { WorkbenchItem } from "../components/models.slint";
+
+// The diagnostics and lifecycle recovery page. The panel renders the shared
+// report the owner publishes — the summary chip, the typed refusal, the
+// per-issue repair actions and the watchdog status. Loop discipline: layouts
+// that host per-item loops keep spacing 0 and wrap each conditional part in
+// its own zero-size container.
+export component PageDoctor inherits VerticalLayout {
+    in property <[WorkbenchItem]> items;
+    in-out property <string> draft;
+    in-out property <string> draft-2;
+    in property <string> draft-id;
+    in property <string> draft-2-id;
+    in property <string> draft-placeholder;
+    in property <string> draft-2-placeholder;
+
+    callback action(string, string);
+    callback draft-edited(string, string);
+
+    width: 100%;
+    spacing: LumenTheme.space-4;
+    alignment: start;
+
+    // Diagnostic status overview
+    WorkbenchCard {
+        for item in root.items: VerticalLayout {
+            if item.id == "doctor-report": ItemHeader { item: item; badge: true; }
+            if item.id == "doctor-failure": Rectangle {
+                border-radius: LumenTheme.radius-control;
+                background: LumenTheme.error.with_alpha(15%);
+                border-width: 1 * LumenUiScale.unit;
+                border-color: LumenTheme.error;
+                HorizontalLayout {
+                    padding-left: 12 * LumenUiScale.unit;
+                    padding-right: 12 * LumenUiScale.unit;
+                    padding-top: 8 * LumenUiScale.unit;
+                    padding-bottom: 8 * LumenUiScale.unit;
+                    spacing: 8 * LumenUiScale.unit;
+                    cross-axis-alignment: center;
+                    Text { text: "⚠"; color: LumenTheme.error; font-size: 16 * LumenUiScale.unit; }
+                    Text {
+                        text: item.detail;
+                        color: LumenTheme.error;
+                        font-size: 13 * LumenUiScale.unit;
+                        font-weight: 500;
+                        wrap: word-wrap;
+                        horizontal-stretch: 1;
+                    }
+                }
+            }
+        }
+
+        Rectangle { height: 12 * LumenUiScale.unit; }
+
+        HorizontalLayout {
+            spacing: 0;
+            alignment: end;
+
+            for item in root.items: HorizontalLayout {
+                if item.id == "doctor-diagnose" || item.id == "doctor-repair-all" || item.id == "doctor-bootstrap" || item.id == "doctor-retry": Rectangle {
+                    width: 12 * LumenUiScale.unit;
+                }
+                if item.id == "doctor-diagnose" || item.id == "doctor-repair-all" || item.id == "doctor-bootstrap" || item.id == "doctor-retry": WorkbenchButton {
+                    text: item.label;
+                    enabled: item.enabled;
+                    primary: item.id == "doctor-repair-all";
+                    clicked => { root.action(item.action-id, ""); }
+                }
+            }
+        }
+    }
+
+    SectionLabel { label: @tr("诊断详情与修复建议"); }
+
+    // Diagnostic issues with their own repair action
+    VerticalLayout {
+        spacing: 0;
+
+        for item in root.items: VerticalLayout {
+            if item.id.starts-with("doctor/"): ItemRow {
+                item: item;
+                row-min-height: 48 * LumenUiScale.unit;
+                action(id, row) => { root.action(id, row); }
+            }
+        }
+    }
+
+    // Lifecycle watchdog panel
+    for item in root.items: VerticalLayout {
+        if item.id == "lifecycle-recovery": WorkbenchCard {
+            ItemHeader { item: item; badge: true; }
+        }
+    }
+}

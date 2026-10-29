@@ -104,7 +104,23 @@ class MainActivity : AppCompatActivity() {
                 requestControl(AndroidControlIntent.START_PROXY)
             }
 
-            InfiltratorTheme(darkTheme = isSystemInDarkTheme()) {
+            val testTheme = if (BuildConfig.DEBUG) {
+                intent?.getStringExtra("test_theme")
+            } else {
+                null
+            }
+            val themeOverride = when (testTheme?.lowercase()) {
+                "forest" -> com.musicfrog.infiltrator.ui.theme.ThemeOverride.Forest
+                "dark" -> com.musicfrog.infiltrator.ui.theme.ThemeOverride.Dark
+                "light" -> com.musicfrog.infiltrator.ui.theme.ThemeOverride.Light
+                "amoled" -> com.musicfrog.infiltrator.ui.theme.ThemeOverride.Amoled
+                else -> com.musicfrog.infiltrator.ui.theme.ThemeOverride.None
+            }
+
+            InfiltratorTheme(
+                darkTheme = isSystemInDarkTheme(),
+                themeOverride = themeOverride,
+            ) {
                 InfiltratorApp(
                     windowSizeClass = windowSizeClass,
                     vpnAuthorization = authorizationState,

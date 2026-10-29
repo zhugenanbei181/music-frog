@@ -60,7 +60,7 @@ pub fn sidebar(state: &AppState) -> Element<'_, Message> {
 /// Primary navigation rows (#132): the five destinations every tier mounts,
 /// as one ordered table — the same architecture as the Bevy rail — so the
 /// vertical sidebar and the compact bottom bar can never drift apart.
-pub const NAV_PRIMARY: [(Route, &'static str, Icon); 5] = [
+pub const NAV_PRIMARY: [(Route, &str, Icon); 5] = [
     (Route::Overview, "nav_overview", Icon::LayoutGrid),
     (Route::Proxies, "nav_proxies", Icon::Globe),
     (Route::Rules, "nav_rules", Icon::Shield),
@@ -70,7 +70,7 @@ pub const NAV_PRIMARY: [(Route, &'static str, Icon); 5] = [
 
 /// Secondary destinations the vertical sidebar keeps below the divider; the
 /// compact bottom bar has no room for them.
-pub const NAV_SECONDARY: [(Route, &'static str, Icon); 3] = [
+pub const NAV_SECONDARY: [(Route, &str, Icon); 3] = [
     (Route::AppRouting, "nav_app_routing", Icon::Network),
     (Route::Doctor, "nav_doctor", Icon::ListChecks),
     (Route::Sync, "nav_sync", Icon::RefreshCw),
@@ -275,7 +275,7 @@ fn header(state: &AppState) -> Element<'_, Message> {
         ..Default::default()
     });
 
-    let version_str = format!("v{}", env!("CARGO_PKG_VERSION"));
+    let version_str = infiltrator_contract::ProductVersion::DISPLAY;
 
     let title_col = column![
         text("MusicFrog")

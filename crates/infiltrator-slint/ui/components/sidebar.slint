@@ -22,13 +22,14 @@ export component DesktopSideBar inherits Rectangle {
         x: 18 * LumenUiScale.unit; y: 18 * LumenUiScale.unit; width: parent.width - 36 * LumenUiScale.unit; height: parent.height - 36 * LumenUiScale.unit;
         spacing: 6 * LumenUiScale.unit;
         HorizontalLayout {
-            height: 44 * LumenUiScale.unit; spacing: 10 * LumenUiScale.unit;
+            height: 44 * LumenUiScale.unit; spacing: LumenTheme.space-3;
+            cross-axis-alignment: center;
             Rectangle { width: 34 * LumenUiScale.unit; height: 34 * LumenUiScale.unit; border-radius: 9 * LumenUiScale.unit; background: LumenTheme.accent;
-                Text { text: "L"; color: #FFFFFF; font-size: 19 * LumenUiScale.unit; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+                Text { text: "M"; color: LumenTheme.accent-foreground; font-size: 19 * LumenUiScale.unit; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
             }
-            VerticalLayout { spacing: 0 * LumenUiScale.unit; alignment: center;
+            VerticalLayout { spacing: 2 * LumenUiScale.unit; alignment: center;
                 Text { text: "MusicFrog"; color: LumenTheme.text-primary; font-size: 16 * LumenUiScale.unit; font-weight: 700; }
-                Text { text: @tr("MIHOMO CLIENT"); color: LumenTheme.text-secondary; font-size: 9 * LumenUiScale.unit; }
+                Text { text: @tr("MIHOMO CLIENT"); color: LumenTheme.text-secondary; font-size: 9 * LumenUiScale.unit; font-weight: 600; letter-spacing: 0.5px; }
             }
         }
         Rectangle { height: 20 * LumenUiScale.unit; background: transparent; }
@@ -36,20 +37,36 @@ export component DesktopSideBar inherits Rectangle {
         NavButton { label: @tr("代理"); target: "Proxy"; compact: false; icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/proxy.svg"); active-icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/proxy-active.svg"); active: root.page == "Proxy"; clicked => { root.navigate-to("Proxy"); } }
         NavButton { label: @tr("配置"); target: "Config"; compact: false; icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/config.svg"); active-icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/config-active.svg"); active: root.page == "Config"; clicked => { root.navigate-to("Config"); } }
         Rectangle { height: 1 * LumenUiScale.unit; background: LumenTheme.border; }
-        NavButton { label: @tr("设置"); target: "Settings"; compact: false; icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/settings.svg"); active-icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/settings-active.svg"); active: root.page == "Settings" || root.page == "Network" || root.page == "AppSettings" || root.page == "Overrides" || root.page == "About" || root.page == "Licenses" || root.page == "LicenseDetail"; clicked => { root.navigate-to("Settings"); } }
+        NavButton { label: @tr("设置"); target: "Settings"; compact: false; icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/settings.svg"); active-icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/settings-active.svg"); active: root.page == "Settings" || root.page == "Network" || root.page == "AppSettings" || root.page == "Overrides" || root.page == "About" || root.page == "Licenses" || root.page == "LicenseDetail" || root.page == "Dns" || root.page == "Editor" || root.page == "Filters" || root.page == "Doctor" || root.page == "Sync" || root.page == "AppRouting" || root.page == "SettingsWorkbench" || root.page == "ShellWorkbench"; clicked => { root.navigate-to("Settings"); } }
         Rectangle { height: 1 * LumenUiScale.unit; background: LumenTheme.border; }
         Text { text: @tr("运行观测"); color: LumenTheme.text-secondary; font-size: 11 * LumenUiScale.unit; x: 10 * LumenUiScale.unit; }
-        NavButton { label: @tr("连接"); target: "Connections"; icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/connections.svg"); active-icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/connections.svg"); active: root.page == "Connections"; clicked => { root.navigate-to("Connections"); } }
-        NavButton { label: @tr("日志"); target: "Logs"; icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/logs.svg"); active-icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/logs.svg"); active: root.page == "Logs"; clicked => { root.navigate-to("Logs"); } }
-        NavButton { label: @tr("规则"); target: "Rules"; icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/rules.svg"); active-icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/rules.svg"); active: root.page == "Rules"; clicked => { root.navigate-to("Rules"); } }
-        NavButton { label: @tr("流量"); target: "Traffic"; icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/traffic.svg"); active-icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/traffic.svg"); active: root.page == "Traffic"; clicked => { root.navigate-to("Traffic"); } }
+        NavButton { label: @tr("连接"); target: "Connections"; icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/connections.svg"); active-icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/connections.svg"); active: root.page == "Connections" || root.page == "ConnectionDetail" || root.page == "ConnectionsWorkbench"; clicked => { root.navigate-to("Connections"); } }
+        NavButton { label: @tr("日志"); target: "Logs"; icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/logs.svg"); active-icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/logs.svg"); active: root.page == "Logs" || root.page == "LogsWorkbench"; clicked => { root.navigate-to("Logs"); } }
+        NavButton { label: @tr("规则"); target: "Rules"; icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/rules.svg"); active-icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/rules.svg"); active: root.page == "Rules" || root.page == "Providers" || root.page == "RulesWorkbench"; clicked => { root.navigate-to("Rules"); } }
+        NavButton { label: @tr("流量"); target: "Traffic"; icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/traffic.svg"); active-icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/traffic.svg"); active: root.page == "Traffic" || root.page == "Runtime" || root.page == "RuntimeWorkbench"; clicked => { root.navigate-to("Traffic"); } }
         Rectangle { height: 1 * LumenUiScale.unit; background: LumenTheme.border; }
-        Text { text: root.runtime-status-label; color: root.runtime-status == RuntimeStatus.running ? LumenTheme.status-info : LumenTheme.text-muted; font-size: 12 * LumenUiScale.unit; x: 10 * LumenUiScale.unit; }
+        HorizontalLayout {
+            spacing: 6 * LumenUiScale.unit;
+            cross-axis-alignment: center;
+            padding-left: 10 * LumenUiScale.unit;
+            Rectangle {
+                width: 7 * LumenUiScale.unit;
+                height: 7 * LumenUiScale.unit;
+                border-radius: 3.5 * LumenUiScale.unit;
+                background: root.runtime-status == RuntimeStatus.running ? LumenTheme.ping-good : LumenTheme.text-muted;
+            }
+            Text {
+                text: root.runtime-status-label;
+                color: root.runtime-status == RuntimeStatus.running ? LumenTheme.ping-good : LumenTheme.text-muted;
+                font-size: 12 * LumenUiScale.unit;
+                font-weight: 600;
+            }
+        }
         Text { text: root.runtime-detail; color: LumenTheme.text-secondary; font-size: 11 * LumenUiScale.unit; x: 10 * LumenUiScale.unit; wrap: word-wrap; }
         Rectangle { height: 1 * LumenUiScale.unit; background: LumenTheme.border; }
-        Text { text: root.active-profile; color: LumenTheme.text-secondary; font-size: 12 * LumenUiScale.unit; x: 10 * LumenUiScale.unit; overflow: elide; }
-        Text { text: root.network-mode-label; color: LumenTheme.text-secondary; font-size: 11 * LumenUiScale.unit; x: 10 * LumenUiScale.unit; }
+        Text { text: root.active-profile == "" ? @tr("未选择配置") : root.active-profile; color: root.active-profile == "" ? LumenTheme.text-muted : LumenTheme.text-secondary; font-size: 12 * LumenUiScale.unit; x: 10 * LumenUiScale.unit; width: parent.width - 20 * LumenUiScale.unit; overflow: elide; }
+        Text { text: root.network-mode-label == "" ? @tr("未获取模式") : root.network-mode-label; color: root.network-mode-label == "" ? LumenTheme.text-muted : LumenTheme.text-secondary; font-size: 11 * LumenUiScale.unit; x: 10 * LumenUiScale.unit; width: parent.width - 20 * LumenUiScale.unit; overflow: elide; }
         Rectangle { vertical-stretch: 1; background: transparent; }
-        Text { text: "MusicFrog · " + root.product-version; color: LumenTheme.text-secondary; font-size: 10 * LumenUiScale.unit; x: 10 * LumenUiScale.unit; }
+        Text { text: "MusicFrog · " + root.product-version; color: LumenTheme.text-secondary; font-size: 10 * LumenUiScale.unit; x: 10 * LumenUiScale.unit; width: parent.width - 20 * LumenUiScale.unit; overflow: elide; }
     }
 }

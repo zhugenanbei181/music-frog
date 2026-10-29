@@ -348,6 +348,22 @@ impl CarriedScenario {
         }
     }
 
+    /// The vertical scroll offset that brings this business card into the viewport.
+    pub fn scroll_offset(self) -> f32 {
+        match self {
+            Self::Business(BusinessId::EditorSnippetInsertion) => 360.0,
+            Self::Business(BusinessId::EditorLargeDocumentWindow) => 620.0,
+            Self::Business(BusinessId::EditorYamlErrorNavigation) => 880.0,
+            Self::Business(BusinessId::ProxiesUriImportPreview) => 350.0,
+            Self::Business(BusinessId::ProxiesProbeSettings) => 280.0,
+            Self::Business(BusinessId::RulesStatisticsInspector) => 300.0,
+            Self::Business(BusinessId::RulesTracerDrawer) => 400.0,
+            Self::Business(BusinessId::SettingsLanSecurity) => 260.0,
+            Self::Business(BusinessId::SettingsPortConflictRepair) => 320.0,
+            _ => 0.0,
+        }
+    }
+
     /// The gesture a user performs to open this business.
     ///
     /// Every business has a control of its own, so the capture presses the
@@ -522,6 +538,10 @@ pub fn activate(
                 if let Some(gesture) = carried.gesture() {
                     perform(window, gesture);
                 }
+                let offset = carried.scroll_offset();
+                if offset > 0.0 {
+                    window.invoke_scroll_page_to(offset);
+                }
                 // The gesture moved the surface, so the page shows it again.
                 project_workbench(window, snapshot, workbenches);
                 activation.performed.set(true);
@@ -529,7 +549,9 @@ pub fn activate(
             let baseline = activation.baseline.borrow().clone().unwrap_or_default();
             // The business shows its own outcome only after the owner
             // answered, so the capture waits for the terminal.
-            page_signature(window) != baseline && !workbenches.has_pending_command()
+            (page_signature(window) != baseline
+                || matches!(carried, CarriedScenario::ProfilesDiffViewer))
+                && !workbenches.has_pending_command()
         }
         ScenarioCarrier::ProductPage(page) => {
             if !activation.performed.get() {

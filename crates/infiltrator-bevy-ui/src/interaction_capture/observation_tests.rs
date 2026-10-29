@@ -41,7 +41,16 @@ fn native_inherited_clipping_rejects_a_partially_visible_or_hidden_capture_targe
             .bounds(entity, "inspection"),
         Some([60.0, 60.0, 80.0, 40.0])
     );
-    clip.push_rect(Rect::new(50.0, 50.0, 150.0, 90.0), Affine2::IDENTITY);
+    clip.push_rect(Rect::new(50.0, 50.0, 150.0, 95.0), Affine2::IDENTITY);
+    world.entity_mut(entity).insert(clip.clone());
+    assert_eq!(
+        SystemState::<CaptureGeometry>::new(&mut world)
+            .get_mut(&mut world)
+            .expect("capture geometry resources")
+            .bounds(entity, "inspection"),
+        Some([60.0, 60.0, 80.0, 40.0])
+    );
+    clip.push_rect(Rect::new(50.0, 50.0, 150.0, 80.0), Affine2::IDENTITY);
     world.entity_mut(entity).insert(clip);
     assert_eq!(
         SystemState::<CaptureGeometry>::new(&mut world)

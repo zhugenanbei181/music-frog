@@ -278,6 +278,11 @@ fn header_scene(data: &GlobeData) -> impl Scene + use<> {
         data.plottable_count(),
         data.nodes.len()
     );
+    let pick_hint = if data.has_plottable() {
+        GLOBE_PICK_DEFAULT_TEXT.to_owned()
+    } else {
+        "No plottable nodes available to inspect.".to_owned()
+    };
     bsn! {
             Node {
                 width: percent(100),
@@ -303,7 +308,7 @@ fn header_scene(data: &GlobeData) -> impl Scene + use<> {
                 --
                 Text({ summary }) TextRole(Role::BodyStrong)
                 --
-                Text({ GLOBE_PICK_DEFAULT_TEXT.to_owned() }) TextRole(Role::Body) GlobePickedDetail
+                Text({ pick_hint }) TextRole(Role::Body) GlobePickedDetail
             ]
     }
 }

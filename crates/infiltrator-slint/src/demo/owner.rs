@@ -7,14 +7,19 @@
 //! the receipt proves that the business really ran and never that a route
 //! changed.
 
+use super::fixtures;
 use crate::{CommandIntent, CommandOutput, SlintAction};
+use infiltrator_contract::script_export_review::{ScriptExportIdentity, ScriptExportReview};
+use infiltrator_contract::snapshot_restore::{SnapshotRestoreIdentity, SnapshotRestoreReview};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
+use infiltrator_domain::script_export_review::content_sha256;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::outbound::identity::SnapshotRevision;
 use lurker_core_contract::outbound::preferences::{
     OutboundUiPreferenceIntent, OutboundUiPreferencesSnapshot, OutboundUiPreferencesValues,
 };
 use lurker_core_contract::page::PageData;
+use lurker_core_contract::profile_document_identity::ProfileId;
 
 /// Answers one owner action the way the capture's business needs it.
 pub fn respond(
@@ -70,6 +75,49 @@ fn respond_to_intent(
                 }
                 _ => Err(refusal(intent)),
             }
+        }
+        CommandIntent::LoadSnapshotDiff { .. } => {
+            let diff = fixtures::yaml_ast_diff();
+            snapshot.yaml_ast_diff = Some(diff.clone());
+            Ok(CommandOutput::SnapshotDiffLoaded(Some(Box::new(diff))))
+        }
+        CommandIntent::PrepareScriptExport { draft } => {
+            let mut script_export = fixtures::script_export();
+            script_export.kind = draft.kind;
+            script_export.profile = draft.profile.clone();
+            let sha256 = content_sha256(&script_export.content);
+            let review = ScriptExportReview {
+                draft: draft.clone(),
+                identity: ScriptExportIdentity {
+                    owner: 1,
+                    sequence: 1,
+                    sha256,
+                },
+                snapshot: script_export,
+            };
+            Ok(CommandOutput::ScriptExportPrepared(Box::new(review)))
+        }
+        CommandIntent::PrepareSnapshotRestore { target } => {
+            let mut diff = fixtures::yaml_ast_diff();
+            diff.target_id = target.profile.clone();
+            diff.source_path = Some(target.snapshot_id.clone());
+            let mut workspace = fixtures::profile_workspace_identity();
+            let profile_id =
+                ProfileId::new(&target.profile).unwrap_or(workspace.document.profile_id);
+            workspace.document.profile_id = profile_id;
+            let review = SnapshotRestoreReview {
+                identity: SnapshotRestoreIdentity {
+                    owner: 1,
+                    sequence: 1,
+                    snapshot_hash: "a".repeat(64),
+                    workspace_identity: workspace,
+                },
+                target: target.clone(),
+                before_yaml: "mode: global\n".to_string(),
+                restored_yaml: "mode: rule\n".to_string(),
+                difference: diff,
+            };
+            Ok(CommandOutput::SnapshotRestorePrepared(Box::new(review)))
         }
         _ => Err(refusal(intent)),
     }

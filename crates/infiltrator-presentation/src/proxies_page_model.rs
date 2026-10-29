@@ -20,6 +20,9 @@
 
 use crate::filter_query::{FilterQuery, LatencyBound};
 use crate::operation_phase::OperationPhase;
+use infiltrator_contract::geo_region::GeoRegion;
+use infiltrator_contract::proxies::ProxyProtocolBadge;
+use infiltrator_contract::proxy_filter::ProxyFilterQuery;
 use infiltrator_shared::fuzzy_search::pinyin_fuzzy_match;
 use lurker_core_contract::outbound::details::OutboundHealthObservation;
 use lurker_core_contract::outbound::identity::OutboundId;
@@ -69,21 +72,15 @@ const PROXY_PROTOCOL_ALIASES: [(&str, &str); 3] = [
 /// The empty protocol is "Proxy" rather than an empty chip, and an unknown
 /// protocol keeps its own spelling instead of degrading into a known one.
 pub fn proxy_protocol_chip(raw: &str) -> String {
-    match raw.to_ascii_lowercase().as_str() {
-        "shadowsocks" | "ss" => "Shadowsocks".to_owned(),
-        "vless" => "Vless".to_owned(),
-        "vmess" => "VMess".to_owned(),
-        "trojan" => "Trojan".to_owned(),
-        "hysteria2" | "hy2" => "Hysteria2".to_owned(),
-        "wireguard" => "WireGuard".to_owned(),
-        "tuic" => "Tuic".to_owned(),
-        "http" => "HTTP".to_owned(),
-        "socks5" => "SOCKS5".to_owned(),
-        "snell" => "Snell".to_owned(),
-        "direct" => "Direct".to_owned(),
-        "reject" => "Reject".to_owned(),
-        _ if !raw.is_empty() => raw.to_owned(),
-        _ => "Proxy".to_owned(),
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return "Proxy".to_owned();
+    }
+    let badge = ProxyProtocolBadge::from_str_loose(trimmed);
+    if badge != ProxyProtocolBadge::Other {
+        badge.display_name().to_owned()
+    } else {
+        trimmed.to_owned()
     }
 }
 
@@ -241,6 +238,7 @@ pub fn proxy_name_runs(name: &str, query: &FilterQuery) -> Vec<SearchTextRun> {
 #[derive(Clone, Debug, Default)]
 pub struct ProxiesPageModel {
     query: FilterQuery,
+    advanced_filter: ProxyFilterQuery,
     sort_order: OutboundSortOrder,
     health_filter: OutboundHealthFilter,
     layout: OutboundLayout,
@@ -365,6 +363,26 @@ impl ProxiesPageModel {
         self.favorites.contains(outbound_id)
     }
 
+    /// The active advanced multi-dimensional filter query.
+    pub fn advanced_filter(&self) -> &ProxyFilterQuery {
+        &self.advanced_filter
+    }
+
+    /// Set or update the active multi-dimensional filter query.
+    pub fn set_advanced_filter(&mut self, filter: ProxyFilterQuery) {
+        self.advanced_filter = filter;
+    }
+
+    /// Reset the active multi-dimensional filter query to match all.
+    pub fn clear_advanced_filter(&mut self) {
+        self.advanced_filter.clear();
+    }
+
+    /// Whether any basic or advanced filter is actively restricting nodes.
+    pub fn has_active_filter(&self) -> bool {
+        !self.query.matches_all() || self.advanced_filter.is_active()
+    }
+
     /// Whether the given node satisfies the current search query.
     pub fn matches<T: ProxyFilterTarget>(&self, target: &T) -> bool {
         self.query.matches(target)
@@ -392,12 +410,13 @@ impl ProxiesPageModel {
         group_name: &str,
         members: &'a [T],
     ) -> Vec<&'a T> {
-        if self.group_matches(group_name) {
-            return members.iter().collect();
-        }
+        let group_matched = self.group_matches(group_name);
         members
             .iter()
-            .filter(|member| self.matches(*member))
+            .filter(|member| {
+                let basic_match = group_matched || self.matches(*member);
+                basic_match && matches_advanced_filter(&self.advanced_filter, *member)
+            })
             .collect()
     }
 
@@ -465,6 +484,115 @@ fn latency_order<T: ProxyFilterTarget>(left: &T, right: &T, descending: bool) ->
         (None, Some(_)) => Ordering::Greater,
         (None, None) => Ordering::Equal,
     }
+}
+
+/// Whether a node target matches an advanced multi-dimensional proxy filter query.
+pub fn matches_advanced_filter<T: ProxyFilterTarget>(query: &ProxyFilterQuery, target: &T) -> bool {
+    if !query.is_active() {
+        return true;
+    }
+
+    // 1. Favorite only
+    if query.favorite_only && !target.proxy_favorite() {
+        return false;
+    }
+
+    // 2. Protocols (if specified)
+    if !query.protocols.is_empty() {
+        let node_badge = ProxyProtocolBadge::from_str_loose(target.proxy_protocol());
+        if !query.protocols.contains(&node_badge) {
+            return false;
+        }
+    }
+
+    // 3. Regions (if specified)
+    if !query.regions.is_empty() {
+        let node_region = GeoRegion::from_name_heuristic(target.proxy_name());
+        if !query.regions.contains(&node_region) {
+            return false;
+        }
+    }
+
+    // 4. Latency bounds
+    if query.min_latency_ms.is_some() || query.max_latency_ms.is_some() {
+        match target.proxy_latency_ms().filter(|d| *d > 0) {
+            Some(delay) => {
+                if let Some(min) = query.min_latency_ms
+                    && delay < min
+                {
+                    return false;
+                }
+                if let Some(max) = query.max_latency_ms
+                    && delay > max
+                {
+                    return false;
+                }
+            }
+            None => return false,
+        }
+    }
+
+    // 5. Exclude negative keywords
+    for exclude in &query.exclude_keywords {
+        if exclude.is_empty() {
+            continue;
+        }
+        if contains_ignore_case(target.proxy_name(), exclude)
+            || target
+                .proxy_identity()
+                .is_some_and(|id| contains_ignore_case(id, exclude))
+            || contains_ignore_case(target.proxy_protocol(), exclude)
+        {
+            return false;
+        }
+    }
+
+    // 6. Positive keyword search
+    if let Some(keyword) = &query.search_keyword {
+        let trimmed = keyword.trim();
+        if !trimmed.is_empty() {
+            let matches_kw = contains_ignore_case(target.proxy_name(), trimmed)
+                || target
+                    .proxy_identity()
+                    .is_some_and(|id| contains_ignore_case(id, trimmed))
+                || contains_ignore_case(target.proxy_protocol(), trimmed)
+                || protocol_matches(target.proxy_protocol(), trimmed)
+                || target
+                    .proxy_features()
+                    .iter()
+                    .any(|tag| contains_ignore_case(tag, trimmed))
+                || (trimmed == "udp" && target.proxy_supports_udp())
+                || pinyin_fuzzy_match(target.proxy_name(), trimmed)
+                || target
+                    .proxy_identity()
+                    .is_some_and(|id| pinyin_fuzzy_match(id, trimmed));
+            if !matches_kw {
+                return false;
+            }
+        }
+    }
+
+    true
+}
+
+/// Maps a proxy node display name to its standard geographic region.
+pub fn proxy_node_region(name: &str) -> GeoRegion {
+    GeoRegion::from_name_heuristic(name)
+}
+
+/// Maps a proxy node display name to its flag asset token (e.g. "flag-hk", "flag-globe").
+pub fn proxy_flag_icon_token(name: &str) -> &'static str {
+    proxy_node_region(name).flag_icon_token()
+}
+
+/// Maps a proxy node display name to its localized Chinese region name.
+pub fn proxy_region_label_zh(name: &str) -> &'static str {
+    proxy_node_region(name).label_zh()
+}
+
+/// Maps a proxy node display name to its localized English region name.
+pub fn proxy_region_label_en(name: &str) -> &'static str {
+    proxy_node_region(name).label_en()
 }
 
 #[cfg(test)]

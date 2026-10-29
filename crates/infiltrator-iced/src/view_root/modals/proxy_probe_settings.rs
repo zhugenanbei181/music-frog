@@ -35,7 +35,7 @@ pub fn probe_settings_modal(state: &AppState) -> Element<'_, Message> {
         .width(Length::Fill),
         text(lang.tr("runtime_probe_timeout_label")).size(12),
         container(
-            text_input("5000", &state.runtime.runtime_probe_timeout_draft)
+            text_input("5000 ms", &state.runtime.runtime_probe_timeout_draft)
                 .on_input_maybe(editable.then_some(Message::UpdateRuntimeProbeTimeoutDraft))
                 .padding(10)
                 .width(Length::Fill)

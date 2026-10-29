@@ -80,7 +80,9 @@ pub(crate) fn activate(state: &mut AppState, feature: FeatureId) -> Task<Message
         FeatureId::AppRoutingPolicyEditor => app_routing::activate(state),
         FeatureId::SyncConflictResolver => sync::activate(state),
         FeatureId::ProfilesFilterEditor => filter::activate(state),
-        FeatureId::ProfilesSnapshotRestoreConfirm => snapshot_restore::activate(state),
+        FeatureId::ProfilesSnapshotRestoreConfirm | FeatureId::SyncRestoreConfirm => {
+            snapshot_restore::activate(state)
+        }
         FeatureId::RulesListEditor => rule_list::activate(state),
         FeatureId::RulesProviderRefreshError => rule_provider::activate(state),
         FeatureId::RulesOverrideEditor | FeatureId::RulesTracerDrawer => {
@@ -101,6 +103,5 @@ pub(crate) fn activate(state: &mut AppState, feature: FeatureId) -> Task<Message
         FeatureId::SpeedtestDetailsModal
         | FeatureId::SpeedtestProgressCancel
         | FeatureId::SpeedtestHistoryComparison => speedtest::activate(state, feature),
-        _ => Task::none(),
     }
 }

@@ -21,9 +21,6 @@ pub struct SettingsActionControls<'w, 's> {
     pub(super) prepare_buttons: Query<'w, 's, (), With<PrepareTunPermissionButton>>,
     pub(super) tray_toggles: Query<'w, 's, (), With<CloseToTrayToggle>>,
     pub(super) notif_toggles: Query<'w, 's, (), With<SystemNotificationsToggle>>,
-    pub(super) rollback_buttons: Query<'w, 's, (), With<CoreRollbackButton>>,
-    pub(super) rollback_available:
-        Query<'w, 's, &'static CoreRollbackAvailability, With<CoreRollbackButton>>,
     pub(super) log_level_buttons: Query<'w, 's, &'static CoreLogLevelButton>,
     pub(super) tun_stack_buttons: Query<'w, 's, &'static TunStackButton>,
     pub(super) tun_stack_available:

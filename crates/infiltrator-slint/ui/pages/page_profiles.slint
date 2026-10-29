@@ -1,8 +1,8 @@
-import { Button, CheckBox, LineEdit } from "std-widgets.slint";
-import { TextField } from "@material";
+import { CheckBox } from "std-widgets.slint";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "../components/theme.slint";
 import { ProfileCard, ProfileOverrideChoice } from "../components/models.slint";
+import { PillButton, RoundedInputField } from "../components/base_widgets.slint";
 import { ProfileCardSurface, SectionCard, SurfaceCard } from "../components/cards.slint";
 
 export component PageConfig inherits VerticalLayout {
@@ -19,21 +19,18 @@ export component PageConfig inherits VerticalLayout {
     spacing: LumenTheme.space-4;
     alignment: start;
 
-    Rectangle {
+    HorizontalLayout {
         width: parent.width;
-        height: 58 * LumenUiScale.unit;
-        border-radius: 29 * LumenUiScale.unit;
-        background: LumenTheme.surface;
-        HorizontalLayout {
-            width: max(0 * LumenUiScale.unit, parent.width - 32 * LumenUiScale.unit);
-            x: 16 * LumenUiScale.unit;
-            height: parent.height;
-            spacing: 10 * LumenUiScale.unit;
-            alignment: center;
-            Image { source: root.application-dark-mode ? @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/add-dark.svg") : @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/add.svg"); width: 24 * LumenUiScale.unit; height: 24 * LumenUiScale.unit; y: (parent.height - self.height) / 2; image-fit: contain; }
-            Text { text: @tr("添加配置"); color: LumenTheme.accent; font-size: 18 * LumenUiScale.unit; height: parent.height; vertical-alignment: center; }
+        height: 38 * LumenUiScale.unit;
+        cross-axis-alignment: center;
+        Rectangle { horizontal-stretch: 1; background: transparent; }
+        PillButton {
+            label: @tr("+ 添加配置");
+            selected: true;
+            pill-height: 36 * LumenUiScale.unit;
+            min-pill-width: 104 * LumenUiScale.unit;
+            clicked => { root.open-profile-add(); }
         }
-        TouchArea { width: parent.width; height: parent.height; clicked => { root.open-profile-add(); } }
     }
     if root.profiles.length == 0: SurfaceCard {
         Text { text: @tr("暂无配置文件"); color: LumenTheme.text-primary; font-size: 18 * LumenUiScale.unit; font-weight: 600; }
@@ -44,6 +41,12 @@ export component PageConfig inherits VerticalLayout {
         profile-kind: profile.kind == "本地 YAML" ? @tr("本地文件") : profile.kind;
         profile-location: profile.kind == "本地 YAML" ? @tr("本地配置文件") : profile.location;
         current: profile.current;
+        has-quota: profile.has-quota;
+        used-text: profile.used-text;
+        total-text: profile.total-text;
+        expire-text: profile.expire-text;
+        usage-fraction: profile.usage-fraction;
+        quota-grade: profile.quota-grade;
         set-current => { root.set-current-profile(profile.id); }
         clear-current => { root.set-current-profile(""); }
         open-settings => { root.open-profile-action(profile.id, profile.name); }
@@ -69,26 +72,34 @@ export component PageProfileSettings inherits VerticalLayout {
     callback move-override(string, bool);
 
     width: 100%;
-    spacing: 16 * LumenUiScale.unit;
+    spacing: LumenTheme.space-4;
 
     SectionCard {
         heading: @tr("订阅信息");
         detail: root.profile-settings-kind == "remote_subscription" ? @tr("当前地址：") + root.profile-settings-location + @tr("。留空保持已保存地址；新地址会先下载并校验。") : @tr("本地来源：") + root.profile-settings-location + @tr("。来源文件保持只读。");
-        Text { text: @tr("配置名称"); color: LumenTheme.text-secondary; font-size: 12 * LumenUiScale.unit; }
-        LineEdit { text <=> root.profile-settings-name; placeholder-text: @tr("配置名称"); }
-        if root.profile-settings-kind == "remote_subscription": LineEdit { text <=> root.profile-settings-url; input-type: password; placeholder-text: @tr("输入新订阅链接；留空不更改"); }
-        if root.profile-settings-kind == "remote_subscription": HorizontalLayout {
-            spacing: 8 * LumenUiScale.unit;
-            TextField {
-                horizontal-stretch: 1;
-                label: @tr("Age 私钥（可选）");
-                input-type: password;
-                text <=> root.profile-settings-age-key;
-                supporting-text: root.profile-settings-age-configured ? @tr("当前已配置 Age 私钥；输入新私钥替换。") : @tr("输入新私钥以支持加密订阅；留空保留当前设置。");
+        RoundedInputField { label: @tr("配置名称"); text <=> root.profile-settings-name; }
+        if root.profile-settings-kind == "remote_subscription": RoundedInputField { label: @tr("输入新订阅链接；留空不更改"); text <=> root.profile-settings-url; password: true; }
+        if root.profile-settings-kind == "remote_subscription": VerticalLayout {
+            spacing: LumenTheme.space-1;
+            HorizontalLayout {
+                spacing: LumenTheme.space-2;
+                cross-axis-alignment: center;
+                RoundedInputField {
+                    horizontal-stretch: 1;
+                    label: @tr("Age 私钥（可选）");
+                    password: true;
+                    text <=> root.profile-settings-age-key;
+                }
+                if root.profile-settings-age-configured: PillButton {
+                    label: @tr("清除私钥");
+                    clicked => { root.clear-age-key(root.profile-settings-id); }
+                }
             }
-            if root.profile-settings-age-configured: Button {
-                text: @tr("清除私钥");
-                clicked => { root.clear-age-key(root.profile-settings-id); }
+            Text {
+                text: root.profile-settings-age-configured ? @tr("当前已配置 Age 私钥；输入新私钥替换。") : @tr("输入新私钥以支持加密订阅；留空保留当前设置。");
+                color: LumenTheme.text-secondary;
+                font-size: 12 * LumenUiScale.unit;
+                wrap: word-wrap;
             }
         }
         if root.profile-settings-kind != "remote_subscription": Text { text: @tr("本地配置来源以解密后的 YAML 保存，无需继续保留 Age 私钥。"); color: LumenTheme.text-secondary; font-size: 12 * LumenUiScale.unit; wrap: word-wrap; }
@@ -98,13 +109,18 @@ export component PageProfileSettings inherits VerticalLayout {
         detail: @tr("选中项按列表顺序应用。修改暂存到草稿，保存后生效。");
         if root.profile-settings-overrides.length == 0: Text { text: @tr("暂无可绑定的用户 Override"); color: LumenTheme.text-secondary; font-size: 13 * LumenUiScale.unit; }
         for option in root.profile-settings-overrides: HorizontalLayout {
+            spacing: LumenTheme.space-2;
+            cross-axis-alignment: center;
             CheckBox { text: option.name + "  ·  " + option.format; checked: option.selected; toggled => { root.toggle-override(option.id, self.checked); } }
-            Button { text: @tr("上移"); enabled: option.selected && option.can-move-up; clicked => { root.move-override(option.id, true); } }
-            Button { text: @tr("下移"); enabled: option.selected && option.can-move-down; clicked => { root.move-override(option.id, false); } }
+            Rectangle { horizontal-stretch: 1; background: transparent; }
+            PillButton { label: "↑"; enabled: option.selected && option.can-move-up; clicked => { root.move-override(option.id, true); } }
+            PillButton { label: "↓"; enabled: option.selected && option.can-move-down; clicked => { root.move-override(option.id, false); } }
         }
     }
     HorizontalLayout {
-        Button { text: @tr("取消"); clicked => { root.cancel(); } }
-        Button { text: @tr("保存设置"); clicked => { root.save(); } }
+        spacing: LumenTheme.space-3;
+        alignment: end;
+        PillButton { label: @tr("取消"); clicked => { root.cancel(); } }
+        PillButton { label: @tr("保存设置"); selected: true; clicked => { root.save(); } }
     }
 }

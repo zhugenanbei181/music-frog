@@ -27,8 +27,8 @@ pub(crate) fn braille_waveform(samples: &[f32]) -> String {
             let clamped = sample.clamp(0.0, 1.0);
             let height = (clamped * BRAILLE_ROWS as f32).ceil() as usize;
             let dots = if column == 0 { &LEFT_DOTS } else { &RIGHT_DOTS };
-            for level in 0..height.min(BRAILLE_ROWS) {
-                codepoint |= dots[level];
+            for &dot in dots.iter().take(height.min(BRAILLE_ROWS)) {
+                codepoint |= dot;
             }
         }
         out.push(char::from_u32(codepoint).expect("盲文码位恒有效"));

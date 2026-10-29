@@ -1,0 +1,57 @@
+import { RouteMode } from "domain_enums.slint";
+
+// The localized title of every product page route.
+//
+// One pure function owns the page → title mapping so no app bar re-types
+// the ternary chain and the routes drift out of sync. The two dynamic
+// titles (the profile preview and the license detail) arrive as arguments;
+// the function invents no fact the bars did not already hold.
+export global PageTitles {
+    public pure function title(page: string, preview-profile: string, license-name: string) -> string {
+        if (page == "AppSettings") { return @tr("应用设置"); }
+        if (page == "Meta") { return @tr("Meta 功能"); }
+        if (page == "Network") { return @tr("网络设置"); }
+        if (page == "Overrides") { return @tr("覆写"); }
+        if (page == "Connections") { return @tr("连接"); }
+        if (page == "ConnectionDetail") { return @tr("连接详情"); }
+        if (page == "Logs") { return @tr("日志"); }
+        if (page == "Rules") { return @tr("规则"); }
+        if (page == "Traffic") { return @tr("流量统计"); }
+        if (page == "Providers") { return @tr("外部资源"); }
+        if (page == "Preview") { return preview-profile; }
+        if (page == "ProfileSettings") { return @tr("订阅设置"); }
+        if (page == "About") { return @tr("关于"); }
+        if (page == "Licenses") { return @tr("开源许可"); }
+        if (page == "LicenseDetail") { return license-name; }
+        if (page == "Dns") { return @tr("DNS"); }
+        if (page == "Editor") { return @tr("编辑器"); }
+        if (page == "Filters") { return @tr("过滤与聚合"); }
+        if (page == "Doctor") { return @tr("诊断"); }
+        if (page == "Sync") { return @tr("同步"); }
+        if (page == "AppRouting") { return @tr("应用路由"); }
+        if (page == "ConnectionsWorkbench") { return @tr("连接"); }
+        if (page == "LogsWorkbench") { return @tr("日志"); }
+        if (page == "RuntimeWorkbench") { return @tr("运行时"); }
+        if (page == "ProxiesWorkbench") { return @tr("代理"); }
+        if (page == "RulesWorkbench") { return @tr("规则"); }
+        if (page == "SettingsWorkbench") { return @tr("设置"); }
+        if (page == "ShellWorkbench") { return @tr("外壳"); }
+        if (page == "OverviewWorkbench") { return @tr("概览"); }
+        return page;
+    }
+
+    // The shared localized label of the proxy route mode.
+    public pure function route-title(mode: RouteMode) -> string {
+        if (mode == RouteMode.rule) { return @tr("规则"); }
+        if (mode == RouteMode.global) { return @tr("全局"); }
+        return @tr("直连");
+    }
+
+    // The mobile top bar only names the top-level tabs it hosts.
+    public pure function top-title(page: string) -> string {
+        if (page == "Home") { return "MusicFrog"; }
+        if (page == "Proxy") { return @tr("节点"); }
+        if (page == "Config") { return @tr("配置"); }
+        return @tr("设置");
+    }
+}

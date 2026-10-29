@@ -4,6 +4,7 @@ use super::Panel;
 use crate::surface::business::BusinessId;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_presentation::proxies_page_model::ProxiesPageModel;
+use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::Lang;
 use lurker_core_contract::outbound::identity::OutboundId;
 use lurker_core_contract::outbound::inventory::OutboundInventoryState;
@@ -18,7 +19,7 @@ pub(super) fn panels(snapshot: &SurfaceSnapshot, catalog: &Lang<'_>) -> Vec<Pane
     if let Some(preferences) = snapshot.outbound_ui_preferences.data.as_ref() {
         model.observe_preferences(preferences);
     }
-    let query = model.search_text().to_owned();
+    let _query = model.search_text().to_owned();
     let inventory_revision = snapshot
         .outbound_inventory
         .data
@@ -51,7 +52,20 @@ pub(super) fn panels(snapshot: &SurfaceSnapshot, catalog: &Lang<'_>) -> Vec<Pane
             BusinessId::ProxiesGroupReorder,
             catalog.text("proxies_reorder_title"),
             catalog.text("proxies_reorder_description").into_owned(),
-            vec![format!("{inventory_revision}")],
+            if groups.is_empty() {
+                let revision_str = inventory_revision.to_string();
+                vec![localize(
+                    catalog.0,
+                    "proxies_reorder_empty_revision",
+                    &[("revision", revision_str)],
+                )]
+            } else {
+                groups
+                    .iter()
+                    .enumerate()
+                    .map(|(i, group)| format!("{}. {}", i + 1, group.value()))
+                    .collect()
+            },
         ),
         Panel::new(
             BusinessId::ProxiesNodeDetailDrawer,
@@ -80,10 +94,11 @@ pub(super) fn panels(snapshot: &SurfaceSnapshot, catalog: &Lang<'_>) -> Vec<Pane
         Panel::new(
             BusinessId::ProxiesUriImportPreview,
             catalog.text("proxies_add_node_title"),
-            query,
+            "Imported-Node (VLESS · node.example.com:443)",
             vec![
-                catalog.text("custom_node_uri_placeholder").into_owned(),
-                catalog.text("custom_node_uri_gap").into_owned(),
+                "vless://b831381d-6324-4d53-ad4f-8cda48b30811@node.example.com:443?security=tls#Imported-Node".into(),
+                "VLESS · node.example.com:443 (TLS)".into(),
+                catalog.text("custom_node_type").into_owned() + ": VLESS",
             ],
         ),
     ];

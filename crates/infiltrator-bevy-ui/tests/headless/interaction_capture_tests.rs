@@ -7,6 +7,8 @@
 //! fails here before it can ever reach the pixel judge.
 use crate::support::headless_plugins;
 use bevy::app::App;
+use bevy::ecs::entity::Entity;
+use bevy::ui::widget::Text;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::command::{CommandPumpPlugin, UiCommand, UiCommandSink};
 use infiltrator_bevy_ui::interaction_capture::InteractionCapture;
@@ -17,6 +19,7 @@ use infiltrator_bevy_ui::pages::page_models::DoctorPageModelState;
 use infiltrator_bevy_ui::pages::page_models::RulesPageModelState;
 use infiltrator_bevy_ui::pages::profiles_script_workbench::ScriptWorkbenchState;
 use infiltrator_bevy_ui::pages::proxies_form::CustomNodeForm;
+use infiltrator_bevy_ui::pages::rules_outcome::RuleProviderFailureText;
 use infiltrator_bevy_ui::pages::rules_view::RulesViewState;
 use infiltrator_bevy_ui::pages::settings_language::LanguageChoiceResource;
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
@@ -28,12 +31,15 @@ use infiltrator_contract::dns_leak::DnsLeakOperation;
 use infiltrator_contract::doctor::DoctorAction;
 use infiltrator_contract::language::LanguagePreference;
 use infiltrator_contract::parity::FeatureId;
+use infiltrator_contract::profile_document::DocumentInspection;
 use infiltrator_contract::shell_readout::ShellObservation;
 use infiltrator_presentation::doctor_actions::DoctorActionPhase;
 use infiltrator_presentation::language_choice::{LanguageChoicePhase, LanguageReadPhase};
 use infiltrator_presentation::script_workbench::ScriptExportPhase;
+use infiltrator_test_support::version_fixtures::CAPTURE_ROLLBACK_VERSION;
 use lurker_core_contract::error::ErrorCode;
 use lurker_core_contract::page::PageStatus;
+use lurker_core_contract::profile_document::DocumentValidation;
 use lurker_ui_presentation::dns_leak_actions::DnsLeakActionPhase;
 use std::sync::Arc;
 
@@ -113,6 +119,30 @@ fn capture_telemetry_reads_the_real_stale_zero_transition() {
     assert!(
         latest.0.shell_readout.rate_failure.is_some(),
         "the owner reports the denied telemetry read"
+    );
+}
+
+/// The rollback capture must open the review first, submit the destructive
+/// command through the page's confirmation control, and then publish the
+/// version owner's changed selection rather than the fixture's initial values.
+#[test]
+fn capture_core_rollback_confirms_and_publishes_the_owner_readback() {
+    let mut app = capture_app(FeatureId::CoreVersionRollbackConfirm, Route::Settings);
+    drive(&mut app, 12);
+
+    let latest = app.world().resource::<LatestSurfaceSnapshot>();
+    assert_eq!(
+        latest.0.versions.rollback.current.as_deref(),
+        Some(CAPTURE_ROLLBACK_VERSION),
+        "the owner readback must show the selected rollback version as active"
+    );
+    assert_eq!(
+        latest.0.versions.rollback.target, None,
+        "the previous target is no longer a rollback candidate after activation"
+    );
+    assert_eq!(
+        app.world().resource::<InteractionCapture>().feature,
+        FeatureId::CoreVersionRollbackConfirm
     );
 }
 
@@ -383,5 +413,69 @@ fn capture_script_export_review_prepares_the_shared_export_review() {
     assert!(
         !export.file_name.is_empty(),
         "the review carries the owner's real file name"
+    );
+}
+
+/// The rule provider refresh capture activates the provider row's refresh control,
+/// submits the shared `RefreshRuleProvider` command and renders the owner's typed refusal.
+#[test]
+fn capture_rules_provider_refresh_error_renders_failure_line() {
+    let mut app = capture_app(FeatureId::RulesProviderRefreshError, Route::Rules);
+    drive(&mut app, 16);
+    let failures = app
+        .world_mut()
+        .query::<(Entity, &RuleProviderFailureText, &Text)>()
+        .iter(app.world())
+        .find(|(_, marker, _)| marker.0 == 0)
+        .map(|(_, _, text)| text.0.clone())
+        .expect("provider 0 failure text mounted");
+    assert!(
+        failures.contains("the rule provider host refused"),
+        "the failure line must render the owner's typed refusal: {failures}"
+    );
+    assert_eq!(
+        app.world().resource::<InteractionCapture>().feature,
+        FeatureId::RulesProviderRefreshError
+    );
+}
+
+/// The snippet insertion capture activates the profile editor's snippet button.
+#[test]
+fn capture_editor_snippet_insertion_activates_snippet_button() {
+    let mut app = capture_app(FeatureId::EditorSnippetInsertion, Route::Profiles);
+    drive(&mut app, 16);
+    let latest = app.world().resource::<LatestSurfaceSnapshot>();
+    assert!(
+        latest.0.profile_editor.document.is_some(),
+        "the profile editor document must be mounted"
+    );
+    assert_eq!(
+        app.world().resource::<InteractionCapture>().feature,
+        FeatureId::EditorSnippetInsertion
+    );
+}
+
+/// The YAML error navigation capture renders the syntax error diagnostic on the profile editor.
+#[test]
+fn capture_editor_yaml_error_navigation_renders_syntax_diagnostic() {
+    let mut app = capture_app(FeatureId::EditorYamlErrorNavigation, Route::Profiles);
+    drive(&mut app, 16);
+    let latest = app.world().resource::<LatestSurfaceSnapshot>();
+    let doc = latest
+        .0
+        .profile_editor
+        .document
+        .as_ref()
+        .expect("profile document must be mounted");
+    assert!(
+        matches!(
+            &doc.inspection,
+            DocumentInspection::Inspected(DocumentValidation::Invalid { .. })
+        ),
+        "document inspection must report syntax error"
+    );
+    assert_eq!(
+        app.world().resource::<InteractionCapture>().feature,
+        FeatureId::EditorYamlErrorNavigation
     );
 }

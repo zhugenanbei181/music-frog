@@ -1461,3 +1461,99 @@ msgstr "调整卡片顺序"
 
 msgid "恢复默认顺序"
 msgstr "恢复默认顺序"
+
+msgid "Runtime 未运行，外部资源不可用"
+msgstr "Runtime 未运行，外部资源不可用"
+
+msgid "代理链："
+msgstr "代理链："
+
+msgid "全部更新"
+msgstr "全部更新"
+
+msgid "内置脚本预设"
+msgstr "内置脚本预设"
+
+msgid "冲突解决与备份恢复"
+msgstr "冲突解决与备份恢复"
+
+msgid "命中规则："
+msgstr "命中规则："
+
+msgid "外壳"
+msgstr "外壳"
+
+msgid "将删除今日与本周本地统计记录，并清空当前已关闭连接历史。正在运行的连接不受影响。"
+msgstr "将删除今日与本周本地统计记录，并清空当前已关闭连接历史。正在运行的连接不受影响。"
+
+msgid "应用规则列表"
+msgstr "应用规则列表"
+
+msgid "开始扫描"
+msgstr "开始扫描"
+
+msgid "当前已配置 Age 私钥；输入新私钥替换。"
+msgstr "当前已配置 Age 私钥；输入新私钥替换。"
+
+msgid "打断中"
+msgstr "打断中"
+
+msgid "打断中…"
+msgstr "打断中…"
+
+msgid "打断此连接"
+msgstr "打断此连接"
+
+msgid "扫描二维码以导入配置订阅地址"
+msgstr "扫描二维码以导入配置订阅地址"
+
+msgid "按应用分流的策略编辑"
+msgstr "按应用分流的策略编辑"
+
+msgid "搜索日志内容或关键词"
+msgstr "搜索日志内容或关键词"
+
+msgid "暂无外部资源"
+msgstr "暂无外部资源"
+
+msgid "概览"
+msgstr "概览"
+
+msgid "泄漏检测、查询、缓存与 Hosts"
+msgstr "泄漏检测、查询、缓存与 Hosts"
+
+msgid "清空流量统计？"
+msgstr "清空流量统计？"
+
+msgid "清除"
+msgstr "清除"
+
+msgid "清除私钥"
+msgstr "清除私钥"
+
+msgid "目标："
+msgstr "目标："
+
+msgid "脚本沙箱、导出评审、差异与快照恢复"
+msgstr "脚本沙箱、导出评审、差异与快照恢复"
+
+msgid "规则集与节点提供者；可手动触发更新并观察版本。"
+msgstr "规则集与节点提供者；可手动触发更新并观察版本。"
+
+msgid "订阅过滤与配置聚合向导"
+msgstr "订阅过滤与配置聚合向导"
+
+msgid "诊断检查与生命周期恢复"
+msgstr "诊断检查与生命周期恢复"
+
+msgid "诊断详情与修复建议"
+msgstr "诊断详情与修复建议"
+
+msgid "资源提供者："
+msgstr "资源提供者："
+
+msgid "输入新私钥以支持加密订阅；留空保留当前设置。"
+msgstr "输入新私钥以支持加密订阅；留空保留当前设置。"
+
+msgid "运行时"
+msgstr "运行时"

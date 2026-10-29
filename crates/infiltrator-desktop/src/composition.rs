@@ -680,7 +680,8 @@ pub fn desktop_command_application(
             .with_core_configuration(
                 core_scope_source.clone(),
                 runtime_configuration_ports.clone(),
-            );
+            )
+            .with_dns_cache(dns_cache.clone());
     // DUAL-11-06/07: the kernel's provider cache lives next to the profiles
     // (`-d <config dir>`), so the command handler purges exactly that folder.
     let rule_provider_cache = Arc::new(DesktopRuleProviderCache::new(profile_store.config_dir()));

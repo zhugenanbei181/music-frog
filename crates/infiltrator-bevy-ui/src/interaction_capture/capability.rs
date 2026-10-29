@@ -90,7 +90,7 @@ impl CapabilityProvider for CaptureHostCapabilityProvider {
 pub fn capture_core_operations() -> Vec<CoreOperation> {
     use infiltrator_contract::core_capabilities::{
         CoreLifecycleOperation, DnsOperation, FakeIpCacheOperation, ProfileOperation,
-        RulesOperation, SubscriptionOperation,
+        ProviderOperation, RulesOperation, SubscriptionOperation, VersionOperation,
     };
     vec![
         CoreOperation::Lifecycle(CoreLifecycleOperation::Start),
@@ -108,6 +108,11 @@ pub fn capture_core_operations() -> Vec<CoreOperation> {
         // The capture's own subscription source really answers a refresh, so
         // the update of one subscription profile is a real operation.
         CoreOperation::Subscription(SubscriptionOperation::Update),
+        // The rollback capture changes the isolated version owner's active
+        // selection and then reads that selection back.
+        CoreOperation::Version(VersionOperation::Rollback),
+        CoreOperation::Provider(ProviderOperation::ListRule),
+        CoreOperation::Provider(ProviderOperation::UpdateRule),
     ]
 }
 

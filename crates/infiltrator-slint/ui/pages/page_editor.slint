@@ -1,0 +1,310 @@
+import { LumenUiScale } from "../lumen-ui-scale.slint";
+import { LumenTheme } from "../components/theme.slint";
+import { WorkbenchCard, ItemHeader, ItemText, ItemRow, DraftField, SectionLabel } from "../components/workbench_parts.slint";
+import { WorkbenchButton } from "../components/workbench_button.slint";
+import { WorkbenchItem } from "../components/models.slint";
+
+// The editor family page: the script sandbox, the built-in presets, the
+// business panels, the configuration difference and the snapshot
+// restoration. Every section renders the items the shared workbench
+// projection publishes; the page invents no business fact of its own. Loop
+// discipline: layouts that host per-item loops keep spacing 0 and wrap each
+// conditional part in its own zero-size container.
+export component PageEditor inherits VerticalLayout {
+    in property <[WorkbenchItem]> items;
+    in-out property <string> draft;
+    in-out property <string> draft-2;
+    in property <string> draft-id;
+    in property <string> draft-2-id;
+    in property <string> draft-placeholder;
+    in property <string> draft-2-placeholder;
+
+    callback action(string, string);
+    callback draft-edited(string, string);
+
+    width: 100%;
+    spacing: LumenTheme.space-4;
+    alignment: start;
+
+    // 1. Script sandbox
+    WorkbenchCard {
+        for item in root.items: VerticalLayout {
+            if item.id == "script-sandbox": ItemHeader { item: item; }
+            if item.id == "script-sandbox-report": ItemText { item: item; }
+            if item.id == "script-sandbox-output": Text {
+                text: item.detail;
+                color: LumenTheme.text-primary;
+                font-size: 12 * LumenUiScale.unit;
+                font-family: LumenTheme.mono-family;
+                wrap: word-wrap;
+            }
+            if item.id == "script-sandbox-error": Rectangle {
+                border-radius: LumenTheme.radius-control;
+                background: LumenTheme.error.with_alpha(15%);
+                border-width: 1 * LumenUiScale.unit;
+                border-color: LumenTheme.error;
+                HorizontalLayout {
+                    padding-left: 12 * LumenUiScale.unit;
+                    padding-right: 12 * LumenUiScale.unit;
+                    padding-top: 8 * LumenUiScale.unit;
+                    padding-bottom: 8 * LumenUiScale.unit;
+                    spacing: 8 * LumenUiScale.unit;
+                    cross-axis-alignment: center;
+                    Text { text: "⚠"; color: LumenTheme.error; font-size: 16 * LumenUiScale.unit; }
+                    Text {
+                        text: item.detail;
+                        color: LumenTheme.error;
+                        font-size: 13 * LumenUiScale.unit;
+                        font-weight: 500;
+                        wrap: word-wrap;
+                        horizontal-stretch: 1;
+                    }
+                }
+            }
+        }
+
+        // Console directives the owner published for the last run.
+        VerticalLayout {
+            spacing: 0;
+
+            for item in root.items: VerticalLayout {
+                if item.id.starts-with("script-sandbox/"): Text {
+                    text: item.title;
+                    color: LumenTheme.text-secondary;
+                    font-size: 12 * LumenUiScale.unit;
+                    font-family: LumenTheme.mono-family;
+                    wrap: word-wrap;
+                }
+            }
+        }
+
+        // The script source draft of the shared reducer (a code field, so it
+        // keeps the mono family).
+        if root.draft-id == "script-code": DraftField {
+            draft-id: root.draft-id;
+            placeholder: root.draft-placeholder;
+            mono: true;
+            text <=> root.draft;
+            edited(id, value) => { root.draft-edited(id, value); }
+        }
+
+        Rectangle { height: 12 * LumenUiScale.unit; }
+
+        HorizontalLayout {
+            spacing: 0;
+            alignment: end;
+
+            for item in root.items: HorizontalLayout {
+                if item.id == "script-run" || item.id == "script-clear" || item.id == "script-retry": Rectangle {
+                    width: 10 * LumenUiScale.unit;
+                }
+                if item.id == "script-run" || item.id == "script-clear" || item.id == "script-retry": WorkbenchButton {
+                    text: item.label;
+                    enabled: item.enabled;
+                    danger: item.tone == "danger";
+                    primary: item.id == "script-run";
+                    clicked => { root.action(item.action-id, ""); }
+                }
+            }
+        }
+    }
+
+    // 2. Business panels: each editor business gets its own dedicated card
+    // with its own header, facts, and action bar.
+    for panel-id in ["editor-snippet-insertion", "editor-large-document-window", "editor-yaml-error-navigation"]: VerticalLayout {
+        spacing: 0;
+
+        WorkbenchCard {
+            for item in root.items: VerticalLayout {
+                spacing: 0;
+                if item.id == panel-id: VerticalLayout {
+                    spacing: 0;
+                    ItemHeader { item: item; badge: true; }
+                    Rectangle { height: 8 * LumenUiScale.unit; }
+                }
+                if item.id.starts-with(panel-id + "/") && item.kind == "text" && item.id.ends-with("/failure"): Rectangle {
+                    border-radius: LumenTheme.radius-control;
+                    background: LumenTheme.error.with_alpha(15%);
+                    border-width: 1 * LumenUiScale.unit;
+                    border-color: LumenTheme.error;
+                    HorizontalLayout {
+                        padding-left: 12 * LumenUiScale.unit;
+                        padding-right: 12 * LumenUiScale.unit;
+                        padding-top: 8 * LumenUiScale.unit;
+                        padding-bottom: 8 * LumenUiScale.unit;
+                        spacing: 8 * LumenUiScale.unit;
+                        cross-axis-alignment: center;
+                        Text { text: "⚠"; color: LumenTheme.error; font-size: 16 * LumenUiScale.unit; }
+                        Text {
+                            text: item.detail;
+                            color: LumenTheme.error;
+                            font-size: 13 * LumenUiScale.unit;
+                            font-weight: 500;
+                            wrap: word-wrap;
+                            horizontal-stretch: 1;
+                        }
+                    }
+                }
+                if item.id.starts-with(panel-id + "/") && item.kind == "text" && !item.id.ends-with("/failure"): VerticalLayout {
+                    spacing: 0;
+                    ItemText {
+                        item: item;
+                        danger: false;
+                    }
+                    Rectangle { height: 6 * LumenUiScale.unit; }
+                }
+            }
+
+            Rectangle { height: 6 * LumenUiScale.unit; }
+
+            HorizontalLayout {
+                spacing: 0;
+                alignment: end;
+
+                for item in root.items: HorizontalLayout {
+                    spacing: 0;
+                    if item.id.starts-with(panel-id + "/") && item.kind == "button": HorizontalLayout {
+                        spacing: 0;
+                        Rectangle { width: 8 * LumenUiScale.unit; }
+                        WorkbenchButton {
+                            text: item.label;
+                            enabled: item.enabled;
+                            danger: item.tone == "danger";
+                            primary: item.id.ends-with("/confirm");
+                            clicked => { root.action(item.action-id, ""); }
+                        }
+                    }
+                }
+            }
+        }
+
+        Rectangle { height: 12 * LumenUiScale.unit; }
+    }
+
+    // 3. Built-in script presets
+    SectionLabel { label: @tr("内置脚本预设"); }
+
+    VerticalLayout {
+        spacing: 0;
+
+        for item in root.items: VerticalLayout {
+            if item.id.starts-with("script-preset/"): ItemRow {
+                item: item;
+                action(id, row) => { root.action(id, row); }
+            }
+        }
+    }
+
+    // 4. Configuration difference
+    WorkbenchCard {
+        for item in root.items: VerticalLayout {
+            if item.id == "config-diff": ItemHeader { item: item; }
+            if item.id == "config-diff-summary": ItemText { item: item; }
+        }
+
+        VerticalLayout {
+            spacing: 0;
+
+            for item in root.items: VerticalLayout {
+                if item.id.starts-with("config-diff/"): Text {
+                    text: item.title;
+                    color: LumenTheme.text-secondary;
+                    font-size: 12 * LumenUiScale.unit;
+                    font-family: LumenTheme.mono-family;
+                    wrap: word-wrap;
+                }
+            }
+        }
+
+        Rectangle { height: 12 * LumenUiScale.unit; }
+
+        HorizontalLayout {
+            spacing: 0;
+            alignment: end;
+
+            for item in root.items: HorizontalLayout {
+                if item.id == "config-diff-load" || item.id == "config-diff-close": Rectangle {
+                    width: 10 * LumenUiScale.unit;
+                }
+                if item.id == "config-diff-load" || item.id == "config-diff-close": WorkbenchButton {
+                    text: item.label;
+                    enabled: item.enabled;
+                    primary: item.id == "config-diff-load";
+                    clicked => { root.action(item.action-id, ""); }
+                }
+            }
+        }
+    }
+
+    // 5. Script export review & snapshot restoration
+    WorkbenchCard {
+        for item in root.items: VerticalLayout {
+            if item.id == "script-export": ItemHeader { item: item; }
+            if item.id == "script-export-detail": ItemText { item: item; }
+            if item.id == "script-export-content": Text {
+                text: item.detail;
+                color: LumenTheme.text-primary;
+                font-size: 12 * LumenUiScale.unit;
+                font-family: LumenTheme.mono-family;
+                wrap: word-wrap;
+            }
+            if item.id == "snapshot-restore": ItemHeader { item: item; }
+            if item.id == "snapshot-restore-error": Rectangle {
+                border-radius: LumenTheme.radius-control;
+                background: LumenTheme.error.with_alpha(15%);
+                border-width: 1 * LumenUiScale.unit;
+                border-color: LumenTheme.error;
+                HorizontalLayout {
+                    padding-left: 12 * LumenUiScale.unit;
+                    padding-right: 12 * LumenUiScale.unit;
+                    padding-top: 8 * LumenUiScale.unit;
+                    padding-bottom: 8 * LumenUiScale.unit;
+                    spacing: 8 * LumenUiScale.unit;
+                    cross-axis-alignment: center;
+                    Text { text: "⚠"; color: LumenTheme.error; font-size: 16 * LumenUiScale.unit; }
+                    Text {
+                        text: item.detail;
+                        color: LumenTheme.error;
+                        font-size: 13 * LumenUiScale.unit;
+                        font-weight: 500;
+                        wrap: word-wrap;
+                        horizontal-stretch: 1;
+                    }
+                }
+            }
+        }
+
+        VerticalLayout {
+            spacing: 0;
+
+            for item in root.items: VerticalLayout {
+                if item.id.starts-with("snapshot-restore/"): ItemRow {
+                    item: item;
+                    action(id, row) => { root.action(id, row); }
+                }
+            }
+        }
+
+        Rectangle { height: 12 * LumenUiScale.unit; }
+
+        HorizontalLayout {
+            spacing: 0;
+            alignment: end;
+
+            for item in root.items: HorizontalLayout {
+                if item.id == "script-export-prepare" || item.id == "script-export-save" || item.id == "script-export-cancel"
+                   || item.id == "snapshot-restore-prepare" || item.id == "snapshot-restore-confirm" || item.id == "snapshot-restore-cancel": Rectangle {
+                    width: 10 * LumenUiScale.unit;
+                }
+                if item.id == "script-export-prepare" || item.id == "script-export-save" || item.id == "script-export-cancel"
+                   || item.id == "snapshot-restore-prepare" || item.id == "snapshot-restore-confirm" || item.id == "snapshot-restore-cancel": WorkbenchButton {
+                    text: item.label;
+                    enabled: item.enabled;
+                    danger: item.tone == "danger" || item.id == "snapshot-restore-confirm";
+                    primary: item.id == "script-export-save" || item.id == "snapshot-restore-confirm";
+                    clicked => { root.action(item.action-id, ""); }
+                }
+            }
+        }
+    }
+}

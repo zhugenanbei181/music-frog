@@ -15,6 +15,7 @@ use crate::surface::action::workbench::{
     DOCTOR_REPAIR, DOCTOR_REPAIR_ALL, DOCTOR_RETRY, FILTER_CANCEL, FILTER_SAVE,
 };
 use crate::surface::workbenches::Workbenches;
+use infiltrator_contract::app_routing::AppRoutingRule;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_presentation::aggregation_preview_projection;
 use infiltrator_presentation::app_routing_page_model::AppRoutingPageModel;
@@ -461,7 +462,9 @@ pub(super) fn app_routing_page(
         &routing::summary(model.mode(), model.apps().len(), catalog),
     ));
     for app in model.apps() {
-        items.push(row_action(
+        // The tone is the typed rule the owner published, so the surface
+        // styles the badge from a fact instead of matching localized copy.
+        let mut item = row_action(
             &format!("app-routing/{}", app.id),
             &app.id,
             &app.name,
@@ -469,7 +472,15 @@ pub(super) fn app_routing_page(
             &catalog.text(routing::rule_label(app.rule)),
             APP_ROUTING_RULE,
             &catalog.text("app_routing_add_action"),
-        ));
+        );
+        item.tone = match app.rule {
+            AppRoutingRule::Proxy => Tone::Success,
+            AppRoutingRule::Direct => Tone::Neutral,
+            AppRoutingRule::Block => Tone::Danger,
+        }
+        .as_str()
+        .into();
+        items.push(item);
     }
     let observed = model.mode_observed();
     items.push(button(

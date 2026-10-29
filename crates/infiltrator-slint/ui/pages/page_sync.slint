@@ -1,0 +1,173 @@
+import { LumenUiScale } from "../lumen-ui-scale.slint";
+import { LumenTheme } from "../components/theme.slint";
+import { WorkbenchCard, ItemHeader, ItemText, ItemRow } from "../components/workbench_parts.slint";
+import { WorkbenchButton } from "../components/workbench_button.slint";
+import { WorkbenchItem } from "../components/models.slint";
+
+// The synchronisation page: the conflict resolver and the backup
+// restoration share one page. Every section renders the items the shared
+// workbench projection publishes; the page invents no business fact of its
+// own. Loop discipline: layouts that host per-item loops keep spacing 0 and
+// wrap each conditional part in its own zero-size container.
+export component PageSync inherits VerticalLayout {
+    in property <[WorkbenchItem]> items;
+    in-out property <string> draft;
+    in-out property <string> draft-2;
+    in property <string> draft-id;
+    in property <string> draft-2-id;
+    in property <string> draft-placeholder;
+    in property <string> draft-2-placeholder;
+
+    callback action(string, string);
+    callback draft-edited(string, string);
+
+    width: 100%;
+    spacing: LumenTheme.space-4;
+    alignment: start;
+
+    // 1. Conflict resolver
+    WorkbenchCard {
+        for item in root.items: VerticalLayout {
+            if item.id == "sync-conflict": ItemHeader { item: item; }
+            if item.id == "sync-server": ItemText { item: item; }
+            if item.id == "sync-last": ItemText { item: item; }
+            if item.id == "sync-conflict-detail": Rectangle {
+                border-radius: LumenTheme.radius-control;
+                background: LumenTheme.error.with_alpha(15%);
+                border-width: 1 * LumenUiScale.unit;
+                border-color: LumenTheme.error;
+                min-height: conflict-layout.min-height;
+                conflict-layout := HorizontalLayout {
+                    padding-left: 12 * LumenUiScale.unit;
+                    padding-right: 12 * LumenUiScale.unit;
+                    padding-top: 8 * LumenUiScale.unit;
+                    padding-bottom: 8 * LumenUiScale.unit;
+                    spacing: 8 * LumenUiScale.unit;
+                    cross-axis-alignment: center;
+                    Text { text: "⚠"; color: LumenTheme.error; font-size: 16 * LumenUiScale.unit; }
+                    Text {
+                        text: item.detail;
+                        color: LumenTheme.error;
+                        font-size: 13 * LumenUiScale.unit;
+                        font-weight: 500;
+                        wrap: word-wrap;
+                        horizontal-stretch: 1;
+                    }
+                }
+            }
+        }
+
+        VerticalLayout {
+            spacing: 6 * LumenUiScale.unit;
+
+            for item in root.items: VerticalLayout {
+                if item.id.starts-with("sync-conflict/"): ItemRow {
+                    item: item;
+                    action(id, row) => { root.action(id, row); }
+                }
+            }
+        }
+
+        Rectangle { height: 12 * LumenUiScale.unit; }
+
+        HorizontalLayout {
+            spacing: 0;
+            alignment: end;
+
+            for item in root.items: HorizontalLayout {
+                if item.id == "sync-keep-local" || item.id == "sync-take-remote" || item.id == "sync-conflict-cancel": Rectangle {
+                    width: 10 * LumenUiScale.unit;
+                }
+                if item.id == "sync-keep-local" || item.id == "sync-take-remote" || item.id == "sync-conflict-cancel": WorkbenchButton {
+                    text: item.label;
+                    enabled: item.enabled;
+                    clicked => { root.action(item.action-id, ""); }
+                }
+            }
+        }
+    }
+
+    // 2. Stored snapshots & restoration review
+    WorkbenchCard {
+        for item in root.items: VerticalLayout {
+            if item.id == "sync-history": ItemText { item: item; }
+            if item.id == "snapshot-restore-error": Rectangle {
+                border-radius: LumenTheme.radius-control;
+                background: LumenTheme.error.with_alpha(15%);
+                border-width: 1 * LumenUiScale.unit;
+                border-color: LumenTheme.error;
+                min-height: restore-layout.min-height;
+                restore-layout := HorizontalLayout {
+                    padding-left: 12 * LumenUiScale.unit;
+                    padding-right: 12 * LumenUiScale.unit;
+                    padding-top: 8 * LumenUiScale.unit;
+                    padding-bottom: 8 * LumenUiScale.unit;
+                    spacing: 8 * LumenUiScale.unit;
+                    cross-axis-alignment: center;
+                    Text { text: "⚠"; color: LumenTheme.error; font-size: 16 * LumenUiScale.unit; }
+                    Text {
+                        text: item.detail;
+                        color: LumenTheme.error;
+                        font-size: 13 * LumenUiScale.unit;
+                        font-weight: 500;
+                        wrap: word-wrap;
+                        horizontal-stretch: 1;
+                    }
+                }
+            }
+        }
+
+        VerticalLayout {
+            spacing: 0;
+
+            for item in root.items: VerticalLayout {
+                if item.id.starts-with("sync-snapshot/"): ItemRow {
+                    item: item;
+                    row-min-height: 48 * LumenUiScale.unit;
+                    action(id, row) => { root.action(id, row); }
+                }
+            }
+        }
+
+        Rectangle { height: 12 * LumenUiScale.unit; }
+
+        HorizontalLayout {
+            spacing: 0;
+            alignment: end;
+
+            for item in root.items: HorizontalLayout {
+                if item.id == "snapshot-restore-confirm" || item.id == "snapshot-restore-cancel": Rectangle {
+                    width: 10 * LumenUiScale.unit;
+                }
+                if item.id == "snapshot-restore-confirm" || item.id == "snapshot-restore-cancel": WorkbenchButton {
+                    text: item.label;
+                    enabled: item.enabled;
+                    danger: item.tone == "danger" || item.id == "snapshot-restore-confirm";
+                    primary: item.id == "snapshot-restore-confirm";
+                    clicked => { root.action(item.action-id, ""); }
+                }
+            }
+        }
+    }
+
+    // 3. Backup and sync-now actions
+    WorkbenchCard {
+        HorizontalLayout {
+            spacing: 0;
+            alignment: end;
+
+            for item in root.items: HorizontalLayout {
+                if item.id == "sync-now" || item.id == "sync-backup": Rectangle {
+                    width: 10 * LumenUiScale.unit;
+                }
+                if item.id == "sync-now" || item.id == "sync-backup": WorkbenchButton {
+                    text: item.label;
+                    enabled: item.enabled;
+                    danger: item.tone == "danger";
+                    primary: item.id == "sync-now";
+                    clicked => { root.action(item.action-id, ""); }
+                }
+            }
+        }
+    }
+}

@@ -39,6 +39,90 @@ pub struct ChartSample {
     pub value: f64,
 }
 
+/// The readout of a crosshair hover/touch probe over the live traffic chart (FLPARITY-022).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ChartProbeSample {
+    /// Normalized horizontal coordinate `[0.0, 1.0]` across chart width.
+    pub relative_x: f64,
+    /// Absolute sample index within the snapshot window.
+    pub sample_index: usize,
+    /// Upload speed at this sample point in bytes per second.
+    pub upload_bps: f64,
+    /// Download speed at this sample point in bytes per second.
+    pub download_bps: f64,
+    /// Offset in seconds relative to current time (0.0 = now, >0.0 = seconds ago).
+    pub seconds_ago: f64,
+}
+
+impl ChartProbeSample {
+    /// Format upload speed in human-readable rate (e.g. "1.2 MB/s").
+    pub fn format_upload(&self) -> String {
+        format_rate_standard(self.upload_bps)
+    }
+
+    /// Format download speed in human-readable rate (e.g. "4.5 MB/s").
+    pub fn format_download(&self) -> String {
+        format_rate_standard(self.download_bps)
+    }
+
+    /// Format relative time label (e.g. "当前" or "15 秒前").
+    pub fn format_time_label(&self) -> String {
+        if self.seconds_ago < 0.5 {
+            "当前".to_owned()
+        } else {
+            format!("{:.0} 秒前", self.seconds_ago)
+        }
+    }
+
+    /// Combined tooltip string for quick display (e.g. "↑ 1.2 MB/s  ↓ 4.5 MB/s (15 秒前)").
+    pub fn format_tooltip(&self) -> String {
+        format!(
+            "↑ {}  ↓ {} ({})",
+            self.format_upload(),
+            self.format_download(),
+            self.format_time_label()
+        )
+    }
+}
+
+/// Standardized human-readable transfer rate formatting (B/s, KB/s, MB/s, GB/s).
+pub fn format_rate_standard(bps: f64) -> String {
+    if !bps.is_finite() || bps <= 0.0 {
+        return "0 B/s".to_owned();
+    }
+    if bps < 1_000.0 {
+        format!("{:.0} B/s", bps)
+    } else if bps < 1_000_000.0 {
+        format!("{:.1} KB/s", bps / 1_000.0)
+    } else if bps < 1_000_000_000.0 {
+        format!("{:.1} MB/s", bps / 1_000_000.0)
+    } else {
+        format!("{:.1} GB/s", bps / 1_000_000_000.0)
+    }
+}
+
+/// Probe a relative horizontal position `[0.0, 1.0]` against a waveform snapshot.
+pub fn probe_traffic_waveform(
+    snapshot: &TrafficWaveformSnapshot,
+    relative_x: f64,
+) -> Option<ChartProbeSample> {
+    if snapshot.samples.is_empty() {
+        return None;
+    }
+    let clamped_x = relative_x.clamp(0.0, 1.0);
+    let total = snapshot.samples.len();
+    let index = ((total.saturating_sub(1)) as f64 * clamped_x).round() as usize;
+    let sample = snapshot.samples.get(index)?;
+    let seconds_ago = (total.saturating_sub(1) - index) as f64;
+    Some(ChartProbeSample {
+        relative_x: clamped_x,
+        sample_index: index,
+        upload_bps: sample.upload_bps,
+        download_bps: sample.download_bps,
+        seconds_ago,
+    })
+}
+
 /// The static scale of a chart.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ChartScale {
@@ -156,6 +240,38 @@ impl TrafficProjector {
         self.samples.clear();
         self.polyline.clear();
         self.scale = ChartScale::default();
+    }
+
+    /// Probe at a normalized relative horizontal coordinate `[0.0, 1.0]`.
+    pub fn probe(&self, relative_x: f64) -> Option<ChartProbeSample> {
+        if self.samples.is_empty() {
+            return None;
+        }
+        let clamped_x = relative_x.clamp(0.0, 1.0);
+        let total = self.samples.len();
+        let index = ((total.saturating_sub(1)) as f64 * clamped_x).round() as usize;
+        let sample = self.samples.get(index)?;
+        let seconds_ago = (total.saturating_sub(1) - index) as f64;
+        let (upload_bps, download_bps) = match self.series {
+            TrafficSeries::Upload => (sample.value, 0.0),
+            TrafficSeries::Download => (0.0, sample.value),
+        };
+        Some(ChartProbeSample {
+            relative_x: clamped_x,
+            sample_index: index,
+            upload_bps,
+            download_bps,
+            seconds_ago,
+        })
+    }
+
+    /// Probe at a pixel coordinate along a given total pixel width.
+    pub fn probe_at_pixel(&self, pixel_x: f64, total_width: f64) -> Option<ChartProbeSample> {
+        if total_width <= 0.0 || !pixel_x.is_finite() {
+            return None;
+        }
+        let relative_x = (pixel_x / total_width).clamp(0.0, 1.0);
+        self.probe(relative_x)
     }
 
     fn rebuild_polyline(&mut self) {
@@ -459,5 +575,74 @@ mod tests {
         assert_eq!(nice_ceiling(7.0), 10.0);
         assert_eq!(nice_ceiling(120.0), 200.0);
         assert!(nice_ceiling(f64::NAN) == 0.0);
+    }
+
+    #[test]
+    fn probe_traffic_waveform_and_formatting() {
+        use infiltrator_contract::traffic_waveform::TrafficSample;
+
+        let empty_snapshot = TrafficWaveformSnapshot::default();
+        assert!(probe_traffic_waveform(&empty_snapshot, 0.5).is_none());
+
+        let snapshot = TrafficWaveformSnapshot {
+            generation: 1,
+            revision: 1,
+            samples: vec![
+                TrafficSample {
+                    sampled_at_epoch_ms: None,
+                    upload_bps: 1_000.0,
+                    download_bps: 2_000.0,
+                },
+                TrafficSample {
+                    sampled_at_epoch_ms: None,
+                    upload_bps: 500_000.0,
+                    download_bps: 1_500_000.0,
+                },
+                TrafficSample {
+                    sampled_at_epoch_ms: None,
+                    upload_bps: 12_000_000_000.0,
+                    download_bps: 30_000_000_000.0,
+                },
+            ],
+        };
+
+        // Probe beginning (oldest: index 0, 2 seconds ago)
+        let probe_start = probe_traffic_waveform(&snapshot, 0.0).unwrap();
+        assert_eq!(probe_start.sample_index, 0);
+        assert_eq!(probe_start.upload_bps, 1_000.0);
+        assert_eq!(probe_start.format_upload(), "1.0 KB/s");
+        assert_eq!(probe_start.format_download(), "2.0 KB/s");
+        assert_eq!(probe_start.seconds_ago, 2.0);
+        assert_eq!(probe_start.format_time_label(), "2 秒前");
+
+        // Probe end (newest: index 2, 0 seconds ago)
+        let probe_end = probe_traffic_waveform(&snapshot, 1.0).unwrap();
+        assert_eq!(probe_end.sample_index, 2);
+        assert_eq!(probe_end.upload_bps, 12_000_000_000.0);
+        assert_eq!(probe_end.format_upload(), "12.0 GB/s");
+        assert_eq!(probe_end.format_download(), "30.0 GB/s");
+        assert_eq!(probe_end.seconds_ago, 0.0);
+        assert_eq!(probe_end.format_time_label(), "当前");
+        assert!(probe_end.format_tooltip().contains("当前"));
+
+        // Rate format edge cases
+        assert_eq!(format_rate_standard(-5.0), "0 B/s");
+        assert_eq!(format_rate_standard(f64::NAN), "0 B/s");
+        assert_eq!(format_rate_standard(999.0), "999 B/s");
+    }
+
+    #[test]
+    fn traffic_projector_probe_at_pixel() {
+        let mut projector = TrafficProjector::new();
+        assert!(projector.probe_at_pixel(50.0, 100.0).is_none());
+
+        projector.observe(&snapshot(&[10.0, 50.0, 100.0]), TrafficSeries::Download);
+        let probe_mid = projector.probe_at_pixel(50.0, 100.0).unwrap();
+        assert_eq!(probe_mid.sample_index, 1);
+        assert_eq!(probe_mid.download_bps, 50.0);
+
+        // Invalid pixel or width
+        assert!(projector.probe_at_pixel(50.0, 0.0).is_none());
+        assert!(projector.probe_at_pixel(f64::NAN, 100.0).is_none());
     }
 }

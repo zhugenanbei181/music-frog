@@ -82,14 +82,14 @@ export global LumenTheme {
             onError: #690005,
             errorContainer: #93000A,
             onErrorContainer: #FFDAD6,
-            background: #000000,
-            onBackground: #EEEEEE,
-            surface: #000000,
-            onSurface: root.invert-semantic-foreground ? #A4A4A4 : #EEEEEE,
-            surfaceVariant: #303030,
-            onSurfaceVariant: root.invert-semantic-foreground ? #EEEEEE : #A4A4A4,
-            outline: #777777,
-            outlineVariant: #353535,
+            background: #0A0B0E,
+            onBackground: #F0F6FC,
+            surface: #0A0B0E,
+            onSurface: root.invert-semantic-foreground ? #A5B0BC : #F0F6FC,
+            surfaceVariant: #1D2126,
+            onSurfaceVariant: root.invert-semantic-foreground ? #F0F6FC : #A5B0BC,
+            outline: #616B78,
+            outlineVariant: #384049,
             shadow: #000000,
             scrim: #000000,
             inverseSurface: #EEEEEE,
@@ -107,37 +107,40 @@ export global LumenTheme {
             onTertiaryFixed: #152A25,
             tertiaryFixedDim: #BBCDC6,
             onTertiaryFixedVariant: #3A4E48,
-            surfaceDim: #000000,
+            surfaceDim: #060809,
             surfaceBright: #383838,
-            surfaceContainerLowest: #111111,
-            surfaceContainerLow: #171717,
-            surfaceContainer: #222222,
-            surfaceContainerHigh: #2B2B2B,
-            surfaceContainerHighest: #333333,
+            surfaceContainerLowest: #060809,
+            surfaceContainerLow: #14171B,
+            surfaceContainer: #1D2126,
+            surfaceContainerHigh: #292E35,
+            surfaceContainerHighest: #363C44,
         },
     };
 
-    out property <color> canvas: root.amoled-mode ? #000000 : root.forest-mode ? #F1F6EF : root.dark-mode ? root.material-schemes.dark.background : root.material-schemes.light.background;
-    out property <color> surface: root.amoled-mode ? #080808 : root.forest-mode ? #F8FBF6 : root.dark-mode ? #222222 : root.material-schemes.light.surface;
-    out property <color> surface-muted: root.amoled-mode ? #121212 : root.forest-mode ? #E8F0E5 : root.dark-mode ? #1C1C1C : root.material-schemes.light.surfaceContainerLow;
+    out property <bool> is-dark: root.dark-mode || root.amoled-mode;
+    out property <color> canvas: root.amoled-mode ? #000000 : root.forest-mode ? #F1F6EF : root.dark-mode ? #0A0B0E : root.material-schemes.light.background;
+    out property <color> surface: root.amoled-mode ? #080808 : root.forest-mode ? #F8FBF6 : root.dark-mode ? #1D2126 : root.material-schemes.light.surface;
+    out property <color> surface-muted: root.amoled-mode ? #121212 : root.forest-mode ? #E8F0E5 : root.dark-mode ? #14171B : root.material-schemes.light.surfaceContainerLow;
+    out property <color> surface-raised: root.amoled-mode ? #181818 : root.forest-mode ? #FFFFFF : root.dark-mode ? #292E35 : root.material-schemes.light.surfaceContainerHigh;
     out property <color> accent: root.forest-mode ? #34784F : root.user-accent;
-    out property <color> accent-soft: root.dark-mode ? root.material-schemes.dark.primaryContainer : root.material-schemes.light.primaryContainer;
-    out property <color> text-primary: root.dark-mode ? root.material-schemes.dark.onSurface : root.material-schemes.light.onSurface;
-    out property <color> text-secondary: root.dark-mode ? root.material-schemes.dark.onSurfaceVariant : root.material-schemes.light.onSurfaceVariant;
-    out property <color> border: root.dark-mode ? root.material-schemes.dark.outlineVariant : root.material-schemes.light.outlineVariant;
-    out property <color> disabled: (root.dark-mode ? root.material-schemes.dark.onSurfaceVariant : root.material-schemes.light.onSurfaceVariant).with_alpha(38%);
-    out property <color> error: root.dark-mode ? root.material-schemes.dark.error : root.material-schemes.light.error;
-    out property <color> ping-good: root.dark-mode ? #82D68D : #2E7D32;
-    out property <color> ping-good-soft: root.dark-mode ? #233B27 : #E8F4E8;
-    out property <color> ping-warning: root.dark-mode ? #FFD180 : #8A5A00;
-    out property <color> ping-warning-soft: root.dark-mode ? #3C321F : #FFF2D1;
-    out property <color> ping-bad: root.dark-mode ? #FFB4AB : #C62828;
-    out property <color> ping-bad-soft: root.dark-mode ? #402624 : #FCE8E6;
-    out property <color> status-info: root.dark-mode ? #70D2EC : #0B667F;
-    out property <color> status-warning: root.dark-mode ? #FFD180 : #9A6810;
-    out property <color> text-muted: root.dark-mode ? #888888 : #666666;
+    out property <color> accent-soft: root.forest-mode ? #DCEEE2 : (root.amoled-mode ? #003644 : (root.dark-mode ? root.material-schemes.dark.primaryContainer : root.material-schemes.light.primaryContainer));
+    out property <color> accent-active: root.forest-mode ? #1F5A36 : (root.is-dark ? #D5F1F8 : root.accent);
+    out property <color> text-primary: root.is-dark ? root.material-schemes.dark.onSurface : root.material-schemes.light.onSurface;
+    out property <color> text-secondary: root.is-dark ? root.material-schemes.dark.onSurfaceVariant : root.material-schemes.light.onSurfaceVariant;
+    out property <color> border: root.amoled-mode ? #222222 : root.forest-mode ? #D5E0CC : (root.dark-mode ? #27272A : root.material-schemes.light.outlineVariant);
+    out property <color> disabled: (root.is-dark ? root.material-schemes.dark.onSurfaceVariant : root.material-schemes.light.onSurfaceVariant).with_alpha(38%);
+    out property <color> error: root.is-dark ? root.material-schemes.dark.error : root.material-schemes.light.error;
+    out property <color> ping-good: root.is-dark ? #82D68D : #2E7D32;
+    out property <color> ping-good-soft: root.is-dark ? #233B27 : #E8F4E8;
+    out property <color> ping-warning: root.is-dark ? #FFD180 : #8A5A00;
+    out property <color> ping-warning-soft: root.is-dark ? #3C321F : #FFF2D1;
+    out property <color> ping-bad: root.is-dark ? #FFB4AB : #C62828;
+    out property <color> ping-bad-soft: root.is-dark ? #402624 : #FCE8E6;
+    out property <color> status-info: root.is-dark ? #70D2EC : #0B667F;
+    out property <color> status-warning: root.is-dark ? #FFD180 : #9A6810;
+    out property <color> text-muted: root.is-dark ? #A5B0BC : #666666;
 
-    out property <color> preference-off: root.dark-mode ? #484848 : #E7E7E7;
+    out property <color> preference-off: root.amoled-mode ? #282828 : (root.forest-mode ? #D5E0CC : (root.dark-mode ? #383838 : #D8D8DC));
     out property <color> preference-accent: root.accent;
     out property <length> preference-card-radius: 28 * LumenUiScale.unit;
     out property <length> preference-text-size: 18 * LumenUiScale.unit;
@@ -154,14 +157,14 @@ export global LumenTheme {
     // never by raw color. zinc-0 is the deepest page void, zinc-7 the
     // highest raised panel; light and forest map the same ladder onto the
     // paper ramp so callers stay theme-blind.
-    out property <color> zinc-0: root.amoled-mode ? #000000 : root.forest-mode ? #E3ECDF : root.dark-mode ? #09090B : #F7F7F8;
-    out property <color> zinc-1: root.amoled-mode ? #050505 : root.forest-mode ? #EAF1E5 : root.dark-mode ? #0F0F11 : #FBFBFC;
-    out property <color> zinc-2: root.amoled-mode ? #0A0A0A : root.forest-mode ? #E0EAD9 : root.dark-mode ? #141416 : #F4F4F5;
-    out property <color> zinc-3: root.amoled-mode ? #101010 : root.forest-mode ? #D5E2CC : root.dark-mode ? #18181B : #EDEDEF;
-    out property <color> zinc-4: root.amoled-mode ? #161616 : root.forest-mode ? #C9D8BF : root.dark-mode ? #1E1E21 : #E4E4E7;
-    out property <color> zinc-5: root.amoled-mode ? #1C1C1C : root.forest-mode ? #BDCFAF : root.dark-mode ? #232326 : #DCDCE0;
-    out property <color> zinc-6: root.amoled-mode ? #222222 : root.forest-mode ? #B0C5A4 : root.dark-mode ? #27272A : #C8C8CD;
-    out property <color> zinc-7: root.amoled-mode ? #282828 : root.forest-mode ? #A3BB98 : root.dark-mode ? #2C2C30 : #BDBDC3;
+    out property <color> zinc-0: root.amoled-mode ? #000000 : root.forest-mode ? #E3ECDF : root.dark-mode ? #0A0B0E : #F7F7F8;
+    out property <color> zinc-1: root.amoled-mode ? #050505 : root.forest-mode ? #EAF1E5 : root.dark-mode ? #0F1114 : #FBFBFC;
+    out property <color> zinc-2: root.amoled-mode ? #0A0A0A : root.forest-mode ? #E0EAD9 : root.dark-mode ? #14171B : #F4F4F5;
+    out property <color> zinc-3: root.amoled-mode ? #101010 : root.forest-mode ? #D5E2CC : root.dark-mode ? #1D2126 : #EDEDEF;
+    out property <color> zinc-4: root.amoled-mode ? #161616 : root.forest-mode ? #C9D8BF : root.dark-mode ? #242930 : #E4E4E7;
+    out property <color> zinc-5: root.amoled-mode ? #1C1C1C : root.forest-mode ? #BDCFAF : root.dark-mode ? #292E35 : #DCDCE0;
+    out property <color> zinc-6: root.amoled-mode ? #222222 : root.forest-mode ? #B0C5A4 : root.dark-mode ? #313740 : #C8C8CD;
+    out property <color> zinc-7: root.amoled-mode ? #282828 : root.forest-mode ? #A3BB98 : root.dark-mode ? #363C44 : #BDBDC3;
     // EFFECTS-037 #151: diffuse two-tier shadows — ambient under resting
     // cards on the panel, key under raised interactive surfaces.
     out property <color> shadow-ambient-color: root.dark-mode || root.amoled-mode ? #00000055 : #0F172A22;

@@ -54,7 +54,14 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
-slint::include_modules!();
+// Slint 1.18.1 的 codegen 对每个嵌套子组件都生成 `todo!()` 嵌入占位（永不执行，
+// 只存在于 build script 产物里）。工作区对 `clippy::todo` 的零容忍针对手写
+// 生产代码；内层 allow 只豁免生成模块自身，src/ 与 tests/ 依旧零违例。
+#[allow(clippy::todo)]
+mod lumen_ui {
+    slint::include_modules!();
+}
+pub use lumen_ui::*;
 
 pub(crate) fn slint_model<T: Clone + 'static>(items: Vec<T>) -> slint::ModelRc<T> {
     slint::ModelRc::new(slint::VecModel::from(items))

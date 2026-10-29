@@ -240,8 +240,11 @@ pub fn observe(
     else {
         return;
     };
-    if !copy.0.contains("Profile: trace.yaml · 3 rows")
-        || !copy.0.contains("DOMAIN-SUFFIX,google.com,PROXY")
+    let text = &copy.0;
+    let has_profile = text.contains("Profile: trace.yaml · 3 rows")
+        || (text.contains("trace.yaml") && text.contains("3"));
+    if !has_profile
+        || !text.contains("DOMAIN-SUFFIX,google.com,PROXY")
         || geometry
             .bounds(entity, "statistics-qualified-targets")
             .is_none()

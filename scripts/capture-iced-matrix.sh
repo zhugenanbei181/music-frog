@@ -205,14 +205,14 @@ while IFS=$'\t' read -r name page skin window_size; do
     exit 2
   }
   case "$page" in
-  overview | proxies | runtime | rules | rules-providers | dns | profiles | sync | editor | mixin | filter | settings | app_routing | doctor) ;;
+  overview | proxies | runtime | rules | rules-providers | dns | profiles | sync | editor | mixin | filter | settings | app_routing | doctor | connections | logs) ;;
   *)
     printf 'invalid scenario row (bad page): %s -> %s\n' "$name" "$page" >&2
     exit 2
     ;;
   esac
   case "$skin" in
-  light | dark | forest) ;;
+  light | dark | forest | amoled) ;;
   *)
     printf 'invalid scenario row (bad skin): %s -> %s\n' "$name" "$skin" >&2
     exit 2
@@ -431,6 +431,9 @@ capture_one() {
   [ "$marker_page" = "mixin" ] && marker_page="editor"
   [ "$marker_page" = "filter" ] && marker_page="editor"
   [ "$marker_page" = "rules-providers" ] && marker_page="rules"
+  [ "$marker_page" = "connections" ] && marker_page="runtime"
+  [ "$marker_page" = "logs" ] && marker_page="runtime"
+  [ "$marker_page" = "about" ] && marker_page="settings"
   local scenario_dir="$RUN_DIR/$name"
   local log="$scenario_dir/app.log"
   local marker="$scenario_dir/marker.log"

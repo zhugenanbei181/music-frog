@@ -79,13 +79,13 @@ pub struct SkinCorePalette {
 pub const fn skin_core(skin: ThemeSkin) -> SkinCorePalette {
     match skin {
         ThemeSkin::Dark => SkinCorePalette {
-            canvas: RgbaToken::rgb(0.082, 0.094, 0.102),
-            sidebar: RgbaToken::rgb(0.106, 0.118, 0.125),
-            card: RgbaToken::rgb(0.145, 0.161, 0.173),
-            card_border: RgbaToken::rgba(0.85, 0.90, 0.95, 0.10),
+            canvas: RgbaToken::rgb(0.040, 0.045, 0.055),
+            sidebar: RgbaToken::rgb(0.060, 0.068, 0.080),
+            card: RgbaToken::rgb(0.115, 0.130, 0.150),
+            card_border: RgbaToken::rgba(0.380, 0.420, 0.470, 0.25),
             control_bg: RgbaToken::rgba(1.0, 1.0, 1.0, 0.07),
-            ink: RgbaToken::rgb(0.93, 0.95, 0.94),
-            ink_dim: RgbaToken::rgba(0.88, 0.90, 0.92, 0.65),
+            ink: RgbaToken::rgb(0.941, 0.965, 0.988),
+            ink_dim: RgbaToken::rgb(0.647, 0.690, 0.737),
             accent: RgbaToken::rgb(0.12, 0.56, 0.96),
             on_accent: RgbaToken::rgb(1.0, 1.0, 1.0),
             success: RgbaToken::rgb(0.24, 0.78, 0.44),
@@ -217,10 +217,6 @@ pub mod radius;
 /// The elevation ladder and the two-layer shadow specification (EFFECTS-002).
 #[path = "elevation.rs"]
 pub mod elevation;
-
-/// The canonical scrollbar metrics and interaction contract across surfaces.
-#[path = "scrollbar.rs"]
-pub mod scrollbar;
 
 /// Continuous curvature / superellipse specification (Squircle / G2 continuity).
 #[derive(Clone, Copy, Debug, PartialEq)]

@@ -9,6 +9,7 @@
 use super::RuleEntry;
 use crate::sub_rules::validate_logical_rule_syntax;
 use infiltrator_contract::rule_edit::{RuleDraft, RuleMoveDirection};
+use infiltrator_contract::rule_override::{CreateRuleOverrideIntent, CreateRuleOverrideResult};
 
 /// Rule types offered by the add-rule wizard, in presentation order.
 pub const CUSTOM_RULE_TYPE_CHOICES: [&str; 12] = [
@@ -117,6 +118,32 @@ pub fn inject_game_presets(rules: &mut Vec<RuleEntry>, target: &str) -> usize {
     prepend_rules(rules, super::game_routing_presets(target))
 }
 
+/// Prepend or append a rule override intent into `rules` with de-duplication (FLPARITY-028).
+/// Returns `Ok(CreateRuleOverrideResult)` with `Applied` or `AlreadyExists`.
+pub fn prepend_rule_override(
+    rules: &mut Vec<RuleEntry>,
+    intent: &CreateRuleOverrideIntent,
+) -> Result<CreateRuleOverrideResult, String> {
+    intent.validate().map_err(|e| e.to_string())?;
+    let rule_line = intent.rule_line();
+    if rules
+        .iter()
+        .any(|r| r.rule.eq_ignore_ascii_case(&rule_line))
+    {
+        return Ok(CreateRuleOverrideResult::already_exists(rule_line));
+    }
+    let entry = RuleEntry {
+        rule: rule_line.clone(),
+        enabled: true,
+    };
+    if intent.prepend {
+        rules.insert(0, entry);
+    } else {
+        rules.push(entry);
+    }
+    Ok(CreateRuleOverrideResult::applied(rule_line))
+}
+
 #[cfg(test)]
 mod tests {
     #[cfg(test)]
@@ -214,5 +241,21 @@ mod tests {
         assert!(rules[0].rule.contains("Game-Proxy"));
         assert!(rules[0].rule.starts_with("PROCESS-NAME"));
         assert_eq!(rules.last().unwrap().rule, "MATCH,DIRECT");
+    }
+    #[test]
+    fn rule_override_prepends_and_deduplicates() {
+        use infiltrator_contract::rule_override::CreateRuleOverrideStatus;
+
+        let mut rules = vec![entry("MATCH,DIRECT", true)];
+        let intent = CreateRuleOverrideIntent::from_host("openai.com:443", "PROXY").unwrap();
+        let res1 = prepend_rule_override(&mut rules, &intent).unwrap();
+        assert_eq!(res1.status, CreateRuleOverrideStatus::Applied);
+        assert_eq!(rules.len(), 2);
+        assert_eq!(rules[0].rule, "DOMAIN-SUFFIX,openai.com,PROXY");
+
+        // Duplicate attempt should not insert
+        let res2 = prepend_rule_override(&mut rules, &intent).unwrap();
+        assert_eq!(res2.status, CreateRuleOverrideStatus::AlreadyExists);
+        assert_eq!(rules.len(), 2);
     }
 }

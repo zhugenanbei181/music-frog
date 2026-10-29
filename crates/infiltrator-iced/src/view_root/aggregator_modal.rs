@@ -295,46 +295,50 @@ pub fn aggregator_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
     // The wizard grew with DUAL-08-07/10/11/13; the card body scrolls inside
     // the viewport instead of overflowing it.
     let body_height = (state.shell.viewport.height_px * 0.78).max(240.0);
+    let scroll_height = (body_height - 52.0).max(180.0);
     let modal_card = container(
-        modern_scrollable(
-            column![
-                title_row,
-                subtitle,
-                Space::new().height(theme::SP_SM),
-                name_input,
-                Space::new().height(theme::SP_XS),
-                options,
-                Space::new().height(theme::SP_XS),
-                rename_input,
-                custom_group_editor,
-                custom_group_rows,
-                Space::new().height(theme::SP_XS),
-                container(modern_scrollable(profiles_list).height(Length::Fixed(140.0)))
-                    .padding(6)
-                    .style(|t: &Theme| {
-                        let tk = tokens(t);
-                        container::Style {
-                            background: Some(tk.control_bg.into()),
-                            border: Border {
-                                radius: border::Radius::from(theme::R_CONTROL),
-                                width: theme::HAIRLINE,
-                                color: tk.card_border,
-                            },
-                            ..Default::default()
-                        }
-                    }),
-                selected_line,
-                Space::new().height(theme::SP_XS),
-                preview_section,
-                Space::new().height(theme::SP_SM),
-                template_section,
-                Space::new().height(theme::SP_MD),
-                row![Space::new().width(Length::Fill), actions],
-            ]
-            .spacing(theme::SP_SM),
-        )
-        .id(Id::new(AGGREGATOR_SCROLL_ID))
-        .height(Length::Fixed(body_height)),
+        column![
+            modern_scrollable(
+                column![
+                    title_row,
+                    subtitle,
+                    Space::new().height(theme::SP_SM),
+                    name_input,
+                    Space::new().height(theme::SP_XS),
+                    options,
+                    Space::new().height(theme::SP_XS),
+                    rename_input,
+                    custom_group_editor,
+                    custom_group_rows,
+                    Space::new().height(theme::SP_XS),
+                    container(modern_scrollable(profiles_list).height(Length::Fixed(140.0)))
+                        .padding(6)
+                        .style(|t: &Theme| {
+                            let tk = tokens(t);
+                            container::Style {
+                                background: Some(tk.control_bg.into()),
+                                border: Border {
+                                    radius: border::Radius::from(theme::R_CONTROL),
+                                    width: theme::HAIRLINE,
+                                    color: tk.card_border,
+                                },
+                                ..Default::default()
+                            }
+                        }),
+                    selected_line,
+                    Space::new().height(theme::SP_XS),
+                    preview_section,
+                    Space::new().height(theme::SP_SM),
+                    template_section,
+                ]
+                .spacing(theme::SP_SM),
+            )
+            .id(Id::new(AGGREGATOR_SCROLL_ID))
+            .height(Length::Fixed(scroll_height)),
+            Space::new().height(theme::SP_SM),
+            row![Space::new().width(Length::Fill), actions],
+        ]
+        .spacing(0),
     )
     .padding([20, 24])
     .width(state.shell.viewport.clamped_modal_width(600.0))

@@ -106,7 +106,7 @@ pub(crate) fn ready(state: &AppState, feature: FeatureId) -> bool {
                 && actions.pending_change().is_none()
                 && actions.render_snapshot().current == Some(RoutingIntent::FollowRules)
         }
-        FeatureId::ProfilesSnapshotRestoreConfirm => {
+        FeatureId::ProfilesSnapshotRestoreConfirm | FeatureId::SyncRestoreConfirm => {
             let model = &state.editor.snapshot_restore;
             model.is_visible()
                 && !model.is_busy()
@@ -526,10 +526,6 @@ pub(crate) fn ready(state: &AppState, feature: FeatureId) -> bool {
                 && state.editor.syntax_error.is_none()
                 && state.editor.document_session.can_edit()
         }
-        // The remaining businesses have no activator in this demo yet: the
-        // capture refuses to publish them as activated instead of claiming a
-        // route-only render as a performed business.
-        FeatureId::SyncRestoreConfirm => false,
         FeatureId::SyncConflictResolver => {
             // The merge session really carries the user's per-key decision.
             let Some(key) = demo_conflict_key(state) else {

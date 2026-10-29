@@ -48,15 +48,15 @@ use bevy::shader::Shader;
 use infiltrator_bevy_widgets::modal::{ModalStage, ModalState};
 
 /// Weight of the gaussian center tap in the collapsed nine-tap kernel.
-pub const KERNEL_CENTER_WEIGHT: f32 = 0.2270270270;
+pub const KERNEL_CENTER_WEIGHT: f32 = 0.227_027_03;
 /// Weight of each tap pair at ±[`KERNEL_NEAR_OFFSET`] texels.
-pub const KERNEL_NEAR_WEIGHT: f32 = 0.3162162162;
+pub const KERNEL_NEAR_WEIGHT: f32 = 0.316_216_23;
 /// Weight of each tap pair at ±[`KERNEL_FAR_OFFSET`] texels.
-pub const KERNEL_FAR_WEIGHT: f32 = 0.0702702703;
+pub const KERNEL_FAR_WEIGHT: f32 = 0.070_270_27;
 /// Texel reach of the near sample pair in the linear-sampling collapse.
-pub const KERNEL_NEAR_OFFSET: f32 = 1.3846153846;
+pub const KERNEL_NEAR_OFFSET: f32 = 1.384_615_4;
 /// Texel reach of the far sample pair in the linear-sampling collapse.
-pub const KERNEL_FAR_OFFSET: f32 = 3.2307692308;
+pub const KERNEL_FAR_OFFSET: f32 = 3.230_769_2;
 /// The calibrated modal backdrop reach a gated camera carries.
 pub const DEFAULT_SPAN: f32 = 1.0;
 
@@ -128,7 +128,7 @@ pub struct QuarterTargets {
 impl QuarterTargets {
     fn new(render_device: &RenderDevice, size: UVec2, format: TextureFormat) -> Self {
         let descriptor = TextureDescriptor {
-            label: Some("backdrop_blur_quarter_texture".into()),
+            label: Some("backdrop_blur_quarter_texture"),
             size: Extent3d {
                 width: size.x,
                 height: size.y,
@@ -263,30 +263,34 @@ pub fn sync_backdrop_blur_gate(
     }
 }
 
-/// Run one fullscreen blur pass from `source_texture` into `destination`.
+struct BlurPassStep<'a> {
+    source_texture: &'a TextureView,
+    destination: &'a TextureView,
+    texel_size: Vec2,
+    direction: Vec2,
+    span: f32,
+}
+
+/// Run one fullscreen blur pass from `step.source_texture` into `step.destination`.
 fn run_blur_pass(
     ctx: &mut RenderContext,
     pipeline: &RenderPipeline,
     bind_group_layout: &BindGroupLayout,
     sampler: &Sampler,
-    source_texture: &TextureView,
-    destination: &TextureView,
-    texel_size: Vec2,
-    direction: Vec2,
-    span: f32,
+    step: BlurPassStep,
 ) {
     let render_device = ctx.render_device();
     let params = BackdropBlurParams {
-        texel_size,
-        direction,
-        span,
+        texel_size: step.texel_size,
+        direction: step.direction,
+        span: step.span,
     };
     let mut writer = UniformBuffer::new(Vec::new());
     writer
         .write(&params)
         .expect("blur params fit the uniform layout");
     let params_buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
-        label: Some("backdrop_blur_params_buffer".into()),
+        label: Some("backdrop_blur_params_buffer"),
         contents: &writer.into_inner(),
         usage: BufferUsages::UNIFORM,
     });
@@ -298,12 +302,12 @@ fn run_blur_pass(
     let bind_group = render_device.create_bind_group(
         "backdrop_blur_bind_group",
         bind_group_layout,
-        &BindGroupEntries::sequential((params_binding, source_texture, sampler)),
+        &BindGroupEntries::sequential((params_binding, step.source_texture, sampler)),
     );
     let pass_descriptor = RenderPassDescriptor {
-        label: Some("backdrop_blur_pass".into()),
+        label: Some("backdrop_blur_pass"),
         color_attachments: &[Some(RenderPassColorAttachment {
-            view: destination,
+            view: step.destination,
             depth_slice: None,
             resolve_target: None,
             ops: Operations {
@@ -366,11 +370,13 @@ pub fn backdrop_blur(
         pipeline,
         &bind_group_layout,
         &blur_pipeline.sampler,
-        post_process.source,
-        &targets.horizontal,
-        full_texel,
-        Vec2::new(1.0, 0.0),
-        blur.span,
+        BlurPassStep {
+            source_texture: post_process.source,
+            destination: &targets.horizontal,
+            texel_size: full_texel,
+            direction: Vec2::new(1.0, 0.0),
+            span: blur.span,
+        },
     );
     // Quarter H → quarter V: vertical gaussian at quarter resolution.
     run_blur_pass(
@@ -378,11 +384,13 @@ pub fn backdrop_blur(
         pipeline,
         &bind_group_layout,
         &blur_pipeline.sampler,
-        &targets.horizontal,
-        &targets.vertical,
-        quarter_texel,
-        Vec2::new(0.0, 1.0),
-        blur.span,
+        BlurPassStep {
+            source_texture: &targets.horizontal,
+            destination: &targets.vertical,
+            texel_size: quarter_texel,
+            direction: Vec2::new(0.0, 1.0),
+            span: blur.span,
+        },
     );
     // Quarter V → destination: span-0 identity bilinear upscale.
     run_blur_pass(
@@ -390,11 +398,13 @@ pub fn backdrop_blur(
         pipeline,
         &bind_group_layout,
         &blur_pipeline.sampler,
-        &targets.vertical,
-        post_process.destination,
-        quarter_texel,
-        Vec2::new(1.0, 0.0),
-        0.0,
+        BlurPassStep {
+            source_texture: &targets.vertical,
+            destination: post_process.destination,
+            texel_size: quarter_texel,
+            direction: Vec2::new(1.0, 0.0),
+            span: 0.0,
+        },
     );
 }
 

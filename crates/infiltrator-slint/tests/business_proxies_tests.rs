@@ -109,6 +109,35 @@ fn the_proxies_probe_settings_refresh_path() {
 }
 
 #[test]
+fn the_proxies_probe_settings_custom_timeout_and_url_path() {
+    use infiltrator_contract::command::CommandIntent;
+    use infiltrator_slint::SlintAction;
+    use infiltrator_slint::surface::action::workbench::business::confirm_action;
+    use infiltrator_slint::surface::harness::SurfaceOutcome;
+
+    let surface = business_surface(PAGE);
+    fixture::open(&surface, BusinessId::ProxiesProbeSettings);
+    surface.set_workbench_draft("https://probe.example.test/204|9000");
+    let outcome = surface.workbench_action(&confirm_action(BusinessId::ProxiesProbeSettings), "");
+    let SurfaceOutcome::Dispatched(actions) = outcome else {
+        panic!("expected dispatched actions");
+    };
+    assert_eq!(actions.len(), 1);
+    let SlintAction::Command(CommandIntent::SetRuntimeProbeSettings { settings }) = &actions[0]
+    else {
+        panic!("expected SetRuntimeProbeSettings command");
+    };
+    assert_eq!(settings.url(), "https://probe.example.test/204");
+    assert_eq!(settings.timeout_ms(), 9000);
+
+    surface.publish_owner_success();
+    assert_eq!(
+        fixture::phase(&surface, BusinessId::ProxiesProbeSettings),
+        infiltrator_slint::surface::business::BusinessPhase::Accepted
+    );
+}
+
+#[test]
 fn the_proxies_uri_import_preview_success_path() {
     let surface = business_surface(PAGE);
 

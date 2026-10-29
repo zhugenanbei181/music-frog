@@ -52,16 +52,16 @@ pub fn provider_lifecycle_line(
     refresh_interval_secs: Option<u64>,
     catalog: &dyn TextCatalog,
 ) -> String {
+    let formatted_time = if updated_at.is_empty() {
+        "—".to_string()
+    } else if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(updated_at) {
+        dt.format("%Y-%m-%d %H:%M:%S").to_string()
+    } else {
+        updated_at.to_string()
+    };
     let updated = interpolate(
         catalog.text("rules_provider_updated_copy").as_ref(),
-        &[(
-            "time",
-            if updated_at.is_empty() {
-                "—"
-            } else {
-                updated_at
-            },
-        )],
+        &[("time", &formatted_time)],
     );
     let undeclared = catalog.text("rules_etag_support_not_declared");
     let source = interpolate(

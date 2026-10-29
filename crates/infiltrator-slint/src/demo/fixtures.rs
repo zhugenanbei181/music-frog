@@ -88,6 +88,7 @@ pub fn dns_cache_snapshot() -> DnsCacheSnapshot {
             },
         },
         failure: None,
+        auto_flush_generation: None,
     }
 }
 
@@ -368,7 +369,7 @@ pub fn subscription_filter() -> SubscriptionFilterDraft {
         include: "香港|日本".to_owned(),
         exclude: "剩余|到期".to_owned(),
         exclude_types: String::new(),
-        renames: "旧名字:新名字".to_owned(),
+        renames: "旧名字 => 新名字".to_owned(),
         dedup_index: 0,
         advanced_policy: None,
     }

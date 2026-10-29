@@ -17,8 +17,14 @@
 - 连接页筛选 owner 发布的活动连接，可查看当前快照中的端点、规则、链路、开始时间和累计字节，也可请求关闭连接。owner 未发布已关闭连接历史，因此“已关闭”切换会被还原并显示原因。
 - 日志页由共享 owner 提供日志流和等级过滤，关键字搜索在 Slint adapter 中作用于当前已发布窗口。规则启停使用 owner 发布的 rule index，Provider 更新提交共享 batch 命令。
 - 流量页展示共享实时采样；今日/周累计历史和清理入口在 owner 未发布历史存储前显示未知值，不伪造统计。
+- 应用分流页 (`PageAppRouting`) 支持分流策略模式（全局 / 仅代理选中 / 选中直连）三段式切换，展示进程规则列表并派发规则与确认意图。
+- 自愈诊断页 (`PageDoctor`) 展示诊断套件报告列表、异常等级与修复建议，支持一键体检与批量修复，并展示 Watchdog 看门狗生命周期。
+- DNS 页 (`PageDns`) 承载 DNS 泄漏交叉探测、实时域名解析查询与重试、Fake-IP 缓存确认清理及 Hosts 静态条目编辑器。
+- 同步页 (`PageSync`) 承载 WebDAV 远端同步、3-Way 差异冲突解决（保留本地/采用远端）及本地备份与快照恢复。
+- 编辑器页 (`PageEditor`) 提供脚本指令 DSL 沙箱控制台与内置预设、YAML/AST 统一差异比对及快照历史还原评审。
+- 过滤与聚合页 (`PageFilters`) 提供订阅规则过滤器（包含/排除/重命名）与配置聚合合并向导。
 - 应用设置写入共享语言和 theme preference；Slint 运行时根据同一个 product gettext catalog 切换界面文案。桌面自启动复用共享平台 helper；自定义强调色与启动时刷新配置写入共享 settings 契约。
-- 关于/许可证页面读取随应用发布的第三方依赖许可证说明。Lumen 来源信息如实说明上游 README 的 MIT 声明以及导入 ZIP 缺少独立 LICENSE 文件。
+- 关于/许可证页面读取随应用发布的第三方依赖许可证说明，全面迁移为产品级词汇展示组件，去除原生 `TextEdit` 等 std 部件。Lumen 来源信息如实说明上游 README 的 MIT 声明以及导入 ZIP 缺少独立 LICENSE 文件。
 
 共享快照明确发布上限的规则、活动连接和日志窗口会在对应页面显示本地化的已显示数/总数提示；本地搜索只缩小已发布窗口，不声称检索未发布内容。
 
@@ -92,7 +98,7 @@
    - **DNS 页**（`Dns`）：`dns-leak-alert`、`dns-query-details`、`dns-fake-ip-flush-confirm`、`dns-hosts-editor`；
    - **编辑器页**（`Editor`）：`profiles-script-sandbox`、`profiles-script-export-review`、`profiles-diff-viewer`、`profiles-snapshot-restore-confirm`；
    - **过滤/聚合页**（`Filters`）：`profiles-filter-editor`、`profiles-aggregator-wizard`、`profiles-aggregator-preview`；
-   - **诊断页**（`Doctor`）：`doctor-failure-recovery`、`lifecycle-recovery-panel`；
+   - **诊断页**（`Doctor`）：`doctor-failure-recovery`、`doctor-repair-progress`、`lifecycle-recovery-panel`；
    - **同步页**（`Sync`）：`sync-conflict-resolver`、`sync-restore-confirm`；
    - **应用路由页**（`AppRouting`）：`app-routing-policy-editor`；
    - **概览页**（`Home`）：`overview-card-reorder`——概览卡片顺序是共享 owner 的事实，界面发共享意图并渲染 owner 发布的顺序，排序面板由 `ui/components/overview_order.slint` 承载；
@@ -123,9 +129,10 @@
    - 由 `scripts/quality/slint-syntax-guard.py` 门禁执行单文件 $\le 600$ 行预算与严禁硬编码状态色约束（100% 通过）。
 
 4. **官方控件收口（UI-FRAMEWORK-001 的 Slint 半边）**：
-   - **Profile-Settings 类型下拉改官方 `PopupMenu`**：`ui/components/profile_sheets.slint` 的 `ProfileSettingsSheet` 不再自绘覆盖层与自持 `profile-settings-type-menu-open` 开关；下拉改为窗口级 `PopupMenu`（`ui/lumen-app.slint` 的 `profile-settings-type-menu`），与主题、语言、代理排序菜单同一形状（`items` / `current_index` / `activated(index)` / `close_policy: close_on_click_outside`），开关状态只由 popup 的 `is-open` 决定；
-   - **Android 复核（同一 pin）**：Slint 1.18.1 的 Android 后端 `i-slint-backend-android-activity` 的 `create_window_adapter` 对每个窗口返回**同一个** adapter（`lib.rs`），即 Android 上 popup 从不成为独立原生窗口，而是画在同一张 surface 里；winit 后端同样注明「We don't render popups as separate windows yet」。因此「popup 不能嵌套所以必须内联」这一 Android 理由在当前 pin 上**不成立**：嵌套 popup 与顶层 popup 的渲染路径一致。由此**添加配置弹层（`ProfileAddSheet`）的类型下拉仍保持内联**是**尚未迁移**而不是被平台禁止，迁移它只需要把触发点的绝对位置传给窗口级 `PopupMenu`（与 `ProfileSettingsSheet` 同一形状）；
+   - **Profile-Settings 与 Profile-Add 类型下拉均改官方 `PopupMenu`**：`ui/components/profile_sheets.slint` 的 `ProfileSettingsSheet` 与 `ProfileAddSheet` 都不再自绘覆盖层与自持开-关布尔；下拉改为窗口级 `PopupMenu`（`ui/lumen-app.slint` 的 `profile-settings-type-menu` 与 `profile-add-type-menu`，组件在 `ui/components/app_chrome.slint`），与主题、语言、代理排序菜单同一形状（`items` / `current_index` / `activated(index)` / `close_policy: close_on_click_outside`），开关状态只由 popup 的 `is-open` 决定，返回手势按同一顺序关闭它们；
+   - **Android 复核（同一 pin）**：Slint 1.18.1 的 Android 后端 `i-slint-backend-android-activity` 的 `create_window_adapter` 对每个窗口返回**同一个** adapter（`lib.rs`），即 Android 上 popup 从不成为独立原生窗口，而是画在同一张 surface 里；winit 后端同样注明「We don't render popups as separate windows yet」。因此「popup 不能嵌套所以必须内联」这一 Android 理由在当前 pin 上**不成立**：嵌套 popup 与顶层 popup 的渲染路径一致——两个配置弹层的下拉已据此完成迁移；
    - **返回手势补齐两个确认弹窗**：`ui/lumen-app.slint` 的 `go-back()` 现在先关 `clear-traffic-dialog` 与 `settings-overlays` 的网络模式确认弹窗（两者都是官方 `PopupWindow`，状态由 popup 自己持有），再依次关主题/语言菜单、代理排序菜单与各类弹层，语义与菜单一致；
    - **滑块改官方 `Slider`**：`ui/components/base_widgets.slint` 的手搓 `AppColorSlider`（自绘 focus scope、指针换算、步进钳制）已删除，`ui/components/settings_sheets.slint` 改用 Lumen 官方 `Slider`（`stop_count` / `value_changed` / `released`）。**皮肤契约**：滑块的外观（轨道、滑块手柄、按下/悬停态）由工具链唯一拥有，产品不再自绘 22px 手柄与可换肤轨道；产品保留的是语义契约——取值区间、步进（以 `stop_count` 表达）、可访问名称、拖动即预览。Lumen 调色板绑定产品的 `MaterialSchemes`，因此强调色仍随产品主题变化；
+   - **关于/开源许可页接入产品词汇**：`ui/pages/page_about.slint` 的检索框改用 `SearchField`、动作改用 `PillButton`，错误文案颜色交还 `LumenTheme.error`，预览框的裸 `"monospace"` 字符串改用主题等宽族；`TextEdit` 只保留为许可证全文的多行只读查看器（官方件，产品无对应组件）。
    - **列表虚拟化（未迁移，原因如下）**：Slint 表面每页只有**一个**滚动面（`ui/components/app_body.slint` 的 `page-scroll`），所有列表都是 `VerticalLayout` 里的 `for` 重复，**不存在 `ScrollView { for … }` 这一模式**；标准 `ListView` 只接受**唯一一个** `for` 子元素（编译器报错「A ListView can just have a single 'for' as children」）且必须自己拥有视口，所以迁移的前提是把页面拆成「纯列表页」。候选是代理节点列表（行高 76px，一组可有数百节点）与连接列表。**行高契约不在共享域**：`infiltrator-contract` / `infiltrator-presentation` / `infiltrator-shared` 都没有行高常量，76px / 46px / 58px 都是本表面的皮肤常量；虚拟化需要共享域给出行高契约（共享 owner 改动），否则只能冻结表面自己的行高。这条属于共享改动前置，未在本切片落地。
 

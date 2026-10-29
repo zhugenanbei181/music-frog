@@ -2,7 +2,7 @@
 use super::card::{modal_backdrop, modal_card};
 use crate::state::AppState;
 use crate::types::message::Message;
-use crate::view::component_forms::{style_accent, style_ghost};
+use crate::view::component_forms::{style_accent, style_danger, style_ghost};
 use crate::view::theme::{FONT_SEMIBOLD, tokens};
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Space, button, column, container, row, text};
@@ -43,7 +43,7 @@ pub fn cache_modal(state: &AppState) -> Element<'_, Message> {
         actions = actions.push(
             container(
                 button(text(lang.tr("dns_cache_confirm")).size(12))
-                    .style(style_accent)
+                    .style(style_danger)
                     .on_press(Message::ConfirmDnsCacheFlush),
             )
             .id(InteractionRegion::CacheConfirm.id()),

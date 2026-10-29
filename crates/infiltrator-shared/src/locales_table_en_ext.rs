@@ -742,8 +742,8 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "rules_etag_support_not_declared" => "not declared".into(),
 
         // Category: DUAL-13-05 kernel-provided target ASN / geolocation facts
-        "conn_drawer_kernel_asn" => "Target ASN attribution (/connections destinationIPASN)".into(),
-        "conn_drawer_kernel_geo" => "Target geo attribution (/connections destinationGeoIP)".into(),
+        "conn_drawer_kernel_asn" => "Target ASN attribution".into(),
+        "conn_drawer_kernel_geo" => "Target geo attribution".into(),
         "conn_drawer_kernel_not_evaluated" => {
             "kernel did not evaluate this connection (needs a GEOIP/IP-ASN rule)".into()
         }

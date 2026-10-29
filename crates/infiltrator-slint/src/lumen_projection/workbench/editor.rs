@@ -15,6 +15,7 @@ use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_domain::script_engine::ScriptEngine;
 use infiltrator_presentation::script_console_projection;
 use infiltrator_presentation::script_export_projection;
+use infiltrator_presentation::snapshot_presentation::{diff_summary, history_summary};
 use infiltrator_shared::locales::Lang;
 use lurker_ui_presentation::copy::TextCatalog;
 
@@ -143,7 +144,7 @@ pub(super) fn page(
     if let Some(diff) = shown {
         items.push(text(
             "config-diff-summary",
-            &catalog.text("snapshot_diff_summary"),
+            &diff_summary(Some(diff), catalog),
         ));
         for line in diff.unified_lines.iter().take(64) {
             items.push(row(
@@ -177,9 +178,7 @@ pub(super) fn page(
     items.push(header(
         "snapshot-restore",
         &catalog.text("snapshot_restore_title"),
-        &history
-            .map(|history| history.profile.clone())
-            .unwrap_or_else(|| catalog.text("snapshot_history_unobserved").into_owned()),
+        &history_summary(history, history.map(|h| h.keep_limit).unwrap_or(5), catalog),
         Tone::Neutral,
     ));
     if let Some(history) = history {

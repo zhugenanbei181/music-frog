@@ -1,0 +1,75 @@
+import { LumenUiScale } from "../lumen-ui-scale.slint";
+import { LumenTheme } from "../components/theme.slint";
+import { ObservationRow } from "../components/models.slint";
+import { PillButton } from "../components/base_widgets.slint";
+import { SectionCard } from "../components/cards.slint";
+import { RuntimeStatus } from "../components/domain_enums.slint";
+
+export component PageProviders inherits VerticalLayout {
+    in property <RuntimeStatus> runtime-status;
+    in property <[ObservationRow]> providers;
+
+    callback refresh();
+    callback update-provider(string);
+
+    width: 100%;
+    spacing: LumenTheme.space-4;
+
+    SectionCard {
+        heading: @tr("外部资源");
+        detail: root.runtime-status == RuntimeStatus.running ? @tr("规则集与节点提供者；可手动触发更新并观察版本。") : @tr("Runtime 未运行；不显示缓存数据作为实时状态。");
+
+        HorizontalLayout {
+            alignment: end;
+            PillButton {
+                label: @tr("全部更新");
+                min-pill-width: 96 * LumenUiScale.unit;
+                clicked => { root.refresh(); }
+            }
+        }
+
+        for row in root.providers: Rectangle {
+            height: 44 * LumenUiScale.unit;
+            border-radius: LumenTheme.radius-control;
+            background: LumenTheme.surface-muted;
+            border-width: 1 * LumenUiScale.unit;
+            border-color: LumenTheme.border;
+
+            HorizontalLayout {
+                padding-left: 14 * LumenUiScale.unit;
+                padding-right: 14 * LumenUiScale.unit;
+                spacing: LumenTheme.space-3;
+                cross-axis-alignment: center;
+
+                Text {
+                    text: row.title + " · " + row.subtitle;
+                    color: LumenTheme.text-primary;
+                    font-size: 13 * LumenUiScale.unit;
+                    horizontal-stretch: 1;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+
+                Text {
+                    text: row.trailing;
+                    color: LumenTheme.text-secondary;
+                    font-size: 12 * LumenUiScale.unit;
+                    vertical-alignment: center;
+                }
+
+                PillButton {
+                    label: @tr("更新");
+                    min-pill-width: 64 * LumenUiScale.unit;
+                    pill-height: 28 * LumenUiScale.unit;
+                    clicked => { root.update-provider(row.id); }
+                }
+            }
+        }
+
+        if root.providers.length == 0: Text {
+            text: root.runtime-status != RuntimeStatus.running ? @tr("Runtime 未运行，外部资源不可用") : @tr("暂无外部资源");
+            color: LumenTheme.text-secondary;
+            font-size: 13 * LumenUiScale.unit;
+        }
+    }
+}

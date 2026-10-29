@@ -16,7 +16,8 @@
 # Differences from the iced pipeline (documented for reviewers):
 #   * the Bevy product belongs to the root workspace; the package binary is
 #     target/debug/infiltrator-bevy-ui;
-#   * the app's env knobs are INFILTRATOR_BEVY_SKIN (dark|light),
+#   * the app's env knobs are INFILTRATOR_BEVY_SKIN
+#     (dark|light|forest|amoled; business rows default to forest),
 #     INFILTRATOR_BEVY_WINDOW_SIZE (WxH) and INFILTRATOR_CAPTURE_MARKER
 #     (frame-counted readiness file written by src/capture.rs);
 #   * the window identity is the title "MusicFrog Infiltrator — Bevy"
@@ -84,6 +85,7 @@ KWIN_DISPLAY=""
 
 MARKER_TIMEOUT_ITERS=120 # 120 * 0.25s = 30s readiness budget
 WINDOW_TIMEOUT_ITERS=80  # 80 * 0.25s = 20s window-discovery budget
+INTERACTION_TIMEOUT_ITERS=80 # 80 * 0.25s = 20s post-shot gesture/readback budget
 KWIN_START_ITERS=40      # 40 * 0.2s = 8s virtual-host socket budget
 NIRI_START_ITERS=60      # 60 * 0.2s = 12s compositor-start budget
 
@@ -228,7 +230,7 @@ while IFS=$'\t' read -r name page skin window_size; do
     ;;
   esac
   case "$skin" in
-  light | dark) ;;
+  light | dark | forest | amoled) ;;
   *)
     printf 'invalid scenario row (bad skin): %s -> %s\n' "$name" "$skin" >&2
     exit 2
@@ -463,6 +465,7 @@ capture_one() {
   local scenario_dir="$RUN_DIR/$name"
   local log="$scenario_dir/app.log"
   local marker="$scenario_dir/marker.log"
+  local interaction_marker="$scenario_dir/marker.interaction"
   local windows_json="$scenario_dir/windows.json"
   local windows_tmp="$scenario_dir/windows.json.tmp"
   local windows_error="$scenario_dir/windows.err"
@@ -497,7 +500,7 @@ capture_one() {
     if [ "$attempt" -gt 1 ]; then
       archive_capture_attempt "$scenario_dir" "$((attempt - 1))" "$action_status" "$APP_PID" "$window_id"
     fi
-    rm -f "$marker" "$windows_json" "$windows_tmp" "$windows_error" "$action" "$image"
+    rm -f "$marker" "$interaction_marker" "$windows_json" "$windows_tmp" "$windows_error" "$action" "$image"
     APP_PID=""
     APP_PGID=""
     window_id=""
@@ -632,6 +635,24 @@ capture_one() {
         fi
       else
         action_status=failed
+      fi
+    fi
+
+    # A review screenshot alone does not prove the destructive control was
+    # exercised. The rollback capture confirms only after the screenshot, then
+    # writes this second receipt from the version owner's changed readback.
+    if [ "$action_status" = ok ] && [ "$interaction" = "core-version-rollback-confirm" ]; then
+      local interaction_ready=0
+      for _ in $(seq 1 "$INTERACTION_TIMEOUT_ITERS"); do
+        if grep -q "CAPTURE_INTERACTION scenario=$interaction" "$interaction_marker" 2>/dev/null; then
+          interaction_ready=1
+          break
+        fi
+        kill -0 "$APP_PID" 2>/dev/null || break
+        sleep 0.25
+      done
+      if [ "$interaction_ready" -ne 1 ]; then
+        action_status="failed-interaction (post-shot confirmation/readback missing)"
       fi
     fi
 

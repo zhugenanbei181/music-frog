@@ -62,6 +62,7 @@ mod scroll;
 mod search;
 mod settings;
 mod snapshot_restore;
+mod sync_conflict;
 mod telemetry;
 
 #[derive(Resource, Clone, Copy, Debug)]
@@ -109,6 +110,9 @@ impl InteractionCapture {
             FeatureId::ProfilesSnapshotRestoreConfirm | FeatureId::SyncRestoreConfirm
         ) {
             snapshot_restore::install(app);
+        }
+        if feature == FeatureId::SyncConflictResolver {
+            sync_conflict::install(app);
         }
         if feature == FeatureId::RuntimeTelemetryObservation {
             telemetry::install(app);
@@ -171,14 +175,17 @@ impl InteractionCapture {
                 rule_statistics::observe.in_set(CaptureObservationSet),
             );
         }
-        if feature == FeatureId::RulesListEditor {
+        if feature == FeatureId::RulesListEditor || feature == FeatureId::RulesProviderRefreshError
+        {
             rule_list::install(app);
             app.add_systems(Update, rule_list::activate.before(rules_draft::observe));
             app.add_systems(PostUpdate, rule_list::observe.in_set(CaptureObservationSet));
         }
         if matches!(
             feature,
-            FeatureId::ProfilesAggregatorWizard | FeatureId::ProfilesDiffViewer
+            FeatureId::ProfilesAggregatorWizard
+                | FeatureId::ProfilesDiffViewer
+                | FeatureId::ProfilesAggregatorPreview
         ) {
             panel::install(app);
         }
@@ -313,7 +320,12 @@ impl InteractionCapture {
             app.add_systems(Update, overview::activate);
             app.add_systems(PostUpdate, overview::observe.in_set(CaptureObservationSet));
         }
-        if feature == FeatureId::EditorLargeDocumentWindow {
+        if matches!(
+            feature,
+            FeatureId::EditorLargeDocumentWindow
+                | FeatureId::EditorSnippetInsertion
+                | FeatureId::EditorYamlErrorNavigation
+        ) {
             profiles::install(app);
             app.add_systems(Update, profiles::activate);
             app.add_systems(PostUpdate, profiles::observe.in_set(CaptureObservationSet));
@@ -323,14 +335,18 @@ impl InteractionCapture {
             FeatureId::SettingsPortConflictRepair
                 | FeatureId::SettingsTunPermission
                 | FeatureId::SettingsPermissionPanel
+                | FeatureId::CoreVersionRollbackConfirm
+                | FeatureId::SettingsLanSecurity
         ) {
-            settings::install(app);
+            settings::install(app, feature);
             app.add_systems(Update, settings::activate);
             app.add_systems(PostUpdate, settings::observe.in_set(CaptureObservationSet));
         }
         if matches!(
             feature,
-            FeatureId::ProfilesDeleteConfirm | FeatureId::ProfilesSubscriptionError
+            FeatureId::ProfilesDeleteConfirm
+                | FeatureId::ProfilesSubscriptionError
+                | FeatureId::ProfilesImportModal
         ) {
             profiles_business::install(app);
             app.add_systems(Update, profiles_business::activate);
@@ -442,9 +458,11 @@ fn has_specialized_activator(feature: FeatureId) -> bool {
             | FeatureId::RulesOverrideEditor
             | FeatureId::RulesStatisticsInspector
             | FeatureId::RulesListEditor
+            | FeatureId::RulesProviderRefreshError
             | FeatureId::ProfilesFilterEditor
             | FeatureId::ProfilesSnapshotRestoreConfirm
             | FeatureId::ProfilesAggregatorWizard
+            | FeatureId::ProfilesAggregatorPreview
             | FeatureId::ProfilesDiffViewer
             | FeatureId::RulesSearchHighlight
             | FeatureId::AppRoutingPolicyEditor
@@ -456,10 +474,16 @@ fn has_specialized_activator(feature: FeatureId) -> bool {
             | FeatureId::SpeedtestProgressCancel
             | FeatureId::ShellKeyboardFocus
             | FeatureId::EditorLargeDocumentWindow
+            | FeatureId::EditorSnippetInsertion
+            | FeatureId::EditorYamlErrorNavigation
+            | FeatureId::SyncConflictResolver
             | FeatureId::SyncRestoreConfirm
             | FeatureId::SettingsPortConflictRepair
             | FeatureId::SettingsTunPermission
             | FeatureId::SettingsPermissionPanel
+            | FeatureId::SettingsLanSecurity
+            | FeatureId::CoreVersionRollbackConfirm
+            | FeatureId::ProfilesImportModal
             | FeatureId::ProfilesDeleteConfirm
             | FeatureId::ProfilesSubscriptionError
             | FeatureId::ProfilesScriptSandbox

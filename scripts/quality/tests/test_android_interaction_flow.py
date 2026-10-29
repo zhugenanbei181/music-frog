@@ -262,7 +262,9 @@ class AndroidInteractionFlowTests(unittest.TestCase):
         self.assertIn("startup", proven)
         self.assertIn("navigation", proven)
         self.assertIn("list-scroll", proven)
+        self.assertEqual(receipt.theme, "forest")
         for step in receipt.steps:
+            self.assertEqual(step.theme, "forest")
             self.assertTrue(step.business_id)
             self.assertTrue(step.logcat.sha256)
             self.assertTrue(step.frame.sha256)
@@ -279,6 +281,25 @@ class AndroidInteractionFlowTests(unittest.TestCase):
         receipt = flow.run()
         document = capture_evidence.build_document(ROOT, [receipt], {"git_head": "test"})
         self.assertEqual(guard.receipt_problems(ROOT, document), [])
+
+    def test_the_flow_supports_explicit_theme_override(self) -> None:
+        scenarios = capture_scenarios.load_scenarios(ANDROID / "android_interaction_scenarios.tsv")
+        anchors = capture_anchors.load_anchors(ANDROID / "android_interaction_anchors.tsv")
+        options = capture_flow.FlowOptions(
+            flavor="compose",
+            apk=self.apk,
+            output=self.output,
+            adb=self.adb,
+            serial="emulator-5554",
+            settle_seconds=0.0,
+            dialog_timeout_seconds=2.0,
+            theme="dark",
+        )
+        flow = capture_flow.CaptureFlow(options, scenarios, anchors)
+        receipt = flow.run()
+        self.assertEqual(receipt.theme, "dark")
+        for step in receipt.steps:
+            self.assertEqual(step.theme, "dark")
 
     def test_a_step_without_an_evidence_produces_no_receipt(self) -> None:
         table = ANDROID / "android_interaction_scenarios.tsv"

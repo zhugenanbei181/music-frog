@@ -908,7 +908,6 @@ pub fn nav_rail_icon<'a>(route: Route, current_route: &Route) -> Element<'a, Mes
                     } else {
                         Color::TRANSPARENT
                     },
-                    ..Default::default()
                 },
                 ..Default::default()
             }

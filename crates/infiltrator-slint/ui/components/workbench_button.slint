@@ -13,17 +13,23 @@ import { LumenTheme } from "theme.slint";
 export component WorkbenchButton inherits Rectangle {
     in property <string> text;
     in property <bool> enabled: true;
+    // The one primary action of a bar (save, create, repair-all); every
+    // other action stays secondary. The pointer never repaints the body, so
+    // a route-only render stays a stable capture baseline.
+    in property <bool> primary: false;
+    in property <bool> danger: false;
 
     callback clicked();
 
     // A panel action fills the panel; a row action keeps its own width and
     // asks the row layout not to stretch it.
-    min-width: max(96 * LumenUiScale.unit, i-layout.min-width);
-    height: 40 * LumenUiScale.unit;
-    border-radius: LumenTheme.radius-control;
-    background: LumenTheme.surface-muted;
+    min-width: max(96 * LumenUiScale.unit, i-layout.min-width + 24 * LumenUiScale.unit);
+    height: 34 * LumenUiScale.unit;
+    border-radius: 17 * LumenUiScale.unit;
+    background: root.danger && root.enabled ? LumenTheme.error : (root.primary && root.enabled ? LumenTheme.accent : (touch.has-hover && root.enabled ? LumenTheme.surface-raised : LumenTheme.surface-muted));
     border-width: 1 * LumenUiScale.unit;
-    border-color: root.enabled ? LumenTheme.border : LumenTheme.disabled;
+    border-color: root.danger && root.enabled ? LumenTheme.error : (root.primary && root.enabled ? LumenTheme.accent : (touch.has-hover && root.enabled ? LumenTheme.accent : LumenTheme.border));
+    animate background, border-color { duration: 120ms; easing: ease-out; }
 
     accessible-role: button;
     accessible-label: root.text;
@@ -49,17 +55,16 @@ export component WorkbenchButton inherits Rectangle {
         width: parent.width - 24 * LumenUiScale.unit;
         height: parent.height;
         alignment: center;
-
         Text {
             text: root.text;
             color: !root.enabled ? LumenTheme.disabled
+                : (root.danger || root.primary) ? LumenTheme.accent-foreground
                 : touch.has-hover ? LumenTheme.accent
                 : LumenTheme.text-primary;
             font-size: 14 * LumenUiScale.unit;
             font-weight: 600;
             horizontal-alignment: center;
             vertical-alignment: center;
-            overflow: elide;
         }
     }
 

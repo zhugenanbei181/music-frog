@@ -1,8 +1,10 @@
 //! test-intent: behavior
 use crate::filter_query::{FilterQuery, LatencyBound};
 use crate::proxies_page_model::{
-    PROXY_SORT_OPTIONS, ProxiesPageModel, ProxyFilterTarget, proxy_feature_tags, proxy_name_runs,
-    proxy_protocol_chip, sort_option_at, sort_option_index,
+    PROXY_SORT_OPTIONS, ProxiesPageModel, ProxyFilterTarget, matches_advanced_filter,
+    proxy_feature_tags, proxy_flag_icon_token, proxy_name_runs, proxy_node_region,
+    proxy_protocol_chip, proxy_region_label_en, proxy_region_label_zh, sort_option_at,
+    sort_option_index,
 };
 use lurker_core_contract::outbound::details::OutboundHealthObservation;
 use lurker_core_contract::outbound::preferences::{OutboundHealthFilter, OutboundSortOrder};
@@ -294,4 +296,84 @@ fn the_feature_tags_are_reduced_to_one_chip_each() {
     let reduced = proxy_feature_tags(&tags);
     assert_eq!(reduced, vec!["UDP".to_owned(), "IPv6".to_owned()]);
     assert!(proxy_feature_tags(&[]).is_empty());
+}
+
+#[test]
+fn proxy_node_region_and_flag_token_derivation() {
+    use infiltrator_contract::geo_region::GeoRegion;
+
+    assert_eq!(proxy_node_region("🇭🇰 香港 01 · 专线"), GeoRegion::HongKong);
+    assert_eq!(proxy_flag_icon_token("HK-IEPL-01"), "flag-hk");
+    assert_eq!(proxy_region_label_zh("HK-IEPL-01"), "香港");
+    assert_eq!(proxy_region_label_en("HK-IEPL-01"), "Hong Kong");
+
+    assert_eq!(proxy_node_region("JP-Tokyo-02"), GeoRegion::Japan);
+    assert_eq!(proxy_flag_icon_token("JP-Tokyo-02"), "flag-jp");
+
+    assert_eq!(
+        proxy_node_region("US Los Angeles Fast"),
+        GeoRegion::UnitedStates
+    );
+    assert_eq!(proxy_flag_icon_token("US Los Angeles Fast"), "flag-us");
+
+    assert_eq!(proxy_node_region("Singapore Anycast"), GeoRegion::Singapore);
+    assert_eq!(proxy_flag_icon_token("SG-01"), "flag-sg");
+
+    assert_eq!(proxy_node_region("Custom Node Relay"), GeoRegion::Other);
+    assert_eq!(proxy_flag_icon_token("Custom Node Relay"), "flag-globe");
+    assert_eq!(proxy_region_label_zh("Custom Node Relay"), "其他地区");
+}
+
+#[test]
+fn advanced_proxy_filter_matching() {
+    use infiltrator_contract::geo_region::GeoRegion;
+    use infiltrator_contract::proxies::ProxyProtocolBadge;
+    use infiltrator_contract::proxy_filter::ProxyFilterQuery;
+
+    let node_hk = Node::new("🇭🇰 香港 IPLC 01", "ss", Some(38));
+    let mut node_us = Node::new("🇺🇸 美国洛杉矶 02 - 官网重置", "vless", Some(180));
+    node_us.favorite = true;
+    let node_jp = Node::new("🇯🇵 日本东京 03", "trojan", Some(85));
+
+    // 1. Empty filter matches all
+    let empty_query = ProxyFilterQuery::default();
+    assert!(matches_advanced_filter(&empty_query, &node_hk));
+    assert!(matches_advanced_filter(&empty_query, &node_us));
+    assert!(matches_advanced_filter(&empty_query, &node_jp));
+
+    // 2. Favorite only filter
+    let mut fav_query = ProxyFilterQuery::default();
+    fav_query.favorite_only = true;
+    assert!(!matches_advanced_filter(&fav_query, &node_hk));
+    assert!(matches_advanced_filter(&fav_query, &node_us));
+    assert!(!matches_advanced_filter(&fav_query, &node_jp));
+
+    // 3. Protocol filter
+    let mut proto_query = ProxyFilterQuery::default();
+    proto_query.protocols = vec![ProxyProtocolBadge::Shadowsocks, ProxyProtocolBadge::Trojan];
+    assert!(matches_advanced_filter(&proto_query, &node_hk));
+    assert!(!matches_advanced_filter(&proto_query, &node_us));
+    assert!(matches_advanced_filter(&proto_query, &node_jp));
+
+    // 4. Region filter
+    let mut region_query = ProxyFilterQuery::default();
+    region_query.regions = vec![GeoRegion::HongKong];
+    assert!(matches_advanced_filter(&region_query, &node_hk));
+    assert!(!matches_advanced_filter(&region_query, &node_us));
+    assert!(!matches_advanced_filter(&region_query, &node_jp));
+
+    // 5. Latency range filter
+    let mut latency_query = ProxyFilterQuery::default();
+    latency_query.min_latency_ms = Some(50);
+    latency_query.max_latency_ms = Some(100);
+    assert!(!matches_advanced_filter(&latency_query, &node_hk));
+    assert!(!matches_advanced_filter(&latency_query, &node_us));
+    assert!(matches_advanced_filter(&latency_query, &node_jp));
+
+    // 6. Exclusion keyword
+    let mut exclude_query = ProxyFilterQuery::default();
+    exclude_query.exclude_keywords = vec!["重置".to_owned()];
+    assert!(matches_advanced_filter(&exclude_query, &node_hk));
+    assert!(!matches_advanced_filter(&exclude_query, &node_us));
+    assert!(matches_advanced_filter(&exclude_query, &node_jp));
 }

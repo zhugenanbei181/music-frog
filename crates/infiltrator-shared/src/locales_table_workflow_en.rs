@@ -763,6 +763,7 @@ pub(super) fn translate_workflow_en(key: &str) -> Cow<'static, str> {
         "doctor_category_config" => "Configuration validation".into(),
         "doctor_check_config_fixture" => "3 MRS rule sets passed validation with no syntax warnings".into(),
         "doctor_operation_pending" => "Running diagnostic operation…".into(),
+        "waiting" => "Waiting for confirmation".into(),
         "doctor_retry_action" => "Retry last operation".into(),
         "doctor_repair_row" => "Repair this issue".into(),
         "doctor_no_repair_needed" => "No diagnostic repair was needed".into(),

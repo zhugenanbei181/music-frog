@@ -1,12 +1,143 @@
-import { LineEdit } from "std-widgets.slint";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "../components/theme.slint";
+import { ItemHeader, ItemRow, DraftField } from "../components/workbench_parts.slint";
 import { WorkbenchButton } from "../components/workbench_button.slint";
 import { WorkbenchItem } from "../components/models.slint";
 
-// The carrier of every business that has no dedicated page yet. Each cell of
-// the flat item list renders one observation, one status line or one action
-// of the business the owner published.
+// One self-contained card for a business panel in the workbench. It unifies
+// the header, summary, facts, failure notes, and action buttons into a single
+// cohesive container with proper padding, border, and background.
+component WorkbenchPanelCard inherits Rectangle {
+    in property <string> panel-id;
+    in property <[WorkbenchItem]> items;
+    callback action(string, string);
+
+    width: 100%;
+    vertical-stretch: 0;
+    border-radius: LumenTheme.radius-card;
+    background: LumenTheme.surface;
+    border-width: 1 * LumenUiScale.unit;
+    border-color: LumenTheme.border;
+
+    VerticalLayout {
+        alignment: start;
+        spacing: 0;
+        padding-left: 18 * LumenUiScale.unit;
+        padding-right: 18 * LumenUiScale.unit;
+        padding-top: 14 * LumenUiScale.unit;
+        padding-bottom: 14 * LumenUiScale.unit;
+
+        // 1. Header (Title + Status Badge)
+        for item in root.items: VerticalLayout {
+            spacing: 0;
+            if item.id == root.panel-id: VerticalLayout {
+                spacing: 0;
+                ItemHeader {
+                    item: item;
+                    badge: true;
+                }
+                Rectangle { height: 8 * LumenUiScale.unit; }
+            }
+        }
+
+        // 2. Body facts, summary, and failure notices
+        for item in root.items: VerticalLayout {
+            spacing: 0;
+            if item.id == root.panel-id + "/summary" && item.detail != "": VerticalLayout {
+                spacing: 0;
+                Text {
+                    text: item.id == "shell-command-palette/summary" ? (@tr("共 ") + item.detail + @tr(" 项快捷命令")) :
+                          item.id == "rules-provider-refresh-error/summary" ? (@tr("已收录 ") + item.detail + @tr(" 个规则提供者")) :
+                          item.id == "settings-port-conflict-repair/summary" ? (@tr("检测到 ") + item.detail + @tr(" 处端口冲突")) :
+                          item.id == "speedtest-history-comparison/summary" ? (item.detail == "0" ? @tr("暂无历史探测记录") : (@tr("已保存 ") + item.detail + @tr(" 条测速历史"))) :
+                          item.id == "speedtest-details-modal/summary" ? (@tr("探测目标：") + item.detail + @tr(" 个节点")) :
+                          item.detail;
+                    color: LumenTheme.text-secondary;
+                    font-size: 13 * LumenUiScale.unit;
+                    wrap: word-wrap;
+                }
+                Rectangle { height: 8 * LumenUiScale.unit; }
+            }
+            if item.id == root.panel-id + "/failure" && item.detail != "": VerticalLayout {
+                spacing: 0;
+                Text {
+                    text: item.detail;
+                    color: LumenTheme.error;
+                    font-size: 13 * LumenUiScale.unit;
+                    font-weight: 500;
+                    wrap: word-wrap;
+                }
+                Rectangle { height: 8 * LumenUiScale.unit; }
+            }
+            if item.id == root.panel-id + "/guide" && item.detail != "": VerticalLayout {
+                spacing: 0;
+                Text {
+                    text: item.detail;
+                    color: LumenTheme.text-muted;
+                    font-size: 12 * LumenUiScale.unit;
+                    wrap: word-wrap;
+                }
+                Rectangle { height: 8 * LumenUiScale.unit; }
+            }
+            if item.id.starts-with(root.panel-id + "/fact/"): VerticalLayout {
+                spacing: 0;
+                Rectangle {
+                    border-radius: LumenTheme.radius-control;
+                    background: LumenTheme.surface-muted;
+                    height: 34 * LumenUiScale.unit;
+
+                    HorizontalLayout {
+                        padding-left: 12 * LumenUiScale.unit;
+                        padding-right: 12 * LumenUiScale.unit;
+                        cross-axis-alignment: center;
+                        Text {
+                            text: item.detail;
+                            color: LumenTheme.text-primary;
+                            font-size: 13 * LumenUiScale.unit;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
+                    }
+                }
+                Rectangle { height: 6 * LumenUiScale.unit; }
+            }
+            if item.id.starts-with(root.panel-id + "/row/"): VerticalLayout {
+                spacing: 0;
+                ItemRow {
+                    item: item;
+                    row-min-height: 46 * LumenUiScale.unit;
+                    action(id, row) => { root.action(id, row); }
+                }
+                Rectangle { height: 6 * LumenUiScale.unit; }
+            }
+        }
+
+        // 3. Action bar at bottom right
+        HorizontalLayout {
+            alignment: end;
+            spacing: 0;
+
+            for item in root.items: HorizontalLayout {
+                spacing: 0;
+                if item.id.starts-with(root.panel-id + "/") && item.kind == "button": HorizontalLayout {
+                    spacing: 0;
+                    Rectangle { width: 8 * LumenUiScale.unit; }
+                    WorkbenchButton {
+                        text: item.label;
+                        enabled: item.enabled;
+                        danger: item.tone == "danger";
+                        primary: item.id.ends-with("/confirm");
+                        clicked => { root.action(item.action-id, ""); }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// The carrier of every business that has no dedicated page yet. Loop discipline:
+// the list layout keeps spacing 0 and wraps each conditional part in its own
+// zero-size container, so items the page does not render leave no phantom gap.
 export component PageWorkbench inherits VerticalLayout {
     in property <[WorkbenchItem]> items;
     in-out property <string> draft;
@@ -23,109 +154,44 @@ export component PageWorkbench inherits VerticalLayout {
     spacing: LumenTheme.space-3;
     alignment: start;
 
-    if root.draft-id != "": LineEdit {
-        width: parent.width;
+    if root.draft-id != "": DraftField {
+        draft-id: root.draft-id;
+        placeholder: root.draft-placeholder;
         text <=> root.draft;
-        placeholder-text: root.draft-placeholder;
-        edited(value) => { root.draft-edited(root.draft-id, value); }
+        edited(id, value) => { root.draft-edited(id, value); }
     }
-    if root.draft-2-id != "": LineEdit {
-        width: parent.width;
+    if root.draft-2-id != "": DraftField {
+        draft-id: root.draft-2-id;
+        placeholder: root.draft-2-placeholder;
         text <=> root.draft-2;
-        placeholder-text: root.draft-2-placeholder;
-        edited(value) => { root.draft-edited(root.draft-2-id, value); }
+        edited(id, value) => { root.draft-edited(id, value); }
     }
 
-    for item in root.items: VerticalLayout {
-        vertical-stretch: 0;
-        width: parent.width;
-        spacing: 0 * LumenUiScale.unit;
+    VerticalLayout {
+        spacing: 0;
         alignment: start;
+        vertical-stretch: 0;
 
-        if item.kind == "header": Rectangle {
-            width: parent.width;
-            height: 58 * LumenUiScale.unit;
-            border-radius: LumenTheme.radius-control;
-            background: LumenTheme.surface;
-            VerticalLayout {
-                x: 14 * LumenUiScale.unit;
-                width: parent.width - 28 * LumenUiScale.unit;
-                height: parent.height;
-                spacing: 2 * LumenUiScale.unit;
-                alignment: center;
-                Text {
-                    text: item.title;
-                    color: LumenTheme.text-primary;
-                    font-size: 16 * LumenUiScale.unit;
-                    font-weight: 600;
-                    wrap: word-wrap;
-                    vertical-stretch: 0;
-                }
-                Text {
-                    text: item.status;
-                    color: item.tone == "danger" ? LumenTheme.error
-                        : item.tone == "success" ? LumenTheme.ping-good
-                        : item.tone == "warning" ? LumenTheme.status-warning
-                        : LumenTheme.text-secondary;
-                    font-size: 13 * LumenUiScale.unit;
-                    wrap: word-wrap;
-                    vertical-stretch: 0;
-                }
-            }
-        }
-
-        if item.kind == "text": Text {
-            width: parent.width;
-            text: item.detail;
-            color: LumenTheme.text-secondary;
-            font-size: 13 * LumenUiScale.unit;
-            wrap: word-wrap;
+        for header-item in root.items: VerticalLayout {
+            spacing: 0;
+            alignment: start;
             vertical-stretch: 0;
-        }
-
-        if item.kind == "row": Rectangle {
-            width: parent.width;
-            height: 46 * LumenUiScale.unit;
-            border-radius: LumenTheme.radius-control;
-            background: LumenTheme.surface-muted;
-            HorizontalLayout {
-                x: 12 * LumenUiScale.unit;
-                width: parent.width - 24 * LumenUiScale.unit;
-                height: parent.height;
-                spacing: LumenTheme.space-2;
-                cross-axis-alignment: center;
-                Text {
-                    text: item.title;
-                    color: LumenTheme.text-primary;
-                    font-size: 14 * LumenUiScale.unit;
-                    horizontal-stretch: 1;
-                    overflow: elide;
+            if header-item.kind == "header": VerticalLayout {
+                spacing: 0;
+                alignment: start;
+                vertical-stretch: 0;
+                WorkbenchPanelCard {
+                    panel-id: header-item.id;
+                    items: root.items;
+                    action(id, row) => { root.action(id, row); }
                 }
-                Text {
-                    text: item.detail;
-                    color: LumenTheme.text-secondary;
-                    font-size: 12 * LumenUiScale.unit;
-                    overflow: elide;
-                }
-                Text {
-                    text: item.trailing;
-                    color: LumenTheme.accent;
-                    font-size: 12 * LumenUiScale.unit;
-                    overflow: elide;
-                }
-                if item.action-id != "": WorkbenchButton {
-                    text: item.label;
-                    enabled: item.enabled;
-                    horizontal-stretch: 0;
-                    clicked => { root.action(item.action-id, item.row-id); }
+                Rectangle {
+                    height: 14 * LumenUiScale.unit;
+                    vertical-stretch: 0;
                 }
             }
-        }
-
-        if item.kind == "button": WorkbenchButton {
-            text: item.label;
-            enabled: item.enabled;
-            clicked => { root.action(item.action-id, ""); }
         }
     }
+
+    Rectangle { vertical-stretch: 1; }
 }

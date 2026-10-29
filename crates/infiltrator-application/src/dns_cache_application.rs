@@ -70,6 +70,34 @@ impl DnsCacheApplication {
             })
     }
 
+    pub(crate) fn next_operation_id(&self) -> DnsCacheOperationId {
+        let last_id = self
+            .last
+            .lock()
+            .ok()
+            .and_then(|s| s.operation_id)
+            .map(|id| id.0)
+            .unwrap_or(0);
+        DnsCacheOperationId(last_id.saturating_add(1).max(1))
+    }
+
+    /// Automatically trigger a flush when the host physical network changes.
+    ///
+    /// Records the network generation on the resulting snapshot and fails closed
+    /// without fabricating outcomes if an error occurs.
+    pub async fn auto_flush_for_network_change(
+        &self,
+        scope: CoreScope,
+        generation: u64,
+    ) -> Result<DnsCacheFlushReport, Failure> {
+        let operation = self.next_operation_id();
+        let report_result = self.flush_with_id(scope, operation).await;
+        if let Ok(mut state) = self.last.lock() {
+            state.auto_flush_generation = Some(generation);
+        }
+        report_result
+    }
+
     /// Flush the Fake-IP table and, when the host provides one, the OS cache.
     ///
     /// The returned report is also stored as the last report. A partially

@@ -167,24 +167,22 @@ impl Theme {
     pub fn dark() -> Self {
         Self {
             mode: ThemeSkin::Dark,
-            window_bg: TokenColor::rgb(0.082, 0.094, 0.102), // #15181A
-            surface: TokenColor::rgb(0.145, 0.161, 0.173),   // #25292C
-            surface_elevated: TokenColor::rgba(1.0, 1.0, 1.0, 0.07),
-            ink: TokenColor::rgb(0.93, 0.95, 0.94), // #EDEFEF
-            ink_dim: TokenColor::rgba(0.88, 0.90, 0.92, 0.65),
-            accent: TokenColor::rgb(0.12, 0.56, 0.96), // #1E8FF5
+            window_bg: TokenColor::rgb(0.040, 0.045, 0.055), // #0A0B0E
+            surface: TokenColor::rgb(0.115, 0.130, 0.150),   // #1D2126
+            surface_elevated: TokenColor::rgb(0.160, 0.180, 0.205), // #292E35
+            ink: TokenColor::rgb(0.941, 0.965, 0.988),       // #F0F6FC
+            ink_dim: TokenColor::rgb(0.647, 0.690, 0.737),   // #A5B0BC
+            accent: TokenColor::rgb(0.12, 0.56, 0.96),       // #1E8FF5
             on_accent: TokenColor::rgb(1.0, 1.0, 1.0),
-            accent_container: TokenColor::rgb(0.051, 0.224, 0.443), // #0D3971 (iced banner, measured)
-            sidebar: TokenColor::rgb(0.106, 0.118, 0.125),          // #1B1E20
+            accent_container: TokenColor::rgb(0.080, 0.220, 0.380), // #143861
+            sidebar: TokenColor::rgb(0.060, 0.068, 0.080),          // #0F1114
             icon_tile: TokenColor::rgba(0.12, 0.56, 0.96, 0.62),    // accent @ 0.62
             hover: TokenColor::rgba(1.0, 1.0, 1.0, 0.08),
             pressed: TokenColor::rgba(1.0, 1.0, 1.0, 0.14),
-            scrim: TokenColor::rgba(0.0, 0.0, 0.0, 0.50),
+            scrim: TokenColor::rgba(0.0, 0.0, 0.0, 0.55),
             focus_ring: TokenColor::rgb(0.12, 0.56, 0.96),
-            // The shared contract's disabled ink (DUAL-15-14): 0.55 reads at
-            // ≈4.9:1 on the dark card, where 0.35 read at ≈3:1.
-            disabled_ink: TokenColor::rgba(0.88, 0.90, 0.92, 0.55),
-            border: TokenColor::rgba(0.85, 0.90, 0.95, 0.10),
+            disabled_ink: TokenColor::rgba(0.647, 0.690, 0.737, 0.50),
+            border: TokenColor::rgba(0.380, 0.420, 0.470, 0.25),
             success: TokenColor::rgb(0.24, 0.78, 0.44), // #3DC770
             warning: TokenColor::rgb(0.96, 0.62, 0.15), // #F59E26
             danger: TokenColor::rgb(0.96, 0.35, 0.32),  // #F55952

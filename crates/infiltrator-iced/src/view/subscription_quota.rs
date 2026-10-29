@@ -22,7 +22,7 @@ pub fn subscription_quota_card<'a>(state: &'a AppState, lang: &Lang<'a>) -> Elem
     let presentation = project_quota(snapshot, &Lang(lang.0));
     let progress = presentation
         .fraction
-        .map(usage_bar)
+        .map(|f| usage_bar_with_grade(f, presentation.grade))
         .unwrap_or_else(|| Space::new().height(0).into());
     let metrics = row![
         metric(
@@ -110,20 +110,34 @@ fn metric<'a>(label: String, value: String) -> Element<'a, Message> {
     .into()
 }
 
-fn usage_bar<'a, R: Renderer + 'a>(fraction: f32) -> Element<'a, Message, Theme, R> {
+pub fn usage_bar<'a, R: Renderer + 'a>(fraction: f32) -> Element<'a, Message, Theme, R> {
+    usage_bar_with_grade(fraction, QuotaGrade::Observed)
+}
+
+pub fn usage_bar_with_grade<'a, R: Renderer + 'a>(
+    fraction: f32,
+    grade: QuotaGrade,
+) -> Element<'a, Message, Theme, R> {
     let fill_units = (fraction * 10000.0).round().clamp(0.0, 10000.0) as u16;
     let remaining_units = 10000 - fill_units;
     let fill: Element<'a, Message, Theme, R> = if fraction > 0.0 {
         container(Space::new())
             .width(Length::FillPortion(fill_units.max(1)))
             .height(Length::Fill)
-            .style(|t: &Theme| container::Style {
-                background: Some(tokens(t).accent.into()),
-                border: Border {
-                    radius: border::Radius::from(theme::R_XS),
+            .style(move |t: &Theme| {
+                let bar_color = match grade {
+                    QuotaGrade::Danger => tokens(t).danger,
+                    QuotaGrade::Warning => tokens(t).warning,
+                    _ => tokens(t).accent,
+                };
+                container::Style {
+                    background: Some(bar_color.into()),
+                    border: Border {
+                        radius: border::Radius::from(theme::R_XS),
+                        ..Default::default()
+                    },
                     ..Default::default()
-                },
-                ..Default::default()
+                }
             })
             .into()
     } else {

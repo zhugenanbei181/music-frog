@@ -181,12 +181,21 @@ pub fn sync_proxy_latency_sparklines(
         let Some(node) = node_for_entity(entity, &parents, &identities, projection) else {
             continue;
         };
-        let heights = normalized_latency_heights(&node.latency_samples);
+        let (heights, delays) = if !node.latency_samples.is_empty() {
+            (
+                normalized_latency_heights(&node.latency_samples),
+                latency_delays(&node.latency_samples),
+            )
+        } else if let Some(delay) = node.delay_ms {
+            (vec![0.5, 0.5, 0.5], vec![delay, delay, delay])
+        } else {
+            (Vec::new(), Vec::new())
+        };
         if heights.is_empty() {
             continue;
         }
         let ink = latency_color(project_proxy_latency(node.delay_ms).band, &palette);
-        let signature = (latency_delays(&node.latency_samples), ink);
+        let signature = (delays, ink);
         if painted.get(&entity) == Some(&signature) {
             next.insert(entity, signature);
             continue;

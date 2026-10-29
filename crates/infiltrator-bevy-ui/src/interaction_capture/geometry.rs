@@ -7,6 +7,8 @@ use bevy::math::Vec2;
 use bevy::ui::{CalculatedClip, ComputedNode, Display, Node, UiGlobalTransform};
 use std::collections::HashSet;
 
+const CAPTURE_INTERACTION_CORE_INSET_PX: f32 = 12.0;
+
 #[derive(Resource, Default)]
 pub struct GeometryRejections(HashSet<String>);
 #[derive(QueryData)]
@@ -34,7 +36,7 @@ impl CaptureGeometry<'_, '_> {
         (size.is_finite() && size.x > 0.0 && size.y > 0.0)
             .then_some([origin.x, origin.y, size.x, size.y])
     }
-    /// Whether the entity's own box is wholly inside its clipping ancestors.
+    /// Whether the inset interaction core is inside its clipping ancestors.
     ///
     /// The capture asks this question before it measures: a control that is
     /// not laid out yet only needs one more frame, while a control that is
@@ -43,10 +45,12 @@ impl CaptureGeometry<'_, '_> {
     pub fn unclipped(&self, entity: Entity) -> bool {
         self.visible(entity) && self.clipped(entity) == Some(false)
     }
-    /// Whether one of the entity's corners falls outside its clip.
+    /// Whether a corner of the inset interaction core falls outside its clip.
     ///
     /// `None` when the entity has no measured size yet: the surface has not
     /// laid it out, which is a different fact from "the surface clipped it".
+    /// The outer inset may contain shadow decoration; the remaining core must
+    /// stay wholly visible for the capture to target it.
     fn clipped(&self, entity: Entity) -> Option<bool> {
         let layout = self.layouts.get(entity).ok()?;
         let size = layout.computed.size();
@@ -54,14 +58,15 @@ impl CaptureGeometry<'_, '_> {
             return None;
         }
         let half = size / 2.0;
-        let corners = [
-            Vec2::new(-half.x, -half.y),
-            Vec2::new(half.x, -half.y),
-            Vec2::new(-half.x, half.y),
-            Vec2::new(half.x, half.y),
+        let shrink_half = (half - Vec2::splat(CAPTURE_INTERACTION_CORE_INSET_PX)).max(Vec2::ZERO);
+        let core_corners = [
+            Vec2::new(-shrink_half.x, -shrink_half.y),
+            Vec2::new(shrink_half.x, -shrink_half.y),
+            Vec2::new(-shrink_half.x, shrink_half.y),
+            Vec2::new(shrink_half.x, shrink_half.y),
         ];
         Some(layout.clip.is_some_and(|clip| {
-            corners.into_iter().any(|point| {
+            core_corners.into_iter().any(|point| {
                 !clip.contains_point(layout.transform.affine().transform_point2(point))
             })
         }))

@@ -82,6 +82,8 @@ pub struct DnsCacheSnapshot {
     pub operation: DnsCacheOperation,
     pub report: DnsCacheFlushReport,
     pub failure: Option<Failure>,
+    #[serde(default)]
+    pub auto_flush_generation: Option<u64>,
 }
 impl DnsCacheSnapshot {
     pub fn unavailable() -> Self {

@@ -35,7 +35,7 @@ export component PageProxies inherits VerticalLayout {
 
     if root.selected-group != "": VerticalLayout {
         width: parent.width;
-        spacing: 8 * LumenUiScale.unit;
+        spacing: LumenTheme.space-2;
         HorizontalLayout {
             width: parent.width;
             height: 44 * LumenUiScale.unit;
@@ -50,14 +50,17 @@ export component PageProxies inherits VerticalLayout {
         Text { text: @tr("节点"); color: LumenTheme.text-primary; font-size: 38 * LumenUiScale.unit; font-weight: 450; height: 54 * LumenUiScale.unit; vertical-alignment: center; }
         Rectangle { height: 16 * LumenUiScale.unit; background: transparent; }
         search-box := Rectangle {
-            width: parent.width; height: 56 * LumenUiScale.unit; border-radius: 28 * LumenUiScale.unit;
+            width: parent.width; height: 42 * LumenUiScale.unit; border-radius: 21 * LumenUiScale.unit;
             background: LumenTheme.surface-muted;
+            border-width: 1 * LumenUiScale.unit;
+            border-color: search-touch.has-hover ? LumenTheme.accent : LumenTheme.border;
+            search-touch := TouchArea { width: parent.width; height: parent.height; }
             search-layout := HorizontalLayout {
-                x: 18 * LumenUiScale.unit; width: parent.width - 36 * LumenUiScale.unit; height: parent.height; spacing: 12 * LumenUiScale.unit;
+                x: 16 * LumenUiScale.unit; width: parent.width - 32 * LumenUiScale.unit; height: parent.height; spacing: LumenTheme.space-3;
                 cross-axis-alignment: center;
                 search-icon := Image {
                     source: root.application-dark-mode ? @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/search-dark.svg") : @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/search.svg");
-                    width: 22 * LumenUiScale.unit; height: 22 * LumenUiScale.unit; image-fit: contain;
+                    width: 20 * LumenUiScale.unit; height: 20 * LumenUiScale.unit; image-fit: contain;
                 }
                 search-content := Rectangle {
                     horizontal-stretch: 1; height: parent.height; background: transparent;
@@ -65,13 +68,13 @@ export component PageProxies inherits VerticalLayout {
                         width: parent.width; height: parent.height;
                         text <=> root.proxy-search;
                         color: LumenTheme.text-primary;
-                        font-size: 18 * LumenUiScale.unit;
+                        font-size: 14 * LumenUiScale.unit;
                         vertical-alignment: center;
                         edited => { root.search-proxy-nodes(self.text); }
                     }
                     if root.proxy-search == "": Text {
                         x: 0 * LumenUiScale.unit; width: parent.width; height: parent.height;
-                        text: @tr("搜索"); color: LumenTheme.text-secondary; font-size: 18 * LumenUiScale.unit;
+                        text: @tr("搜索节点名称或协议"); color: LumenTheme.text-muted; font-size: 14 * LumenUiScale.unit;
                         vertical-alignment: center;
                     }
                 }
@@ -135,13 +138,14 @@ export component PageProxies inherits VerticalLayout {
     }
     if root.selected-group != "": VerticalLayout {
         width: parent.width;
-        spacing: 14 * LumenUiScale.unit;
+        spacing: LumenTheme.space-4;
         for node in root.proxy-nodes: node-row := Rectangle {
             width: parent.width;
             height: 76 * LumenUiScale.unit;
             border-radius: 20 * LumenUiScale.unit;
             background: LumenTheme.surface;
-            border-width: 0 * LumenUiScale.unit;
+            border-width: 1 * LumenUiScale.unit;
+            border-color: node.active ? LumenTheme.accent : LumenTheme.border;
             changed absolute-position => {
                 if node.active {
                     root.proxy-active-node-position = self.absolute-position.y;
@@ -150,11 +154,11 @@ export component PageProxies inherits VerticalLayout {
             }
             if root.runtime-status == RuntimeStatus.running && !node.active: TouchArea { width: parent.width; height: parent.height; clicked => { root.select-proxy(root.selected-group, node.id); } }
             node-content := HorizontalLayout {
-                x: 16 * LumenUiScale.unit; width: parent.width - 32 * LumenUiScale.unit; height: parent.height; spacing: 12 * LumenUiScale.unit;
+                x: 16 * LumenUiScale.unit; width: parent.width - 32 * LumenUiScale.unit; height: parent.height; spacing: LumenTheme.space-3;
                 cross-axis-alignment: center;
                 flag-badge := Rectangle {
                     width: 48 * LumenUiScale.unit; height: 48 * LumenUiScale.unit; border-radius: 18 * LumenUiScale.unit;
-                    background: LumenTheme.dark-mode ? #303030 : LumenTheme.surface-muted;
+                    background: LumenTheme.surface-raised;
                     clip: true;
                     flag-layout := HorizontalLayout {
                         width: parent.width; height: parent.height;
@@ -198,11 +202,30 @@ export component PageProxies inherits VerticalLayout {
                         spacing: 6 * LumenUiScale.unit;
                         cross-axis-alignment: center;
                         proxy-type-badge := Rectangle {
+                            property <color> badge-color: 
+                                node.subtitle == "Shadowsocks" ? #007AFF :
+                                node.subtitle == "VMess" ? #AF52DE :
+                                node.subtitle == "Trojan" ? #FF9500 :
+                                node.subtitle == "VLESS" ? #34C759 :
+                                node.subtitle == "Hysteria2" || node.subtitle == "Hysteria" ? #00C7BE :
+                                LumenTheme.accent;
+                            property <color> badge-bg:
+                                node.subtitle == "Shadowsocks" ? #007AFF.with_alpha(16%) :
+                                node.subtitle == "VMess" ? #AF52DE.with_alpha(16%) :
+                                node.subtitle == "Trojan" ? #FF9500.with_alpha(16%) :
+                                node.subtitle == "VLESS" ? #34C759.with_alpha(16%) :
+                                node.subtitle == "Hysteria2" || node.subtitle == "Hysteria" ? #00C7BE.with_alpha(16%) :
+                                LumenTheme.accent-soft;
+
                             width: max(42 * LumenUiScale.unit, proxy-type-text.preferred-width + 18 * LumenUiScale.unit);
-                            height: 22 * LumenUiScale.unit; border-radius: 11 * LumenUiScale.unit; background: LumenTheme.accent-soft;
+                            height: 22 * LumenUiScale.unit; border-radius: 11 * LumenUiScale.unit;
+                            background: self.badge-bg;
+                            border-width: 1 * LumenUiScale.unit;
+                            border-color: self.badge-color.with_alpha(30%);
                             proxy-type-text := Text {
                                 x: 9 * LumenUiScale.unit; height: parent.height;
-                                text: node.subtitle; color: LumenTheme.accent; font-size: 12 * LumenUiScale.unit;
+                                text: node.subtitle; color: proxy-type-badge.badge-color; font-size: 11 * LumenUiScale.unit;
+                                font-weight: 600;
                                 vertical-alignment: center; overflow: elide;
                             }
                             if root.layout-debug-bounds: Rectangle {

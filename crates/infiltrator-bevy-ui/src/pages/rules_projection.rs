@@ -173,6 +173,7 @@ pub(crate) fn apply_rules_projection(
         mut provider_names,
         mut provider_counts,
         mut provider_updates,
+        mut provider_buttons,
     } = targets;
 
     let mut projection = update.0.clone();
@@ -383,6 +384,15 @@ pub(crate) fn apply_rules_projection(
                 .unwrap_or(want);
             if text.0 != want {
                 text.0 = want;
+            }
+        }
+    }
+
+    for (mut disabled, marker) in &mut provider_buttons {
+        if let Some(provider) = projection.providers.get(marker.0) {
+            let want = provider.controller.is_none();
+            if disabled.0 != want {
+                disabled.0 = want;
             }
         }
     }

@@ -65,7 +65,7 @@ const COUNT_CHIP_PADDING_PX: f32 = 6.0;
 
 /// App identity block: logo plate + "MusicFrog" title + version label.
 pub fn identity_scene(palette: &UiPalette) -> impl Scene + use<> {
-    let version = concat!("v", env!("CARGO_PKG_VERSION"));
+    let version = infiltrator_contract::ProductVersion::DISPLAY;
     bsn! {
             Node {
                 align_items: AlignItems::Center,

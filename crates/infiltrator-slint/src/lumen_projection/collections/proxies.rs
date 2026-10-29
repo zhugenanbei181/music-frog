@@ -15,6 +15,7 @@ use super::super::snapshot_language;
 use crate::widget_vocabulary;
 use crate::{AppWindow, ObservationRow, ProxyGroup, refresh_model};
 use infiltrator_contract::active_exit::ActiveExitStatus;
+use infiltrator_contract::geo_region::GeoRegion;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_presentation::proxies_page_model::{
     ProxiesPageModel, ProxyFilterTarget, proxy_protocol_chip,
@@ -169,6 +170,11 @@ pub(super) fn project_proxies(window: &AppWindow, snapshot: &SurfaceSnapshot) {
             } else {
                 ""
             };
+            let group_flag_code = if active_country.is_empty() {
+                GeoRegion::from_name_heuristic(&current).iso_code()
+            } else {
+                active_country
+            };
             (
                 collection.id.clone(),
                 ProxyGroup {
@@ -176,8 +182,8 @@ pub(super) fn project_proxies(window: &AppWindow, snapshot: &SurfaceSnapshot) {
                     icon_emoji: "".into(),
                     kind: kind.into(),
                     current: current.clone().into(),
-                    current_flag_code: active_country.to_ascii_lowercase().into(),
-                    current_flag_index: flag_assets::index_for_code(active_country).unwrap_or(-1),
+                    current_flag_code: group_flag_code.to_ascii_lowercase().into(),
+                    current_flag_index: flag_assets::index_for_code(group_flag_code).unwrap_or(-1),
                     current_accessible: current.clone().into(),
                     nodes: member_names.join("\n").into(),
                 },
@@ -294,12 +300,17 @@ fn node_row(node: ProxyNodeView) -> ObservationRow {
         country,
         ..
     } = node;
+    let flag_iso = if country.is_empty() {
+        GeoRegion::from_name_heuristic(&name).iso_code()
+    } else {
+        country.as_str()
+    };
     ObservationRow {
         id: id.into(),
         title: name.clone().into(),
         accessible_title: name.into(),
-        flag_code: country.to_ascii_lowercase().into(),
-        flag_index: flag_assets::index_for_code(&country).unwrap_or(-1),
+        flag_code: flag_iso.to_ascii_lowercase().into(),
+        flag_index: flag_assets::index_for_code(flag_iso).unwrap_or(-1),
         delay_ms: latency_ms
             .map(|value| value.min(i32::MAX as u32) as i32)
             .unwrap_or(-1),

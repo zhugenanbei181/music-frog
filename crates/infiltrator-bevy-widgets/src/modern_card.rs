@@ -192,22 +192,26 @@ pub fn modern_card_scene(content: Box<dyn Scene>, palette: &UiPalette) -> impl S
 /// The card is the page's own surface, so this system owns the fill, the
 /// stroke, the shadow and the lift; every write is compare-before-write so a
 /// settled card costs nothing and never flickers.
+type ModernCardQuery<'w, 's> = Query<
+    'w,
+    's,
+    (
+        Entity,
+        &'static ModernCardMarked,
+        Option<&'static ButtonDisabled>,
+        Option<&'static PickingInteraction>,
+        &'static mut BackgroundColor,
+        &'static mut BorderColor,
+        Option<&'static mut BoxShadow>,
+        &'static mut UiTransform,
+    ),
+    With<ModernCard>,
+>;
+
 pub fn sync_modern_card_paint(
     palette: Res<UiPalette>,
     mut commands: Commands,
-    mut cards: Query<
-        (
-            Entity,
-            &ModernCardMarked,
-            Option<&ButtonDisabled>,
-            Option<&PickingInteraction>,
-            &mut BackgroundColor,
-            &mut BorderColor,
-            Option<&mut BoxShadow>,
-            &mut UiTransform,
-        ),
-        With<ModernCard>,
-    >,
+    mut cards: ModernCardQuery,
 ) {
     for (entity, marked, disabled, interaction, mut fill, mut border, mut shadow, mut transform) in
         &mut cards

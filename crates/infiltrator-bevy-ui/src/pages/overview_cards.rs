@@ -143,7 +143,7 @@ pub fn subscription_quota_scene_with_snapshot(
                                 height: percent(100),
                                 border_radius: BorderRadius::all(rem(radius::XS)),
                             }
-                            ThemeBackgroundColor({ Token::Accent })
+                            ThemeBackgroundColor({ quota_progress_color_token(quota.grade) })
                             AccentFill
                             SubscriptionQuotaProgress
                         ]
@@ -162,6 +162,14 @@ pub fn subscription_quota_scene_with_snapshot(
         })],
         palette,
     )
+}
+
+pub(crate) fn quota_progress_color_token(grade: QuotaGrade) -> Token {
+    match grade {
+        QuotaGrade::Danger => Token::Danger,
+        QuotaGrade::Warning => Token::Warning,
+        _ => Token::Accent,
+    }
 }
 
 pub(crate) fn quota_status_color(grade: QuotaGrade, palette: &UiPalette) -> Color {

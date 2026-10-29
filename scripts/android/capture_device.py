@@ -263,8 +263,12 @@ class Adb:
 
     # -- interaction primitives ---------------------------------------------
 
-    def launch(self, component: str) -> str:
-        return self.shell("am", "start", "-W", "-n", component, timeout=180.0)
+    def launch(self, component: str, extras: dict[str, str] | None = None) -> str:
+        command = ["am", "start", "-W", "-n", component]
+        if extras:
+            for key, value in extras.items():
+                command.extend(["--es", key, str(value)])
+        return self.shell(*command, timeout=180.0)
 
     def tap(self, x: int, y: int) -> None:
         self.shell("input", "tap", str(x), str(y))

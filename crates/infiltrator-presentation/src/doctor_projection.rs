@@ -139,10 +139,15 @@ fn project_ready_report(
                 .checks
                 .iter()
                 .all(|check| check.status == DoctorStatus::Pass),
-        last_run: i64::try_from(report.finished_at)
-            .ok()
-            .and_then(|seconds| DateTime::<Utc>::from_timestamp(seconds, 0))
-            .map_or_else(|| report.finished_at.to_string(), |time| time.to_rfc3339()),
+        last_run: if report.finished_at == 0 || report.finished_at < 1_000_000_000 {
+            "—".to_string()
+        } else {
+            i64::try_from(report.finished_at)
+                .ok()
+                .and_then(|seconds| DateTime::<Utc>::from_timestamp(seconds, 0))
+                .map(|time| time.format("%Y-%m-%d %H:%M:%S").to_string())
+                .unwrap_or_else(|| "—".to_string())
+        },
         checks: report
             .checks
             .iter()

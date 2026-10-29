@@ -359,7 +359,12 @@ pub fn observe(
                 if text.0 != expected || expected.is_empty() {
                     return None;
                 }
-                geometry.bounds(entity, "overview speedtest history")
+                let mut rect = geometry.rect(entity)?;
+                if rect[0] < 0.0 {
+                    rect[2] += rect[0];
+                    rect[0] = 0.0;
+                }
+                Some(rect)
             }
             FeatureId::SpeedtestProgressCancel => {
                 let (entity, button) = surface.speedtests.single().ok()?;
@@ -399,7 +404,7 @@ pub fn observe(
                 // really rendered, and measures it on the next frame.
                 if !geometry.unclipped(entity) {
                     reveal_slot(&mut surface, &mut geometry, &mut commands, entity);
-                    return None;
+                    return geometry.rect(entity);
                 }
                 geometry.bounds(entity, "overview reordered card")
             }

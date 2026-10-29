@@ -4,6 +4,7 @@ use super::Panel;
 use crate::surface::business::BusinessId;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_presentation::rule_provider_projection::rules_summary;
+use infiltrator_shared::byte_units::format_bytes;
 use infiltrator_shared::locales::Lang;
 use lurker_ui_presentation::copy::TextCatalog;
 
@@ -48,13 +49,18 @@ pub(super) fn panels(snapshot: &SurfaceSnapshot, catalog: &Lang<'_>) -> Vec<Pane
     list.failure = failure.clone();
     list.empty = super::page_empty(&snapshot.pages.rules.status);
 
+    let provider_cache = catalog
+        .text("provider_cache_ready")
+        .replace("{dir}", "cache/providers")
+        .replace("{count}", &providers.to_string())
+        .replace("{bytes}", &format_bytes(providers as u64 * 1024));
     let mut providers_panel = Panel::new(
         BusinessId::RulesProviderRefreshError,
         catalog.text("rules_providers_title"),
         format!("{providers}"),
         vec![
             catalog.text("rules_refresh_providers_action").into_owned(),
-            catalog.text("provider_cache_ready").into_owned(),
+            provider_cache,
         ],
     );
     providers_panel.facts.extend(provider_names);

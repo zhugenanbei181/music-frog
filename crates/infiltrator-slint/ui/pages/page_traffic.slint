@@ -1,0 +1,106 @@
+import { LumenUiScale } from "../lumen-ui-scale.slint";
+import { LumenTheme } from "../components/theme.slint";
+import { TrafficBar } from "../components/models.slint";
+import { PillButton } from "../components/base_widgets.slint";
+import { SectionCard } from "../components/cards.slint";
+import { RuntimeStatus, TrafficRange } from "../components/domain_enums.slint";
+
+export component PageTraffic inherits VerticalLayout {
+    in property <bool> android-platform;
+    in property <RuntimeStatus> runtime-status;
+    in property <string> traffic-stream-status;
+    in property <string> stat-down;
+    in property <string> stat-up;
+    in-out property <TrafficRange> traffic-range;
+    in-out property <string> traffic-selected-detail;
+    in property <string> traffic-today-down;
+    in property <string> traffic-today-up;
+    in property <bool> traffic-today-has-data;
+    in property <[TrafficBar]> traffic-today-bars;
+    in property <string> traffic-week-down;
+    in property <string> traffic-week-up;
+    in property <string> traffic-week-average-down;
+    in property <string> traffic-week-average-up;
+    in property <bool> traffic-week-has-data;
+    in property <[TrafficBar]> traffic-week-bars;
+
+    callback open-clear-dialog();
+
+    width: 100%;
+    spacing: LumenTheme.space-4;
+
+    SectionCard {
+        heading: @tr("实时流量");
+        detail: root.traffic-stream-status == "已连接" ? @tr("Mihomo /traffic 实时流已连接。") : (root.traffic-stream-status == "正在重连" ? @tr("实时流重连中；速率显示为 0，保留的统计仍可查看。") : (root.runtime-status == RuntimeStatus.running ? @tr("Runtime 已启动，正在连接流量采样。") : @tr("Runtime 未运行；实时采样已停止，保留的统计仍可查看。")));
+        Text { text: "↓ " + @tr("下载 ") + root.stat-down + "   ·   ↑ " + @tr("上传 ") + root.stat-up; color: LumenTheme.status-info; font-size: 16 * LumenUiScale.unit; font-family: LumenTheme.mono-family; font-weight: 600; wrap: word-wrap; }
+    }
+    SectionCard {
+        heading: @tr("累计统计");
+        detail: @tr("按本地时间从 Mihomo 累计计数差分；仅统计 MusicFrog 观察到的核心总流量，最多保留近 7 日。");
+        HorizontalLayout {
+            spacing: LumenTheme.space-2;
+            cross-axis-alignment: center;
+            PillButton {
+                label: @tr("今日");
+                selected: root.traffic-range == TrafficRange.today;
+                clicked => { root.traffic-range = TrafficRange.today; root.traffic-selected-detail = ""; }
+            }
+            PillButton {
+                label: @tr("本周");
+                selected: root.traffic-range == TrafficRange.week;
+                clicked => { root.traffic-range = TrafficRange.week; root.traffic-selected-detail = ""; }
+            }
+            Rectangle { horizontal-stretch: 1; background: transparent; }
+            PillButton {
+                label: @tr("清空统计");
+                min-pill-width: 88 * LumenUiScale.unit;
+                clicked => { root.open-clear-dialog(); }
+            }
+        }
+        HorizontalLayout {
+            spacing: LumenTheme.space-2;
+            cross-axis-alignment: center;
+            Rectangle { width: 10 * LumenUiScale.unit; height: 10 * LumenUiScale.unit; border-radius: 5 * LumenUiScale.unit; background: LumenTheme.accent; }
+            Text { text: @tr("下载"); color: LumenTheme.text-secondary; font-size: 11 * LumenUiScale.unit; vertical-alignment: center; }
+            Rectangle { width: 10 * LumenUiScale.unit; height: 10 * LumenUiScale.unit; border-radius: 5 * LumenUiScale.unit; background: LumenTheme.status-info; }
+            Text { text: @tr("上传"); color: LumenTheme.text-secondary; font-size: 11 * LumenUiScale.unit; vertical-alignment: center; }
+        }
+        if root.traffic-range == TrafficRange.today: VerticalLayout {
+            Text { text: "↓ " + @tr("下载 ") + root.traffic-today-down + "   ·   ↑ " + @tr("上传 ") + root.traffic-today-up; color: LumenTheme.text-secondary; font-size: 13 * LumenUiScale.unit; font-family: LumenTheme.mono-family; font-weight: 500; wrap: word-wrap; }
+            if root.traffic-today-has-data: HorizontalLayout {
+                height: 148 * LumenUiScale.unit; spacing: 2 * LumenUiScale.unit;
+                for bar in root.traffic-today-bars: VerticalLayout {
+                    horizontal-stretch: 1; spacing: 3 * LumenUiScale.unit;
+                    Rectangle {
+                        height: 116 * LumenUiScale.unit; background: transparent;
+                        Rectangle { x: 1 * LumenUiScale.unit; y: parent.height - parent.height * bar.download-fraction; width: parent.width / 2 - 1 * LumenUiScale.unit; height: parent.height * bar.download-fraction; border-radius: 2 * LumenUiScale.unit; background: LumenTheme.accent; }
+                        Rectangle { x: parent.width / 2; y: parent.height - parent.height * bar.upload-fraction; width: parent.width / 2 - 1 * LumenUiScale.unit; height: parent.height * bar.upload-fraction; border-radius: 2 * LumenUiScale.unit; background: LumenTheme.status-info; }
+                        TouchArea { width: parent.width; height: parent.height; clicked => { root.traffic-selected-detail = bar.detail-label + " · 下载 " + bar.download + " · 上传 " + bar.upload; } }
+                    }
+                    Text { text: bar.label; color: LumenTheme.text-secondary; font-size: 9 * LumenUiScale.unit; font-family: LumenTheme.mono-family; horizontal-alignment: center; }
+                }
+            }
+            if !root.traffic-today-has-data: Text { text: @tr("暂无统计数据；运行 Mihomo 后开始记录。"); color: LumenTheme.text-secondary; font-size: 13 * LumenUiScale.unit; }
+        }
+        if root.traffic-range == TrafficRange.week: VerticalLayout {
+            Text { text: "↓ " + @tr("下载 ") + root.traffic-week-down + "   ·   ↑ " + @tr("上传 ") + root.traffic-week-up; color: LumenTheme.text-secondary; font-size: 13 * LumenUiScale.unit; font-family: LumenTheme.mono-family; font-weight: 500; wrap: word-wrap; }
+            Text { text: @tr("日均下载 ") + root.traffic-week-average-down + "   ·   " + @tr("日均上传 ") + root.traffic-week-average-up; color: LumenTheme.text-secondary; font-size: 12 * LumenUiScale.unit; font-family: LumenTheme.mono-family; wrap: word-wrap; }
+            if root.traffic-week-has-data: HorizontalLayout {
+                height: 166 * LumenUiScale.unit; spacing: LumenTheme.space-2;
+                for bar in root.traffic-week-bars: VerticalLayout {
+                    horizontal-stretch: 1; spacing: LumenTheme.space-1;
+                    Rectangle {
+                        vertical-stretch: 1; background: transparent;
+                        Rectangle { x: 4 * LumenUiScale.unit; y: parent.height - parent.height * bar.download-fraction; width: parent.width / 2 - 5 * LumenUiScale.unit; height: parent.height * bar.download-fraction; border-radius: 2 * LumenUiScale.unit; background: LumenTheme.accent; }
+                        Rectangle { x: parent.width / 2; y: parent.height - parent.height * bar.upload-fraction; width: parent.width / 2 - 4 * LumenUiScale.unit; height: parent.height * bar.upload-fraction; border-radius: 2 * LumenUiScale.unit; background: LumenTheme.status-info; }
+                        TouchArea { width: parent.width; height: parent.height; clicked => { root.traffic-selected-detail = bar.detail-label + " · 下载 " + bar.download + " · 上传 " + bar.upload; } }
+                    }
+                    Text { text: bar.label; color: LumenTheme.text-secondary; font-size: 11 * LumenUiScale.unit; font-family: LumenTheme.mono-family; horizontal-alignment: center; }
+                }
+            }
+            if !root.traffic-week-has-data: Text { text: @tr("本周暂无统计数据；运行 Mihomo 后开始记录。"); color: LumenTheme.text-secondary; font-size: 13 * LumenUiScale.unit; }
+        }
+        Text { text: root.traffic-selected-detail; color: LumenTheme.text-secondary; font-size: 12 * LumenUiScale.unit; wrap: word-wrap; }
+        if root.android-platform: Text { text: @tr("Android 应用级流量统计待接入；此处仅显示 Mihomo 核心总量。"); color: LumenTheme.text-secondary; font-size: 12 * LumenUiScale.unit; wrap: word-wrap; }
+    }
+}

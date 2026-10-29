@@ -68,7 +68,13 @@ pub(super) fn page(
                 items.push(row(
                     &format!("sync-conflict/{}", key),
                     key,
-                    &sync_projection::conflict_field(key, local, remote, catalog),
+                    &format!(
+                        "{}: {} · {}: {}",
+                        catalog.text("sync_diff_local"),
+                        local,
+                        catalog.text("sync_diff_remote"),
+                        remote
+                    ),
                     "",
                 ));
             }

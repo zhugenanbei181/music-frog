@@ -16,7 +16,6 @@ use infiltrator_contract::logs::LogStreamState;
 use infiltrator_contract::rule_snapshot::RuleSnapshot;
 use infiltrator_contract::shell_readout::{ShellObservation, ShellProfile};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
-use infiltrator_contract::surface_snapshot::LogSnapshot;
 use infiltrator_contract::surface_snapshot::{
     ConnectionSnapshot, ConnectionsPageSnapshot, LogSnapshot, LogsPageSnapshot,
     OverviewPageSnapshot, ProfileSnapshot, ProfilesPageSnapshot, RulesPageSnapshot,
@@ -776,7 +775,7 @@ fn prepare_demo_window(
     lumen_projection::project_workbench(window, snapshot, workbenches);
     open_proxies_group(window, snapshot);
     let is_dark = settings.skin == "dark" || settings.skin == "amoled";
-    window.set_theme_mode(settings.skin.clone().into());
+    window.set_theme_mode(widget_vocabulary::theme_mode(&settings.skin));
     window.set_application_dark_mode(is_dark);
     window.set_notice("".into());
 

@@ -89,9 +89,10 @@ pub enum ScrollbarVisibilityPolicy {
 }
 
 /// Typed mutual-exclusion state for scrollbar fade-in / fade-out animations.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub enum ScrollbarPhase {
     /// Stationary resting state with zero or base opacity.
+    #[default]
     Idle,
     /// Animating towards active opacity (progress in `0.0..=1.0`).
     FadingIn { progress: f32 },
@@ -99,12 +100,6 @@ pub enum ScrollbarPhase {
     Active,
     /// Animating back to idle resting state (progress in `0.0..=1.0`).
     FadingOut { progress: f32 },
-}
-
-impl Default for ScrollbarPhase {
-    fn default() -> Self {
-        Self::Idle
-    }
 }
 
 impl ScrollbarPhase {

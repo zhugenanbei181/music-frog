@@ -578,9 +578,7 @@ impl GlobeSpec {
                     point.lon_deg() as f32,
                     1.0,
                 );
-                if projection.project_direction(direction, 1.0).is_none() {
-                    return None;
-                }
+                projection.project_direction(direction, 1.0)?;
                 let distance = angular_distance_deg(hit.direction, direction);
                 (distance <= tolerance).then_some((distance, node))
             })

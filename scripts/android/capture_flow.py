@@ -76,6 +76,7 @@ class FlowOptions:
     settle_seconds: float = 1.5
     dialog_timeout_seconds: float = 25.0
     keep_installed: bool = False
+    theme: str = "forest"
 
 
 class LogcatWindow:
@@ -229,9 +230,9 @@ class CaptureFlow:
             "raw": action.raw,
         }
         if action.kind is ActionKind.LAUNCH:
-            output = self.adb.launch(self.component)
+            output = self.adb.launch(self.component, extras={"test_theme": self.options.theme})
             record["resolved_by"] = "activity"
-            record["detail"] = {"output": output.strip()}
+            record["detail"] = {"output": output.strip(), "theme": self.options.theme}
             return record
 
         if action.kind is ActionKind.TAP_TEXT:
@@ -482,6 +483,7 @@ class CaptureFlow:
             state_readback=readback or None,
             actions=tuple(actions),
             activity=activity,
+            theme=self.options.theme,
         )
         return receipt, record
 
@@ -595,6 +597,7 @@ class CaptureFlow:
             },
             steps=tuple(receipts),
             unproven=tuple(unproven),
+            theme=self.options.theme,
         )
 
     def cleanup(self) -> None:

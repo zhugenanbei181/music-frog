@@ -36,7 +36,7 @@ pub fn inspect_outbound_modal<'a>(
     let detail = state.outbound_detail(outbound_id);
     let lang = Lang(&state.shell.lang);
     let (status, facts) = if let Some(detail) = detail.as_ref() {
-        (String::new(), detail_rows(detail))
+        (String::new(), detail_rows(detail, &lang))
     } else {
         (details_status(state), Vec::new())
     };
@@ -60,12 +60,19 @@ pub fn inspect_outbound_modal<'a>(
         .as_ref()
         .map(|detail| {
             observation_list(&detail.latency_history, |sample| {
-                format!("{} · {} ms", sample.observed_at, sample.delay_ms)
+                let observed_time = chrono::DateTime::parse_from_rfc3339(&sample.observed_at)
+                    .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
+                    .unwrap_or_else(|_| sample.observed_at.clone());
+                format!("{observed_time} · {} ms", sample.delay_ms)
             })
         })
         .unwrap_or_default();
     if !history.is_empty() {
-        body = body.push(text("Latency history").size(13).font(FONT_SEMIBOLD));
+        body = body.push(
+            text(lang.tr("proxy_inspection_history"))
+                .size(13)
+                .font(FONT_SEMIBOLD),
+        );
         body = body.push(text(history).size(12).font(MONO));
     }
     let egress = detail
@@ -85,7 +92,11 @@ pub fn inspect_outbound_modal<'a>(
         })
         .unwrap_or_default();
     if !egress.is_empty() {
-        body = body.push(text("Historical egress").size(13).font(FONT_SEMIBOLD));
+        body = body.push(
+            text(lang.tr("proxy_inspection_egress"))
+                .size(13)
+                .font(FONT_SEMIBOLD),
+        );
         body = body.push(text(egress).size(12).font(MONO));
     }
 
@@ -158,50 +169,59 @@ fn details_status(state: &AppState) -> String {
     }
 }
 
-fn detail_rows(detail: &OutboundDetail) -> Vec<(String, String)> {
+fn detail_rows(detail: &OutboundDetail, lang: &Lang<'_>) -> Vec<(String, String)> {
     let protocol = match &detail.protocol {
-        OutboundProtocolObservation::Unknown => "Unknown".to_owned(),
-        OutboundProtocolObservation::Unsupported => "Unsupported".to_owned(),
+        OutboundProtocolObservation::Unknown => lang.tr("proxy_inspection_unknown").to_string(),
+        OutboundProtocolObservation::Unsupported => {
+            lang.tr("proxy_inspection_disabled").to_string()
+        }
         OutboundProtocolObservation::Reported(protocol) => detail
             .protocol_display_name
             .clone()
             .unwrap_or_else(|| protocol.value().to_owned()),
     };
-    let cipher = observation_value(&detail.cipher, |cipher: &OutboundCipherId| {
+    let cipher = observation_value(&detail.cipher, lang, |cipher: &OutboundCipherId| {
         detail
             .cipher_display_name
             .clone()
             .unwrap_or_else(|| cipher.value().to_owned())
     });
-    let endpoint = observation_value(&detail.endpoint, |endpoint| {
+    let endpoint = observation_value(&detail.endpoint, lang, |endpoint| {
         format!(
             "{}:{}",
             endpoint.host,
-            observation_value(&endpoint.port, |port| port.to_string())
+            observation_value(&endpoint.port, lang, |port| port.to_string())
         )
     });
-    let latency = observation_value(&detail.current_latency_ms, |latency| {
+    let latency = observation_value(&detail.current_latency_ms, lang, |latency| {
         format!("{latency} ms")
     });
-    let rtt = observation_value(&detail.rtt, rtt_label);
+    let rtt = observation_value(&detail.rtt, lang, rtt_label);
     vec![
-        ("Protocol".into(), protocol),
-        ("Cipher".into(), cipher),
-        ("Endpoint".into(), endpoint),
-        ("UDP".into(), udp_label(detail.udp)),
-        ("Health".into(), health_label(detail.health)),
-        ("Latency".into(), latency),
-        ("RTT".into(), rtt),
+        (lang.tr("proxy_inspection_protocol").to_string(), protocol),
+        (lang.tr("proxy_inspection_cipher").to_string(), cipher),
+        (lang.tr("proxy_inspection_endpoint").to_string(), endpoint),
+        (
+            lang.tr("proxy_inspection_udp").to_string(),
+            udp_label(detail.udp, lang),
+        ),
+        (
+            lang.tr("proxy_inspection_health").to_string(),
+            health_label(detail.health, lang),
+        ),
+        (lang.tr("proxy_inspection_latency").to_string(), latency),
+        (lang.tr("proxy_inspection_rtt").to_string(), rtt),
     ]
 }
 
 fn observation_value<T>(
     observation: &OutboundObservation<T>,
+    lang: &Lang<'_>,
     display: impl FnOnce(&T) -> String,
 ) -> String {
     match observation {
-        OutboundObservation::Unknown => "Unknown".to_owned(),
-        OutboundObservation::Unsupported => "Unsupported".to_owned(),
+        OutboundObservation::Unknown => lang.tr("proxy_inspection_unknown").to_string(),
+        OutboundObservation::Unsupported => lang.tr("proxy_inspection_disabled").to_string(),
         OutboundObservation::Observed(value) => display(value),
     }
 }
@@ -220,23 +240,21 @@ fn observation_list<T>(
     }
 }
 
-fn udp_label(udp: OutboundUdpSupport) -> String {
+fn udp_label(udp: OutboundUdpSupport, lang: &Lang<'_>) -> String {
     match udp {
-        OutboundUdpSupport::Unknown => "Unknown",
-        OutboundUdpSupport::Supported => "Supported",
-        OutboundUdpSupport::Unsupported => "Unsupported",
+        OutboundUdpSupport::Unknown => lang.tr("proxy_inspection_unknown").to_string(),
+        OutboundUdpSupport::Supported => lang.tr("proxy_inspection_supported").to_string(),
+        OutboundUdpSupport::Unsupported => lang.tr("proxy_inspection_disabled").to_string(),
     }
-    .to_owned()
 }
 
-fn health_label(health: OutboundHealthObservation) -> String {
+fn health_label(health: OutboundHealthObservation, lang: &Lang<'_>) -> String {
     match health {
-        OutboundHealthObservation::Unknown => "Unknown",
-        OutboundHealthObservation::Healthy => "Healthy",
-        OutboundHealthObservation::Unhealthy => "Unhealthy",
-        OutboundHealthObservation::Unsupported => "Unsupported",
+        OutboundHealthObservation::Unknown => lang.tr("proxy_inspection_unknown").to_string(),
+        OutboundHealthObservation::Healthy => lang.tr("proxy_inspection_alive").to_string(),
+        OutboundHealthObservation::Unhealthy => lang.tr("proxy_inspection_dead").to_string(),
+        OutboundHealthObservation::Unsupported => lang.tr("proxy_inspection_disabled").to_string(),
     }
-    .to_owned()
 }
 
 fn rtt_label(stats: &OutboundRttStatistics) -> String {

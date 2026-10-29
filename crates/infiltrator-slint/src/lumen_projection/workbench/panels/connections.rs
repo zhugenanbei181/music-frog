@@ -41,18 +41,21 @@ pub(super) fn panels(snapshot: &SurfaceSnapshot, catalog: &Lang<'_>) -> Vec<Pane
         .collect::<Vec<_>>();
 
     let failure = super::page_failure(&snapshot.pages.connections.status);
-    let mut panels = vec![
-        Panel::new(
-            BusinessId::ConnectionsCloseAllConfirm,
-            catalog.text("modal_confirm_disconnect_all_title"),
+    let mut close_all_panel = Panel::new(
+        BusinessId::ConnectionsCloseAllConfirm,
+        catalog.text("modal_confirm_disconnect_all_title"),
+        format!("{total}"),
+        vec![
+            catalog
+                .text("modal_confirm_disconnect_all_desc")
+                .into_owned(),
             format!("{total}"),
-            vec![
-                catalog
-                    .text("modal_confirm_disconnect_all_desc")
-                    .into_owned(),
-                format!("{total}"),
-            ],
-        ),
+        ],
+    );
+    close_all_panel.empty = total == 0;
+
+    let mut panels = vec![
+        close_all_panel,
         Panel::new(
             BusinessId::ConnectionsDetailsDrawer,
             catalog.text("runtime_connections_title"),

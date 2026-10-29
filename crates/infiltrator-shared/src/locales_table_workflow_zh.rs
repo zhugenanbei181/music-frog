@@ -778,6 +778,7 @@ pub(super) fn translate_workflow_zh(key: &str) -> Cow<'static, str> {
         "doctor_category_config" => "配置校验".into(),
         "doctor_check_config_fixture" => "3 份 MRS 规则集校验通过，0 语法警告".into(),
         "doctor_operation_pending" => "正在执行诊断操作…".into(),
+        "waiting" => "待确认".into(),
         "doctor_retry_action" => "重试上次操作".into(),
         "doctor_repair_row" => "修复该问题".into(),
         "doctor_no_repair_needed" => "体检修复：无需修复".into(),

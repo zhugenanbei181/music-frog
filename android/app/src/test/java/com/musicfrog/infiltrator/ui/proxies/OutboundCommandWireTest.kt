@@ -272,6 +272,42 @@ class OutboundCommandWireTest {
         }
     }
 
+    @Test
+    fun probeCommandWithCustomTimeoutEncodesCorrectly() {
+        val inventory = observedSnapshot()
+        val details = observedDetails()
+        val outboundId = (inventory.inventory as OutboundInventoryState.Ready).entries.single().id
+        val json = buildProbeOutboundCommandJson(
+            inventory,
+            details,
+            OutboundProbeOperationCapability.Supported,
+            outboundId,
+            testUrl = "https://probe.custom.test/generate_204",
+            timeoutMs = 8500L,
+        )
+        val request = JSONObject(json)
+            .getJSONObject("command").getJSONObject("Application")
+            .getJSONObject("ProbeOutbound").getJSONObject("request")
+        assertEquals(8500L, request.getLong("timeout_ms"))
+        assertEquals("https://probe.custom.test/generate_204", request.getString("test_url"))
+    }
+
+    @Test
+    fun setRuntimeProbeSettingsCommandEncodesScopeAndSettings() {
+        val inventory = observedSnapshot()
+        val json = buildSetRuntimeProbeSettingsCommandJson(
+            inventory.scope,
+            testUrl = "https://probe.custom.test/generate_204",
+            timeoutMs = 9000L,
+        )
+        assertEquals(inventory.scope.json, rawJsonValueAtPath(json, "scope"))
+        val settings = JSONObject(json)
+            .getJSONObject("command").getJSONObject("SetRuntimeProbeSettings")
+            .getJSONObject("settings")
+        assertEquals(9000L, settings.getLong("timeout_ms"))
+        assertEquals("https://probe.custom.test/generate_204", settings.getString("url"))
+    }
+
     private fun ownerSnapshot(): com.musicfrog.infiltrator.ui.common.OwnerSurfaceSnapshot =
         when (val read = parseOwnerSurfaceSnapshot(snapshotWithOutbound)) {
             is OwnerSurfaceRead.Available -> read.snapshot

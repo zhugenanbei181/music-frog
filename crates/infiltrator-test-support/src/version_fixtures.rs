@@ -349,7 +349,7 @@ impl VersionPort for VersionCapturePort {
         {
             return Err(PortError::Failed(reason));
         }
-        let installed = self
+        let mut installed = self
             .installed
             .lock()
             .expect("version capture installed versions");
@@ -365,7 +365,12 @@ impl VersionPort for VersionCapturePort {
             })
             .cloned();
         match target {
-            Some(version) => Ok(version),
+            Some(version) => {
+                for entry in installed.iter_mut() {
+                    entry.is_default = entry.version == version;
+                }
+                Ok(version)
+            }
             None => Err(PortError::Failed(
                 "no previous core version is installed and can be selected".to_owned(),
             )),

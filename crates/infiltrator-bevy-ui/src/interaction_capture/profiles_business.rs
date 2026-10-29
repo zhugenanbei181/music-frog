@@ -13,6 +13,7 @@ use crate::command::CommandSinkHandle;
 use crate::pages::profiles::{
     DeleteProfileButton, LastProfilesProjection, ProfilesPageRoot, UpdateProfileButton,
 };
+use crate::pages::profiles_import::ProfilesImportRoot;
 use crate::pages::profiles_outcome::{ProfileDeleteOutcomeText, ProfileRefreshText};
 use crate::route::surface_projection::replay_surface_snapshot;
 use crate::route::{ActiveRoute, Route};
@@ -102,6 +103,7 @@ pub struct ProfilesControls<'w, 's> {
     projection: Option<Res<'w, LastProfilesProjection>>,
     deletes: Query<'w, 's, (Entity, &'static DeleteProfileButton)>,
     updates: Query<'w, 's, (Entity, &'static UpdateProfileButton)>,
+    imports: Query<'w, 's, Entity, With<ProfilesImportRoot>>,
     pages: Query<'w, 's, Entity, With<ProfilesPageRoot>>,
 }
 
@@ -111,6 +113,17 @@ pub fn activate(mut controls: ProfilesControls, mut commands: Commands) {
         return;
     }
     match controls.feature.feature {
+        FeatureId::ProfilesImportModal => {
+            if !selected(
+                &controls.feature,
+                &controls.route,
+                FeatureId::ProfilesImportModal,
+                Route::Profiles,
+            ) {
+                return;
+            }
+            controls.capture.stage = ProfilesStage::Activated;
+        }
         FeatureId::ProfilesDeleteConfirm => {
             if !selected(
                 &controls.feature,
@@ -226,6 +239,7 @@ pub struct ProfilesObservation<'w, 's> {
     capture: Res<'w, ProfilesCapture>,
     deletions: Query<'w, 's, (Entity, &'static Text), With<ProfileDeleteOutcomeText>>,
     refreshes: Query<'w, 's, (Entity, &'static Text), With<ProfileRefreshText>>,
+    imports: Query<'w, 's, Entity, With<ProfilesImportRoot>>,
     parents: Query<'w, 's, &'static ChildOf>,
     areas: Query<'w, 's, Entity, With<ScrollArea>>,
 }
@@ -246,6 +260,10 @@ pub fn observe(
         return;
     }
     let subject = (|| match target {
+        FeatureId::ProfilesImportModal => {
+            let entity = controls.imports.iter().next()?;
+            Some((entity, "profiles import card"))
+        }
         FeatureId::ProfilesDeleteConfirm => {
             let (entity, text) = controls.deletions.single().ok()?;
             if text.0.is_empty() {

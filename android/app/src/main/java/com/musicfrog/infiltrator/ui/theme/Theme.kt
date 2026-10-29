@@ -41,6 +41,47 @@ private val LightColors = lightColorScheme(
     scrim = md_theme_light_scrim,
 )
 
+
+private val ForestColors = lightColorScheme(
+    primary = md_theme_forest_primary,
+    onPrimary = md_theme_forest_onPrimary,
+    primaryContainer = md_theme_forest_primaryContainer,
+    onPrimaryContainer = md_theme_forest_onPrimaryContainer,
+    secondary = md_theme_forest_secondary,
+    onSecondary = md_theme_forest_onSecondary,
+    secondaryContainer = md_theme_forest_secondaryContainer,
+    onSecondaryContainer = md_theme_forest_onSecondaryContainer,
+    tertiary = md_theme_forest_tertiary,
+    onTertiary = md_theme_forest_onTertiary,
+    tertiaryContainer = md_theme_forest_tertiaryContainer,
+    onTertiaryContainer = md_theme_forest_onTertiaryContainer,
+    error = md_theme_forest_error,
+    errorContainer = md_theme_forest_errorContainer,
+    onError = md_theme_forest_onError,
+    onErrorContainer = md_theme_forest_onErrorContainer,
+    background = md_theme_forest_background,
+    onBackground = md_theme_forest_onBackground,
+    surface = md_theme_forest_surface,
+    onSurface = md_theme_forest_onSurface,
+    surfaceVariant = md_theme_forest_surfaceVariant,
+    onSurfaceVariant = md_theme_forest_onSurfaceVariant,
+    outline = md_theme_forest_outline,
+    inverseOnSurface = md_theme_forest_inverseOnSurface,
+    inverseSurface = md_theme_forest_inverseSurface,
+    inversePrimary = md_theme_forest_inversePrimary,
+    surfaceTint = md_theme_forest_surfaceTint,
+    outlineVariant = md_theme_forest_outlineVariant,
+    scrim = md_theme_forest_scrim,
+)
+
+enum class ThemeOverride {
+    None,
+    Forest,
+    Dark,
+    Light,
+    Amoled,
+}
+
 private val DarkColors = darkColorScheme(
     primary = md_theme_dark_primary,
     onPrimary = md_theme_dark_onPrimary,
@@ -74,15 +115,30 @@ private val DarkColors = darkColorScheme(
 )
 
 @Composable
-fun InfiltratorTheme(darkTheme: Boolean, amoledBlack: Boolean = false, content: @Composable () -> Unit) {
-    val baseColors = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        val context = LocalContext.current
-        if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-    } else {
-        if (darkTheme) DarkColors else LightColors
+fun InfiltratorTheme(
+    darkTheme: Boolean,
+    amoledBlack: Boolean = false,
+    themeOverride: ThemeOverride = ThemeOverride.None,
+    content: @Composable () -> Unit,
+) {
+    val baseColors = when (themeOverride) {
+        ThemeOverride.Forest -> ForestColors
+        ThemeOverride.Dark -> DarkColors
+        ThemeOverride.Light -> LightColors
+        ThemeOverride.Amoled -> DarkColors.copy(
+            background = androidx.compose.ui.graphics.Color.Black,
+            surface = androidx.compose.ui.graphics.Color.Black,
+            surfaceVariant = androidx.compose.ui.graphics.Color(0xFF121212),
+        )
+        ThemeOverride.None -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val context = LocalContext.current
+            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        } else {
+            if (darkTheme) DarkColors else LightColors
+        }
     }
 
-    val colors = if (darkTheme && amoledBlack) {
+    val colors = if (darkTheme && amoledBlack && themeOverride == ThemeOverride.None) {
         baseColors.copy(
             background = androidx.compose.ui.graphics.Color.Black,
             surface = androidx.compose.ui.graphics.Color.Black,

@@ -74,6 +74,7 @@ fn demo_network_roaming_snapshot() -> NetworkRoamingSnapshot {
         }),
         observed_at_epoch_ms: None,
         revision: 1,
+        ..Default::default()
     }
 }
 

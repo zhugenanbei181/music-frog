@@ -159,6 +159,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--keep-installed", action="store_true")
     parser.add_argument("--merge", nargs="+", type=pathlib.Path)
     parser.add_argument("--probe", action="store_true")
+    parser.add_argument(
+        "--theme",
+        choices=("forest", "dark", "light", "amoled"),
+        default="forest",
+        help="theme override for testing (default: forest)",
+    )
     arguments = parser.parse_args(argv)
 
     try:
@@ -185,6 +191,7 @@ def main(argv: list[str] | None = None) -> int:
             settle_seconds=arguments.settle,
             dialog_timeout_seconds=arguments.dialog_timeout,
             keep_installed=arguments.keep_installed,
+            theme=arguments.theme,
         )
         flow = CaptureFlow(options, scenarios, anchors)
         receipt = flow.run()

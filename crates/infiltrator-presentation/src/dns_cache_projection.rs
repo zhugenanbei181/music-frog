@@ -33,6 +33,19 @@ pub fn flush_outcome(outcome: &DnsFlushOutcome, catalog: &dyn TextCatalog) -> St
     }
 }
 
+pub fn auto_flush_status(auto_generation: Option<u64>, catalog: &dyn TextCatalog) -> String {
+    if let Some(generation) = auto_generation {
+        let gen_str = generation.to_string();
+        localize(
+            catalog,
+            "dns_auto_flush_generation",
+            &[("generation", gen_str)],
+        )
+    } else {
+        catalog.text("dns_auto_flush_not_triggered").into_owned()
+    }
+}
+
 pub fn flush_summary(report: &DnsCacheFlushReport, catalog: &dyn TextCatalog) -> String {
     localize(
         catalog,

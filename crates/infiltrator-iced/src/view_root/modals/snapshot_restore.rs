@@ -3,7 +3,7 @@ use super::card::{modal_backdrop, modal_card};
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::snapshot_restore::RestoreAction;
-use crate::view::component_forms::{style_accent, style_ghost};
+use crate::view::component_forms::{style_accent, style_danger, style_ghost};
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Scrollable, Space, button, column, container, row, text};
 use iced::{Element, Length};
@@ -35,7 +35,7 @@ pub(crate) fn modal(state: &AppState) -> Element<'_, Message> {
     .spacing(8);
     if presentation.confirm {
         let confirm = button(text(lang.tr("snapshot_restore_confirm")))
-            .style(style_accent)
+            .style(style_danger)
             .on_press(Message::SnapshotRestore(RestoreAction::Confirm));
         actions = actions.push(container(confirm).id(InteractionRegion::RestoreConfirm.id()));
     }

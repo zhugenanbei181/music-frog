@@ -165,6 +165,8 @@ internal class ProxiesViewModel internal constructor(private val repository: And
         observedDetails: OutboundDetailsSnapshot,
         observedProbeCapability: OutboundProbeOperationCapability,
         outboundId: OutboundIdObservation,
+        testUrl: String = DEFAULT_OUTBOUND_PROBE_URL,
+        timeoutMs: Long = DEFAULT_OUTBOUND_PROBE_TIMEOUT_MS,
     ) {
         val commandJson = try {
             buildProbeOutboundCommandJson(
@@ -172,6 +174,8 @@ internal class ProxiesViewModel internal constructor(private val repository: And
                 observedDetails,
                 observedProbeCapability,
                 outboundId,
+                testUrl = testUrl,
+                timeoutMs = timeoutMs,
             )
         } catch (error: Exception) {
             publishCommandError(error.toLocalizedFailure())
@@ -179,6 +183,22 @@ internal class ProxiesViewModel internal constructor(private val repository: And
         }
         submitCommand(commandJson, observedInventory.scope) { outcome ->
             evaluateProbeOutboundOutcome(outcome, observedInventory, outboundId)
+        }
+    }
+
+    internal fun setProbeSettings(
+        observedScope: CoreScopeObservation,
+        testUrl: String = DEFAULT_OUTBOUND_PROBE_URL,
+        timeoutMs: Long = DEFAULT_OUTBOUND_PROBE_TIMEOUT_MS,
+    ) {
+        val commandJson = try {
+            buildSetRuntimeProbeSettingsCommandJson(observedScope, testUrl, timeoutMs)
+        } catch (error: Exception) {
+            publishCommandError(error.toLocalizedFailure())
+            return
+        }
+        submitCommand(commandJson, observedScope) { outcome ->
+            evaluateOutboundCommandOutcome(outcome, observedScope)
         }
     }
 

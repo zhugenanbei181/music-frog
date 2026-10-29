@@ -9,6 +9,12 @@ import { PagesSettings } from "pages_settings.slint";
 import { PagesObserve } from "pages_observe.slint";
 import { PagesInfo } from "pages_info.slint";
 import { PageWorkbench } from "page_workbench.slint";
+import { PageAppRouting } from "page_app_routing.slint";
+import { PageDoctor } from "page_doctor.slint";
+import { PageDns } from "page_dns.slint";
+import { PageSync } from "page_sync.slint";
+import { PageEditor } from "page_editor.slint";
+import { PageFilters } from "page_filters.slint";
 import { ConnectionSort, LogLevel, NetworkMode, RouteMode, RuntimeStatus, ThemeMode, TrafficRange } from "../components/domain_enums.slint";
 
 export component PagesRouter inherits VerticalLayout {
@@ -242,7 +248,61 @@ export component PagesRouter inherits VerticalLayout {
     width: 100%;
     alignment: start;
 
-    if root.page == "Dns" || root.page == "Editor" || root.page == "Filters" || root.page == "Doctor" || root.page == "Sync" || root.page == "AppRouting" || root.page == "ConnectionsWorkbench" || root.page == "LogsWorkbench" || root.page == "RuntimeWorkbench" || root.page == "ProxiesWorkbench" || root.page == "RulesWorkbench" || root.page == "SettingsWorkbench" || root.page == "ShellWorkbench" || root.page == "OverviewWorkbench": PageWorkbench {
+    if root.page == "AppRouting": PageAppRouting {
+        items: root.workbench-items;
+        draft <=> root.workbench-draft; draft-2 <=> root.workbench-draft-2;
+        draft-id: root.workbench-draft-id; draft-2-id: root.workbench-draft-2-id;
+        draft-placeholder: root.workbench-draft-placeholder; draft-2-placeholder: root.workbench-draft-2-placeholder;
+        action(id, row) => { root.workbench-action(id, row); }
+        draft-edited(id, value) => { root.workbench-draft-edited(id, value); }
+    }
+
+    if root.page == "Doctor": PageDoctor {
+        items: root.workbench-items;
+        draft <=> root.workbench-draft; draft-2 <=> root.workbench-draft-2;
+        draft-id: root.workbench-draft-id; draft-2-id: root.workbench-draft-2-id;
+        draft-placeholder: root.workbench-draft-placeholder; draft-2-placeholder: root.workbench-draft-2-placeholder;
+        action(id, row) => { root.workbench-action(id, row); }
+        draft-edited(id, value) => { root.workbench-draft-edited(id, value); }
+    }
+
+    if root.page == "Dns": PageDns {
+        items: root.workbench-items;
+        draft <=> root.workbench-draft; draft-2 <=> root.workbench-draft-2;
+        draft-id: root.workbench-draft-id; draft-2-id: root.workbench-draft-2-id;
+        draft-placeholder: root.workbench-draft-placeholder; draft-2-placeholder: root.workbench-draft-2-placeholder;
+        action(id, row) => { root.workbench-action(id, row); }
+        draft-edited(id, value) => { root.workbench-draft-edited(id, value); }
+    }
+
+    if root.page == "Sync": PageSync {
+        items: root.workbench-items;
+        draft <=> root.workbench-draft; draft-2 <=> root.workbench-draft-2;
+        draft-id: root.workbench-draft-id; draft-2-id: root.workbench-draft-2-id;
+        draft-placeholder: root.workbench-draft-placeholder; draft-2-placeholder: root.workbench-draft-2-placeholder;
+        action(id, row) => { root.workbench-action(id, row); }
+        draft-edited(id, value) => { root.workbench-draft-edited(id, value); }
+    }
+
+    if root.page == "Editor": PageEditor {
+        items: root.workbench-items;
+        draft <=> root.workbench-draft; draft-2 <=> root.workbench-draft-2;
+        draft-id: root.workbench-draft-id; draft-2-id: root.workbench-draft-2-id;
+        draft-placeholder: root.workbench-draft-placeholder; draft-2-placeholder: root.workbench-draft-2-placeholder;
+        action(id, row) => { root.workbench-action(id, row); }
+        draft-edited(id, value) => { root.workbench-draft-edited(id, value); }
+    }
+
+    if root.page == "Filters": PageFilters {
+        items: root.workbench-items;
+        draft <=> root.workbench-draft; draft-2 <=> root.workbench-draft-2;
+        draft-id: root.workbench-draft-id; draft-2-id: root.workbench-draft-2-id;
+        draft-placeholder: root.workbench-draft-placeholder; draft-2-placeholder: root.workbench-draft-2-placeholder;
+        action(id, row) => { root.workbench-action(id, row); }
+        draft-edited(id, value) => { root.workbench-draft-edited(id, value); }
+    }
+
+    if root.page == "ConnectionsWorkbench" || root.page == "LogsWorkbench" || root.page == "RuntimeWorkbench" || root.page == "ProxiesWorkbench" || root.page == "RulesWorkbench" || root.page == "SettingsWorkbench" || root.page == "ShellWorkbench" || root.page == "OverviewWorkbench": PageWorkbench {
         items: root.workbench-items;
         draft <=> root.workbench-draft; draft-2 <=> root.workbench-draft-2;
         draft-id: root.workbench-draft-id; draft-2-id: root.workbench-draft-2-id;
@@ -255,7 +315,7 @@ export component PagesRouter inherits VerticalLayout {
         page: root.page; android-platform: root.android-platform; compact-layout: root.compact-layout;
         application-dark-mode: root.application-dark-mode; layout-debug-bounds: root.layout-debug-bounds;
         layout-debug-tools-enabled: root.layout-debug-tools-enabled;
-        predictive-back-enabled: root.predictive-back-enabled; home-title-gap: root.home-title-gap;
+        predictive-back-enabled: root.predictive-back-enabled; product-version: root.product-version; home-title-gap: root.home-title-gap;
         home-data-upload-gap: root.home-data-upload-gap; home-before-node-gap: root.home-before-node-gap;
         home-node-egress-gap: root.home-node-egress-gap; runtime-status: root.runtime-status;
         active-profile: root.active-profile; has-current-profile: root.has-current-profile;

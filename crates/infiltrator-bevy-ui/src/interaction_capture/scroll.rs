@@ -63,10 +63,13 @@ pub fn request_scroll(
     bounds: [f32; 4],
     scroll: [f32; 4],
 ) -> bool {
-    if bounds[3] > scroll[3] {
-        return false;
-    }
-    let delta = if bounds[1] < scroll[1] {
+    let delta = if bounds[3] > scroll[3] {
+        if bounds[1] != scroll[1] {
+            bounds[1] - scroll[1]
+        } else {
+            return true;
+        }
+    } else if bounds[1] < scroll[1] {
         bounds[1] - scroll[1]
     } else if bounds[1] + bounds[3] > scroll[1] + scroll[3] {
         bounds[1] + bounds[3] - scroll[1] - scroll[3] + 2.0

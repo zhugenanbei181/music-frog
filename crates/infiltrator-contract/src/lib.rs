@@ -4,15 +4,40 @@
 //! toolkit-neutral. It is suitable for Rust frontends, REST DTO mapping, and
 //! UniFFI conversion without exposing Tokio or a concrete HTTP client.
 
+/// The single authoritative workspace product version string.
+pub const PRODUCT_VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const PRODUCT_VERSION_DISPLAY: &str = concat!("v", env!("CARGO_PKG_VERSION"));
+
+/// Strongly-typed product version single source of truth across all product surfaces.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct ProductVersion;
+
+impl ProductVersion {
+    pub const SEMVER: &'static str = PRODUCT_VERSION;
+    pub const DISPLAY: &'static str = PRODUCT_VERSION_DISPLAY;
+
+    #[inline]
+    pub const fn semver() -> &'static str {
+        Self::SEMVER
+    }
+
+    #[inline]
+    pub const fn display() -> &'static str {
+        Self::DISPLAY
+    }
+}
+
 pub mod a11y;
 pub mod active_exit;
 pub mod adapter_operation_declaration;
 pub mod aggregator;
 pub mod android_control;
 pub mod app_routing;
+pub mod app_traffic;
 pub mod apply_transaction;
 pub mod cadence;
 pub mod capability;
+pub mod color_science;
 pub mod command;
 pub mod command_catalogue;
 pub mod command_output;
@@ -33,15 +58,19 @@ pub mod dns_leak;
 pub mod dns_query;
 pub mod dns_self_heal;
 pub mod doctor;
+pub mod dpad_navigation;
 pub mod editor_viewport;
 pub mod fixture_identities;
 pub mod geo_database;
+pub mod geo_region;
 pub mod ime;
 pub mod intent;
 pub mod ipv6;
 pub mod lan;
+pub mod lan_share;
 pub mod language;
 pub mod latency_display;
+pub mod media_unlock;
 pub mod mini_hud;
 pub mod motion_spec;
 pub mod mrs_acceleration;
@@ -53,6 +82,7 @@ pub mod overview_layout;
 pub mod pac;
 pub mod parity;
 pub mod port_conflict;
+pub mod privilege_repair;
 pub mod privileged_network;
 pub mod profile_age_credential;
 pub mod profile_catalog_order;
@@ -71,6 +101,8 @@ mod protocol_psk;
 pub mod protocol_trust;
 pub mod provider_cache;
 pub mod proxies;
+pub mod proxy_filter;
+pub mod proxy_strategy;
 pub mod runtime_settings;
 
 pub mod speedtest_details;
@@ -93,6 +125,7 @@ pub mod rule_condition;
 pub mod rule_document;
 pub mod rule_edit;
 pub mod rule_location;
+pub mod rule_override;
 pub mod rule_provider_runtime;
 pub mod rule_provider_snapshot;
 pub mod rule_snapshot;
@@ -114,16 +147,19 @@ pub mod service_mode;
 pub mod shell_gesture;
 pub mod shell_readout;
 pub mod shortcuts;
+pub mod skeleton_shimmer;
 pub mod snapshot;
 pub mod snapshot_history;
 pub mod snapshot_restore;
 pub mod speedtest;
 pub mod stun_probe;
+pub mod subscription_diagnostic;
 pub mod subscription_filter_form;
 pub mod subscription_filter_result;
 pub mod subscription_import;
 pub mod subscription_quota;
 pub mod surface;
+pub mod surface_hierarchy;
 pub mod surface_snapshot;
 pub mod sync;
 pub mod sync_snapshot;

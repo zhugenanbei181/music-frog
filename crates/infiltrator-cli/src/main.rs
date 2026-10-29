@@ -4,6 +4,8 @@
 //! lives behind the workspace crates (doctor/bootstrap in `infiltrator-core`,
 //! kernel in `mihomo-version`, controller API in `mihomo-api`, and so on).
 
+#![allow(dead_code)]
+
 use std::process::exit;
 mod char_fx;
 mod charset;

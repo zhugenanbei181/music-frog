@@ -5,9 +5,7 @@ use crate::surface::business::BusinessId;
 use crate::surface::workbenches::Workbenches;
 use infiltrator_contract::command_catalogue::CommandCatalogue;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
-use infiltrator_presentation::routing_intent_projection::{
-    routing_intent_copy, routing_intent_copy_key,
-};
+use infiltrator_presentation::routing_intent_projection::routing_intent_copy;
 use infiltrator_shared::locales::Lang;
 use lurker_core_contract::routing_intent::RoutingIntent;
 use lurker_ui_presentation::copy::TextCatalog;
@@ -26,7 +24,6 @@ pub(super) fn panels(
         .clone()
         .unwrap_or(RoutingIntent::FollowRules);
     let intent_copy = routing_intent_copy(&intent, catalog);
-    let intent_key = routing_intent_copy_key(&intent);
     let failure = snapshot
         .failure
         .as_ref()
@@ -51,7 +48,7 @@ pub(super) fn panels(
             let mut panel = Panel::new(
                 BusinessId::ShellRoutingIntentControl,
                 catalog.text("overview_routing_intent_title"),
-                intent_copy,
+                intent_copy.clone(),
                 vec![
                     catalog.text("routing_intent_change_action").into_owned(),
                     catalog.text("routing_intent_settings").into_owned(),
@@ -65,7 +62,7 @@ pub(super) fn panels(
             let mut panel = Panel::new(
                 BusinessId::ShellRoutingIntentAuthentication,
                 catalog.text("routing_intent_title"),
-                intent_key.to_owned(),
+                intent_copy,
                 vec![
                     catalog.text("routing_intent_unavailable").into_owned(),
                     catalog.text("routing_intent_dismiss").into_owned(),
@@ -95,6 +92,12 @@ fn palette_rows(catalog: &Lang<'_>, workbenches: &Workbenches) -> Vec<String> {
         .filtered_indices(&query)
         .into_iter()
         .filter_map(|index| catalogue.entry(index))
-        .map(|entry| format!("{} · {}", entry.id, catalog.text(entry.title_key)))
+        .map(|entry| {
+            format!(
+                "[{}] {}",
+                catalog.text(entry.category.label_key()),
+                catalog.text(entry.title_key)
+            )
+        })
         .collect()
 }

@@ -263,14 +263,16 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         ),
     };
 
-    let save_btn = button(
+    let save_btn = button(if narrow {
+        row![text(save_label).size(12).font(FONT_MEDIUM)].align_y(Alignment::Center)
+    } else {
         row![
             text(save_label).size(12).font(FONT_MEDIUM),
             Space::new().width(theme::SP_SM),
             kbd_badge("Ctrl+S"),
         ]
-        .align_y(Alignment::Center),
-    )
+        .align_y(Alignment::Center)
+    })
     .padding([6, 12])
     .style(style_accent)
     .on_press_maybe(
@@ -298,7 +300,16 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         save_btn.into()
     };
 
-    let cancel_btn = button(
+    let cancel_btn = button(if narrow {
+        row![
+            icon_themed(Icon::X, 14.0, |t: &Theme| tokens(t).text_secondary),
+            text(lang.tr("btn_cancel").to_string())
+                .size(12)
+                .font(FONT_MEDIUM),
+        ]
+        .spacing(theme::SP_XS)
+        .align_y(Alignment::Center)
+    } else {
         row![
             icon_themed(Icon::X, 14.0, |t: &Theme| tokens(t).text_secondary),
             text(lang.tr("btn_cancel").to_string())
@@ -308,8 +319,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             kbd_badge("Esc"),
         ]
         .spacing(theme::SP_XS)
-        .align_y(Alignment::Center),
-    )
+        .align_y(Alignment::Center)
+    })
     .padding([6, 12])
     .style(style_ghost)
     .on_press(Message::Navigate(Route::Profiles));
@@ -330,17 +341,41 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         _ => Space::new().width(0).into(),
     };
     // Toolbar row: file info + pane switch + action buttons (Save / Cancel).
-    let toolbar = row![
-        file_info,
-        Space::new().width(Length::Fill),
-        pane_switch,
-        Space::new().width(theme::SP_LG),
-        save_btn,
-        discard,
-        Space::new().width(theme::SP_SM),
-        cancel_btn,
-    ]
-    .align_y(Alignment::Center);
+    let toolbar: Element<'_, Message> = if narrow {
+        column![
+            row![
+                file_info,
+                Space::new().width(Length::Fill),
+                row![
+                    save_btn,
+                    discard,
+                    Space::new().width(theme::SP_SM),
+                    cancel_btn
+                ]
+                .align_y(Alignment::Center)
+                .spacing(theme::SP_XS),
+            ]
+            .align_y(Alignment::Center)
+            .width(Length::Fill),
+            row![pane_switch].width(Length::Fill),
+        ]
+        .spacing(theme::SP_SM)
+        .width(Length::Fill)
+        .into()
+    } else {
+        row![
+            file_info,
+            Space::new().width(Length::Fill),
+            pane_switch,
+            Space::new().width(theme::SP_LG),
+            save_btn,
+            discard,
+            Space::new().width(theme::SP_SM),
+            cancel_btn,
+        ]
+        .align_y(Alignment::Center)
+        .into()
+    };
 
     // Editor area framed in a card surface, mono typeface for YAML. The
     // Mixin pane shows the overlay document; the Filter pane renders the

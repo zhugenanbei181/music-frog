@@ -15,6 +15,7 @@ export component PagesMain inherits VerticalLayout {
     in-out property <bool> layout-debug-bounds;
     in property <bool> layout-debug-tools-enabled;
     in property <bool> predictive-back-enabled;
+    in property <string> product-version: "0.68.2";
 
     // Home properties
     in property <length> home-title-gap;
@@ -199,6 +200,7 @@ export component PagesMain inherits VerticalLayout {
         predictive-back-enabled: root.predictive-back-enabled;
         layout-debug-tools-enabled: root.layout-debug-tools-enabled;
         layout-debug-bounds <=> root.layout-debug-bounds;
+        product-version: root.product-version;
         navigate(t) => { root.navigate(t); }
         cache-back-preview => { root.cache-back-preview(); }
     }

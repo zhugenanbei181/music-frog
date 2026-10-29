@@ -39,18 +39,28 @@ pub(super) fn panels(snapshot: &SurfaceSnapshot, catalog: &Lang<'_>) -> Vec<Pane
         Panel::new(
             BusinessId::EditorLargeDocumentWindow,
             catalog.text("editor_gutter_window"),
-            catalog.text("editor_viewport_hidden_above").into_owned(),
+            catalog
+                .text("editor_viewport_hidden_above")
+                .replace("{count}", "0"),
             vec![
-                catalog.text("editor_viewport_hidden_below").into_owned(),
+                catalog
+                    .text("editor_viewport_hidden_below")
+                    .replace("{count}", "0"),
                 catalog.text("editor_history_refresh").into_owned(),
             ],
         ),
         Panel::new(
             BusinessId::EditorYamlErrorNavigation,
-            catalog.text("editor_document_title"),
+            catalog
+                .text("editor_document_title")
+                .replace("{lines}", &differences.to_string()),
             format!("{differences}"),
             vec![
-                source,
+                if source.is_empty() {
+                    catalog.text("editor_apply_stage_committed").into_owned()
+                } else {
+                    source
+                },
                 catalog.text("editor_syntax_failed_label").into_owned(),
             ],
         ),

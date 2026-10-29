@@ -378,9 +378,27 @@ fn status_failure(status: &PageStatus) -> Option<String> {
 }
 
 pub(super) fn split_rate(rate: &str) -> (String, String) {
-    let trimmed = rate.trim().trim_end_matches("/s").trim();
-    let mut parts = trimmed.split_whitespace();
+    let mut parts = rate.trim().split_whitespace();
     let value = parts.next().unwrap_or("0").to_owned();
-    let unit = parts.next().unwrap_or("B").to_owned();
+    let unit = parts.next().unwrap_or("B/s").to_owned();
     (value, unit)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn split_rate_preserves_per_second_unit() {
+        assert_eq!(
+            split_rate("12.80 MB/s"),
+            ("12.80".to_owned(), "MB/s".to_owned())
+        );
+        assert_eq!(split_rate("0 B/s"), ("0".to_owned(), "B/s".to_owned()));
+        assert_eq!(
+            split_rate("512 KB/s"),
+            ("512".to_owned(), "KB/s".to_owned())
+        );
+        assert_eq!(split_rate(""), ("0".to_owned(), "B/s".to_owned()));
+    }
 }

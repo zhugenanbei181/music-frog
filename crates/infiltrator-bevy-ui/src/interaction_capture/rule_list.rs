@@ -1,5 +1,5 @@
 //! Scoped activation of the actual staged-list UI and permission failure panel.
-use super::capability::capture_command_application;
+use super::capability::{capture_command_application, capture_core_capability_application};
 use super::geometry::CaptureGeometry;
 use super::host::{CaptureCapability, CaptureCommandSink};
 use super::scroll::{request_scroll, union};
@@ -10,6 +10,7 @@ use crate::pages::rules_draft::{
     RuleListControl, RuleListEditorCard, RuleListPreview, RuleListStatus, RulesDraftState,
 };
 use crate::pages::rules_edit::RuleToggleButton;
+use crate::pages::rules_outcome::{RuleProviderFailureText, RuleProviderRefreshButton};
 use crate::pages::rules_projection::{RuleIndexText, RulePayloadText, RuleProxyText, RuleTypeText};
 use crate::pages::rules_view::RuleRow;
 use crate::route::surface_projection::replay_surface_snapshot;
@@ -24,6 +25,7 @@ use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::rule_list_application::RuleListApplication;
+use infiltrator_application::rule_provider_runtime_application::RuleProviderRuntimeApplication;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_composition::mihomo_configuration::for_mihomo_store;
 use infiltrator_composition::mihomo_configuration::mihomo_rule_trace_fixture;
@@ -33,7 +35,8 @@ use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_ports::surface::SurfaceReader;
-use infiltrator_test_support::language_choice_fixtures::LanguageCaptureProcess;
+use infiltrator_test_support::core_process_fixtures::CoreCaptureProcess;
+use infiltrator_test_support::rule_provider_fixtures::RuleProviderCapturePort;
 use infiltrator_test_support::rule_trace_fixtures::{RuleTraceStore, TRACE_DOCUMENT};
 use lurker_core_contract::error::ErrorCode;
 use lurker_core_contract::page::SurfaceOrigin;
@@ -48,22 +51,30 @@ struct CaptureList {
 pub fn install(app: &mut App) {
     let store = mihomo_rule_trace_fixture();
     store.deny_write.store(true, Ordering::SeqCst);
+    let port = Arc::new(RuleProviderCapturePort::default());
+    port.fail_refresh("the rule provider host refused");
+    let process = Arc::new(CoreCaptureProcess::running("mihomo", "capture-core"));
     let core = Arc::new(CoreApplication::new(
-        Arc::new(LanguageCaptureProcess),
-        Arc::new(LanguageCaptureProcess),
+        process.clone(),
+        process,
         tokio_application_runtime().expect("isolated rule-list capture"),
     ));
+    let capabilities = capture_core_capability_application();
+    let rule_provider_runtime = RuleProviderRuntimeApplication::new(port, capabilities);
     let reader = Arc::new(
         ProductSurfaceReader::new(core.clone(), SurfaceKind::BevyDesktop, HostKind::Desktop)
             .with_profiles(profiles_for_mihomo(store.clone()))
-            .with_configuration(for_mihomo_store(store.clone())),
+            .with_configuration(for_mihomo_store(store.clone()))
+            .with_rule_provider_runtime(rule_provider_runtime.clone()),
     );
     // The rule-list commit is a Core backend command: the shared bus admits
     // it only with a validated Core scope, so the capture drives the Core
     // owner's scoped route instead of the unscoped one.
     app.insert_resource(CommandSinkHandle(Arc::new(CaptureCommandSink::scoped(
         core,
-        capture_command_application().with_rule_list(RuleListApplication::new(store.clone())),
+        capture_command_application()
+            .with_rule_list(RuleListApplication::new(store.clone()))
+            .with_rule_provider_runtime(rule_provider_runtime),
         CaptureCapability::RuleList,
     ))));
     app.insert_resource(CaptureList {
@@ -81,6 +92,15 @@ pub struct ListActivation<'w, 's> {
     editor: Res<'w, RulesDraftState>,
     toggles: Query<'w, 's, (Entity, &'static RuleToggleButton, &'static ButtonDisabled)>,
     controls: Query<'w, 's, (Entity, &'static RuleListControl, &'static ButtonDisabled)>,
+    provider_buttons: Query<
+        'w,
+        's,
+        (
+            Entity,
+            &'static RuleProviderRefreshButton,
+            &'static ButtonDisabled,
+        ),
+    >,
     pages: Query<'w, 's, Entity, With<RulesPageRoot>>,
     cards: Query<'w, 's, Entity, With<RuleListEditorCard>>,
     rows: Query<'w, 's, (Entity, &'static RuleRow)>,
@@ -90,6 +110,57 @@ pub fn activate(
     mut geometry: CaptureGeometry,
     mut commands: Commands,
 ) {
+    if surface.feature.feature == FeatureId::RulesProviderRefreshError {
+        if !selected(
+            &surface.feature,
+            &surface.route,
+            FeatureId::RulesProviderRefreshError,
+            Route::Rules,
+        ) {
+            return;
+        }
+        if surface.capture.stage == 0 {
+            let reader = surface.capture.reader.clone();
+            let observed = Arc::new(Mutex::new(None));
+            let result = observed.clone();
+            tokio_application_runtime()
+                .expect("isolated capture runtime")
+                .block_on(Box::pin(async move {
+                    *result.lock().expect("capture read") = Some(reader.read().await);
+                }));
+            let mut snapshot = observed
+                .lock()
+                .expect("capture read")
+                .take()
+                .expect("read complete")
+                .expect("actual full page");
+            snapshot.origin = SurfaceOrigin::Demo;
+            snapshot.revision = surface.latest.0.revision + 1;
+            surface.latest.0 = snapshot;
+            replay_surface_snapshot(surface.latest.0.clone(), &mut commands);
+            surface.capture.stage = 1;
+            return;
+        }
+        if surface.capture.stage == 1 {
+            let target = surface
+                .provider_buttons
+                .iter()
+                .find(|(_, button, disabled)| button.0 == 0 && !disabled.0)
+                .map(|(entity, _, _)| entity);
+            if let Some(entity) = target {
+                if let Ok(page) = surface.pages.single()
+                    && let (Some(bounds), Some(viewport)) =
+                        (geometry.rect(entity), geometry.rect(page))
+                    && !request_scroll(&mut commands, page, bounds, viewport)
+                {
+                    return;
+                }
+                commands.trigger(Activate { entity });
+                surface.capture.stage = 2;
+            }
+        }
+        return;
+    }
     if !selected(
         &surface.feature,
         &surface.route,
@@ -198,6 +269,7 @@ pub struct ListObservation<'w, 's> {
     status: Query<'w, 's, (Entity, &'static Text), With<RuleListStatus>>,
     preview: Query<'w, 's, (Entity, &'static Text), With<RuleListPreview>>,
     controls: Query<'w, 's, (Entity, &'static RuleListControl, &'static ButtonDisabled)>,
+    provider_failures: Query<'w, 's, (Entity, &'static RuleProviderFailureText, &'static Text)>,
     pages: Query<'w, 's, Entity, With<RulesPageRoot>>,
 }
 
@@ -268,6 +340,34 @@ pub fn observe(
     mut observation: ResMut<ObservedInteraction>,
     mut commands: Commands,
 ) {
+    if feature.feature == FeatureId::RulesProviderRefreshError {
+        if probe.capture.stage < 2 {
+            return;
+        }
+        let Some((entity, _, text)) = probe
+            .provider_failures
+            .iter()
+            .find(|(_, marker, _)| marker.0 == 0)
+        else {
+            return;
+        };
+        if text.0.is_empty() || !text.0.contains("rule provider host refused") {
+            return;
+        }
+        if let Ok(page) = probe.pages.single()
+            && let (Some(bounds), Some(viewport)) = (geometry.rect(entity), geometry.rect(page))
+            && !geometry.unclipped(entity)
+        {
+            request_scroll(&mut commands, page, bounds, viewport);
+            return;
+        }
+        let Some(bounds) = geometry.bounds(entity, "rules-provider-refresh-error") else {
+            return;
+        };
+        feature.activated = true;
+        observation.0 = Some(bounds);
+        return;
+    }
     if feature.feature != FeatureId::RulesListEditor
         || probe.capture.stage != 3
         || probe.editor.model.is_pending()

@@ -1,8 +1,9 @@
-import { Button, ScrollView } from "std-widgets.slint";
+import { ScrollView } from "std-widgets.slint";
 import { ModalBottomSheet } from "@material";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "./theme.slint";
 import { OverviewCardSlot } from "./models.slint";
+import { PillButton } from "./base_widgets.slint";
 import { SheetActionButton } from "./cards.slint";
 
 // The Overview card order sheet.
@@ -37,7 +38,7 @@ export component OverviewOrderSheet inherits ModalBottomSheet {
         background: transparent;
         VerticalLayout {
             x: 16 * LumenUiScale.unit; width: parent.width - 32 * LumenUiScale.unit; height: parent.height;
-            padding-top: 8 * LumenUiScale.unit; padding-bottom: 8 * LumenUiScale.unit; spacing: 8 * LumenUiScale.unit;
+            padding-top: LumenTheme.space-2; padding-bottom: LumenTheme.space-2; spacing: LumenTheme.space-2;
             Text {
                 text: @tr("概览卡片顺序");
                 color: LumenTheme.text-primary; font-size: 20 * LumenUiScale.unit; font-weight: 550;
@@ -49,26 +50,43 @@ export component OverviewOrderSheet inherits ModalBottomSheet {
                 vertical-scrollbar-policy: ScrollBarPolicy.always-off;
                 horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
                 VerticalLayout {
-                    width: parent.width; spacing: 4 * LumenUiScale.unit; alignment: start;
-                    for slot in root.cards: HorizontalLayout {
-                        width: parent.width; height: 48 * LumenUiScale.unit; spacing: 8 * LumenUiScale.unit;
-                        Rectangle {
-                            width: 4 * LumenUiScale.unit; height: 24 * LumenUiScale.unit; border-radius: 2 * LumenUiScale.unit;
-                            background: LumenTheme.accent; y: (parent.height - self.height) / 2;
-                        }
-                        Text {
-                            text: slot.title; color: LumenTheme.text-primary; font-size: 17 * LumenUiScale.unit;
-                            horizontal-stretch: 1; vertical-alignment: center; overflow: elide;
-                        }
-                        Button {
-                            text: "↑"; width: 48 * LumenUiScale.unit; height: 48 * LumenUiScale.unit;
-                            enabled: slot.can-move-up;
-                            clicked => { root.move-card(slot.id, true); }
-                        }
-                        Button {
-                            text: "↓"; width: 48 * LumenUiScale.unit; height: 48 * LumenUiScale.unit;
-                            enabled: slot.can-move-down;
-                            clicked => { root.move-card(slot.id, false); }
+                    width: parent.width; spacing: LumenTheme.space-1; alignment: start;
+                    for slot in root.cards: Rectangle {
+                        width: parent.width;
+                        height: 48 * LumenUiScale.unit;
+                        border-radius: LumenTheme.radius-control;
+                        background: LumenTheme.surface-muted;
+                        border-width: 1 * LumenUiScale.unit;
+                        border-color: LumenTheme.border;
+
+                        HorizontalLayout {
+                            padding-left: 12 * LumenUiScale.unit;
+                            padding-right: 12 * LumenUiScale.unit;
+                            spacing: LumenTheme.space-2;
+                            cross-axis-alignment: center;
+
+                            Rectangle {
+                                width: 4 * LumenUiScale.unit; height: 20 * LumenUiScale.unit; border-radius: 2 * LumenUiScale.unit;
+                                background: LumenTheme.accent;
+                            }
+                            Text {
+                                text: slot.title; color: LumenTheme.text-primary; font-size: 15 * LumenUiScale.unit; font-weight: 500;
+                                horizontal-stretch: 1; vertical-alignment: center; overflow: elide;
+                            }
+                            PillButton {
+                                label: "↑";
+                                pill-height: 28 * LumenUiScale.unit;
+                                min-pill-width: 36 * LumenUiScale.unit;
+                                enabled: slot.can-move-up;
+                                clicked => { root.move-card(slot.id, true); }
+                            }
+                            PillButton {
+                                label: "↓";
+                                pill-height: 28 * LumenUiScale.unit;
+                                min-pill-width: 36 * LumenUiScale.unit;
+                                enabled: slot.can-move-down;
+                                clicked => { root.move-card(slot.id, false); }
+                            }
                         }
                     }
                 }

@@ -1,5 +1,6 @@
 //! Runtime-neutral physical-link roaming and TUN route recovery use-case.
 
+use crate::dns_cache_application::DnsCacheApplication;
 use crate::runtime_configuration_application::RuntimeConfigurationApplication;
 use crate::runtime_scope::active_scope;
 use futures_util::lock::Mutex;
@@ -28,6 +29,7 @@ struct State {
     snapshot: NetworkRoamingSnapshot,
     next_revision: u64,
     route_repair_count: u64,
+    network_generation: u64,
 }
 
 enum NetworkObservationHistory {
@@ -42,6 +44,7 @@ enum NetworkObservationHistory {
 pub struct NetworkRoamingApplication {
     port: Arc<dyn NetworkRoamingPort>,
     core_configuration: CoreConfigurationOwner,
+    dns_cache: Option<DnsCacheApplication>,
     state: Arc<Mutex<State>>,
 }
 
@@ -59,13 +62,20 @@ impl NetworkRoamingApplication {
         Self {
             port,
             core_configuration: CoreConfigurationOwner::NotComposed,
+            dns_cache: None,
             state: Arc::new(Mutex::new(State {
                 observation_history: NetworkObservationHistory::AwaitingInitial,
                 snapshot: NetworkRoamingSnapshot::default(),
                 next_revision: 1,
                 route_repair_count: 0,
+                network_generation: 0,
             })),
         }
+    }
+
+    pub fn with_dns_cache(mut self, dns_cache: DnsCacheApplication) -> Self {
+        self.dns_cache = Some(dns_cache);
+        self
     }
 
     pub fn with_core_configuration(
@@ -198,7 +208,9 @@ impl NetworkRoamingApplication {
             last_event: state.snapshot.last_event.clone(),
             observed_at_epoch_ms: observation.observed_at_epoch_ms,
             revision,
+            network_generation: state.network_generation,
         };
+        let mut physical_network_changed = false;
         match &decision {
             NetworkRoamingDecision::InitialObservation { .. } => {
                 snapshot.last_event = Some(NetworkRoamingEvent::InitialObservation {
@@ -207,6 +219,7 @@ impl NetworkRoamingApplication {
                 });
             }
             NetworkRoamingDecision::InterfaceAddressChanged { interface, .. } => {
+                physical_network_changed = true;
                 snapshot.last_event = Some(NetworkRoamingEvent::InterfaceAddressChanged {
                     interface: interface.clone(),
                 });
@@ -217,6 +230,7 @@ impl NetworkRoamingApplication {
                 previous_gateway_ip,
                 gateway_ip,
             } => {
+                physical_network_changed = true;
                 snapshot.last_event = Some(NetworkRoamingEvent::GatewayChanged {
                     old_interface: previous_interface.clone(),
                     new_interface: active_interface.clone(),
@@ -225,6 +239,22 @@ impl NetworkRoamingApplication {
                 });
             }
             NetworkRoamingDecision::Stable { .. } => {}
+        }
+
+        if physical_network_changed {
+            state.network_generation = state.network_generation.saturating_add(1);
+        }
+        snapshot.network_generation = state.network_generation;
+
+        if physical_network_changed && let Some(dns_cache) = self.dns_cache.as_ref() {
+            if let CoreConfigurationOwner::Composed { scope_source, .. } = &self.core_configuration
+            {
+                if let Ok(scope) = active_scope(scope_source.as_ref()) {
+                    let _ = dns_cache
+                        .auto_flush_for_network_change(scope, state.network_generation)
+                        .await;
+                }
+            }
         }
 
         match plan_route_repair(
@@ -643,5 +673,51 @@ mod tests {
             Some(NetworkRoamingEvent::RoutesRepaired { .. })
         ));
         assert_eq!(port.repairs.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn migration_automatically_flushes_dns_cache_with_new_generation_once() {
+        use infiltrator_test_support::dns_cache_fixtures::IsolatedCaches;
+
+        let port = Arc::new(FakePort {
+            observations: sync::Mutex::new(vec![
+                observation("wlan0", "192.168.2.1"),
+                observation("eth0", "192.168.1.1"),
+                observation("eth0", "192.168.1.1"),
+            ]),
+            repairs: AtomicUsize::new(0),
+            repair_outcome: FakeRepairOutcome::Repaired,
+        });
+
+        let caches = Arc::new(IsolatedCaches::default());
+        let dns_cache = DnsCacheApplication::new(Some(caches.clone()), Some(caches.clone()));
+
+        let application = with_fake_core_configuration(
+            NetworkRoamingApplication::new(port.clone()),
+            fake_core_configuration_owner(true),
+        )
+        .with_dns_cache(dns_cache.clone());
+
+        // 1. Initial observation
+        let first = application.refresh().await;
+        assert_eq!(first.network_generation, 0);
+        assert_eq!(caches.fake_calls.load(Ordering::SeqCst), 0);
+        assert_eq!(caches.system_calls.load(Ordering::SeqCst), 0);
+
+        // 2. Network change (wlan0 -> eth0)
+        let second = application.refresh().await;
+        assert_eq!(second.network_generation, 1);
+        assert_eq!(caches.fake_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(caches.system_calls.load(Ordering::SeqCst), 1);
+        let dns_snapshot = dns_cache.snapshot();
+        assert_eq!(dns_snapshot.auto_flush_generation, Some(1));
+        assert!(dns_snapshot.report.fake_ip.is_flushed());
+        assert!(dns_snapshot.report.os_cache.is_flushed());
+
+        // 3. Stable observation (eth0 -> eth0)
+        let third = application.refresh().await;
+        assert_eq!(third.network_generation, 1);
+        assert_eq!(caches.fake_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(caches.system_calls.load(Ordering::SeqCst), 1);
     }
 }

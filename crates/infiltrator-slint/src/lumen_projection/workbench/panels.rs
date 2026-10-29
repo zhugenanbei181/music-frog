@@ -108,7 +108,7 @@ pub(super) fn render(
                     &format!("{id}/confirm"),
                     &catalog.text("common_confirm"),
                     &confirm_action(panel.business),
-                    true,
+                    !panel.empty,
                 ));
                 items.push(button(
                     &format!("{id}/cancel"),
@@ -140,18 +140,20 @@ pub(super) fn render(
             }
             BusinessPhase::Idle => {}
         }
-        items.push(button(
-            &format!("{id}/open"),
-            &catalog.text("common_details"),
-            &open_action(panel.business),
-            true,
-        ));
-        items.push(button(
-            &format!("{id}/refresh"),
-            &catalog.text("common_reload"),
-            &refresh_action(panel.business),
-            true,
-        ));
+        if !matches!(phase, BusinessPhase::Reviewing) {
+            items.push(button(
+                &format!("{id}/open"),
+                &catalog.text("common_details"),
+                &open_action(panel.business),
+                true,
+            ));
+            items.push(button(
+                &format!("{id}/refresh"),
+                &catalog.text("common_reload"),
+                &refresh_action(panel.business),
+                true,
+            ));
+        }
     }
     items
 }

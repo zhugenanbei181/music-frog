@@ -369,7 +369,7 @@ fn topology_arrow_scene(_palette: &UiPalette) -> impl Scene + use<> {
             }
             TopologyArrow
             Children [
-                Text({ ">".to_owned() }) TextRole(Role::BodyStrong) ThemeTextColor({ Token::InkDim })
+                Text({ "→".to_owned() }) TextRole(Role::BodyStrong) ThemeTextColor({ Token::InkDim })
             ]
     }
 }

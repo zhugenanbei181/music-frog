@@ -172,6 +172,19 @@ internal fun buildProbeOutboundCommandJson(
     return wrapObservedCommand(inventory.scope, commandJson)
 }
 
+/** Serialize a set runtime probe settings command with the scope the user observed. */
+internal fun buildSetRuntimeProbeSettingsCommandJson(
+    scope: CoreScopeObservation,
+    testUrl: String = DEFAULT_OUTBOUND_PROBE_URL,
+    timeoutMs: Long = DEFAULT_OUTBOUND_PROBE_TIMEOUT_MS,
+): String {
+    require(timeoutMs > 0) { "Outbound probe timeout is invalid" }
+    require(testUrl.isHttpUrlWithoutCredentials()) { "Outbound probe target must be an absolute HTTP(S) URL without credentials" }
+    val settingsJson = """{"url":${JSONObject.quote(testUrl)},"timeout_ms":$timeoutMs}"""
+    val commandJson = """{"SetRuntimeProbeSettings":{"settings":$settingsJson}}"""
+    return wrapObservedCommand(scope, commandJson)
+}
+
 internal fun canProbeOutbound(itemCapability: OutboundProbeAvailability, operationCapability: OutboundProbeOperationCapability): Boolean =
     itemCapability == OutboundProbeAvailability.Supported &&
         operationCapability == OutboundProbeOperationCapability.Supported
@@ -517,5 +530,5 @@ private fun outboundIdJson(id: OutboundIdObservation): String = """
     {"engine_id":${JSONObject.quote(id.engineId)},"value":${JSONObject.quote(id.value)}}
 """.trimIndent()
 
-private const val DEFAULT_OUTBOUND_PROBE_URL = "https://www.gstatic.com/generate_204"
-private const val DEFAULT_OUTBOUND_PROBE_TIMEOUT_MS = 5_000L
+internal const val DEFAULT_OUTBOUND_PROBE_URL = "https://www.gstatic.com/generate_204"
+internal const val DEFAULT_OUTBOUND_PROBE_TIMEOUT_MS = 5_000L

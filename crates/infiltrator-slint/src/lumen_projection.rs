@@ -27,7 +27,9 @@ use infiltrator_presentation::overview_page_model::{
 };
 use infiltrator_presentation::profile_preview::redact_profile_preview;
 use infiltrator_presentation::shell_readout::profile_name;
+use infiltrator_presentation::subscription_quota_projection::{QuotaGrade, project_quota};
 use infiltrator_presentation::traffic_readout::{TrafficFreshness, project_traffic_readout};
+use infiltrator_shared::byte_units::format_bytes;
 use infiltrator_shared::locales::{Lang, Localizer, get_system_language, resolve_language_code};
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::lifecycle::CoreLifecycle;
@@ -39,7 +41,7 @@ pub(super) const THIRD_PARTY_NOTICES: &str = include_str!("../../../THIRD-PARTY-
 
 pub(super) fn project_initial(window: &AppWindow, language: &str, autostart: Option<bool>) {
     let lang = Lang(language);
-    window.set_product_version(env!("CARGO_PKG_VERSION").into());
+    window.set_product_version(infiltrator_contract::ProductVersion::SEMVER.into());
     window.set_application_language("system".into());
     window.set_system_language(system_language_for_ui());
     window.set_application_dark_mode(false);
@@ -241,7 +243,7 @@ pub(super) fn project_snapshot(
     let (down_value, down_unit) = collections::split_rate(&traffic.download);
     window.set_stat_down_value(down_value.into());
     window.set_stat_down_unit(down_unit.into());
-    window.set_stat_up_compact(traffic.upload.trim_end_matches("/s").trim().into());
+    window.set_stat_up_compact(traffic.upload.clone().into());
     window.set_stat_connections(snapshot.core.active_connections.to_string().into());
     window.set_traffic_stream_status(
         match traffic.freshness {
@@ -512,27 +514,91 @@ fn project_profiles(window: &AppWindow, snapshot: &SurfaceSnapshot, language: &s
         return;
     };
     let total_profiles = page.profiles.len();
+    let quota = &snapshot.subscription_quota;
+    let quota_drawable = quota.is_drawable();
+    let quota_pres = if quota_drawable {
+        Some(project_quota(quota, &lang))
+    } else {
+        None
+    };
     let rows = page
         .profiles
         .iter()
         .enumerate()
-        .map(|(index, profile)| ProfileCard {
-            id: profile.id.clone().into(),
-            name: profile.name.clone().into(),
-            kind: if profile.write_protection == ProfileWriteProtection::RemoteSubscription {
-                lang.tr("订阅链接").into_owned().into()
-            } else {
-                lang.tr("本地 YAML").into_owned().into()
-            },
-            location: if profile.write_protection.is_protected() {
-                lang.tr("订阅配置").into_owned().into()
-            } else {
-                lang.tr("本地配置文件").into_owned().into()
-            },
-            updated: profile.updated_at.clone().into(),
-            current: profile.is_active,
-            can_move_up: index > 0,
-            can_move_down: index + 1 < total_profiles,
+        .map(|(index, profile)| {
+            let (has_quota, used_text, total_text, expire_text, usage_fraction, quota_grade) =
+                if profile.is_active && quota_drawable {
+                    let pres = quota_pres.as_ref().unwrap();
+                    let grade_str = match pres.grade {
+                        QuotaGrade::Danger => "danger",
+                        QuotaGrade::Warning => "warning",
+                        _ => "observed",
+                    };
+                    (
+                        true,
+                        pres.used.clone(),
+                        pres.total.clone(),
+                        pres.expiry.clone(),
+                        pres.fraction.unwrap_or(0.0),
+                        grade_str,
+                    )
+                } else if let Some(total) = profile.total_bytes {
+                    let used =
+                        profile.upload_bytes.unwrap_or(0) + profile.download_bytes.unwrap_or(0);
+                    let fraction = if total > 0 {
+                        (used as f32 / total as f32).clamp(0.0, 1.0)
+                    } else {
+                        0.0
+                    };
+                    let grade_str = if fraction >= 0.9 {
+                        "danger"
+                    } else if fraction >= 0.75 {
+                        "warning"
+                    } else {
+                        "observed"
+                    };
+                    (
+                        true,
+                        format_bytes(used),
+                        format_bytes(total),
+                        String::new(),
+                        fraction,
+                        grade_str,
+                    )
+                } else {
+                    (
+                        false,
+                        String::new(),
+                        String::new(),
+                        String::new(),
+                        0.0,
+                        "observed",
+                    )
+                };
+            ProfileCard {
+                id: profile.id.clone().into(),
+                name: profile.name.clone().into(),
+                kind: if profile.write_protection == ProfileWriteProtection::RemoteSubscription {
+                    lang.tr("订阅链接").into_owned().into()
+                } else {
+                    lang.tr("本地 YAML").into_owned().into()
+                },
+                location: if profile.write_protection.is_protected() {
+                    lang.tr("订阅配置").into_owned().into()
+                } else {
+                    lang.tr("本地配置文件").into_owned().into()
+                },
+                updated: profile.updated_at.clone().into(),
+                current: profile.is_active,
+                can_move_up: index > 0,
+                can_move_down: index + 1 < total_profiles,
+                has_quota,
+                used_text: used_text.into(),
+                total_text: total_text.into(),
+                expire_text: expire_text.into(),
+                usage_fraction,
+                quota_grade: quota_grade.into(),
+            }
         })
         .collect::<Vec<_>>();
     window.set_profiles(slint_model(rows));

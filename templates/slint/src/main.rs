@@ -1,6 +1,10 @@
 //! Minimal Slint desktop proxy client template (PUB-005.1).
 
-slint::include_modules!();
+#[allow(clippy::todo)]
+mod generated_ui {
+    slint::include_modules!();
+}
+use generated_ui::*;
 
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_ports::command_sink::{CommandSink, RecordingCommandSink};

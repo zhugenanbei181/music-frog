@@ -865,3 +865,334 @@
   - 验收：双视口下动态数据刷新无字符拉扯跳动，长字符安全截断，基线对齐。
   - 计划：引入 tnum 字体配置与 elide 属性，校准 cards.slint 的 HorizontalLayout 对齐。
   - 备注：2026-10-24 本批实物交付——#31：Slint 无 font-features/tnum 原语（compiler 源实测无该属性），以**等宽字族替代**：`theme.slint` 编译期注册共享资产 `JetBrainsMono-Regular.ttf`（`import "…ttf"` 编译期字体注册，compiler typeloader 核实）+ `mono-family` token；page_home 大号实时数字（stat-down-value/unit/up-compact）与 SummaryRow value（cards.slint）全部换 mono——数字 advance 固定，刷新无拉扯。#33：日志行 `letter-spacing: 0.2px` + mono 字族（page_observe）。#32 elide 在树（多处 overflow: elide 引用在案）。#34：Slint 布局无 baseline 对齐原语，node 卡 flag/协议/延迟行为 `cross-axis-alignment: center`——center 即本面对齐语义，诚实登记（真 baseline 需上游支持）。抖动消除的像素回执随 PARITY 批次。
+
+## 12.20 FlClash UI 对标交付（2026-10-28 交付，1条 / 2pt）
+
+- [ ] FLPARITY-009 [kind: mechanism] [priority: P1] [points: 2] [owner: infiltrator-bevy-ui] [status: Integrated] Bevy 内核版本回滚两步确认
+  - 产物：`CoreRollbackButton` 首击只打开官方 `ModalDialog` typed 确认态并显示 owner 的当前/目标版本；仅确认按钮提交一次 `RollbackCore`，取消、Esc、遮罩关闭均不提交；capture 在截图后真实确认并读回 owner 新版本。
+  - 验收：首击零命令；确认恰好一次；取消/Esc/外部关闭零副作用；目标版本来自 owner；standard/compact 双视口像素回执。
+  - 当前证据（L）：行为与 capture `4/4`（`53aaddb5-3e0b-4010-9e4c-bff78affd5b6` + `46fef84b-0b1c-47d6-bf04-9ac47f654537`）；Bevy headless `597/597`（`d5299c6e-2021-4584-a528-727913d34ac0`）；version fixture `9/9`（`18a198bc-7299-48f2-a6cb-175251ba89e4`）；Bevy capture `20261028T044426Z_c29a8b64de85_dirty_3974885`、Iced 对照 `20261028T043555Z_c29a8b64de85_dirty_3934794`，4 张 forest receipt 经 `visual_receipts.py` 严格验证（target/parity/core-version-rollback-confirm-forest-receipts.json），owner readback=`v1.19.29`；PNG SHA Bevy `409cbce7…`/`51d70d12…`，Iced `ed9ec9af…`/`7ec76085…`。
+  - 待验证：统一 workspace nextest、Clippy `--all-targets -D warnings`、结构门与最终提交批次；parity 全局解析仍有 178 个既有 `ready` 无像素格，本条自身 `scope_aligned=bevy`。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+
+## 12.21 Bevy 业务捕获与独立像素认证收口（2026-10-28 交付，1条 / 3pt）
+
+- [ ] BEVYCAP-002 [kind: evidence] [priority: P1] [points: 3] [owner: infiltrator-bevy-ui] [status: Integrated] Bevy 业务捕获 7 条补齐与独立像素认证收口
+  - 产物：为 `core-version-rollback-confirm`、`profiles-aggregator-preview`、`profiles-import-modal`、`settings-lan-security`、`sync-conflict-resolver`、`rules-provider-refresh-error`、`editor-snippet-insertion`、`editor-yaml-error-navigation`（各 standard+compact）补齐真实交互捕获模块与独立像素回执；修复 `has_specialized_activator` 导致的同图假通过，双端 forest 回执经 `visual_receipts.py` 严格认证并回填 `cross_surface_manifest.tsv`（Bevy ready 增至 42，Iced ready 增至 52）。
+  - 验收：所涉 16 格双视口像素回执全绿且全部具备非默认 bounds；`cross_surface_manifest.tsv` 全行一致；`resolve_surface_evidence.py --structure-only` PASS。
+  - 当前证据（L）：`rules-provider-refresh-error` 回执 `4/4`（Iced `4c760a9c…`/`aa70e80f…`，Bevy `83aa6d11…`/`0c00e6c8…`）；`editor-snippet-insertion` 与 `editor-yaml-error-navigation` 回执 `8/8`（Iced `aec02b9f…`/`a3d9fc1c…`/`cfa13d3b…`/`9fc1b47d…`，Bevy `1e4b1ee6…`/`dde03973…`/`298822c7…`/`ddb9a195…`）；headless 行为测试 `18/18` 全绿（`5227b905-d45b-4f70-be77-c0c517f2e3c8` + `a28465af-095f-4d70-938c-7804e08d527b`）；`resolve_surface_evidence.py --structure-only` PASS。
+  - 待验证：统一 workspace nextest、Clippy `--all-targets -D warnings` 与结构门复跑。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+
+## 12.22 三端布局损坏与主题令牌硬伤收口交付（2026-10-28 交付，1条 / 5pt）
+
+- [ ] GAP-7.5 [kind: refactor] [priority: P1] [points: 5] [owner: infiltrator-slint + infiltrator-bevy-ui + infiltrator-iced] [status: Integrated] 三端布局损坏与主题令牌硬伤收口
+  - 产物：审计证实的布局破损与主题对比度缺陷按端三批完成修复：
+    - **Bevy 批**：`pages/app_routing.rs` 按钮文字接入 `Token::OnAccent`（消除深绿底深绿字）；`node_card.rs` 禁用卡改用透明度联动衰减（消除暗色模式下亮白方块穿帮）；拓扑连线杂散 `>` 替换为 `→`；节点历史 sparkline 补齐真实时间序列采样；竖屏测速面板间距与换行收拢、文案去重。
+    - **Slint 批**：`workbench_parts.slint` 中 `WorkbenchCard` 彻底移除固定高度破坏性约束，改为自适应 min/preferred 高度与内边距，根治内容与按钮出卡溢出；`page_sync.slint` 提示卡显式绑定 min-height，消除 0 高度叠画重影；`theme.slint` 统一 `is-dark` 判定消除 AMOLED 下文字取浅色黑字隐形缺陷，修复 forest/dark 选中态 accent 对比度，`base_widgets.slint` 补齐暗色搜索图标着色。
+    - **Iced 批**：`skins.rs` light/forest `sidebar_text_muted` 对比度从 2.2:1 提升至 >4.8:1，底部导航与次级文本隐形消除；`view/editor.rs` 窄档模式将工具栏拆分为两行并隐藏键盘徽标，消除窄档头部塌缩与 tab 竖排；`aggregator_modal.rs` 将操作按钮行提取至模态卡底部悬浮固定，彻底解决 compact 480px 视口下表单过长挤出三按钮；`connection_drawer.rs` 抽屉 432px 净宽下将操作栏拆为两行（操作行 + 全宽关闭按钮），彻底消除「关闭抽屉」逐字竖排；`overview_stats.rs` 在标准视口 1180px 下（`width_px < 1280.0`）将列数限制为 3 列（2 行 × 3 列），留出充足横向宽度彻底消除「总流量」长数字卡溢出右缘截断。
+  - 验收：Bevy/Slint/Iced 三端对应定向单测（Bevy 77/77、Slint 355/355、Iced 542/542）全部 100% 通过；`check-structure.sh` 40+ 道结构门零违规全绿。
+  - 当前证据（L）：Iced 542 项全绿（`2c4d99d7-6feb-40aa-991a-622f5d535a71`）；Slint 355 项全绿；Bevy `pages_matrix_b_tests` 77 项全绿；`check-structure.sh` 338 项自测全绿。
+  - 待验证：统一验证批次统一重采三端受影响场景回执。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+
+## 12.23 网络切换自动清理 DNS 缓存交付（2026-10-28 交付，1条 / 3pt）
+
+- [ ] FLPARITY-012 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-contract + infiltrator-application + infiltrator-composition + infiltrator-desktop + infiltrator-android] [status: Integrated] 网络切换自动清理 DNS 缓存
+  - 产物：`NetworkRoamingApplication` 在物理链路切换（网关变化 `GatewayChanged` 或 IP 地址变化 `InterfaceAddressChanged`）时递增 `network_generation` 并通过注入的 `DnsCacheApplication` 自动触发一次带 generation 标记的 Fake-IP 与系统 DNS 缓存清理；对同一 generation 仅执行一次；桌面 host 与 surface 完成接线，Android 诚实保持 unsupported 不伪造结果。
+  - 验收：单次 network generation 仅触发一次自动 flush；稳定状态和路由修复不重复触发；失败不伪装成功；手动清理仍可用；nextest 定向测试与 fake ports 验证全绿。
+  - 当前证据（L）：`infiltrator-application` 606 项全部 PASS（`154b9f0f-e6ff-49f7-9124-69266a932b0a`，含专属测试 `migration_automatically_flushes_dns_cache_with_new_generation_once`）；`infiltrator-desktop` 274 项全部 PASS（`5460adaa-54ad-4f2a-954b-6f7a0a390c31`）；`infiltrator-composition` 62 项全部 PASS（`5feaffc5-0323-4bdc-9057-78a37f836f26`）；`infiltrator-presentation` 293 项全部 PASS（`459a509e-1785-4fd9-a192-dff4a3e534ff`）；`infiltrator-contract` + `infiltrator-shared` 480 项全部 PASS（`6de297c2-829c-4f4b-bf17-36e0032e3db0`）。
+  - 待验证：统一全仓 nextest 与端到端网络切换取证。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+
+## 12.24 Slint 通用工作台产品化交付（2026-10-28 交付，1条 / 3pt）
+
+- [ ] FLPARITY-008 [kind: refactor] [priority: P1] [points: 3] [owner: infiltrator-slint] [status: Integrated] Slint 通用工作台产品化
+  - 产物：将 `PageWorkbench` 的通用 item/ID 驱动面板彻底重构为自适应产品卡片 `WorkbenchPanelCard`，并抽离 6 大专属领域页面（`page_dns.slint`、`page_editor.slint`、`page_filters.slint`、`page_doctor.slint`、`page_sync.slint`、`page_app_routing.slint`）；用户可见 `/summary` 格式化为本地化产品文案，`/fact/` 与 `/row/` 采用领域行组件与语义 tone 徽标，操作栏采用右对齐 primary/danger 样式；`BusinessPhase::Reviewing` 剔除冗余按钮。
+  - 验收：Slint 生产树用户可见 workbench 内部 ID 清零；每个业务有专属组件和行为测试；重采无通用面板残留；`cargo nextest -p infiltrator-slint` 355 项全绿。
+  - 当前证据（L）：`infiltrator-slint` 355 项单元与服务路径测试全部 PASS（`cc3565c5-1394-4abb-831f-3614f6b033b3`）；`cargo check -p infiltrator-slint --all-targets` exit 0；`line budget guard` 0 违规；`i18n guard` 0 错误。
+  - 待验证：统一全仓 nextest 与场景像素回执重采。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+
+## 12.25 订阅用户信息（流量配额/到期时间）可视化交付（2026-10-28 交付，1条 / 3pt）
+
+- [ ] FLPARITY-019 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-contract + infiltrator-application + three desktop UIs + android/ui] [status: Integrated] 订阅用户信息（流量配额/到期时间）可视化与自动更新策略
+  - 产物：
+    - **Contract & Presentation**：以单一真源 `project_quota` 统管 `QuotaPresentation`（已用/总流量格式化、剩余百分比、到期日期与剩余天数计算、`QuotaGrade` 评级）；
+    - **Iced**：`subscription_quota_card` 接入 `usage_bar_with_grade`，按 `QuotaGrade` 呈现双/三色警戒色（正常 Accent、预警 Warning、危险 Danger）；
+    - **Bevy**：`subscription_quota_scene_with_snapshot` 接入 `quota_progress_color_token`，将进度条动态映射至 `Token::Danger`/`Token::Warning`/`Token::Accent`；
+    - **Slint**：`ProfileCard` 模型与 `ProfileCardSurface` 扩展 `has_quota`/`used_text`/`total_text`/`expire_text`/`usage_fraction`/`quota_grade`，渲染平滑带动画的进度条与配额/到期文本；首页自动投影当前配置的订阅流量摘要行并支持点击跳转。
+  - 验收：标准 subscription-userinfo 正确解析并呈现彩色告警进度条与格式化日期；流量超过 90% 或即将到期有黄色/红色警示；四表面单元测试与行为测试通过。
+  - 当前证据（L）：`infiltrator-iced` 6 项配额测试 PASS（`ce11746c-e240-48d2-858a-d973d391062d`，含专属测试 `quota_progress_bar_renders_warning_and_danger_grades`）；`infiltrator-bevy-ui` 4 项订阅测试 PASS（`8dc33f0a-9fee-4e8c-ba70-a40a9173c065`）；`infiltrator-slint` 355 项测试 PASS（`cc3565c5-1394-4abb-831f-3614f6b033b3`）；`infiltrator-presentation` 293 项全绿。
+  - 待验证：统一全仓 nextest 与实机截图回执更新。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+
+## 12.26 概览页平滑贝塞尔流量曲线与分流模式快捷切换交付（2026-10-28 交付，1条 / 5pt）
+
+- [ ] FLPARITY-016 [kind: mechanism] [priority: P1] [points: 5] [owner: infiltrator-contract + infiltrator-presentation + three desktop UIs + android/ui] [status: Integrated] 概览页平滑贝塞尔流量曲线、动态多阶单位与分流模式快捷切换
+  - 产物：
+    - **Slint 动态单位修复**：重构 `split_rate` 保持完整的每秒单位（`/s`）不截断，紧凑视口下单位标签宽度扩展至 `64 * unit` 支持完整显示 `MB/s`/`KB/s`，上传行同步显示完整流速单位；
+    - **Iced 概览快捷节点切换**：`active_exit_card` 接入操作按钮直达代理节点选择路由（`Route::Proxies`），结合既有高亮分流模式 Tab 药丸，实现概览页一键切换出站节点；
+    - **平滑贝塞尔流量曲线**：Iced Canvas 基于 Catmull-Rom 三次贝塞尔样条生成平滑曲线与 Linear 面积渐变着色，Bevy 基于 `infiltrator_bevy_widgets::chart::bezier` 驱动平滑流量拓扑图。
+  - 验收：实时流速刷新单位完整且无抖动截断；分流模式高亮选中滑块状态明确；概览页可直接切换出站节点；单测与结构门全绿。
+  - 当前证据（L）：`infiltrator-slint` 专属单测 `split_rate_preserves_per_second_unit` PASS；`infiltrator-iced` 2 项 active exit 单测 PASS；`cargo fmt --all --check` exit 0；`line budget guard` 0 违规；`i18n guard` 0 错误；`closure questions guard` 8/8 通过。
+  - 待验证：统一全仓 nextest 与实机截图回执更新。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+
+## 12.27 代理节点响应式多列栅格与协议标签交付（2026-10-28 交付，1条 / 5pt）
+
+- [ ] FLPARITY-015 [kind: mechanism] [priority: P1] [points: 5] [owner: infiltrator-contract + infiltrator-presentation + three desktop UIs + android/ui] [status: Integrated] 代理节点响应式多列栅格、协议标签与批量测速动效
+  - 产物：
+    - **Contract 标准徽标**：`ProxyProtocolBadge` 固化为共享契约核心枚举，规范 Shadowsocks/VLESS/VMess/Trojan/Hysteria2/WireGuard/TUIC 等协议的显示文本与标准 HEX 语义色；结合 `LatencyTier`（5 色阶）与 `proxy_grid_columns`（1~4 列自适应断点）；
+    - **Presentation 单源收敛**：`proxy_protocol_chip` 接入 `ProxyProtocolBadge` 作为唯一标准；
+    - **四表面接入与动效**：Iced `node_cards.rs` 驱动多列自适应栅格与协议徽标；Bevy `node_card.rs` 接入协议徽标、卡片悬浮与选择导轨；Slint `page_proxies.slint` 接入协议彩色徽标与 `PingBadge` 动态测速圈。
+  - 验收：四表面在宽窄屏下自适应列数（窄屏 1 列、标准 2~3 列、宽屏 4 列）；各协议显示统一规范徽标；测速动效与取消机制就绪；定向测试全绿。
+  - 当前证据（L）：`infiltrator-contract` 专属测试 `proxy_protocol_badge_classification` PASS；`infiltrator-presentation` 测试 `the_protocol_chip_has_one_shared_spelling` PASS；`infiltrator-iced` 6 项代理测试 PASS；`cargo fmt --all --check` 0 偏差；三道质量门全绿。
+  - 待验证：统一全仓 nextest 与实机截图回执更新。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+
+## 12.28 代理节点国家/地区国旗与地理位置高分图标交付（2026-10-29 交付，1条 / 3pt）
+
+- [ ] FLPARITY-021 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-contract + infiltrator-shared + infiltrator-presentation + three desktop UIs + android/ui] [status: Integrated] 代理节点国家/地区国旗与地理位置高分图标
+  - 产物：
+    - **Contract 标准地区枚举**：`crates/infiltrator-contract/src/geo_region.rs` 引入 `GeoRegion` typed enum（36+ 国际标准 ISO 3166-1 地区，含 HK/TW/JP/US/SG/KR/GB/DE/FR/CA/AU 等及中性 Other），提供 `iso_code()`、`emoji_flag()`、`label_zh()`、`label_en()`、`flag_icon_token()` 及双向映射解析与词界防误判；
+    - **Shared 资源与别名扩展**：`crates/infiltrator-shared/src/country_flags.rs` 的 `Region` 补齐印尼、澳门、瑞士、瑞典、挪威、芬兰、意大利、西班牙、爱尔兰、波兰、乌克兰、南非、以色列等地区与中文别名；
+    - **Presentation 单源投影**：`proxies_page_model.rs` 统一提供 `proxy_node_region`、`proxy_flag_icon_token`、`proxy_region_label_zh` 与 `proxy_region_label_en`；
+    - **Slint/Iced/Bevy 接入与国旗修复**：修复 Slint 此前非 active exit 节点缺失 flag 缺陷，`node_row` 与 `ProxyGroup` 采用 `GeoRegion::from_name_heuristic` 补齐全量国旗；Iced `active_exit_card` 与 Bevy 节点卡片对齐国旗与地区展示。
+  - 验收：常见国家代码 100% 准确映射；未识别节点优雅回退中性地球图标；Slint 节点列表全量渲染对应国旗；定向测试全绿。
+  - 当前证据（L）：`infiltrator-contract` 408 项测试全绿（含 3 项 geo_region 专属测试）；`infiltrator-shared` 76 项测试全绿（含 3 项 country_flags 专属测试）；`infiltrator-presentation` 294 项测试全绿（含 proxy_node_region 专属测试）；`infiltrator-slint` 356 项测试全绿；`infiltrator-iced` 2 项 active exit 测试全绿；`line-guard.py` 0 违规；`i18n-guard.py` 0 错误；`cargo fmt --check` 0 偏差。
+  - 待验证：统一全仓 nextest 与实机截图回执更新。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+
+## 12.29 流量曲线悬停探针（Hover Crosshair Probe）与时序回读交付（2026-10-29 交付，1条 / 3pt）
+
+- [ ] FLPARITY-022 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-presentation + infiltrator-iced + infiltrator-bevy-ui + infiltrator-slint + android/ui] [status: Integrated] 流量曲线悬停探针与分流统计
+  - 产物：
+    - **Presentation 统一探针模型**：`crates/infiltrator-presentation/src/chart.rs` 新增 `ChartProbeSample` 结构（归一化相对位置 `relative_x`、样本索引 `sample_index`、双向流速 `upload_bps`/`download_bps`、相对秒数 `seconds_ago`），提供 `format_upload`、`format_download`、`format_time_label`、`format_tooltip` 与标准 `format_rate_standard` 速率格式化；
+    - **坐标命中测试算法**：实现 `probe_traffic_waveform` 与 `TrafficProjector::probe_at_pixel`，支持根据归一化比率 `[0.0, 1.0]` 或像素宽度精确命中最近时序样本并计算时序偏移；
+    - **四表面交互对齐**：Iced `waveform.rs` 联动时间/流速双向十字扫描准星线与 Micro HUD Tooltip 浮层；Bevy `infiltrator-bevy-widgets::chart::interaction` 对齐 `CrosshairState` 与缩放平移交互管线。
+  - 验收：悬停准星平滑跟随指针/触控，Tooltip 数据与内核时序采样完全一致；超出图表区域优雅处理；专属单元测试全部通过。
+  - 当前证据（L）：`infiltrator-presentation` 9 项图表测试 PASS（含 `probe_traffic_waveform_and_formatting` 与 `traffic_projector_probe_at_pixel`）；`infiltrator-iced` 专属单测 `test_traffic_chart_crosshair_and_hud_tooltip_geometry` PASS；`line-guard.py` 0 违规；`i18n-guard.py` 0 错误；`cargo fmt --check` 0 偏差。
+  - 待验证：统一全仓 nextest 与实机截图回执更新。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+
+## 12.30 代理节点多维高级组合筛选器与批量测速工具栏交付（2026-10-29 交付，1条 / 5pt）
+
+- [ ] FLPARITY-023 [kind: mechanism] [priority: P1] [points: 5] [owner: infiltrator-contract + infiltrator-presentation + three desktop UIs + android/ui] [status: Integrated] 代理节点多维高级组合筛选器与批量测速工具栏
+  - 产物：
+    - **Contract 多维筛选与批量操作契约**：`crates/infiltrator-contract/src/proxy_filter.rs` 引入 `ProxyFilterQuery`（协议多选 `protocols`、国家地区多选 `regions`、延迟范围 `min_latency_ms`/`max_latency_ms`、关键词搜索 `search_keyword`、负向排除关键词 `exclude_keywords`、收藏标记 `favorite_only`、`from_raw_search` 包含与排除解析器）与 `BatchProxyAction`（测速筛选结果、导出节点链接、批量设为常用、批量取消常用）；
+    - **Presentation 组合匹配算法**：`crates/infiltrator-presentation/src/proxies_page_model.rs` 实现 `matches_advanced_filter` 纯函数单源组合判定，并在 `ProxiesPageModel` 注入 `advanced_filter`、`set_advanced_filter`、`clear_advanced_filter` 与 `has_active_filter`，统一驱动 `visible_members` 过滤管线；
+    - **四表面接入对齐**：支持多选协议/国家地区抽屉、延迟区间滑块、排除词过滤及批量操作条绑定。
+  - 验收：组合筛选实时过滤且零卡顿；支持负向排除关键词（如 `-重置`、`!expired`）；批量操作仅作用于筛选结果；专属单元测试全绿。
+  - 当前证据（L）：`infiltrator-contract` 3 项专属单测全绿；`infiltrator-presentation` 专属单测 `advanced_proxy_filter_matching` PASS；全包 297 项测试 100% 通过；`line-guard.py` 0 违规；`i18n-guard.py` 0 错误；`cargo fmt --check` 0 偏差。
+  - 待验证：统一全仓 nextest 与实机截图回执更新。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+
+## 12.31 实时连接/请求一键添加自定义分流规则交付（2026-10-29 交付，1条 / 3pt）
+
+- [ ] FLPARITY-028 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-contract/domain/application/presentation + three desktop UIs + android/ui] [status: Integrated] 实时连接/请求一键添加自定义分流规则
+  - 产物：
+    - **Contract 规则覆写意图规范**：`crates/infiltrator-contract/src/rule_override.rs` 新增 `CreateRuleOverrideIntent`、`CreateRuleOverrideResult`、`CreateRuleOverrideStatus` 与参数校验；支持从 host/IP 自动提取 `DOMAIN-SUFFIX` 或 `IP-CIDR/IP-CIDR6`，规范全量 12 种规则类型与预设出站目标；
+    - **Domain 规则去重与流向追加**：`crates/infiltrator-domain/src/rules/edit.rs` 实现 `prepend_rule_override` 纯函数去重追加逻辑；`connection_view.rs` 扩展 `ConnectionRuleSpec::to_override_intent`；
+    - **Application 原子落盘与内核热载**：`crates/infiltrator-application/src/command_application/dispatch.rs` 串接 `CommandIntent::AddCustomRule`，经 `prepend_rule_override` 判定是否为重复规则，无缝复用 `edit_rules` 实现磁盘原子持久化与内核规则热载；
+    - **Presentation 便捷投影与四端接入**：`connection_detail_projection.rs` 暴露 `connection_rule_override_intent` 与 `quick_rule_target_options`；Iced `connection_drawer.rs` 与 Bevy `connections_drawer.rs` 抽屉对齐一键加规则并提供防重复反馈。
+  - 验收：从连接/请求详情抽屉一键添加分流规则，规则自动追加并热重载生效；重复规则友好拦截并提示；四端定向测试全绿。
+  - 当前证据（L）：`infiltrator-contract` 3 项单测全绿；`infiltrator-domain` 22 项单测全绿；`infiltrator-application` 15 项单测全绿；`infiltrator-presentation` connection_detail 单测 PASS；`infiltrator-iced` 24 项连接单测全绿；`infiltrator-bevy-ui` 14 项连接单测全绿；`infiltrator-slint` 356 项单测全绿；`line-guard.py` 0 违规；`i18n-guard.py` 0 错误；`cargo fmt --check` 0 偏差。
+  - 待验证：统一全仓 nextest 与实机截图回执更新。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+
+## 12.32 流媒体与 AI 服务可用性一键检测交付（2026-10-29 交付，1条 / 5pt）
+
+- [ ] FLPARITY-020 [kind: mechanism] [priority: P1] [points: 5] [owner: infiltrator-contract/domain/ports/application/presentation + three desktop UIs + android/ui] [status: Integrated] 流媒体与 AI 服务可用性一键检测
+  - 产物：
+    - **Contract 服务定义与解锁状态契约**：`crates/infiltrator-contract/src/media_unlock.rs` 引入 `UnlockServiceKind`（Netflix/YouTube/Disney+/OpenAI/Claude/Spotify）、`UnlockStatus`（原生/DNS/仅自制/阻断/人机验证/超时/失败）、`ServiceUnlockResult` 与 `NodeUnlockReport`，规范地区码关联、语义色彩角色与紧凑徽标文本；并在 `lib.rs` 导出；
+    - **Ports 探针端口抽象**：`crates/infiltrator-ports/src/media_unlock.rs` 定义 `MediaUnlockProbePort` 异步 trait（支持单节点多服务与活跃出口探针）；并在 `lib.rs` 导出；
+    - **Application 缓存调度与并发治理**：`crates/infiltrator-application/src/media_unlock_application.rs` 实现 `MediaUnlockApplication`，提供 24 小时长效结果缓存（`UNLOCK_CACHE_TTL`）、60 秒探测失败快速冷却防重放（`UNLOCK_ERROR_COOLDOWN`）与强制刷新覆盖通道；并在 `lib.rs` 导出；
+    - **Presentation 徽标投影与摘要计算**：`crates/infiltrator-presentation/src/media_unlock_projection.rs` 提供 `UnlockBadgeProjection`、`project_unlock_badges` 投影器与 `summarize_node_unlock` 紧凑摘要格式化器，单源驱动节点卡片与 Tools 检测面板。
+  - 验收：Netflix/YouTube/Disney+/ChatGPT/Claude 各类解锁状态精准映射 typed 枚举；24 小时缓存命中避免重复消耗流量；失败冷却与强制刷新协同；定向测试全绿。
+  - 当前证据（L）：`infiltrator-contract` 2 项 media_unlock 单测全绿；`infiltrator-application` 2 项 media_unlock_application 单测全绿；`infiltrator-presentation` 2 项 media_unlock_projection 单测全绿；`line-guard.py` 0 违规；`import-guard.py` 0 违规；`closure-questions-guard.py` 8/8 通过；`cargo fmt --check` 0 偏差。
+  - 待验证：统一全仓 nextest 与实机截图回执更新。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+
+## 12.33 分流规则实时命中统计、流量流向与规则仿真探针交付（2026-10-29 交付，1条 / 3pt）
+
+- [ ] FLPARITY-031 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-contract/domain/application/presentation + three desktop UIs + android/ui] [status: Integrated] 分流规则实时命中统计、流量流向与规则仿真探针
+  - 产物：
+    - **Contract 统计与仿真契约**：`crates/infiltrator-contract/src/rule_hit_audit.rs` 与 `rule_statistics.rs` 维护 `RuleHitSummary`（`hit_count` 与 `total_payload_bytes` 流量统计）、`RuleHitAuditSnapshot`；`rule_tracer.rs` 维护 5 级决策链（Inbound->Sniffer->RuleSet->ProxyGroup->Outbound）与仿真快照；
+    - **Domain 规则匹配与仿真算法**：`infiltrator-domain::rules::tracer` 提供完整 AST 树求值与流量上下文匹配；
+    - **Application 状态追踪与审计调度**：`infiltrator-application::rule_tracer_application` 维护内存聚合、死规则检测与延迟审计；
+    - **Presentation 统计投影与行徽标**：`crates/infiltrator-presentation/src/rule_row_projection.rs` 引入 `RuleRowChips::of_with_volume` 与 `volume_label`，四表面规则列表与 Rules Tracer 抽屉接入命中数与流量流向。
+  - 验收：有流量时规则命中数与累计字节单调递增；Rule Tracer 输入域名/IP 精确指出命中规则、策略组与最终出口节点；定向测试全绿。
+  - 当前证据（L）：`infiltrator-contract` rule_tracer/rule_hit_audit 单测 PASS；`infiltrator-application` rule_tracer 单测 PASS；`infiltrator-presentation` rule_row_projection（4/4）、rule_trace_actions 单测全绿；`line-guard.py` 0 违规；`import-guard.py` 0 违规；`closure-questions-guard.py` 8/8 通过；`cargo fmt --check` 0 偏差。
+  - 待验证：统一全仓 nextest 与实机截图回执更新。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+
+## 12.34 节点测速动态脉冲与策略组选优状态透视交付（2026-10-29 交付，1条 / 3pt）
+
+- [ ] FLPARITY-030 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-contract + infiltrator-presentation + three desktop UIs + android/ui] [status: Integrated] 节点测速动态脉冲与策略组选优状态透视
+  - 产物：
+    - **Contract 测速阶段与选优状态规范**：`crates/infiltrator-contract/src/proxy_strategy.rs` 引入 `PingStage`（Idle/Pinging/Success/Timeout/Failed）、`StrategyDetail`（selector/url-test/fallback 分类，提供健康检查 URL、测速公差、上次与下次测速倒计时）与 `NodeLatencyHistory`（最近测速样本队列、抖动 jitter 计算与 Sparkline 归一化高度 `normalized_bars`）；并在 `lib.rs` 导出；
+    - **Presentation 脉冲与策略卡片投影**：`crates/infiltrator-presentation/src/proxy_strategy_projection.rs` 提供 `PingPulseProjection`（脉冲频率与动态激活动态）、`StrategyCardProjection`（策略组卡片倒计时与胜选摘要）与 `format_jitter_badge`（延迟抖动徽标）；并在 `lib.rs` 导出；
+    - **四表面接入对齐**：节点卡片接入平滑旋转/呼吸脉冲状态投影，策略组卡片对齐选优机制透视与下次测速倒计时。
+  - 验收：测速中阶段正确激活动效，测速完成数值与颜色角色对齐；策略组清晰说明当前胜选依据与下次重测时间；抖动采样支持折线渲染；定向测试全绿。
+  - 当前证据（L）：`infiltrator-contract` 3 项 proxy_strategy 单测全绿；`infiltrator-presentation` 3 项 proxy_strategy_projection 单测全绿；`line-guard.py` 0 违规；`import-guard.py` 0 违规；`closure-questions-guard.py` 8/8 通过；`cargo fmt --check` 0 偏差。
+  - 待验证：统一全仓 nextest 与实机截图回执更新。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+
+## 12.35 进程级连接图标提取与应用流量排行看板交付（2026-10-29 交付，1条 / 3pt）
+
+- [ ] FLPARITY-032 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-contract + infiltrator-ports + infiltrator-presentation + three desktop UIs + android/ui] [status: Integrated] 进程级连接图标提取与应用流量排行看板
+  - 产物：
+    - **Contract 进程图标与流量聚合规范**：`crates/infiltrator-contract/src/app_traffic.rs` 引入 `ProcessCategory`（浏览器/通讯社交/终端工具/多媒体/开发工具/下载工具/系统/普通应用）、`ProcessIconToken`（支持全平台路径解析与可扩展匹配）、`AppTrafficAggregate`、`TopTalkersSort` 与 `TopTalkersReport`；并在 `lib.rs` 导出；
+    - **Presentation 应用看板投影**：`crates/infiltrator-presentation/src/top_talkers_projection.rs` 提供 `TopTalkerCardProjection`、`aggregate_top_talkers`（支持任意 `ConnectionView` 数据源纯函数聚合）与 `project_top_talker_cards`，单源驱动 Top-Talkers 排行看板与应用连接一键断开；并在 `lib.rs` 导出；
+    - **四表面接入对齐**：连接列表对齐彩色原生应用图标分类展示，Top-Talkers 看板支持按总流量/下载/上传/连接数多维倒序排序。
+  - 验收：常见浏览器/终端/聊天软件进程图标 100% 精准分类；连接聚合流量与全局带宽严格守恒；定向测试全绿。
+  - 当前证据（L）：`infiltrator-contract` 2 项 app_traffic 单测全绿；`infiltrator-presentation` top_talkers_projection 单测全绿；`line-guard.py` 0 违规；`import-guard.py` 0 违规；`closure-questions-guard.py` 8/8 通过；`cargo fmt --check` 0 偏差。
+  - 待验证：统一全仓 nextest 与实机截图回执更新。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+
+## 12.36 订阅更新故障智能诊断器与节点正则清洗向导交付（2026-10-29 交付，1条 / 3pt）
+
+- [ ] FLPARITY-033 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-contract/domain/application/presentation + three desktop UIs + android/ui] [status: Integrated] 订阅更新故障智能诊断器与节点正则清洗向导
+  - 产物：
+    - **Contract 订阅更新诊断与正则模型规范**：`crates/infiltrator-contract/src/subscription_diagnostic.rs` 引入 `SubscriptionDiagnosticCategory`（DNS解析失败/TLS证书错误/HTTP状态码/Cloudflare 5秒盾拦截/连接拒绝/超时/内容格式错误等）、`SubscriptionFetchDiagnostic`（敏感 URL token 自动脱敏 `scrub_url`、生成格式化 Markdown 诊断报告 `to_markdown_report`）、`NodeRegexRule` 与 `NodeRegexTransformPipeline` 数据模型；并在 `lib.rs` 导出；
+    - **Domain 节点正则清洗与编译管道**：`crates/infiltrator-domain/src/subscription_regex.rs` 实现 `CompiledNodeRegexRule`、`CompiledNodeRegexPipeline`（批量清洗 `apply_batch`、单节点重命名与剔除、实时预览 `preview`、常见倍率标签剔除与无用公告排除预设）；并在 `lib.rs` 导出；
+    - **Presentation 诊断弹窗与向导投影**：`crates/infiltrator-presentation/src/subscription_diagnostic_projection.rs` 提供 `SubscriptionDiagnosticDialogProjection`（诊断分类、排查建议、结构化指标与一键复制 Markdown）、`NodeRegexWizardProjection` 与 `NodeRegexPreviewProjection`；并在 `lib.rs` 导出；
+    - **四表面接入对齐**：订阅卡片与更新错误抽屉接入结构化诊断弹窗与一键复制；配置管理接入节点正则清洗预览向导。
+  - 验收：敏感凭据在 URL 与报告中 100% 脱敏；针对 403、502、证书、DNS、盾拦截提供精准建议；正则重命名与剔除支持即时预览；定向测试全绿。
+  - 当前证据（L）：`infiltrator-contract` 2 项 subscription_diagnostic 单测全绿；`infiltrator-domain` 1 项 subscription_regex 单测全绿；`infiltrator-presentation` 2 项 subscription_diagnostic_projection 单测全绿；`line-guard.py` 0 违规；`import-guard.py` 0 违规；`closure-questions-guard.py` 8/8 通过；`cargo fmt --check` 0 偏差。
+  - 待验证：统一全仓 nextest 与实机截图回执更新。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+
+## 12.37 系统代理与 TUN 模式提权修复向导交付（2026-10-29 交付，1条 / 3pt）
+
+- [ ] FLPARITY-034 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-desktop + infiltrator-ports + three desktop UIs] [status: Integrated] 系统代理与 TUN 模式提权修复向导
+  - 产物：
+    - **Contract 提权修复与代理看门狗规范**：`crates/infiltrator-contract/src/privilege_repair.rs` 引入 `PrivilegeRepairKind`（TUN权限缺失/监听端口冲突/系统代理被篡改/残留虚拟网卡冲突）、`PrivilegeElevationAction`（Polkit setcap/Windows UAC/端口避让/杀占用进程/恢复代理）、`SystemProxyWatchdogStatus`（纯函数检测外部篡改与意外关闭）与 `PrivilegeRepairSnapshot`；并在 `lib.rs` 导出；
+    - **Ports 提权与检测端口抽象**：`crates/infiltrator-ports/src/privilege_repair.rs` 定义 `PrivilegeRepairPort` 异步抽象；并在 `lib.rs` 导出；
+    - **Presentation 修复向导弹窗投影**：`crates/infiltrator-presentation/src/privilege_repair_projection.rs` 提供 `PrivilegeRepairModalProjection`（标题副标题自适应冲突类别、严重度徽标、一键全部修复与手动命令安全回退预览）；并在 `lib.rs` 导出；
+    - **四表面接入对齐**：设置中心网络集成面板接入端口冲突一键避让、系统代理异常自愈弹窗与 Linux pkexec setcap 授权指引。
+  - 验收：端口冲突精准指出冲突端口并推荐可用端口；系统代理异常被外部篡改时秒级识别并提示恢复；手动修复命令提供完整格式化复制；定向测试全绿。
+  - 当前证据（L）：`infiltrator-contract` 3 项 privilege_repair 单测全绿；`infiltrator-ports` 23 项全绿；`infiltrator-presentation` 2 项 privilege_repair_projection 单测全绿；`line-guard.py` 0 违规；`import-guard.py` 0 违规；`closure-questions-guard.py` 8/8 通过；`cargo fmt --check` 0 偏差。
+  - 待验证：统一全仓 nextest 与实机截图回执更新。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+
+## 12.38 Android 12+ 动态壁纸 Monet 取色与分应用代理高清图标选择器交付（2026-10-29 交付，1条 / 3pt）
+
+- [ ] FLPARITY-035 [kind: visual] [priority: P1] [points: 3] [owner: android/ui + android/host] [status: Integrated] Android 12+ 动态壁纸 Monet 取色与分应用代理高清图标选择器
+  - 产物：
+    - **Android Compose Monet 动态主题**：`android/app/src/main/java/com/musicfrog/infiltrator/ui/theme/Theme.kt` 在 Android 12+（API 31+）上通过 `dynamicDarkColorScheme` 与 `dynamicLightColorScheme` 自动提取壁纸动态色彩，低版本与纯黑模式平滑回退；
+    - **分应用代理高清图标选择器**：`android/app/src/main/java/com/musicfrog/infiltrator/ui/settings/routing/AppRoutingScreen.kt` 与 `AppRoutingSession.kt` 接入已安装应用图标异步加载、用户与系统应用分组 Tab、实时过滤搜索、全选与反选；
+  - 验收：Android 12+ 动态壁纸取色生效且暗黑模式不破坏可读性；分应用列表高清图标无重影，多选切换准确；待 Android CI/真机运行取证。
+  - 当前证据（L）：`check-structure.sh` 结构门 40+ 项 100% PASS；ktlint 与 kotlin 800 行预算 0 违例；`closure-questions-guard.py` 8/8 通过。
+  - 待验证：Android APK CI 构建与真实 Android 12+ 设备运行回执。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+
+## 12.39 局域网代理共享二维码与同网段设备配置向导交付（2026-10-29 交付，1条 / 3pt）
+
+- [ ] FLPARITY-026 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-contract + infiltrator-ports + infiltrator-application + three desktop UIs + android/ui] [status: Integrated] 局域网代理共享二维码与同网段设备配置向导
+  - 产物：
+    - **Contract 局域网共享向导与设备配置契约**：`crates/infiltrator-contract/src/lan_share.rs` 引入 `NetworkInterfaceInfo`（精确过滤环回与未启用网卡）、`LanDevicePlatform`（iOS/Android/Switch/PS4/PS5/Terminal）、`LanDeviceGuideStep`、`LanProxyEndpointModel` 与 `LanShareWizardSnapshot`（支持一键导出 HTTP/SOCKS5 代理 URL、PAC 地址与跨平台 shell 环境变量注入命令）；并在 `lib.rs` 导出；
+    - **Ports 内网网卡枚举抽象**：`crates/infiltrator-ports/src/lan_interface.rs` 导出 `LanInterfaceProbePort` 异步抽象；并在 `lib.rs` 导出；
+    - **Presentation 局域网弹窗与指引模型**：`crates/infiltrator-presentation/src/lan_share_projection.rs` 导出 `LanShareModalProjection`，单源驱动局域网共享二维码扫描、网卡选择与设备指引步骤；并在 `lib.rs` 导出；
+    - **四表面接入对齐**：设置中心网络集成面板的“允许局域网连接”卡片接入向导弹窗与终端代理快速复制。
+  - 验收：准确过滤回环与无效虚拟网卡；针对 5 种不同平台生成精准图文步骤与命令；定向测试全绿。
+  - 当前证据（L）：`infiltrator-contract` 3 项 lan_share 单测全绿；`infiltrator-ports` 23 项全绿；`infiltrator-presentation` 1 项 lan_share_projection 单测全绿；`line-guard.py` 0 违规；`import-guard.py` 0 违规；`closure-questions-guard.py` 8/8 通过；`cargo fmt --check` 0 偏差。
+  - 待验证：统一全仓 nextest 与实机截图回执更新。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+
+## 12.40 全端骨架屏微光加载与情绪插画空状态交付（2026-10-29 交付，1条 / 3pt）
+
+- [ ] FLPARITY-025 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-contract + infiltrator-presentation + three desktop UIs + android/ui] [status: Integrated] 全端骨架屏微光加载与情绪插画空状态
+  - 产物：
+    - **Contract 微光波形参数与情绪插画契约**：`crates/infiltrator-contract/src/skeleton_shimmer.rs` 引入 `ShimmerAnimationSpec`（周期1500ms、45度斜角渐变波形数学计算）、`EmptyStateIllustrationKind`（6 大核心业务专属情绪插画：无节点/无规则/无连接/无日志/无DNS/无订阅）、`EmptyStateModel` 与 `SkeletonCardLayoutKind`（节点卡片/规则行/连接行/配置卡片占位）；并在 `lib.rs` 导出；
+    - **Presentation 骨架屏与空状态投影**：`crates/infiltrator-presentation/src/skeleton_projection.rs` 导出 `SkeletonCardLayoutProjection` 与 `EmptyStateProjection`，单源驱动四端加载期骨架卡片排版与优雅空状态图文；并在 `lib.rs` 导出；
+    - **四表面接入对齐**：节点列表、规则列表、连接列表与配置中心全流程配备 M3 骨架扫光，空状态展示亲和力引导按钮。
+  - 验收：骨架微光算法波形连续无跳跃；6 大核心业务插画标题、描述、图标与操作齐全；定向测试全绿。
+  - 当前证据（L）：`infiltrator-contract` 2 项 skeleton_shimmer 单测全绿；`infiltrator-presentation` 2 项 skeleton_projection 单测全绿；`line-guard.py` 0 违规；`import-guard.py` 0 违规；`closure-questions-guard.py` 8/8 通过；`cargo fmt --check` 0 偏差。
+  - 待验证：统一全仓 nextest 与实机截图回执更新。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+
+## 12.41 Android TV 遥控器 D-pad 全屏焦点光晕与 Leanback 专属体验交付（2026-10-29 交付，1条 / 3pt）
+
+- [ ] FLPARITY-027 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-contract + android/ui + Android Bevy/Slint surfaces] [status: Integrated] Android TV 遥控器 D-pad 全屏焦点光晕与 Leanback 专属体验
+  - 产物：
+    - **Contract D-pad 方向意图与焦点光晕规范**：`crates/infiltrator-contract/src/dpad_navigation.rs` 引入 `DpadKeyAction`（Up/Down/Left/Right/Select/Back/Menu）、`FocusHaloSpec`（1.05x 放大缩放、6.0dp 阴影发光外圈、2.0dp 聚焦边框与自动居中滚动）与 `DpadFocusTopology`（防焦点死锁线性拓扑）；并在 `lib.rs` 导出；
+    - **Presentation 聚焦光晕投影**：`crates/infiltrator-presentation/src/dpad_navigation_projection.rs` 导出 `DpadFocusStyleProjection`，单源区分桌面紧凑模式与 TV Leanback 专属高对比度微发光光晕；并在 `lib.rs` 导出；
+    - **Android Compose 与清单接入**：`android/app/src/main/java/com/musicfrog/infiltrator/ui/theme/FocusHalo.kt` 提供 `Modifier.tvFocusHalo`，`AndroidManifest.xml` 声明非触摸屏与 `android.software.leanback` 特性。
+  - 验收：遥控器方向键导航防跳焦与防死锁拓扑健全；TV 聚焦状态平滑放大 1.05x 并呈现微发光光晕；定向测试全绿。
+  - 当前证据（L）：`infiltrator-contract` 3 项 dpad_navigation 单测全绿；`infiltrator-presentation` 3 项 dpad_navigation_projection 单测全绿；`line-guard.py` 0 违规；`kt-line-guard.py` 0 违规；`closure-questions-guard.py` 8/8 通过；`cargo fmt --check` 0 偏差。
+  - 待验证：统一全仓 nextest 与 Android TV 设备实际导航回执。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+
+## 12.42 Android 常驻通知栏流速监控与 Quick Settings 快捷磁贴深度集成交付（2026-10-29 交付，1条 / 3pt）
+
+- [ ] FLPARITY-029 [kind: mechanism] [priority: P1] [points: 3] [owner: android/host + android/ui] [status: Integrated] Android 常驻通知栏流速监控与 Quick Settings 快捷磁贴深度集成
+  - 产物：
+    - **通知栏流速与节点监控扩展**：`android/app/src/main/java/com/musicfrog/infiltrator/MihomoVpnServiceNotification.kt` 扩展 `createNotification` 支持动态 `trafficHeadline` 格式化，并增加 `updateTrafficNotification` 实时刷新通知栏上传/下载速率与当前节点名；
+    - **Quick Settings 快捷磁贴状态机同步**：`android/app/src/main/java/com/musicfrog/infiltrator/InfiltratorTileService.kt` 接入 `TileVpnState` 6 态严格映射（Active/Starting/Stopping/CleanupPending/Idle/Unavailable）、双向 `readOwnerState` 状态同步与长按直达仪表盘；
+  - 验收：前台常驻通知标题清晰显示实时双向速率（↓/↑）与出口节点；QS 磁贴点击秒级响应，长按正确唤起应用；Kotlin 行数守卫 0 违规。
+  - 当前证据（L）：`kt-line-guard.py` 0 违规；`line-guard.py` 0 违规；`closure-questions-guard.py` 8/8 通过；`check-structure.sh` 结构门全绿。
+  - 待验证：统一全仓 nextest 与 Android 物理设备通知栏刷新回执。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+## 12.43 Material HCT/CAM16 色彩科学与 Monet 调色板交付（2026-10-29 交付，1条 / 5pt）
+
+- [ ] FLPARITY-024 [kind: visual] [priority: P1] [points: 5] [owner: infiltrator-contract/design_tokens + infiltrator-bevy-widgets + infiltrator-iced + infiltrator-slint + android/ui] [status: Integrated] Material HCT/CAM16 色彩科学与 Monet 调色板
+  - 产物：
+    - **CAM16 色貌模型与标准观察条件**：`crates/infiltrator-contract/src/color_science.rs` 实现 D65 标准照明体、200 lux 适应亮度与 L* = 50 视场环境下的 CAM16 正向色貌变换（`HctColor::from_rgb`），精确计算 CAM16 Hue（色相）、Chroma（彩度）与 CIE L* Tone（感知明度）；
+    - **HctSolver 逆向求解器与色域投影**：基于 AOSP / Google Material Color Utilities 规范实现 `find_result_by_j` 牛顿-拉夫逊法快速收敛与越界 16 步二分色域收敛（`solve_to_srgb`），保证生成色彩色相与感知明度不漂移；
+    - **TonalPalette 与 MaterialCorePalette 派生**：支持从任意种子色生成 Primary、Secondary、Tertiary、Neutral、NeutralVariant、Error 六组 0..100 单调明度阶梯；
+    - **MaterialColorScheme 5 级表面容器与高对比深色模式**：导出符合 WCAG 2.1 AA/AAA 规范的 Dark、Light 以及对标 FlClash v0.9.2 的高对比 Dark（`dark_high_contrast_from_core`，文本对比度 ≥7.0:1，边框外显）。
+  - 验收：单测覆盖 Red、Green、Blue、M3 Baseline #6750A4、White、Black 官方参考向量（容差 Hue < 1.0°，Tone < 1.0）；越界色彩确定性投影收敛；5 级容器阶梯严格单调；contract 定向测试全绿。
+  - 当前证据（L）：`infiltrator-contract` 441 项单测 100% 全绿（Nextest run `c0efa55c-3910-42b5-a597-35d7d0ac332a`）；5 项 `color_science` 专属测试全绿（run `e1516f5c-1bfc-453c-9658-a91885bb846b`）；`line-guard.py` 0 违规；`closure-questions-guard.py` 8/8 通过；`cargo fmt --check` 0 偏差。
+  - 待验证：统一全仓 nextest、Clippy 与四端表面在 `FLPARITY-014` 中的实际消费。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+## 12.44 FlClash v0.9.2 默认配色质量基准与共享色板校准交付（2026-10-29 交付，1条 / 3pt）
+
+- [ ] FLPARITY-044 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-contract/design_tokens + scripts/parity] [status: Integrated] FlClash v0.9.2 默认配色质量基准与共享色板校准
+  - 产物：
+    - **共享表面角色色板校准**：`crates/infiltrator-contract/src/surface_hierarchy.rs` 完成四主题角色色板（Canvas、Sidebar、5 级 Container、Outline、Primary/Secondary Text、四状态语义容器对）校准；
+    - **Forest 护眼浅绿纸面色板语义修正**：彻底消除此前暗绿反转硬伤，规范 Canvas `#F1F6EF`、Card `#FFFFFF`、Text `#1F3525`，与 `SkinCorePalette`、`theme.slint` 以及 118 个桌面业务捕获场景完全统一；
+    - **FlClash v0.9.2 High-Contrast Dark 模式基准**：建立底色 `#0A0B0E`、卡片 `#1D2126`（对比度 >1.20x）、正文 `#F0F6FC`（对比度 >14:1）与次级文本 `#A5B0BC`（对比度 >7:1）的高可读性深色规范；
+    - **全端自动对比度质量门**：新增 `flclash_v092_calibrated_color_benchmark_meets_wcag_and_elevation_spec` 单元测试，程序化断言四主题的正文、次级文字与边界对比度全部满足 WCAG 2.1 AA/AAA 规范。
+  - 验收：四主题角色层级可追溯；文字对比度全部 ≥ 4.5:1，非文本边界对比度 ≥ 1.5:1；5 级容器严格单调递增；contract 定向测试全绿。
+  - 当前证据（L）：`infiltrator-contract` 442 项单测 100% 全绿（Nextest run `c91cb051-c8e4-4592-a07e-bc923e4c8a16`）；`surface_hierarchy` 3 项测试全绿；`line-guard.py` 0 违规；`closure-questions-guard.py` 8/8 通过；`cargo fmt --check` 0 偏差。
+  - 待验证：统一全仓 nextest、Clippy 与各 UI 表面在 `FLPARITY-014` 中的渲染像素取证。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+## 12.45 四主题表面层级、材质与语义色的真实消费及深色可读性修复交付（2026-10-29 交付，1条 / 5pt）
+
+- [ ] FLPARITY-014 [kind: visual] [priority: P0] [points: 5] [owner: infiltrator-contract/design_tokens + infiltrator-bevy-widgets + infiltrator-iced + infiltrator-slint + android/ui] [status: Integrated] 四主题表面层级、材质与语义色的真实消费及深色可读性修复
+  - 产物：
+    - **Contract 共享色板核心角色更新**：`crates/infiltrator-contract/src/design_tokens.rs` 将 `skin_core(ThemeSkin::Dark)` 底层对齐 FlClash v0.9.2 高对比基准（Canvas `#0A0B0E`、Sidebar `#0F1114`、Card `#1D2126`、Ink `#F0F6FC`、Ink Dim `#A5B0BC`、Card Border `#616B78`）；在 `surface_hierarchy.rs` 新增 `dark_mode_skin_core_and_material_surface_tokens_align_on_shared_roles` 单元测试，确保 `SkinCorePalette` 与 `MaterialSurfaceTokens` 在 Dark 模式下 100% 角色一致，且正文对比度 >14:1、次级文字对比度 >7:1；
+    - **Iced 皮肤真实消费与次级文本对比度提升**：`crates/infiltrator-iced/src/view/theme/skins.rs` 消费校准后的 `DARK_CORE`，并将 `sidebar_text_muted` alpha 由 0.45 提升至 0.75，彻底消除暗色背景下侧栏文本模糊无法辨识问题；
+    - **Bevy UI 部件主题对齐**：`crates/infiltrator-bevy-widgets/src/theme.rs` 在 `Theme::dark()` 消费校准后的 M3 角色与 5 级容器色板，消除旧版 `#15181A` / `#25292C` 浑浊发灰梯差；
+    - **Slint 动态表面与 Zinc 梯度对齐**：`crates/infiltrator-slint/ui/components/theme.slint` 在 `dark` 调色板与 `zinc-0`～`zinc-7` 中全面消费对标 FlClash 的 5 级表面容器（Lowest `#060809`、Low `#14171B`、Card `#1D2126`、High `#292E35`、Highest `#363C44`），使卡片在黑色背景中具有清晰立体的层级深度；
+    - **Android Compose 主题对齐**：`android/app/src/main/java/com/musicfrog/infiltrator/ui/theme/Color.kt` 更新 Dark 模式表面色彩为 `#0A0B0E`、`#1D2126` 与 `#F0F6FC`，消除系统级发灰；
+  - 验收：四端深色模式下卡片与背景对比度显著提升（梯差 >1.20x），次级文字全部满足 WCAG AA 规范（>7.0:1）；单元测试全绿。
+  - 当前证据（L）：`infiltrator-contract` 443 项单测 100% 全绿（Nextest run `03adb3a6-7bc7-4b75-9183-40dcaf98add9`）；`infiltrator-bevy-widgets` 480 项单测 100% 全绿（Nextest run `26ac6329-2481-4dc0-8c11-8376222e193f`）；`infiltrator-iced` 543 项单测 100% 全绿（Nextest run `db7648a6-d5ee-4ede-aa18-c388ca5d96af`）；`line-guard.py` 0 违规；`closure-questions-guard.py` 8/8 通过；`cargo fmt --check` 0 偏差。
+  - 待验证：统一全仓 nextest、Clippy 与各 UI 表面四主题像素回执重跑。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+## 12.46 四表面可配置延迟测速 timeout 并在新探测中即时生效交付（2026-10-29 交付，1条 / 3pt）
+
+- [ ] FLPARITY-042 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-contract + infiltrator-application + three desktop UIs + android/ui] [status: Integrated] 四表面可配置延迟测速 timeout 并在新探测中即时生效
+  - 产物：
+    - **Slint 测速设置草稿解析与回读保持**：`crates/infiltrator-slint/src/surface/action/workbench/business.rs` 引入 `probe_settings_from_draft`，支持 `url|timeout` 与 `url
+timeout` 灵活入参，在未指定 timeout 时自动回读保持 `snapshot.probe_settings` 中的当前值而非硬编码 5000ms；
+    - **Android 测速命令构建与运行时设置入口**：`android/app/src/main/java/com/musicfrog/infiltrator/ui/proxies/OutboundCommandWire.kt` 导出 `buildSetRuntimeProbeSettingsCommandJson`，将内部默认常量对外可见化为 internal；`ProxiesViewModel.kt` 提供 `setProbeSettings` 与支持自定义 `testUrl`/`timeoutMs` 的 `probeOutbound`；
+    - **双端行为与序列化测试覆盖**：Slint 增加 `the_proxies_probe_settings_custom_timeout_and_url_path` 断言派发命令与 9000ms 参数；Android 增加 `probeCommandWithCustomTimeoutEncodesCorrectly` 与 `setRuntimeProbeSettingsCommandEncodesScopeAndSettings` 覆盖 JVM 单元测试。
+  - 验收：四端均可配置延迟测速超时并即时生效；无效输入 fail-closed；定向测试全绿。
+  - 当前证据（L）：`infiltrator-slint` business_proxies_tests 全绿；Android `OutboundCommandWireTest` 100% 通过（Gradle testComposeDebugUnitTest）；`kt-line-guard.py` 0 违规；`line-guard.py` 0 违规；`closure-questions-guard.py` 8/8 通过；`cargo fmt --check` 0 偏差。
+  - 待验证：统一全仓 nextest、Clippy 与实机运行时设置联动取证。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+## 12.47 Android 三 flavor 可重复的 Forest 默认业务采集与显式主题巡检交付（2026-10-29 交付，1条 / 2pt）
+
+- [ ] FLPARITY-045 [kind: evidence] [priority: P1] [points: 2] [owner: scripts/android + Android capture host] [status: Integrated] Android 三 flavor 可重复的 Forest 默认业务采集与显式主题巡检
+  - 产物：
+    - **Android 测试专用主题注入与安全围栏**：`android/app/src/main/java/com/musicfrog/infiltrator/ui/theme/Color.kt` 与 `Theme.kt` 接入标准 `ForestColors`（Canvas `#F1F6EF`、Surface `#FFFFFF`、Text `#1F3525`）与 `ThemeOverride` 枚举；`MainActivity.kt` 仅在 `BuildConfig.DEBUG` 时响应 `test_theme` Intent Extra，Release 产物严格禁止测试主题注入，重启后真实用户偏好不变；
+    - **Android 交互采集工具默认 Forest 与显式主题巡检**：`scripts/android/android_interaction_capture.py` 新增 `--theme` 参数并默认使用 `forest`；`capture_device.py` 的 `launch` 方法支持传递 Intent Extra；`capture_flow.py` 默认以 `--es test_theme forest` 启动 Activity 并采集像素；
+    - **证据回执绑定主题身份**：`scripts/android/capture_evidence.py` 在 `StepReceipt` 与 `FlavorReceipt` 中持久化记录 `theme` 字段，实现与桌面 118 个 Forest 场景同源的真实像素与主题回执体系；
+    - **测试与守卫全覆盖**：`scripts/quality/tests/test_android_interaction_flow.py` 新增显式主题覆盖与默认 Forest 断言，4 项自动化测试全绿；Android `testComposeDebugUnitTest` 编译与测试 100% 通过。
+  - 验收：三 flavor 交互采集默认使用 Forest，并可显式巡检 dark/light/amoled；release 产物无法注入；Python 与 Android 单测全绿。
+  - 当前证据（L）：`scripts/quality/tests/test_android_interaction_flow.py` 4 项单测全绿；Android `testComposeDebugUnitTest` 34 项任务全绿；`kt-line-guard.py` 0 违规；`line-guard.py` 0 违规；`closure-questions-guard.py` 8/8 通过；`cargo fmt --check` 0 偏差。
+  - 待验证：统一全仓 nextest、Clippy 与模拟器真实 Forest 截图回执生成。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。

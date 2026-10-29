@@ -14,6 +14,7 @@
 use crate::connection_rate::ConnectionRate;
 use crate::rules::RuleEntry;
 use crate::runtime::Connection;
+use infiltrator_contract::rule_override::CreateRuleOverrideIntent;
 use std::collections::HashMap;
 
 /// Multi-dimensional aggregation dimension for the connections view.
@@ -196,6 +197,19 @@ impl ConnectionRuleSpec {
     /// a rule; an empty pattern must never be reported as a successful draft.
     pub fn is_draftable(&self) -> bool {
         !self.pattern.is_empty()
+    }
+
+    /// Convert to a typed `CreateRuleOverrideIntent` for direct application dispatch (FLPARITY-028).
+    pub fn to_override_intent(&self) -> Option<CreateRuleOverrideIntent> {
+        if !self.is_draftable() {
+            return None;
+        }
+        let (rule_type, payload) = self.pattern.split_once(',')?;
+        Some(CreateRuleOverrideIntent::new(
+            rule_type,
+            payload,
+            &self.target,
+        ))
     }
 }
 
@@ -964,5 +978,17 @@ mod tests {
             destination_asn_fact("15169 "),
             DestinationAsnFact::Reported("15169".to_owned())
         );
+    }
+    #[test]
+    fn spec_converts_to_override_intent() {
+        let spec = ConnectionRuleSpec {
+            pattern: "DOMAIN-SUFFIX,google.com".to_string(),
+            target: "PROXY".to_string(),
+        };
+        let intent = spec.to_override_intent().unwrap();
+        assert_eq!(intent.rule_type, "DOMAIN-SUFFIX");
+        assert_eq!(intent.payload, "google.com");
+        assert_eq!(intent.target, "PROXY");
+        assert_eq!(intent.rule_line(), "DOMAIN-SUFFIX,google.com,PROXY");
     }
 }

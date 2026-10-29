@@ -179,7 +179,8 @@ pub async fn product_surface_reader(
         Arc::new(DesktopPacServicePort::shared()),
     );
     let network_roaming = NetworkRoamingApplication::new(network_roaming_port)
-        .with_core_configuration(core.clone(), runtime_configuration_ports.clone());
+        .with_core_configuration(core.clone(), runtime_configuration_ports.clone())
+        .with_dns_cache(engines.dns_cache.clone());
     let service_mode = ServiceModeApplication::new(Arc::new(DesktopServiceMode::new(binary_path)));
     // DUAL-11-07: the published cache fact comes from the same host directory
     // the desktop command handler purges.

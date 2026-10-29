@@ -24,11 +24,24 @@ pub enum Region {
     Brazil,
     Turkey,
     Argentina,
+    Indonesia,
     Philippines,
     Thailand,
     Malaysia,
     Vietnam,
     UnitedArabEmirates,
+    Macau,
+    Switzerland,
+    Sweden,
+    Norway,
+    Finland,
+    Italy,
+    Spain,
+    Ireland,
+    Poland,
+    Ukraine,
+    SouthAfrica,
+    Israel,
     China,
     Direct,
     Reject,
@@ -56,11 +69,24 @@ impl Region {
             Region::Brazil => "🇧🇷",
             Region::Turkey => "🇹🇷",
             Region::Argentina => "🇦🇷",
+            Region::Indonesia => "🇮🇩",
             Region::Philippines => "🇵🇭",
             Region::Thailand => "🇹🇭",
             Region::Malaysia => "🇲🇾",
             Region::Vietnam => "🇻🇳",
             Region::UnitedArabEmirates => "🇦🇪",
+            Region::Macau => "🇲🇴",
+            Region::Switzerland => "🇨🇭",
+            Region::Sweden => "🇸🇪",
+            Region::Norway => "🇳🇴",
+            Region::Finland => "🇫🇮",
+            Region::Italy => "🇮🇹",
+            Region::Spain => "🇪🇸",
+            Region::Ireland => "🇮🇪",
+            Region::Poland => "🇵🇱",
+            Region::Ukraine => "🇺🇦",
+            Region::SouthAfrica => "🇿🇦",
+            Region::Israel => "🇮🇱",
             Region::China => "🇨🇳",
             Region::Direct => "⚡",
             Region::Reject => "🚫",
@@ -88,11 +114,24 @@ impl Region {
             Region::Brazil => "BR",
             Region::Turkey => "TR",
             Region::Argentina => "AR",
+            Region::Indonesia => "ID",
             Region::Philippines => "PH",
             Region::Thailand => "TH",
             Region::Malaysia => "MY",
             Region::Vietnam => "VN",
             Region::UnitedArabEmirates => "AE",
+            Region::Macau => "MO",
+            Region::Switzerland => "CH",
+            Region::Sweden => "SE",
+            Region::Norway => "NO",
+            Region::Finland => "FI",
+            Region::Italy => "IT",
+            Region::Spain => "ES",
+            Region::Ireland => "IE",
+            Region::Poland => "PL",
+            Region::Ukraine => "UA",
+            Region::SouthAfrica => "ZA",
+            Region::Israel => "IL",
             Region::China => "CN",
             Region::Direct => "DIRECT",
             Region::Reject => "REJECT",
@@ -319,6 +358,17 @@ pub fn match_region(name: &str) -> Option<Region> {
         return Some(Region::Argentina);
     }
 
+    // Match Indonesia
+    if name.contains("印度尼西亚")
+        || name.contains("印尼")
+        || name.contains("雅加达")
+        || has_region_code(&lower, "id")
+        || lower.contains("indonesia")
+        || lower.contains("jakarta")
+    {
+        return Some(Region::Indonesia);
+    }
+
     // Match Philippines
     if name.contains("菲律宾")
         || name.contains("菲律賓")
@@ -369,6 +419,116 @@ pub fn match_region(name: &str) -> Option<Region> {
         || lower.contains("uae")
     {
         return Some(Region::UnitedArabEmirates);
+    }
+
+    // Match Macau
+    if name.contains("澳门")
+        || name.contains("澳門")
+        || has_region_code(&lower, "mo")
+        || lower.contains("macau")
+        || lower.contains("macao")
+    {
+        return Some(Region::Macau);
+    }
+
+    // Match Switzerland
+    if name.contains("瑞士")
+        || has_region_code(&lower, "ch")
+        || lower.contains("switzerland")
+        || lower.contains("zurich")
+    {
+        return Some(Region::Switzerland);
+    }
+
+    // Match Sweden
+    if name.contains("瑞典")
+        || has_region_code(&lower, "se")
+        || lower.contains("sweden")
+        || lower.contains("stockholm")
+    {
+        return Some(Region::Sweden);
+    }
+
+    // Match Norway
+    if name.contains("挪威")
+        || has_region_code(&lower, "no")
+        || lower.contains("norway")
+        || lower.contains("oslo")
+    {
+        return Some(Region::Norway);
+    }
+
+    // Match Finland
+    if name.contains("芬兰")
+        || has_region_code(&lower, "fi")
+        || lower.contains("finland")
+        || lower.contains("helsinki")
+    {
+        return Some(Region::Finland);
+    }
+
+    // Match Italy
+    if name.contains("意大利")
+        || has_region_code(&lower, "it")
+        || lower.contains("italy")
+        || lower.contains("milan")
+        || lower.contains("rome")
+    {
+        return Some(Region::Italy);
+    }
+
+    // Match Spain
+    if name.contains("西班牙")
+        || has_region_code(&lower, "es")
+        || lower.contains("spain")
+        || lower.contains("madrid")
+    {
+        return Some(Region::Spain);
+    }
+
+    // Match Ireland
+    if name.contains("爱尔兰")
+        || has_region_code(&lower, "ie")
+        || lower.contains("ireland")
+        || lower.contains("dublin")
+    {
+        return Some(Region::Ireland);
+    }
+
+    // Match Poland
+    if name.contains("波兰")
+        || has_region_code(&lower, "pl")
+        || lower.contains("poland")
+        || lower.contains("warsaw")
+    {
+        return Some(Region::Poland);
+    }
+
+    // Match Ukraine
+    if name.contains("乌克兰")
+        || has_region_code(&lower, "ua")
+        || lower.contains("ukraine")
+        || lower.contains("kyiv")
+    {
+        return Some(Region::Ukraine);
+    }
+
+    // Match South Africa
+    if name.contains("南非")
+        || has_region_code(&lower, "za")
+        || lower.contains("south africa")
+        || lower.contains("johannesburg")
+    {
+        return Some(Region::SouthAfrica);
+    }
+
+    // Match Israel
+    if name.contains("以色列")
+        || has_region_code(&lower, "il")
+        || lower.contains("israel")
+        || lower.contains("tel aviv")
+    {
+        return Some(Region::Israel);
     }
 
     // Match China / Direct

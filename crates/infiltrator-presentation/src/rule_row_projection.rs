@@ -7,6 +7,7 @@
 //! still read both facts from one string.
 use infiltrator_domain::rules::types::{RuleType, parse_rule_str};
 use infiltrator_domain::sub_rules::format_ast;
+use infiltrator_shared::byte_units::format_bytes;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_ui_presentation::copy::TextCatalog;
 use lurker_ui_presentation::copy::interpolate;
@@ -160,16 +161,27 @@ impl RuleRowStatus {
     }
 }
 
-/// The two facts one rule row's chips carry.
+/// The facts one rule row's chips carry.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RuleRowChips {
     pub hits: RuleRowHits,
     pub status: RuleRowStatus,
+    pub volume: Option<u64>,
 }
 
 impl RuleRowChips {
     /// Split one row's facts into its count chip and its status chip.
     pub fn of(count: Option<u64>, enabled: bool, shadowed: bool) -> Self {
+        Self::of_with_volume(count, None, enabled, shadowed)
+    }
+
+    /// Split one row's facts including cumulative traffic volume (FLPARITY-031).
+    pub fn of_with_volume(
+        count: Option<u64>,
+        volume: Option<u64>,
+        enabled: bool,
+        shadowed: bool,
+    ) -> Self {
         Self {
             hits: match count {
                 Some(count) => RuleRowHits::Observed { count },
@@ -182,7 +194,13 @@ impl RuleRowChips {
             } else {
                 RuleRowStatus::Enabled
             },
+            volume,
         }
+    }
+
+    /// User-presentable traffic volume string, if observed.
+    pub fn volume_label(&self) -> Option<String> {
+        self.volume.map(format_bytes)
     }
 }
 

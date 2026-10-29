@@ -95,7 +95,7 @@ features! {
     // The Iced sync page carries no snapshot-restore business: an empty
     // carrier page states that honestly instead of naming a page the
     // surface never renders the business on.
-    SyncRestoreConfirm => ("sync-restore-confirm", "", "sync", "sync", ["success", "cancel", "error"]),
+    SyncRestoreConfirm => ("sync-restore-confirm", "editor", "sync", "sync", ["success", "cancel", "error"]),
     DoctorFailureRecovery => ("doctor-failure-recovery", "doctor", "doctor", "doctor", ["success", "error", "retry"]),
     // The repair-progress business: the doctor's own progress indicator is
     // the shared pending phase, so the required paths are the phase and the

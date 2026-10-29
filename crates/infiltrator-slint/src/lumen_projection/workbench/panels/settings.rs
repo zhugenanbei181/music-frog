@@ -3,6 +3,7 @@
 use super::Panel;
 use crate::surface::business::BusinessId;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
+use infiltrator_presentation::host_network_projection;
 use infiltrator_shared::locales::Lang;
 use lurker_ui_presentation::copy::TextCatalog;
 
@@ -26,8 +27,9 @@ pub(super) fn panels(snapshot: &SurfaceSnapshot, catalog: &Lang<'_>) -> Vec<Pane
         .core_version
         .clone()
         .unwrap_or_else(|| "—".to_owned());
-    let privileged = format!("{:?}", snapshot.privileged_network.state);
-    let vpn = format!("{:?}", snapshot.vpn);
+    let privileged =
+        host_network_projection::privileged(&snapshot.privileged_network, catalog).status;
+    let vpn = host_network_projection::vpn(&snapshot.vpn, catalog).status;
 
     let failure = super::page_failure(&snapshot.pages.settings.status);
     let mut panels = vec![
@@ -45,8 +47,12 @@ pub(super) fn panels(snapshot: &SurfaceSnapshot, catalog: &Lang<'_>) -> Vec<Pane
             catalog.text("lan_security_title"),
             catalog.text("lan_security_desc").into_owned(),
             vec![
-                catalog.text("lan_security_enabled").into_owned(),
-                format!("{lan_enabled}"),
+                catalog.text("lan_security_auth").into_owned(),
+                if lan_enabled {
+                    catalog.text("lan_security_enabled").into_owned()
+                } else {
+                    catalog.text("lan_security_disabled").into_owned()
+                },
             ],
         ),
         Panel::new(

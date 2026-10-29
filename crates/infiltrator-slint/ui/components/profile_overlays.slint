@@ -11,7 +11,6 @@ export component ProfileOverlays inherits Rectangle {
     in property <bool> application-dark-mode;
     in property <bool> layout-debug-bounds;
     in property <int> profile-add-kind-index;
-    in property <bool> profile-type-menu-open;
     in property <string> notice;
     in property <string> pending-delete-name;
     in property <string> profile-settings-id;
@@ -29,8 +28,9 @@ export component ProfileOverlays inherits Rectangle {
 
     callback close-profile-add();
     callback confirm-add();
-    callback toggle-type-menu();
-    callback select-kind(int);
+    // The add sheet's type dropdown is the toolkit's popup menu of the
+    // window, distinct from the settings sheet's own dropdown callback.
+    callback open-add-type-menu(length, length);
     callback choose-file();
     callback scan-qr();
     callback close-profile-action();
@@ -93,7 +93,6 @@ export component ProfileOverlays inherits Rectangle {
         application-dark-mode: root.application-dark-mode;
         layout-debug-bounds: root.layout-debug-bounds;
         profile-add-kind-index: root.profile-add-kind-index;
-        profile-type-menu-open: root.profile-type-menu-open;
         notice: root.notice;
         profile-name <=> root.profile-name;
         profile-url <=> root.profile-url;
@@ -101,8 +100,7 @@ export component ProfileOverlays inherits Rectangle {
         dismiss => { root.close-profile-add(); }
         confirm => { root.confirm-add(); }
         surface-reported(x, y, w, h) => { root.add-sheet-reported(x, y, w, h); }
-        toggle-type-menu => { root.toggle-type-menu(); }
-        select-kind(k) => { root.select-kind(k); }
+        open-type-menu(x, y) => { root.open-add-type-menu(x, y); }
         choose-file => { root.choose-file(); }
         scan-qr => { root.scan-qr(); }
     }

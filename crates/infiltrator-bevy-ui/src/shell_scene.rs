@@ -18,6 +18,7 @@ use crate::app::{
     SidebarFoot, SidebarFooterRow, SidebarPanel, StatusDotImage, ThemeToggle,
 };
 use crate::chrome::chrome_bar_scene;
+use crate::localized_widgets::localized_pill_scene;
 use crate::pages::connections_confirm::confirmation_scene;
 use crate::pages::overview_speedtest::overview_speedtest_detail_modal_scene;
 use crate::route::Route;
@@ -36,7 +37,7 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
-use infiltrator_bevy_widgets::button::{ControlVisual, pill_caption_scene};
+use infiltrator_bevy_widgets::button::{ControlVisual, PillLabel, pill_caption_with_label_scene};
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::{IconId, icon_scene_val};
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText};
@@ -357,8 +358,9 @@ pub fn sidebar_scene_with_toggles(
     toggles: &SystemToggleSnapshot,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    let pill_node = semantic_node(ShellA11yNode::ThemeToggle);
     let density_node = toggle_semantic_node("Toggle layout density");
+    let theme_label = LocalizedText::plain("theme");
+    let theme_semantic = semantic_node(ShellA11yNode::ThemeToggle);
     bsn! {
             Node {
                 width: rem(SIDEBAR_WIDTH_PX),
@@ -404,12 +406,20 @@ pub fn sidebar_scene_with_toggles(
                         column_gap: rem(space::S4),
                     }
                     Children [
-                        @{ pill_caption_scene("Theme".to_owned(), false, palette) }
-                        ThemeToggle
-                        ShellFocusable
-                        pill_node
+                        @{
+                            pill_caption_with_label_scene(
+                                bsn! {
+                                    LocalizedText { key: { theme_label.key }, params: { theme_label.params } }
+                                    TextRole(Role::Caption) PillLabel
+                                },
+                                false,
+                                palette,
+                            )
+                        }
+                        ThemeToggle ShellFocusable
+                        theme_semantic
                         --
-                        @{ pill_caption_scene("Density".to_owned(), false, palette) }
+                        @{ localized_pill_scene(LocalizedText::plain("density"), false, palette) }
                         DensityToggle
                         ShellFocusable
                         density_node

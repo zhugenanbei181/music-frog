@@ -15,7 +15,7 @@ use crate::{CommandIntent, SlintAction};
 use infiltrator_contract::lan::LanCredentials;
 use infiltrator_contract::rule_document::RuleListCommit;
 use infiltrator_contract::rule_source::RuleSourceIdentity;
-use infiltrator_contract::runtime_settings::RuntimeProbeSettings;
+use infiltrator_contract::runtime_settings::{RuntimeProbeSettings, RuntimeProbeSettingsState};
 use infiltrator_contract::speedtest::SpeedtestRounds;
 use infiltrator_contract::speedtest::SpeedtestTarget;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
@@ -193,9 +193,10 @@ fn shared_intent(
         BusinessId::SpeedtestProgressCancel => Some(CommandIntent::StartSpeedtest {
             target: speedtest_target(snapshot)?,
         }),
-        BusinessId::ProxiesProbeSettings => Some(CommandIntent::SetRuntimeProbeSettings {
-            settings: RuntimeProbeSettings::new(probe_url(gesture.draft), 5000).ok()?,
-        }),
+        BusinessId::ProxiesProbeSettings => {
+            let settings = probe_settings_from_draft(gesture.draft, snapshot)?;
+            Some(CommandIntent::SetRuntimeProbeSettings { settings })
+        }
         BusinessId::ProxiesGroupExpanded => Some(CommandIntent::ApplyOutboundUiPreference {
             request: outbound_preference(
                 snapshot,
@@ -282,15 +283,46 @@ fn setting(key: &str) -> CommandIntent {
 
 /// The probe URL one business panel writes.
 ///
-/// The panel edits the shared probe settings, so the draft is the URL the user
-/// typed; an empty draft keeps the published default.
-fn probe_url(draft: &str) -> String {
-    let draft = draft.trim();
-    if draft.is_empty() {
-        "https://www.gstatic.com/generate_204".to_owned()
+/// The panel edits the shared probe settings, parsing URL and timeout from the draft;
+/// an empty draft or missing parts preserve the published settings or defaults.
+fn probe_settings_from_draft(
+    draft: &str,
+    snapshot: Option<&SurfaceSnapshot>,
+) -> Option<RuntimeProbeSettings> {
+    let (url_part, timeout_part) = if let Some((u, t)) = draft.split_once('|') {
+        (u.trim(), Some(t.trim()))
+    } else if let Some((u, t)) = draft.split_once('\n') {
+        (u.trim(), Some(t.trim()))
     } else {
-        draft.to_owned()
-    }
+        (draft.trim(), None)
+    };
+
+    let existing_timeout = match snapshot.and_then(|s| match &s.probe_settings {
+        RuntimeProbeSettingsState::Available { settings } => Some(settings.timeout_ms()),
+        _ => None,
+    }) {
+        Some(t) => t,
+        None => 5000,
+    };
+
+    let timeout_ms = match timeout_part {
+        Some(t) if !t.is_empty() => t.parse::<u32>().ok()?,
+        _ => existing_timeout,
+    };
+
+    let url = if url_part.is_empty() {
+        match snapshot.and_then(|s| match &s.probe_settings {
+            RuntimeProbeSettingsState::Available { settings } => Some(settings.url().to_owned()),
+            _ => None,
+        }) {
+            Some(u) => u,
+            None => "https://www.gstatic.com/generate_204".to_owned(),
+        }
+    } else {
+        url_part.to_owned()
+    };
+
+    RuntimeProbeSettings::new(url, timeout_ms).ok()
 }
 
 /// The shared engine the outbound inventory belongs to.

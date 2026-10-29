@@ -66,7 +66,11 @@ internal fun MihomoVpnService.promoteToForeground(notification: Notification): V
     VpnForegroundPromotion.Failed(error.message ?: "Failed to enter foreground")
 }
 
-internal fun MihomoVpnService.createNotification(statusText: String, actionMode: VpnServiceNotificationActionMode): Notification {
+internal fun MihomoVpnService.createNotification(
+    statusText: String,
+    actionMode: VpnServiceNotificationActionMode,
+    trafficHeadline: String? = null,
+): Notification {
     val mainIntent = Intent().setClassName(this, getString(R.string.notification_activity))
     val pendingMainIntent = PendingIntent.getActivity(
         this,
@@ -74,8 +78,9 @@ internal fun MihomoVpnService.createNotification(statusText: String, actionMode:
         mainIntent,
         PendingIntent.FLAG_IMMUTABLE,
     )
+    val title = trafficHeadline ?: getString(R.string.notification_title)
     val builder = NotificationCompat.Builder(this, MihomoVpnService.CHANNEL_ID)
-        .setContentTitle(getString(R.string.notification_title))
+        .setContentTitle(title)
         .setContentText(statusText)
         .setSmallIcon(R.drawable.ic_app_icon)
         .setContentIntent(pendingMainIntent)
@@ -103,4 +108,19 @@ internal fun MihomoVpnService.createNotification(statusText: String, actionMode:
         VpnServiceNotificationActionMode.SystemManaged -> Unit
     }
     return builder.build()
+}
+
+/**
+ * Update the persistent foreground notification with live throughput rates and node name (FLPARITY-029).
+ */
+internal fun MihomoVpnService.updateTrafficNotification(
+    downRateStr: String,
+    upRateStr: String,
+    activeNodeName: String,
+) {
+    val headline = "$activeNodeName • $downRateStr ↓  $upRateStr ↑"
+    val status = getString(R.string.notification_active)
+    val notification = createNotification(status, notificationActionMode, headline)
+    val manager = getSystemService(NotificationManager::class.java)
+    manager?.notify(MihomoVpnService.NOTIFICATION_ID, notification)
 }

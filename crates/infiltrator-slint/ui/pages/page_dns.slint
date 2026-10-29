@@ -1,0 +1,226 @@
+import { LumenUiScale } from "../lumen-ui-scale.slint";
+import { LumenTheme } from "../components/theme.slint";
+import { WorkbenchCard, ItemHeader, ItemText, ItemRow, DraftField } from "../components/workbench_parts.slint";
+import { WorkbenchButton } from "../components/workbench_button.slint";
+import { WorkbenchItem } from "../components/models.slint";
+
+// The DNS page: the leak alert, the query panel, the cache flush and the
+// Hosts editor. Every section renders the items the shared workbench
+// projection publishes; the page invents no business fact of its own.
+//
+// Loop discipline: every layout that hosts a per-item loop keeps spacing 0
+// and wraps each conditional part in its own zero-size container, so items
+// the page does not render leave no phantom gap. Gaps come from constant
+// spacers between sections and conditional spacers inside bars.
+export component PageDns inherits VerticalLayout {
+    in property <[WorkbenchItem]> items;
+    in-out property <string> draft;
+    in-out property <string> draft-2;
+    in property <string> draft-id;
+    in property <string> draft-2-id;
+    in property <string> draft-placeholder;
+    in property <string> draft-2-placeholder;
+
+    callback action(string, string);
+    callback draft-edited(string, string);
+
+    width: 100%;
+    spacing: LumenTheme.space-4;
+    alignment: start;
+
+    // 1. DNS leak alert
+    WorkbenchCard {
+        HorizontalLayout {
+            spacing: LumenTheme.space-3;
+
+            VerticalLayout {
+                spacing: 0;
+                horizontal-stretch: 1;
+
+                for item in root.items: VerticalLayout {
+                    if item.id == "dns-leak": ItemHeader { item: item; }
+                }
+                for item in root.items: VerticalLayout {
+                    if item.id == "dns-leak-detail": ItemText { item: item; }
+                }
+            }
+
+            for item in root.items: HorizontalLayout {
+                if item.id == "dns-leak-run": WorkbenchButton {
+                    text: item.label;
+                    enabled: item.enabled;
+                    clicked => { root.action(item.action-id, ""); }
+                }
+            }
+        }
+
+        Rectangle { height: 12 * LumenUiScale.unit; }
+
+        for item in root.items: VerticalLayout {
+            if item.id.starts-with("dns-leak/"): ItemRow {
+                item: item;
+                action(id, row) => { root.action(id, row); }
+            }
+        }
+    }
+
+    // 2. DNS query panel
+    WorkbenchCard {
+        for item in root.items: VerticalLayout {
+            if item.id == "dns-query": ItemHeader { item: item; }
+        }
+        for item in root.items: VerticalLayout {
+            if item.id == "dns-query-detail": ItemText { item: item; }
+        }
+
+        if root.draft-id != "": VerticalLayout {
+            spacing: 0;
+            Rectangle { height: 8 * LumenUiScale.unit; }
+            DraftField {
+                draft-id: root.draft-id;
+                placeholder: root.draft-placeholder;
+                text <=> root.draft;
+                edited(id, value) => { root.draft-edited(id, value); }
+                accepted(value) => { root.action("dns-query-run", ""); }
+            }
+        }
+
+        Rectangle { height: 12 * LumenUiScale.unit; }
+
+        for item in root.items: VerticalLayout {
+            if item.id.starts-with("dns-query/"): ItemRow {
+                item: item;
+                action(id, row) => { root.action(id, row); }
+            }
+        }
+
+        Rectangle { height: 12 * LumenUiScale.unit; }
+
+        HorizontalLayout {
+            spacing: 0;
+            alignment: end;
+
+            for item in root.items: HorizontalLayout {
+                if item.id == "dns-query-run" || item.id == "dns-query-retry" || item.id == "dns-query-close": Rectangle {
+                    width: 10 * LumenUiScale.unit;
+                }
+                if item.id == "dns-query-run" || item.id == "dns-query-retry" || item.id == "dns-query-close": WorkbenchButton {
+                    text: item.label;
+                    enabled: item.enabled;
+                    danger: item.tone == "danger";
+                    primary: item.id == "dns-query-run";
+                    clicked => { root.action(item.action-id, ""); }
+                }
+            }
+        }
+    }
+
+    // 3. Fake-IP cache control
+    WorkbenchCard {
+        for item in root.items: VerticalLayout {
+            if item.id == "dns-cache": ItemHeader { item: item; }
+        }
+
+        Rectangle { height: 12 * LumenUiScale.unit; }
+
+        for item in root.items: VerticalLayout {
+            if item.id == "dns-cache/fake-ip" || item.id == "dns-cache/system": ItemRow {
+                item: item;
+                action(id, row) => { root.action(id, row); }
+            }
+        }
+
+        Rectangle { height: 12 * LumenUiScale.unit; }
+
+        HorizontalLayout {
+            spacing: 0;
+            alignment: end;
+
+            for item in root.items: HorizontalLayout {
+                if item.id == "dns-cache-confirm" || item.id == "dns-cache-retry" || item.id == "dns-cache-cancel": Rectangle {
+                    width: 10 * LumenUiScale.unit;
+                }
+                if item.id == "dns-cache-confirm" || item.id == "dns-cache-retry" || item.id == "dns-cache-cancel": WorkbenchButton {
+                    text: item.label;
+                    enabled: item.enabled;
+                    danger: item.tone == "danger" || item.id == "dns-cache-confirm";
+                    primary: item.id == "dns-cache-confirm";
+                    clicked => { root.action(item.action-id, ""); }
+                }
+            }
+        }
+    }
+
+    // 4. Hosts editor
+    WorkbenchCard {
+        for item in root.items: VerticalLayout {
+            if item.id == "dns-hosts": ItemHeader { item: item; }
+        }
+        for item in root.items: VerticalLayout {
+            if item.id == "dns-hosts-feedback" && item.detail.starts-with("❌"): Rectangle {
+                border-radius: LumenTheme.radius-control;
+                background: LumenTheme.error.with_alpha(15%);
+                border-width: 1 * LumenUiScale.unit;
+                border-color: LumenTheme.error;
+                HorizontalLayout {
+                    padding-left: 12 * LumenUiScale.unit;
+                    padding-right: 12 * LumenUiScale.unit;
+                    padding-top: 8 * LumenUiScale.unit;
+                    padding-bottom: 8 * LumenUiScale.unit;
+                    spacing: 8 * LumenUiScale.unit;
+                    cross-axis-alignment: center;
+                    Text { text: "⚠"; color: LumenTheme.error; font-size: 16 * LumenUiScale.unit; }
+                    Text {
+                        text: item.detail;
+                        color: LumenTheme.error;
+                        font-size: 13 * LumenUiScale.unit;
+                        font-weight: 500;
+                        wrap: word-wrap;
+                        horizontal-stretch: 1;
+                    }
+                }
+            }
+            if item.id == "dns-hosts-feedback" && !item.detail.starts-with("❌"): ItemText { item: item; }
+        }
+
+        if root.draft-2-id != "": VerticalLayout {
+            spacing: 0;
+            Rectangle { height: 8 * LumenUiScale.unit; }
+            DraftField {
+                draft-id: root.draft-2-id;
+                placeholder: root.draft-2-placeholder;
+                text <=> root.draft-2;
+                edited(id, value) => { root.draft-edited(id, value); }
+            }
+        }
+
+        Rectangle { height: 12 * LumenUiScale.unit; }
+
+        for item in root.items: VerticalLayout {
+            if item.id.starts-with("dns-hosts/"): ItemRow {
+                item: item;
+                action(id, row) => { root.action(id, row); }
+            }
+        }
+
+        Rectangle { height: 12 * LumenUiScale.unit; }
+
+        HorizontalLayout {
+            spacing: 0;
+            alignment: end;
+
+            for item in root.items: HorizontalLayout {
+                if item.id == "dns-hosts-add" || item.id == "dns-hosts-import" || item.id == "dns-hosts-save" || item.id == "dns-hosts-cancel": Rectangle {
+                    width: 10 * LumenUiScale.unit;
+                }
+                if item.id == "dns-hosts-add" || item.id == "dns-hosts-import" || item.id == "dns-hosts-save" || item.id == "dns-hosts-cancel": WorkbenchButton {
+                    text: item.label;
+                    enabled: item.enabled;
+                    danger: item.tone == "danger";
+                    primary: item.id == "dns-hosts-save";
+                    clicked => { root.action(item.action-id, ""); }
+                }
+            }
+        }
+    }
+}

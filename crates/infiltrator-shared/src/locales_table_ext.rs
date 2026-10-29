@@ -756,8 +756,8 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "rules_etag_support_not_declared" => "未声明".into(),
 
         // Category: DUAL-13-05 kernel-provided target ASN / geolocation facts
-        "conn_drawer_kernel_asn" => "目标 ASN 归属（/connections destinationIPASN）".into(),
-        "conn_drawer_kernel_geo" => "目标地理归属（/connections destinationGeoIP）".into(),
+        "conn_drawer_kernel_asn" => "目标 ASN 归属".into(),
+        "conn_drawer_kernel_geo" => "目标地理归属".into(),
         "conn_drawer_kernel_not_evaluated" => "内核未对本次连接求值（需 GEOIP/IP-ASN 规则）".into(),
         "conn_drawer_kernel_no_result" => "内核已求值 · 无该 IP 的记录".into(),
         "protocol_form_no_draft" => "尚无节点草稿".into(),

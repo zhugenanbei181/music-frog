@@ -100,12 +100,20 @@ pub fn stats_grid<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message>
     ];
 
     // Column count comes from the shared tier operator, so Iced and Bevy agree.
-    let columns = state
+    // Under 1280px (e.g. standard 1180px viewport with sidebar navigation taking space),
+    // 6 columns cram tiles down to ~133px, causing the 6th tile's long digits to clip.
+    // Use 3 columns (2 rows x 3 tiles) when width_px < 1280.0 to guarantee ample room.
+    let base_columns = state
         .shell
         .viewport
         .tier
         .metrics_grid_columns()
         .clamp(1, tiles.len().max(1));
+    let columns = if state.shell.viewport.width_px < 1280.0 && base_columns > 3 {
+        3
+    } else {
+        base_columns
+    };
 
     let mut grid = column![].spacing(theme::SP_MD).width(Length::Fill);
     let mut row_tiles: Vec<Element<'a, Message>> = Vec::with_capacity(columns);

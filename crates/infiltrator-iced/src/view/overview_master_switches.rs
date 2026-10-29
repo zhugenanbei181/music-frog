@@ -15,27 +15,34 @@ use infiltrator_shared::locales::{Lang, Localizer};
 /// The same two primary controls as the sidebar, rendered as Overview cards
 /// and driven by the shared SystemToggleSnapshot.
 pub fn overview_master_switches<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Message> {
-    row![
-        switch_card(
-            SystemToggle::SystemProxy,
-            lang.tr("system_proxy").to_string(),
-            lang.tr("overview_system_proxy_description").into_owned(),
-            Icon::Wifi,
-            &state.runtime.system_toggles,
-            lang,
-        ),
-        switch_card(
-            SystemToggle::Tun,
-            lang.tr("tun_mode").to_string(),
-            lang.tr("overview_tun_description").into_owned(),
-            Icon::Zap,
-            &state.runtime.system_toggles,
-            lang,
-        ),
-    ]
-    .spacing(theme::SP_MD)
-    .width(Length::Fill)
-    .into()
+    let card_proxy = switch_card(
+        SystemToggle::SystemProxy,
+        lang.tr("system_proxy").to_string(),
+        lang.tr("overview_system_proxy_description").into_owned(),
+        Icon::Wifi,
+        &state.runtime.system_toggles,
+        lang,
+    );
+    let card_tun = switch_card(
+        SystemToggle::Tun,
+        lang.tr("tun_mode").to_string(),
+        lang.tr("overview_tun_description").into_owned(),
+        Icon::Zap,
+        &state.runtime.system_toggles,
+        lang,
+    );
+
+    if state.shell.viewport.tier.is_compact() {
+        column![card_proxy, card_tun]
+            .spacing(theme::SP_SM)
+            .width(Length::Fill)
+            .into()
+    } else {
+        row![card_proxy, card_tun]
+            .spacing(theme::SP_MD)
+            .width(Length::Fill)
+            .into()
+    }
 }
 
 fn switch_card<'a>(

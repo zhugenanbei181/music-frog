@@ -1,0 +1,219 @@
+import { LumenUiScale } from "../lumen-ui-scale.slint";
+import { LumenTheme } from "../components/theme.slint";
+import { WorkbenchCard, ItemHeader, ItemText, ItemRow, DraftField } from "../components/workbench_parts.slint";
+import { WorkbenchButton } from "../components/workbench_button.slint";
+import { WorkbenchItem } from "../components/models.slint";
+
+// The subscription filter, the subscription failure panel and the profile
+// aggregation wizard. Every button, label and gate comes from the items the
+// shared workbench projection publishes; the page invents no business fact
+// of its own. Loop discipline: layouts that host per-item loops keep
+// spacing 0 and wrap each conditional part in its own zero-size container.
+export component PageFilters inherits VerticalLayout {
+    in property <[WorkbenchItem]> items;
+    in-out property <string> draft;
+    in-out property <string> draft-2;
+    in property <string> draft-id;
+    in property <string> draft-2-id;
+    in property <string> draft-placeholder;
+    in property <string> draft-2-placeholder;
+
+    callback action(string, string);
+    callback draft-edited(string, string);
+
+    width: 100%;
+    spacing: LumenTheme.space-4;
+    alignment: start;
+
+    // 1. Subscription filter editor
+    WorkbenchCard {
+        for item in root.items: VerticalLayout {
+            if item.id == "subscription-filter": ItemHeader { item: item; }
+            if item.id == "subscription-filter-detail": ItemText { item: item; }
+            if item.id == "subscription-filter-error": Rectangle {
+                border-radius: LumenTheme.radius-control;
+                background: LumenTheme.error.with_alpha(15%);
+                border-width: 1 * LumenUiScale.unit;
+                border-color: LumenTheme.error;
+                HorizontalLayout {
+                    padding-left: 12 * LumenUiScale.unit;
+                    padding-right: 12 * LumenUiScale.unit;
+                    padding-top: 8 * LumenUiScale.unit;
+                    padding-bottom: 8 * LumenUiScale.unit;
+                    spacing: 8 * LumenUiScale.unit;
+                    cross-axis-alignment: center;
+                    Text { text: "⚠"; color: LumenTheme.error; font-size: 16 * LumenUiScale.unit; }
+                    Text {
+                        text: item.detail;
+                        color: LumenTheme.error;
+                        font-size: 13 * LumenUiScale.unit;
+                        font-weight: 500;
+                        wrap: word-wrap;
+                        horizontal-stretch: 1;
+                    }
+                }
+            }
+        }
+
+        if root.draft-id != "": VerticalLayout {
+            spacing: 0;
+            Rectangle { height: 8 * LumenUiScale.unit; }
+            DraftField {
+                draft-id: root.draft-id;
+                placeholder: root.draft-placeholder;
+                text <=> root.draft;
+                edited(id, value) => { root.draft-edited(id, value); }
+                accepted(value) => { root.action("subscription-filter-save", ""); }
+            }
+        }
+
+        Rectangle { height: 12 * LumenUiScale.unit; }
+
+        HorizontalLayout {
+            spacing: 0;
+            alignment: end;
+
+            for item in root.items: HorizontalLayout {
+                if item.id == "subscription-filter-save" || item.id == "subscription-filter-cancel": Rectangle {
+                    width: 10 * LumenUiScale.unit;
+                }
+                if item.id == "subscription-filter-save" || item.id == "subscription-filter-cancel": WorkbenchButton {
+                    text: item.label;
+                    enabled: item.enabled;
+                    danger: item.tone == "danger";
+                    primary: item.id == "subscription-filter-save";
+                    clicked => { root.action(item.action-id, ""); }
+                }
+            }
+        }
+    }
+
+    // 2. Subscription failure panel: the typed refusal and the retry the
+    // shared business publishes for its own import.
+    WorkbenchCard {
+        for item in root.items: VerticalLayout {
+            if item.id == "profiles-subscription-error": ItemHeader { item: item; }
+            if item.id.starts-with("profiles-subscription-error/") && item.kind == "text" && item.id.ends-with("/failure"): Rectangle {
+                border-radius: LumenTheme.radius-control;
+                background: LumenTheme.error.with_alpha(15%);
+                border-width: 1 * LumenUiScale.unit;
+                border-color: LumenTheme.error;
+                HorizontalLayout {
+                    padding-left: 12 * LumenUiScale.unit;
+                    padding-right: 12 * LumenUiScale.unit;
+                    padding-top: 8 * LumenUiScale.unit;
+                    padding-bottom: 8 * LumenUiScale.unit;
+                    spacing: 8 * LumenUiScale.unit;
+                    cross-axis-alignment: center;
+                    Text { text: "⚠"; color: LumenTheme.error; font-size: 16 * LumenUiScale.unit; }
+                    Text {
+                        text: item.detail;
+                        color: LumenTheme.error;
+                        font-size: 13 * LumenUiScale.unit;
+                        font-weight: 500;
+                        wrap: word-wrap;
+                        horizontal-stretch: 1;
+                    }
+                }
+            }
+            if item.id.starts-with("profiles-subscription-error/") && item.kind == "text" && !item.id.ends-with("/failure"): ItemText {
+                item: item;
+                danger: false;
+            }
+        }
+
+        Rectangle { height: 12 * LumenUiScale.unit; }
+
+        HorizontalLayout {
+            spacing: 0;
+            alignment: end;
+
+            for item in root.items: HorizontalLayout {
+                if item.id.starts-with("profiles-subscription-error/") && item.kind == "button": Rectangle {
+                    width: 10 * LumenUiScale.unit;
+                }
+                if item.id.starts-with("profiles-subscription-error/") && item.kind == "button": WorkbenchButton {
+                    text: item.label;
+                    enabled: item.enabled;
+                    danger: item.tone == "danger";
+                    clicked => { root.action(item.action-id, ""); }
+                }
+            }
+        }
+    }
+
+    // 3. Profile aggregation wizard
+    WorkbenchCard {
+        for item in root.items: VerticalLayout {
+            if item.id == "profile-aggregator": ItemHeader { item: item; }
+            if item.id == "profile-aggregator-counters": VerticalLayout {
+                spacing: 0;
+                Rectangle { height: 6 * LumenUiScale.unit; }
+                Rectangle {
+                    border-radius: LumenTheme.radius-control;
+                    background: LumenTheme.surface-muted;
+                    border-width: 1 * LumenUiScale.unit;
+                    border-color: LumenTheme.border;
+                    HorizontalLayout {
+                        padding-left: 14 * LumenUiScale.unit;
+                        padding-right: 14 * LumenUiScale.unit;
+                        padding-top: 10 * LumenUiScale.unit;
+                        padding-bottom: 10 * LumenUiScale.unit;
+                        Text {
+                            text: item.detail;
+                            color: LumenTheme.text-primary;
+                            font-size: 13 * LumenUiScale.unit;
+                            font-family: LumenTheme.mono-family;
+                            wrap: word-wrap;
+                        }
+                    }
+                }
+                Rectangle { height: 6 * LumenUiScale.unit; }
+            }
+            if item.id == "profile-aggregator-groups": ItemText { item: item; }
+        }
+
+        VerticalLayout {
+            spacing: 0;
+
+            for item in root.items: VerticalLayout {
+                if item.id.starts-with("profile-aggregator/"): ItemRow {
+                    item: item;
+                    action(id, row) => { root.action(id, row); }
+                }
+            }
+        }
+
+        if root.draft-2-id != "": VerticalLayout {
+            spacing: 0;
+            Rectangle { height: 8 * LumenUiScale.unit; }
+            DraftField {
+                draft-id: root.draft-2-id;
+                placeholder: root.draft-2-placeholder;
+                text <=> root.draft-2;
+                edited(id, value) => { root.draft-edited(id, value); }
+                accepted(value) => { root.action("profile-aggregator-create", ""); }
+            }
+        }
+
+        Rectangle { height: 12 * LumenUiScale.unit; }
+
+        HorizontalLayout {
+            spacing: 0;
+            alignment: end;
+
+            for item in root.items: HorizontalLayout {
+                if item.id == "profile-aggregator-preview" || item.id == "profile-aggregator-create" || item.id == "profile-aggregator-cancel": Rectangle {
+                    width: 10 * LumenUiScale.unit;
+                }
+                if item.id == "profile-aggregator-preview" || item.id == "profile-aggregator-create" || item.id == "profile-aggregator-cancel": WorkbenchButton {
+                    text: item.label;
+                    enabled: item.enabled;
+                    danger: item.tone == "danger";
+                    primary: item.id == "profile-aggregator-create";
+                    clicked => { root.action(item.action-id, ""); }
+                }
+            }
+        }
+    }
+}

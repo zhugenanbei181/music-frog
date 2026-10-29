@@ -1462,3 +1462,99 @@ msgstr "Reorder cards"
 
 msgid "恢复默认顺序"
 msgstr "Restore default order"
+
+msgid "Runtime 未运行，外部资源不可用"
+msgstr "Runtime is not running; providers unavailable"
+
+msgid "代理链："
+msgstr "Proxy chain:"
+
+msgid "全部更新"
+msgstr "Update all"
+
+msgid "内置脚本预设"
+msgstr "Built-in script presets"
+
+msgid "冲突解决与备份恢复"
+msgstr "Conflict resolution and backup restore"
+
+msgid "命中规则："
+msgstr "Matched rule:"
+
+msgid "外壳"
+msgstr "Shell"
+
+msgid "将删除今日与本周本地统计记录，并清空当前已关闭连接历史。正在运行的连接不受影响。"
+msgstr "This clears today's and this week's local traffic records and the closed-connection history. Running connections are not affected."
+
+msgid "应用规则列表"
+msgstr "Application rules"
+
+msgid "开始扫描"
+msgstr "Start scanning"
+
+msgid "当前已配置 Age 私钥；输入新私钥替换。"
+msgstr "An Age private key is configured; enter a new key to replace it."
+
+msgid "打断中"
+msgstr "Breaking"
+
+msgid "打断中…"
+msgstr "Breaking…"
+
+msgid "打断此连接"
+msgstr "Break this connection"
+
+msgid "扫描二维码以导入配置订阅地址"
+msgstr "Scan a QR code to import a subscription URL"
+
+msgid "按应用分流的策略编辑"
+msgstr "Per-application routing policy editor"
+
+msgid "搜索日志内容或关键词"
+msgstr "Search log content or keywords"
+
+msgid "暂无外部资源"
+msgstr "No providers yet"
+
+msgid "概览"
+msgstr "Overview"
+
+msgid "泄漏检测、查询、缓存与 Hosts"
+msgstr "Leak detection, queries, cache and Hosts"
+
+msgid "清空流量统计？"
+msgstr "Clear traffic statistics?"
+
+msgid "清除"
+msgstr "Clear"
+
+msgid "清除私钥"
+msgstr "Clear private key"
+
+msgid "目标："
+msgstr "Target:"
+
+msgid "脚本沙箱、导出评审、差异与快照恢复"
+msgstr "Script sandbox, export review, diff and snapshot restore"
+
+msgid "规则集与节点提供者；可手动触发更新并观察版本。"
+msgstr "Rule and node providers; trigger updates manually and watch versions."
+
+msgid "订阅过滤与配置聚合向导"
+msgstr "Subscription filter and aggregation wizard"
+
+msgid "诊断检查与生命周期恢复"
+msgstr "Diagnostics and lifecycle recovery"
+
+msgid "诊断详情与修复建议"
+msgstr "Diagnostic details and repair suggestions"
+
+msgid "资源提供者："
+msgstr "Providers:"
+
+msgid "输入新私钥以支持加密订阅；留空保留当前设置。"
+msgstr "Enter a private key for encrypted subscriptions; leave empty to keep the current setting."
+
+msgid "运行时"
+msgstr "Runtime"

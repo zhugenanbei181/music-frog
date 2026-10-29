@@ -7,6 +7,12 @@ export struct ProfileCard {
     current: bool,
     can-move-up: bool,
     can-move-down: bool,
+    has-quota: bool,
+    used-text: string,
+    total-text: string,
+    expire-text: string,
+    usage-fraction: float,
+    quota-grade: string,
 }
 
 export struct ProfileOverrideChoice {

@@ -23,7 +23,7 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut};
-use bevy::feathers::theme::ThemeBackgroundColor;
+use bevy::feathers::theme::{ThemeBackgroundColor, ThemeTextColor};
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
@@ -286,7 +286,7 @@ fn header_card_scene(
                                     AddAppRouteButton
                                     Button
                                     Children [
-                                        LocalizedText::plain("app_routing_add_action") TextRole(Role::BodyStrong)
+                                        LocalizedText::plain("app_routing_add_action") TextRole(Role::BodyStrong) ThemeTextColor({ Token::OnAccent })
                                     ]
                                 ]
                             ]

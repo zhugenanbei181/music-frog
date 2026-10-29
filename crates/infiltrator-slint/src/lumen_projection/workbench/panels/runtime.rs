@@ -8,18 +8,29 @@ use infiltrator_presentation::speedtest_summary_projection::{history_lines, metr
 use infiltrator_shared::locales::Lang;
 use lurker_ui_presentation::copy::TextCatalog;
 
+fn format_bps(bps: &f64) -> String {
+    let bps = *bps;
+    if bps >= 1024.0 * 1024.0 {
+        format!("{:.2} MB/s", bps / (1024.0 * 1024.0))
+    } else if bps >= 1024.0 {
+        format!("{:.1} KB/s", bps / 1024.0)
+    } else {
+        format!("{:.0} B/s", bps)
+    }
+}
+
 /// The business panels the runtime page carries.
 pub(super) fn panels(snapshot: &SurfaceSnapshot, catalog: &Lang<'_>) -> Vec<Panel> {
     let readout = &snapshot.shell_readout;
     let upload = readout
         .upload_bps
         .value()
-        .map(|value| format!("{value:.0}"))
+        .map(format_bps)
         .unwrap_or_else(|| catalog.text("shell_readout_unknown").into_owned());
     let download = readout
         .download_bps
         .value()
-        .map(|value| format!("{value:.0}"))
+        .map(format_bps)
         .unwrap_or_else(|| catalog.text("shell_readout_unknown").into_owned());
     let public_ip = snapshot.public_ip.ip.clone().unwrap_or_default();
     let speedtest = &snapshot.speedtest;
@@ -32,6 +43,9 @@ pub(super) fn panels(snapshot: &SurfaceSnapshot, catalog: &Lang<'_>) -> Vec<Pane
         .as_ref()
         .map(|failure| failure.message.clone());
     let empty = speedtest.recent_history.is_empty();
+    let stale_note = catalog
+        .text("shell_readout_stale")
+        .replace("{value}", "0 B/s");
 
     vec![
         {
@@ -39,7 +53,7 @@ pub(super) fn panels(snapshot: &SurfaceSnapshot, catalog: &Lang<'_>) -> Vec<Pane
                 BusinessId::RuntimeTelemetryObservation,
                 catalog.text("runtime_title"),
                 format!("↑ {upload} · ↓ {download}"),
-                vec![catalog.text("shell_readout_stale").into_owned(), public_ip],
+                vec![stale_note, public_ip],
             );
             panel.failure = failure.clone();
             panel

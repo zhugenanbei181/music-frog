@@ -1,0 +1,95 @@
+import { LumenUiScale } from "../lumen-ui-scale.slint";
+import { LumenTheme } from "../components/theme.slint";
+import { WorkbenchCard, ItemHeader, ItemText, ItemRow, DraftField, SectionLabel } from "../components/workbench_parts.slint";
+import { WorkbenchButton } from "../components/workbench_button.slint";
+import { WorkbenchItem } from "../components/models.slint";
+
+// The application routing policy page. The rule draft belongs to the shared
+// reducer; the row actions apply it. Every badge is styled from the typed
+// tone the owner published, never from matching localized copy. Loop
+// discipline: layouts that host per-item loops keep spacing 0 and wrap each
+// conditional part in its own zero-size container.
+export component PageAppRouting inherits VerticalLayout {
+    in property <[WorkbenchItem]> items;
+    in-out property <string> draft;
+    in-out property <string> draft-2;
+    in property <string> draft-id;
+    in property <string> draft-2-id;
+    in property <string> draft-placeholder;
+    in property <string> draft-2-placeholder;
+
+    callback action(string, string);
+    callback draft-edited(string, string);
+
+    width: 100%;
+    spacing: LumenTheme.space-4;
+    alignment: start;
+
+    // The routing rule draft the row actions apply.
+    if root.draft-2-id != "": DraftField {
+        draft-id: root.draft-2-id;
+        placeholder: root.draft-2-placeholder;
+        text <=> root.draft-2;
+        edited(id, value) => { root.draft-edited(id, value); }
+        accepted(value) => { root.action("app-routing-rule", value); }
+    }
+
+    // Policy mode card
+    WorkbenchCard {
+        for item in root.items: VerticalLayout {
+            if item.kind == "header": ItemHeader { item: item; }
+            if item.kind == "text": ItemText { item: item; }
+        }
+
+        Rectangle { height: 12 * LumenUiScale.unit; }
+
+        HorizontalLayout {
+            spacing: 0;
+
+            for item in root.items: HorizontalLayout {
+                if item.id == "app-routing-mode-all" || item.id == "app-routing-mode-proxy" || item.id == "app-routing-mode-bypass": Rectangle {
+                    width: 10 * LumenUiScale.unit;
+                }
+                if item.id == "app-routing-mode-all" || item.id == "app-routing-mode-proxy" || item.id == "app-routing-mode-bypass": WorkbenchButton {
+                    text: item.label;
+                    enabled: item.enabled;
+                    horizontal-stretch: 1;
+                    clicked => { root.action(item.action-id, ""); }
+                }
+            }
+        }
+    }
+
+    SectionLabel { label: @tr("应用规则列表"); }
+
+    // Application rules with the typed tone badge
+    VerticalLayout {
+        spacing: 0;
+
+        for item in root.items: VerticalLayout {
+            if item.kind == "row": ItemRow {
+                item: item;
+                trailing-badge: true;
+                row-min-height: 48 * LumenUiScale.unit;
+                action(id, row) => { root.action(id, row); }
+            }
+        }
+    }
+
+    HorizontalLayout {
+        width: parent.width;
+        alignment: end;
+        spacing: 0;
+
+        for item in root.items: HorizontalLayout {
+            if item.id == "app-routing-refresh" || item.id == "app-routing-cancel": Rectangle {
+                width: 12 * LumenUiScale.unit;
+            }
+            if item.id == "app-routing-refresh" || item.id == "app-routing-cancel": WorkbenchButton {
+                text: item.label;
+                enabled: item.enabled;
+                clicked => { root.action(item.action-id, ""); }
+            }
+        }
+    }
+}

@@ -1,0 +1,299 @@
+import { LumenUiScale } from "../lumen-ui-scale.slint";
+import { LumenTheme } from "theme.slint";
+import { WorkbenchItem } from "models.slint";
+
+// The shared visual vocabulary of the dedicated workbench pages.
+//
+// Every component renders facts the shared workbench projection publishes;
+// none of them invents business state. The pages compose these parts so the
+// item-id wiring lives in exactly one place per pattern instead of being
+// re-typed per page and drifting out of sync with the projection.
+
+// The one tone palette of the workbench items. The projection publishes a
+// typed tone string; this global owns the single conversion to color.
+export global WorkbenchTone {
+    public pure function color(tone: string) -> brush {
+        if (tone == "danger") { return LumenTheme.error; }
+        if (tone == "success") { return LumenTheme.ping-good; }
+        if (tone == "warning") { return LumenTheme.status-warning; }
+        return LumenTheme.text-secondary;
+    }
+
+    public pure function soft(tone: string) -> brush {
+        if (tone == "danger") { return LumenTheme.ping-bad-soft; }
+        if (tone == "success") { return LumenTheme.ping-good-soft; }
+        if (tone == "warning") { return LumenTheme.ping-warning-soft; }
+        return LumenTheme.surface-muted;
+    }
+}
+
+// The card shell every page section shares: one border, one padding, one
+// corner radius. The card hugs its content the way the pages drew it by
+// hand before the vocabulary existed.
+export component WorkbenchCard inherits Rectangle {
+    in property <length> inset: 16 * LumenUiScale.unit;
+
+    vertical-stretch: 0;
+    min-height: content.min-height;
+    preferred-height: content.preferred-height;
+    border-radius: LumenTheme.radius-card;
+    background: LumenTheme.surface;
+    border-width: 1 * LumenUiScale.unit;
+    border-color: LumenTheme.hairline-glow;
+
+    content := VerticalLayout {
+        x: root.inset;
+        width: max(0 * LumenUiScale.unit, parent.width - 2 * root.inset);
+        padding-top: root.inset;
+        padding-bottom: root.inset;
+        // The content never relies on layout spacing: the pages host
+        // per-item loops whose invisible wrappers would still pay the
+        // spacing between every non-matching item. Sections separate
+        // themselves with constant spacer rectangles instead.
+        alignment: start;
+
+        @children
+    }
+}
+
+// The header of one published item: its title and the owner's status in the
+// item's own tone. The badge variant compresses the status into a chip for
+// pages that lead with the numbers.
+export component ItemHeader inherits VerticalLayout {
+    in property <WorkbenchItem> item;
+    in property <bool> badge: false;
+
+    spacing: LumenTheme.space-1;
+    padding-bottom: LumenTheme.space-1;
+
+    HorizontalLayout {
+        spacing: LumenTheme.space-2;
+        cross-axis-alignment: center;
+
+        Text {
+            text: root.item.title;
+            color: LumenTheme.text-primary;
+            font-size: 16 * LumenUiScale.unit;
+            font-weight: 600;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+            overflow: elide;
+        }
+
+        if root.badge && root.item.status != "": Rectangle {
+            height: 24 * LumenUiScale.unit;
+            border-radius: 6 * LumenUiScale.unit;
+            background: WorkbenchTone.soft(root.item.tone);
+            border-width: 1 * LumenUiScale.unit;
+            border-color: WorkbenchTone.color(root.item.tone);
+
+            HorizontalLayout {
+                padding-left: 10 * LumenUiScale.unit;
+                padding-right: 10 * LumenUiScale.unit;
+                alignment: center;
+
+                Text {
+                    text: root.item.status;
+                    color: WorkbenchTone.color(root.item.tone);
+                    font-size: 12 * LumenUiScale.unit;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                }
+            }
+        }
+    }
+
+    if !root.badge && root.item.status != "": Text {
+        text: root.item.status;
+        color: WorkbenchTone.color(root.item.tone);
+        font-size: 13 * LumenUiScale.unit;
+        wrap: word-wrap;
+    }
+}
+
+// One published text fact. The danger variant is the typed refusal copy the
+// owner publishes for the panel that started the action.
+export component ItemText inherits Text {
+    in property <WorkbenchItem> item;
+    in property <bool> danger: false;
+
+    text: root.item.detail;
+    color: root.danger ? LumenTheme.error : LumenTheme.text-secondary;
+    font-size: 12 * LumenUiScale.unit;
+    wrap: word-wrap;
+}
+
+// A static section label of the page chrome (never owner data).
+export component SectionLabel inherits Text {
+    in property <string> label;
+
+    text: root.label;
+    color: LumenTheme.text-secondary;
+    font-size: 14 * LumenUiScale.unit;
+    font-weight: 600;
+    vertical-alignment: center;
+}
+
+// The draft field of one shared reducer draft. The reducer owns the value;
+// the field forwards edits with its draft id and shows the owner's
+// placeholder while the draft is empty.
+export component DraftField inherits Rectangle {
+    in property <string> draft-id;
+    in property <string> placeholder;
+    in property <bool> mono: false;
+    in-out property <string> text;
+
+    callback edited(string, string);
+    callback accepted(string);
+
+    height: root.mono ? 90 * LumenUiScale.unit : 40 * LumenUiScale.unit;
+    border-radius: LumenTheme.radius-control;
+    background: LumenTheme.surface-muted;
+    border-width: 1 * LumenUiScale.unit;
+    border-color: input.has-focus ? LumenTheme.accent : LumenTheme.border;
+    animate border-color { duration: 120ms; easing: ease-out; }
+
+    HorizontalLayout {
+        padding-left: 14 * LumenUiScale.unit;
+        padding-right: 14 * LumenUiScale.unit;
+        padding-top: root.mono ? 8 * LumenUiScale.unit : 0 * LumenUiScale.unit;
+        padding-bottom: root.mono ? 8 * LumenUiScale.unit : 0 * LumenUiScale.unit;
+        cross-axis-alignment: root.mono ? start : center;
+
+        input := TextInput {
+            width: parent.width;
+            text <=> root.text;
+            color: LumenTheme.text-primary;
+            font-size: 13 * LumenUiScale.unit;
+            font-family: root.mono ? LumenTheme.mono-family : "";
+            wrap: root.mono ? word-wrap : no-wrap;
+            vertical-alignment: root.mono ? top : center;
+            edited => { root.edited(root.draft-id, self.text); }
+            accepted => { root.accepted(self.text); }
+        }
+    }
+
+    if root.text == "": Text {
+        x: 14 * LumenUiScale.unit;
+        y: root.mono ? 8 * LumenUiScale.unit : 0 * LumenUiScale.unit;
+        width: parent.width - 28 * LumenUiScale.unit;
+        height: root.mono ? 24 * LumenUiScale.unit : parent.height;
+        text: root.placeholder;
+        color: LumenTheme.text-muted;
+        font-size: 13 * LumenUiScale.unit;
+        vertical-alignment: root.mono ? top : center;
+    }
+}
+
+// One published row: its title, detail and trailing fact plus the row's own
+// action when the projection published one. The trailing fact renders as a
+// tone-colored chip for pages that lead with the rule (the tone is the typed
+// fact the owner published, never matched copy).
+export component ItemRow inherits Rectangle {
+    in property <WorkbenchItem> item;
+    in property <bool> trailing-badge: false;
+    in property <length> row-min-height: 44 * LumenUiScale.unit;
+
+    callback action(string, string);
+
+    min-height: root.row-min-height;
+    border-radius: LumenTheme.radius-control;
+    background: LumenTheme.surface-muted;
+    border-width: 1 * LumenUiScale.unit;
+    border-color: LumenTheme.border;
+    accessible-role: list-item;
+    accessible-label: root.item.title + (root.item.detail != "" ? (" " + root.item.detail) : "") + (root.item.trailing != "" ? (" " + root.item.trailing) : "");
+
+    HorizontalLayout {
+        padding-left: LumenTheme.space-3;
+        padding-right: LumenTheme.space-3;
+        padding-top: 6 * LumenUiScale.unit;
+        padding-bottom: 6 * LumenUiScale.unit;
+        spacing: 10 * LumenUiScale.unit;
+        cross-axis-alignment: center;
+
+        Text {
+            text: root.item.title;
+            color: LumenTheme.text-primary;
+            font-size: 13 * LumenUiScale.unit;
+            font-weight: 500;
+            horizontal-stretch: 1;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+
+        if root.item.detail != "": Text {
+            text: root.item.detail;
+            color: LumenTheme.text-secondary;
+            font-size: 12 * LumenUiScale.unit;
+            horizontal-stretch: 2;
+            horizontal-alignment: right;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+
+        if root.item.trailing != "" && !root.trailing-badge: Text {
+            text: root.item.trailing;
+            color: LumenTheme.text-muted;
+            font-size: 11 * LumenUiScale.unit;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+
+        if root.item.trailing != "" && root.trailing-badge: Rectangle {
+            height: 24 * LumenUiScale.unit;
+            border-radius: 4 * LumenUiScale.unit;
+            background: WorkbenchTone.soft(root.item.tone);
+            border-width: 1 * LumenUiScale.unit;
+            border-color: WorkbenchTone.color(root.item.tone);
+
+            HorizontalLayout {
+                padding-left: LumenTheme.space-2;
+                padding-right: LumenTheme.space-2;
+                alignment: center;
+
+                Text {
+                    text: root.item.trailing;
+                    color: WorkbenchTone.color(root.item.tone);
+                    font-size: 11 * LumenUiScale.unit;
+                    font-weight: 500;
+                    vertical-alignment: center;
+                }
+            }
+        }
+
+        if root.item.action-id != "": Rectangle {
+            horizontal-stretch: 0;
+            min-width: max(80 * LumenUiScale.unit, row-btn-label.preferred-width + 24 * LumenUiScale.unit);
+            height: 28 * LumenUiScale.unit;
+            border-radius: 14 * LumenUiScale.unit;
+            background: row-btn-touch.has-hover && root.item.enabled ? LumenTheme.surface-raised : LumenTheme.surface;
+            border-width: 1 * LumenUiScale.unit;
+            border-color: row-btn-touch.has-hover && root.item.enabled ? LumenTheme.accent : LumenTheme.border;
+            opacity: root.item.enabled ? 1 : 0.5;
+            animate background, border-color { duration: 120ms; easing: ease-out; }
+
+            HorizontalLayout {
+                padding-left: 12 * LumenUiScale.unit;
+                padding-right: 12 * LumenUiScale.unit;
+                alignment: center;
+                cross-axis-alignment: center;
+
+                row-btn-label := Text {
+                    text: root.item.label;
+                    color: row-btn-touch.has-hover && root.item.enabled ? LumenTheme.accent : LumenTheme.text-primary;
+                    font-size: 11 * LumenUiScale.unit;
+                    font-weight: 500;
+                    vertical-alignment: center;
+                }
+            }
+
+            row-btn-touch := TouchArea {
+                width: parent.width;
+                height: parent.height;
+                enabled: root.item.enabled;
+                clicked => { root.action(root.item.action-id, root.item.row-id); }
+            }
+        }
+    }
+}

@@ -1,6 +1,7 @@
 import { ScrollView } from "std-widgets.slint";
 import { LargeAppBar, SmallAppBar, IconButton } from "@material";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
+import { PageTitles } from "./page_titles.slint";
 import { LumenTheme } from "./theme.slint";
 import {
     ProfileCard, OverrideCard, ProfileOverrideChoice, ObservationRow, ProxyGroup,
@@ -251,6 +252,10 @@ export component AppBody inherits Rectangle {
         page-scroll.content-y = 0 * LumenUiScale.unit;
     }
 
+    public function scroll-to-y(pos: length) {
+        page-scroll.content-y = max(page-scroll.visible-height - page-scroll.content-height, min(0 * LumenUiScale.unit, -pos));
+    }
+
     public function locate-current-node(pos: length, available: bool) {
         if !available || pos == 0 * LumenUiScale.unit || page-scroll.visible-height <= 0 * LumenUiScale.unit {
             return;
@@ -297,7 +302,7 @@ export component AppBody inherits Rectangle {
                     padding-left: 30 * LumenUiScale.unit;
                     padding-right: 30 * LumenUiScale.unit;
                     Text {
-                        text: root.page == "Home" ? "MusicFrog" : root.page == "Proxy" ? @tr("节点") : root.page == "Config" ? @tr("配置") : @tr("设置");
+                        text: PageTitles.top-title(root.page);
                         color: LumenTheme.text-primary;
                         font-size: 28 * LumenUiScale.unit;
                         font-weight: 600;
@@ -315,8 +320,8 @@ export component AppBody inherits Rectangle {
 
                 if root.compact-layout && root.primary-page && root.page != "Home" && !(root.page == "Proxy" && root.selected-group != ""): HorizontalLayout {
                     height: 52 * LumenUiScale.unit;
-                    padding-left: 16 * LumenUiScale.unit;
-                    padding-right: 16 * LumenUiScale.unit;
+                    padding-left: LumenTheme.space-4;
+                    padding-right: LumenTheme.space-4;
                     Text {
                         text: root.page == "Proxy" ? @tr("节点") : root.page == "Config" ? @tr("配置") : @tr("设置");
                         color: LumenTheme.text-primary;
@@ -337,18 +342,18 @@ export component AppBody inherits Rectangle {
                 if !root.primary-page: HorizontalLayout {
                     height: 48 * LumenUiScale.unit;
                     padding-left: root.compact-layout ? 8 * LumenUiScale.unit : 20 * LumenUiScale.unit;
-                    padding-right: 16 * LumenUiScale.unit;
-                    spacing: 8 * LumenUiScale.unit;
+                    padding-right: LumenTheme.space-4;
+                    spacing: LumenTheme.space-2;
                     cross-axis-alignment: center;
                     IconButton {
-                        width: 40 * LumenUiScale.unit;
-                        height: 40 * LumenUiScale.unit;
+                        width: 44 * LumenUiScale.unit;
+                        height: 44 * LumenUiScale.unit;
                         icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/back.svg");
-                        tooltip: @tr("返回");
+                        tooltip: @tr("返回上一页");
                         clicked => { root.go-back(); }
                     }
                     Text {
-                        text: root.page == "AppSettings" ? @tr("应用设置") : root.page == "Meta" ? @tr("Meta 功能") : root.page == "Network" ? @tr("网络设置") : root.page == "Overrides" ? @tr("覆写") : root.page == "Connections" ? @tr("连接") : root.page == "ConnectionDetail" ? @tr("连接详情") : root.page == "Logs" ? @tr("日志") : root.page == "Rules" ? @tr("规则") : root.page == "Traffic" ? @tr("流量统计") : root.page == "Providers" ? @tr("外部资源") : root.page == "Preview" ? root.content-preview-profile : root.page == "ProfileSettings" ? @tr("订阅设置") : root.page == "About" ? @tr("关于") : root.page == "Licenses" ? @tr("开源许可") : root.page == "LicenseDetail" ? root.license-detail-name : root.page == "Dns" ? @tr("DNS") : root.page == "Editor" ? @tr("编辑器") : root.page == "Filters" ? @tr("过滤与聚合") : root.page == "Doctor" ? @tr("诊断") : root.page == "Sync" ? @tr("同步") : root.page == "AppRouting" ? @tr("应用路由") : root.page;
+                        text: PageTitles.title(root.page, root.content-preview-profile, root.license-detail-name);
                         color: LumenTheme.text-primary;
                         font-size: 18 * LumenUiScale.unit;
                         font-weight: 600;
@@ -371,15 +376,15 @@ export component AppBody inherits Rectangle {
                     }
                     mouse-drag-pan-enabled: root.android-platform;
                     vertical-stretch: 1;
-                    vertical-scrollbar-policy: ScrollBarPolicy.always-off;
+                    vertical-scrollbar-policy: root.android-platform ? ScrollBarPolicy.always-off : ScrollBarPolicy.as-needed;
                     horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
 
                     VerticalLayout {
                         x: root.compact-layout ? (root.page == "Home" ? 24 * LumenUiScale.unit : root.page == "AppSettings" ? 10 * LumenUiScale.unit : 16 * LumenUiScale.unit) : 30 * LumenUiScale.unit;
                         width: parent.width - (root.compact-layout ? (root.page == "Home" ? 48 * LumenUiScale.unit : root.page == "AppSettings" ? 20 * LumenUiScale.unit : 32 * LumenUiScale.unit) : 60 * LumenUiScale.unit);
                         padding-top: (root.compact-layout && (root.page == "Home" || (root.page == "Proxy" && root.selected-group == ""))) ? 0 * LumenUiScale.unit : 8 * LumenUiScale.unit;
-                        padding-bottom: root.compact-layout && root.primary-page ? 120 * LumenUiScale.unit : 40 * LumenUiScale.unit;
-                        spacing: 12 * LumenUiScale.unit;
+                        padding-bottom: root.compact-layout && root.primary-page ? 128 * LumenUiScale.unit : 72 * LumenUiScale.unit;
+                        spacing: LumenTheme.space-3;
 
                         PagesRouter {
                             page: root.page; android-platform: root.android-platform; compact-layout: root.compact-layout;

@@ -564,6 +564,24 @@ fn the_script_export_capture_opens_the_owner_review() {
         !export.file_name.is_empty(),
         "the review names the artifact the owner composed"
     );
+    let review = state
+        .editor
+        .script_sandbox
+        .review()
+        .expect("the review carries the owner's review identity");
+    assert_eq!(
+        review.identity.sha256.len(),
+        64,
+        "the sha256 checksum must be exactly 64 hex characters"
+    );
+    assert!(
+        review
+            .identity
+            .sha256
+            .chars()
+            .all(|c| c.is_ascii_hexdigit()),
+        "the sha256 checksum must contain only ascii hex digits"
+    );
 }
 
 #[test]

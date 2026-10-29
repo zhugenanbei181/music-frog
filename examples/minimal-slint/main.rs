@@ -12,7 +12,11 @@
 //! cargo run --example minimal-slint
 //! ```
 
-slint::include_modules!();
+#[allow(clippy::todo)]
+mod generated_ui {
+    slint::include_modules!();
+}
+use generated_ui::*;
 
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::page::SurfaceOrigin;

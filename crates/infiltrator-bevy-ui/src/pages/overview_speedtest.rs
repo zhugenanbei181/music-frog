@@ -130,9 +130,10 @@ pub(crate) fn speedtest_button_scene(palette: &UiPalette) -> impl Scene + use<> 
                 ]
                 --
                 Node {
+                    max_width: percent(100),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::FlexEnd,
-                    column_gap: rem(space::S12),
+                    column_gap: rem(space::S8),
                     row_gap: rem(space::S4),
                     flex_wrap: FlexWrap::Wrap,
                 }

@@ -1,0 +1,60 @@
+import { LumenUiScale } from "../lumen-ui-scale.slint";
+import { LumenTheme } from "../components/theme.slint";
+import { PillButton } from "../components/base_widgets.slint";
+import { SectionCard, SummaryRow } from "../components/cards.slint";
+
+export component PageConnectionDetail inherits VerticalLayout {
+    in property <string> connection-detail-id;
+    in property <string> connection-detail-host;
+    in property <string> connection-detail-protocol;
+    in property <string> connection-detail-process;
+    in property <string> connection-detail-source;
+    in property <string> connection-detail-destination;
+    in property <string> connection-detail-start;
+    in property <string> connection-detail-duration;
+    in property <string> connection-detail-upload;
+    in property <string> connection-detail-download;
+    in property <string> connection-detail-rule;
+    in property <string> connection-detail-chains;
+    in property <string> connection-detail-providers;
+    in property <bool> connection-detail-active;
+    in property <string> connection-breaking-id;
+
+    callback back();
+    callback close-conn(string);
+
+    width: 100%;
+    spacing: LumenTheme.space-4;
+
+    SectionCard {
+        heading: @tr("连接详情");
+        detail: root.connection-detail-host;
+
+        SummaryRow { label: @tr("状态"); value: root.connection-detail-active ? @tr("活动中") : @tr("已关闭"); emphasized: root.connection-detail-active; }
+        SummaryRow { label: @tr("协议"); value: root.connection-detail-protocol; }
+        SummaryRow { label: @tr("进程"); value: root.connection-detail-process; }
+        SummaryRow { label: @tr("源地址"); value: root.connection-detail-source; }
+        SummaryRow { label: @tr("目标地址"); value: root.connection-detail-destination; }
+        SummaryRow { label: @tr("开始时间"); value: root.connection-detail-start; }
+        SummaryRow { label: @tr("持续时间"); value: root.connection-detail-duration; }
+        SummaryRow { label: @tr("上传/下载"); value: (root.connection-detail-upload == "" && root.connection-detail-download == "") ? "" : (root.connection-detail-upload + " ↑ · " + root.connection-detail-download + " ↓"); }
+        SummaryRow { label: @tr("命中规则"); value: root.connection-detail-rule; }
+        SummaryRow { label: @tr("代理链"); value: root.connection-detail-chains; }
+        SummaryRow { label: @tr("资源提供者"); value: root.connection-detail-providers; }
+
+        HorizontalLayout {
+            spacing: LumenTheme.space-3;
+            alignment: end;
+            PillButton {
+                label: @tr("返回");
+                clicked => { root.back(); }
+            }
+            if root.connection-detail-active: PillButton {
+                label: root.connection-detail-id == root.connection-breaking-id ? @tr("打断中…") : @tr("打断此连接");
+                danger: true;
+                enabled: root.connection-detail-id != root.connection-breaking-id;
+                clicked => { root.close-conn(root.connection-detail-id); }
+            }
+        }
+    }
+}

@@ -150,6 +150,104 @@ pub fn format_latency_standard(delay_ms: Option<u32>) -> (String, LatencyTier) {
     (label, tier)
 }
 
+/// Canonical protocol badge representation for proxy node cards across all surfaces.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProxyProtocolBadge {
+    Shadowsocks,
+    Vless,
+    Vmess,
+    Trojan,
+    Hysteria2,
+    WireGuard,
+    Tuic,
+    Ssh,
+    Http,
+    Socks5,
+    Snell,
+    Direct,
+    Reject,
+    Other,
+}
+
+impl ProxyProtocolBadge {
+    pub fn from_str_loose(s: &str) -> Self {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "shadowsocks" | "ss" => Self::Shadowsocks,
+            "vless" => Self::Vless,
+            "vmess" => Self::Vmess,
+            "trojan" | "trojan-go" => Self::Trojan,
+            "hysteria2" | "hy2" | "hysteria" => Self::Hysteria2,
+            "wireguard" | "wg" | "awg" | "amnezia-wg" => Self::WireGuard,
+            "tuic" => Self::Tuic,
+            "ssh" => Self::Ssh,
+            "http" | "https" => Self::Http,
+            "socks5" | "socks" => Self::Socks5,
+            "snell" => Self::Snell,
+            "direct" => Self::Direct,
+            "reject" => Self::Reject,
+            _ => Self::Other,
+        }
+    }
+
+    pub const fn badge_text(self) -> &'static str {
+        match self {
+            Self::Shadowsocks => "SS",
+            Self::Vless => "VLESS",
+            Self::Vmess => "VMess",
+            Self::Trojan => "Trojan",
+            Self::Hysteria2 => "Hy2",
+            Self::WireGuard => "WG",
+            Self::Tuic => "TUIC",
+            Self::Ssh => "SSH",
+            Self::Http => "HTTP",
+            Self::Socks5 => "SOCKS5",
+            Self::Snell => "Snell",
+            Self::Direct => "Direct",
+            Self::Reject => "Reject",
+            Self::Other => "Proxy",
+        }
+    }
+
+    pub const fn display_name(self) -> &'static str {
+        match self {
+            Self::Shadowsocks => "Shadowsocks",
+            Self::Vless => "Vless",
+            Self::Vmess => "VMess",
+            Self::Trojan => "Trojan",
+            Self::Hysteria2 => "Hysteria2",
+            Self::WireGuard => "WireGuard",
+            Self::Tuic => "Tuic",
+            Self::Ssh => "SSH",
+            Self::Http => "HTTP",
+            Self::Socks5 => "SOCKS5",
+            Self::Snell => "Snell",
+            Self::Direct => "Direct",
+            Self::Reject => "Reject",
+            Self::Other => "Proxy",
+        }
+    }
+
+    pub const fn badge_color_hex(self) -> &'static str {
+        match self {
+            Self::Shadowsocks => "#007AFF",
+            Self::Vless => "#34C759",
+            Self::Vmess => "#AF52DE",
+            Self::Trojan => "#FF9500",
+            Self::Hysteria2 => "#00C7BE",
+            Self::WireGuard => "#E056FD",
+            Self::Tuic => "#FF2D55",
+            Self::Ssh => "#A4B0BE",
+            Self::Http => "#5352ED",
+            Self::Socks5 => "#3742FA",
+            Self::Snell => "#2ED573",
+            Self::Direct => "#747D8C",
+            Self::Reject => "#FF4757",
+            Self::Other => "#016888",
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -199,5 +297,45 @@ mod tests {
         let (label, tier) = format_latency_standard(Some(0));
         assert_eq!(label, "超时");
         assert_eq!(tier, LatencyTier::Timeout);
+    }
+
+    #[test]
+    fn proxy_protocol_badge_classification() {
+        assert_eq!(
+            ProxyProtocolBadge::from_str_loose("ss"),
+            ProxyProtocolBadge::Shadowsocks
+        );
+        assert_eq!(
+            ProxyProtocolBadge::from_str_loose("Shadowsocks").badge_text(),
+            "SS"
+        );
+        assert_eq!(
+            ProxyProtocolBadge::from_str_loose("hy2"),
+            ProxyProtocolBadge::Hysteria2
+        );
+        assert_eq!(
+            ProxyProtocolBadge::from_str_loose("Hysteria2").badge_text(),
+            "Hy2"
+        );
+        assert_eq!(
+            ProxyProtocolBadge::from_str_loose("vless").badge_text(),
+            "VLESS"
+        );
+        assert_eq!(
+            ProxyProtocolBadge::from_str_loose("vmess").badge_text(),
+            "VMess"
+        );
+        assert_eq!(
+            ProxyProtocolBadge::from_str_loose("trojan").badge_text(),
+            "Trojan"
+        );
+        assert_eq!(
+            ProxyProtocolBadge::from_str_loose("unknown").badge_text(),
+            "Proxy"
+        );
+        assert_eq!(
+            ProxyProtocolBadge::from_str_loose("ss").badge_color_hex(),
+            "#007AFF"
+        );
     }
 }

@@ -145,6 +145,8 @@ pub struct NetworkRoamingSnapshot {
     pub last_event: Option<NetworkRoamingEvent>,
     pub observed_at_epoch_ms: Option<i64>,
     pub revision: u64,
+    #[serde(default)]
+    pub network_generation: u64,
 }
 
 impl NetworkRoamingSnapshot {

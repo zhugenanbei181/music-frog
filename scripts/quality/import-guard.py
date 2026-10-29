@@ -33,6 +33,7 @@ WHITELIST = {
     "crates/infiltrator-http/src/lib.rs",    # reqwest 版本收敛点
     "crates/infiltrator-android/src/lib.rs",  # UniFFI FFI 导出面
     "crates/infiltrator-android/src/uniffi_api.rs",  # UniFFI FFI 导出面
+    "crates/infiltrator-slint/src/lib.rs",    # Slint codegen 组件树导出面
 }
 
 USE_STMT = re.compile(r"\buse\s+[^;]+;", re.S)

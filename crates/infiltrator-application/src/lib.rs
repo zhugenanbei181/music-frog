@@ -51,6 +51,7 @@ pub mod dns_self_heal_application;
 pub mod dns_workbench_application;
 pub mod doctor_application;
 pub mod geo_database_application;
+pub mod media_unlock_application;
 pub mod mini_hud_application;
 pub mod mrs_acceleration_application;
 pub mod mtu_application;

@@ -193,8 +193,12 @@ pub fn proxy_card_paint(
     };
     if disabled {
         return ProxyCardPaint {
-            fill: palette.surface_elevated.with_alpha(DISABLED_CARD_ALPHA),
-            border: palette.border,
+            fill: palette
+                .surface_elevated
+                .with_alpha(palette.surface_elevated.alpha() * DISABLED_CARD_ALPHA),
+            border: palette
+                .border
+                .with_alpha(palette.border.alpha() * DISABLED_CARD_ALPHA),
             border_width: rem(RESTING_CARD_BORDER_WIDTH_PX),
             shadow: None,
             lift: None,
@@ -716,6 +720,7 @@ mod tests {
         let disabled = proxy_card_paint(ProxyCardState::Selected, true, &palette);
         let selected = proxy_card_paint(ProxyCardState::Selected, false, &palette);
         assert_ne!(disabled.fill, selected.fill);
+        assert!(disabled.fill.alpha() < selected.fill.alpha());
         assert!(disabled.shadow.is_none());
         assert!(disabled.lift.is_none());
     }

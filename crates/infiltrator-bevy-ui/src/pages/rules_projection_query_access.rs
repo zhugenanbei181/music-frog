@@ -4,12 +4,14 @@ use super::{
     ProviderCountText, ProviderNameText, ProviderUpdatedText, RuleEnabledKnob, RuleHitText,
     RulePayloadText, RuleProxyText, RuleRowStatusChip, RuleRowStatusText, RuleTypeText, RulesLine,
 };
+use crate::pages::rules_outcome::RuleProviderRefreshButton;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::query::{QueryFilter, With, Without};
 use bevy::ecs::system::{Query, SystemParam};
 use bevy::feathers::theme::ThemeTextColor;
 use bevy::ui::prelude::Node;
 use bevy::ui::widget::Text;
+use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::switch::SwitchKnob;
 
@@ -224,5 +226,13 @@ pub struct RuleProjectionTargets<'w, 's> {
         's,
         (&'static mut Text, &'static ProviderUpdatedText),
         ApplyRulesProjectionProviderUpdatesFilter,
+    >,
+    pub(super) provider_buttons: Query<
+        'w,
+        's,
+        (
+            &'static mut ButtonDisabled,
+            &'static RuleProviderRefreshButton,
+        ),
     >,
 }

@@ -1,4 +1,3 @@
-import { Button, CheckBox, LineEdit, ScrollView, TextEdit } from "std-widgets.slint";
 import {
     FilledButton, IconButton, LargeAppBar, MaterialPalette, MaterialSchemes,
     NavigationBar, PopupMenu, SmallAppBar, Switch, TextField, TonalButton,
@@ -14,7 +13,7 @@ import { ProfileCard, OverrideCard, ProfileOverrideChoice, ObservationRow, Proxy
 import { ProfileOverlays } from "components/profile_overlays.slint";
 import { OverviewOrderOverlay } from "components/overview_order.slint";
 import { SettingsOverlays } from "components/settings_overlays.slint";
-import { AppBottomBar, ClearTrafficDialog, DesktopTitleBar, NoticeBanner, SettingsMessageBanner, ProfileSettingsTypeMenu, ProxySortMenu } from "components/app_chrome.slint";
+import { AppBottomBar, ClearTrafficDialog, DesktopTitleBar, NoticeBanner, SettingsMessageBanner, ProfileSettingsTypeMenu, ProfileAddTypeMenu, ProxySortMenu } from "components/app_chrome.slint";
 import { AppBody } from "components/app_body.slint";
 import { PageWorkbench } from "pages/page_workbench.slint";
 import { ConnectionSort, LogLevel, NetworkMode, RouteMode, RuntimeStatus, ThemeMode, TrafficRange } from "components/domain_enums.slint";
@@ -34,7 +33,7 @@ export component AppWindow inherits MaterialWindow {
     callback window-close();
     in-out property <bool> is-maximized: false;
     in-out property <bool> android-platform: false;
-    in-out property <string> product-version: "0.1.0";
+    in-out property <string> product-version: "0.68.2";
     in-out property <bool> layout-debug-tools-enabled: false;
     in-out property <bool> layout-debug-bounds: false;
     in-out property <bool> application-dark-mode: false;
@@ -83,7 +82,6 @@ export component AppWindow inherits MaterialWindow {
     in-out property <length> last-page-scroll-y: 0 * LumenUiScale.unit;
     in-out property <bool> profile-add-open: false;
     in-out property <int> profile-add-kind-index: 0;
-    in-out property <bool> profile-type-menu-open: false;
     in-out property <int> profile-count-at-open: 0;
 
     // The real on-screen geometry of the sheet the surface opened. The parity
@@ -107,7 +105,7 @@ export component AppWindow inherits MaterialWindow {
     property <length> home-data-upload-gap: root.height < 760 * LumenUiScale.unit ? 24 * LumenUiScale.unit : root.height < 840 * LumenUiScale.unit ? 24 * LumenUiScale.unit : 40 * LumenUiScale.unit;
     property <length> home-before-node-gap: root.height < 760 * LumenUiScale.unit ? 16 * LumenUiScale.unit : root.height < 840 * LumenUiScale.unit ? 16 * LumenUiScale.unit : 28 * LumenUiScale.unit;
     property <length> home-node-egress-gap: 8 * LumenUiScale.unit;
-    property <bool> primary-page: root.page == "Home" || root.page == "Proxy" || root.page == "Config" || root.page == "Settings";
+    property <bool> primary-page: root.page == "Home" || root.page == "Proxy" || root.page == "Config" || root.page == "Settings" || root.page == "SettingsWorkbench";
 
     init => {
         MaterialPalette.schemes = LumenTheme.material-schemes;
@@ -164,7 +162,7 @@ export component AppWindow inherits MaterialWindow {
     in-out property <string> stat-down: "0 B/s";
     in-out property <string> stat-up: "0 B/s";
     in-out property <string> stat-down-value: "0";
-    in-out property <string> stat-down-unit: "B";
+    in-out property <string> stat-down-unit: "B/s";
     in-out property <string> stat-up-compact: "0 B";
     in-out property <string> home-current-node: @tr("未知");
     in-out property <string> home-current-accessible: @tr("未知");
@@ -231,7 +229,7 @@ export component AppWindow inherits MaterialWindow {
     in-out property <bool> profile-settings-age-configured: false;
     in-out property <bool> profile-settings-saving: false;
     in-out property <int> profile-settings-type-index: 0;
-    in-out property <length> profile-settings-type-anchor-x: 0 * LumenUiScale.unit; in-out property <length> profile-settings-type-anchor-y: 0 * LumenUiScale.unit;
+    in-out property <length> profile-settings-type-anchor-x: 0 * LumenUiScale.unit; in-out property <length> profile-settings-type-anchor-y: 0 * LumenUiScale.unit; in-out property <length> profile-add-type-anchor-x: 0 * LumenUiScale.unit; in-out property <length> profile-add-type-anchor-y: 0 * LumenUiScale.unit;
     in-out property <[ProfileOverrideChoice]> profile-settings-overrides: [];
     in-out property <string> user-agent: "";
     in-out property <string> user-agent-draft: "";
@@ -327,7 +325,7 @@ export component AppWindow inherits MaterialWindow {
     changed page => { if root.page != "Proxy" && root.selected-group != "" { root.selected-group = ""; } app-body.scroll-to-top(); root.bottom-bar-visible = true; root.update-color-scheme(); }
     changed selected-group => { root.proxy-active-node-position = 0 * LumenUiScale.unit; root.proxy-current-node-available = false; root.update-color-scheme(); root.select-proxy-group(root.selected-group); }
     changed proxy-nodes => { root.proxy-active-node-position = 0 * LumenUiScale.unit; }
-    changed profile-add-open => { root.update-color-scheme(); root.profile-type-menu-open = false; if root.profile-add-open { profile-overlays.show-add(); } else { profile-overlays.close-add(); } }
+    changed profile-add-open => { root.update-color-scheme(); profile-add-type-menu.close(); if root.profile-add-open { profile-overlays.show-add(); } else { profile-overlays.close-add(); } }
     changed layout-debug-bounds => { LumenTheme.show-layout-bounds = root.layout-debug-bounds; }
     changed user-agent-dialog-open => { if root.user-agent-dialog-open { settings-overlays.show-user-agent(); } else { settings-overlays.close-user-agent-sheet(); } }
     changed profile-action-open => { if root.profile-action-open { profile-overlays.show-action(); } else { profile-overlays.close-action(); } }
@@ -363,12 +361,14 @@ export component AppWindow inherits MaterialWindow {
     public function open-clear-traffic-dialog() { clear-traffic-dialog.show(); }
     public function open-network-mode-dialog(draft: NetworkMode) { settings-overlays.show-network-mode(draft); }
     public function open-profile-type-menu(x: length, y: length) { root.profile-settings-type-anchor-x = x; root.profile-settings-type-anchor-y = y; profile-settings-type-menu.show(); }
+    public function open-profile-add-type-menu(x: length, y: length) { root.profile-add-type-anchor-x = x; root.profile-add-type-anchor-y = y; profile-add-type-menu.show(); }
     function locate-current-node() { app-body.locate-current-node(root.proxy-active-node-position, root.proxy-current-node-available); }
-    public function open-profile-add() { root.profile-name = ""; root.profile-url = ""; root.profile-age-key = ""; root.notice = ""; root.profile-add-kind-index = 0; root.profile-type-menu-open = false; root.profile-count-at-open = root.profiles.length; root.profile-add-open = true; }
+    public function scroll-page-to(pos: length) { app-body.scroll-to-y(pos); }
+    public function open-profile-add() { root.profile-name = ""; root.profile-url = ""; root.profile-age-key = ""; root.notice = ""; root.profile-add-kind-index = 0; profile-add-type-menu.close(); root.profile-count-at-open = root.profiles.length; root.profile-add-open = true; }
     // Opens the Overview card order sheet. The sheet lists the cards in the
     // order the shared owner published, so opening it dispatches no command.
     public function open-overview-order() { root.overview-order-open = true; }
-    function close-profile-add() { root.profile-add-open = false; root.profile-type-menu-open = false; root.profile-name = ""; root.profile-url = ""; root.profile-age-key = ""; root.notice = ""; }
+    function close-profile-add() { root.profile-add-open = false; profile-add-type-menu.close(); root.profile-name = ""; root.profile-url = ""; root.profile-age-key = ""; root.notice = ""; }
 
     public function go-back() {
         if app-theme-menu.is-open { app-theme-menu.close(); return; }
@@ -381,7 +381,7 @@ export component AppWindow inherits MaterialWindow {
         else if root.page-scale-dialog-open { root.page-scale-dialog-open = false; }
         else if root.user-agent-dialog-open { root.user-agent-dialog-open = false; }
         else if profile-settings-type-menu.is-open { profile-settings-type-menu.close(); }
-        else if root.profile-type-menu-open { root.profile-type-menu-open = false; }
+        else if profile-add-type-menu.is-open { profile-add-type-menu.close(); }
         else if root.profile-settings-id != "" { root.cancel-profile-settings(); }
         else if root.profile-action-open { root.profile-action-open = false; root.profile-action-id = ""; root.profile-action-name = ""; }
         else if root.pending-profile-export-id != "" { root.pending-profile-export-id = ""; root.pending-profile-export-name = ""; }
@@ -513,7 +513,7 @@ export component AppWindow inherits MaterialWindow {
 
     profile-overlays := ProfileOverlays {
         width: root.width; height: root.height; safe-bottom: root.safe-area-insets.bottom; profile-dialog-content-width: root.profile-dialog-content-width; profile-sheet-content-width: root.profile-sheet-content-width; profile-sheet-content-height: root.profile-sheet-content-height; profile-settings-sheet-height: root.profile-settings-sheet-height;
-        application-dark-mode: root.application-dark-mode; layout-debug-bounds: root.layout-debug-bounds; profile-add-kind-index: root.profile-add-kind-index; profile-type-menu-open: root.profile-type-menu-open; notice: root.notice; pending-delete-name: root.pending-delete-name; profile-settings-id: root.profile-settings-id;
+        application-dark-mode: root.application-dark-mode; layout-debug-bounds: root.layout-debug-bounds; profile-add-kind-index: root.profile-add-kind-index; notice: root.notice; pending-delete-name: root.pending-delete-name; profile-settings-id: root.profile-settings-id;
         profile-settings-kind: root.profile-settings-kind; profile-settings-age-configured: root.profile-settings-age-configured; profile-settings-overrides: root.profile-settings-overrides;
         profile-name <=> root.profile-name; profile-url <=> root.profile-url; profile-age-key <=> root.profile-age-key;
         profile-settings-type-index <=> root.profile-settings-type-index;
@@ -527,7 +527,7 @@ export component AppWindow inherits MaterialWindow {
         root.choose-profile-file(root.profile-name, root.profile-age-key); root.close-profile-add();
             }
         }
-        toggle-type-menu => { root.profile-type-menu-open = !root.profile-type-menu-open; } select-kind(k) => { root.profile-add-kind-index = k; root.profile-type-menu-open = false; root.notice = ""; }
+        open-add-type-menu(x, y) => { root.open-profile-add-type-menu(x, y); }
         choose-file => { root.choose-profile-file(root.profile-name, root.profile-age-key); root.close-profile-add(); } scan-qr => { root.scan-profile-qr(); root.close-profile-add(); }
         close-profile-action => { root.profile-action-open = false; root.profile-action-id = ""; root.profile-action-name = ""; }
         open-editor => { let id = root.profile-action-id; root.profile-action-open = false; root.profile-action-id = ""; root.profile-action-name = ""; if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.page = "Preview"; root.navigate("Preview"); root.show-profile-preview(id); }
@@ -592,9 +592,13 @@ export component AppWindow inherits MaterialWindow {
     // The settings sheet's type dropdown is the same toolkit popup menu as
     // the theme, language and proxy-sort menus of the window.
     profile-settings-type-menu := ProfileSettingsTypeMenu {
-        window-width: root.width; window-height: root.height; safe-left: root.safe-area-insets.left; safe-right: root.safe-area-insets.right; safe-top: root.safe-area-insets.top; safe-bottom: root.safe-area-insets.bottom;
-        anchor-x: root.profile-settings-type-anchor-x; anchor-y: root.profile-settings-type-anchor-y; selected-index: root.profile-settings-type-index; layout-debug-bounds: root.layout-debug-bounds;
-        select(index) => { root.profile-settings-type-index = index; }
+        window-width: root.width; window-height: root.height; safe-left: root.safe-area-insets.left; safe-right: root.safe-area-insets.right; safe-top: root.safe-area-insets.top; safe-bottom: root.safe-area-insets.bottom; anchor-x: root.profile-settings-type-anchor-x; anchor-y: root.profile-settings-type-anchor-y; selected-index: root.profile-settings-type-index; layout-debug-bounds: root.layout-debug-bounds; select(index) => { root.profile-settings-type-index = index; }
+    }
+
+    // The add sheet's type dropdown: the same toolkit popup as the settings
+    // sheet's, anchored where the sheet's trigger sits.
+    profile-add-type-menu := ProfileAddTypeMenu {
+        window-width: root.width; window-height: root.height; safe-left: root.safe-area-insets.left; safe-right: root.safe-area-insets.right; safe-top: root.safe-area-insets.top; safe-bottom: root.safe-area-insets.bottom; anchor-x: root.profile-add-type-anchor-x; anchor-y: root.profile-add-type-anchor-y; selected-index: root.profile-add-kind-index; layout-debug-bounds: root.layout-debug-bounds; select(index) => { root.profile-add-kind-index = index; root.notice = ""; }
     }
 
     settings-overlays := SettingsOverlays {

@@ -1,7 +1,8 @@
-import { Button, LineEdit, TextEdit } from "std-widgets.slint";
+import { ScrollView } from "std-widgets.slint";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "../components/theme.slint";
 import { LicenseRow } from "../components/models.slint";
+import { PillButton, SearchField } from "../components/base_widgets.slint";
 import { SectionCard } from "../components/cards.slint";
 
 export component PagePreview inherits VerticalLayout {
@@ -11,12 +12,12 @@ export component PagePreview inherits VerticalLayout {
     in property <string> content-preview;
 
     width: 100%;
-    spacing: 8 * LumenUiScale.unit;
+    spacing: LumenTheme.space-2;
 
     HorizontalLayout {
         width: parent.width;
         height: 28 * LumenUiScale.unit;
-        spacing: 8 * LumenUiScale.unit;
+        spacing: LumenTheme.space-2;
         Text {
             text: @tr("有效配置");
             color: LumenTheme.text-primary;
@@ -57,15 +58,18 @@ export component PagePreview inherits VerticalLayout {
         border-width: 1 * LumenUiScale.unit;
         border-color: LumenTheme.border;
         background: LumenTheme.surface;
-        TextEdit {
+        ScrollView {
             x: 10 * LumenUiScale.unit;
             y: 8 * LumenUiScale.unit;
             width: parent.width - 20 * LumenUiScale.unit;
             height: parent.height - 16 * LumenUiScale.unit;
-            text: root.content-preview;
-            read-only: true;
-            font-family: "monospace";
-            font-size: 12 * LumenUiScale.unit;
+            Text {
+                text: root.content-preview;
+                color: LumenTheme.text-primary;
+                font-family: LumenTheme.mono-family;
+                font-size: 12 * LumenUiScale.unit;
+                wrap: word-wrap;
+            }
         }
     }
 }
@@ -78,7 +82,7 @@ export component PageAbout inherits VerticalLayout {
     callback open-licenses();
 
     width: 100%;
-    spacing: 14 * LumenUiScale.unit;
+    spacing: LumenTheme.space-4;
 
     SectionCard {
         heading: "MusicFrog Infiltrator";
@@ -111,8 +115,8 @@ export component PageAbout inherits VerticalLayout {
             color: LumenTheme.text-secondary;
             font-size: 13 * LumenUiScale.unit;
         }
-        Button {
-            text: @tr("查看第三方依赖许可");
+        PillButton {
+            label: @tr("查看第三方依赖许可");
             clicked => { root.open-licenses(); }
         }
     }
@@ -129,53 +133,80 @@ export component PageLicenses inherits VerticalLayout {
     callback select-license(LicenseRow);
 
     width: 100%;
-    spacing: 14 * LumenUiScale.unit;
+    spacing: LumenTheme.space-4;
 
     SectionCard {
         heading: @tr("第三方依赖许可证");
         detail: @tr("按依赖名、版本或 SPDX 许可证标识搜索");
-        Button {
-            text: @tr("返回关于");
+        PillButton {
+            label: @tr("返回关于");
             clicked => { root.back-about(); }
         }
-        LineEdit {
+        SearchField {
+            placeholder: @tr("搜索依赖或 SPDX 标识");
             text <=> root.license-query;
-            placeholder-text: @tr("搜索依赖或 SPDX 标识");
-            edited(query) => { root.search(query); }
+            search(query) => { root.search(query); }
         }
         Text {
             text: @tr("匹配 ") + root.license-rows.length + @tr(" 项");
             color: LumenTheme.text-secondary;
             font-size: 12 * LumenUiScale.unit;
         }
-        if root.license-catalog-error != "": HorizontalLayout {
-            Text {
-                text: @tr("无法读取内置许可证清单：") + root.license-catalog-error;
-                color: #B3261E;
-                font-size: 12 * LumenUiScale.unit;
-                wrap: word-wrap;
-                horizontal-stretch: 1;
-            }
-            Button {
-                text: @tr("重试");
-                clicked => { root.retry-catalog(); }
+        if root.license-catalog-error != "": Rectangle {
+            border-radius: LumenTheme.radius-control;
+            background: LumenTheme.error.with_alpha(15%);
+            border-width: 1 * LumenUiScale.unit;
+            border-color: LumenTheme.error;
+            HorizontalLayout {
+                padding: LumenTheme.space-2;
+                spacing: LumenTheme.space-2;
+                cross-axis-alignment: center;
+                Text { text: "⚠"; color: LumenTheme.error; font-size: 14 * LumenUiScale.unit; }
+                Text {
+                    text: @tr("无法读取内置许可证清单：") + root.license-catalog-error;
+                    color: LumenTheme.error;
+                    font-size: 12 * LumenUiScale.unit;
+                    wrap: word-wrap;
+                    horizontal-stretch: 1;
+                }
+                PillButton {
+                    label: @tr("重试");
+                    clicked => { root.retry-catalog(); }
+                }
             }
         }
-        if root.license-rows.length == 0 && root.license-catalog-error == "": Text {
-            text: root.license-query == "" ? @tr("当前许可证清单为空") : @tr("没有匹配的依赖或许可证");
-            color: LumenTheme.text-secondary;
-            font-size: 13 * LumenUiScale.unit;
-        }
-        for item in root.license-rows: Rectangle {
-            height: 66 * LumenUiScale.unit;
-            border-radius: 7 * LumenUiScale.unit;
-            background: LumenTheme.surface;
+        if root.license-rows.length == 0 && root.license-catalog-error == "": Rectangle {
+            height: 64 * LumenUiScale.unit;
+            border-radius: LumenTheme.radius-control;
+            background: LumenTheme.surface-muted;
             border-width: 1 * LumenUiScale.unit;
             border-color: LumenTheme.border;
             VerticalLayout {
-                x: 12 * LumenUiScale.unit;
+                alignment: center;
+                Text {
+                    text: root.license-query == "" ? @tr("当前许可证清单为空") : (@tr("没有匹配到依赖：") + root.license-query);
+                    color: LumenTheme.text-secondary;
+                    font-size: 13 * LumenUiScale.unit;
+                    horizontal-alignment: center;
+                }
+            }
+        }
+        for item in root.license-rows: Rectangle {
+            height: 64 * LumenUiScale.unit;
+            border-radius: LumenTheme.radius-control;
+            background: lic-touch.has-hover ? LumenTheme.surface-raised : LumenTheme.surface;
+            border-width: 1 * LumenUiScale.unit;
+            border-color: lic-touch.has-hover ? LumenTheme.accent : LumenTheme.border;
+            animate background, border-color { duration: 120ms; easing: ease-out; }
+
+            lic-touch := TouchArea {
+                clicked => { root.select-license(item); }
+            }
+
+            VerticalLayout {
+                x: 14 * LumenUiScale.unit;
                 y: 8 * LumenUiScale.unit;
-                width: parent.width - 24 * LumenUiScale.unit;
+                width: parent.width - 28 * LumenUiScale.unit;
                 height: parent.height - 16 * LumenUiScale.unit;
                 spacing: 3 * LumenUiScale.unit;
                 Text {
@@ -192,11 +223,6 @@ export component PageLicenses inherits VerticalLayout {
                     wrap: word-wrap;
                 }
             }
-            TouchArea {
-                width: parent.width;
-                height: parent.height;
-                clicked => { root.select-license(item); }
-            }
         }
     }
 }
@@ -212,26 +238,40 @@ export component PageLicenseDetail inherits VerticalLayout {
     callback retry-read();
 
     width: 100%;
-    spacing: 14 * LumenUiScale.unit;
+    spacing: LumenTheme.space-4;
 
     SectionCard {
         heading: root.license-detail-name + "  " + root.license-detail-version;
         detail: @tr("许可证标识：") + root.license-detail-identifier;
-        Button {
-            text: @tr("返回许可证列表");
+        PillButton {
+            label: @tr("返回许可证列表");
             clicked => { root.back-licenses(); }
         }
-        if root.license-detail-error != "": HorizontalLayout {
-            Text {
-                text: root.license-detail-error;
-                color: #B3261E;
-                font-size: 12 * LumenUiScale.unit;
-                wrap: word-wrap;
-                horizontal-stretch: 1;
-            }
-            Button {
-                text: @tr("重试读取");
-                clicked => { root.retry-read(); }
+        if root.license-detail-error != "": Rectangle {
+            border-radius: LumenTheme.radius-control;
+            background: LumenTheme.error.with_alpha(15%);
+            border-width: 1 * LumenUiScale.unit;
+            border-color: LumenTheme.error;
+            HorizontalLayout {
+                padding-left: 12 * LumenUiScale.unit;
+                padding-right: 12 * LumenUiScale.unit;
+                padding-top: 8 * LumenUiScale.unit;
+                padding-bottom: 8 * LumenUiScale.unit;
+                spacing: 8 * LumenUiScale.unit;
+                cross-axis-alignment: center;
+                Text { text: "⚠"; color: LumenTheme.error; font-size: 16 * LumenUiScale.unit; }
+                Text {
+                    text: root.license-detail-error;
+                    color: LumenTheme.error;
+                    font-size: 13 * LumenUiScale.unit;
+                    font-weight: 500;
+                    wrap: word-wrap;
+                    horizontal-stretch: 1;
+                }
+                PillButton {
+                    label: @tr("重试读取");
+                    clicked => { root.retry-read(); }
+                }
             }
         }
         Text {
@@ -239,10 +279,25 @@ export component PageLicenseDetail inherits VerticalLayout {
             color: LumenTheme.text-secondary;
             font-size: 12 * LumenUiScale.unit;
         }
-        TextEdit {
-            text: root.license-detail-text;
-            read-only: true;
+        Rectangle {
             height: 560 * LumenUiScale.unit;
+            border-radius: 8 * LumenUiScale.unit;
+            background: LumenTheme.surface-muted;
+            border-width: 1 * LumenUiScale.unit;
+            border-color: LumenTheme.border;
+
+            ScrollView {
+                HorizontalLayout {
+                    padding: 12 * LumenUiScale.unit;
+                    Text {
+                        text: root.license-detail-text;
+                        color: LumenTheme.text-primary;
+                        font-family: LumenTheme.mono-family;
+                        font-size: 12 * LumenUiScale.unit;
+                        wrap: word-wrap;
+                    }
+                }
+            }
         }
     }
 }

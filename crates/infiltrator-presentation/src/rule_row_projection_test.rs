@@ -131,3 +131,15 @@ fn regex_commas_logical_payloads_and_native_parameters_keep_exact_semantics() {
         "AND,((DOMAIN,example.com)),DIRECT,no-resolve"
     );
 }
+
+#[test]
+fn rule_row_chips_volume_formatting() {
+    let chips = RuleRowChips::of_with_volume(Some(42), Some(1024 * 1024 * 5), true, false);
+    assert_eq!(chips.hits.count(), Some(42));
+    assert_eq!(chips.volume, Some(5 * 1024 * 1024));
+    let vol_label = chips.volume_label().unwrap();
+    assert!(vol_label.contains("MB") || vol_label.contains("M"));
+
+    let empty = RuleRowChips::of(Some(10), true, false);
+    assert!(empty.volume_label().is_none());
+}

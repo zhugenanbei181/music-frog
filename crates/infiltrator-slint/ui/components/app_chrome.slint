@@ -1,7 +1,7 @@
-import { Button } from "std-widgets.slint";
 import { IconButton, NavigationBar, PopupMenu } from "@material";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "./theme.slint";
+import { PillButton } from "./base_widgets.slint";
 
 export component AppBottomBar inherits Rectangle {
     in property <string> page;
@@ -56,12 +56,28 @@ export component ClearTrafficDialog inherits PopupWindow {
     width: 100%;
     height: 100%;
 
+    forward-focus: focus;
+
+    focus := FocusScope {
+        key-pressed(event) => {
+            if event.text == Key.Escape {
+                root.cancel();
+                return accept;
+            }
+            return reject;
+        }
+    }
+
     Rectangle {
         x: 0;
         y: 0;
         width: 100%;
         height: 100%;
-        background: #99000000;
+        background: LumenTheme.shadow-ambient-color;
+
+        TouchArea {
+            clicked => { root.cancel(); }
+        }
 
         Rectangle {
             x: root.compact-layout ? 16 * LumenUiScale.unit : (parent.width - 420 * LumenUiScale.unit) / 2;
@@ -73,20 +89,29 @@ export component ClearTrafficDialog inherits PopupWindow {
             border-width: 1 * LumenUiScale.unit;
             border-color: LumenTheme.border;
 
+            // Stop click propagation to the scrim
+            TouchArea { }
+
             VerticalLayout {
                 x: 20 * LumenUiScale.unit;
                 y: 18 * LumenUiScale.unit;
                 width: parent.width - 40 * LumenUiScale.unit;
                 height: parent.height - 36 * LumenUiScale.unit;
-                spacing: 10 * LumenUiScale.unit;
+                spacing: LumenTheme.space-3;
 
-                Text { text: @tr("清空流量统计？"); color: LumenTheme.text-primary; font-size: 17 * LumenUiScale.unit; font-weight: 650; }
+                HorizontalLayout {
+                    spacing: 8 * LumenUiScale.unit;
+                    cross-axis-alignment: center;
+                    Text { text: "⚠"; color: LumenTheme.error; font-size: 18 * LumenUiScale.unit; }
+                    Text { text: @tr("清空流量统计？"); color: LumenTheme.text-primary; font-size: 17 * LumenUiScale.unit; font-weight: 650; }
+                }
                 Text { text: @tr("将删除今日与本周本地统计记录，并清空当前已关闭连接历史。正在运行的连接不受影响。"); color: LumenTheme.text-secondary; font-size: 13 * LumenUiScale.unit; wrap: word-wrap; }
                 Rectangle { vertical-stretch: 1; background: transparent; }
                 HorizontalLayout {
+                    spacing: LumenTheme.space-2;
                     Rectangle { horizontal-stretch: 1; background: transparent; }
-                    Button { text: @tr("取消"); clicked => { root.cancel(); } }
-                    Button { text: @tr("清空"); clicked => { root.confirm(); } }
+                    PillButton { label: @tr("取消"); clicked => { root.cancel(); } }
+                    PillButton { label: @tr("清空"); danger: true; clicked => { root.confirm(); } }
                 }
             }
         }
@@ -107,10 +132,12 @@ export component NoticeBanner inherits Rectangle {
 
     callback close();
 
-    x: root.safe-left + 12 * LumenUiScale.unit;
-    width: max(0 * LumenUiScale.unit, root.window-width - root.safe-left - root.safe-right - 24 * LumenUiScale.unit);
+    width: root.compact-layout
+        ? max(0 * LumenUiScale.unit, root.window-width - root.safe-left - root.safe-right - 24 * LumenUiScale.unit)
+        : min(560 * LumenUiScale.unit, root.window-width - 48 * LumenUiScale.unit);
+    x: root.safe-left + (root.window-width - root.safe-left - root.safe-right - self.width) / 2;
     height: notice-content.min-height;
-    y: max(root.safe-top, root.window-height - root.safe-bottom - self.height - (root.compact-layout && root.primary-page && root.bottom-bar-visible ? LumenTheme.navigation-height + 24 * LumenUiScale.unit : 12 * LumenUiScale.unit));
+    y: max(root.safe-top, root.window-height - root.safe-bottom - self.height - (root.compact-layout && root.primary-page && root.bottom-bar-visible ? LumenTheme.navigation-height + 24 * LumenUiScale.unit : 16 * LumenUiScale.unit));
     z: 950;
     background: LumenTheme.surface;
     border-radius: 20 * LumenUiScale.unit;
@@ -119,8 +146,8 @@ export component NoticeBanner inherits Rectangle {
 
     notice-content := HorizontalLayout {
         width: parent.width;
-        padding: 8 * LumenUiScale.unit;
-        spacing: 8 * LumenUiScale.unit;
+        padding: LumenTheme.space-2;
+        spacing: LumenTheme.space-2;
         cross-axis-alignment: center;
         Text {
             text: root.notice;
@@ -150,8 +177,8 @@ export component SettingsMessageBanner inherits Rectangle {
 
     callback close();
 
-    x: root.safe-left + 12 * LumenUiScale.unit;
-    width: max(0 * LumenUiScale.unit, root.window-width - root.safe-left - root.safe-right - 24 * LumenUiScale.unit);
+    width: min(560 * LumenUiScale.unit, max(0 * LumenUiScale.unit, root.window-width - root.safe-left - root.safe-right - 24 * LumenUiScale.unit));
+    x: root.safe-left + (root.window-width - root.safe-left - root.safe-right - self.width) / 2;
     height: message-content.min-height;
     y: max(root.safe-top, root.safe-top + 12 * LumenUiScale.unit);
     background: LumenTheme.accent-soft;
@@ -159,8 +186,8 @@ export component SettingsMessageBanner inherits Rectangle {
 
     message-content := HorizontalLayout {
         width: parent.width;
-        padding: 12 * LumenUiScale.unit;
-        spacing: 8 * LumenUiScale.unit;
+        padding: LumenTheme.space-3;
+        spacing: LumenTheme.space-2;
         cross-axis-alignment: center;
         Text {
             text: root.message;
@@ -199,6 +226,33 @@ export component ProfileSettingsTypeMenu inherits PopupMenu {
     y: max(root.safe-top, min(root.anchor-y, root.window-height - root.safe-bottom - self.height - 12 * LumenUiScale.unit));
     available_width: root.window-width; show_layout_bounds: root.layout-debug-bounds;
     items: [{ text: @tr("订阅信息"), enabled: true }, { text: @tr("覆写配置"), enabled: true }];
+    current_index: root.selected-index;
+    activated(index) => {
+        root.select(index);
+        self.close();
+    }
+}
+
+// The add sheet's type dropdown: the same toolkit popup menu as the settings
+// sheet's, so both sheets share one dropdown vocabulary.
+export component ProfileAddTypeMenu inherits PopupMenu {
+    in property <length> window-width;
+    in property <length> window-height;
+    in property <length> safe-left;
+    in property <length> safe-right;
+    in property <length> safe-top;
+    in property <length> safe-bottom;
+    in property <length> anchor-x;
+    in property <length> anchor-y;
+    in property <bool> layout-debug-bounds;
+    in property <int> selected-index;
+
+    callback select(int);
+
+    x: max(root.safe-left + 12 * LumenUiScale.unit, min(root.window-width - root.safe-right - self.width - 12 * LumenUiScale.unit, root.anchor-x - self.width));
+    y: max(root.safe-top, min(root.anchor-y, root.window-height - root.safe-bottom - self.height - 12 * LumenUiScale.unit));
+    available_width: root.window-width; show_layout_bounds: root.layout-debug-bounds;
+    items: [{ text: @tr("订阅链接"), enabled: true }, { text: @tr("本地文件"), enabled: true }, { text: @tr("扫码添加"), enabled: true }];
     current_index: root.selected-index;
     activated(index) => {
         root.select(index);
@@ -246,6 +300,7 @@ export component ProxySortMenu inherits PopupMenu {
 
 component WindowControlButton inherits Rectangle {
     in property <bool> danger: false;
+    out property <bool> has-hover: button-touch.has-hover;
     callback clicked();
     width: 46 * LumenUiScale.unit;
     height: 100%;
@@ -255,7 +310,7 @@ component WindowControlButton inherits Rectangle {
         clicked => { root.clicked(); }
     }
     background: button-touch.has-hover
-        ? (root.danger ? LumenTheme.error.with_alpha(80%) : LumenTheme.zinc-4)
+        ? (root.danger ? #E81123 : LumenTheme.zinc-4)
         : transparent;
     animate background { duration: 120ms; easing: ease-out; }
 }
@@ -272,6 +327,14 @@ export component DesktopTitleBar inherits Rectangle {
     height: 40 * LumenUiScale.unit;
     background: LumenTheme.zinc-1;
     clip: true;
+
+    TouchArea {
+        x: 0;
+        y: 0;
+        width: max(0 * LumenUiScale.unit, parent.width - 140 * LumenUiScale.unit);
+        height: parent.height;
+        double-clicked => { root.window-toggle-maximize(); }
+    }
 
     Text {
         x: 14 * LumenUiScale.unit;
@@ -300,7 +363,7 @@ export component DesktopTitleBar inherits Rectangle {
         }
         WindowControlButton {
             clicked => { root.window-toggle-maximize(); }
-            Rectangle {
+            if !root.maximized: Rectangle {
                 x: (parent.width - 10 * LumenUiScale.unit) / 2;
                 y: (parent.height - 10 * LumenUiScale.unit) / 2;
                 width: 10 * LumenUiScale.unit;
@@ -309,8 +372,32 @@ export component DesktopTitleBar inherits Rectangle {
                 border-color: LumenTheme.text-secondary;
                 background: transparent;
             }
+            if root.maximized: Rectangle {
+                width: 10 * LumenUiScale.unit;
+                height: 10 * LumenUiScale.unit;
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                Rectangle {
+                    x: 2 * LumenUiScale.unit;
+                    y: 0 * LumenUiScale.unit;
+                    width: 8 * LumenUiScale.unit;
+                    height: 8 * LumenUiScale.unit;
+                    border-width: 1 * LumenUiScale.unit;
+                    border-color: LumenTheme.text-secondary;
+                    background: transparent;
+                }
+                Rectangle {
+                    x: 0 * LumenUiScale.unit;
+                    y: 2 * LumenUiScale.unit;
+                    width: 8 * LumenUiScale.unit;
+                    height: 8 * LumenUiScale.unit;
+                    border-width: 1 * LumenUiScale.unit;
+                    border-color: LumenTheme.text-secondary;
+                    background: LumenTheme.zinc-1;
+                }
+            }
         }
-        WindowControlButton {
+        close-btn := WindowControlButton {
             danger: true;
             clicked => { root.window-close(); }
             Path {
@@ -321,7 +408,7 @@ export component DesktopTitleBar inherits Rectangle {
                 viewbox-width: 10;
                 viewbox-height: 10;
                 commands: "M 0 0 L 10 10 M 10 0 L 0 10";
-                stroke: LumenTheme.text-secondary;
+                stroke: close-btn.has-hover ? #FFFFFF : LumenTheme.text-secondary;
                 stroke-width: 1px;
             }
         }

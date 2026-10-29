@@ -63,6 +63,7 @@ pub mod sniffer;
 pub mod sub_rules;
 pub mod subscription;
 pub mod subscription_quota;
+pub mod subscription_regex;
 pub mod subscription_scheduler_policy;
 pub mod sync;
 pub mod tls_trust;
