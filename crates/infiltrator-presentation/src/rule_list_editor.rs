@@ -228,7 +228,7 @@ impl RuleListEditor {
             RuleListReadback::Missing => {
                 self.observation = RuleListObservationPhase::Failed(Failure::new(
                     ErrorCode::NotReady,
-                    "The current rule document has not been observed",
+                    "当前规则文档未被观测到",
                     true,
                 ));
                 return false;

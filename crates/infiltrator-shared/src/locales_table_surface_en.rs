@@ -206,6 +206,16 @@ pub(super) fn translate_surface_en(key: &str) -> Cow<'static, str> {
         "proxies_reorder_empty_revision" => "Revision #{revision}".into(),
         "dns_auto_flush_generation" => "Auto-flushed on roaming (generation #{generation})".into(),
         "dns_auto_flush_not_triggered" => "No automatic roaming flush triggered yet".into(),
+        "globe_title" => "Geo Globe".into(),
+        "globe_mode_globe" => "Globe".into(),
+        "globe_mode_flat" => "Flat 2D".into(),
+        "globe_mode_eco" => "Eco".into(),
+        "globe_pick_default_text" => "Click a plottable node to inspect its location.".into(),
+        "globe_summary_pattern" => "{plottable} of {total} node locations are plottable".into(),
+        "globe_no_nodes" => "No plottable nodes available to inspect.".into(),
+        "globe_empty_location" => "No plottable node location".into(),
+        "routing_intent_token_rejected" => "Controller token rejected".into(),
+        "routing_intent_refused_temporary" => "Controller temporarily refused the routing change".into(),
         _ => Cow::Owned(key.to_owned()),
     }
 }

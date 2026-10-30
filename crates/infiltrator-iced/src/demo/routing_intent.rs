@@ -23,7 +23,7 @@ pub(super) fn activate(state: &mut AppState, feature: FeatureId) -> Task<Message
     if feature == FeatureId::ShellRoutingIntentAuthentication {
         port.reject_requests(Failure::new(
             ErrorCode::Authentication,
-            "Controller token rejected",
+            "核心控制令牌被拒绝",
             false,
         ));
     }

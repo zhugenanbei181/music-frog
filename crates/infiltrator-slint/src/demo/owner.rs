@@ -129,9 +129,7 @@ fn respond_to_intent(
 /// with a new revision and the surface renders the narrowed node list.
 fn apply_search_query(snapshot: &mut SurfaceSnapshot, query: &str) -> Result<(), Failure> {
     let Some(preferences) = snapshot.outbound_ui_preferences.data.as_ref() else {
-        return Err(Failure::unsupported(
-            "the outbound preferences have not been observed",
-        ));
+        return Err(Failure::unsupported("节点显示偏好尚未观测到"));
     };
     let scope = preferences.scope().clone();
     let revision = SnapshotRevision::new(preferences.revision().value() + 1);
@@ -156,63 +154,47 @@ fn apply_search_query(snapshot: &mut SurfaceSnapshot, query: &str) -> Result<(),
 /// command ran.
 fn refusal(intent: &CommandIntent) -> Failure {
     let message = match intent {
-        CommandIntent::TestDnsLeak => "the leak probe could not reach the configured resolvers",
-        CommandIntent::QueryDns { .. } => "the upstream resolver refused the query",
-        CommandIntent::ClearDnsCache { .. } => "the core refused to flush the Fake-IP cache",
-        CommandIntent::ApplyDnsSettings { .. } => "the core refused the Hosts draft",
-        CommandIntent::RunScriptSandbox { .. } => "the sandbox refused the script",
-        CommandIntent::PrepareScriptExport { .. } => {
-            "the export artifact could not be composed for the review"
-        }
-        CommandIntent::LoadSnapshotDiff { .. } => "the stored difference could not be read",
-        CommandIntent::PrepareSnapshotRestore { .. } => {
-            "the stored snapshot could not be reviewed for the restoration"
-        }
-        CommandIntent::SaveSubscriptionFilter { .. } => {
-            "the subscription filter could not be saved"
-        }
-        CommandIntent::PreviewProfileAggregation { .. } => {
-            "the aggregation preview could not be computed"
-        }
-        CommandIntent::CreateAggregatedProfile { .. } => {
-            "the aggregated profile could not be created"
-        }
-        CommandIntent::RunDoctorDiagnostics => "the diagnostic run did not reach the core",
-        CommandIntent::BootstrapDoctor => "the engine could not be initialised again",
+        CommandIntent::TestDnsLeak => "DNS 泄漏探测无法连接到已配置的解析服务器",
+        CommandIntent::QueryDns { .. } => "上游解析服务器拒绝了 DNS 查询",
+        CommandIntent::ClearDnsCache { .. } => "核心拒绝清理 Fake-IP 缓存",
+        CommandIntent::ApplyDnsSettings { .. } => "核心拒绝了 Hosts 草稿设置",
+        CommandIntent::RunScriptSandbox { .. } => "沙盒环境拒绝运行该脚本",
+        CommandIntent::PrepareScriptExport { .. } => "无法生成供审核的导出工件",
+        CommandIntent::LoadSnapshotDiff { .. } => "无法读取已存储的快照差异",
+        CommandIntent::PrepareSnapshotRestore { .. } => "无法读取用于恢复的快照数据",
+        CommandIntent::SaveSubscriptionFilter { .. } => "无法保存订阅节点过滤规则",
+        CommandIntent::PreviewProfileAggregation { .. } => "无法计算配置聚合预览",
+        CommandIntent::CreateAggregatedProfile { .. } => "无法创建聚合配置文件",
+        CommandIntent::RunDoctorDiagnostics => "诊断任务未能连通核心服务",
+        CommandIntent::BootstrapDoctor => "无法重新初始化核心引擎",
         CommandIntent::RepairDoctorIssue { .. } | CommandIntent::RepairAllDoctorIssues => {
-            "the core refused the diagnostic repair"
+            "核心拒绝了诊断修复请求"
         }
         CommandIntent::ResolveConflictKeepLocal | CommandIntent::ResolveConflictTakeRemote => {
-            "the synchronisation conflict could not be resolved"
+            "无法解决数据同步冲突"
         }
-        CommandIntent::SetAppRule { .. } => "the routing rule could not be applied",
-        CommandIntent::CloseAllConnections => "the core refused to break every connection",
-        CommandIntent::CloseConnection { .. } => "the core refused to break the connection",
-        CommandIntent::PrepareLogExport => "the log export artifact could not be composed",
-        CommandIntent::RefreshPublicIpProbe => "the public IP probe did not reach the service",
-        CommandIntent::StartSpeedtest { .. } => "the speed test could not reach the targets",
-        CommandIntent::SetRuntimeProbeSettings { .. } => {
-            "the probe settings could not be written to the core"
-        }
-        CommandIntent::ApplyOutboundUiPreference { .. } => {
-            "the outbound preference could not be applied"
-        }
-        CommandIntent::CommitRuleList { .. } => "the rule list could not be committed",
-        CommandIntent::CreateNamedOverride { .. } => "the named override could not be created",
-        CommandIntent::RefreshRuleProviders => "the rule providers could not be refreshed",
-        CommandIntent::ResetRuleHitCounters { .. } => "the rule hit counters could not be reset",
-        CommandIntent::SetLanSecurity { .. } => "the LAN security policy could not be applied",
-        CommandIntent::RepairPortConflicts => "the port conflict could not be repaired",
-        CommandIntent::RunPrivilegedNetworkRegression => {
-            "the privileged network regression could not run"
-        }
-        CommandIntent::CheckVpnAuthorization => "the VPN authorization could not be checked",
-        CommandIntent::SetRoutingIntent { .. } => "the routing intent could not be applied",
-        CommandIntent::GetRoutingIntent => "the routing intent could not be read back",
-        CommandIntent::UpdateAllSubscriptions => "the subscriptions could not be refreshed",
-        CommandIntent::RestartCore => "the core could not be restarted",
-        CommandIntent::UpdateSetting { .. } => "the setting could not be written",
-        _ => "the owner refused the command",
+        CommandIntent::SetAppRule { .. } => "无法应用应用分流规则",
+        CommandIntent::CloseAllConnections => "核心拒绝中断所有活动连接",
+        CommandIntent::CloseConnection { .. } => "核心拒绝中断该活动连接",
+        CommandIntent::PrepareLogExport => "无法生成日志导出工件",
+        CommandIntent::RefreshPublicIpProbe => "公网 IP探测未能连通目标服务",
+        CommandIntent::StartSpeedtest { .. } => "测速任务无法连接到测速目标",
+        CommandIntent::SetRuntimeProbeSettings { .. } => "无法将探测配置写入核心",
+        CommandIntent::ApplyOutboundUiPreference { .. } => "无法应用节点显示偏好设置",
+        CommandIntent::CommitRuleList { .. } => "无法提交分流规则列表",
+        CommandIntent::CreateNamedOverride { .. } => "无法创建命名 Override",
+        CommandIntent::RefreshRuleProviders => "无法刷新规则集提供源",
+        CommandIntent::ResetRuleHitCounters { .. } => "无法重置规则命中计数器",
+        CommandIntent::SetLanSecurity { .. } => "无法应用局域网安全策略",
+        CommandIntent::RepairPortConflicts => "无法自动修复端口冲突",
+        CommandIntent::RunPrivilegedNetworkRegression => "无法执行特权网络回归测试",
+        CommandIntent::CheckVpnAuthorization => "无法检查 VPN 授权状态",
+        CommandIntent::SetRoutingIntent { .. } => "无法应用路由意图",
+        CommandIntent::GetRoutingIntent => "无法回读当前路由意图",
+        CommandIntent::UpdateAllSubscriptions => "无法更新所有订阅",
+        CommandIntent::RestartCore => "无法重启核心服务",
+        CommandIntent::UpdateSetting { .. } => "无法保存设置项",
+        _ => "所有者拒绝了该命令",
     };
     Failure::new(ErrorCode::Internal, message, true)
 }

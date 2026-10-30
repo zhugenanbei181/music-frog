@@ -21,8 +21,9 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261030-v339`：现在佛 115 pt（28 条）/ 过去佛 392 pt（138 条）/ 斗战胜佛 51 pt（17 条）/ 未来佛 26 pt（15 条），联合未办结分母 584 pt（198 条）；已归档交付 727 pt（290 条）；累计 1311 pt，严格归档完成率 55.5%。
-- 本板 28 条 = 像素认证收口 2 条（`PARITY-001.5` 5 pt、`PARITY-001.6` 5 pt）+ 三端视觉一致性 3 条（`GAP-7.3`、`GAP-7.4`、`GAP-7.6`，11 pt）+ FlClash v0.9.2 对标 20 条（`FLPARITY-001`～`007`、`010`、`011`、`013`、`014`、`017`、`018`、`036`～`041`、`046`，89 pt）+ 工程约束门禁 3 条（`ENG-002.2`、`ENG-003.2`、`ENG-003.3`，5 pt）。
+- Point 基线 `musicfrog-todo-20261030-v340`：现在佛 112 pt（27 条）/ 过去佛 395 pt（139 条）/ 斗战胜佛 51 pt（17 条）/ 未来佛 26 pt（15 条），联合未办结分母 584 pt（198 条）；已归档交付 727 pt（290 条）；累计 1311 pt，严格归档完成率 55.5%。
+- 本板 27 条 = 像素认证收口 2 条（`PARITY-001.5` 5 pt、`PARITY-001.6` 5 pt）+ 三端视觉一致性 2 条（`GAP-7.3`、`GAP-7.6`，8 pt）+ FlClash v0.9.2 对标 20 条（`FLPARITY-001`～`007`、`010`、`011`、`013`、`014`、`017`、`018`、`036`～`041`、`046`，89 pt）+ 工程约束门禁 3 条（`ENG-002.2`、`ENG-003.2`、`ENG-003.3`，5 pt）。
+- 2026-10-30 第六十七交付批次：`GAP-7.4`（3 pt）三端用户可见文案与数据格式收口（英文直出/占位符/单位/版本单一源）完成（Slint demo owner 35+ 项业务错误/拒绝提示全部中文化；Bevy / Iced / test_support 路由意图错误文案收敛至 `routing_intent_token_rejected` / `routing_intent_refused_temporary` 键表；`rule_list_editor` 缺失观测提示中文化；Bevy 节点地理分布 `globe.rs` 全量中文化并接入 `locales_table_surface_*` 键表；`test_interface_flap_guard` 修复高 CPU 负载下的时间窗口抖动 flakiness；i18n-guard 0 违规，targeted nextest 1551/1551 全绿通过），现移入过去佛 §12.50；现在佛 115 → 112 pt（28 → 27 条），过去佛 392 → 395 pt（138 → 139 条），联合分母 584 pt 保持不变。
 - 2026-10-30 第六十六交付批次：`FLPARITY-043`（5 pt）将 Mihomo 从 v1.19.32 升级至 FlClash v0.9.2 的 v1.19.33 基线并核对协议能力完成（锁定全平台二进制 SHA-256；`mihomo-api` / `mihomo-driver` / `infiltrator-contract` / `infiltrator-core` 全量升级至 v1.19.33；真实二进制烟测与 conformance 证明双引擎 live owner switch 全绿通过；工具链统一至 Rust 1.99.1），现移入过去佛 §12.49；现在佛 120 → 115 pt（29 → 28 条），过去佛 387 → 392 pt（137 → 138 条），联合分母 584 pt 保持不变。
 - 2026-10-29 第六十五交付批次：`FLPARITY-047`（3 pt）系统代理显式关闭的 Core 所有权保护完成（contract/ports/application/desktop 实现 typed claim/release、权威读回、仅精确 claim 可释放、journal 不一致与外部改写时 fail closed），现移入过去佛 §12.48；现在佛 123 → 120 pt（30 → 29 条），过去佛 384 → 387 pt（136 → 137 条），联合分母 584 pt 保持不变。
 - 2026-10-29 第六十二登记批次（Forest capture 与 FlClash v0.9.2 色彩复核）：确认 118 条桌面业务 capture 与 Android debug capture 默认 Forest，但它只是取证 skin，不改运行时主题偏好；检查当前代码发现 MaterialSurfaceTokens/HCT scheme 没有生产消费者，Android/Slint 与 Iced/Bevy 的颜色通路也未形成一个共享实时主题。旧主题图比 10-29 palette 变更早，三端 manifest 当前分别只有 8/8/1 行，不能作当前对标结论。将 `FLPARITY-014` 从过去佛退回现在佛（InProgress，5 pt）；扩充 `PARITY-001.6` 由 3→5 pt，覆盖当前构建四主题实图及 Android 三 flavor。现在佛 110→117 pt（27→28 条），过去佛 389→384 pt（137→136 条），联合分母 576→578 pt（196 条不变），严格归档完成率 55.8%→55.7%；本批仅重开/扩充 TODO，不宣称 UI 已修复或通过像素验收。
@@ -182,13 +183,6 @@
   - 其他坏数据：S editor 三张 compact 同 md5；I 脚本导出 SHA 非 hex 且 68 位；B 多张 compact 折叠线下同画面；B `overview-live` 与 demo 无差异；S 四业务只有错误 snackbar、无业务 UI。
   - 计划：① 修 Slint/Bevy compact 场景滚动锚点；② Iced artifact SHA fixture 改为真实 64-hex；③ 接 live fixture 与 Slint 成功态；④ manifest 生成器做全矩阵身份唯一守卫，alias 必须在独立清单显式声明。
   - 验收：所有非 alias 截图同页同主题唯一；目标状态可见；守卫对当前矩阵先报告、修后 enforce 全绿；`resolve_surface_evidence.py --structure-only` pass。
-
-- [ ] GAP-7.4 [kind: contract] [priority: P1] [points: 3] [owner: infiltrator-contract + infiltrator-shared + infiltrator-slint + infiltrator-bevy-ui + infiltrator-iced] [status: InProgress] 三端用户可见文案与数据格式收口（英文直出/占位符/单位/版本单一源）
-  - 产物：版本单一源、共享错误文案键表、统一插值与格式化工具；三端只消费，不留第二实现。
-  - 实测（审计 §2，关键锚点已核）：① 版本号单一源已落地（`ProductVersion` 在 contract，三端侧栏/页脚消费）；② 英文错误串直出待统一键表映射；③ 占位符直出已基本修复（Slint editor/logs/rules/runtime 占位符插值与 format_bytes 格式化完成）；④ 原始值直出修复（RFC3339 原串在 provider 与 outbound 抽屉格式化为本地标准时间、Doctor 零值消除 1970 显示并回退为 "—"、probe settings 补全 "5000 ms" 占位与单位标签）；⑤ 杂项已收口（`cmd_nav_profiles` 补齐、`routing_intent_follow_rules` 修复、连接抽屉底层 API 路径泄漏剔除、Bevy 侧栏密度/主题与地球空态国际化）。
-  - 计划：① contract 新增 `ProductVersion` 单一源（workspace 版本注入）并让三端侧栏/页脚消费（先行腿，不依赖 locales 收口）；② `locales_table_errors_*` 建错误键表并迁 demo fixture 的错误注入文案；③ presentation 层统一 `format_bytes/format_rate/format_local_time` 工具并替换 ④ 全部直出点；④ 杂项清单逐条改文案源（globe.rs 中文化、command_catalogue 补键、drawer 标签去键路径）。
-  - 验收：三端 demo 全场景重采抽查零英文残留/零占位符；版本号三端同值同格式；`cargo nextest run -p infiltrator-shared -p infiltrator-contract` 键表测试全绿。
-  - 依赖：locales 表与 design_tokens 有未提交改动（另一会话），②④ 收口前对齐；① 可立即开工。
 
 - [ ] GAP-7.6 [kind: mechanism] [priority: P2] [points: 5] [owner: infiltrator-contract + infiltrator-slint + infiltrator-bevy-ui + infiltrator-iced] [status: Planned] 三端信息架构与交互模型对齐（词表/字段/语义色）
   - 产物：contract 层共享导航词表 + 页面命名字典 + 语义色令牌（danger/延迟色阶）；底层先决，UI 只消费。

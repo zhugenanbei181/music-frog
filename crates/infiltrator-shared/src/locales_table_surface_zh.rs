@@ -206,6 +206,16 @@ pub(super) fn translate_surface_zh(key: &str) -> Cow<'static, str> {
         "proxies_reorder_empty_revision" => "配置版本 #{revision}".into(),
         "dns_auto_flush_generation" => "网络切换自愈已清理（第 {generation} 代网络）".into(),
         "dns_auto_flush_not_triggered" => "尚未触发网络切换自动清理".into(),
+        "globe_title" => "节点地理分布".into(),
+        "globe_mode_globe" => "3D 地球".into(),
+        "globe_mode_flat" => "2D 平面".into(),
+        "globe_mode_eco" => "节能模式".into(),
+        "globe_pick_default_text" => "点击可定位节点查看其地理位置".into(),
+        "globe_summary_pattern" => "{plottable} / {total} 个节点已完成地理定位".into(),
+        "globe_no_nodes" => "暂无可定位节点。".into(),
+        "globe_empty_location" => "无可用地理定位节点".into(),
+        "routing_intent_token_rejected" => "核心控制令牌被拒绝".into(),
+        "routing_intent_refused_temporary" => "核心暂时拒绝了路由切换".into(),
         _ => Cow::Owned(key.to_owned()),
     }
 }

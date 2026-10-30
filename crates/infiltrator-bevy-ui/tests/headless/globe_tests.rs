@@ -157,11 +157,7 @@ fn unknown_geo_shows_the_typed_empty_state() {
         first_plate_opt(&mut app).is_none(),
         "no globe plate is mounted for a non-plottable projection"
     );
-    assert!(subtree_has_text(
-        app.world(),
-        root,
-        "No plottable node location"
-    ));
+    assert!(subtree_has_text(app.world(), root, "无可用地理定位节点"));
     assert!(subtree_has_text(app.world(), root, "country-level only"));
     assert_eq!(
         globe_unknown_detail(&data),
@@ -526,11 +522,7 @@ fn picked_record_restamps_the_detail_line() {
 
     let root = globe_root(&mut app);
     assert!(
-        subtree_has_text(
-            app.world(),
-            root,
-            "Click a plottable node to inspect its location."
-        ),
+        subtree_has_text(app.world(), root, "点击可定位节点查看其地理位置"),
         "the idle detail line states that no pick happened"
     );
 

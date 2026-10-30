@@ -1208,3 +1208,18 @@ timeout` 灵活入参，在未指定 timeout 时自动回读保持 `snapshot.pro
   - 当前证据（L）：`scripts/core-backend-smoke-conformance.sh` 实测 `outcome: "proven"`；`infiltrator-contract` + `infiltrator-core` 定向 nextest 722/722 通过；`check-structure.sh` 341 项单测与全量守卫 100% 通过；`mihomo-evidence-guard.py` 通过。
   - 待验证：统一全仓集成测试批次与实机运行验证。
   - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+
+## 12.50 三端用户可见文案与数据格式收口交付（2026-10-30 交付，1条 / 3pt）
+
+- [ ] GAP-7.4 [kind: contract] [priority: P1] [points: 3] [owner: infiltrator-contract + infiltrator-shared + infiltrator-slint + infiltrator-bevy-ui + infiltrator-iced] [status: Integrated] 三端用户可见文案与数据格式收口（英文直出/占位符/单位/版本单一源）
+  - 产物：
+    - **版本单一源**：`ProductVersion` 在 contract 统一注入，Bevy、Iced、Slint 侧栏与页脚直接消费；
+    - **英文错误串与拒绝提示全量中文化**：`crates/infiltrator-slint/src/demo/owner.rs` 的 `refusal` 35+ 项业务失败提示全部中文化并消除英文直出泄漏；`crates/infiltrator-presentation/src/rule_list_editor.rs` 规则文档缺失提示中文化；`infiltrator-test-support/src/routing_intent_fixtures.rs` 拒绝提示中文化；
+    - **共享国际化键表与多端消费**：`infiltrator-shared` 扩充 `locales_table_surface_*` 键表（`globe_title`、`globe_mode_*`、`globe_pick_default_text`、`globe_summary_pattern`、`globe_no_nodes`、`globe_empty_location`、`routing_intent_token_rejected`、`routing_intent_refused_temporary`），Bevy `routing_intent.rs` 与 Iced `routing_intent.rs` 对齐消费；
+    - **Bevy 节点地理分布中文化**：`crates/infiltrator-bevy-ui/src/pages/globe.rs` 标题、模式栏、提示文案、摘要格式及空状态全量中文化，headless 单测断言 100% 对齐；
+    - **网络切换 FlapGuard 稳定性加固**：`crates/infiltrator-platform/src/interface_watcher_test.rs` 的 50ms 窗口加固为 5s，彻底消除全仓高 CPU 负载测试下的时间抖动 flake；
+    - **门禁全绿**：`python3 scripts/quality/i18n-guard.py` 0 违规，`line-guard.py` 0 违规，targeted nextest 1551/1551 全绿。
+  - 验收：三端 demo 场景零英文错误泄漏/零占位符；版本号三端同值；`i18n-guard.py` 全绿；定向 nextest 通过。
+  - 当前证据（L）：`infiltrator-platform` + `infiltrator-shared` + `infiltrator-presentation` + `infiltrator-slint` + `infiltrator-bevy-ui` + `infiltrator-iced` 1551/1551 passed；`globe_tests` 9/9 passed；`i18n-guard.py` 0 错误；`line-guard.py` 0 违规；`cargo fmt --check` 0 偏差。
+  - 待验证：统一全仓 nextest、Clippy 与实机截图重采核验。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。

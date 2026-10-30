@@ -45,7 +45,7 @@ impl Default for RoutingIntentScenarioController {
                 requests: Vec::new(),
                 disposition: RoutingIntentScenarioDisposition::Reject(Failure::new(
                     ErrorCode::Network,
-                    "Controller temporarily refused routing change",
+                    "核心暂时拒绝了路由切换",
                     true,
                 )),
             }),

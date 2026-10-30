@@ -36,6 +36,17 @@
 | 7 | 部分 | L | 文件级模块化完成（<=800/600 行全绿，全仓 mod.rs 清退至 0，严格遵照 foo.rs + foo/ 模式，并在 check-structure.sh 接入 mod-rs-guard 永久禁止）；隐式状态机语义审计 + 判决台账常驻（22 条候选逐条人工判决，未判决或 open 即门禁失败），16 处阶段表已改 typed enum + typed transition；Slint 拆分遵循 `SLINT-001` 单文件预算守卫；九个页面模型与两个共用基座成为页面状态的唯一 owner；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | 已补 `--locked` 与 main 守卫门禁（仅 fmt+guards，不编译）；修复 main-gate.yml 缺失 setup-python/Pillow 问题；扩大 Gradle JVM 堆至 6GB 并将三大 flavor 分离独立进程构建彻底解决 OOM；交付 Android CI 套件 flavor/模拟器裁剪与 Gradle 缓存复用；release 作业在构建前校验签名材料缺 secret 秒级失败；全套单测（三端 1,091 项）与结构门（`check-structure.sh` 40+ 项守卫）全绿；`cargo fmt --all --check` 100% 通过；版本号按身份改动一次升至 0.51.0 |
 
+## 最近一批问答（2026-10-30 三端用户可见文案与数据格式收口交付批次）
+
+1. x86_64/aarch64：文案收口与共享键表为纯架构中立代码，跨全平台全架构兼容；`scripts/quality/cross-build-guard.py` 通过 → 部分（L）。
+2. Windows/Linux/macOS：桌面三端（Iced、Bevy、Slint）文案与提示收口完成，无平台私有英文硬编码；macOS 保持 Unsupported；Windows/Linux 平台逻辑一致 → 部分（L）。
+3. Android/iOS：Android 消费 `infiltrator-contract` 与共享中性模型，不留私有推导；iOS 保持显式 Unsupported → 部分（L）。
+4. 各 UI：Iced / Bevy / Slint 三端错误与提示收口：Slint demo owner 35+ 项拒绝消息全中文化；Bevy / Iced 路由意图错误统一接入键表；Bevy 节点地理分布 globe.rs 标题、模式标签、提示与空状态全中文化并接入键表；针对高负载全仓测试加固了 InterfaceFlapGuard 窗口；各 UI 定向测试 1551/1551 全绿 → 部分（L）。
+5. 复用：键表集中于 `infiltrator-shared::locales_table_surface_*`，版本单一源由 contract 注入，无重复第二份文案或私有影子拷贝；`i18n-guard.py` 0 违规 → 部分（L）。
+6. 功能接入：`GAP-7.4`（3 pt）三端用户可见文案与数据格式收口完成并移入过去佛 §12.50；现在佛 115 → 112 pt（28 → 27 条），过去佛 392 → 395 pt（138 → 139 条），联合分母 584 pt 保持不变 → 部分（L）。
+7. 模块化：零新增 `mod.rs`；line budget 0 违规（<=800 行）；隐式状态机语义审计 22 条全判决 0 open 0 undecided；无跨 UI 私有业务真源 → 部分（L）。
+8. CI：`cargo fmt --check` 0 偏差；`git diff --check` 干净；`python3 scripts/quality/i18n-guard.py` 0 违规；`line-guard.py` 0 违规；`closure-questions-guard.py` 8/8 通过 → 部分（L）。
+
 ## 最近一批问答（2026-10-30 Mihomo v1.19.33 升级与工具链收口交付批次）
 
 1. x86_64/aarch64：锁定全平台 Mihomo v1.19.33（linux/windows/darwin/android x64+arm64）SHA-256 制品质押；`rust-toolchain.toml` 与工作流统一固定为 Rust `1.99.1`；交叉构建守卫与工具链守卫通过 → 部分（L）。

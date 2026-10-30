@@ -21,7 +21,7 @@ use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_presentation::routing_intent_projection::routing_intent_failure_copy;
-use infiltrator_shared::locales::Lang;
+use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::routing_intent::RoutingIntent;
@@ -31,13 +31,13 @@ pub fn install(app: &mut App, feature: FeatureId) {
     let failure = if feature == FeatureId::ShellRoutingIntentAuthentication {
         Failure::new(
             ErrorCode::Authentication,
-            "Controller token rejected",
+            Lang("zh-CN").tr("routing_intent_token_rejected"),
             false,
         )
     } else {
         Failure::new(
             ErrorCode::Network,
-            "Controller temporarily refused the routing change",
+            Lang("zh-CN").tr("routing_intent_refused_temporary"),
             true,
         )
     };

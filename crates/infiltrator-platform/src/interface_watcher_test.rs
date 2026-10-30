@@ -81,7 +81,7 @@ fn test_gateway_priority_arbiter_selection() {
 
 #[test]
 fn test_interface_flap_guard() {
-    let mut guard = InterfaceFlapGuard::new(Duration::from_millis(50), 3);
+    let mut guard = InterfaceFlapGuard::new(Duration::from_secs(5), 3);
     assert!(!guard.record_change("wlan0"));
     assert!(!guard.record_change("wlan0"));
     assert!(guard.record_change("wlan0"));

@@ -67,6 +67,7 @@ use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::tabs::{SegmentedTab, segmented_control_scene};
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::{radius, space};
+use infiltrator_shared::locales::{Lang, Localizer};
 
 /// Raster width of the mounted globe plate.
 pub const GLOBE_WIDTH_PX: u32 = 640;
@@ -78,7 +79,7 @@ pub const GLOBE_HEIGHT_PX: u32 = 400;
 const GLOBE_MODES: [GlobeMode; 3] = [GlobeMode::Globe, GlobeMode::Flat2d, GlobeMode::Eco];
 
 /// The tab labels, in the same order as [`GLOBE_MODES`].
-const GLOBE_MODE_LABELS: [&str; 3] = ["Globe", "Flat 2D", "Eco"];
+const GLOBE_MODE_LABEL_KEYS: [&str; 3] = ["globe_mode_globe", "globe_mode_flat", "globe_mode_eco"];
 
 /// The section's accent tick under the title, in baseline pixels.
 const GLOBE_SECTION_TICK_WIDTH_PX: f32 = 24.0;
@@ -186,9 +187,6 @@ pub struct GlobePicked(pub Option<GlobePickRecord>);
 /// plottable visible node picks nothing.
 const NODE_PICK_TOLERANCE_DEG: f32 = 8.0;
 
-/// The detail line's text before any pick has happened.
-const GLOBE_PICK_DEFAULT_TEXT: &str = "Click a plottable node to inspect its location.";
-
 /// Marker on the header's picked-node detail line.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
 pub struct GlobePickedDetail;
@@ -273,16 +271,17 @@ pub fn globe_page(data: &GlobeData, mode: GlobeMode, palette: &UiPalette) -> imp
 /// summary. The summary is reading copy, not a caption — it states what the
 /// map currently shows.
 fn header_scene(data: &GlobeData) -> impl Scene + use<> {
-    let summary = format!(
-        "{} of {} node locations are plottable",
-        data.plottable_count(),
-        data.nodes.len()
-    );
+    let lang = Lang("zh-CN");
+    let summary = lang
+        .tr("globe_summary_pattern")
+        .replace("{plottable}", &data.plottable_count().to_string())
+        .replace("{total}", &data.nodes.len().to_string());
     let pick_hint = if data.has_plottable() {
-        GLOBE_PICK_DEFAULT_TEXT.to_owned()
+        lang.tr("globe_pick_default_text").into_owned()
     } else {
-        "No plottable nodes available to inspect.".to_owned()
+        lang.tr("globe_no_nodes").into_owned()
     };
+    let title = lang.tr("globe_title").into_owned();
     bsn! {
             Node {
                 width: percent(100),
@@ -303,7 +302,7 @@ fn header_scene(data: &GlobeData) -> impl Scene + use<> {
                     }
                     ThemeBackgroundColor({ Token::Accent })
                     --
-                    Text({ "Geo Globe".to_owned() }) TextRole(Role::Heading)
+                    Text({ title }) TextRole(Role::Heading)
                 ]
                 --
                 Text({ summary }) TextRole(Role::BodyStrong)
@@ -317,9 +316,10 @@ fn header_scene(data: &GlobeData) -> impl Scene + use<> {
 /// `TabList`, so the selection, the keyboard navigation and the accessibility
 /// roles are the widget layer's.
 fn mode_strip_scene(mode: GlobeMode, palette: &UiPalette) -> impl Scene + use<> {
-    let labels = GLOBE_MODE_LABELS
+    let lang = Lang("zh-CN");
+    let labels = GLOBE_MODE_LABEL_KEYS
         .iter()
-        .map(|label| (*label).to_owned())
+        .map(|key| lang.tr(key).into_owned())
         .collect::<Vec<_>>();
     bsn! {
             @{ segmented_control_scene(labels, globe_mode_index(mode), palette) }
@@ -331,6 +331,7 @@ fn mode_strip_scene(mode: GlobeMode, palette: &UiPalette) -> impl Scene + use<> 
 /// plottable location has been observed, plus the typed reason.
 fn empty_state_scene(data: &GlobeData, palette: &UiPalette) -> impl Scene + use<> {
     let detail = globe_unknown_detail(data);
+    let empty_label = Lang("zh-CN").tr("globe_empty_location").into_owned();
     bsn! {
             Node {
                 width: percent(100),
@@ -351,7 +352,7 @@ fn empty_state_scene(data: &GlobeData, palette: &UiPalette) -> impl Scene + use<
                 Children [
                     @{ skeleton_scene(palette) }
                     --
-                    Text({ "No plottable node location".to_owned() })
+                    Text({ empty_label })
                     TextRole(Role::BodyStrong)
                     --
                     Text(detail)
