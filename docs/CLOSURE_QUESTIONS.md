@@ -45,7 +45,7 @@
 5. 该复用的是否都复用了？：HCT 求解与 Material scheme 复用 `color_science`；TonalSpot 与既有 `MaterialCorePalette::of_seed` 测试钉死相等；种子/风格状态唯一 owner 是 application + store 端口，UI 不本地保存 → 部分（L）。
 6. 各处界面的功能是否都接入了？：FLPARITY-036（5 pt）Core 切片已交付并迁入过去佛 §12.60；全仓 FlClash 对标 47 IDs / 180 pt 中过去佛 37 项 / 136 pt、现在佛 11 项 / 49 pt（`FLPARITY-017`/`036` 均为部分交付）→ 部分（L）。
 7. 各处界面是否模块化了？：零新增 mod.rs；palette_preference.rs（约 470 行）、palette_preference_application.rs、palette_preference_projection.rs 均通过 line-guard；draft/saved 是 typed 结构，mutation 回执是 typed enum（Applied/RevisionStale/InvalidSeed）；import-guard 0 违规；无跨 UI 私有业务真源 → 部分（L）。
-8. CI 打包是否最高效？：cargo fmt --check 0 偏差；cargo clippy -D warnings 六包全绿；定向 nextest 1564/1564 全绿；workspace check 全绿；八守卫全绿 → 部分（L）。
+8. CI 打包是否最高效？：cargo fmt --check 0 偏差；cargo clippy -D warnings 六包全绿；定向 nextest 1564/1564 全绿；workspace check 全绿；八守卫全绿；远端 main-gate run 41108309487 全绿 → 部分（L/C）。
 
 ## 最近一批问答（2026-10-31 跨端微动效与页面过渡系统交付批次）
 
