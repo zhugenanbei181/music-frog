@@ -195,6 +195,51 @@ mod tests {
     use std::fs;
     use std::path::Path;
 
+    fn identity_value(key: &str) -> Option<String> {
+        let registry = include_str!("../../../product-identity.properties");
+        registry.lines().find_map(|line| {
+            let (name, value) = line.split_once('=')?;
+            (name.trim() == key).then(|| value.trim().to_string())
+        })
+    }
+
+    fn png_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
+        const PNG_MAGIC: [u8; 8] = [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
+        if bytes.len() < 24 || bytes[..8] != PNG_MAGIC {
+            return None;
+        }
+        let width = u32::from_be_bytes(bytes[16..20].try_into().ok()?);
+        let height = u32::from_be_bytes(bytes[20..24].try_into().ok()?);
+        Some((width, height))
+    }
+
+    fn ico_frame_sizes(bytes: &[u8]) -> Option<Vec<(u32, u32)>> {
+        if bytes.len() < 6 {
+            return None;
+        }
+        let count = u16::from_le_bytes([bytes[4], bytes[5]]);
+        let mut frames = Vec::new();
+        for index in 0..count {
+            let entry = 6 + usize::from(index) * 16;
+            if entry + 16 > bytes.len() {
+                return None;
+            }
+            // 0 in an ICONDIRENTRY means the 256px slot.
+            let width = if bytes[entry] == 0 {
+                256
+            } else {
+                u32::from(bytes[entry])
+            };
+            let height = if bytes[entry + 1] == 0 {
+                256
+            } else {
+                u32::from(bytes[entry + 1])
+            };
+            frames.push((width, height));
+        }
+        Some(frames)
+    }
+
     #[test]
     fn every_catalog_identity_resolves_to_an_asset_and_its_license_source() {
         let repository_root = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -238,5 +283,77 @@ mod tests {
         assert!(AssetCatalog::find("app.product", AssetFormat::Ico, "launcher").is_some());
         assert!(harmonyos_font_license_text().contains("HarmonyOS Sans"));
         assert!(AssetCatalog::find("font.CJK-Regular", AssetFormat::Ttf, "default").is_some());
+    }
+
+    #[test]
+    fn product_icon_variants_match_the_identity_registry() {
+        let ladder: Vec<u32> = identity_value("product.icon_variant_px")
+            .expect("product.icon_variant_px is registered")
+            .split(',')
+            .map(|value| value.trim().parse().expect("pixel size must be numeric"))
+            .collect();
+        let densities: Vec<(String, u32)> = identity_value("product.android_icon_density")
+            .expect("product.android_icon_density is registered")
+            .split(',')
+            .map(|entry| {
+                let (density, pixels) = entry.split_once(':').expect("density:px pair");
+                (
+                    density.trim().to_string(),
+                    pixels
+                        .trim()
+                        .parse()
+                        .expect("density pixel size must be numeric"),
+                )
+            })
+            .collect();
+        assert!(!ladder.is_empty());
+        assert!(!densities.is_empty());
+
+        for pixels in &ladder {
+            let record =
+                AssetCatalog::find("app.product", AssetFormat::Png, &format!("icon-{pixels}"))
+                    .unwrap_or_else(|| panic!("catalog is missing the icon-{pixels} variant"));
+            let bytes = fs::read(record_path(record.path.as_str())).expect("variant readable");
+            assert_eq!(
+                png_dimensions(&bytes),
+                Some((*pixels, *pixels)),
+                "icon-{pixels} variant has the wrong dimensions"
+            );
+        }
+        for (density, pixels) in &densities {
+            let record = AssetCatalog::find(
+                "app.product",
+                AssetFormat::Png,
+                &format!("android-{density}"),
+            )
+            .unwrap_or_else(|| panic!("catalog is missing the android-{density} variant"));
+            let bytes = fs::read(record_path(record.path.as_str())).expect("variant readable");
+            assert_eq!(
+                png_dimensions(&bytes),
+                Some((*pixels, *pixels)),
+                "android-{density} variant has the wrong dimensions"
+            );
+        }
+
+        let ico_record = AssetCatalog::find("app.product", AssetFormat::Ico, "launcher")
+            .expect("product ICO record");
+        let ico_bytes = fs::read(record_path(ico_record.path.as_str())).expect("ico readable");
+        let mut frames = ico_frame_sizes(&ico_bytes).expect("parseable ICO directory");
+        frames.sort_unstable();
+        let mut expected = ladder
+            .iter()
+            .map(|pixels| (*pixels, *pixels))
+            .collect::<Vec<_>>();
+        expected.sort_unstable();
+        assert_eq!(
+            frames, expected,
+            "ICO frames must mirror the shared px ladder"
+        );
+    }
+
+    fn record_path(relative: &str) -> std::path::PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("assets")
+            .join(relative)
     }
 }

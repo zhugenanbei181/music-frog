@@ -5224,6 +5224,106 @@
     {
       "id": "app.product",
       "format": "png",
+      "variant": "icon-16",
+      "path": "product/icon-16.png",
+      "mime_type": "image/png",
+      "license": "MusicFrog",
+      "license_path": null,
+      "source": "Shared MusicFrog product launcher artwork"
+    },
+    {
+      "id": "app.product",
+      "format": "png",
+      "variant": "icon-24",
+      "path": "product/icon-24.png",
+      "mime_type": "image/png",
+      "license": "MusicFrog",
+      "license_path": null,
+      "source": "Shared MusicFrog product launcher artwork"
+    },
+    {
+      "id": "app.product",
+      "format": "png",
+      "variant": "icon-32",
+      "path": "product/icon-32.png",
+      "mime_type": "image/png",
+      "license": "MusicFrog",
+      "license_path": null,
+      "source": "Shared MusicFrog product launcher artwork"
+    },
+    {
+      "id": "app.product",
+      "format": "png",
+      "variant": "icon-48",
+      "path": "product/icon-48.png",
+      "mime_type": "image/png",
+      "license": "MusicFrog",
+      "license_path": null,
+      "source": "Shared MusicFrog product launcher artwork"
+    },
+    {
+      "id": "app.product",
+      "format": "png",
+      "variant": "icon-256",
+      "path": "product/icon-256.png",
+      "mime_type": "image/png",
+      "license": "MusicFrog",
+      "license_path": null,
+      "source": "Shared MusicFrog product launcher artwork"
+    },
+    {
+      "id": "app.product",
+      "format": "png",
+      "variant": "android-mdpi",
+      "path": "product/icon-android-mdpi.png",
+      "mime_type": "image/png",
+      "license": "MusicFrog",
+      "license_path": null,
+      "source": "Shared MusicFrog product launcher artwork"
+    },
+    {
+      "id": "app.product",
+      "format": "png",
+      "variant": "android-hdpi",
+      "path": "product/icon-android-hdpi.png",
+      "mime_type": "image/png",
+      "license": "MusicFrog",
+      "license_path": null,
+      "source": "Shared MusicFrog product launcher artwork"
+    },
+    {
+      "id": "app.product",
+      "format": "png",
+      "variant": "android-xhdpi",
+      "path": "product/icon-android-xhdpi.png",
+      "mime_type": "image/png",
+      "license": "MusicFrog",
+      "license_path": null,
+      "source": "Shared MusicFrog product launcher artwork"
+    },
+    {
+      "id": "app.product",
+      "format": "png",
+      "variant": "android-xxhdpi",
+      "path": "product/icon-android-xxhdpi.png",
+      "mime_type": "image/png",
+      "license": "MusicFrog",
+      "license_path": null,
+      "source": "Shared MusicFrog product launcher artwork"
+    },
+    {
+      "id": "app.product",
+      "format": "png",
+      "variant": "android-xxxhdpi",
+      "path": "product/icon-android-xxxhdpi.png",
+      "mime_type": "image/png",
+      "license": "MusicFrog",
+      "license_path": null,
+      "source": "Shared MusicFrog product launcher artwork"
+    },
+    {
+      "id": "app.product",
+      "format": "png",
       "variant": "launcher",
       "path": "product/icon.png",
       "mime_type": "image/png",

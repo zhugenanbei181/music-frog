@@ -9,8 +9,8 @@ import org.gradle.api.tasks.TaskAction
 import java.util.Properties
 
 abstract class GenerateProductIcon : DefaultTask() {
-    @get:InputFile
-    abstract val sourceIcon: RegularFileProperty
+    @get:Nested
+    abstract val densities: ListProperty<ProductIconDensity>
 
     @get:Input
     abstract val resourceName: Property<String>
@@ -20,10 +20,24 @@ abstract class GenerateProductIcon : DefaultTask() {
 
     @TaskAction
     fun generate() {
-        val target = outputDirectory.get().file("drawable/${resourceName.get()}.png").asFile
-        target.parentFile.mkdirs()
-        sourceIcon.get().asFile.copyTo(target, overwrite = true)
+        val name = resourceName.get()
+        densities.get().forEach { density ->
+            val asset = density.asset.get().asFile
+            check(asset.isFile) { "Product icon density variant is missing: $asset" }
+            val target = outputDirectory.get().file("drawable-${density.density.get()}/$name.png").asFile
+            target.parentFile.mkdirs()
+            asset.copyTo(target, overwrite = true)
+        }
     }
+}
+
+abstract class ProductIconDensity {
+    @get:Input
+    abstract val density: Property<String>
+
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val asset: RegularFileProperty
 }
 
 val productIdentityFile = rootProject.file("../product-identity.properties")
@@ -69,20 +83,17 @@ val composeDisplayName = identityValue("compose.display_name")
 val bevyDisplayName = identityValue("bevy.display_name")
 val slintDisplayName = identityValue("slint.display_name")
 val composeIconResource = identityValue("compose.icon_resource")
+val productIconDensities = productIdentity.getProperty("product.android_icon_density")
+    ?.split(',')
+    ?.map { entry -> entry.trim().substringBefore(':') }
+    ?.filter { density -> density.isNotEmpty() }
+    ?.takeIf { densities -> densities.isNotEmpty() }
+    ?: error("Missing or empty product.android_icon_density in $productIdentityFile")
 val bevyIconResource = identityValue("bevy.icon_resource")
 val slintIconResource = identityValue("slint.icon_resource")
-val composeIconAsset = identityValue("compose.icon_asset")
-val bevyIconAsset = identityValue("bevy.icon_asset")
-val slintIconAsset = identityValue("slint.icon_asset")
 val composeLauncherActivity = identityValue("compose.launcher_activity")
 val bevyLauncherActivity = identityValue("bevy.launcher_activity")
 val slintLauncherActivity = identityValue("slint.launcher_activity")
-val productIcons =
-    mapOf(
-        "compose" to (composeIconAsset to composeIconResource),
-        "bevy" to (bevyIconAsset to bevyIconResource),
-        "slint" to (slintIconAsset to slintIconResource),
-    )
 
 val androidToolchainFile = rootProject.file("toolchain.properties")
 check(androidToolchainFile.isFile) { "Android toolchain pins are missing: $androidToolchainFile" }
@@ -454,12 +465,23 @@ androidComponents {
                 .singleOrNull { (dimension, _) -> dimension == "surface" }
                 ?.second
                 ?: return@onVariants
-        val (iconAsset, iconResource) = productIcons.getValue(product)
+        val iconResource = identityValue("$product.icon_resource")
         val generationTask =
             tasks.register<GenerateProductIcon>(
                 "generate${variant.name.replaceFirstChar { it.uppercase() }}ProductIcon",
             ) {
-                sourceIcon.set(rootProject.layout.projectDirectory.file("../$iconAsset"))
+                densities.set(
+                    productIconDensities.map { density ->
+                        val variantIcon = project.objects.newInstance<ProductIconDensity>()
+                        variantIcon.density.set(density)
+                        variantIcon.asset.set(
+                            rootProject.layout.projectDirectory.file(
+                                "../crates/infiltrator-shared/assets/product/icon-android-$density.png",
+                            ),
+                        )
+                        variantIcon
+                    },
+                )
                 resourceName.set(iconResource)
                 outputDirectory.set(layout.buildDirectory.dir("generated/productIdentity/${variant.name}/res"))
             }

@@ -50,6 +50,7 @@ def fixture_repo(root: Path) -> Path:
         "crates/infiltrator-android/Cargo.toml",
         "crates/infiltrator-shared/assets/product/icon.png",
         "crates/infiltrator-shared/assets/product/icon.ico",
+        "crates/infiltrator-shared/assets/asset-catalog.json",
         "packaging/linux/appimage/infiltrator.desktop",
         "packaging/linux/appimage/infiltrator-bevy.desktop",
         "packaging/linux/appimage/infiltrator-slint.desktop",
@@ -73,6 +74,10 @@ def fixture_repo(root: Path) -> Path:
         destination = root / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, destination)
+    for icon_variant in sorted((REPO / "crates/infiltrator-shared/assets/product").glob("icon-*.png")):
+        destination = root / "crates/infiltrator-shared/assets/product" / icon_variant.name
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(icon_variant, destination)
     return root
 
 
@@ -446,7 +451,7 @@ class AndroidProductIdentityRules(unittest.TestCase):
         version_code = GUARD.get_value(identity, "compose.version_code")
         with tempfile.TemporaryDirectory() as directory:
             apk = Path(directory) / "compose.apk"
-            icon_source = REPO / identity["compose.icon_asset"]
+            icon_source = REPO / "crates/infiltrator-shared/assets/product/icon-android-xhdpi.png"
             with ZipFile(apk, "w") as archive:
                 archive.write(icon_source, "res/b7.png")
             badging = "\n".join(
@@ -459,6 +464,68 @@ class AndroidProductIdentityRules(unittest.TestCase):
             with patch.object(GUARD.subprocess, "run", return_value=type("Result", (), {"stdout": badging})()):
                 problems = GUARD.apk_problems("compose", apk, Path("aapt"), identity)
         self.assertEqual(problems, [])
+
+    def test_apk_icon_must_match_its_declared_density_bucket(self):
+        identity = GUARD.read_properties()
+        version_code = GUARD.get_value(identity, "compose.version_code")
+        badging = (
+            f"package: name='com.musicfrog.infiltrator' versionCode='{version_code}'"
+            " versionName='ignored'\n"
+            "application-label:'MusicFrog Infiltrator'\n"
+            "application-icon-320:'res/b7.png'\n"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            apk = Path(directory) / "compose.apk"
+            with ZipFile(apk, "w") as archive:
+                archive.write(
+                    REPO / "crates/infiltrator-shared/assets/product/icon-android-hdpi.png",
+                    "res/b7.png",
+                )
+            with patch.object(GUARD.subprocess, "run", return_value=type("Result", (), {"stdout": badging})()):
+                problems = GUARD.apk_problems("compose", apk, Path("aapt"), identity)
+        self.assertTrue(any("registered density icon dimensions" in item for item in problems))
+
+    def test_icon_variant_assets_must_exist_with_declared_dimensions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = fixture_repo(Path(directory))
+            icon = root / "crates/infiltrator-shared/assets/product/icon-16.png"
+            icon.write_bytes(b"truncated")
+            problems = GUARD.source_problems(root)
+        self.assertTrue(any("icon-16.png must be an exact 16px PNG" in item for item in problems))
+        with tempfile.TemporaryDirectory() as directory:
+            root = fixture_repo(Path(directory))
+            path = root / "product-identity.properties"
+            contents = path.read_text(encoding="utf-8")
+            path.write_text(
+                contents.replace(
+                    "product.icon_variant_px=16,24,32,48,256",
+                    "product.icon_variant_px=16,24,32,48,999",
+                ),
+                encoding="utf-8",
+            )
+            problems = GUARD.source_problems(root)
+        self.assertTrue(any("icon-999.png must be an exact 999px PNG" in item for item in problems))
+
+    def test_product_ico_must_mirror_the_shared_px_ladder(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = fixture_repo(Path(directory))
+            ico = root / "crates/infiltrator-shared/assets/product/icon.ico"
+            ico.write_bytes(
+                b"\x00\x00\x01\x00\x01\x00"
+                + bytes(14)
+                + b"\x00\x00\x00\x00\x00\x00\x00\x00"
+            )
+            problems = GUARD.source_problems(root)
+        self.assertTrue(any("must mirror the shared px ladder" in item for item in problems))
+
+    def test_gradle_module_must_generate_icons_from_registered_density_variants(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = fixture_repo(Path(directory))
+            path = root / "android/app/build.gradle.kts"
+            source = path.read_text(encoding="utf-8")
+            path.write_text(source.replace("product.android_icon_density", "product.drift"), encoding="utf-8")
+            problems = GUARD.source_problems(root)
+        self.assertTrue(any("icon resources from the registered density variants" in item for item in problems))
 
     def test_final_apk_icon_path_must_exist_in_the_apk(self):
         identity = GUARD.read_properties()

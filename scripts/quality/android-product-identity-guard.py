@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 import plistlib
 import re
@@ -30,6 +31,15 @@ PRODUCT_FIELDS = (
     "version_code_scheme",
     "builder",
 )
+PRODUCT_ICON_ASSETS = "crates/infiltrator-shared/assets/product"
+BADGING_DENSITY_NAMES = {
+    120: "ldpi",
+    160: "mdpi",
+    240: "hdpi",
+    320: "xhdpi",
+    480: "xxhdpi",
+    640: "xxxhdpi",
+}
 DESKTOP_FIELDS = (
     "display_name",
     "binary_name",
@@ -81,6 +91,89 @@ def android_application_module(source: str) -> bool:
     return re.search(r"\bapplicationId\b", source) is not None
 
 
+def png_dimensions(data: bytes) -> tuple[int, int] | None:
+    if len(data) < 24 or data[:8] != b"\x89PNG\r\n\x1a\n":
+        return None
+    return struct.unpack("!II", data[16:24])
+
+
+def ico_frame_sizes(data: bytes) -> list[tuple[int, int]] | None:
+    if len(data) < 6 or data[:4] != b"\x00\x00\x01\x00":
+        return None
+    count = struct.unpack("<H", data[4:6])[0]
+    frames: list[tuple[int, int]] = []
+    for index in range(count):
+        entry = 6 + index * 16
+        if entry + 16 > len(data):
+            return None
+        # 0 in an ICONDIRENTRY byte means the 256px slot.
+        width = 256 if data[entry] == 0 else data[entry]
+        height = 256 if data[entry + 1] == 0 else data[entry + 1]
+        frames.append((width, height))
+    return frames
+
+
+def icon_variant_problems(identity: dict[str, str], root: Path) -> list[str]:
+    problems: list[str] = []
+    try:
+        ladder = [int(item) for item in identity.get("product.icon_variant_px", "").split(",") if item.strip()]
+        densities: list[tuple[str, int]] = []
+        for entry in identity.get("product.android_icon_density", "").split(","):
+            density, _, pixels = entry.partition(":")
+            if not density.strip() or not pixels.strip():
+                raise ValueError
+            densities.append((density.strip(), int(pixels)))
+    except ValueError:
+        return [
+            "product icon variants require integer product.icon_variant_px "
+            "and product.android_icon_density density:px pairs"
+        ]
+    if not ladder or not densities:
+        return ["product.icon_variant_px and product.android_icon_density must both list variants"]
+    if len(set(ladder)) != len(ladder):
+        problems.append("product.icon_variant_px must not repeat a pixel size")
+    if len({pixels for _, pixels in densities}) != len(densities):
+        problems.append("product.android_icon_density must not repeat a pixel size")
+
+    assets = root / PRODUCT_ICON_ASSETS
+    for pixels in ladder:
+        path = assets / f"icon-{pixels}.png"
+        dimensions = png_dimensions(path.read_bytes()) if path.is_file() else None
+        if dimensions != (pixels, pixels):
+            problems.append(f"{path.relative_to(root)} must be an exact {pixels}px PNG")
+    for density, pixels in densities:
+        path = assets / f"icon-android-{density}.png"
+        dimensions = png_dimensions(path.read_bytes()) if path.is_file() else None
+        if dimensions != (pixels, pixels):
+            problems.append(f"{path.relative_to(root)} must be an exact {pixels}px PNG")
+    ico_path = assets / "icon.ico"
+    frames = sorted(ico_frame_sizes(ico_path.read_bytes()) or []) if ico_path.is_file() else None
+    expected_frames = sorted((pixels, pixels) for pixels in ladder)
+    if frames != expected_frames:
+        problems.append(
+            f"{ico_path.relative_to(root)} frames {frames} must mirror the shared px ladder "
+            f"{expected_frames}"
+        )
+
+    catalog_path = root / "crates/infiltrator-shared/assets/asset-catalog.json"
+    try:
+        catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        problems.append(f"shared asset catalog is unreadable: {error}")
+        return problems
+    registered = {
+        (record.get("format"), record.get("variant"))
+        for record in catalog.get("assets", [])
+        if record.get("id") == "app.product"
+    }
+    expected_records = {("png", "launcher"), ("ico", "launcher")}
+    expected_records.update(("png", f"icon-{pixels}") for pixels in ladder)
+    expected_records.update(("png", f"android-{density}") for density, _ in densities)
+    for missing in sorted(expected_records - registered):
+        problems.append(f"asset catalog is missing the app.product {missing[0]}/{missing[1]} variant")
+    return problems
+
+
 def source_problems(root: Path = ROOT) -> list[str]:
     problems: list[str] = []
     identity_path = root / "product-identity.properties"
@@ -99,6 +192,8 @@ def source_problems(root: Path = ROOT) -> list[str]:
         "desktop.products",
         "rust.version_exemptions",
         "rust.non_product_binaries",
+        "product.icon_variant_px",
+        "product.android_icon_density",
     ]
     if "bevy" in products:
         required_keys.append("bevy.smoke.apk_name")
@@ -156,6 +251,8 @@ def source_problems(root: Path = ROOT) -> list[str]:
             continue
         if code > 2_100_000_000:
             problems.append(f"{product} derived Android versionCode exceeds the platform limit")
+
+    problems.extend(icon_variant_problems(identity, root))
 
     build_sources = [
         *sorted((root / "android").rglob("build.gradle")),
@@ -289,26 +386,18 @@ def source_problems(root: Path = ROOT) -> list[str]:
                         f"{product} display name from the registered identity"
                     )
 
-                icon_asset_variable = re.search(
-                    rf"\b(?:val|var)\s+(\w+)\s*=\s*identityValue\(\s*['\"]{re.escape(product)}\.icon_asset['\"]\s*\)",
-                    source,
-                )
                 icon_resource_variable = re.search(
                     rf"\b(?:val|var)\s+(\w+)\s*=\s*identityValue\(\s*['\"]{re.escape(product)}\.icon_resource['\"]\s*\)",
                     source,
                 )
                 if (
-                    icon_asset_variable is None
-                    or icon_resource_variable is None
-                    or re.search(
-                        rf"['\"]{re.escape(product)}['\"]\s+to\s+\({icon_asset_variable.group(1)}\s+to\s+{icon_resource_variable.group(1)}\)",
-                        source,
-                    ) is None
+                    icon_resource_variable is None
+                    or "product.android_icon_density" not in source
                     or "addGeneratedSourceDirectory" not in source
                 ):
                     problems.append(
                         f"Android application module {adapter.relative_to(root)} must generate "
-                        f"{product} icon resources from the registered source asset"
+                        f"{product} icon resources from the registered density variants"
                     )
 
                 launcher_manifest_path = root / identity[f"{product}.launch_manifest"]
@@ -824,39 +913,45 @@ def apk_problems(
     if not icon_paths:
         problems.append(f"{product} APK has no readable launcher icon resource")
     else:
-        source_icon_path = ROOT / identity[f"{product}.icon_asset"]
-        if not source_icon_path.is_file():
-            problems.append(f"{product} launcher icon source is missing: {source_icon_path}")
-        else:
-            source_icon = source_icon_path.read_bytes()
-            source_dimensions = (
-                struct.unpack("!II", source_icon[16:24])
-                if len(source_icon) >= 24 and source_icon[:8] == b"\x89PNG\r\n\x1a\n"
-                else None
-            )
-            try:
-                with ZipFile(apk_path) as archive:
-                    for icon_path in sorted(set(icon_paths)):
-                        try:
-                            packaged_icon = archive.read(icon_path)
-                        except KeyError:
-                            problems.append(
-                                f"{product} APK badging references missing icon resource {icon_path!r}"
-                            )
-                            continue
-                        packaged_dimensions = (
-                            struct.unpack("!II", packaged_icon[16:24])
-                            if len(packaged_icon) >= 24
-                            and packaged_icon[:8] == b"\x89PNG\r\n\x1a\n"
-                            else None
+        density_pixels: dict[str, int] = {}
+        for entry in identity["product.android_icon_density"].split(","):
+            density, _, pixels = entry.partition(":")
+            if density.strip() and pixels.strip().isdigit():
+                density_pixels[density.strip()] = int(pixels)
+        allowed_pixels = set(density_pixels.values())
+        try:
+            with ZipFile(apk_path) as archive:
+                for icon_line in icon_lines:
+                    match = re.match(r"application-icon-(\d+):'([^']+)'", icon_line)
+                    if match is None:
+                        continue
+                    badging_density = BADGING_DENSITY_NAMES.get(int(match.group(1)))
+                    expected_dimensions = (
+                        (density_pixels[badging_density],) * 2
+                        if badging_density in density_pixels
+                        else None
+                    )
+                    icon_path = match.group(2)
+                    try:
+                        packaged_icon = archive.read(icon_path)
+                    except KeyError:
+                        problems.append(
+                            f"{product} APK badging references missing icon resource {icon_path!r}"
                         )
-                        if source_dimensions is None or packaged_dimensions != source_dimensions:
-                            problems.append(
-                                f"{product} APK icon resource {icon_path!r} does not match "
-                                "the registered PNG dimensions"
-                            )
-            except (BadZipFile, OSError) as error:
-                problems.append(f"cannot inspect {product} APK icon resources: {error}")
+                        continue
+                    packaged_dimensions = png_dimensions(packaged_icon)
+                    matches_registry = (
+                        packaged_dimensions == expected_dimensions
+                        if expected_dimensions is not None
+                        else packaged_dimensions in {(size, size) for size in allowed_pixels}
+                    )
+                    if packaged_dimensions is None or not matches_registry:
+                        problems.append(
+                            f"{product} APK icon resource {icon_path!r} does not match "
+                            "the registered density icon dimensions"
+                        )
+        except (BadZipFile, OSError) as error:
+            problems.append(f"cannot inspect {product} APK icon resources: {error}")
     return problems
 
 

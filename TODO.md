@@ -70,17 +70,18 @@
 13. **cargo 并行预算与分组收口（2026-10-20 起强制，仿 ZhuGeTower 组批节奏）：** 构建资源全局共享（本机两条 cargo lane），并行流的 cargo 调用必须错峰：同一时刻只允许一条流跑 cargo，其余流只写源码与测试；**重构按组推进、一组一收口**——同一主题的重构（同一 owner 结构、同一族类型、同一契约面）作为一组同时落地，由收口方统一跑一次该组验证（一次 `--workspace` nextest + 一次结构门 + 该组专属 guard），禁止每条改动各跑一遍全仓；收口顺序：各流先交付源码，最后一条流统一构建、统一验证、统一提交。
 14. **同仓多会话的所有权纪律（2026-10-20 起强制）**：同一仓库可能同时被多个会话操作——动一个文件前先以工作树未提交改动与修改时间确认它当前归谁，**正在被别的会话写的文件一律不碰**（不修、不格式化、不提交）；自己派出的并行流必须把 crate 目录写进所有权清单，跨界只读不改；宁可把半成品留在工作树等对方落地，也不要在对方写到一半时插进同一批文件——两个会话改同一文件的结果是双方都丢改动。
 
-## Points 与完成度台账（2026-10-31，基线 `musicfrog-todo-20261031-v346`）
+## Points 与完成度台账（2026-10-31，基线 `musicfrog-todo-20261031-v347`）
 
 | 看板 | task | points |
 | --- | ---: | ---: |
-| 现在佛 | 21 | 84 |
-| 过去佛 | 145 | 423 |
+| 现在佛 | 20 | 82 |
+| 过去佛 | 146 | 425 |
 | 斗战胜佛 | 17 | 51 |
 | 未来佛 | 15 | 26 |
 | **未办结联合分母** | **198** | **584** |
 
-- **严格交付率：727 / 1311 = 55.5%**（archived 727pt / archived 727 + 未办结 584pt）。
+- **严格交付率：729 / 1311 = 55.6%**（archived 729pt / archived 729 + 未办结 584pt）。
+- 2026-10-31 第七十四交付批次：`FLPARITY-041`（2 pt）产品、桌面托盘与 Android 图标资产一致性审计完成（`product-identity.properties` 固化 `product.icon_variant_px` 16/24/32/48/256 共享 px 阶梯与 `product.android_icon_density` mdpi~xxxhdpi 五档密度桶为唯一真源；新增 `scripts/product_icon_variants.py` 从单一 canonical `icon.png` 生成全部变体并把 `icon.ico` 重写为五帧容器，逐变体 WCAG 对比度审计钉住浅/深/强调背景 ≥3:1、不透明覆盖率 ≥0.85；asset-catalog 登记 10 条派生变体；`infiltrator-shared` 新增 catalog/尺寸/ICO 帧注册表校验测试；Gradle `GenerateProductIcon` 改为从注册变体拷贝 `drawable-mdpi`~`drawable-xxxhdpi` 密度桶并删除死代码 `productIcons` 映射；`android-product-identity-guard` 扩展变体结构、ICO 帧镜像、catalog 覆盖与 APK badging 密度尺寸校验，自测 32/32 全绿；三 flavor `generate*ProductIcon` 任务实测生成五档密度资源全绿；守卫 0 违规，`infiltrator-shared` nextest 77/77 全绿），现移入过去佛 §12.57；现在佛 84 → 82 pt（21 → 20 条），过去佛 423 → 425 pt（145 → 146 条），联合分母 584 pt 保持不变。
 - 2026-10-31 第七十三交付批次：`FLPARITY-038`（5 pt）可选通用覆写及更早应用时机完成（contract 固化 `GeneralOverridePhase`、`GeneralOverrideBackendCompatibility`、typed 增删改查命令与 mutation/apply receipts；ports 导出 `GeneralOverrideStorePort` 抽象；application 实现 `GeneralOverrideApplication`，支持重名检测、版本围栏、排序重排、按阶段与启用状态过滤、后端引擎兼容性判定与 YAML/JSON 内容解析验证；presentation 提供 `project_general_overrides` 单源驱动多端展示；composition 接入 `with_general_override` 与 `SurfaceSnapshot` 读取；targeted nextest 1729/1729 全绿，Clippy `-D warnings` 全绿，所有守卫通过），现移入过去佛 §12.56；现在佛 89 → 84 pt（22 → 21 条），过去佛 418 → 423 pt（144 → 145 条），联合分母 584 pt 保持不变。
 - 2026-10-30 第七十二交付批次：`FLPARITY-037`（3 pt）将代理节点加入用户拥有的本地代理配置完成（contract 固化 `LocalProxyProtocol`、`LocalProxyNode`、`LocalProxyNodeSummary` 脱敏快照、`AddLocalProxyCommand`、`RemoveLocalProxyCommand`、`AddLocalProxyReceipt`、`RemoveLocalProxyReceipt` 与 `LocalProxySnapshot`；ports 导出 `LocalProxyStorePort` 抽象；application 实现 `LocalProxyApplication`，支持协议参数校验、防重复录入、版本围栏控制与安全脱敏；presentation 提供 `LocalProxyRowProjection`、`LocalProxyPageProjection` 与 `project_local_proxies` 单源驱动多端展示；composition 接入 `with_local_proxy` 与 `SurfaceSnapshot` 读取；targeted nextest 1516/1516 全绿，Clippy `-D warnings` 全绿，所有守卫通过），现移入过去佛 §12.55；现在佛 92 → 89 pt（23 → 22 条），过去佛 415 → 418 pt（143 → 144 条），联合分母 584 pt 保持不变。
 - 2026-10-30 第七十一交付批次：`FLPARITY-013`（5 pt）加密备份真实导出、校验与恢复完成（contract 固化 `BackupDeliveryTarget`、`BackupRestoreScope`、`BackupVerificationFailure`、`BackupOperationReceipt` 与 `BackupRestoreSnapshot`；ports 导出 `BackupRestorePort` 抽象；application 实现 `BackupRestoreApplication` 口令校验、主版本兼容性判定、SHA-256 完整性验证与 AES-256-GCM 原子恢复回滚保护；presentation 提供 `BackupRestoreProjection` 与 `project_backup_restore` 统一驱动多端展示；Iced 清除假实现接入真实导出校验流程；composition 接入 `with_backup_restore`；targeted nextest 1510/1510 全绿，Clippy `-D warnings` 全绿，所有守卫通过），现移入过去佛 §12.54；现在佛 97 → 92 pt（24 → 23 条），过去佛 410 → 415 pt（142 → 143 条），联合分母 584 pt 保持不变。

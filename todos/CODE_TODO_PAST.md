@@ -1312,3 +1312,18 @@ timeout` 灵活入参，在未指定 timeout 时自动回读保持 `snapshot.pro
   - 当前证据（L）：`infiltrator-contract` + `infiltrator-ports` + `infiltrator-application` + `infiltrator-presentation` + `infiltrator-composition` + `infiltrator-bevy-ui` 1729/1729 passed；Clippy `--all-targets -D warnings` passed；typed-state-guard 0 findings；implicit-state-audit 0 open 0 undecided；line budget 0 违规；cargo fmt 0 偏差。
   - 待验证：统一全仓集成验证批次与四表面像素巡检。
   - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+
+## 12.57 产品、桌面托盘与 Android 图标资产一致性审计交付（2026-10-31 交付，1条 / 2pt）
+
+- [ ] FLPARITY-041 [kind: visual] [priority: P2] [points: 2] [owner: infiltrator-shared + release packaging + four UI surfaces] [status: Integrated] 产品、桌面托盘与 Android 图标资产一致性审计 (FlClash v0.9.2 parity)
+  - 产物：
+    - **变体矩阵单一真源**：`product-identity.properties` 固化 `product.icon_variant_px=16,24,32,48,256` 共享 px 阶梯与 `product.android_icon_density=mdpi:48,hdpi:72,xhdpi:96,xxhdpi:144,xxxhdpi:192` 密度桶，生成器与守卫均从该注册表读取，品牌画作保持 canonical `icon.png` 不替换；
+    - **生成器与像素审计**：`scripts/product_icon_variants.py` 从单一 canonical PNG 用 LANCZOS 派生 5 档共享 px 变体与 5 档 Android 密度变体，`icon.ico` 重写为五帧容器（256px 最大帧为基底避免 Pillow 画布上限裁剪），逐变体 WCAG 对比度审计钉住浅（白）/深（黑）/强调（橙）三背景 ≥3:1、不透明覆盖率 ≥0.85；
+    - **目录登记**：`asset-catalog.json` 新增 10 条 `app.product` 派生变体记录（icon-16~icon-256 与 android-mdpi~android-xxxhdpi），与 canonical launcher 记录同 license 同 source；
+    - **Rust 注册表测试**：`infiltrator-shared` 新增 catalog 变体齐全、PNG IHDR 尺寸精确、ICO 目录帧与共享 px 阶梯镜像的测试，期望值从 `product-identity.properties` 解析（include_str），不复制第二份真源；
+    - **Android 密度桶接线**：Gradle `GenerateProductIcon` 改为从注册变体拷贝 `drawable-mdpi`~`drawable-xxxhdpi/ic_app_icon.png` 五档资源（`@Nested` typed 输入带 `PathSensitivity.NONE`），删除死代码 `productIcons` 映射与 icon asset 读取；manifest `@drawable/ic_app_icon` 引用不变；
+    - **守卫升级**：`android-product-identity-guard` 新增变体矩阵解析、逐文件 PNG IHDR 精确尺寸、ICO 帧镜像（小端 `<H` 帧计数）、catalog 覆盖检查，并把 APK badging 图标校验从"与 1760px 源等大"改为"按 badging dpi 映射密度桶精确尺寸"；自测新增 4 项负例。
+  - 验收：16/24/32/48/256 px 与 Android DPI 变体在浅/深/强调背景对比度 ≥3:1 由生成器审计强制；manifest 引用唯一由守卫校验；三 flavor `generateComposeDebugProductIcon`/`generateBevyDebugProductIcon`/`generateSlintDebugProductIcon` 实测生成五档密度资源；未替换品牌身份。
+  - 当前证据（L）：`android-product-identity-guard.py` 全绿；守卫自测 32/32 全绿；`infiltrator-shared` nextest 77/77 passed；Clippy `--all-targets -D warnings` passed；cargo fmt 0 偏差；Gradle 三 flavor 图标生成任务全绿并抽查五档尺寸精确。
+  - 待验证：统一全仓集成验证批次；APK 安装包与真机取证归属斗战胜佛既有条目。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。

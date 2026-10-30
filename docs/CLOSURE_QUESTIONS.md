@@ -23,7 +23,7 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-10-30）
+## 当前状态（2026-10-31）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
@@ -32,9 +32,20 @@
 | 3 | 部分 | L | Android 源码级接通，Bevy host driver lockfile 已同步 0.50.0 解决 buildRustDriver 101 错误；**本批：Android 静态质量门成为真门**（Lint 68→0、ktlint 5046→0、Detekt 项目配置 0 条、架构红线守卫 ARCH001–007 扫描 137 点 0 违例并带 23 条负例，已接入结构门）；Android 单测 192 core host + 391 app 全绿；**release 变体改用用户持久 keystore 签名**，无 secret 时 Gradle 配置期即以缺失清单失败，debug key 不再用于任何 release 产物；APK 真实产物与真机仍缺，APK/真机腿在斗战胜佛；iOS `Unsupported`（626 行 stub，GAP-3.2）；模拟器 M1 腿可推（`PARITY-001.4`、过去佛 `BANDROID-002.1`/`002.2`） |
 | 4 | 部分 | L | Iced/Bevy/Slint 深入接入，四表面使用 `SurfaceReader` + `CommandSink`；Forest 可以且已经作为 118 个桌面业务 capture 与 Android debug capture 的默认取证 skin，但不是产品运行时默认主题，不改变用户设置。四主题巡检 TSV 存在，当前 published theme manifest 仅 Iced 8、Bevy 8、Slint 1 行，图片仍早于 2026-10-29 palette 变更；Android 暂无主题截图回执。审计发现 `MaterialSurfaceTokens`/`MaterialColorScheme` 缺生产消费者，`FLPARITY-014` 重开，当前主题像素由 `PARITY-001.6` 收口 |
 | 5 | 部分 | L | 共享 ports/kernel/kits 已复用；Slint 无 kit；PUB-001.3 part 3 租约切换下沉；GAP-5.1/5.1.1、GAP-5.2、GAP-5.2.1 已完成；0.44 UI 管道与 0.5x 四大 UI 脚手架模板全部办结归档；presentation 纯净化与开源合规审计全绿；六个 owner 明确收敛（release 签名决策、圆角阶梯、中性 API 基线、页面状态推导、契约层页面事实、命令由真实 owner 回答带令牌与 stale 拒绝）；三端删除各自的私有推导，共享层事实唯一 |
-| 6 | 部分 | L | **对标 FlClash v0.9.2 共 47 IDs / 180 pt：过去佛 33 项 / 119 pt（含 `FLPARITY-001`、`FLPARITY-003`、`FLPARITY-004`、`FLPARITY-013`、`FLPARITY-037`、`FLPARITY-038`、`FLPARITY-043`、`FLPARITY-047`，待统一验证），现在佛 14 项 / 61 pt。** `FLPARITY-038`（5 pt）可选通用覆写及更早应用时机已交付并迁入过去佛 §12.56；`FLPARITY-037`（3 pt）将代理节点加入用户拥有的本地代理配置已交付；`FLPARITY-013`（5 pt）加密备份真实导出、校验与恢复已交付；`FLPARITY-003`（5 pt）实时请求历史页已交付；`FLPARITY-004`（5 pt）DNS 查询历史页已交付；`FLPARITY-001`（5 pt）IP 质量查询与缓存已交付；`FLPARITY-043`（5 pt）升级 Mihomo 至 v1.19.33；`FLPARITY-047`（3 pt）系统代理 claim/release 所有权保护已交付。官方 release feature/fix/performance 已逐项映射；Forest 仅是 capture skin，不是运行时默认主题。 |
+| 6 | 部分 | L | **对标 FlClash v0.9.2 共 47 IDs / 180 pt：过去佛 34 项 / 121 pt（含 `FLPARITY-001`、`FLPARITY-003`、`FLPARITY-004`、`FLPARITY-013`、`FLPARITY-037`、`FLPARITY-038`、`FLPARITY-041`、`FLPARITY-043`、`FLPARITY-047`，待统一验证），现在佛 13 项 / 59 pt。** `FLPARITY-041`（2 pt）产品、桌面托盘与 Android 图标资产一致性审计已交付并迁入过去佛 §12.57；`FLPARITY-038`（5 pt）可选通用覆写及更早应用时机已交付并迁入过去佛 §12.56；`FLPARITY-037`（3 pt）将代理节点加入用户拥有的本地代理配置已交付；`FLPARITY-013`（5 pt）加密备份真实导出、校验与恢复已交付；`FLPARITY-003`（5 pt）实时请求历史页已交付；`FLPARITY-004`（5 pt）DNS 查询历史页已交付；`FLPARITY-001`（5 pt）IP 质量查询与缓存已交付；`FLPARITY-043`（5 pt）升级 Mihomo 至 v1.19.33；`FLPARITY-047`（3 pt）系统代理 claim/release 所有权保护已交付。官方 release feature/fix/performance 已逐项映射；Forest 仅是 capture skin，不是运行时默认主题。 |
 | 7 | 部分 | L | 文件级模块化完成（<=800/600 行全绿，全仓 mod.rs 清退至 0，严格遵照 foo.rs + foo/ 模式，并在 check-structure.sh 接入 mod-rs-guard 永久禁止）；隐式状态机语义审计 + 判决台账常驻（22 条候选逐条人工判决，未判决或 open 即门禁失败），16 处阶段表已改 typed enum + typed transition；Slint 拆分遵循 `SLINT-001` 单文件预算守卫；九个页面模型与两个共用基座成为页面状态的唯一 owner；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | 已补 `--locked` 与 main 守卫门禁（仅 fmt+guards，不编译）；修复 main-gate.yml 缺失 setup-python/Pillow 问题；扩大 Gradle JVM 堆至 6GB 并将三大 flavor 分离独立进程构建彻底解决 OOM；交付 Android CI 套件 flavor/模拟器裁剪与 Gradle 缓存复用；release 作业在构建前校验签名材料缺 secret 秒级失败；全套单测（三端 1,091 项）与结构门（`check-structure.sh` 40+ 项守卫）全绿；`cargo fmt --all --check` 100% 通过；版本号按身份改动一次升至 0.51.0 |
+
+## 最近一批问答（2026-10-31 产品图标资产一致性审计交付批次）
+
+1. x86_64 与 aarch64 是否都支持？：本批产物为 PNG/ICO 位图资产、Gradle 资源拷贝任务与纯 Python 生成/守卫脚本，不含架构专用代码；Rust 侧仅有 `infiltrator-shared` 注册表测试，x64/arm64 编译面无漂移 → 部分（L）。
+2. Windows / Linux / macOS 是否都支持？：五帧 `icon.ico` 服务 Windows 资源管理器与 NSIS，`icon.png` 供 Linux desktop/托盘与 macOS icns 生成脚本继续消费；桌面安装包真实产物验证仍归属 CI/打包腿 → 部分（L）。
+3. Android / iOS 是否都支持？：Android 三 flavor 实测生成 `drawable-mdpi`~`drawable-xxxhdpi` 五档密度图标并经守卫与 APK badging 密度尺寸校验钉住；iOS 保持显式 Unsupported → 部分（L）。
+4. 各个 UI 是否都接入了？：四表面共享同一 `product-identity.properties` 真源；桌面托盘/窗口与 Android launcher 均绑定注册变体，`infiltrator-shared` 目录测试 77/77 全绿，品牌画作未替换 → 部分（L）。
+5. 该复用的是否都复用了？：变体矩阵唯一真源为 `product-identity.properties`，生成器、守卫、Rust 测试与 Gradle 任务全部从它读取；删除 Gradle 死代码 `productIcons` 映射与 icon asset 读取，asset-catalog 与打包引用全部登记，无第二份尺寸清单 → 部分（L）。
+6. 各处界面的功能是否都接入了？：`FLPARITY-041`（2 pt）图标资产一致性审计已交付并迁入过去佛 §12.57；全仓 FlClash 对标 47 IDs / 180 pt 中过去佛 34 项 / 121 pt、现在佛 13 项 / 59 pt；联合分母保持 584 pt → 部分（L）。
+7. 各处界面是否模块化了？：零新增 mod.rs；line-guard 0 违规；守卫逻辑集中在 `android-product-identity-guard` 单一 owner，生成逻辑集中在 `scripts/product_icon_variants.py` 单一 owner；typed-state-guard 0 findings → 部分（L）。
+8. CI 打包是否最高效？：守卫自测 32/32、`infiltrator-shared` nextest 77/77、Clippy `-D warnings`、cargo fmt --check、import/typed-state/implicit-state/i18n/line/mod-rs/doc-governance 守卫 0 违规；Gradle 仅验证三个增量图标生成任务，未触发全 APK 构建 → 部分（L）。
 
 ## 最近一批问答（2026-10-31 可选通用覆写及更早应用时机交付批次）
 
