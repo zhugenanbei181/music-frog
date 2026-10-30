@@ -52,6 +52,7 @@ pub mod dns_query_history_application;
 pub mod dns_self_heal_application;
 pub mod dns_workbench_application;
 pub mod doctor_application;
+pub mod general_override_application;
 pub mod geo_database_application;
 pub mod ip_quality_application;
 pub mod local_proxy_application;

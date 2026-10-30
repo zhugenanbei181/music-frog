@@ -45,6 +45,7 @@ impl ProductSurfaceReader {
             requests: None,
             backup_restore: None,
             local_proxy: None,
+            general_override: None,
             dns_latency: None,
             dns_leak: None,
             stun_probe: None,
@@ -245,6 +246,11 @@ impl ProductSurfaceReader {
 
     pub fn with_local_proxy(mut self, application: LocalProxyApplication) -> Self {
         self.local_proxy = Some(application);
+        self
+    }
+
+    pub fn with_general_override(mut self, application: GeneralOverrideApplication) -> Self {
+        self.general_override = Some(application);
         self
     }
 

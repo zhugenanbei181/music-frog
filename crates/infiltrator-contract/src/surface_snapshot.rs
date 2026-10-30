@@ -26,6 +26,7 @@ use crate::dns_query::DnsQuerySnapshot;
 use crate::dns_query_history::DnsQueryHistorySnapshot;
 use crate::dns_self_heal::DnsSelfHealSnapshot;
 use crate::doctor::{DoctorCheckKind, DoctorStatus};
+use crate::general_override::GeneralOverrideSnapshot;
 use crate::ip_quality::IpQualitySnapshot;
 use crate::ipv6::Ipv6RoutingSnapshot;
 use crate::lan::{LanSecuritySnapshot, LanSharingSnapshot};
@@ -617,6 +618,8 @@ pub struct SurfaceSnapshot {
     pub backup_restore: BackupRestoreSnapshot,
     #[serde(default)]
     pub local_proxy: LocalProxySnapshot,
+    #[serde(default)]
+    pub general_override: GeneralOverrideSnapshot,
     /// Simulation results survive unrelated page/provider read failures.
     #[serde(default)]
     pub rule_trace: RuleTraceExecution,
@@ -752,6 +755,7 @@ impl SurfaceSnapshot {
             requests: RequestTrackerSnapshot::default(),
             backup_restore: BackupRestoreSnapshot::default(),
             local_proxy: LocalProxySnapshot::default(),
+            general_override: GeneralOverrideSnapshot::default(),
             rule_trace: RuleTraceExecution::default(),
             dns_hosts: unobserved_hosts(),
             surface,

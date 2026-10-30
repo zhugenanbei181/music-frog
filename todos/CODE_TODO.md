@@ -21,8 +21,9 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261030-v345`：现在佛 89 pt（22 条）/ 过去佛 418 pt（144 条）/ 斗战胜佛 51 pt（17 条）/ 未来佛 26 pt（15 条），联合未办结分母 584 pt（198 条）；已归档交付 727 pt（290 条）；累计 1311 pt，严格归档完成率 55.5%。
-- 本板 22 条 = 像素认证收口 2 条（`PARITY-001.5` 5 pt、`PARITY-001.6` 5 pt）+ 三端视觉一致性 2 条（`GAP-7.3`、`GAP-7.6`，8 pt）+ FlClash v0.9.2 对标 15 条（`FLPARITY-002`、`005`～`007`、`010`、`011`、`014`、`017`、`018`、`036`、`038`～`041`、`046`，66 pt）+ 工程约束门禁 3 条（`ENG-002.2`、`ENG-003.2`、`ENG-003.3`，5 pt）。
+- Point 基线 `musicfrog-todo-20261031-v346`：现在佛 84 pt（21 条）/ 过去佛 423 pt（145 条）/ 斗战胜佛 51 pt（17 条）/ 未来佛 26 pt（15 条），联合未办结分母 584 pt（198 条）；已归档交付 727 pt（290 条）；累计 1311 pt，严格归档完成率 55.5%。
+- 本板 21 条 = 像素认证收口 2 条（`PARITY-001.5` 5 pt、`PARITY-001.6` 5 pt）+ 三端视觉一致性 2 条（`GAP-7.3`、`GAP-7.6`，8 pt）+ FlClash v0.9.2 对标 14 条（`FLPARITY-002`、`005`～`007`、`010`、`011`、`014`、`017`、`018`、`036`、`039`～`041`、`046`，61 pt）+ 工程约束门禁 3 条（`ENG-002.2`、`ENG-003.2`、`ENG-003.3`，5 pt）。
+- 2026-10-31 第七十三交付批次：`FLPARITY-038`（5 pt）可选通用覆写及更早应用时机完成（contract 固化 `GeneralOverridePhase`（PreEngineLaunch/PostConfigLoad）、`GeneralOverrideBackendCompatibility`（Universal/MihomoOnly/SingBoxOnly/Incompatible）、`GeneralOverrideItem`、typed 增删改查命令与 `GeneralOverrideMutationReceipt`、`GeneralOverrideApplyReceipt` 与 `GeneralOverrideSnapshot`；ports 导出 `GeneralOverrideStorePort` 抽象；application 实现 `GeneralOverrideApplication`，支持重名检测、版本围栏、排序重排、按阶段与启用状态过滤、后端引擎兼容性判定与 YAML/JSON 内容解析验证；presentation 提供 `GeneralOverrideRowProjection`、`GeneralOverridePageProjection` 与 `project_general_overrides` 单源驱动多端展示；composition 接入 `with_general_override` 与 `SurfaceSnapshot` 读取；targeted nextest 1729/1729 全绿，Clippy `-D warnings` 全绿，所有守卫通过），现移入过去佛 §12.56；现在佛 89 → 84 pt（22 → 21 条），过去佛 418 → 423 pt（144 → 145 条），联合分母 584 pt 保持不变。
 - 2026-10-30 第七十二交付批次：`FLPARITY-037`（3 pt）将代理节点加入用户拥有的本地代理配置完成（contract 固化 `LocalProxyProtocol`、`LocalProxyNode`、`LocalProxyNodeSummary` 脱敏快照、`AddLocalProxyCommand`、`RemoveLocalProxyCommand`、`AddLocalProxyReceipt`、`RemoveLocalProxyReceipt` 与 `LocalProxySnapshot`；ports 导出 `LocalProxyStorePort` 抽象；application 实现 `LocalProxyApplication`，支持协议参数校验、防重复录入、版本围栏控制与安全脱敏；presentation 提供 `LocalProxyRowProjection`、`LocalProxyPageProjection` 与 `project_local_proxies` 单源驱动多端展示；composition 接入 `with_local_proxy` 与 `SurfaceSnapshot` 读取；targeted nextest 1516/1516 全绿，Clippy `-D warnings` 全绿，所有守卫通过），现移入过去佛 §12.55；现在佛 92 → 89 pt（23 → 22 条），过去佛 415 → 418 pt（143 → 144 条），联合分母 584 pt 保持不变。
 - 2026-10-30 第七十一交付批次：`FLPARITY-013`（5 pt）加密备份真实导出、校验与恢复完成（contract 固化 `BackupDeliveryTarget`、`BackupRestoreScope`、`BackupVerificationFailure`、`BackupOperationReceipt` 与 `BackupRestoreSnapshot`；ports 导出 `BackupRestorePort` 抽象；application 实现 `BackupRestoreApplication` 口令校验、主版本兼容性判定、SHA-256 完整性验证与 AES-256-GCM 原子恢复回滚保护；presentation 提供 `BackupRestoreProjection` 与 `project_backup_restore` 统一驱动多端展示；Iced 清除假实现接入真实导出校验流程；composition 接入 `with_backup_restore`；targeted nextest 1510/1510 全绿，Clippy `-D warnings` 全绿，所有守卫通过），现移入过去佛 §12.54；现在佛 97 → 92 pt（24 → 23 条），过去佛 410 → 415 pt（142 → 143 条），联合分母 584 pt 保持不变。
 - 2026-10-30 第七十交付批次：`FLPARITY-003`（5 pt）实时请求历史页完成（contract 固化 `RequestTrackingState`、`RequestStatus`、`RequestNetwork`、`RequestStatusFilter`、`RequestRecord` 与 `RequestTrackerSnapshot`；ports 导出 `RequestTrackerPort` 抽象；application 实现 `RequestTrackerApplication` 1000 容量环形缓冲、活跃连接计数、`record_closed` 迁移与暂停/恢复；presentation 提供 `RequestRowProjection` 与 `project_request_page` 驱动多端请求历史列表与详情；composition 接入 `with_requests`；targeted nextest 1503/1503 全绿，Clippy `-D warnings` 全绿，所有守卫通过），现移入过去佛 §12.53；现在佛 102 → 97 pt（25 → 24 条），过去佛 405 → 410 pt（141 → 142 条），联合分母 584 pt 保持不变。
@@ -269,13 +270,6 @@
   - 计划：依赖真实 HCT 算法定可表达的 style 集合，再建立 typed preference、application readback 与 presentation 投影。
   - 验收：seed 修改、取消、保存、重启读回、无效输入均有 fake/nextest；四表面使用相同 scheme，主题场景与像素回执可追溯偏好身份。
   - 依赖：`FLPARITY-024`、`FLPARITY-014`；持久化 owner 未裁决前不得在 UI 本地保存。
-
-- [ ] FLPARITY-038 [kind: mechanism] [priority: P1] [points: 5] [owner: infiltrator-contract/domain/application/ports + three desktop UIs + android/ui] [status: Planned] 可选通用覆写及更早应用时机
-  - 产物：定义启用/禁用与排序的 general override 清单、兼容性状态和生效阶段；owner 原子应用配置并返回 revision/readback。
-  - 实测：已有 profile per-profile mixin/options，不等同于可选 general override；未找到与 FlClash 通用覆写兼容的 owner 模型和「设置后尽早生效」契约。
-  - 计划：先区分全局覆写与订阅过滤/mixin，再定存储优先级和合并规则；对 Mihomo/sing-box 能力分别给出真实支持/unsupported。
-  - 验收：启停/排序/冲突/无效配置/后端不支持均有 fake/nextest；应用顺序由 Core 投影，重启读回一致，UI 不复制 YAML merge 规则。
-  - 依赖：Contract、Profile owner、两引擎 adapter 先裁决；未闭环前不增加 UI 覆写旁路。
 
 - [ ] FLPARITY-039 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-desktop + three desktop UI hosts] [status: Planned] 桌面侧栏系统材质效果与诚实降级
   - 产物：为桌面 sidebar 提供 host-owned Mica/Acrylic/Vibrancy 类系统材质能力及 typed `Unsupported`/fallback，材质强度随主题与减少透明偏好收敛。

@@ -1297,3 +1297,18 @@ timeout` 灵活入参，在未指定 timeout 时自动回读保持 `snapshot.pro
   - 当前证据（L）：`infiltrator-contract` + `infiltrator-ports` + `infiltrator-application` + `infiltrator-presentation` + `infiltrator-composition` 1516/1516 passed；Clippy `--all-targets -D warnings` passed；typed-state-guard 0 findings；implicit-state-audit 0 open 0 undecided；line budget 0 违规；cargo fmt 0 偏差。
   - 待验证：统一全仓集成验证批次与四表面像素巡检。
   - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+
+## 12.56 可选通用覆写及更早应用时机交付（2026-10-31 交付，1条 / 5pt）
+
+- [ ] FLPARITY-038 [kind: mechanism] [priority: P1] [points: 5] [owner: infiltrator-contract + infiltrator-ports + infiltrator-application + infiltrator-presentation + infiltrator-composition] [status: Integrated] 可选通用覆写及更早应用时机 (FlClash v0.9.2 parity)
+  - 产物：
+    - **Contract 类型化领域模型**：`infiltrator-contract::general_override` 固化 `GeneralOverridePhase`（PreEngineLaunch 引擎启动前 / PostConfigLoad 配置载入后）、`GeneralOverrideBackendCompatibility`（Universal/MihomoOnly/SingBoxOnly/Incompatible 与 is_compatible_with 引擎判定）、`GeneralOverrideItem` 与 `GeneralOverrideItemSummary`、`UpsertGeneralOverrideCommand`/`ToggleGeneralOverrideCommand`/`ReorderGeneralOverridesCommand`/`RemoveGeneralOverrideCommand`（typed intent）、`GeneralOverrideMutationReceipt`（Success/Reordered/NotFound/DuplicateName/InvalidContent/StaleRevision）与 `GeneralOverrideApplyReceipt`（Applied/SkippedNoOverrides/BackendUnsupported/ParseFailure）以及 `GeneralOverrideSnapshot`；
+    - **唯一异步持久化端口抽象**：`infiltrator-ports::general_override::GeneralOverrideStorePort` 导出 `load_collection` 与 `save_collection`；
+    - **Application 状态机与安全应用引擎**：`infiltrator-application::general_override_application::GeneralOverrideApplication` 实现重名检测、非空校验、版本围栏（StaleRevision）、排序重排（order 索引重建与长度校验）、按阶段与启用状态过滤、后端引擎兼容性判定（BackendUnsupported）与 YAML/JSON 内容解析验证（ParseFailure）；
+    - **Presentation 单源列表投影**：`infiltrator-presentation::general_override_projection::GeneralOverrideRowProjection` 与 `project_general_overrides` 统一驱动覆写卡片、阶段标签、后端兼容徽章与不兼容警示；
+    - **SurfaceSnapshot 与 Composition 接线**：`SurfaceSnapshot` 接入 `pub general_override: GeneralOverrideSnapshot`，`ProductSurfaceReader` 接入 `with_general_override`，多端同源消费；
+    - **门禁全绿**：targeted nextest 1729/1729 全绿，Clippy `-D warnings` 零警告，所有质量守卫通过。
+  - 验收：单测覆盖增删改查、重名拒绝、版本围栏、排序重排、阶段/启用过滤、后端不支持、解析失败与持久化 reload；无隐式状态机（typed-state-guard 0 findings）；四端同模型无私有推导。
+  - 当前证据（L）：`infiltrator-contract` + `infiltrator-ports` + `infiltrator-application` + `infiltrator-presentation` + `infiltrator-composition` + `infiltrator-bevy-ui` 1729/1729 passed；Clippy `--all-targets -D warnings` passed；typed-state-guard 0 findings；implicit-state-audit 0 open 0 undecided；line budget 0 违规；cargo fmt 0 偏差。
+  - 待验证：统一全仓集成验证批次与四表面像素巡检。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
