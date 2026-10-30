@@ -45,6 +45,7 @@ use crate::protocol_fidelity::ProtocolStudioSnapshot;
 use crate::provider_cache::{KernelEtagSupportSnapshot, RuleProviderCacheSnapshot};
 use crate::public_ip::PublicIpProbeSnapshot;
 use crate::reconnect_mask::ReconnectMaskSnapshot;
+use crate::request_tracker::RequestTrackerSnapshot;
 use crate::resources::CoreResourceSnapshot;
 use crate::responsive_viewport::ResponsiveViewportSnapshot;
 use crate::rule_document::RuleDocumentSnapshot;
@@ -608,6 +609,8 @@ pub struct SurfaceSnapshot {
     pub dns_query: DnsQuerySnapshot,
     #[serde(default)]
     pub dns_query_history: DnsQueryHistorySnapshot,
+    #[serde(default)]
+    pub requests: RequestTrackerSnapshot,
     /// Simulation results survive unrelated page/provider read failures.
     #[serde(default)]
     pub rule_trace: RuleTraceExecution,
@@ -740,6 +743,7 @@ impl SurfaceSnapshot {
             dns_cache: DnsCacheSnapshot::unavailable(),
             dns_query: DnsQuerySnapshot::unavailable(),
             dns_query_history: DnsQueryHistorySnapshot::default(),
+            requests: RequestTrackerSnapshot::default(),
             rule_trace: RuleTraceExecution::default(),
             dns_hosts: unobserved_hosts(),
             surface,

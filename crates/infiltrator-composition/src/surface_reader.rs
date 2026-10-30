@@ -36,6 +36,7 @@ use infiltrator_application::profile_aggregation_application::last_aggregation_r
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::protocol_codec_application::studio_snapshot;
 use infiltrator_application::reconnect_mask_application::ReconnectMaskApplication;
+use infiltrator_application::request_tracker_application::RequestTrackerApplication;
 use infiltrator_application::resource_application::ResourceApplication;
 use infiltrator_application::routing_application::RoutingApplication;
 use infiltrator_application::routing_intent_application::RoutingIntentApplication;
@@ -166,6 +167,7 @@ pub struct ProductSurfaceReader {
     dns_cache: Option<DnsCacheApplication>,
     dns_query: Option<DnsQueryApplication>,
     dns_query_history: Option<DnsQueryHistoryApplication>,
+    requests: Option<RequestTrackerApplication>,
     /// DUAL-14-10/13: the shared latency prober whose last report drives both
     /// the latency row and the self-heal snapshot.
     dns_latency: Option<DnsLatencyApplication>,
@@ -677,6 +679,11 @@ impl SurfaceReader for ProductSurfaceReader {
                 .dns_query_history
                 .as_ref()
                 .map(DnsQueryHistoryApplication::snapshot)
+                .unwrap_or_default(),
+            requests: self
+                .requests
+                .as_ref()
+                .map(RequestTrackerApplication::snapshot)
                 .unwrap_or_default(),
             dns_cache: self
                 .dns_cache

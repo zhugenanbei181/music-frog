@@ -121,6 +121,7 @@ mod adapter_operation_declaration_tests;
 mod protocol_params_test;
 pub mod public_ip;
 pub mod reconnect_mask;
+pub mod request_tracker;
 pub mod resources;
 pub mod responsive_viewport;
 pub mod rule_condition;

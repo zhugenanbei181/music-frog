@@ -55,6 +55,7 @@ pub mod profile_reset;
 pub mod profile_store;
 pub mod profile_workspace;
 pub mod public_ip_probe;
+pub mod request_tracker;
 pub mod resources;
 pub mod rule_provider_cache;
 pub mod rule_provider_runtime;

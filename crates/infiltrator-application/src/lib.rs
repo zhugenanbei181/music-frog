@@ -75,6 +75,7 @@ pub mod protocol_codec_application;
 pub mod protocol_codec_matrix_application;
 pub mod public_ip_application;
 pub mod reconnect_mask_application;
+pub mod request_tracker_application;
 pub mod resource_application;
 pub mod responsive_viewport_application;
 pub mod routing_application;

@@ -1239,6 +1239,21 @@ timeout` 灵活入参，在未指定 timeout 时自动回读保持 `snapshot.pro
   - 待验证：统一全仓集成验证批次与四表面像素巡检。
   - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
 
+## 12.53 实时请求历史页交付（2026-10-30 交付，1条 / 5pt）
+
+- [ ] FLPARITY-003 [kind: mechanism] [priority: P1] [points: 5] [owner: infiltrator-contract + infiltrator-ports + infiltrator-application + infiltrator-presentation + infiltrator-composition] [status: Integrated] 实时请求历史页 (FlClash v0.9.2 parity)
+  - 产物：
+    - **Contract 类型化领域模型**：`infiltrator-contract::request_tracker` 固化 `RequestTrackingState`（Active/Paused typed enum）、`RequestStatus`（Active/Closed/Rejected/Failed 4 态互斥状态与色彩角色）、`RequestNetwork`（TCP/UDP/Other）、`RequestStatusFilter`、`RequestRecord` 与 `RequestTrackerSnapshot`（默认 1000 容量）；
+    - **唯一异步端口抽象**：`infiltrator-ports::request_tracker::RequestTrackerPort` 导出 `fetch_recent_requests` 与 `clear_request_stream`；
+    - **Application 1000 容量环形缓冲与生命周期追踪**：`infiltrator-application::request_tracker_application::RequestTrackerApplication` 实现 FIFO 环形缓冲、活跃连接计数、`record_closed` 状态迁移、`toggle_pause` 返回 typed `RequestTrackingState` 消除隐式布尔，以及快照生成；
+    - **Presentation 单源列表与详情投影**：`infiltrator-presentation::request_tracker_projection::RequestRowProjection` 与 `project_request_page` 统一驱动目标主机、传输协议、分流规则、出站代理链、上传/下载流量、耗时、进程与详情 tooltip；
+    - **SurfaceSnapshot 与 Composition 接线**：`SurfaceSnapshot` 接入 `pub requests: RequestTrackerSnapshot`，`ProductSurfaceReader` 接入 `with_requests`，多端同源消费；
+    - **门禁全绿**：targeted nextest 1503/1503 全绿，Clippy `-D warnings` 零警告，所有质量守卫通过。
+  - 验收：单测覆盖 FIFO 逐出、活跃请求关闭状态与流量迁移、暂停/恢复计数、清空与上游拉取；无隐式状态机（typed-state-guard 0 findings）；四端同模型无私有推导。
+  - 当前证据（L）：`infiltrator-contract` + `infiltrator-ports` + `infiltrator-application` + `infiltrator-presentation` + `infiltrator-composition` 1503/1503 passed；Clippy `--all-targets -D warnings` passed；typed-state-guard 0 findings；implicit-state-audit 0 open 0 undecided；line budget 0 违规；cargo fmt 0 偏差。
+  - 待验证：统一全仓集成验证批次与四表面像素巡检。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+
 ## 12.52 DNS 查询历史页交付（2026-10-30 交付，1条 / 5pt）
 
 - [ ] FLPARITY-004 [kind: mechanism] [priority: P1] [points: 5] [owner: infiltrator-contract + infiltrator-ports + infiltrator-application + infiltrator-presentation + infiltrator-composition] [status: Integrated] DNS 查询历史页 (FlClash v0.9.2 parity)

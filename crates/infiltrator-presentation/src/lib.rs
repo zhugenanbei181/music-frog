@@ -72,6 +72,7 @@ pub mod protocol_form;
 pub mod protocol_studio_projection;
 pub mod proxies_page_model;
 pub mod proxy_strategy_projection;
+pub mod request_tracker_projection;
 pub mod routing_intent_projection;
 pub mod routing_projection;
 pub mod rule_condition_projection;

@@ -42,6 +42,7 @@ impl ProductSurfaceReader {
             dns_cache: None,
             dns_query: None,
             dns_query_history: None,
+            requests: None,
             dns_latency: None,
             dns_leak: None,
             stun_probe: None,
@@ -227,6 +228,11 @@ impl ProductSurfaceReader {
 
     pub fn with_dns_query_history(mut self, application: DnsQueryHistoryApplication) -> Self {
         self.dns_query_history = Some(application);
+        self
+    }
+
+    pub fn with_requests(mut self, application: RequestTrackerApplication) -> Self {
+        self.requests = Some(application);
         self
     }
 
