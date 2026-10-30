@@ -21,7 +21,103 @@
 //! * [`EditorViewport::first_line`]/[`EditorViewport::last_line`] are always
 //!   inside `0..total_lines`, so a render path can index lines directly.
 
+use serde::{Deserialize, Serialize};
 use std::ops::RangeInclusive;
+use std::time::Instant;
+
+/// Performance budget for document viewport and window operations.
+///
+/// Guaranteed upper bounds ensure editor interaction (opening, scrolling,
+/// slicing visible lines, search within window) remains responsive on
+/// both standard (e.g. 4k lines) and large (e.g. 50k lines) documents.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DocumentPerformanceBudget {
+    /// Maximum allowed microseconds to compute a windowed slice of lines.
+    pub max_slice_micros: u64,
+    /// Maximum allowed microseconds to compute a scroll or caret step.
+    pub max_scroll_micros: u64,
+    /// Maximum number of lines rendered in one window view.
+    pub max_render_window_lines: usize,
+}
+
+impl Default for DocumentPerformanceBudget {
+    fn default() -> Self {
+        Self {
+            // A 60 FPS frame allows ~16.6ms total. Editor slicing must not
+            // consume more than 2.5ms so layout/rendering has ample headroom.
+            max_slice_micros: 2_500,
+            max_scroll_micros: 500,
+            max_render_window_lines: 240,
+        }
+    }
+}
+
+impl DocumentPerformanceBudget {
+    /// Strict budget for standard 4,000-line documents.
+    pub const fn standard_4k() -> Self {
+        Self {
+            max_slice_micros: 2_000,
+            max_scroll_micros: 500,
+            max_render_window_lines: 240,
+        }
+    }
+
+    /// Scaled budget for large 50,000-line documents.
+    pub const fn large_50k() -> Self {
+        Self {
+            max_slice_micros: 8_000,
+            max_scroll_micros: 1_000,
+            max_render_window_lines: 240,
+        }
+    }
+}
+
+/// Detailed status classification of a document performance verification.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DocumentPerformanceStatus {
+    WithinBudget,
+    ExceededSliceBudget {
+        actual_micros: u64,
+        max_micros: u64,
+    },
+    ExceededScrollBudget {
+        actual_micros: u64,
+        max_micros: u64,
+    },
+    ExceededWindowLimit {
+        actual_lines: usize,
+        max_lines: usize,
+    },
+}
+
+impl DocumentPerformanceStatus {
+    pub fn is_within_budget(&self) -> bool {
+        matches!(self, Self::WithinBudget)
+    }
+}
+
+/// Verification receipt measuring that editor operations on a document
+/// scale with the viewport window size rather than document length.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DocumentPerformanceReceipt {
+    pub document_lines: usize,
+    pub window_lines: usize,
+    pub slice_duration_micros: u64,
+    pub scroll_duration_micros: u64,
+    pub status: DocumentPerformanceStatus,
+    pub budget: DocumentPerformanceBudget,
+}
+
+/// A search hit found within the visible editor viewport window.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WindowSearchResult {
+    /// 1-based line number inside the document.
+    pub line_number: usize,
+    /// 0-based character column offset within the line.
+    pub column: usize,
+    /// Length of the matched query in bytes.
+    pub match_length: usize,
+}
 /// One indentation step of the shared indent-reference model. Config YAML in
 /// this project is written with two-space indentation (the same width the
 /// AST-preserving formatter normalizes to).
@@ -37,7 +133,7 @@ pub struct IndentGuide {
 }
 
 /// A bounded, caret-aware window over one document.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EditorViewport {
     total_lines: usize,
     window_lines: usize,
@@ -160,6 +256,97 @@ impl EditorViewport {
     /// Whether a 1-based line number is inside the window.
     pub fn contains_line(&self, line: usize) -> bool {
         line > self.first_line && line <= self.last_line() + 1
+    }
+
+    /// Extracts only the lines in the visible window (`first_line..=last_line()`)
+    /// without materializing or cloning unrendered lines outside the window.
+    ///
+    /// Work stops immediately once `last_line()` is reached. Returns tuples
+    /// of `(1-based line number, line_str)`.
+    pub fn slice_visible_lines<'a>(&self, full_text: &'a str) -> Vec<(usize, &'a str)> {
+        let first = self.first_line;
+        let last = self.last_line();
+        let mut result = Vec::with_capacity(self.rendered_len());
+        for (index, line) in full_text.lines().enumerate() {
+            if index < first {
+                continue;
+            }
+            if index > last {
+                break;
+            }
+            result.push((index + 1, line));
+        }
+        result
+    }
+
+    /// Search for `query` only within the visible viewport window.
+    ///
+    /// Work scales with the viewport window lines rather than the full document.
+    pub fn search_in_window(&self, full_text: &str, query: &str) -> Vec<WindowSearchResult> {
+        if query.is_empty() {
+            return Vec::new();
+        }
+        let visible = self.slice_visible_lines(full_text);
+        let mut results = Vec::new();
+        for (line_number, line_content) in visible {
+            let mut start = 0;
+            while let Some(pos) = line_content[start..].find(query) {
+                let col = start + pos;
+                results.push(WindowSearchResult {
+                    line_number,
+                    column: col,
+                    match_length: query.len(),
+                });
+                start = col + query.len().max(1);
+            }
+        }
+        results
+    }
+
+    /// Measure window operations against a performance budget.
+    pub fn measure_performance(
+        &self,
+        full_text: &str,
+        budget: DocumentPerformanceBudget,
+    ) -> DocumentPerformanceReceipt {
+        let start_slice = Instant::now();
+        let _sliced = self.slice_visible_lines(full_text);
+        let slice_micros = start_slice.elapsed().as_micros() as u64;
+
+        let start_scroll = Instant::now();
+        let _scrolled = self
+            .scrolled(10)
+            .scrolled(-5)
+            .follow_caret(self.first_line + 5);
+        let scroll_micros = start_scroll.elapsed().as_micros() as u64;
+
+        let status = if self.rendered_len() > budget.max_render_window_lines {
+            DocumentPerformanceStatus::ExceededWindowLimit {
+                actual_lines: self.rendered_len(),
+                max_lines: budget.max_render_window_lines,
+            }
+        } else if slice_micros > budget.max_slice_micros {
+            DocumentPerformanceStatus::ExceededSliceBudget {
+                actual_micros: slice_micros,
+                max_micros: budget.max_slice_micros,
+            }
+        } else if scroll_micros > budget.max_scroll_micros {
+            DocumentPerformanceStatus::ExceededScrollBudget {
+                actual_micros: scroll_micros,
+                max_micros: budget.max_scroll_micros,
+            }
+        } else {
+            DocumentPerformanceStatus::WithinBudget
+        };
+
+        DocumentPerformanceReceipt {
+            document_lines: self.total_lines,
+            window_lines: self.rendered_len(),
+            slice_duration_micros: slice_micros,
+            scroll_duration_micros: scroll_micros,
+            status,
+            budget,
+        }
     }
 }
 

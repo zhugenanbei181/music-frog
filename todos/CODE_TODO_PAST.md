@@ -1272,3 +1272,17 @@ timeout` 灵活入参，在未指定 timeout 时自动回读保持 `snapshot.pro
   - 当前证据（L）：`android-product-identity-guard.py` 全绿；守卫自测 32/32 全绿；`infiltrator-shared` nextest 77/77 passed；Clippy `--all-targets -D warnings` passed；cargo fmt 0 偏差；Gradle 三 flavor 图标生成任务全绿并抽查五档尺寸精确。
   - 待验证：统一全仓集成验证批次；APK 安装包与真机取证归属斗战胜佛既有条目。
   - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+
+## 12.58 大型配置文档编辑在页面与弹层中的响应性能契约交付（2026-10-31 交付，1条 / 5pt）
+
+- [ ] FLPARITY-040 [kind: mechanism] [priority: P1] [points: 5] [owner: infiltrator-contract + infiltrator-presentation + three desktop UIs + android/ui] [status: Integrated] 大型配置文档编辑在页面与弹层中的响应性能 (FlClash v0.9.2 parity)
+  - 产物：
+    - **Contract 类型化性能预算与视口切片**：`infiltrator-contract::editor_viewport` 固化 `DocumentPerformanceBudget`（包含标准 4k 与大规模 50k 的微秒级切片与滚动预算上限）、`DocumentPerformanceStatus`（WithinBudget / ExceededSliceBudget / ExceededScrollBudget / ExceededWindowLimit typed enum）、`DocumentPerformanceReceipt`（记录实测 line/window/slice/scroll 指标与预算状态判定）与 `WindowSearchResult`；`EditorViewport` 扩展 `slice_visible_lines`（流式按行枚举并在达到 `last_line()` 时即刻 break，避免全量文档分配）、`search_in_window`（仅在当前视口窗口内进行子串搜索，工作量严格随 `window_lines` 伸缩）与 `measure_performance`（自动化测量并输出带判据的 typed receipt）；
+    - **Presentation 大文档脱敏预览防冻结**：`infiltrator-presentation::profile_preview` 实现 `MAX_AST_REDACTION_BYTES`（64 KiB）阈值快速通道，超限文档直接走单趟行级保守脱敏，避免 50k 行解析数万个 YAML AST 节点造成主线程卡顿；新增 `redact_profile_preview_bounded(source, max_lines)` 支持窗口截断与尾部提示信息（`# ... [{} lines hidden for preview performance]`）；
+    - **Slint 预览弹层接入有界视口**：`infiltrator-slint::lumen_projection` 在 `project_profiles` 的 `ProfileReadStatus::Ready` 路径中接入 `redact_profile_preview_bounded(&document.content, 1_000)`，彻底消除在 `ScrollView` 内一次性排版 50,000 行 `Text` 导致的渲染器冻结与内存膨胀；
+    - **Test Support 50k 基准用例**：`infiltrator-test-support::profile_store_fixtures` 扩充 `LARGE_PROFILE_50K_RULE_COUNT = 50_000` 与 `large_profile_document_50k()`，用于高压伸缩性回归测试；
+    - **门禁全绿**：`infiltrator-contract`（469/469 pass）、`infiltrator-presentation` + `infiltrator-slint`（686/686 pass）、`infiltrator-test-support`（71/71 pass）全绿，Clippy `-D warnings` 零警告，所有质量守卫通过。
+  - 验收：4k/50k 行打开、滚动与视口切片在微秒级预算内通过（`DocumentPerformanceReceipt` 判定 WithinBudget）；编辑与预览脱敏无功能回归；四表面同源消费。
+  - 当前证据（L）：`infiltrator-contract` + `infiltrator-presentation` + `infiltrator-slint` + `infiltrator-test-support` 1226/1226 passed；Clippy `--all-targets -D warnings` passed；typed-state-guard 0 findings；implicit-state-audit 0 open 0 undecided；line budget 0 违规；cargo fmt 0 偏差。
+  - 待验证：统一全仓集成验证批次与四表面像素巡检。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。

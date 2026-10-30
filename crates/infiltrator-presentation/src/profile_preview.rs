@@ -6,6 +6,12 @@
 use lurker_core_contract::redact::redact_line;
 use serde_yaml_ng::Value;
 
+/// Maximum byte size of a document allowed to undergo recursive YAML AST
+/// construction for preview redaction. Documents exceeding this threshold
+/// skip AST allocation and use single-pass conservative line scrubbing,
+/// ensuring 50k-scale documents never block the UI thread.
+pub const MAX_AST_REDACTION_BYTES: usize = 65_536;
+
 /// Return a display-only copy of a profile document with common Mihomo and
 /// sing-box credential fields replaced by `***`.
 ///
@@ -14,14 +20,52 @@ use serde_yaml_ng::Value;
 /// scrubber masks recognizable credential assignments instead of returning
 /// the original bytes unredacted.
 pub fn redact_profile_preview(source: &str) -> String {
-    match serde_yaml_ng::from_str::<Value>(source) {
-        Ok(mut document) => {
-            redact_value(&mut document, false);
-            serde_yaml_ng::to_string(&document)
-                .unwrap_or_else(|_| redact_lines_conservatively(source))
+    redact_profile_preview_bounded(source, usize::MAX)
+}
+
+/// Bounded variant that caps the rendered preview to `max_lines`
+/// for responsive performance on large (4k..50k line) documents.
+pub fn redact_profile_preview_bounded(source: &str, max_lines: usize) -> String {
+    let (truncated_source, hidden_lines) = if max_lines < usize::MAX {
+        let mut count = 0;
+        let mut cutoff = None;
+        for (idx, line) in source.split_inclusive('\n').enumerate() {
+            if idx >= max_lines {
+                cutoff = Some(count);
+                break;
+            }
+            count += line.len();
         }
-        Err(_) => redact_lines_conservatively(source),
+        if let Some(byte_cutoff) = cutoff {
+            let total = source.lines().count();
+            (&source[..byte_cutoff], total.saturating_sub(max_lines))
+        } else {
+            (source, 0)
+        }
+    } else {
+        (source, 0)
+    };
+
+    let mut result = if truncated_source.len() <= MAX_AST_REDACTION_BYTES {
+        match serde_yaml_ng::from_str::<Value>(truncated_source) {
+            Ok(mut document) => {
+                redact_value(&mut document, false);
+                serde_yaml_ng::to_string(&document)
+                    .unwrap_or_else(|_| redact_lines_conservatively(truncated_source))
+            }
+            Err(_) => redact_lines_conservatively(truncated_source),
+        }
+    } else {
+        redact_lines_conservatively(truncated_source)
+    };
+
+    if hidden_lines > 0 {
+        result.push_str(&format!(
+            "\n# ... [{} lines hidden for preview performance]\n",
+            hidden_lines
+        ));
     }
+    result
 }
 
 fn redact_value(value: &mut Value, sensitive: bool) {
@@ -123,7 +167,7 @@ fn redact_lines_conservatively(source: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::redact_profile_preview;
+    use super::{redact_profile_preview, redact_profile_preview_bounded};
 
     #[test]
     fn yaml_preview_masks_nested_credentials_and_keeps_non_secret_profile_data() {
@@ -148,5 +192,20 @@ mod tests {
         assert!(!preview.contains("PRIVATE KEY MATERIAL"));
         assert!(!preview.contains("SECOND SECRET LINE"));
         assert!(preview.contains("server: edge.example.test"));
+    }
+
+    #[test]
+    fn bounded_preview_truncates_large_documents_and_redacts_efficiently() {
+        let mut source = String::from("proxies:\n");
+        for index in 0..5_000 {
+            source.push_str(&format!(
+                "  - name: node-{index}\n    password: secret-{index}\n"
+            ));
+        }
+        let preview = redact_profile_preview_bounded(&source, 50);
+        assert!(preview.contains("node-0"));
+        assert!(!preview.contains("secret-0"));
+        assert!(preview.contains("lines hidden for preview performance"));
+        assert!(!preview.contains("node-4999"));
     }
 }

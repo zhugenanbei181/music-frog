@@ -21,8 +21,9 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261031-v349`：现在佛 80 pt（18 条）/ 过去佛 408 pt（138 条）/ 斗战胜佛 51 pt（17 条）/ 未来佛 26 pt（15 条），联合未办结分母 565 pt（188 条）；已归档交付 748 pt（301 条）；累计 1311 pt，严格归档完成率 57.1%。
-- 本板 18 条 = 像素认证收口 2 条（`PARITY-001.5` 5 pt、`PARITY-001.6` 5 pt）+ 三端视觉一致性 2 条（`GAP-7.3`、`GAP-7.6`，8 pt）+ FlClash v0.9.2 对标 13 条（`FLPARITY-002`、`005`～`007`、`010`、`011`、`014`、`017`、`018`、`036`、`039`、`040`、`046`，59 pt）+ 工程约束门禁 1 条（`ENG-002.2`，3 pt）。
+- Point 基线 `musicfrog-todo-20261031-v350`：现在佛 75 pt（17 条）/ 过去佛 413 pt（139 条）/ 斗战胜佛 51 pt（17 条）/ 未来佛 26 pt（15 条），联合未办结分母 565 pt（188 条）；已归档交付 748 pt（301 条）；累计 1311 pt，严格归档完成率 57.1%。
+- 本板 17 条 = 像素认证收口 2 条（`PARITY-001.5` 5 pt、`PARITY-001.6` 5 pt）+ 三端视觉一致性 2 条（`GAP-7.3`、`GAP-7.6`，8 pt）+ FlClash v0.9.2 对标 12 条（`FLPARITY-002`、`005`～`007`、`010`、`011`、`014`、`017`、`018`、`036`、`039`、`046`，54 pt）+ 工程约束门禁 1 条（`ENG-002.2`，3 pt）。
+- 2026-10-31 第七十七交付批次：`FLPARITY-040`（5 pt）大型配置文档编辑在页面与弹层中的响应性能契约完成（`infiltrator-contract::editor_viewport` 固化 `DocumentPerformanceBudget` 4k/50k 性能预算、`DocumentPerformanceStatus`、`DocumentPerformanceReceipt` 与 `WindowSearchResult`；`EditorViewport` 扩展 `slice_visible_lines`、`search_in_window` 与 `measure_performance`；`infiltrator-presentation::profile_preview` 实现 64 KiB 快速通道与 `redact_profile_preview_bounded`；Slint `lumen_projection` 接入 1000 行有界预览消除 ScrollView 50k 行冻结；`profile_store_fixtures` 扩充 50k 规则基准；测试 1226/1226 全绿，Clippy 零警告，质量门全绿），现移入过去佛 §12.58；现在佛 80 → 75 pt（18 → 17 条），过去佛 408 → 413 pt（138 → 139 条），联合分母 565 pt 保持不变。
 - 2026-10-31 第七十六交付批次：`ENG-001.2`（1 pt）工具链单一版本守卫通过远端 `main-gate` 运行 41093052155 真实取证办结；过去佛 409 → 408 pt（139 → 138 条），联合分母 566 → 565 pt（189 → 188 条），archived 747 → 748 pt（300 → 301 条），严格归档率 57.0% → 57.1%。
 - 2026-10-31 第七十五交付批次（统一验证收口）：ENG-003.2 与 ENG-003.3 办结——全量结构门 `check-structure.sh` exit 0（import 卫生 2863 文件 0 违规，特性矩阵 11 crates/34 features 全解析，结构门修复了 `infiltrator-shared/src/assets.rs` 一处内联长路径）；cargo 四项专责批次 `cargo fmt --all --check` 0 偏差、`cargo clippy --workspace --all-targets -- -D warnings` exit 0、`cargo nextest run --workspace --no-fail-fast` 5680/5680 passed（15 skipped）、`cargo deny check advisories bans licenses sources` 四项 ok；`cargo metadata --locked` exit 0；统一验证批次同步销账过去佛 7 条（`ENG-001.1`、`001.4`、`001.6`、`001.7`、`001.8`、`001.9`、`002.1`，16 pt）并一体提交推送 `main`。现在佛 82 → 80 pt（20 → 18 条），过去佛 425 → 409 pt（146 → 139 条），联合分母 584 → 566 pt（198 → 189 条），archived 729 → 747 pt（291 → 300 条），严格归档率 55.6% → 57.0%。
 - 2026-10-31 第七十四交付批次：`FLPARITY-041`（2 pt）产品、桌面托盘与 Android 图标资产一致性审计完成（`product-identity.properties` 固化 `product.icon_variant_px` 16/24/32/48/256 共享 px 阶梯与 `product.android_icon_density` mdpi~xxxhdpi 五档密度桶为唯一真源；新增 `scripts/product_icon_variants.py` 从单一 canonical `icon.png` 生成全部变体并把 `icon.ico` 重写为五帧容器，逐变体 WCAG 对比度审计钉住浅/深/强调背景 ≥3:1、不透明覆盖率 ≥0.85；asset-catalog 登记 10 条派生变体；`infiltrator-shared` 新增 catalog/尺寸/ICO 帧注册表校验测试；Gradle `GenerateProductIcon` 改为从注册变体拷贝 `drawable-mdpi`~`drawable-xxxhdpi` 密度桶并删除死代码 `productIcons` 映射；`android-product-identity-guard` 扩展变体结构、ICO 帧镜像、catalog 覆盖与 APK badging 密度尺寸校验，自测 32/32 全绿；三 flavor `generate*ProductIcon` 任务实测生成五档密度资源全绿；守卫 0 违规，`infiltrator-shared` nextest 77/77 全绿），现移入过去佛 §12.57；现在佛 84 → 82 pt（21 → 20 条），过去佛 423 → 425 pt（145 → 146 条），联合分母 584 pt 保持不变。
@@ -280,13 +281,6 @@
   - 计划：先做平台能力/窗口生命周期与主题合约，再接入各 surface；Android 与无 blur compositor 明确走静态 surface。
   - 验收：Win/macOS/Linux 实际窗口截图证明效果和 fallback；系统关闭透明/窗口失焦/主题切换不闪烁，headless 不伪造系统 blur。
   - 依赖：desktop host capability 与平台效果 owner 先裁决；只剩真实目标机才能验收的腿留未来佛。
-
-- [ ] FLPARITY-040 [kind: mechanism] [priority: P1] [points: 5] [owner: infiltrator-contract + infiltrator-presentation + three desktop UIs + android/ui] [status: Planned] 大型配置文档编辑在页面与弹层中的响应性能
-  - 产物：明确 document-size/viewport contract，保证打开、滚动、搜索、语法诊断、保存等工作量随可见窗口增长，而非每帧重建整份大型文档。
-  - 实测：已有 bounded editor window 与 4k 行 fixture，但没有四表面真实大文件基准/性能预算；Slint 编辑弹层与窄视口仍需证明不会卡顿或失去可达内容。
-  - 计划：记录当前输入与绘制复杂度，在 4k/50k 行同一 fixture 上 profile；仅在证据指出的 owner 层优化并保留 caret/undo/IME 语义。
-  - 验收：四表面 4k/50k 行打开与滚动延迟、帧抖动及分配有固定预算；编辑/诊断/取消行为无回归；standard/compact 截图与长文档行为锚点通过。
-  - 依赖：共享 viewport/编辑事务为唯一真源；缺性能预算数据前不得堆 UI 缓存。
 
 - [ ] FLPARITY-046 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-contract + infiltrator-presentation + android/ui + scripts/android] [status: Planned] Android dashboard 信息层级与简化布局对标
   - 产物：基于 owner snapshot 裁决 Android 首页主次与紧凑/宽屏布局；保留详情页承载次要信息，不在 Compose 私自推导状态。

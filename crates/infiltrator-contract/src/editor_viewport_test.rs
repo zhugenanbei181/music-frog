@@ -83,3 +83,60 @@ fn indent_reference_model_counts_steps_of_two_spaces() {
     assert_eq!(guides[2].column, 6);
     assert!(indent_guides("# comment").is_empty());
 }
+
+#[test]
+fn window_slicing_and_search_operate_within_budget_on_large_documents() {
+    // Generate 4,000-line and 50,000-line synthetic documents.
+    let doc_4k = (0..4_000)
+        .map(|i| format!("  - DOMAIN-SUFFIX,node-{i}.example.com,DIRECT"))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let viewport_4k = EditorViewport::new(4_000, 28, 500);
+    let sliced_4k = viewport_4k.slice_visible_lines(&doc_4k);
+    assert_eq!(sliced_4k.len(), 28);
+    assert_eq!(sliced_4k[0].0, 501);
+    assert_eq!(
+        sliced_4k[0].1,
+        "  - DOMAIN-SUFFIX,node-500.example.com,DIRECT"
+    );
+
+    // Search within window hits line in window, ignores lines outside.
+    let hits = viewport_4k.search_in_window(&doc_4k, "node-505");
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].line_number, 506);
+
+    let hits_outside = viewport_4k.search_in_window(&doc_4k, "node-100");
+    assert!(
+        hits_outside.is_empty(),
+        "query outside window must not be returned"
+    );
+
+    let receipt_4k =
+        viewport_4k.measure_performance(&doc_4k, DocumentPerformanceBudget::standard_4k());
+    assert!(
+        receipt_4k.status.is_within_budget(),
+        "4k performance receipt failed: {:?}",
+        receipt_4k.status
+    );
+
+    // 50k document scaling test
+    let doc_50k = (0..50_000)
+        .map(|i| format!("  - DOMAIN-SUFFIX,node-{i}.example.com,DIRECT"))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let viewport_50k = EditorViewport::new(50_000, 240, 25_000);
+    let sliced_50k = viewport_50k.slice_visible_lines(&doc_50k);
+    assert_eq!(sliced_50k.len(), 240);
+    assert_eq!(sliced_50k[0].0, 25_001);
+    assert_eq!(sliced_50k[239].0, 25_240);
+
+    let receipt_50k =
+        viewport_50k.measure_performance(&doc_50k, DocumentPerformanceBudget::large_50k());
+    assert!(
+        receipt_50k.status.is_within_budget(),
+        "50k performance receipt failed: {:?}",
+        receipt_50k.status
+    );
+}

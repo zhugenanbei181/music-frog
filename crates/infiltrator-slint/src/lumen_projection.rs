@@ -25,7 +25,7 @@ use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
 use infiltrator_presentation::overview_page_model::{
     OverviewHost, OverviewNetworkStatus, OverviewPageModel,
 };
-use infiltrator_presentation::profile_preview::redact_profile_preview;
+use infiltrator_presentation::profile_preview::redact_profile_preview_bounded;
 use infiltrator_presentation::shell_readout::profile_name;
 use infiltrator_presentation::subscription_quota_projection::{QuotaGrade, project_quota};
 use infiltrator_presentation::traffic_readout::{TrafficFreshness, project_traffic_readout};
@@ -298,8 +298,9 @@ pub(super) fn project_snapshot(
             match &snapshot.profile_editor.read.document {
                 ProfileReadStatus::Ready => {
                     if let Some(document) = snapshot.profile_editor.document.as_ref() {
-                        window
-                            .set_content_preview(redact_profile_preview(&document.content).into());
+                        window.set_content_preview(
+                            redact_profile_preview_bounded(&document.content, 1_000).into(),
+                        );
                     } else {
                         window.set_content_preview("".into());
                     }

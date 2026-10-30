@@ -36,6 +36,8 @@ pub const CAPTURE_PROFILE: &str = "capture-profile";
 pub const CAPTURE_LARGE_PROFILE: &str = "capture-large-profile";
 /// The number of routing rules the large document carries.
 pub const LARGE_PROFILE_RULE_COUNT: usize = 4_000;
+/// The number of routing rules the 50,000-rule document carries for stress scaling.
+pub const LARGE_PROFILE_50K_RULE_COUNT: usize = 50_000;
 
 /// The small document the capture store publishes.
 pub const CAPTURE_PROFILE_DOCUMENT: &str =
@@ -54,6 +56,11 @@ pub fn large_profile_document(rule_count: usize) -> String {
         ));
     }
     document
+}
+
+/// Builds a 50,000-rule Mihomo document for editor scaling benchmarks and tests.
+pub fn large_profile_document_50k() -> String {
+    large_profile_document(LARGE_PROFILE_50K_RULE_COUNT)
 }
 
 /// An isolated profile store that publishes real documents and metadata.
