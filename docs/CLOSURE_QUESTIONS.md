@@ -36,6 +36,17 @@
 | 7 | 部分 | L | 文件级模块化完成（<=800/600 行全绿，全仓 mod.rs 清退至 0，严格遵照 foo.rs + foo/ 模式，并在 check-structure.sh 接入 mod-rs-guard 永久禁止）；隐式状态机语义审计 + 判决台账常驻（22 条候选逐条人工判决，未判决或 open 即门禁失败），16 处阶段表已改 typed enum + typed transition；Slint 拆分遵循 `SLINT-001` 单文件预算守卫；九个页面模型与两个共用基座成为页面状态的唯一 owner；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | 已补 `--locked` 与 main 守卫门禁（仅 fmt+guards，不编译）；修复 main-gate.yml 缺失 setup-python/Pillow 问题；扩大 Gradle JVM 堆至 6GB 并将三大 flavor 分离独立进程构建彻底解决 OOM；交付 Android CI 套件 flavor/模拟器裁剪与 Gradle 缓存复用；release 作业在构建前校验签名材料缺 secret 秒级失败；全套单测（三端 1,091 项）与结构门（`check-structure.sh` 40+ 项守卫）全绿；`cargo fmt --all --check` 100% 通过；版本号按身份改动一次升至 0.51.0 |
 
+## 最近一批问答（2026-10-30 Bevy 表面快照升级缺口修复批次）
+
+1. x86_64 与 aarch64 是否都支持？：修复 infiltrator-bevy-ui 测试快照缺口，纯 Rust 数据结构初始化，全架构兼容；cross-check 保持通过 → 部分（L）。
+2. Windows / Linux / macOS 是否都支持？：Bevy 表面在全平台共享统一 SurfaceSnapshot 结构与呈现模型；Linux 本地编译与 nextest 全绿；真实目标机运行仍归属斗战胜佛对应条目 → 部分（L）。
+3. Android / iOS 是否都支持？：Android 表面与桌面三端同源消费 SurfaceSnapshot，无私有推导；iOS 保持显式 Unsupported → 部分（L）。
+4. 各个 UI 是否都接入了？：SurfaceSnapshot 补齐 dns_query_history、requests、backup_restore 与 ip_quality 四项字段在 Bevy surface demo 中的初始状态；infiltrator-bevy-ui 194 项单元与 headless 测试全绿；cargo clippy --workspace --all-targets -- -D warnings 全绿 → 部分（L）。
+5. 该复用的是否都复用了？：Bevy demo 快照直接复用 infiltrator-contract 定义的权威快照默认构造与 unavailable 语义，不维护第二份私有状态或影子副本 → 部分（L）。
+6. 各处界面的功能是否都接入了？：对标 FlClash v0.9.2 共 47 IDs / 180 pt 中过去佛 31 项 / 111 pt、现在佛 16 项 / 69 pt；联合分母保持 584 pt → 部分（L）。
+7. 各处界面是否模块化了？：零新增 mod.rs；严格遵循 foo.rs 规范；所有修改文件均 <=800 行（line-guard 0 违规）；typed-state 门禁 0 findings；无跨 UI 私有业务真源 → 部分（L）。
+8. CI 打包是否最高效？：cargo clippy --workspace --all-targets -- -D warnings 全绿；cargo fmt --check 0 偏差；i18n-guard 0 违规；typed-state-guard 0 findings；implicit-state-audit 0 open 0 undecided；closure-questions-guard 8/8 通过 → 部分（L）。
+
 ## 最近一批问答（2026-10-30 加密备份真实导出、校验与恢复交付批次）
 
 1. x86_64 与 aarch64 是否都支持？：本批交付纯中性 Rust 合约模型、端口抽象、应用服务与呈现投影，无平台专用汇编或硬件绑定，全架构编译兼容；cross-check 保持通过 → 部分（L）。

@@ -148,6 +148,9 @@ fn snapshot_from_overview_fixture(
         dns_cache: DnsCacheSnapshot::default(),
         rule_trace: Default::default(),
         dns_query: DnsQuerySnapshot::unavailable(),
+        dns_query_history: Default::default(),
+        requests: Default::default(),
+        backup_restore: Default::default(),
         dns_hosts: match fixture {
             OverviewFixture::DemoPages => PageData::ready(DnsHostsProfile {
                 profile: "demo".into(),
@@ -232,6 +235,7 @@ fn snapshot_from_overview_fixture(
             OverviewFixture::OverviewOnly => PageData::unavailable(page_not_composed()),
         },
         public_ip: overview.public_ip.clone(),
+        ip_quality: Default::default(),
         overview_layout: overview.layout.clone(),
         reconnect_mask: overview.reconnect_mask.clone(),
         viewport: overview.viewport.clone(),
@@ -273,6 +277,9 @@ pub(crate) fn demo_snapshot() -> surface_snapshot::SurfaceSnapshot {
         dns_cache: DnsCacheSnapshot::default(),
         rule_trace: Default::default(),
         dns_query: DnsQuerySnapshot::unavailable(),
+        dns_query_history: Default::default(),
+        requests: Default::default(),
+        backup_restore: Default::default(),
         dns_leak: DnsProjection::demo().leak,
         dns_hosts: PageData::ready(DnsHostsProfile {
             profile: "demo".into(),
@@ -323,6 +330,7 @@ pub(crate) fn demo_snapshot() -> surface_snapshot::SurfaceSnapshot {
         outbound_ui_preferences: PageData::ready(demo_outbound_preferences()),
         protocol_studio: PageData::ready(ProtocolStudioSnapshot::default()),
         public_ip: overview.public_ip.clone(),
+        ip_quality: Default::default(),
         overview_layout: overview.layout.clone(),
         reconnect_mask: overview.reconnect_mask.clone(),
         viewport: overview.viewport.clone(),
