@@ -11,6 +11,50 @@ use serde::{Deserialize, Serialize};
 /// Canonical camel-free setting name of the system-follow preference.
 pub const SYSTEM_SETTING: &str = "system";
 
+/// Resolved color appearance supplied by the operating-system adapter.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum AppearanceMode {
+    Light,
+    #[default]
+    Dark,
+}
+
+impl AppearanceMode {
+    pub const fn from_prefers_dark(prefers_dark: bool) -> Self {
+        if prefers_dark {
+            Self::Dark
+        } else {
+            Self::Light
+        }
+    }
+
+    pub const fn system_skin(self) -> ThemeSkin {
+        match self {
+            Self::Light => ThemeSkin::Light,
+            Self::Dark => ThemeSkin::Dark,
+        }
+    }
+}
+
+/// The latest operating-system theme observation.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum SystemAppearance {
+    /// The host has not reported its appearance yet; shells cold-start dark.
+    #[default]
+    Unobserved,
+    /// A current OS light/dark appearance report.
+    Observed(AppearanceMode),
+}
+
+impl SystemAppearance {
+    pub const fn mode(self) -> AppearanceMode {
+        match self {
+            Self::Unobserved => AppearanceMode::Dark,
+            Self::Observed(mode) => mode,
+        }
+    }
+}
+
 /// One paintable appearance.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -136,15 +180,9 @@ impl ThemePreference {
     }
 
     /// The skin to paint for a given OS appearance.
-    pub const fn resolve(self, system_prefers_dark: bool) -> ThemeSkin {
+    pub const fn resolve(self, system_appearance: SystemAppearance) -> ThemeSkin {
         match self {
-            Self::System => {
-                if system_prefers_dark {
-                    ThemeSkin::Dark
-                } else {
-                    ThemeSkin::Light
-                }
-            }
+            Self::System => system_appearance.mode().system_skin(),
             Self::Fixed(skin) => skin,
         }
     }
@@ -191,8 +229,18 @@ mod tests {
     fn system_preference_resolves_to_the_os_appearance() {
         let preference = ThemePreference::from_setting("system");
         assert!(preference.follows_system());
-        assert_eq!(preference.resolve(true), ThemeSkin::Dark);
-        assert_eq!(preference.resolve(false), ThemeSkin::Light);
+        assert_eq!(
+            preference.resolve(SystemAppearance::Observed(AppearanceMode::Dark)),
+            ThemeSkin::Dark
+        );
+        assert_eq!(
+            preference.resolve(SystemAppearance::Observed(AppearanceMode::Light)),
+            ThemeSkin::Light
+        );
+        assert_eq!(
+            preference.resolve(SystemAppearance::Unobserved),
+            ThemeSkin::Dark
+        );
         assert_eq!(preference.fixed(), None);
     }
 
@@ -200,8 +248,14 @@ mod tests {
     fn fixed_preference_ignores_the_os_appearance() {
         let preference = ThemePreference::from_setting("amoled");
         assert!(!preference.follows_system());
-        assert_eq!(preference.resolve(true), ThemeSkin::Amoled);
-        assert_eq!(preference.resolve(false), ThemeSkin::Amoled);
+        assert_eq!(
+            preference.resolve(SystemAppearance::Observed(AppearanceMode::Dark)),
+            ThemeSkin::Amoled
+        );
+        assert_eq!(
+            preference.resolve(SystemAppearance::Observed(AppearanceMode::Light)),
+            ThemeSkin::Amoled
+        );
         assert_eq!(preference.as_setting(), "amoled");
     }
 

@@ -329,7 +329,7 @@ fn tray_unavailable_startup_degrades_to_a_functional_window_only_app() {
 }
 
 // The spec→ksni menu mapping only exists in the ksni backend configuration.
-#[cfg(all(unix, not(target_os = "macos"), not(feature = "native-tray-backend")))]
+#[cfg(all(unix, not(target_os = "macos")))]
 mod ksni_mapping {
     use super::*;
     use crate::tray::ksni_backend::{KsniTray, map_items, to_ksni_icon};

@@ -73,12 +73,12 @@ pub fn activate(
         }
         return;
     }
-    if feature.feature == FeatureId::ProfilesAggregatorPreview && !controls.state.preview_triggered
+    if feature.feature == FeatureId::ProfilesAggregatorPreview
+        && !controls.state.preview_triggered
+        && let Some(entity) = controls.preview_buttons.iter().next()
     {
-        if let Some(entity) = controls.preview_buttons.iter().next() {
-            controls.state.preview_triggered = true;
-            commands.trigger(Activate { entity });
-        }
+        controls.state.preview_triggered = true;
+        commands.trigger(Activate { entity });
     }
 }
 

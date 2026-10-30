@@ -73,7 +73,7 @@ pub fn test_core_scope() -> CoreScope {
         identity: CoreIdentity::new(
             EngineId::new("mihomo").expect("valid engine ID"),
             CoreInstanceId::new("dns-cache-test").expect("valid instance ID"),
-            Some(CoreVersion::new("v1.19.32").expect("valid core version")),
+            Some(CoreVersion::new("v1.19.33").expect("valid core version")),
         ),
         generation: CoreGeneration::new(1),
         session_token: None,

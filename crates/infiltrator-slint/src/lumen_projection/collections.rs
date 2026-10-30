@@ -378,7 +378,7 @@ fn status_failure(status: &PageStatus) -> Option<String> {
 }
 
 pub(super) fn split_rate(rate: &str) -> (String, String) {
-    let mut parts = rate.trim().split_whitespace();
+    let mut parts = rate.split_whitespace();
     let value = parts.next().unwrap_or("0").to_owned();
     let unit = parts.next().unwrap_or("B/s").to_owned();
     (value, unit)

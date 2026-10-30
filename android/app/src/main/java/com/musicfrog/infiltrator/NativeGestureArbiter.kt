@@ -56,6 +56,7 @@ internal enum class NativeGestureOutcome(val wireCode: Int) {
  */
 internal fun NativeGestureOutcome.blocksRowAction(): Boolean = when (this) {
     NativeGestureOutcome.Undecided, NativeGestureOutcome.Tap -> false
+
     NativeGestureOutcome.LongPress,
     NativeGestureOutcome.ScrollVertical,
     NativeGestureOutcome.ScrollHorizontal,
@@ -85,13 +86,7 @@ internal fun nativeGestureOutcomeFrom(code: Int): NativeGestureOutcome = when (c
  *
  * 坐标是物理像素，与 Rust 侧的 10px 位移容差同一坐标系。
  */
-internal data class NativeTouchSample(
-    val pointerId: Long,
-    val phase: NativeTouchPhase,
-    val x: Float,
-    val y: Float,
-    val timeMillis: Long,
-)
+internal data class NativeTouchSample(val pointerId: Long, val phase: NativeTouchPhase, val x: Float, val y: Float, val timeMillis: Long)
 
 /**
  * EFFECTS-047（#191）：把手势采样转发给 Rust 的 typed 仲裁器。

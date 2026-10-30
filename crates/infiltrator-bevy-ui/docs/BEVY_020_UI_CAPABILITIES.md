@@ -136,7 +136,7 @@
 
 ## 已评审的本地交互例外：ScrollArea 触摸拖动
 
-- 锁定的 Bevy 0.20.0 `bevy_ui_widgets::ScrollAreaPlugin` 提供 `PointerScroll` 与 `ScrollIntoView` 行为，没有将 `PointerDrag` 映射到 `ScrollPosition` 的行为；因此 touch swipe 必须由 widgets 层补足，继续复用官方 `ScrollArea`、`Overflow::scroll_y()` 和 `ScrollPosition`。
+- 锁定的 Bevy 0.20.1 `bevy_ui_widgets::ScrollAreaPlugin` 提供 `PointerScroll` 与 `ScrollIntoView` 行为，没有将 `PointerDrag` 映射到 `ScrollPosition` 的行为；因此 touch swipe 必须由 widgets 层补足，继续复用官方 `ScrollArea`、`Overflow::scroll_y()` 和 `ScrollPosition`。
 - Picking 在同一实体持续悬停时，拖动释放仍可能产生低层 `PointerClick`；`PointerDragStart` 会清除此指针/按键的 tap 资格，保证拖动列表行不触发按钮。原始 `PointerAction::Cancel` 也要直接清理手势、滚动和按下控件，因为取消时可能没有可供 Picking 命中的实体。
 - 该适配只消费完整的 `DragStart → Drag → DragEnd/Cancel` 序列；`ScrollMotion::{Direct,Coasting}`、`ScrollMotionPreference`、`ScrollVelocitySampling`、`SoftKeyboardState::{Closed,Open}` 与 `PointerGesture::{Pressed,Dragging}` 显式表达状态，不从缺失事件或布尔组合推断状态。它负责坐标尺度映射、按当前内容尺寸夹紧、减少动效与有界惯性；滚轮行为仍由官方控件负责。
 - 复审触发条件：上游提供同时覆盖 touch drag、点击仲裁和原始取消清理的官方 API 后，迁移到该 API，并在同一切片移除本地状态、观察者和被取代的回归路径。

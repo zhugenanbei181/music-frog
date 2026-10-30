@@ -19,9 +19,6 @@ path = "src/lib.rs"
 # is on by default, matching the application's default configuration, so the
 # Iced surface is built and tested against Boa unless defaults are disabled.
 default = ["script-engine-boa"]
-# Force the muda/tray-icon backend everywhere (including Linux, where ksni is
-# the default) so both tray backends stay compilable and checkable on this OS.
-native-tray-backend = []
 # Release Linux builds vendor and statically link OpenSSL (openssl-src) so the
 # artifact carries no libssl soname dependency and can be produced against a
 # pinned old glibc via cargo-zigbuild; see the release.yml Linux build leg.
@@ -36,7 +33,7 @@ lurker-core-contract = { path = "../lurker-core-contract" }
 zhuge-ui-tokens.workspace = true
 zhuge-ui-kit-iced.workspace = true
 zhuge-ui-core.workspace = true
-iced = { version = "0.14", default-features = false, features = ["tokio", "advanced", "wgpu-bare", "canvas", "image", "svg", "wayland", "lazy"] }
+iced = { version = "0.14", default-features = false, features = ["tokio", "advanced", "wgpu-bare", "canvas", "image-without-codecs", "svg", "wayland", "lazy"] }
 wgpu = { version = "27.0", default-features = false, features = ["std", "wgsl", "vulkan", "gles"] }
 # naga 27 enters this crate's graph via wgpu 27. When the bevy frontend
 # (infiltrator-bevy-*) shares the workspace build graph, its naga_oil turns
@@ -62,9 +59,6 @@ infiltrator-admin = { path = "../infiltrator-admin" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml_ng = { workspace = true }
-# muda's optional libxdo is disabled at the workspace root (Linux accel. dep).
-muda = { workspace = true }
-tray-icon = { workspace = true }
 ksni = { workspace = true }
 is_elevated = "0.1"
 anyhow = { workspace = true }
@@ -76,7 +70,7 @@ thiserror = { workspace = true }
 webbrowser = "1.0"
 single-instance = "0.3"
 sys-locale = "0.3"
-image = "0.25"
+image = { version = "0.25", default-features = false, features = ["ico", "png"] }
 rfd = "0.17"
 
 # 0.20 OS system notifications: Linux/*BSD go through notify-rust's pure-Rust
@@ -86,6 +80,10 @@ rfd = "0.17"
 # target-gated and never enters their build graphs.
 [target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
 notify-rust = { workspace = true }
+
+[target.'cfg(any(target_os = "windows", target_os = "macos"))'.dependencies]
+muda = { workspace = true }
+tray-icon = { workspace = true }
 
 # TLS 经 reqwest/tokio-tungstenite 的 native-tls 进入依赖闭包。这里声明
 # openssl crate（Linux 限定、可选）不是为直接使用，而是让 static-openssl

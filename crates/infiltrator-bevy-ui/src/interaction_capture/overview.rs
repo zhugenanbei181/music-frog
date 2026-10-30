@@ -429,9 +429,7 @@ fn observe_drilldown(
     commands: &mut Commands,
 ) -> Option<[f32; 4]> {
     let drilldown = surface.drilldown.as_ref()?;
-    if drilldown.stage.is_none() {
-        return None;
-    }
+    drilldown.stage?;
     let panel = surface.panels.single().ok()?;
     let (line, text) = surface.lines.single().ok()?;
     if text.0.is_empty() {

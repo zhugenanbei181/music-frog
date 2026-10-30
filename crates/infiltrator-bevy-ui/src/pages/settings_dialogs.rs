@@ -10,7 +10,7 @@ use bevy::ecs::event::EntityEvent;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
-use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::feathers::theme::{SurfaceLevel, ThemeBackgroundColor, ThemeContext};
 use bevy::input_focus::AcquireFocus;
 use bevy::input_focus::FocusCause;
@@ -302,26 +302,30 @@ pub(super) fn on_font_license_close(
 
 /// The first rollback activation only presents the confirmation. It never
 /// submits the destructive command by itself.
+#[derive(SystemParam)]
+pub(super) struct CoreRollbackOpenParams<'w, 's> {
+    availability: Query<'w, 's, &'static CoreRollbackAvailability, With<CoreRollbackButton>>,
+    last: Option<Res<'w, LastSettingsProjection>>,
+    dialogs: Query<'w, 's, (&'static mut ModalState, &'static mut Node), With<CoreRollbackDialog>>,
+    messages: Query<'w, 's, &'static mut Text, With<CoreRollbackDialogMessage>>,
+    confirms: Query<'w, 's, Entity, With<CoreRollbackConfirmButton>>,
+    focus: ResMut<'w, InputFocus>,
+    windows: Query<'w, 's, Entity, With<PrimaryWindow>>,
+}
+
 pub(super) fn on_core_rollback_open(
     activate: On<Activate>,
-    buttons: Query<(), With<CoreRollbackButton>>,
-    availability: Query<&CoreRollbackAvailability, With<CoreRollbackButton>>,
-    last: Option<Res<LastSettingsProjection>>,
-    mut dialogs: Query<(&mut ModalState, &mut Node), With<CoreRollbackDialog>>,
-    mut messages: Query<&mut Text, With<CoreRollbackDialogMessage>>,
-    confirms: Query<Entity, With<CoreRollbackConfirmButton>>,
-    mut focus: ResMut<InputFocus>,
-    windows: Query<Entity, With<PrimaryWindow>>,
+    mut params: CoreRollbackOpenParams,
     mut commands: Commands,
 ) {
-    if !buttons.contains(activate.entity)
-        || !availability
-            .get(activate.entity)
-            .is_ok_and(|availability| availability.0)
+    if !params
+        .availability
+        .get(activate.entity)
+        .is_ok_and(|availability| availability.0)
     {
         return;
     }
-    let Some(projection) = last.as_ref().and_then(|last| last.0.as_ref()) else {
+    let Some(projection) = params.last.as_ref().and_then(|last| last.0.as_ref()) else {
         return;
     };
     let Some(target) = projection.core_versions.rollback.target.as_deref() else {
@@ -335,28 +339,28 @@ pub(super) fn on_core_rollback_open(
         .unwrap_or("?");
     let message = format!("{current} -> {target}");
 
-    for (mut state, mut node) in &mut dialogs {
+    for (mut state, mut node) in &mut params.dialogs {
         state.open();
         node.display = Display::Flex;
     }
-    for mut message_text in &mut messages {
+    for mut message_text in &mut params.messages {
         message_text.0 = message.clone();
     }
 
-    let Ok(confirm) = confirms.single() else {
+    let Ok(confirm) = params.confirms.single() else {
         return;
     };
     commands
         .entity(confirm)
         .entry::<TabIndex>()
         .or_insert(TabIndex(0));
-    if let Ok(window) = windows.single() {
+    if let Ok(window) = params.windows.single() {
         commands.trigger(AcquireFocus {
             focused_entity: confirm,
             window,
         });
     }
-    focus.set(confirm, FocusCause::Navigated);
+    params.focus.set(confirm, FocusCause::Navigated);
 }
 
 /// Official close requests resolve the confirmation. Only a request sourced

@@ -111,6 +111,7 @@ fn run_tun2proxy_worker(
             async move {
                 tun2proxy::run(device, mtu, args, shutdown)
                     .await
+                    .map(|_| ())
                     .map_err(|error| error.to_string())
             },
             receipt_sender,
@@ -228,8 +229,9 @@ impl AndroidVpnServicePort {
         let configuration = &request.prepared.configuration;
         let (tun_fd, (args, mtu)) =
             prepare_with_tun_fd(request.tun_fd, |fd| -> Result<_, String> {
-                let proxy = tun2proxy::ArgProxy::try_from(configuration.proxy_endpoint.as_str())
-                    .map_err(|error| format!("invalid tun2proxy endpoint: {error}"))?;
+                let proxy =
+                    tun2proxy::ProxyParameters::try_from(configuration.proxy_endpoint.as_str())
+                        .map_err(|error| format!("invalid tun2proxy endpoint: {error}"))?;
                 let mut args = tun2proxy::Args {
                     proxy,
                     tun_fd: Some(fd),

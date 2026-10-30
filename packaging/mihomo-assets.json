@@ -1,63 +1,63 @@
 {
-  "version": "v1.19.32",
-  "release": "https://github.com/MetaCubeX/mihomo/releases/tag/v1.19.32",
+  "version": "v1.19.33",
+  "release": "https://github.com/MetaCubeX/mihomo/releases/tag/v1.19.33",
   "assets": [
     {
-      "archive": "mihomo-darwin-arm64-v1.19.32.gz",
-      "archive_sha256": "3312a6780652c622890fd4357c6a853bbf865464fd047ac7b7f52dab8de18652",
+      "archive": "mihomo-darwin-arm64-v1.19.33.gz",
+      "archive_sha256": "060b64b0f2c9a310831db0fe4adb2878de67bfa606c311813c1f13966aa504b6",
       "binary": "mihomo-darwin-arm64",
-      "binary_sha256": "94a386ec0149080deadd86b1f667363bde3c70f7489dba3258e52c56fc9a6d66",
+      "binary_sha256": "f3e8ae41397c08cbf900ce1f7c8a168285d29954e9bca5d84d69a2b2561adfe9",
       "target": "aarch64-apple-darwin"
     },
     {
-      "archive": "mihomo-android-arm64-v8-v1.19.32.gz",
-      "archive_sha256": "42b1f2be8702484d3ae6238daab392622f54bd0d264966700f1f28f52596e326",
+      "archive": "mihomo-android-arm64-v8-v1.19.33.gz",
+      "archive_sha256": "2ddbd3aaa884f52b4568f406876ec81dddeef9f1bb67b90d4004d356e2c6a708",
       "binary": "mihomo-android-arm64-v8",
-      "binary_sha256": "bb9afbd48717f92d59e07da35fb694b83d40d6edb63eb9033c2ee4174137d195",
+      "binary_sha256": "cfa0be78846bfef7272fe5a73089f8cf0e1f15a6ffb601f5cc809f457f712f67",
       "target": "aarch64-linux-android"
     },
     {
-      "archive": "mihomo-windows-arm64-v1.19.32.zip",
-      "archive_sha256": "7a4f6e58af9a120920935f2150cf642d945085fdb3e753314505b334234e1d1e",
+      "archive": "mihomo-windows-arm64-v1.19.33.zip",
+      "archive_sha256": "a2a26869a14634c49f3fbcecc593b498ed8591fbdd7616b24475b3d60b148da3",
       "binary": "mihomo-windows-arm64.exe",
-      "binary_sha256": "7211487d8e4092cf6cf6fbbdbc10a10fbde462847e36fb8a43479b0e4cad4b33",
+      "binary_sha256": "6f6e471b2fea55c54c0d98fc4b559fb06627456ed50febaf7a5572508b225529",
       "target": "aarch64-pc-windows-msvc"
     },
     {
-      "archive": "mihomo-linux-arm64-v1.19.32.gz",
-      "archive_sha256": "9dd862e28b46ff7d775f169cceebc28deccaa0a9e804237d421cd2571e0caba0",
+      "archive": "mihomo-linux-arm64-v1.19.33.gz",
+      "archive_sha256": "ba408b317080ee265c46cb923a50018c1b82cbd708551cdd46a1e3e307396187",
       "binary": "mihomo-linux-arm64",
-      "binary_sha256": "c80df2ca5159567804da883401e0118908fc1155e05df2baf3dbd4d3ecfc3754",
+      "binary_sha256": "8c73570d9a5f388bc2f58eee0b347ccfab84fb3cf1a0f8f2cf5eac7005fbcdc0",
       "target": "aarch64-unknown-linux-gnu"
     },
     {
-      "archive": "mihomo-darwin-amd64-v1.19.32.gz",
-      "archive_sha256": "b7de9fc46af2ca985ecfb302a6362170e04ff2023dee1e82addc54133e669bc9",
+      "archive": "mihomo-darwin-amd64-v1.19.33.gz",
+      "archive_sha256": "551ae54ef8d77a5e21f7a8185a59b441fb13a0fb0514fcdef5ca2816f6f50015",
       "binary": "mihomo-darwin-amd64",
-      "binary_sha256": "cf40caed85721f25f50779462ac14e706f370d9bd15933762b07cf51c0ff63ca",
+      "binary_sha256": "f036d657e73f53d3c9171fddf9cf4f559acca9391311292f01d2c7564c299d58",
       "target": "x86_64-apple-darwin"
     },
     {
-      "archive": "mihomo-android-amd64-v1.19.32.gz",
-      "archive_sha256": "91c159015e7d8aaff22153b9fd18749a0c7258d6f252ea344ecace975ce17413",
+      "archive": "mihomo-android-amd64-v1.19.33.gz",
+      "archive_sha256": "14181cdc0c1e77d7a751ea851a93c2c086557af5cd69433004c9644f04eb9249",
       "binary": "mihomo-android-amd64",
-      "binary_sha256": "1c5aa8e8a7006e4093560fe48505fd1587de29210879e806822cb1094b334413",
+      "binary_sha256": "fd1fb2773a0b723dbdc7d5f7e81aec8358b43d2674f689edc8f87d453e8687c7",
       "target": "x86_64-linux-android"
     },
     {
-      "archive": "mihomo-windows-amd64-v1.19.32.zip",
-      "archive_sha256": "1ac84e795b5b915446e20139677fb6cc013a0778e876e8d4c96f994750b4c4a3",
+      "archive": "mihomo-windows-amd64-v1.19.33.zip",
+      "archive_sha256": "6ab2180875f9f6fff8b19386d760daec257f66b45f72b3afc650634272fa837a",
       "binary": "mihomo.exe",
-      "binary_sha256": "beb9878924d7bd38c67176b441ab5e668cc378bfe751c8dc8fef3eb5aaf566d5",
+      "binary_sha256": "1cde41cfffd3de0aedad63c0a8515e1ce5eea507e8133aed0f637d316c93800a",
       "target": "x86_64-pc-windows-msvc"
     },
     {
-      "archive": "mihomo-linux-amd64-v1-v1.19.32.gz",
-      "archive_sha256": "306f81e723e60ce6b828899a6fe83e1d00e9ecefb2dc8d4d849312a5bc00efdc",
+      "archive": "mihomo-linux-amd64-v1-v1.19.33.gz",
+      "archive_sha256": "8ec92e7b2fdc6b853ba00156bab7e4e965c8b0d843b8c4ac8ab98795f02ad524",
       "binary": "mihomo-linux-amd64",
-      "binary_sha256": "6de241191ca39f9ac1cd6e3194fc9303c19055d3549c8bdb4ff1349c89173819",
+      "binary_sha256": "19cbe7ba1523a92ed2d0a30716ea093de57db05b7844db23de2b9c21fd7a1afa",
       "target": "x86_64-unknown-linux-gnu"
     }
   ],
-  "source": "https://github.com/MetaCubeX/mihomo/archive/refs/tags/v1.19.32.tar.gz"
+  "source": "https://github.com/MetaCubeX/mihomo/archive/refs/tags/v1.19.33.tar.gz"
 }

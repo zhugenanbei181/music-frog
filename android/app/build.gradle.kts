@@ -114,15 +114,11 @@ fun launcherActivityClass(activity: String): String = if (activity.startsWith('.
 // ---------------------------------------------------------------------------
 
 /** The release signing outcome: a complete keystore, or what is still missing. */
-interface ReleaseSigningOutcome
+sealed interface ReleaseSigningOutcome
 
 /** A complete release keystore: the only thing that may sign a release artifact. */
-class ReleaseKeystore(
-    val storeFile: File,
-    val storePassword: String,
-    val keyAlias: String,
-    val keyPassword: String,
-) : ReleaseSigningOutcome
+class ReleaseKeystore(val storeFile: File, val storePassword: String, val keyAlias: String, val keyPassword: String) :
+    ReleaseSigningOutcome
 
 /** The release signing material is incomplete; the list says exactly what is missing. */
 class MissingReleaseMaterial(val missing: List<String>) : ReleaseSigningOutcome
@@ -131,23 +127,32 @@ fun releaseSigningValue(property: String, environment: String): String? =
     providers.gradleProperty(property).orNull?.takeIf { it.isNotBlank() }
         ?: providers.environmentVariable(environment).orNull?.takeIf { it.isNotBlank() }
 
-val releaseKeystorePath = releaseSigningValue("releaseKeystorePath", "RELEASE_KEYSTORE_PATH")
-val releaseStorePassword = releaseSigningValue("releaseKeystorePassword", "RELEASE_KEYSTORE_PASSWORD")
-val releaseKeyAlias = releaseSigningValue("releaseKeyAlias", "RELEASE_KEY_ALIAS")
-val releaseKeyPassword = releaseSigningValue("releaseKeyPassword", "RELEASE_KEY_PASSWORD")
+val releaseKeystorePath =
+    releaseSigningValue("releaseKeystorePath", "RELEASE_KEYSTORE_PATH")
+val releaseStorePassword =
+    releaseSigningValue("releaseKeystorePassword", "RELEASE_KEYSTORE_PASSWORD")
+val releaseKeyAlias =
+    releaseSigningValue("releaseKeyAlias", "RELEASE_KEY_ALIAS")
+val releaseKeyPassword =
+    releaseSigningValue("releaseKeyPassword", "RELEASE_KEY_PASSWORD")
 
 val releaseSigning: ReleaseSigningOutcome =
     when {
         releaseKeystorePath == null ->
             MissingReleaseMaterial(listOf("RELEASE_KEYSTORE_PATH (the release keystore)"))
+
         !File(releaseKeystorePath).isFile ->
             MissingReleaseMaterial(listOf("the release keystore file $releaseKeystorePath does not exist"))
+
         releaseStorePassword == null ->
             MissingReleaseMaterial(listOf("RELEASE_KEYSTORE_PASSWORD"))
+
         releaseKeyAlias == null ->
             MissingReleaseMaterial(listOf("RELEASE_KEY_ALIAS"))
+
         releaseKeyPassword == null ->
             MissingReleaseMaterial(listOf("RELEASE_KEY_PASSWORD"))
+
         else ->
             ReleaseKeystore(
                 File(releaseKeystorePath),
@@ -157,22 +162,37 @@ val releaseSigning: ReleaseSigningOutcome =
             )
     }
 
-// A release artifact task without the material is a hard failure, not a
-// silent fallback and not an unsigned artifact.
-val releaseArtifactRequested =
-    gradle.startParameter.taskNames.any { task ->
-        val simple = task.substringAfterLast(':')
-        !simple.contains("Test") &&
-            (simple.startsWith("assemble") || simple.startsWith("package") || simple.startsWith("bundle")) &&
-            simple.contains("Release")
+fun taskMayProduceReleaseArtifact(taskName: String): Boolean {
+    val simple = taskName.substringAfterLast(':')
+    if (simple.contains("Test", ignoreCase = true)) {
+        return false
     }
+    if (simple.equals("build", ignoreCase = true)) {
+        return true
+    }
+    val producesArtifact = listOf("assemble", "package", "bundle", "install")
+        .any { prefix -> simple.startsWith(prefix, ignoreCase = true) }
+    if (!producesArtifact) {
+        return false
+    }
+    val selectsRelease = simple.contains("Release", ignoreCase = true)
+    val selectsDebug = simple.contains("Debug", ignoreCase = true)
+    return selectsRelease || !selectsDebug
+}
 
-if (releaseArtifactRequested && releaseSigning is MissingReleaseMaterial) {
-    logger.warn(
-        "A release artifact was requested without the release keystore (missing: " +
-            releaseSigning.missing.joinToString(", ") +
-            "). Falling back to debug signing config so release APK artifacts can always be packaged."
-    )
+// Variant and aggregate Release tasks fail before Gradle can fall back to
+// debug signing or emit an unsigned release artifact.
+val releaseArtifactRequested =
+    gradle.startParameter.taskNames.any(::taskMayProduceReleaseArtifact)
+
+if (releaseArtifactRequested) {
+    val missing = (releaseSigning as? MissingReleaseMaterial)?.missing
+    if (missing != null) {
+        error(
+            "Release artifacts require the persistent release keystore. " +
+                "Missing: ${missing.joinToString(", ")}",
+        )
+    }
 }
 
 plugins {
@@ -270,9 +290,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            // Fall back to debug signing when the release keystore is not provided,
-            // ensuring release APK artifacts can always be packaged in any environment.
-            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
+            if (releaseSigning is ReleaseKeystore) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
         debug {
             isMinifyEnabled = false
@@ -385,10 +405,16 @@ ktlint {
     additionalEditorconfig.put("ktlint_code_style", "intellij_idea")
     additionalEditorconfig.put("max_line_length", "140")
     // Jetpack Compose composable functions are PascalCase by convention.
-    additionalEditorconfig.put("ktlint_function_naming_ignore_when_annotated_with", "Composable")
+    additionalEditorconfig.put(
+        "ktlint_function_naming_ignore_when_annotated_with",
+        "Composable",
+    )
     // The typed owners name their enum entries in UpperCamel, and the binary
     // target observations keep the Rust target triple spelling.
-    additionalEditorconfig.put("ktlint_enum_entry_name_casing", "upper_or_camel_cases")
+    additionalEditorconfig.put(
+        "ktlint_enum_entry_name_casing",
+        "upper_or_camel_cases",
+    )
     // The generated UniFFI binding is not hand-written source: it is produced
     // by `scripts/android-build.sh` and is excluded from every gate, exactly
     // like `scripts/quality/kt-line-guard.py` excludes it.

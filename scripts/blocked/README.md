@@ -215,7 +215,7 @@ and the table names them:
 | Board entry | Local leg that is already closed | Remaining leg |
 | --- | --- | --- |
 | `BANDROID-019.2` | the Android manifest contract guard passes for every registered production flavor | the same guard inside the tag run |
-| `BANDROID-020.1` | `scripts/android-toolchain.py check` passes with the registered pins (JDK 17, Gradle 9.7.0, AGP 9.3.1, Kotlin Gradle Plugin 2.4.21, platform 37.0, Build Tools 36.0.0, command-line tools 12.0, NDK 29.0.14206865, Rust 1.99.0) | the same check inside the tag run |
+| `BANDROID-020.1` | `scripts/android-toolchain.py check` passes with the registered pins (JDK 17, Gradle 9.7.0, AGP 9.3.1, Kotlin Gradle Plugin 2.4.21, platform 37.0, Build Tools 36.0.0, command-line tools 12.0, NDK 29.0.14206865, Rust 1.99.1) | the same check inside the tag run |
 | `BANDROID-024.1` | the toolchain checker rejects any drift of the AGP/Kotlin/Gradle/JDK tuple | the Gradle build inside the tag run |
 | `BANDROID-018.2` | the CI trigger guard proves the expensive workflows only start for a `v*` tag and that the tag job conditions are in place | the tag run itself |
 | `BANDROID-038.2` | the identity registry and the product identity guard are green for every registered flavor | the per-APK SHA receipt of the tag run |

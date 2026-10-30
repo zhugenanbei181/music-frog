@@ -399,9 +399,7 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         Message::TogglePerfPanel => write!(f, "TogglePerfPanel"),
         Message::ToggleTheme => write!(f, "ToggleTheme"),
         Message::SetTheme(t) => write!(f, "SetTheme({t})"),
-        Message::SystemThemeChanged(prefers_dark) => {
-            write!(f, "SystemThemeChanged(prefers_dark={prefers_dark})")
-        }
+        Message::SystemThemeChanged(appearance) => write!(f, "SystemThemeChanged({appearance:?})"),
         Message::CycleThemePreference => write!(f, "CycleThemePreference"),
         Message::ShowToast(s, st) => write!(f, "ShowToast({}, {:?})", s, st),
         Message::RemoveToast(id) => write!(f, "RemoveToast({id})"),

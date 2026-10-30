@@ -202,7 +202,7 @@ mod version_tests {
             parse_core_version("sing-box 1.14.3").unwrap().raw(),
             "v1.14.3"
         );
-        assert!(parse_core_version("mihomo v1.19.32").is_err());
+        assert!(parse_core_version("mihomo v1.19.33").is_err());
         assert!(parse_core_version("sing-box ").is_err());
         assert!(parse_core_version("sing-box 1.14.3 unexpected").is_err());
     }

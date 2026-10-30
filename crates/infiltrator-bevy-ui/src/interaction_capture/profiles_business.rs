@@ -10,9 +10,7 @@ use super::host::{CaptureCapability, CaptureCommandSink};
 use super::scroll::{outermost_scroll_area, request_scroll};
 use super::{InteractionCapture, ObservedInteraction, selected};
 use crate::command::CommandSinkHandle;
-use crate::pages::profiles::{
-    DeleteProfileButton, LastProfilesProjection, ProfilesPageRoot, UpdateProfileButton,
-};
+use crate::pages::profiles::{DeleteProfileButton, LastProfilesProjection, UpdateProfileButton};
 use crate::pages::profiles_import::ProfilesImportRoot;
 use crate::pages::profiles_outcome::{ProfileDeleteOutcomeText, ProfileRefreshText};
 use crate::route::surface_projection::replay_surface_snapshot;
@@ -57,7 +55,6 @@ enum ProfilesStage {
 #[derive(Resource)]
 struct ProfilesCapture {
     stage: ProfilesStage,
-    core: Arc<CoreApplication>,
     reader: Arc<ProductSurfaceReader>,
 }
 
@@ -88,7 +85,6 @@ pub fn install(app: &mut App) {
     ))));
     app.insert_resource(ProfilesCapture {
         stage: ProfilesStage::Unpublished,
-        core,
         reader,
     });
 }
@@ -103,8 +99,6 @@ pub struct ProfilesControls<'w, 's> {
     projection: Option<Res<'w, LastProfilesProjection>>,
     deletes: Query<'w, 's, (Entity, &'static DeleteProfileButton)>,
     updates: Query<'w, 's, (Entity, &'static UpdateProfileButton)>,
-    imports: Query<'w, 's, Entity, With<ProfilesImportRoot>>,
-    pages: Query<'w, 's, Entity, With<ProfilesPageRoot>>,
 }
 
 /// Drive the Profiles page's own deletion and refresh gestures.

@@ -1,5 +1,5 @@
 use anyhow::{Context, Result, anyhow};
-use infiltrator_contract::tun::{TunStack, TunStackUpdate};
+use infiltrator_contract::tun::{TunDnsMode, TunDnsModeUpdate, TunStack, TunStackUpdate};
 use serde::{Deserialize, Serialize};
 use serde_yaml_ng::{Mapping, Value};
 
@@ -9,6 +9,7 @@ pub struct TunConfig {
     pub enable: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stack: Option<String>,
+    pub dns_mode: Option<TunDnsMode>,
     pub dns_hijack: Option<Vec<String>>,
     pub auto_route: Option<bool>,
     pub auto_detect_interface: Option<bool>,
@@ -21,6 +22,8 @@ pub struct TunConfig {
 pub struct TunConfigPatch {
     pub enable: Option<bool>,
     pub stack: TunStackUpdate,
+    #[serde(default)]
+    pub dns_mode: TunDnsModeUpdate,
     pub dns_hijack: Option<Vec<String>>,
     pub auto_route: Option<bool>,
     pub auto_detect_interface: Option<bool>,
@@ -37,6 +40,11 @@ impl TunConfig {
             TunStackUpdate::Keep => {}
             TunStackUpdate::Clear => self.stack = None,
             TunStackUpdate::Set(value) => self.stack = Some(value.as_str().to_owned()),
+        }
+        match patch.dns_mode {
+            TunDnsModeUpdate::Keep => {}
+            TunDnsModeUpdate::Clear => self.dns_mode = None,
+            TunDnsModeUpdate::Set(value) => self.dns_mode = Some(value),
         }
         if let Some(value) = patch.dns_hijack {
             self.dns_hijack = Some(value);
@@ -58,6 +66,7 @@ impl TunConfig {
     fn is_empty(&self) -> bool {
         self.enable.is_none()
             && self.stack.is_none()
+            && self.dns_mode.is_none()
             && self.dns_hijack.is_none()
             && self.auto_route.is_none()
             && self.auto_detect_interface.is_none()
@@ -130,6 +139,12 @@ mod tests {
         let doc: Value = serde_yaml_ng::from_str("port: 7890\n").expect("yaml");
         let config = extract_tun_config_from_doc(&doc).expect("tun config");
         assert!(config.enable.is_none());
+    }
+
+    #[test]
+    fn dns_mode_rejects_unknown_persisted_values() {
+        let doc: Value = serde_yaml_ng::from_str("tun:\n  dns-mode: automatic\n").expect("yaml");
+        assert!(extract_tun_config_from_doc(&doc).is_err());
     }
 
     #[test]
@@ -225,6 +240,53 @@ mod tests {
             tun.get(Value::String("enable".to_owned()))
                 .and_then(Value::as_bool),
             Some(true),
+        );
+    }
+
+    #[test]
+    fn dns_mode_is_preserved_and_has_distinct_keep_clear_set_effects() {
+        let mut config = TunConfig {
+            dns_mode: Some(TunDnsMode::Hijack),
+            ..TunConfig::default()
+        };
+        config.apply_patch(TunConfigPatch {
+            dns_mode: TunDnsModeUpdate::Keep,
+            ..TunConfigPatch::default()
+        });
+        assert_eq!(config.dns_mode, Some(TunDnsMode::Hijack));
+
+        config.apply_patch(TunConfigPatch {
+            dns_mode: TunDnsModeUpdate::Set(TunDnsMode::Native),
+            ..TunConfigPatch::default()
+        });
+        assert_eq!(config.dns_mode, Some(TunDnsMode::Native));
+
+        config.apply_patch(TunConfigPatch {
+            dns_mode: TunDnsModeUpdate::Clear,
+            ..TunConfigPatch::default()
+        });
+        assert_eq!(config.dns_mode, None);
+    }
+
+    #[test]
+    fn unrelated_tun_patch_does_not_drop_dns_mode_from_the_document() {
+        let yaml = apply_tun_patch_to_yaml(
+            "tun:\n  enable: true\n  dns-mode: hijack\n",
+            TunConfigPatch {
+                mtu: Some(1400),
+                ..TunConfigPatch::default()
+            },
+        )
+        .expect("preserve dns-mode");
+        let document: Value = serde_yaml_ng::from_str(&yaml).expect("valid updated YAML");
+        let tun = document
+            .get("tun")
+            .and_then(Value::as_mapping)
+            .expect("tun mapping");
+        assert_eq!(
+            tun.get(Value::String("dns-mode".to_owned()))
+                .and_then(Value::as_str),
+            Some("hijack")
         );
     }
 

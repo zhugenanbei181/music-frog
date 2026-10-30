@@ -378,7 +378,7 @@ class OwnerSurfaceSnapshotTest {
         assertTrue(unregistered.snapshot.outboundProbeCapability is OutboundProbeOperationCapability.Unsupported)
 
         val wrongCoreVersion = snapshotWithInventory(readyInventory).replace(
-            "\"core_version\":\"v1.19.32\"",
+            "\"core_version\":\"v1.19.33\"",
             "\"core_version\":\"1.19.31\"",
         )
         assertTrue(
@@ -399,7 +399,7 @@ class OwnerSurfaceSnapshotTest {
         )
 
         val wrongVersion = snapshotWithInventory(readyInventory).replace(
-            "\"core_version\":\"v1.19.32\"",
+            "\"core_version\":\"v1.19.33\"",
             "\"core_version\":\"v1.20.0\"",
         )
         assertTrue(
@@ -411,7 +411,7 @@ class OwnerSurfaceSnapshotTest {
     @Test
     fun androidCapabilityScopePreservesTheExactEngineBinaryTargetTriple() {
         val rawScope = """
-            {"engine_id":"mihomo","core_version":"v1.19.32","host":"Android","binary_target":"aarch64-linux-android","adapter_revision":1}
+            {"engine_id":"mihomo","core_version":"v1.19.33","host":"Android","binary_target":"aarch64-linux-android","adapter_revision":1}
         """.trimIndent()
         val rawSnapshot = """
             {"scope":$rawScope,"resolutions":[]}
@@ -432,7 +432,7 @@ class OwnerSurfaceSnapshotTest {
               "revision":12,
               "capabilities":{"host":"Desktop","revision":1,"entries":[]},
               "vpn":"NotApplicable",
-              "core":{"identity":{"engine":"mihomo","instance":"android-main","version":"v1.19.32"},"lifecycle":"Running","generation":8,"session_token":42,"revision":3,"routing_intent":{"current":{"kind":"follow_rules"},"status":"Ready","failure":null},"core_version":"v1.19.32","sampled_at_epoch_ms":1,"failure":null,"upload_bps":128.4,"download_bps":1024.0,"active_connections":2,"memory_bytes":null,"watchdog":{"status":"Running"}},
+              "core":{"identity":{"engine":"mihomo","instance":"android-main","version":"v1.19.33"},"lifecycle":"Running","generation":8,"session_token":42,"revision":3,"routing_intent":{"current":{"kind":"follow_rules"},"status":"Ready","failure":null},"core_version":"v1.19.33","sampled_at_epoch_ms":1,"failure":null,"upload_bps":128.4,"download_bps":1024.0,"active_connections":2,"memory_bytes":null,"watchdog":{"status":"Running"}},
               "pages":{
                 "overview":{"status":"Ready","data":{"routing_intent":{"current":{"kind":"follow_rules"},"status":"Ready","failure":null},"upload_bps":128.4,"download_bps":1024.0,"active_connections":2}},
                 "connections":{"status":"Ready","data":{"total_connections":1,"total_upload_bytes":4096,"total_download_bytes":8192,"connections":[{"id":"connection-1","host":"example.com","process":"/system/browser","network":"tcp","rule":"MATCH","chain":"Auto > Tokyo","chains":["Auto","Tokyo"],"destination_ip_asn":"","destination_geo_ip":null,"upload_total":100,"download_total":200}]}},
@@ -452,7 +452,7 @@ class OwnerSurfaceSnapshotTest {
                 {"kind":"routing_lease","state":"Absent"}
               ],
               "foreground":true,"mtu":1500,"route_count":2,"dns_servers":["1.1.1.1"],"ipv6":false,
-              "core":{"Available":{"identity":{"engine":"mihomo","instance":"android-main","version":"v1.19.32"},"lifecycle":"Running","generation":8,"session_token":"42","revision":3,"failure":null}}
+              "core":{"Available":{"identity":{"engine":"mihomo","instance":"android-main","version":"v1.19.33"},"lifecycle":"Running","generation":8,"session_token":"42","revision":3,"failure":null}}
             }}
         """.trimIndent()
 
@@ -473,7 +473,7 @@ class OwnerSurfaceSnapshotTest {
         """.trimIndent()
 
         val outboundScope = """
-            {"identity":{"engine":"mihomo","instance":"android-main","version":"v1.19.32"},"generation":8,"session_token":9223372036854775808}
+            {"identity":{"engine":"mihomo","instance":"android-main","version":"v1.19.33"},"generation":8,"session_token":9223372036854775808}
         """.trimIndent()
 
         val readyInventory = """
@@ -493,7 +493,7 @@ class OwnerSurfaceSnapshotTest {
         """.trimIndent()
 
         val coreCapabilitySnapshot = """
-            {"scope":{"engine_id":"mihomo","core_version":"v1.19.32","host":"Desktop","binary_target":"x86_64-unknown-linux-gnu","adapter_revision":1},"resolutions":[{"key":{"scope":{"engine_id":"mihomo","core_version":"v1.19.32","host":"Desktop","binary_target":"x86_64-unknown-linux-gnu","adapter_revision":1},"operation":{"category":"outbound","operation":"probe"}},"engine":"Supported","host":"Supported","adapter":"Supported","status":{"status":"available","access":"supported","maturity":"stable"}}]}
+            {"scope":{"engine_id":"mihomo","core_version":"v1.19.33","host":"Desktop","binary_target":"x86_64-unknown-linux-gnu","adapter_revision":1},"resolutions":[{"key":{"scope":{"engine_id":"mihomo","core_version":"v1.19.33","host":"Desktop","binary_target":"x86_64-unknown-linux-gnu","adapter_revision":1},"operation":{"category":"outbound","operation":"probe"}},"engine":"Supported","host":"Supported","adapter":"Supported","status":{"status":"available","access":"supported","maturity":"stable"}}]}
         """.trimIndent()
 
         fun snapshotWithInventory(inventory: String): String = snapshotWithTypedPages(inventory, readyDetailsState)

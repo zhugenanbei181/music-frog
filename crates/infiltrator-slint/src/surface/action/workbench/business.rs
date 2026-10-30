@@ -297,13 +297,12 @@ fn probe_settings_from_draft(
         (draft.trim(), None)
     };
 
-    let existing_timeout = match snapshot.and_then(|s| match &s.probe_settings {
-        RuntimeProbeSettingsState::Available { settings } => Some(settings.timeout_ms()),
-        _ => None,
-    }) {
-        Some(t) => t,
-        None => 5000,
-    };
+    let existing_timeout = snapshot
+        .and_then(|s| match &s.probe_settings {
+            RuntimeProbeSettingsState::Available { settings } => Some(settings.timeout_ms()),
+            _ => None,
+        })
+        .unwrap_or(5000);
 
     let timeout_ms = match timeout_part {
         Some(t) if !t.is_empty() => t.parse::<u32>().ok()?,

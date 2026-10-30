@@ -27,8 +27,8 @@ use infiltrator_bevy_widgets::theme_export::{
     DEFAULT_LADDER_STEPS, LadderSource, LadderStrategy, TonalLadder, generate_ladder,
     theme_tonal_ladders,
 };
-use infiltrator_contract::theme;
-use infiltrator_contract::theme::ThemePreference;
+use infiltrator_contract::theme::{self, AppearanceMode, ThemePreference};
+use infiltrator_contract::theme_palette::ResolvedThemePalette;
 
 /// The shell's appearance preference (shared contract: a pinned skin or
 /// "follow the OS"). The painted token set is always resolved through
@@ -37,10 +37,10 @@ use infiltrator_contract::theme::ThemePreference;
 pub struct ThemeMode(pub ThemePreference);
 
 /// The OS appearance reported by the windowing layer (winit `Window::theme`).
-/// `None` until the first window reports one; the shell paints its documented
-/// dark cold start meanwhile.
+/// `Unobserved` until the first window reports one; the shell paints its
+/// documented dark cold start meanwhile.
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct SystemAppearance(pub Option<bool>);
+pub struct SystemAppearance(pub theme::SystemAppearance);
 
 /// Project the shared skin vocabulary onto the widget layer's mirror.
 pub fn skin_from_contract(skin: theme::ThemeSkin) -> ThemeSkin {
@@ -64,8 +64,12 @@ pub fn contract_skin_from_widget(skin: ThemeSkin) -> theme::ThemeSkin {
 }
 
 /// Resolve the preference against the live OS appearance.
-pub fn resolved_skin(preference: ThemePreference, system_prefers_dark: Option<bool>) -> ThemeSkin {
-    skin_from_contract(preference.resolve(system_prefers_dark.unwrap_or(true)))
+pub fn resolved_skin(
+    preference: ThemePreference,
+    system_appearance: theme::SystemAppearance,
+) -> ThemeSkin {
+    let resolved = ResolvedThemePalette::resolve(preference, system_appearance, None);
+    skin_from_contract(resolved.skin)
 }
 
 /// Theme toggle observer: advances the shared appearance preference
@@ -82,7 +86,9 @@ pub fn on_theme_pill_activated(
     }
     let next = mode.0.next();
     mode.0 = next;
-    let system = appearance.map(|appearance| appearance.0).unwrap_or(None);
+    let system = appearance
+        .map(|appearance| appearance.0)
+        .unwrap_or_default();
     commands.trigger(ThemeSwitch(resolved_skin(next, system)));
 }
 
@@ -96,13 +102,17 @@ pub fn sync_system_appearance(
     let Some(theme) = windows.iter().find_map(|window| window.window_theme) else {
         return;
     };
-    let prefers_dark = matches!(theme, WindowTheme::Dark);
-    if appearance.0 == Some(prefers_dark) {
+    let system_mode = match theme {
+        WindowTheme::Light => AppearanceMode::Light,
+        WindowTheme::Dark => AppearanceMode::Dark,
+    };
+    let observation = theme::SystemAppearance::Observed(system_mode);
+    if appearance.0 == observation {
         return;
     }
-    appearance.0 = Some(prefers_dark);
+    appearance.0 = observation;
     if mode.0.follows_system() {
-        commands.trigger(ThemeSwitch(resolved_skin(mode.0, Some(prefers_dark))));
+        commands.trigger(ThemeSwitch(resolved_skin(mode.0, observation)));
     }
 }
 
@@ -234,7 +244,9 @@ pub fn refresh_tonal_ladder_preview(
     mut swatches: Query<LadderSwatch>,
     mut labels: Query<&mut Text, With<TonalLadderSourceText>>,
 ) {
-    let system = appearance.map(|appearance| appearance.0).unwrap_or(None);
+    let system = appearance
+        .map(|appearance| appearance.0)
+        .unwrap_or_default();
     let preview = ladder_preview_for_skin(resolved_skin(mode.0, system));
 
     for mut swatch in &mut swatches {

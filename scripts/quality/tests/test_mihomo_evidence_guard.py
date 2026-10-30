@@ -192,17 +192,17 @@ class MihomoEvidenceGuardTests(unittest.TestCase):
             )
 
     def test_non_locked_version_and_prerelease_fail_closed(self):
-        self.assertTrue(GUARD.is_canonical_release_version("v1.19.33"))
-        self.assertNotIn("v1.19.33", GUARD.REQUIRED_VERSIONS)
-        for version in ("v1.19.18-rc.1", "v1.19.32+build.1"):
+        self.assertTrue(GUARD.is_canonical_release_version("v1.19.34"))
+        self.assertNotIn("v1.19.34", GUARD.REQUIRED_VERSIONS)
+        for version in ("v1.19.18-rc.1", "v1.19.33+build.1"):
             with self.subTest(version=version):
                 self.assertFalse(GUARD.is_canonical_release_version(version))
 
         non_locked = copy.deepcopy(EVIDENCE)
-        non_locked["assets"][1]["version"] = "v1.19.33"
+        non_locked["assets"][1]["version"] = "v1.19.34"
         self.assertTrue(
             any(
-                "exactly v1.19.18 and v1.19.32" in problem
+                "exactly v1.19.18 and v1.19.33" in problem
                 for problem in GUARD.validate_documents(non_locked, PRODUCT)
             )
         )

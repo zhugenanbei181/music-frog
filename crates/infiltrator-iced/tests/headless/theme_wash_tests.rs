@@ -3,8 +3,8 @@
 //! endpoints pinned to the palette tones, and one shadow authority per tier.
 //! test-intent: behavior
 use iced::Gradient;
+use infiltrator_iced::view::theme::Elevation;
 use infiltrator_iced::view::theme::skins::{AMOLED, DARK, FOREST, LIGHT};
-use infiltrator_iced::view::theme::{Elevation, Tokens};
 
 fn linear_stops(gradient: &Gradient) -> Vec<f32> {
     match gradient {
@@ -14,7 +14,6 @@ fn linear_stops(gradient: &Gradient) -> Vec<f32> {
             .flatten()
             .map(|stop| stop.offset)
             .collect(),
-        _ => Vec::new(),
     }
 }
 
@@ -29,7 +28,6 @@ fn first_stop_color(gradient: &Gradient) -> iced::Color {
                 .expect("themed washes always carry stops")
                 .color
         }
-        _ => panic!("themed washes are linear"),
     }
 }
 

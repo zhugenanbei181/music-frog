@@ -275,7 +275,7 @@ pub fn on_execute_selected_palette_action(
             }
             commands.trigger(ThemeSwitch(resolved_skin(
                 next,
-                appearance.as_ref().and_then(|value| value.0),
+                appearance.as_ref().map(|value| value.0).unwrap_or_default(),
             )));
         }
         CommandTarget::FlushDnsCache => {

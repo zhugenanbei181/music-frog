@@ -43,7 +43,7 @@ fn key(scope: CoreCapabilityScope, operation: CoreOperation) -> CoreCapabilityKe
 fn binary_target_is_part_of_the_serialized_capability_scope() {
     let target_scope = CoreCapabilityScope::new_for_target(
         EngineId::new("mihomo").expect("valid engine id"),
-        Some(CoreVersion::new("v1.19.32").expect("valid version")),
+        Some(CoreVersion::new("v1.19.33").expect("valid version")),
         HostKind::Android,
         EngineBinaryTarget::Aarch64LinuxAndroid,
         AdapterRevision::new(7),
@@ -58,7 +58,7 @@ fn binary_target_is_part_of_the_serialized_capability_scope() {
         target_scope,
         CoreCapabilityScope::new_for_target(
             EngineId::new("mihomo").expect("valid engine id"),
-            Some(CoreVersion::new("v1.19.32").expect("valid version")),
+            Some(CoreVersion::new("v1.19.33").expect("valid version")),
             HostKind::Android,
             EngineBinaryTarget::X86_64LinuxAndroid,
             AdapterRevision::new(7),
@@ -453,7 +453,7 @@ fn matrix_resolution_is_fenced_to_exact_engine_version_target_and_adapter_revisi
     let operation = CoreOperation::Version(VersionOperation::Install);
     let matrix_scope = CoreCapabilityScope::new_for_target(
         EngineId::new("mihomo").expect("valid engine ID"),
-        Some(CoreVersion::new("v1.19.32").expect("valid version")),
+        Some(CoreVersion::new("v1.19.33").expect("valid version")),
         HostKind::Android,
         EngineBinaryTarget::Aarch64LinuxAndroid,
         AdapterRevision::new(3),
@@ -470,14 +470,14 @@ fn matrix_resolution_is_fenced_to_exact_engine_version_target_and_adapter_revisi
         ),
         CoreCapabilityScope::new_for_target(
             EngineId::new("mihomo").expect("valid engine ID"),
-            Some(CoreVersion::new("v1.19.32").expect("valid version")),
+            Some(CoreVersion::new("v1.19.33").expect("valid version")),
             HostKind::Android,
             EngineBinaryTarget::X86_64LinuxAndroid,
             AdapterRevision::new(3),
         ),
         CoreCapabilityScope::new_for_target(
             EngineId::new("mihomo").expect("valid engine ID"),
-            Some(CoreVersion::new("v1.19.32").expect("valid version")),
+            Some(CoreVersion::new("v1.19.33").expect("valid version")),
             HostKind::Android,
             EngineBinaryTarget::Aarch64LinuxAndroid,
             AdapterRevision::new(4),
@@ -656,7 +656,7 @@ fn host_target_mismatch_remains_the_effective_blocker_without_engine_evidence() 
     let operation = CoreOperation::Outbound(OutboundOperation::List);
     let scope = CoreCapabilityScope::new_for_target(
         EngineId::new("mihomo").expect("valid engine ID"),
-        Some(CoreVersion::new("v1.19.32").expect("valid version")),
+        Some(CoreVersion::new("v1.19.33").expect("valid version")),
         HostKind::Desktop,
         EngineBinaryTarget::Aarch64LinuxAndroid,
         AdapterRevision::new(1),

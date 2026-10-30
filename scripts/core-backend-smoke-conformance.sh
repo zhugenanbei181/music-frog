@@ -194,12 +194,12 @@ if lock.get("schema_version") != 2:
     raise SystemExit("Mihomo evidence lock must use schema version 2")
 matches = [
     item for item in lock["assets"]
-    if item["version"] == "v1.19.32"
+    if item["version"] == "v1.19.33"
     and item["binary_target"] == "x86_64-unknown-linux-gnu"
 ]
 if len(matches) != 1:
     raise SystemExit(
-        "Mihomo evidence lock must contain one v1.19.32 asset for "
+        "Mihomo evidence lock must contain one v1.19.33 asset for "
         "x86_64-unknown-linux-gnu"
     )
 asset = matches[0]

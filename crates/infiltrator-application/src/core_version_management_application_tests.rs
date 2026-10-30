@@ -396,7 +396,7 @@ async fn version_operations_are_dispatched_to_the_exact_engine_backend() {
         .execute(CoreVersionManagementRequest {
             engine_id: mihomo.engine_id.clone(),
             action: CoreVersionManagementAction::Uninstall {
-                version: "v1.19.32".to_owned(),
+                version: "v1.19.33".to_owned(),
             },
         })
         .await
@@ -404,7 +404,7 @@ async fn version_operations_are_dispatched_to_the_exact_engine_backend() {
     assert!(matches!(
         removed,
         CoreVersionManagementResult::Uninstalled { engine_id, version }
-            if engine_id == mihomo.engine_id && version == "v1.19.32"
+            if engine_id == mihomo.engine_id && version == "v1.19.33"
     ));
 
     let installed = application
@@ -456,7 +456,7 @@ async fn version_operations_are_dispatched_to_the_exact_engine_backend() {
     );
     assert_eq!(
         mihomo.operations.lock().expect("operation log").as_slice(),
-        ["uninstall:v1.19.32"]
+        ["uninstall:v1.19.33"]
     );
 }
 

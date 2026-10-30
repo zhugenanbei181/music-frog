@@ -138,7 +138,7 @@ mod tests {
             identity: CoreIdentity::new(
                 EngineId::new(engine).expect("valid engine ID"),
                 CoreInstanceId::new("core-a").expect("valid instance ID"),
-                Some(CoreVersion::new("v1.19.32").expect("valid version")),
+                Some(CoreVersion::new("v1.19.33").expect("valid version")),
             ),
             generation: CoreGeneration::new(1),
             session_token: None,

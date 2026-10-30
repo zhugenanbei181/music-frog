@@ -58,8 +58,8 @@ jobs:
         shell: bash
         run: bash scripts/test-bevy.sh --guards-only
 
-      - name: Setup 1.99.0 Rust with fmt and clippy
-        uses: dtolnay/rust-toolchain@1.99.0
+      - name: Setup 1.99.1 Rust with fmt and clippy
+        uses: dtolnay/rust-toolchain@1.99.1
         with:
           components: rustfmt, clippy
 

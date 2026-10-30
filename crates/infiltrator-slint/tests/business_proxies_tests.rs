@@ -12,6 +12,7 @@ use fixture::{
     assert_unsupported, business_surface,
 };
 use infiltrator_slint::surface::business::BusinessId;
+use infiltrator_slint::surface::business::BusinessPhase;
 use infiltrator_slint::surface::harness::SurfaceHarness;
 
 /// The page that carries the proxies businesses.
@@ -133,7 +134,7 @@ fn the_proxies_probe_settings_custom_timeout_and_url_path() {
     surface.publish_owner_success();
     assert_eq!(
         fixture::phase(&surface, BusinessId::ProxiesProbeSettings),
-        infiltrator_slint::surface::business::BusinessPhase::Accepted
+        BusinessPhase::Accepted
     );
 }
 

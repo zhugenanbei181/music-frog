@@ -13,7 +13,10 @@ use infiltrator_ports::network_roaming::NetworkRoamingPort;
 use lurker_core_contract::capability::Capability;
 use lurker_core_ports::error::PortError;
 use std::net::IpAddr;
-use std::process::{Command, Output};
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
+use std::process::Command;
+#[cfg(target_os = "windows")]
+use std::process::Output;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -184,6 +187,7 @@ fn default_routes() -> Result<Vec<DefaultRoute>, PortError> {
     ))
 }
 
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
 fn command_output(program: &str, args: &[&str]) -> Result<String, PortError> {
     let output = Command::new(program)
         .args(args)
@@ -233,6 +237,7 @@ fn parse_linux_default_routes(output: &str) -> Vec<DefaultRoute> {
 }
 
 #[allow(dead_code)]
+#[cfg(any(target_os = "macos", test))]
 fn parse_macos_default_route(output: &str) -> Option<DefaultRoute> {
     let mut gateway_ip = None;
     let mut interface = None;
@@ -254,6 +259,7 @@ fn parse_macos_default_route(output: &str) -> Option<DefaultRoute> {
 }
 
 #[allow(dead_code)]
+#[cfg(any(target_os = "windows", test))]
 fn parse_windows_default_routes(output: &str) -> Vec<DefaultRoute> {
     output
         .lines()
@@ -467,13 +473,14 @@ fn repair_route_anchor(
     }
 }
 
-#[cfg(any(unix, test))]
+#[cfg(any(target_os = "linux", target_os = "macos", test))]
 fn command_status(program: &str, args: &[&str]) -> Result<(), PortError> {
     let mut command = Command::new(program);
     command.args(args);
     command_status_command(&mut command)
 }
 
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
 fn command_status_command(command: &mut Command) -> Result<(), PortError> {
     let output = command
         .output()
@@ -487,7 +494,7 @@ fn command_status_command(command: &mut Command) -> Result<(), PortError> {
     }
 }
 
-#[allow(dead_code)]
+#[cfg(target_os = "windows")]
 fn command_output_command(command: &mut Command) -> Result<String, PortError> {
     let output: Output = command
         .output()
@@ -511,7 +518,7 @@ fn parse_route_get_interface(output: &str) -> Option<String> {
         .map(|pair| pair[1].to_owned())
 }
 
-#[allow(dead_code)]
+#[cfg(target_os = "macos")]
 fn parse_macos_route_get_interface(output: &str) -> Option<String> {
     output.lines().find_map(|line| {
         let (key, value) = line.split_once(':')?;

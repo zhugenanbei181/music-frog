@@ -18,7 +18,7 @@
 //! (`@group(0) @binding(0)` `View.clip_from_world`), the `Material2d` bind
 //! group (`@group(2) @binding(0)` [`TelemetryUniform`]) and the vertex
 //! attribute locations (position 0, uv 2, color 4) all match the pinned Bevy
-//! 0.20.0 GA conventions. A host only needs a `Camera2d` (plus a transform on
+//! 0.20.1 GA conventions. A host only needs a `Camera2d` (plus a transform on
 //! the plate) to draw it; this module owns the asset/binding lifecycle.
 
 use crate::chart::topology::{TopologyPlate, TopologySpec, build_topology_chart_mesh};

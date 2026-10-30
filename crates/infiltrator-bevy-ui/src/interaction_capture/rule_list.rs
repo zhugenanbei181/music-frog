@@ -221,11 +221,11 @@ pub fn activate(
             surface.capture.stage += 1;
         }
     }
-    if surface.capture.stage == 3 && reveal(&surface, &mut geometry, &mut commands) {
+    if surface.capture.stage == 3 {
         // The receipt needs the editor card and the changed rule row on screen
         // at the same time: the page scrolls its own viewport until both are
         // really rendered, and the capture measures them on the next frame.
-        return;
+        reveal(&surface, &mut geometry, &mut commands);
     }
 }
 

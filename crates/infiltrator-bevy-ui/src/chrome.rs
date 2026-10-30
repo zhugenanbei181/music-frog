@@ -16,21 +16,27 @@
 
 #[cfg(not(target_os = "android"))]
 use crate::a11y::semantic_node;
-use bevy::app::{App, AppExit, Plugin, Startup};
+use bevy::app::{App, Plugin};
+#[cfg(not(target_os = "android"))]
+use bevy::app::{AppExit, Startup};
 #[cfg(not(target_os = "android"))]
 use bevy::color::Color;
 use bevy::ecs::component::Component;
 #[cfg(not(target_os = "android"))]
 use bevy::ecs::hierarchy::Children;
+#[cfg(not(target_os = "android"))]
 use bevy::ecs::message::MessageWriter;
+#[cfg(not(target_os = "android"))]
 use bevy::ecs::observer::On;
+#[cfg(not(target_os = "android"))]
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Query, Res, ResMut};
 #[cfg(not(target_os = "android"))]
+use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::feathers::theme::ThemeBackgroundColor;
 #[cfg(not(target_os = "android"))]
 use bevy::feathers::theme::ThemeTextColor;
+#[cfg(not(target_os = "android"))]
 use bevy::picking::events::{PointerClick, PointerPress};
 use bevy::scene::{Scene, bsn};
 #[cfg(target_os = "android")]
@@ -43,9 +49,11 @@ use bevy::ui::prelude::{
 };
 #[cfg(not(target_os = "android"))]
 use bevy::ui::widget::Text;
+#[cfg(not(target_os = "android"))]
 use bevy::ui_widgets::Activate;
 #[cfg(not(target_os = "android"))]
 use bevy::ui_widgets::Button;
+#[cfg(not(target_os = "android"))]
 use bevy::window::{PrimaryWindow, Window};
 #[cfg(not(target_os = "android"))]
 use infiltrator_bevy_widgets::button::{ButtonVariant, ButtonVariantStyle, ControlVisual};
@@ -96,7 +104,10 @@ pub struct ChromeCloseButton;
 
 /// The shared chrome shape this surface runs.
 pub const fn chrome_shape() -> WindowChrome {
-    WindowChrome::FRAMELESS
+    WindowChrome {
+        native_shadow: NativeShadow::Absent,
+        ..WindowChrome::FRAMELESS
+    }
 }
 
 /// What this host can actually do with the shared chrome shape.
@@ -264,6 +275,7 @@ pub fn chrome_bar_scene(palette: &UiPalette) -> impl Scene + use<> {
         let _ = palette;
         bsn! {
             Node { display: Display::None }
+            ThemeBackgroundColor(Token::Sidebar)
         }
     }
     #[cfg(not(target_os = "android"))]

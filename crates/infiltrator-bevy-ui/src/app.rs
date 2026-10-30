@@ -73,7 +73,7 @@ use infiltrator_bevy_widgets::theme::{Breakpoint, Theme, space};
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::shell_gesture;
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot};
-use infiltrator_contract::theme::ThemePreference;
+use infiltrator_contract::theme::{self, ThemePreference};
 use infiltrator_contract::window_chrome::CHROME_DRAG_STRIP_HEIGHT_PX;
 use infiltrator_presentation::system_toggle_projection;
 use lurker_ui_presentation::routing_intent_actions::{
@@ -481,7 +481,7 @@ impl Plugin for ShellPlugin {
         app.add_plugins(LocalizationPlugin);
         app.add_plugins(WidgetsPlugin::new(&Theme::for_mode(resolved_skin(
             self.preference,
-            None,
+            theme::SystemAppearance::Unobserved,
         ))));
         // BEVY-031/035/038: the screen-reader gate seam, the shell-level layout
         // direction, and the D-pad/analog focus controller are part of the

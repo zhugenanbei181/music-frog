@@ -386,7 +386,7 @@ impl WidgetManifest {
             name: name.into(),
             version: "0.1.0".to_string(),
             author: "Community".to_string(),
-            min_bevy_version: "0.20.0".to_string(),
+            min_bevy_version: "0.20.1".to_string(),
             permissions: Vec::new(),
         }
     }
@@ -409,7 +409,7 @@ impl WidgetManifest {
         if self.name.trim().is_empty() {
             return Err("Widget name cannot be empty");
         }
-        if self.min_bevy_version != "0.20.0" {
+        if self.min_bevy_version != "0.20.1" {
             return Err("Incompatible Bevy version dependency");
         }
         Ok(())

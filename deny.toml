@@ -11,10 +11,20 @@
 all-features = true
 
 [advisories]
-# The advisory database is fetched from the default RustSec source. Ignoring an
-# advisory requires an entry with a written reason; the guard only checks that
-# the section exists, cargo-deny owns the matching itself.
-ignore = []
+# The advisory database is fetched from the default RustSec source. The
+# temporary transitive exceptions below name their current direct dependents
+# and review dates; the dependency-policy guard enforces both.
+ignore = [
+    { id = "RUSTSEC-2026-0370", reason = "No patched zvariant 5 release is available; zbus 5 remains required by pinned Slint, Bevy accessibility, Linux tray, notifications, and keyring. Direct dependents: accesskit_atspi_common@0.19.1, atspi-common@0.13.0, zbus@5.19.0, zbus-lockstep@0.5.2, zbus-lockstep-macros@0.5.2, zbus_macros@5.19.0, zbus_names@4.3.5, zbus_xml@5.2.1. Review by 2027-01-28." },
+    { id = "RUSTSEC-2026-0371", reason = "No patched zbus_names 4 release is available before the zbus 6 migration. Direct dependents: atspi-common@0.13.0, zbus@5.19.0, zbus_macros@5.19.0, zbus_xml@5.2.1. Review by 2027-01-28." },
+    { id = "RUSTSEC-2026-0372", reason = "No patched zvariant_derive 5.15.1 release is available; it is required by zvariant 5.15.1. Direct dependents: zvariant@5.15.1. Review by 2027-01-28." },
+    { id = "RUSTSEC-2026-0374", reason = "No maintained compatible basic-toml release is available; askama and the i18n build chain require the 0.1 API. Direct dependents: askama_derive@0.16.1, i18n-config@0.4.8. Review by 2027-01-28." },
+    { id = "RUSTSEC-2026-0387", reason = "crypto-bigint 0.5.5 is required by elliptic-curve 0.13.8 through age 0.12.1; age has no compatible fixed release. Product backup code uses only age X25519 identities and exposes no P-256 recipient. Direct dependents: elliptic-curve@0.13.8. Review by 2027-01-28." },
+    { id = "RUSTSEC-2025-0069", reason = "tun2proxy 0.8.6 declares daemonize for Unix CLI binaries; its Android service uses the library run loop and never invokes daemonize. No compatible maintained crate release is available. Direct dependents: tun2proxy@0.8.6. Review by 2027-01-28." },
+    { id = "RUSTSEC-2026-0206", reason = "Pinned Iced 0.14 and Slint 1.18.1 resolve through usvg 0.45.1, which still requires rustybuzz 0.20.1; replacing it requires an upstream renderer upgrade. Direct dependents: usvg@0.45.1. Review by 2027-01-28." },
+    { id = "RUSTSEC-2026-0192", reason = "Pinned renderer chains still require ttf-parser 0.25.1; switching to skrifa needs compatible Iced, Bevy, and Slint upstream releases. Direct dependents: fontdb@0.23.0, owned_ttf_parser@0.25.1, rustybuzz@0.20.1. Review by 2027-01-28." },
+    { id = "RUSTSEC-2024-0449", reason = "serde_yaml_ng 0.10.0 still depends on unsafe-libyaml 0.2.11; replacing the parser across Core YAML contracts requires a separate format-compatibility migration. Direct dependents: serde_yaml_ng@0.10.0. Review by 2027-01-28." },
+]
 
 [licenses]
 # Permissive licenses only. The list mirrors the licenses the committed lock
@@ -93,6 +103,10 @@ crate = "i-slint-renderer-skia@1.18.1"
 allow = ["LicenseRef-Slint-Royalty-free-2.0"]
 
 [[licenses.exceptions]]
+crate = "i-slint-renderer-femtovg@1.18.1"
+allow = ["LicenseRef-Slint-Royalty-free-2.0"]
+
+[[licenses.exceptions]]
 crate = "i-slint-renderer-software@1.18.1"
 allow = ["LicenseRef-Slint-Royalty-free-2.0"]
 
@@ -116,7 +130,7 @@ allow = ["LicenseRef-Slint-Royalty-free-2.0"]
 # `THIRD-PARTY-NOTICES.md` §13; replacing the SOCKS5 client leg is the tracked
 # long-term exit that would delete this exception.
 [[licenses.exceptions]]
-crate = "socks5-impl@0.5.17"
+crate = "socks5-impl@0.10.3"
 allow = ["GPL-3.0-or-later"]
 
 [licenses.private]
@@ -129,6 +143,9 @@ ignore = true
 # A duplicate major version is a warning to review, never a silent fact.
 multiple-versions = "warn"
 # `version = "*"` makes a build unreproducible; the lock file is the pin.
+# Workspace path dependencies are private (`publish = false`); Cargo treats
+# their omitted versions as wildcards. Keep registry and git wildcards denied.
+allow-wildcard-paths = true
 wildcards = "deny"
 highlight = "all"
 deny = []

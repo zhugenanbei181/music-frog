@@ -38,7 +38,7 @@ fn supported_matrix_for(scope: CoreCapabilityScope) -> CoreCapabilityMatrix {
 #[test]
 fn capability_matrix_with_another_engine_or_version_is_rejected() {
     let requested_engine = EngineId::new("mihomo").expect("valid engine ID");
-    let requested_version = CoreVersion::new("v1.19.32").expect("valid version");
+    let requested_version = CoreVersion::new("v1.19.33").expect("valid version");
     let target = EngineBinaryTarget::current();
     let host = target.host_kind().expect("current target is registered");
     let stale_version = CoreVersion::new("v1.19.31").expect("valid version");
@@ -81,7 +81,7 @@ fn capability_matrix_with_another_engine_or_version_is_rejected() {
 #[test]
 fn mismatched_host_and_binary_target_matrix_is_rejected_before_resolution() {
     let engine = EngineId::new("mihomo").expect("valid engine ID");
-    let version = CoreVersion::new("v1.19.32").expect("valid version");
+    let version = CoreVersion::new("v1.19.33").expect("valid version");
     let operation = CoreOperation::Profile(ProfileOperation::Validate);
     let matrix = CoreCapabilityMatrix::new(
         CoreCapabilityScope::new_for_target(
@@ -121,7 +121,7 @@ fn mismatched_host_and_binary_target_matrix_is_rejected_before_resolution() {
 #[test]
 fn capability_matrix_from_another_binary_target_is_rejected() {
     let engine = EngineId::new("mihomo").expect("valid engine ID");
-    let version = CoreVersion::new("v1.19.32").expect("valid version");
+    let version = CoreVersion::new("v1.19.33").expect("valid version");
     let operation = CoreOperation::Profile(ProfileOperation::Validate);
     let other_target = match EngineBinaryTarget::current() {
         EngineBinaryTarget::X86_64UnknownLinuxGnu => EngineBinaryTarget::Aarch64UnknownLinuxGnu,
@@ -167,7 +167,7 @@ fn capability_matrix_from_another_binary_target_is_rejected() {
 #[test]
 fn capability_matrix_with_zero_adapter_revision_is_rejected() {
     let engine = EngineId::new("mihomo").expect("valid engine ID");
-    let version = CoreVersion::new("v1.19.32").expect("valid version");
+    let version = CoreVersion::new("v1.19.33").expect("valid version");
     let operation = CoreOperation::Profile(ProfileOperation::Validate);
     let target = EngineBinaryTarget::current();
     let matrix = CoreCapabilityMatrix::new(
@@ -194,7 +194,7 @@ fn capability_matrix_with_zero_adapter_revision_is_rejected() {
 #[test]
 fn capability_application_revalidates_owner_authority_after_provider_return() {
     let engine = EngineId::new("mihomo").expect("valid engine ID");
-    let version = CoreVersion::new("v1.19.32").expect("valid version");
+    let version = CoreVersion::new("v1.19.33").expect("valid version");
     let target = EngineBinaryTarget::current();
     let operation = CoreOperation::Profile(ProfileOperation::Validate);
     let mut matrix = supported_matrix_for(CoreCapabilityScope::new_for_target(

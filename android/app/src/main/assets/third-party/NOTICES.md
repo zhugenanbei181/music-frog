@@ -7,8 +7,8 @@
 
 ## GPL-3.0-or-later 组件与源码提供
 
-Android host 的用户态隧道栈经 `tun2proxy` 0.5.4 链接 `socks5-impl`
-0.5.17（**GPL-3.0-or-later**），随本 APK 编译分发。对应许可文本全文见
+Android host 的用户态隧道栈经 `tun2proxy` 0.8.6 链接 `socks5-impl`
+0.10.3（**GPL-3.0-or-later**），随本 APK 编译分发。对应许可文本全文见
 同目录 `LICENSE-GPL-3.0.txt`。
 
 按 GPL-3.0 第 4 条与第 6 条，对应源码提供方式为：本产品的完整对应
@@ -19,6 +19,6 @@ release tag 在项目仓库一并提供，release 说明中给出指向该 tag �
 
 ## 其余组件
 
-`tun2`（WTFPL）、Slint 家族（免版税变体许可）、vendored mihomo 二进制
+`tun2` 与其依赖 `tun`（均为 WTFPL）、Slint 家族（免版税变体许可）、vendored mihomo 二进制
 （GPL-3.0，随 `assets/mihomo/` 分发并附其声明）与其余宽松许可组件的
 逐条披露见仓库根的第三方声明文件。

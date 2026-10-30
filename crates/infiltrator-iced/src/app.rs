@@ -42,7 +42,7 @@ use infiltrator_contract::responsive_viewport::ResponsiveViewportSnapshot;
 use infiltrator_contract::shortcuts::ShortcutRegistry;
 use infiltrator_contract::snapshot_history::SNAPSHOT_DEFAULT_KEEP;
 use infiltrator_contract::system_toggle::SystemToggleSnapshot;
-use infiltrator_contract::theme::ThemePreference;
+use infiltrator_contract::theme::{AppearanceMode, SystemAppearance, ThemePreference};
 use infiltrator_contract::toast::ToastGate;
 use infiltrator_contract::version::CoreVersionSnapshot;
 use infiltrator_contract::vpn::{VpnSessionSnapshot, VpnSurfaceObservation};
@@ -526,7 +526,7 @@ impl AppState {
                 always_on_top: false,
                 window_focused: true,
                 theme_preference: ThemePreference::System,
-                system_prefers_dark: true,
+                system_appearance: SystemAppearance::Unobserved,
                 shortcut_registry: ShortcutRegistry::with_defaults(),
                 hotkey_capture: None,
                 ime: ImeCompositionTracker::new(),
@@ -615,7 +615,10 @@ impl AppState {
                 // 任务需要它（未解析前所有窗口任务都是 no-op）。
                 latest().map(Message::WindowIdResolved),
                 // 启动即读取 OS 外观：`system` 偏好下冷启动就与系统一致。
-                theme().map(|mode| Message::SystemThemeChanged(matches!(mode, Mode::Dark))),
+                theme().map(|mode| {
+                    let appearance = AppearanceMode::from_prefers_dark(matches!(mode, Mode::Dark));
+                    Message::SystemThemeChanged(appearance)
+                }),
                 // desktop-smoke 钩子（仅测试用）：INFILTRATOR_FORCE_NOTIFY=1
                 // 时启动即发一条探针通知，见 notify.rs 模块文档。
                 startup_probe_task(),

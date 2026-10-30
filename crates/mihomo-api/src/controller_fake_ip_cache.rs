@@ -65,7 +65,7 @@ mod tests {
             identity: CoreIdentity::new(
                 EngineId::new(engine).expect("valid engine ID"),
                 CoreInstanceId::new("fakeip-test").expect("valid instance ID"),
-                Some(CoreVersion::new("v1.19.32").expect("valid core version")),
+                Some(CoreVersion::new("v1.19.33").expect("valid core version")),
             ),
             generation: CoreGeneration::new(3),
             session_token: None,

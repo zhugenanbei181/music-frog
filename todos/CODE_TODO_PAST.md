@@ -1159,19 +1159,10 @@
   - 当前证据（L）：`infiltrator-contract` 442 项单测 100% 全绿（Nextest run `c91cb051-c8e4-4592-a07e-bc923e4c8a16`）；`surface_hierarchy` 3 项测试全绿；`line-guard.py` 0 违规；`closure-questions-guard.py` 8/8 通过；`cargo fmt --check` 0 偏差。
   - 待验证：统一全仓 nextest、Clippy 与各 UI 表面在 `FLPARITY-014` 中的渲染像素取证。
   - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
-## 12.45 四主题表面层级、材质与语义色的真实消费及深色可读性修复交付（2026-10-29 交付，1条 / 5pt）
+## 12.45 四主题表面色板与深色可读性（2026-10-29 复核：退回现在佛；0 条 / 0pt）
 
-- [ ] FLPARITY-014 [kind: visual] [priority: P0] [points: 5] [owner: infiltrator-contract/design_tokens + infiltrator-bevy-widgets + infiltrator-iced + infiltrator-slint + android/ui] [status: Integrated] 四主题表面层级、材质与语义色的真实消费及深色可读性修复
-  - 产物：
-    - **Contract 共享色板核心角色更新**：`crates/infiltrator-contract/src/design_tokens.rs` 将 `skin_core(ThemeSkin::Dark)` 底层对齐 FlClash v0.9.2 高对比基准（Canvas `#0A0B0E`、Sidebar `#0F1114`、Card `#1D2126`、Ink `#F0F6FC`、Ink Dim `#A5B0BC`、Card Border `#616B78`）；在 `surface_hierarchy.rs` 新增 `dark_mode_skin_core_and_material_surface_tokens_align_on_shared_roles` 单元测试，确保 `SkinCorePalette` 与 `MaterialSurfaceTokens` 在 Dark 模式下 100% 角色一致，且正文对比度 >14:1、次级文字对比度 >7:1；
-    - **Iced 皮肤真实消费与次级文本对比度提升**：`crates/infiltrator-iced/src/view/theme/skins.rs` 消费校准后的 `DARK_CORE`，并将 `sidebar_text_muted` alpha 由 0.45 提升至 0.75，彻底消除暗色背景下侧栏文本模糊无法辨识问题；
-    - **Bevy UI 部件主题对齐**：`crates/infiltrator-bevy-widgets/src/theme.rs` 在 `Theme::dark()` 消费校准后的 M3 角色与 5 级容器色板，消除旧版 `#15181A` / `#25292C` 浑浊发灰梯差；
-    - **Slint 动态表面与 Zinc 梯度对齐**：`crates/infiltrator-slint/ui/components/theme.slint` 在 `dark` 调色板与 `zinc-0`～`zinc-7` 中全面消费对标 FlClash 的 5 级表面容器（Lowest `#060809`、Low `#14171B`、Card `#1D2126`、High `#292E35`、Highest `#363C44`），使卡片在黑色背景中具有清晰立体的层级深度；
-    - **Android Compose 主题对齐**：`android/app/src/main/java/com/musicfrog/infiltrator/ui/theme/Color.kt` 更新 Dark 模式表面色彩为 `#0A0B0E`、`#1D2126` 与 `#F0F6FC`，消除系统级发灰；
-  - 验收：四端深色模式下卡片与背景对比度显著提升（梯差 >1.20x），次级文字全部满足 WCAG AA 规范（>7.0:1）；单元测试全绿。
-  - 当前证据（L）：`infiltrator-contract` 443 项单测 100% 全绿（Nextest run `03adb3a6-7bc7-4b75-9183-40dcaf98add9`）；`infiltrator-bevy-widgets` 480 项单测 100% 全绿（Nextest run `26ac6329-2481-4dc0-8c11-8376222e193f`）；`infiltrator-iced` 543 项单测 100% 全绿（Nextest run `db7648a6-d5ee-4ede-aa18-c388ca5d96af`）；`line-guard.py` 0 违规；`closure-questions-guard.py` 8/8 通过；`cargo fmt --check` 0 偏差。
-  - 待验证：统一全仓 nextest、Clippy 与各 UI 表面四主题像素回执重跑。
-  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+`FLPARITY-014` 曾从这里交付，但后续静态 consumer 审计发现共享 `MaterialSurfaceTokens`/`MaterialColorScheme` 尚无生产消费者，截图也没有绑定 2026-10-29 的调色板变更。原局部实现保留为部分证据，不表示视觉闭环通过；当前唯一任务位于[现在佛](CODE_TODO.md) §10.12，同 ID 不在本板重复登记。
+
 ## 12.46 四表面可配置延迟测速 timeout 并在新探测中即时生效交付（2026-10-29 交付，1条 / 3pt）
 
 - [ ] FLPARITY-042 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-contract + infiltrator-application + three desktop UIs + android/ui] [status: Integrated] 四表面可配置延迟测速 timeout 并在新探测中即时生效
@@ -1203,3 +1194,17 @@ timeout` 灵活入参，在未指定 timeout 时自动回读保持 `snapshot.pro
   - 实现：typed claim/release 与权威读回；journal 持久化所有权，只有精确匹配的 claim 才能释放，外部改写、journal 不一致与读回失败均 fail closed；并发操作与过期快照受保护。
   - 验收：定向 nextest：application/desktop/ports 933/933、contract 450/450；三 crate Clippy `--all-targets -D warnings` 通过；尚待统一全仓验证与目标平台回执。
   - 本机可执行动作：统一 nextest/结构门收口并核对 Linux、Windows、macOS 真实代理读回行为。
+
+
+## 12.49 Mihomo v1.19.33 升级与协议能力核对（2026-10-30 交付，1条 / 5pt）
+
+- [ ] FLPARITY-043 [kind: mechanism] [priority: P1] [points: 5] [owner: mihomo-driver + infiltrator-contract + infiltrator-application + release packaging + four UI surfaces] [status: Integrated] 将 Mihomo 从 v1.19.32 升级至 FlClash v0.9.2 的 v1.19.33 基线并核对协议能力
+  - 实现：
+    - **全平台二进制制品质押与 Hash 锁定**：更新 `packaging/mihomo-assets.json` 与 `packaging/mihomo-evidence-assets.json` 锁定全平台 Mihomo `v1.19.33` 制品 SHA-256，`vendor/mihomo-android-*` 资产哈希严格对齐；
+    - **内核协议与能力契约升级**：`mihomo-api`、`mihomo-driver`、`infiltrator-contract` 与 `infiltrator-core` 迁移至 `v1.19.33`（AdapterRevision 2），核对 TUN dns-mode typed 补丁、WireGuard / Tuic / hysteria2 / Shadowsocks 协议与 Fake-IP 缓存；
+    - **真二进制 Conformance 与烟测全绿**：`scripts/core-backend-smoke-conformance.sh` 真实 Mihomo v1.19.33 + sing-box v1.14.3 与双引擎实时切换实测通过（`outcome: proven`）；
+    - **工具链与结构守卫一致性**：对齐 `rust-version = "1.99.1"`，`mihomo-evidence-guard.py`、`adapter_operation_declarations_guard` 及 `check-structure.sh` 100% 通过。
+  - 验收：各目标二进制 SHA-256 可复验；真实进程 conformance 与能力测试 100% 通过；旧版本限定文案与过期测试清零；`check-structure.sh` 全守卫通过。
+  - 当前证据（L）：`scripts/core-backend-smoke-conformance.sh` 实测 `outcome: "proven"`；`infiltrator-contract` + `infiltrator-core` 定向 nextest 722/722 通过；`check-structure.sh` 341 项单测与全量守卫 100% 通过；`mihomo-evidence-guard.py` 通过。
+  - 待验证：统一全仓集成测试批次与实机运行验证。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。

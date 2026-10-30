@@ -14,7 +14,7 @@ use crate::types::message::Message;
 use crate::utils::sanitize_ui_text;
 use iced::Task;
 use infiltrator_contract::shortcuts::{KeyModifiers, ShortcutAction, ShortcutChord};
-use infiltrator_contract::theme::ThemePreference;
+use infiltrator_contract::theme::{SystemAppearance, ThemePreference};
 use infiltrator_contract::toast::{ToastAdmission, ToastSeverity};
 use infiltrator_shared::locales::{Lang, Localizer};
 use tokio::time;
@@ -36,8 +36,8 @@ impl AppState {
                 self.shell.apply_theme_preference(preference);
                 Some(Task::none())
             }
-            Message::SystemThemeChanged(prefers_dark) => {
-                self.shell.system_prefers_dark = prefers_dark;
+            Message::SystemThemeChanged(system_appearance) => {
+                self.shell.system_appearance = SystemAppearance::Observed(system_appearance);
                 if self.shell.theme_preference.follows_system() {
                     self.shell
                         .apply_theme_preference(self.shell.theme_preference);

@@ -169,19 +169,19 @@ impl Theme {
             mode: ThemeSkin::Dark,
             window_bg: TokenColor::rgb(0.040, 0.045, 0.055), // #0A0B0E
             surface: TokenColor::rgb(0.115, 0.130, 0.150),   // #1D2126
-            surface_elevated: TokenColor::rgb(0.160, 0.180, 0.205), // #292E35
-            ink: TokenColor::rgb(0.941, 0.965, 0.988),       // #F0F6FC
-            ink_dim: TokenColor::rgb(0.647, 0.690, 0.737),   // #A5B0BC
-            accent: TokenColor::rgb(0.12, 0.56, 0.96),       // #1E8FF5
+            surface_elevated: TokenColor::rgba(1.0, 1.0, 1.0, 0.07),
+            ink: TokenColor::rgb(0.941, 0.965, 0.988), // #F0F6FC
+            ink_dim: TokenColor::rgb(0.647, 0.690, 0.737), // #A5B0BC
+            accent: TokenColor::rgb(0.12, 0.56, 0.96), // #1E8FF5
             on_accent: TokenColor::rgb(1.0, 1.0, 1.0),
             accent_container: TokenColor::rgb(0.080, 0.220, 0.380), // #143861
             sidebar: TokenColor::rgb(0.060, 0.068, 0.080),          // #0F1114
             icon_tile: TokenColor::rgba(0.12, 0.56, 0.96, 0.62),    // accent @ 0.62
             hover: TokenColor::rgba(1.0, 1.0, 1.0, 0.08),
             pressed: TokenColor::rgba(1.0, 1.0, 1.0, 0.14),
-            scrim: TokenColor::rgba(0.0, 0.0, 0.0, 0.55),
+            scrim: TokenColor::rgba(0.0, 0.0, 0.0, 0.50),
             focus_ring: TokenColor::rgb(0.12, 0.56, 0.96),
-            disabled_ink: TokenColor::rgba(0.647, 0.690, 0.737, 0.50),
+            disabled_ink: TokenColor::rgba(0.88, 0.90, 0.92, 0.55),
             border: TokenColor::rgba(0.380, 0.420, 0.470, 0.25),
             success: TokenColor::rgb(0.24, 0.78, 0.44), // #3DC770
             warning: TokenColor::rgb(0.96, 0.62, 0.15), // #F59E26
@@ -192,15 +192,15 @@ impl Theme {
     pub fn light() -> Self {
         Self {
             mode: ThemeSkin::Light,
-            window_bg: TokenColor::rgb(0.953, 0.957, 0.957), // #F3F4F4
-            surface: TokenColor::rgb(0.988, 0.992, 0.988),   // #FCFDFC
+            window_bg: TokenColor::rgb(0.973, 0.976, 0.980), // #F8F9FA
+            surface: TokenColor::rgb(1.000, 1.000, 1.000),
             surface_elevated: TokenColor::rgba(0.0, 0.0, 0.0, 0.05),
-            ink: TokenColor::rgb(0.12, 0.15, 0.14), // #1E2623
-            ink_dim: TokenColor::rgb(0.24, 0.28, 0.26),
+            ink: TokenColor::rgb(0.102, 0.110, 0.118), // #1A1C1E
+            ink_dim: TokenColor::rgb(0.263, 0.278, 0.306), // #43474E
             accent: TokenColor::rgb(0.04, 0.44, 0.88), // #0A70E0
             on_accent: TokenColor::rgb(1.0, 1.0, 1.0),
             accent_container: TokenColor::rgb(0.898, 0.910, 0.973), // #E5E8F8 (iced banner, measured)
-            sidebar: TokenColor::rgb(0.965, 0.969, 0.969),          // #F6F7F7
+            sidebar: TokenColor::rgb(0.945, 0.953, 0.961),          // #F1F3F5
             icon_tile: TokenColor::rgba(0.04, 0.44, 0.88, 0.18),    // accent @ 0.18
             hover: TokenColor::rgba(0.0, 0.0, 0.0, 0.06),
             pressed: TokenColor::rgba(0.0, 0.0, 0.0, 0.12),
@@ -220,11 +220,11 @@ impl Theme {
     pub fn forest() -> Self {
         Self {
             mode: ThemeSkin::Forest,
-            window_bg: TokenColor::rgb(0.937, 0.961, 0.925), // #EFF5EC canvas
-            surface: TokenColor::rgb(0.973, 0.984, 0.961),   // #F8FBF5 card
+            window_bg: TokenColor::rgb(0.945, 0.965, 0.937), // #F1F6EF canvas
+            surface: TokenColor::rgb(1.000, 1.000, 1.000),
             surface_elevated: TokenColor::rgba(0.341, 0.439, 0.353, 0.09),
             ink: TokenColor::rgb(0.122, 0.208, 0.145), // #1F3525
-            ink_dim: TokenColor::rgba(0.341, 0.439, 0.353, 0.75),
+            ink_dim: TokenColor::rgb(0.255, 0.341, 0.275),
             accent: TokenColor::rgb(0.188, 0.435, 0.306), // #306F4E
             on_accent: TokenColor::rgb(1.0, 1.0, 1.0),
             accent_container: TokenColor::rgba(0.188, 0.435, 0.306, 0.14),
@@ -248,14 +248,14 @@ impl Theme {
         Self {
             mode: ThemeSkin::Amoled,
             window_bg: TokenColor::rgb(0.0, 0.0, 0.0), // #000000
-            surface: TokenColor::rgb(0.086, 0.098, 0.110), // #16191C
+            surface: TokenColor::rgb(0.075, 0.098, 0.125), // #131920
             surface_elevated: TokenColor::rgba(1.0, 1.0, 1.0, 0.09),
-            ink: TokenColor::rgb(0.973, 0.980, 0.988), // #F8FAFC
-            ink_dim: TokenColor::rgba(0.90, 0.92, 0.94, 0.68),
+            ink: TokenColor::rgb(1.000, 1.000, 1.000), // #FFFFFF
+            ink_dim: TokenColor::rgb(0.680, 0.720, 0.760), // #AEB8C2
             accent: TokenColor::rgb(0.12, 0.56, 0.96), // #1E8FF5
             on_accent: TokenColor::rgb(1.0, 1.0, 1.0),
             accent_container: TokenColor::rgba(0.12, 0.56, 0.96, 0.18),
-            sidebar: TokenColor::rgb(0.051, 0.059, 0.067), // #0D0F11
+            sidebar: TokenColor::rgb(0.031, 0.043, 0.055), // #080B0E
             icon_tile: TokenColor::rgba(0.12, 0.56, 0.96, 0.62),
             hover: TokenColor::rgba(1.0, 1.0, 1.0, 0.08),
             pressed: TokenColor::rgba(1.0, 1.0, 1.0, 0.14),
@@ -432,14 +432,14 @@ pub struct MobileThemeTokens {
 pub const fn mobile_theme_tokens(skin: ThemeSkin) -> MobileThemeTokens {
     match skin {
         ThemeSkin::Dark => MobileThemeTokens {
-            bottom_nav_bg: TokenColor::rgb(0.106, 0.118, 0.125),
+            bottom_nav_bg: TokenColor::rgb(0.060, 0.068, 0.080),
             bottom_nav_indicator: TokenColor::rgba(0.12, 0.56, 0.96, 0.24),
             touch_ripple: TokenColor::rgba(1.0, 1.0, 1.0, 0.14),
             swipe_action: TokenColor::rgb(0.12, 0.56, 0.96),
             swipe_destructive: TokenColor::rgb(0.96, 0.35, 0.32),
         },
         ThemeSkin::Light => MobileThemeTokens {
-            bottom_nav_bg: TokenColor::rgb(0.965, 0.969, 0.969),
+            bottom_nav_bg: TokenColor::rgb(0.945, 0.953, 0.961),
             bottom_nav_indicator: TokenColor::rgba(0.04, 0.44, 0.88, 0.16),
             touch_ripple: TokenColor::rgba(0.0, 0.0, 0.0, 0.12),
             swipe_action: TokenColor::rgb(0.04, 0.44, 0.88),
@@ -453,7 +453,7 @@ pub const fn mobile_theme_tokens(skin: ThemeSkin) -> MobileThemeTokens {
             swipe_destructive: TokenColor::rgb(0.702, 0.231, 0.275),
         },
         ThemeSkin::Amoled => MobileThemeTokens {
-            bottom_nav_bg: TokenColor::rgb(0.051, 0.059, 0.067),
+            bottom_nav_bg: TokenColor::rgb(0.031, 0.043, 0.055),
             bottom_nav_indicator: TokenColor::rgba(0.12, 0.56, 0.96, 0.28),
             touch_ripple: TokenColor::rgba(1.0, 1.0, 1.0, 0.14),
             swipe_action: TokenColor::rgb(0.12, 0.56, 0.96),

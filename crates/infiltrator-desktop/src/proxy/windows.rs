@@ -83,7 +83,7 @@ pub(super) fn read_state() -> anyhow::Result<SystemProxyState> {
 }
 
 fn read_optional_string(key: &winreg::RegKey, name: &str) -> anyhow::Result<Option<String>> {
-    match key.get_value(name) {
+    match key.get_value::<String, _>(name) {
         Ok(value) if value.trim().is_empty() => Ok(None),
         Ok(value) => Ok(Some(value)),
         Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),

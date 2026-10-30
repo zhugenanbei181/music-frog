@@ -9,7 +9,7 @@ description = "Business-agnostic Bevy UI widget layer for MusicFrog: bsn! scene 
 # Business-agnostic by law (crates/infiltrator-bevy-ui/docs/BEVY_UI_FRONTEND.md): this crate uses Bevy, Unicode and shared copy resources — never application
 # engines, infiltrator-core or mihomo-*. Shared BSN roots are owned by
 # zhuge-ui-kit-bevy; this crate retains MusicFrog theme, copy and widget adapters.
-# Bevy is pinned to the same patch (`=0.20.0`) as the shared scene owner.
+# Bevy is pinned to the same patch (`=0.20.1`) as the shared scene owner.
 
 # Base `bevy` declaration enables Feathers' theme projection because this
 # crate imports it in all targets. Per-target tables below own the remaining
@@ -23,7 +23,7 @@ bevy = { workspace = true, features = ["bevy_feathers"] }
 unicode-segmentation = { workspace = true }
 infiltrator-shared = { path = "../infiltrator-shared" }
 
-# Feature closure (minimal for a bevy_ui surface), locked `=0.20.0`:
+# Feature closure (minimal for a bevy_ui surface), locked `=0.20.1`:
 # - bevy_ui: the toolkit layer itself (its layout plugin; pulls bevy_text and
 #   bevy_sprite; nothing 3D).
 # - bevy_ui_widgets: the official unstyled widget package (button / checkbox /
@@ -76,7 +76,7 @@ bevy = { workspace = true, features = [
 # Android (the reason this frontend exists), BEVY-006 front half: same UI
 # closure as desktop, minus `wayland` (winit backend selection is a desktop
 # compositor concern), plus `android-native-activity` — the one feature bevy
-# 0.20.0 offers to satisfy android-activity's hard requirement.
+# 0.20.1 offers to satisfy android-activity's hard requirement.
 [target.'cfg(target_os = "android")'.dependencies]
 bevy = { workspace = true, features = [
     "bevy_ui",

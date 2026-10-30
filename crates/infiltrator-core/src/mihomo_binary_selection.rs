@@ -303,7 +303,7 @@ mod tests {
 
     #[test]
     fn version_parser_reads_engine_reported_tag_without_guessing_from_filename() {
-        assert_eq!(version_token("v1.19.32"), Some("v1.19.32".to_owned()));
+        assert_eq!(version_token("v1.19.33"), Some("v1.19.33".to_owned()));
         assert_eq!(version_token("1.19.32"), Some("1.19.32".to_owned()));
         assert_eq!(version_token("go1.24.0"), None);
         assert_eq!(version_token("linux/amd64"), None);
@@ -313,7 +313,7 @@ mod tests {
     async fn required_bundled_binary_returns_engine_version_digest_and_open_verification() {
         let home = tempdir().unwrap();
         let source = home.path().join("bundled-mihomo");
-        write_version_script(&source, "Mihomo Meta v1.19.32 linux amd64 with go1.24.0").await;
+        write_version_script(&source, "Mihomo Meta v1.19.33 linux amd64 with go1.24.0").await;
         let manager = VersionManager::for_engine(home.path().into(), engine()).unwrap();
         let adapter = MihomoBinarySelectionAdapter::new(
             engine(),
@@ -334,7 +334,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(selection.engine_id, engine());
-        assert_eq!(selection.version.raw(), "v1.19.32");
+        assert_eq!(selection.version.raw(), "v1.19.33");
         assert_eq!(selection.binary_path.file_name().unwrap(), "mihomo");
         assert!(matches!(
             selection.source,
@@ -350,11 +350,11 @@ mod tests {
     #[tokio::test]
     async fn managed_only_uses_the_version_manager_default_and_binds_its_version() {
         let home = tempdir().unwrap();
-        let version_dir = home.path().join("engines/mihomo/versions/v1.19.32");
+        let version_dir = home.path().join("engines/mihomo/versions/v1.19.33");
         fs::create_dir_all(&version_dir).await.unwrap();
         write_version_script(
             &version_dir.join("mihomo"),
-            "Mihomo Meta v1.19.32 linux amd64 with go1.24.0",
+            "Mihomo Meta v1.19.33 linux amd64 with go1.24.0",
         )
         .await;
         let manager = VersionManager::for_engine(home.path().into(), engine()).unwrap();
@@ -373,7 +373,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(selection.version.raw(), "v1.19.32");
+        assert_eq!(selection.version.raw(), "v1.19.33");
         assert_eq!(selection.binary_path, version_dir.join("mihomo"));
         assert_eq!(selection.source, CoreBinarySelectionSource::ManagedVersion);
     }
@@ -385,7 +385,7 @@ mod tests {
         fs::create_dir_all(&version_dir).await.unwrap();
         write_version_script(&version_dir.join("mihomo"), "Mihomo Meta v1.18.0").await;
         let source = home.path().join("bundled-mihomo");
-        write_version_script(&source, "Mihomo Meta v1.19.32").await;
+        write_version_script(&source, "Mihomo Meta v1.19.33").await;
         let manager = VersionManager::for_engine(home.path().into(), engine()).unwrap();
         let adapter = MihomoBinarySelectionAdapter::new(
             engine(),
@@ -405,7 +405,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(selection.version.raw(), "v1.19.32");
+        assert_eq!(selection.version.raw(), "v1.19.33");
         assert!(matches!(
             selection.source,
             CoreBinarySelectionSource::BundledPackage { .. }
@@ -416,7 +416,7 @@ mod tests {
     async fn managed_with_bundled_fallback_uses_bundle_when_no_managed_version_exists() {
         let home = tempdir().unwrap();
         let source = home.path().join("bundled-mihomo");
-        write_version_script(&source, "Mihomo Meta v1.19.32").await;
+        write_version_script(&source, "Mihomo Meta v1.19.33").await;
         let manager = VersionManager::for_engine(home.path().into(), engine()).unwrap();
         let adapter = MihomoBinarySelectionAdapter::new(
             engine(),
@@ -438,7 +438,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(selection.version.raw(), "v1.19.32");
+        assert_eq!(selection.version.raw(), "v1.19.33");
         assert!(matches!(
             selection.source,
             CoreBinarySelectionSource::BundledPackage { .. }
@@ -448,9 +448,9 @@ mod tests {
     #[tokio::test]
     async fn managed_with_bundle_fallback_preserves_package_sidecar_search_roots() {
         let home = tempdir().unwrap();
-        let version_dir = home.path().join("engines/mihomo/versions/v1.19.32");
+        let version_dir = home.path().join("engines/mihomo/versions/v1.19.33");
         fs::create_dir_all(&version_dir).await.unwrap();
-        write_version_script(&version_dir.join("mihomo"), "Mihomo Meta v1.19.32").await;
+        write_version_script(&version_dir.join("mihomo"), "Mihomo Meta v1.19.33").await;
         let package_sidecar_root = home.path().join("package-assets");
         let manager = VersionManager::for_engine(home.path().into(), engine()).unwrap();
         let adapter = MihomoBinarySelectionAdapter::new(
@@ -483,9 +483,9 @@ mod tests {
     #[tokio::test]
     async fn required_bundle_does_not_fall_back_to_an_installed_version() {
         let home = tempdir().unwrap();
-        let version_dir = home.path().join("engines/mihomo/versions/v1.19.32");
+        let version_dir = home.path().join("engines/mihomo/versions/v1.19.33");
         fs::create_dir_all(&version_dir).await.unwrap();
-        write_version_script(&version_dir.join("mihomo"), "Mihomo Meta v1.19.32").await;
+        write_version_script(&version_dir.join("mihomo"), "Mihomo Meta v1.19.33").await;
         let manager = VersionManager::for_engine(home.path().into(), engine()).unwrap();
         let adapter = MihomoBinarySelectionAdapter::new(
             engine(),

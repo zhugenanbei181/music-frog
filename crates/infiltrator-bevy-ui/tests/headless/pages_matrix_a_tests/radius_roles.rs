@@ -53,7 +53,7 @@ fn assert_radius<M: Component>(app: &mut App, expected: BorderRadius, what: &str
 #[test]
 fn the_palette_carries_the_contract_radius_rungs() {
     let sink = Arc::new(DemoCommandSink::accepting());
-    let mut app = setup_matrix_a_app(sink);
+    let app = setup_matrix_a_app(sink);
     let palette = *app.world().resource::<UiPalette>();
     assert_eq!(palette.modal_radius_px, radius::MODAL);
     assert_eq!(palette.card_radius_px, radius::CARD);

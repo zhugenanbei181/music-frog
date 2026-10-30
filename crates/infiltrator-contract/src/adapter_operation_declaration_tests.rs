@@ -133,7 +133,7 @@ fn only_explicitly_supported_operations_resolve_to_verified_support() {
     let empty_lock = OperationEvidenceLock::new(
         EngineId::new("mihomo").expect("valid engine ID"),
         [OperationEvidenceAsset {
-            version: CoreVersion::new("v1.19.32").expect("valid core version"),
+            version: CoreVersion::new("v1.19.33").expect("valid core version"),
             target: EngineBinaryTarget::X86_64UnknownLinuxGnu,
             adapter_revision: AdapterRevision::new(1),
             operations: HashSet::new(),
@@ -149,7 +149,7 @@ fn only_explicitly_supported_operations_resolve_to_verified_support() {
         EngineId::new("mihomo").expect("valid engine ID"),
         [
             OperationEvidenceAsset {
-                version: CoreVersion::new("v1.19.32").expect("valid core version"),
+                version: CoreVersion::new("v1.19.33").expect("valid core version"),
                 target: EngineBinaryTarget::X86_64UnknownLinuxGnu,
                 adapter_revision: AdapterRevision::new(1),
                 operations: HashSet::from([
@@ -202,7 +202,7 @@ fn only_explicitly_supported_operations_resolve_to_verified_support() {
 fn supported_evidence_is_bound_to_exact_version_target_and_adapter_revision() {
     let validated = validate_source(MIHOMO_DECLARATION, "mihomo", MIHOMO_EVIDENCE_LOCK);
     let operation = CoreOperation::Outbound(OutboundOperation::List);
-    let version = CoreVersion::new("v1.19.32").expect("valid version");
+    let version = CoreVersion::new("v1.19.33").expect("valid version");
 
     assert!(validated.has_verified_support_for_scope(
         operation,
@@ -212,17 +212,17 @@ fn supported_evidence_is_bound_to_exact_version_target_and_adapter_revision() {
     ));
     for (version, target, revision) in [
         (
-            CoreVersion::new("v1.19.33").expect("valid version"),
+            CoreVersion::new("v1.19.32").expect("valid version"),
             EngineBinaryTarget::X86_64UnknownLinuxGnu,
             AdapterRevision::new(2),
         ),
         (
-            CoreVersion::new("v1.19.32").expect("valid version"),
+            CoreVersion::new("v1.19.33").expect("valid version"),
             EngineBinaryTarget::Aarch64LinuxAndroid,
             AdapterRevision::new(2),
         ),
         (
-            CoreVersion::new("v1.19.32").expect("valid version"),
+            CoreVersion::new("v1.19.33").expect("valid version"),
             EngineBinaryTarget::X86_64UnknownLinuxGnu,
             AdapterRevision::new(1),
         ),
@@ -259,7 +259,7 @@ fn engine_decision_is_shared_for_owner_managed_supported_and_unsupported_operati
     ));
 
     let mihomo = validate_source(MIHOMO_DECLARATION, "mihomo", MIHOMO_EVIDENCE_LOCK);
-    let version = CoreVersion::new("v1.19.32").expect("valid version");
+    let version = CoreVersion::new("v1.19.33").expect("valid version");
     assert_eq!(
         mihomo.engine_decision_for_scope(
             outbound_list,

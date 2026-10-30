@@ -4,8 +4,7 @@
 //! and re-renders the whole [`TrayMenuItem`] tree from the spec (same source
 //! of truth as the ksni backend), and the tooltip is refreshed too.
 //!
-//! Compiles on Linux too (muda/tray-icon keep the gtk feature at the
-//! workspace root), which is how this backend stays checkable on this OS.
+//! Compiled only for Windows/macOS; Linux uses the GTK-free ksni backend.
 //!
 //! # Event-handler lifecycle (contract §2.1)
 //!

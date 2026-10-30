@@ -310,8 +310,8 @@ msgstr "关闭添加配置"
 msgid "关于"
 msgstr "关于"
 
-msgid "官方 Android v1.19.32 · 随 Lumen APK 提供，独立进程运行；GPL-3.0 许可与源码见关于页。当前："
-msgstr "官方 Android v1.19.32 · 随 Lumen APK 提供，独立进程运行；GPL-3.0 许可与源码见关于页。当前："
+msgid "官方 Android v1.19.33 · 随 Lumen APK 提供，独立进程运行；GPL-3.0 许可与源码见关于页。当前："
+msgstr "官方 Android v1.19.33 · 随 Lumen APK 提供，独立进程运行；GPL-3.0 许可与源码见关于页。当前："
 
 msgid "规则"
 msgstr "规则"
@@ -925,8 +925,8 @@ msgstr "Mihomo 核心由用户安装在 PATH 中。第三方依赖许可正文�
 msgid "Mihomo 实时日志流已连接；保留最近 300 条并脱敏。"
 msgstr "Mihomo 实时日志流已连接；保留最近 300 条并脱敏。"
 
-msgid "Mihomo v1.19.32 是独立 GPL-3.0 核心进程，随本 ABI APK 提供；在依赖许可列表中搜索 Mihomo Core 可查看许可证和源码标签。"
-msgstr "Mihomo v1.19.32 是独立 GPL-3.0 核心进程，随本 ABI APK 提供；在依赖许可列表中搜索 Mihomo Core 可查看许可证和源码标签。"
+msgid "Mihomo v1.19.33 是独立 GPL-3.0 核心进程，随本 ABI APK 提供；在依赖许可列表中搜索 Mihomo Core 可查看许可证和源码标签。"
+msgstr "Mihomo v1.19.33 是独立 GPL-3.0 核心进程，随本 ABI APK 提供；在依赖许可列表中搜索 Mihomo Core 可查看许可证和源码标签。"
 
 msgid "Ping 测速"
 msgstr "Ping 测速"
@@ -1330,8 +1330,8 @@ msgstr "选择时间"
 msgid "Android 通过系统 VPN 接管其他应用流量；MusicFrog 核心与转发器自身流量直连以避免回环。"
 msgstr "Android 通过系统 VPN 接管其他应用流量；MusicFrog 核心与转发器自身流量直连以避免回环。"
 
-msgid "官方 Android v1.19.32 · 随 MusicFrog APK 提供，独立进程运行；GPL-3.0 许可与源码见关于页。当前："
-msgstr "官方 Android v1.19.32 · 随 MusicFrog APK 提供，独立进程运行；GPL-3.0 许可与源码见关于页。当前："
+msgid "官方 Android v1.19.33 · 随 MusicFrog APK 提供，独立进程运行；GPL-3.0 许可与源码见关于页。当前："
+msgstr "官方 Android v1.19.33 · 随 MusicFrog APK 提供，独立进程运行；GPL-3.0 许可与源码见关于页。当前："
 
 msgid "版本 "
 msgstr "版本 "

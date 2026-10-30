@@ -111,7 +111,7 @@ jobs:
           python-version: "3.14"
 
       - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@1.99.0
+        uses: dtolnay/rust-toolchain@1.99.1
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
@@ -150,7 +150,7 @@ jobs:
           python-version: "3.14"
 
       - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@1.99.0
+        uses: dtolnay/rust-toolchain@1.99.1
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2

@@ -2,7 +2,7 @@
 
 > 层级：L3
 
-Extreme-performance, ECS-driven desktop proxy client application template built on [Bevy 0.20](https://bevyengine.org/)
+Extreme-performance, ECS-driven desktop proxy client application template built on [Bevy 0.20.1](https://bevyengine.org/)
 and the Lurker neutral core pipeline (`SurfaceReader` + `CommandSink`).
 
 ## Features

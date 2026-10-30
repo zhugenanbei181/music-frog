@@ -5,8 +5,7 @@ use super::{InteractionCapture, ObservedInteraction, selected};
 use crate::pages::rules::RulesPageRoot;
 use crate::pages::rules_draft::RulesDraftState;
 use crate::pages::rules_statistics::{
-    RulesStatisticsState, StatisticsCard, StatisticsConfirmationCard, StatisticsControl,
-    StatisticsLine,
+    RulesStatisticsState, StatisticsConfirmationCard, StatisticsControl, StatisticsLine,
 };
 use crate::route::surface_projection::replay_surface_snapshot;
 use crate::route::{ActiveRoute, Route};
@@ -119,7 +118,6 @@ pub struct StatisticsActivation<'w, 's> {
             Has<ModalScrim>,
         ),
     >,
-    cards: Query<'w, 's, Entity, With<StatisticsCard>>,
     pages: Query<'w, 's, Entity, With<RulesPageRoot>>,
 }
 pub fn activate(

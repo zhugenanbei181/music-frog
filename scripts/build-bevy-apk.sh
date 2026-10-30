@@ -207,7 +207,7 @@ cat > "$DRIVER/Cargo.toml" <<'EOF'
 # Purpose: the crate's own src/ is not allowed to carry the android entry
 # glue in this task split, but android-activity 0.6.1 requires the packaged
 # cdylib to export `android_main` (extern "Rust",
-# src/native_activity/glue.rs:663) and bevy_winit 0.20.0 requires
+# src/native_activity/glue.rs:663) and bevy_winit 0.20.1 requires
 # bevy_android::ANDROID_APP to be set before DefaultPlugins (src/lib.rs:123).
 # This cdylib driver provides exactly that and calls the real shell's run().
 [package]
@@ -226,7 +226,7 @@ crate-type = ["cdylib"]
 # manifest and consumes the owner IPC surface.
 infiltrator-bevy-ui = { path = "../../../crates/infiltrator-bevy-ui", default-features = false, features = ["capture-tools"] }
 android-activity = { version = "0.6.1", features = ["native-activity"] }
-bevy_android = "=0.20.0"
+bevy_android = "=0.20.1"
 
 [package.metadata.android]
 package = "__BEVY_APPLICATION_ID__"

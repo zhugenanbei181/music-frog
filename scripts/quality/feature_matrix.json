@@ -94,7 +94,6 @@
       "package": "infiltrator-iced",
       "features": [
         { "name": "default", "kind": "product", "members": ["script-engine-boa"] },
-        { "name": "native-tray-backend", "kind": "platform", "members": [] },
         {
           "name": "static-openssl",
           "kind": "platform",

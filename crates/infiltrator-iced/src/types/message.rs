@@ -29,6 +29,7 @@ use infiltrator_contract::dns_cache::DnsCacheOperationId;
 use infiltrator_contract::logs::LogLevel;
 use infiltrator_contract::profile_mixin_studio::ProfileMixinToggleId;
 use infiltrator_contract::rule_provider_snapshot::RuleProviderControllerReference;
+use infiltrator_contract::theme::AppearanceMode;
 use infiltrator_contract::{
     aggregator, command_catalogue, command_output, core_control, dialer_chain, dns, dns_latency,
     dns_leak, doctor, ime, lan, mini_hud, network_roaming, overview_layout, pac, port_conflict,
@@ -587,8 +588,8 @@ pub enum Message {
     TogglePerfPanel,
     ToggleTheme,
     SetTheme(String),
-    /// The OS appearance changed (`true` = the OS prefers dark).
-    SystemThemeChanged(bool),
+    /// The OS appearance changed.
+    SystemThemeChanged(AppearanceMode),
     /// Advance the shared appearance preference through its cycle.
     CycleThemePreference,
     SetLanguage(String),

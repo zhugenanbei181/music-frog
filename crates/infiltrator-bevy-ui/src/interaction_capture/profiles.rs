@@ -54,7 +54,6 @@ pub struct ProfilesSurface<'w, 's> {
     large_buttons: Query<'w, 's, Entity, With<ProfileEditorLargeWindowButton>>,
     snippet_buttons: Query<'w, 's, (Entity, &'static ProfileEditorSnippetButton)>,
     diagnostic_pills: Query<'w, 's, Entity, With<ProfileEditorDiagnosticPill>>,
-    pages: Query<'w, 's, Entity, With<ProfilesPageRoot>>,
     parents: Query<'w, 's, &'static ChildOf>,
     areas: Query<'w, 's, Entity, With<ScrollArea>>,
 }

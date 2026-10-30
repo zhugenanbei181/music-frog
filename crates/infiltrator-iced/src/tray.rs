@@ -5,8 +5,8 @@
 //! * [`menu`] — the pure localized spec builder over a [`TraySpecContext`]
 //!   snapshot (0.20 full-feature menu).
 //! * ksni backend (Linux default) — pure StatusNotifierItem/D-Bus, no GTK.
-//! * native backend (Windows/macOS, or `native-tray-backend` on Linux) — the
-//!   existing muda/tray-icon implementation wrapped behind the same seam.
+//! * native backend (Windows/macOS) — the existing muda/tray-icon implementation
+//!   wrapped behind the same seam.
 //!
 //! The tray is a pure enhancement: any startup failure degrades to a
 //! window-only app with a warning and never fails or panics the process.
@@ -19,10 +19,10 @@ pub mod spec;
 
 mod menu;
 
-#[cfg(all(unix, not(target_os = "macos"), not(feature = "native-tray-backend")))]
+#[cfg(all(unix, not(target_os = "macos")))]
 #[cfg_attr(test, allow(dead_code))] // spawn path never runs under test
 mod ksni_backend;
-#[cfg(any(windows, target_os = "macos", feature = "native-tray-backend"))]
+#[cfg(any(windows, target_os = "macos"))]
 #[cfg_attr(test, allow(dead_code))] // spawn path never runs under test
 mod native;
 
@@ -57,10 +57,10 @@ pub(crate) const TRAY_RATE_REFRESH_INTERVAL: Duration =
 /// result; never panics and never fails the app.
 #[cfg_attr(test, allow(dead_code))] // never called under test by design
 pub(crate) fn spawn(spec: TraySpec) -> TrayStartup {
-    #[cfg(all(unix, not(target_os = "macos"), not(feature = "native-tray-backend")))]
+    #[cfg(all(unix, not(target_os = "macos")))]
     return ksni_backend::spawn_ksni(spec);
 
-    #[cfg(any(windows, target_os = "macos", feature = "native-tray-backend"))]
+    #[cfg(any(windows, target_os = "macos"))]
     return native::spawn_native(spec);
 }
 

@@ -209,7 +209,7 @@ impl CoreReadiness for OutboundReadiness {
 
     async fn active_core_version(&self) -> Result<Option<CoreVersion>, PortError> {
         Ok(Some(
-            CoreVersion::new("v1.19.32").expect("valid test version"),
+            CoreVersion::new("v1.19.33").expect("valid test version"),
         ))
     }
 }
@@ -443,14 +443,6 @@ impl SystemProxyPort for TestSystemProxy {
             bypass: Some("localhost".to_owned()),
         })
     }
-
-    async fn apply(
-        &self,
-        _endpoint: Option<String>,
-        _bypass: Option<String>,
-    ) -> Result<(), PortError> {
-        Ok(())
-    }
 }
 
 #[async_trait]
@@ -469,14 +461,6 @@ impl SystemProxyPort for StopCoreDuringSurfaceRead {
             endpoint: None,
             bypass: None,
         })
-    }
-
-    async fn apply(
-        &self,
-        _endpoint: Option<String>,
-        _bypass: Option<String>,
-    ) -> Result<(), PortError> {
-        Ok(())
     }
 }
 

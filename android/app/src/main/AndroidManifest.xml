@@ -12,9 +12,8 @@
     <!-- Android 14+ requires specific foreground service types -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED" />
 
-    <!-- Android TV and Leanback capability declaration -->
+    <!-- Touchscreen input is optional on the Android TV-capable Compose flavor. -->
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
-    <uses-feature android:name="android.software.leanback" android:required="false" />
 
     <!-- The per-app routing screen lists the launchable applications. -->
     <queries>

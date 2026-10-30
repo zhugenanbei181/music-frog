@@ -27,52 +27,51 @@ internal fun rememberRowGestureArbiter(): NativeGestureArbiter = remember { Nati
  * 观察发生在 `Initial` 指针事件阶段，它早于平台自己的点击阶段，因此
  * 点击回调读到的判决一定是这一次手势的判决，而不是上一次留下的残值。
  */
-internal fun Modifier.arbitratedRowGesture(arbiter: NativeGestureArbiter): Modifier =
-    pointerInput(arbiter) {
-        awaitPointerEventScope {
-            while (true) {
-                val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-                val pointerId = down.id.value
-                arbiter.onSample(
-                    NativeTouchSample(
-                        pointerId = pointerId,
-                        phase = NativeTouchPhase.Started,
-                        x = down.position.x,
-                        y = down.position.y,
-                        timeMillis = down.uptimeMillis,
-                    ),
-                )
-                var settled = false
-                while (!settled) {
-                    val event = awaitPointerEvent(PointerEventPass.Initial)
-                    val change = event.changes.firstOrNull { it.id == down.id }
-                    if (change == null) {
-                        // The platform took the pointer away: the gesture is over
-                        // and it can never become a row action.
-                        arbiter.onSample(
-                            NativeTouchSample(
-                                pointerId = pointerId,
-                                phase = NativeTouchPhase.Canceled,
-                                x = down.position.x,
-                                y = down.position.y,
-                                timeMillis = down.uptimeMillis,
-                            ),
-                        )
-                        settled = true
-                    } else {
-                        val phase = if (change.pressed) NativeTouchPhase.Moved else NativeTouchPhase.Ended
-                        arbiter.onSample(
-                            NativeTouchSample(
-                                pointerId = pointerId,
-                                phase = phase,
-                                x = change.position.x,
-                                y = change.position.y,
-                                timeMillis = change.uptimeMillis,
-                            ),
-                        )
-                        settled = !change.pressed
-                    }
+internal fun Modifier.arbitratedRowGesture(arbiter: NativeGestureArbiter): Modifier = pointerInput(arbiter) {
+    awaitPointerEventScope {
+        while (true) {
+            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            val pointerId = down.id.value
+            arbiter.onSample(
+                NativeTouchSample(
+                    pointerId = pointerId,
+                    phase = NativeTouchPhase.Started,
+                    x = down.position.x,
+                    y = down.position.y,
+                    timeMillis = down.uptimeMillis,
+                ),
+            )
+            var settled = false
+            while (!settled) {
+                val event = awaitPointerEvent(PointerEventPass.Initial)
+                val change = event.changes.firstOrNull { it.id == down.id }
+                if (change == null) {
+                    // The platform took the pointer away: the gesture is over
+                    // and it can never become a row action.
+                    arbiter.onSample(
+                        NativeTouchSample(
+                            pointerId = pointerId,
+                            phase = NativeTouchPhase.Canceled,
+                            x = down.position.x,
+                            y = down.position.y,
+                            timeMillis = down.uptimeMillis,
+                        ),
+                    )
+                    settled = true
+                } else {
+                    val phase = if (change.pressed) NativeTouchPhase.Moved else NativeTouchPhase.Ended
+                    arbiter.onSample(
+                        NativeTouchSample(
+                            pointerId = pointerId,
+                            phase = phase,
+                            x = change.position.x,
+                            y = change.position.y,
+                            timeMillis = change.uptimeMillis,
+                        ),
+                    )
+                    settled = !change.pressed
                 }
             }
         }
     }
+}

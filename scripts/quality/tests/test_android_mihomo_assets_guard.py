@@ -64,7 +64,7 @@ def fixture_repo(root: Path) -> Path:
     (root / "android/app/build.gradle.kts").write_text(VALID_GRADLE, encoding="utf-8")
     (root / "scripts/fetch-mihomo.py").write_text(VALID_FETCHER, encoding="utf-8")
     lock = {
-        "version": "v1.19.32",
+        "version": "v1.19.33",
         "assets": [
             {
                 "target": target,

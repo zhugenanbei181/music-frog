@@ -58,9 +58,7 @@ use infiltrator_bevy_ui::pages::profiles_import_channels::{
     ImportSubscriptionNameField, ImportSubscriptionUrlButton, ImportSubscriptionUrlField,
     SaveSubscriptionFilterButton, SubscriptionFilterIncludeField,
 };
-use infiltrator_bevy_ui::pages::profiles_outcome::{
-    ProfileDeleteOutcomeText, ProfileImportOutcomeText, ProfileRefreshText,
-};
+use infiltrator_bevy_ui::pages::profiles_outcome::{ProfileDeleteOutcomeText, ProfileRefreshText};
 use infiltrator_bevy_ui::pages::profiles_subscription_policy::{
     SaveSubscriptionAutoReloadButton, SaveSubscriptionPolicyButton, SubscriptionAutoReloadToggle,
     SubscriptionPolicyCronField, SubscriptionPolicyIntervalField,
@@ -106,7 +104,6 @@ use infiltrator_contract::aggregator::{
 };
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command::RequestId;
-use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::mrs_acceleration::{
     MrsAccelerationSnapshot, MrsBehaviorKind, MrsCompressionKind, MrsItemSnapshot,
 };

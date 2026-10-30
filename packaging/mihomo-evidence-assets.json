@@ -3,14 +3,14 @@
   "engine": "mihomo",
   "assets": [
     {
-      "version": "v1.19.32",
+      "version": "v1.19.33",
       "binary_target": "x86_64-unknown-linux-gnu",
       "adapter_revision": 2,
-      "release_url": "https://github.com/MetaCubeX/mihomo/releases/tag/v1.19.32",
-      "archive": "mihomo-linux-amd64-v1-v1.19.32.gz",
-      "archive_sha256": "306f81e723e60ce6b828899a6fe83e1d00e9ecefb2dc8d4d849312a5bc00efdc",
+      "release_url": "https://github.com/MetaCubeX/mihomo/releases/tag/v1.19.33",
+      "archive": "mihomo-linux-amd64-v1-v1.19.33.gz",
+      "archive_sha256": "8ec92e7b2fdc6b853ba00156bab7e4e965c8b0d843b8c4ac8ab98795f02ad524",
       "binary": "mihomo-linux-amd64",
-      "binary_sha256": "6de241191ca39f9ac1cd6e3194fc9303c19055d3549c8bdb4ff1349c89173819",
+      "binary_sha256": "19cbe7ba1523a92ed2d0a30716ea093de57db05b7844db23de2b9c21fd7a1afa",
       "operations": [
         "profile.validate",
         "profile.apply",

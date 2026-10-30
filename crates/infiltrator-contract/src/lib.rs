@@ -167,6 +167,7 @@ pub mod system_proxy;
 pub mod system_toggle;
 pub mod text_truncation;
 pub mod theme;
+pub mod theme_palette;
 pub mod toast;
 pub mod traffic_history;
 pub mod traffic_scale;

@@ -16,7 +16,7 @@ use bevy::ui_widgets::ScrollArea;
 /// The official scroll behaviour answers a wheel event on the entity that
 /// carries the `ScrollArea` marker, so a capture must address that entity —
 /// never the node it wants to reveal.
-pub fn owning_scroll_area<'w, 's>(
+pub fn owning_scroll_area(
     entity: Entity,
     parents: &Query<&'static ChildOf>,
     areas: &Query<Entity, With<ScrollArea>>,
@@ -36,7 +36,7 @@ pub fn owning_scroll_area<'w, 's>(
 /// A panel inside a page usually owns a nested scroll area of its own. The
 /// page's viewport is the outermost one, so it is the area that has to move
 /// when a control still sits below the fold of the page itself.
-pub fn outermost_scroll_area<'w, 's>(
+pub fn outermost_scroll_area(
     entity: Entity,
     parents: &Query<&'static ChildOf>,
     areas: &Query<Entity, With<ScrollArea>>,

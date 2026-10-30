@@ -108,7 +108,7 @@ fn version_install_declarations(
     let evidence_lock = OperationEvidenceLock::new(
         EngineId::new("mihomo").expect("Mihomo engine ID"),
         [OperationEvidenceAsset {
-            version: CoreVersion::new("v1.19.32").expect("version"),
+            version: CoreVersion::new("v1.19.33").expect("version"),
             target: EngineBinaryTarget::X86_64UnknownLinuxGnu,
             adapter_revision: AdapterRevision::new(1),
             operations: registered_operations,
@@ -258,7 +258,7 @@ fn assert_evidence_open_operation_stays_closed_with_historical_locked_evidence(
     );
     let engine_id = EngineId::new("mihomo").expect("valid engine ID");
 
-    for raw_version in ["v1.19.18", "v1.19.32"] {
+    for raw_version in ["v1.19.18", "v1.19.33"] {
         let version = CoreVersion::new(raw_version).expect("locked Mihomo version");
         let matrix = provider
             .matrix_for(&engine_id, Some(&version))
@@ -285,7 +285,7 @@ fn assert_evidence_open_operation_stays_closed_with_historical_locked_evidence(
         );
     }
 
-    let unregistered_version = CoreVersion::new("v1.19.33").expect("unregistered version");
+    let unregistered_version = CoreVersion::new("v1.19.34").expect("unregistered version");
     let matrix = provider
         .matrix_for(&engine_id, Some(&unregistered_version))
         .expect("unregistered version remains representable");
@@ -321,7 +321,7 @@ fn assert_evidence_open_operation_stays_closed_with_historical_locked_evidence(
     ] {
         let scoped_provider =
             MihomoCoreCapabilityProvider::new_with_scope(host, target, revision, [operation]);
-        let version = CoreVersion::new("v1.19.32").expect("locked version");
+        let version = CoreVersion::new("v1.19.33").expect("locked version");
         let matrix = scoped_provider
             .matrix_for(&engine_id, Some(&version))
             .expect("mismatched scope remains representable");
@@ -409,7 +409,7 @@ fn explicit_unsupported_declaration_cannot_become_available_from_composition_wir
         CoreOperation::all().iter().copied(),
     );
     let engine_id = EngineId::new("mihomo").expect("valid engine ID");
-    let version = CoreVersion::new("v1.19.32").expect("valid version");
+    let version = CoreVersion::new("v1.19.33").expect("valid version");
     let matrix = provider
         .matrix_for(&engine_id, Some(&version))
         .expect("Mihomo capability matrix");
@@ -442,7 +442,7 @@ fn supported_binary_evidence_still_requires_an_owner_composed_adapter_port() {
         [CoreOperation::Outbound(OutboundOperation::List)],
     );
     let engine_id = EngineId::new("mihomo").expect("valid engine ID");
-    let version = CoreVersion::new("v1.19.32").expect("valid version");
+    let version = CoreVersion::new("v1.19.33").expect("valid version");
     let matrix = provider
         .matrix_for(&engine_id, Some(&version))
         .expect("Mihomo capability matrix");

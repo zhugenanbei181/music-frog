@@ -132,7 +132,7 @@ jobs:
         run: bash scripts/fetch-mihomo.sh --target ${{ matrix.target }}
 
       - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@1.99.0
+        uses: dtolnay/rust-toolchain@1.99.1
         with:
           targets: ${{ matrix.target }}
 
@@ -455,7 +455,7 @@ jobs:
           [ "$rc" -eq 0 ] || { echo "::error::sdkmanager failed to install platform 37 (rc=$rc)"; exit "$rc"; }
 
       - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@1.99.0
+        uses: dtolnay/rust-toolchain@1.99.1
         with:
           targets: aarch64-linux-android, x86_64-linux-android
 

@@ -222,7 +222,7 @@ class AdapterOperationDeclarationGuardTests(unittest.TestCase):
                 "engine": "mihomo",
                 "assets": [
                     {
-                        "version": "v1.19.32",
+                        "version": "v1.19.33",
                         "binary_target": "x86_64-unknown-linux-gnu",
                         "adapter_revision": 1,
                         "operations": [evidence_id],

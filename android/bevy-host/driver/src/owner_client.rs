@@ -92,7 +92,7 @@ enum ProductReadbackPlan {
     Application,
     Control {
         intent: AndroidProductControlIntent,
-        before: VpnOwnerSnapshot,
+        before: Box<VpnOwnerSnapshot>,
     },
 }
 
@@ -251,9 +251,8 @@ impl OverviewSource for AndroidOwnerClient {
 }
 
 fn product_command(command: &UiCommand) -> Option<AndroidProductCommand> {
-    match command {
-        UiCommand::StopVpn => return None,
-        _ => {}
+    if command == &UiCommand::StopVpn {
+        return None;
     }
     if let Some(intent) = command.android_control_intent() {
         return Some(AndroidProductCommand::Control(match intent {
@@ -383,7 +382,7 @@ fn execute_product_command(
             }
             ProductReadbackPlan::Control {
                 intent: *intent,
-                before,
+                before: Box::new(before),
             }
         }
         AndroidProductCommand::Application(_) => ProductReadbackPlan::Application,
@@ -424,7 +423,7 @@ fn execute_product_command(
             let after = transport.read_vpn_owner_snapshot()?;
             validate_android_control_terminal_readback(
                 intent,
-                &before,
+                before.as_ref(),
                 &after,
                 Some(&terminal.scope),
             )?;

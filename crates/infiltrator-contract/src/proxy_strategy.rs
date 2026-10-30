@@ -9,10 +9,11 @@ use crate::proxies::ProxyGroupClassification;
 use serde::{Deserialize, Serialize};
 
 /// Interactive state of a node or group ping operation.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PingStage {
     /// No test in progress.
+    #[default]
     Idle,
     /// Probe request is currently in-flight (triggers radar rotation / breathing pulse).
     Pinging { started_at_secs: u64 },
@@ -22,12 +23,6 @@ pub enum PingStage {
     Timeout,
     /// Probe encountered network error or refusal.
     Failed { reason: String },
-}
-
-impl Default for PingStage {
-    fn default() -> Self {
-        Self::Idle
-    }
 }
 
 impl PingStage {

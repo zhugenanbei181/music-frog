@@ -113,11 +113,7 @@ internal fun MihomoVpnService.createNotification(
 /**
  * Update the persistent foreground notification with live throughput rates and node name (FLPARITY-029).
  */
-internal fun MihomoVpnService.updateTrafficNotification(
-    downRateStr: String,
-    upRateStr: String,
-    activeNodeName: String,
-) {
+internal fun MihomoVpnService.updateTrafficNotification(downRateStr: String, upRateStr: String, activeNodeName: String) {
     val headline = "$activeNodeName • $downRateStr ↓  $upRateStr ↑"
     val status = getString(R.string.notification_active)
     val notification = createNotification(status, notificationActionMode, headline)

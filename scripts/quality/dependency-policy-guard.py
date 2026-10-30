@@ -13,6 +13,7 @@ the dependency graph. `cargo deny check` itself runs in the ecosystem gate.
 from __future__ import annotations
 
 import argparse
+from datetime import date, timedelta
 import importlib.util
 from pathlib import Path
 import re
@@ -28,6 +29,10 @@ ECOSYSTEM_WORKFLOW = Path(".github/workflows/ecosystem-gate.yml")
 CRATES_IO_INDEX = "https://github.com/rust-lang/crates.io-index"
 TAG_JOB_CONDITION = "    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')"
 DENY_COMMAND = "cargo deny check"
+ADVISORY_ID_PATTERN = re.compile(r"^RUSTSEC-\d{4}-\d{4}$")
+PACKAGE_SPEC_TOKEN_PATTERN = re.compile(r"\b[A-Za-z0-9_-]+@\d+\.\d+(?:\.\d+)?\b")
+REVIEW_DATE_PATTERN = re.compile(r"\breview by (\d{4}-\d{2}-\d{2})\b", re.IGNORECASE)
+MAX_ADVISORY_REVIEW_DAYS = 180
 
 # The disclosure file spells two licenses the way upstream does; cargo-deny
 # requires the SPDX identifier. The mapping is deliberately tiny and explicit.
@@ -193,6 +198,11 @@ def _check_policy(document: dict, problems: list[str]) -> list[str]:
             " workspace crates stay out of the redistribution check"
         )
 
+    if bans.get("allow-wildcard-paths") is not True:
+        problems.append(
+            f"{POLICY}: [bans] allow-wildcard-paths must be true for private"
+            " unpublished workspace path dependencies"
+        )
     if bans.get("wildcards") != "deny":
         problems.append(f"{POLICY}: [bans] wildcards must be `deny`")
     if bans.get("deny") or bans.get("allow"):
@@ -213,6 +223,68 @@ def _check_policy(document: dict, problems: list[str]) -> list[str]:
     return allowed
 
 
+def _check_advisory_ignores(document: dict, problems: list[str]) -> None:
+    advisories = _section(document, "advisories")
+    ignores = advisories.get("ignore", [])
+    if not isinstance(ignores, list):
+        problems.append(f"{POLICY}: [advisories] ignore must be an array")
+        return
+
+    seen: set[str] = set()
+    for index, row in enumerate(ignores):
+        prefix = f"{POLICY}: advisories.ignore[{index}]"
+        if not isinstance(row, dict):
+            problems.append(
+                f"{prefix} must be an object with an advisory id, reason, expiry, "
+                "and direct-dependent allow list"
+            )
+            continue
+        advisory_id = row.get("id")
+        if not isinstance(advisory_id, str) or not ADVISORY_ID_PATTERN.fullmatch(
+            advisory_id
+        ):
+            problems.append(f"{prefix}: id must be a RustSec advisory id")
+        elif advisory_id in seen:
+            problems.append(f"{prefix}: duplicate advisory `{advisory_id}`")
+        else:
+            seen.add(advisory_id)
+
+        reason = row.get("reason")
+        if not isinstance(reason, str) or len(reason.strip()) < 20:
+            problems.append(f"{prefix}: reason must explain the exception")
+            continue
+
+        review = REVIEW_DATE_PATTERN.search(reason)
+        if review is None:
+            problems.append(f"{prefix}: reason must include a review-by date")
+        else:
+            try:
+                review_date = date.fromisoformat(review.group(1))
+            except ValueError:
+                problems.append(f"{prefix}: review-by date must use YYYY-MM-DD")
+            else:
+                if review_date <= date.today():
+                    problems.append(f"{prefix}: review-by date has expired")
+                elif review_date > date.today() + timedelta(
+                    days=MAX_ADVISORY_REVIEW_DAYS
+                ):
+                    problems.append(
+                        f"{prefix}: review-by date must be within "
+                        f"{MAX_ADVISORY_REVIEW_DAYS} days"
+                    )
+
+        marker = re.search(r"direct dependents:\s*", reason, re.IGNORECASE)
+        dependents = (
+            reason[marker.end() : review.start()]
+            if marker is not None and review is not None
+            else ""
+        )
+        if not PACKAGE_SPEC_TOKEN_PATTERN.findall(dependents):
+            problems.append(
+                f"{prefix}: reason must name versioned direct dependent packages"
+            )
+
+
 def check(root: Path = REPO_ROOT) -> list[str]:
     policy_path = root / POLICY
     if not policy_path.is_file():
@@ -225,6 +297,7 @@ def check(root: Path = REPO_ROOT) -> list[str]:
 
     problems: list[str] = []
     allowed = _check_policy(document, problems)
+    _check_advisory_ignores(document, problems)
     allowed_set = {item for item in allowed if isinstance(item, str)}
 
     if "advisories" not in document:
@@ -305,6 +378,48 @@ class DependencyPolicySelfTest(unittest.TestCase):
             problems = check(root)
         self.assertTrue(any("tag-gated" in problem for problem in problems))
 
+    def test_private_path_wildcard_exception_must_remain_enabled(self):
+        with _scratch(_policy(allow_wildcard_paths=False)) as root:
+            problems = check(root)
+        self.assertTrue(
+            any("allow-wildcard-paths must be true" in problem for problem in problems)
+        )
+
+    def test_advisory_ignores_require_reason_and_scoped_dependents(self):
+        policy = _policy(advisory_ignores='"RUSTSEC-2026-0001"')
+        with _scratch(policy) as root:
+            problems = check(root)
+        self.assertTrue(
+            any("must be an object with an advisory id" in problem for problem in problems)
+        )
+
+    def test_advisory_ignore_requires_review_date_and_versioned_scope(self):
+        policy = _policy(
+            advisory_ignores=(
+                '{ id = "RUSTSEC-2026-0001", '
+                'reason = "No patched release is available." }'
+            )
+        )
+        with _scratch(policy) as root:
+            problems = check(root)
+        self.assertTrue(any("review-by date" in problem for problem in problems))
+        self.assertTrue(any("versioned direct dependent" in problem for problem in problems))
+
+    def test_advisory_ignore_review_date_must_be_bounded(self):
+        review_date = (
+            date.today() + timedelta(days=MAX_ADVISORY_REVIEW_DAYS + 1)
+        ).isoformat()
+        policy = _policy(
+            advisory_ignores=(
+                '{ id = "RUSTSEC-2026-0001", reason = "No patched release. '
+                "Direct dependents: demo@1.2.3. "
+                f'Review by {review_date}." }}'
+            )
+        )
+        with _scratch(policy) as root:
+            problems = check(root)
+        self.assertTrue(any("must be within" in problem for problem in problems))
+
     def test_exception_license_must_be_disclosed(self):
         policy = _policy(
             '"MIT", "Apache-2.0"',
@@ -329,9 +444,11 @@ class DependencyPolicySelfTest(unittest.TestCase):
 def _policy(
     allow: str = '"MIT", "Apache-2.0"',
     exceptions: str = "",
+    allow_wildcard_paths: bool = True,
+    advisory_ignores: str = "",
 ) -> str:
     return f"""[advisories]
-ignore = []
+ignore = [{advisory_ignores}]
 
 [licenses]
 allow = [{allow}]
@@ -340,6 +457,7 @@ allow = [{allow}]
 ignore = true
 
 [bans]
+allow-wildcard-paths = {str(allow_wildcard_paths).lower()}
 wildcards = "deny"
 deny = []
 

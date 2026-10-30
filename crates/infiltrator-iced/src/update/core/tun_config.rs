@@ -12,7 +12,7 @@ use crate::types::message::Message;
 use crate::types::runtime::ConfigurationSaveState;
 use iced::Task;
 use iced::widget::text_editor::Content;
-use infiltrator_contract::tun::{TunStack, TunStackUpdate};
+use infiltrator_contract::tun::{TunDnsModeUpdate, TunStack, TunStackUpdate};
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::tun::{TunConfig, TunConfigPatch, apply_tun_patch_to_yaml};
 use infiltrator_presentation::dns_page_model::{DnsEditMode, DnsOperation};
@@ -84,6 +84,7 @@ impl AppState {
         Ok(TunConfigPatch {
             enable: Some(self.editor.tun_form.enable),
             stack: stack_update,
+            dns_mode: TunDnsModeUpdate::Keep,
             mtu,
             dns_hijack: Some(Self::split_list_field(&self.editor.tun_form.dns_hijack)),
             auto_route: Some(self.editor.tun_form.auto_route),

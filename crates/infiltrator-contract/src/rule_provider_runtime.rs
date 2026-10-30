@@ -348,7 +348,7 @@ mod tests {
             identity: CoreIdentity::new(
                 EngineId::new(engine).unwrap(),
                 CoreInstanceId::new("core-a").unwrap(),
-                Some(CoreVersion::new("v1.19.32").unwrap()),
+                Some(CoreVersion::new("v1.19.33").unwrap()),
             ),
             generation: CoreGeneration::new(1),
             session_token: None,

@@ -4,10 +4,10 @@
 
 use super::{DualShadow, Tokens, soft_wash};
 use iced::{Color, Radians, Shadow, Vector};
-use infiltrator_contract::design_tokens::{
-    RgbaToken, SkinCorePalette, SkinInteractionPalette, skin_core, skin_interaction,
-};
+use infiltrator_contract::design_tokens::{RgbaToken, SkinCorePalette, SkinInteractionPalette};
+use infiltrator_contract::surface_hierarchy::MaterialSurfaceTokens;
 use infiltrator_contract::theme::ThemeSkin;
+use infiltrator_contract::theme_palette::ThemePalette;
 use std::f32::consts::FRAC_PI_2;
 
 /// Resolve a shared token into an Iced color.
@@ -20,15 +20,25 @@ pub(crate) const fn token_color(token: RgbaToken) -> Color {
     }
 }
 
-const LIGHT_CORE: SkinCorePalette = skin_core(ThemeSkin::Light);
-const DARK_CORE: SkinCorePalette = skin_core(ThemeSkin::Dark);
-const FOREST_CORE: SkinCorePalette = skin_core(ThemeSkin::Forest);
-const AMOLED_CORE: SkinCorePalette = skin_core(ThemeSkin::Amoled);
+const LIGHT_PALETTE: ThemePalette = ThemePalette::of_skin(ThemeSkin::Light);
+const DARK_PALETTE: ThemePalette = ThemePalette::of_skin(ThemeSkin::Dark);
+const FOREST_PALETTE: ThemePalette = ThemePalette::of_skin(ThemeSkin::Forest);
+const AMOLED_PALETTE: ThemePalette = ThemePalette::of_skin(ThemeSkin::Amoled);
 
-const LIGHT_INTERACTION: SkinInteractionPalette = skin_interaction(ThemeSkin::Light);
-const DARK_INTERACTION: SkinInteractionPalette = skin_interaction(ThemeSkin::Dark);
-const FOREST_INTERACTION: SkinInteractionPalette = skin_interaction(ThemeSkin::Forest);
-const AMOLED_INTERACTION: SkinInteractionPalette = skin_interaction(ThemeSkin::Amoled);
+const LIGHT_CORE: SkinCorePalette = LIGHT_PALETTE.core;
+const DARK_CORE: SkinCorePalette = DARK_PALETTE.core;
+const FOREST_CORE: SkinCorePalette = FOREST_PALETTE.core;
+const AMOLED_CORE: SkinCorePalette = AMOLED_PALETTE.core;
+
+const LIGHT_INTERACTION: SkinInteractionPalette = LIGHT_PALETTE.interaction;
+const DARK_INTERACTION: SkinInteractionPalette = DARK_PALETTE.interaction;
+const FOREST_INTERACTION: SkinInteractionPalette = FOREST_PALETTE.interaction;
+const AMOLED_INTERACTION: SkinInteractionPalette = AMOLED_PALETTE.interaction;
+
+const LIGHT_SURFACES: MaterialSurfaceTokens = LIGHT_PALETTE.surfaces;
+const DARK_SURFACES: MaterialSurfaceTokens = DARK_PALETTE.surfaces;
+const FOREST_SURFACES: MaterialSurfaceTokens = FOREST_PALETTE.surfaces;
+const AMOLED_SURFACES: MaterialSurfaceTokens = AMOLED_PALETTE.surfaces;
 
 /// A soft vertical wash angle: top-to-bottom fade (#120).
 const VERTICAL: Radians = Radians(FRAC_PI_2);
@@ -46,9 +56,9 @@ const fn toward_white(c: Color, amount: f32) -> Color {
 
 /// Soft warm-paper light appearance (anti-glare).
 pub const LIGHT: Tokens = Tokens {
-    canvas: token_color(LIGHT_CORE.canvas),
-    sidebar: token_color(LIGHT_CORE.sidebar),
-    card_bg: token_color(LIGHT_CORE.card),
+    canvas: token_color(LIGHT_SURFACES.canvas),
+    sidebar: token_color(LIGHT_SURFACES.sidebar),
+    card_bg: token_color(LIGHT_SURFACES.container_card),
     card_border: token_color(LIGHT_CORE.card_border),
     card_shadow: Shadow {
         color: Color {
@@ -120,8 +130,8 @@ pub const LIGHT: Tokens = Tokens {
     },
     on_accent: token_color(LIGHT_CORE.on_accent),
     badge_accent: Color::from_rgb(0.04, 0.44, 0.88),
-    text_primary: token_color(LIGHT_CORE.ink),
-    text_secondary: token_color(LIGHT_CORE.ink_dim),
+    text_primary: token_color(LIGHT_SURFACES.text_primary),
+    text_secondary: token_color(LIGHT_SURFACES.text_secondary),
     text_tertiary: token_color(LIGHT_INTERACTION.disabled_ink),
     success: token_color(LIGHT_CORE.success),
     warning: token_color(LIGHT_CORE.warning),
@@ -166,9 +176,9 @@ pub const LIGHT: Tokens = Tokens {
 
 /// Soft dark appearance (deep balanced charcoal).
 pub const DARK: Tokens = Tokens {
-    canvas: token_color(DARK_CORE.canvas),
-    sidebar: token_color(DARK_CORE.sidebar),
-    card_bg: token_color(DARK_CORE.card),
+    canvas: token_color(DARK_SURFACES.canvas),
+    sidebar: token_color(DARK_SURFACES.sidebar),
+    card_bg: token_color(DARK_SURFACES.container_card),
     card_border: token_color(DARK_CORE.card_border),
     card_shadow: Shadow {
         color: Color {
@@ -240,8 +250,8 @@ pub const DARK: Tokens = Tokens {
     },
     on_accent: token_color(DARK_CORE.on_accent),
     badge_accent: Color::from_rgb(0.46, 0.72, 1.0), // #76B8FF
-    text_primary: token_color(DARK_CORE.ink),
-    text_secondary: token_color(DARK_CORE.ink_dim),
+    text_primary: token_color(DARK_SURFACES.text_primary),
+    text_secondary: token_color(DARK_SURFACES.text_secondary),
     text_tertiary: token_color(DARK_INTERACTION.disabled_ink),
     success: token_color(DARK_CORE.success),
     warning: token_color(DARK_CORE.warning),
@@ -286,9 +296,9 @@ pub const DARK: Tokens = Tokens {
 
 /// Eye-care forest appearance (EyeForest, TaskForest-inspired).
 pub const FOREST: Tokens = Tokens {
-    canvas: token_color(FOREST_CORE.canvas),
-    sidebar: token_color(FOREST_CORE.sidebar),
-    card_bg: token_color(FOREST_CORE.card),
+    canvas: token_color(FOREST_SURFACES.canvas),
+    sidebar: token_color(FOREST_SURFACES.sidebar),
+    card_bg: token_color(FOREST_SURFACES.container_card),
     card_border: token_color(FOREST_CORE.card_border),
     card_shadow: Shadow {
         color: Color {
@@ -360,8 +370,8 @@ pub const FOREST: Tokens = Tokens {
     },
     on_accent: token_color(FOREST_CORE.on_accent),
     badge_accent: Color::from_rgb(0.188, 0.435, 0.306),
-    text_primary: token_color(FOREST_CORE.ink),
-    text_secondary: token_color(FOREST_CORE.ink_dim),
+    text_primary: token_color(FOREST_SURFACES.text_primary),
+    text_secondary: token_color(FOREST_SURFACES.text_secondary),
     text_tertiary: token_color(FOREST_INTERACTION.disabled_ink),
     success: token_color(FOREST_CORE.success),
     warning: token_color(FOREST_CORE.warning),
@@ -406,9 +416,9 @@ pub const FOREST: Tokens = Tokens {
 
 /// Pure pitch-black appearance optimized for OLED displays and battery savings.
 pub const AMOLED: Tokens = Tokens {
-    canvas: token_color(AMOLED_CORE.canvas),
-    sidebar: token_color(AMOLED_CORE.sidebar),
-    card_bg: token_color(AMOLED_CORE.card),
+    canvas: token_color(AMOLED_SURFACES.canvas),
+    sidebar: token_color(AMOLED_SURFACES.sidebar),
+    card_bg: token_color(AMOLED_SURFACES.container_card),
     card_border: token_color(AMOLED_CORE.card_border),
     card_shadow: Shadow {
         color: Color {
@@ -480,8 +490,8 @@ pub const AMOLED: Tokens = Tokens {
     },
     on_accent: token_color(AMOLED_CORE.on_accent),
     badge_accent: Color::from_rgb(0.46, 0.72, 1.0), // #76B8FF
-    text_primary: token_color(AMOLED_CORE.ink),
-    text_secondary: token_color(AMOLED_CORE.ink_dim),
+    text_primary: token_color(AMOLED_SURFACES.text_primary),
+    text_secondary: token_color(AMOLED_SURFACES.text_secondary),
     text_tertiary: token_color(AMOLED_INTERACTION.disabled_ink),
     success: token_color(AMOLED_CORE.success),
     warning: token_color(AMOLED_CORE.warning),

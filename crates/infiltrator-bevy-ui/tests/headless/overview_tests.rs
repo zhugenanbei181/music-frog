@@ -23,11 +23,10 @@ use infiltrator_bevy_ui::app::{ContentSlot, ShellPlugin, SidebarFoot};
 use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommand, UiCommandSink};
 use infiltrator_bevy_ui::history::{TrafficHistory, demo_traffic_series};
 use infiltrator_bevy_ui::pages::overview::{
-    CHART_HEIGHT_PX, CHART_WIDTH_PX, OverviewCardMoveDownButton, OverviewCardMoveUpButton,
-    OverviewCardSlot, OverviewCardState, OverviewChip, OverviewChipKind, OverviewLine,
-    OverviewLineKind, OverviewProjectionUpdated, OverviewReloadMask, OverviewReloadMaskText,
-    OverviewRoutingIntentPill, OverviewStatusCard, StatusDot, format_memory, format_rate,
-    subscription_quota_scene, topology_chain_scene,
+    CHART_HEIGHT_PX, CHART_WIDTH_PX, OverviewCardMoveUpButton, OverviewCardSlot, OverviewCardState,
+    OverviewChip, OverviewChipKind, OverviewLine, OverviewLineKind, OverviewProjectionUpdated,
+    OverviewReloadMask, OverviewReloadMaskText, OverviewRoutingIntentPill, OverviewStatusCard,
+    StatusDot, format_memory, format_rate, subscription_quota_scene, topology_chain_scene,
 };
 use infiltrator_bevy_ui::pages::overview_cards::{
     ActiveExitNodeCard, SystemProxyMasterCard, TunMasterCard,

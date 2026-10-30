@@ -74,7 +74,7 @@ fn scope(engine: &str) -> CoreScope {
         identity: CoreIdentity::new(
             EngineId::new(engine).expect("valid engine ID"),
             CoreInstanceId::new("core-a").expect("valid instance ID"),
-            Some(CoreVersion::new("v1.19.32").expect("valid version")),
+            Some(CoreVersion::new("v1.19.33").expect("valid version")),
         ),
         generation: CoreGeneration::new(3),
         session_token: None,
@@ -83,7 +83,7 @@ fn scope(engine: &str) -> CoreScope {
 
 fn capabilities(register_write: bool, register_read: bool) -> CoreCapabilityApplication {
     let engine = EngineId::new("mihomo").expect("valid engine ID");
-    let version = CoreVersion::new("v1.19.32").expect("valid version");
+    let version = CoreVersion::new("v1.19.33").expect("valid version");
     let entries = [
         (ProxyControlOperation::SetRoutingIntent, register_write),
         (ProxyControlOperation::GetRoutingIntent, register_read),

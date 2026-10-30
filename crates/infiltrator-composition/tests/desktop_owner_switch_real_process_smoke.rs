@@ -254,9 +254,9 @@ async fn run_owner_switch_smoke(
     let sing_box_binary = PathBuf::from(required_environment("SINGBOX_REAL_BINARY")?);
     let expected_mihomo_version = required_environment("MIHOMO_REAL_VERSION")?;
     let expected_sing_box_version = required_environment("SINGBOX_REAL_VERSION")?;
-    if expected_mihomo_version != "v1.19.32" || expected_sing_box_version != "1.14.3" {
+    if expected_mihomo_version != "v1.19.33" || expected_sing_box_version != "1.14.3" {
         return Err(format!(
-            "owner-switch smoke requires locked Mihomo v1.19.32 and sing-box 1.14.3, got {expected_mihomo_version} and {expected_sing_box_version}"
+            "owner-switch smoke requires locked Mihomo v1.19.33 and sing-box 1.14.3, got {expected_mihomo_version} and {expected_sing_box_version}"
         ));
     }
 
@@ -560,7 +560,7 @@ async fn run_owner_switch_smoke(
 }
 
 #[tokio::test]
-#[ignore = "requires SHA-locked Mihomo v1.19.32 and sing-box v1.14.3 real binaries"]
+#[ignore = "requires SHA-locked Mihomo v1.19.33 and sing-box v1.14.3 real binaries"]
 async fn locked_real_binaries_switch_live_owner_mihomo_sing_box_mihomo() {
     let mut applications = Vec::new();
     let home = TempDir::new().expect("create smoke home");

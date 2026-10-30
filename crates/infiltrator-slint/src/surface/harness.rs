@@ -39,6 +39,7 @@ static QUEUED_EVENTS: Mutex<Vec<(thread::ThreadId, QueuedEvent)>> = Mutex::new(V
 
 thread_local! {
     /// Whether this thread already installed the headless Slint platform.
+    #[allow(clippy::missing_const_for_thread_local)]
     static PLATFORM_INSTALLED: Cell<bool> = const { Cell::new(false) };
 }
 

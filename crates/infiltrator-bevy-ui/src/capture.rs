@@ -317,7 +317,8 @@ fn write_capture_marker(mut marker: MarkerInputs) {
         marker
             .appearance
             .as_ref()
-            .and_then(|appearance| appearance.0),
+            .map(|appearance| appearance.0)
+            .unwrap_or_default(),
     );
     let route = marker
         .route

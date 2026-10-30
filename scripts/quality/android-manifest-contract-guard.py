@@ -14,6 +14,8 @@ ANDROID_NS = "http://schemas.android.com/apk/res/android"
 ANDROID = f"{{{ANDROID_NS}}}"
 ANDROID_NAME = f"{ANDROID}name"
 ANDROID_VALUE = f"{ANDROID}value"
+LEANBACK_FEATURE = "android.software.leanback"
+LEANBACK_LAUNCHER = "android.intent.category.LEANBACK_LAUNCHER"
 
 sys.path.insert(0, str(ROOT / "scripts"))
 from product_identity import product_ids, read_properties
@@ -244,6 +246,7 @@ def source_problems(root: Path = ROOT) -> list[str]:
         root,
         problems,
     )
+    check_leanback_contract(manifests, applications, launcher_names, namespace, problems)
     return problems
 
 
@@ -466,6 +469,61 @@ def is_launcher_activity(activity: ET.Element) -> bool:
         in {category.get(ANDROID_NAME, "") for category in intent_filter.findall("category")}
         for intent_filter in activity.findall("intent-filter")
     )
+
+
+def has_leanback_launcher(activity: ET.Element) -> bool:
+    return any(
+        "android.intent.action.MAIN"
+        in {action.get(ANDROID_NAME, "") for action in intent_filter.findall("action")}
+        and LEANBACK_LAUNCHER
+        in {category.get(ANDROID_NAME, "") for category in intent_filter.findall("category")}
+        for intent_filter in activity.findall("intent-filter")
+    )
+
+
+def check_leanback_contract(
+    manifests: list[SourceManifest],
+    applications: dict[str, ET.Element | None],
+    launcher_names: dict[str, str],
+    namespace: str,
+    problems: list[str],
+) -> None:
+    features = [
+        (manifest.source_set, item.get(f"{ANDROID}required", "true"))
+        for manifest in manifests
+        for item in manifest.root.findall("uses-feature")
+        if item.get(ANDROID_NAME) == LEANBACK_FEATURE
+    ]
+    if features != [("compose", "false")]:
+        problems.append(
+            "optional Android TV Leanback capability must be declared once by the Compose flavor"
+        )
+
+    compose_application = applications.get("compose")
+    compose_name = component_name(launcher_names.get("compose"), namespace)
+    compose_activities = (
+        compose_application.findall("activity") if compose_application is not None else []
+    )
+    compose_launcher = next(
+        (
+            activity
+            for activity in compose_activities
+            if component_name(activity.get(ANDROID_NAME), namespace) == compose_name
+        ),
+        None,
+    )
+    if compose_launcher is None or not has_leanback_launcher(compose_launcher):
+        problems.append(
+            "Compose launcher must expose a MAIN/LEANBACK_LAUNCHER intent filter"
+        )
+
+    for product in ("bevy", "slint"):
+        application = applications.get(product)
+        activities = application.findall("activity") if application is not None else []
+        if any(has_leanback_launcher(activity) for activity in activities):
+            problems.append(
+                f"{product} must not advertise the Compose-owned Leanback launcher"
+            )
 
 
 def check_product_activities(

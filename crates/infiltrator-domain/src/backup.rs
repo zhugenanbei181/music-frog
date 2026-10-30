@@ -423,7 +423,7 @@ pub fn import_zip_bundle(zip_bytes: &[u8]) -> Result<BackupBundle> {
 
     for i in 0..archive.len() {
         let mut file = archive.by_index(i)?;
-        let name = file.name().to_string();
+        let name = file.name()?.into_owned();
 
         if file.is_dir() {
             continue;

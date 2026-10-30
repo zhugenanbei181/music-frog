@@ -40,7 +40,7 @@ CORE_APPLY_SOURCE = Path("crates/infiltrator-core/src/apply.rs")
 CORE_PROFILE_TRANSACTION_SOURCE = Path("crates/infiltrator-core/src/profile_configuration_transaction.rs")
 MIHOMO_CLIENT_SOURCE = Path("crates/mihomo-driver/src/api/client.rs")
 MIHOMO_API_SOURCE = Path("crates/mihomo-driver/src/api.rs")
-REQUIRED_VERSIONS = {"v1.19.18", "v1.19.32"}
+REQUIRED_VERSIONS = {"v1.19.18", "v1.19.33"}
 REQUIRED_OPERATIONS = (
     "profile.validate",
     "profile.apply",
@@ -133,7 +133,7 @@ def validate_documents(evidence: object, product: object) -> list[str]:
 
     if set(assets_by_version) != REQUIRED_VERSIONS:
         problems.append(
-            "evidence lock must contain exactly v1.19.18 and v1.19.32 canonical releases"
+            "evidence lock must contain exactly v1.19.18 and v1.19.33 canonical releases"
         )
 
     if not isinstance(product, dict):
@@ -577,9 +577,9 @@ def self_test(repo_root: Path) -> int:
         "1.19.32",
         "v01.19.32",
         "v1.19.032",
-        "v1.19.32-rc.1",
-        "v1.19.32+build.1",
-        "v1.19.33.1",
+        "v1.19.33-rc.1",
+        "v1.19.33+build.1",
+        "v1.19.34.1",
     ):
         assert not is_canonical_release_version(version), version
 
@@ -588,8 +588,8 @@ def self_test(repo_root: Path) -> int:
     assert not validate_documents(evidence, product)
 
     unsupported = copy.deepcopy(evidence)
-    unsupported["assets"][1]["version"] = "v1.19.33"
-    assert any("exactly v1.19.18 and v1.19.32" in issue
+    unsupported["assets"][1]["version"] = "v1.19.34"
+    assert any("exactly v1.19.18 and v1.19.33" in issue
                for issue in validate_documents(unsupported, product))
 
     prerelease = copy.deepcopy(evidence)

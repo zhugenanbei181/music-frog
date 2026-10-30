@@ -670,7 +670,6 @@ fn test_connection_row_swipe_to_action_spring_slides_content_and_reveals_drawer(
 /// the permanent bottom safe area.
 #[test]
 fn native_window_insets_move_the_bottom_nav_without_duplicate_margins() {
-    use bevy::ui::prelude::px;
     use infiltrator_bevy_ui::app::{BOTTOM_NAV_CONTENT_HEIGHT, BottomNavBar, ShellLayoutState};
     use infiltrator_bevy_ui::surface::host_insets::{EdgeInsets, WindowInsets, WindowInsetsInput};
 

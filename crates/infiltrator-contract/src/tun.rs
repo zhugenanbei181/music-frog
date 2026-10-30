@@ -31,6 +31,27 @@ pub enum TunStackUpdate {
     Set(TunStack),
 }
 
+/// Mihomo's top-level TUN system-DNS policy introduced in v1.19.33.
+///
+/// An absent field is the upstream automatic policy; the three concrete values
+/// are the only non-empty values accepted by Mihomo.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TunDnsMode {
+    Disabled,
+    Native,
+    Hijack,
+}
+
+/// Explicit update intent for the persisted optional `tun.dns-mode` field.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum TunDnsModeUpdate {
+    #[default]
+    Keep,
+    Clear,
+    Set(TunDnsMode),
+}
+
 impl TunStack {
     pub const ALL: [Self; 4] = [Self::Gvisor, Self::System, Self::Mixed, Self::Lwip];
 
@@ -74,6 +95,27 @@ impl TunStack {
             TunStackAvailability::ReferenceOnly {
                 reason: "upstream documents LWIP for comparison only; live top-level TUN values are system/gvisor/mixed".to_owned(),
             }
+        }
+    }
+}
+
+impl TunDnsMode {
+    pub const ALL: [Self; 3] = [Self::Disabled, Self::Native, Self::Hijack];
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Disabled => "disabled",
+            Self::Native => "native",
+            Self::Hijack => "hijack",
+        }
+    }
+
+    pub fn parse(raw: &str) -> Option<Self> {
+        match raw.trim().to_ascii_lowercase().as_str() {
+            "disabled" => Some(Self::Disabled),
+            "native" => Some(Self::Native),
+            "hijack" => Some(Self::Hijack),
+            _ => None,
         }
     }
 }
@@ -136,5 +178,30 @@ mod tests {
             TunStackUpdate::Set(TunStack::System),
         );
         assert!(serde_json::from_str::<TunStackUpdate>(r#"{"Set":"unknown"}"#).is_err());
+    }
+
+    #[test]
+    fn dns_mode_is_a_closed_typed_catalog() {
+        assert_eq!(
+            TunDnsMode::ALL.map(TunDnsMode::as_str),
+            ["disabled", "native", "hijack"]
+        );
+        assert_eq!(TunDnsMode::parse(" HIJACK "), Some(TunDnsMode::Hijack));
+        assert_eq!(TunDnsMode::parse("automatic"), None);
+        assert_eq!(
+            serde_json::from_str::<TunDnsMode>(r#""native""#).unwrap(),
+            TunDnsMode::Native
+        );
+        assert!(serde_json::from_str::<TunDnsMode>(r#""unknown""#).is_err());
+    }
+
+    #[test]
+    fn dns_mode_update_is_a_typed_three_way_intent() {
+        assert_eq!(TunDnsModeUpdate::default(), TunDnsModeUpdate::Keep);
+        assert_eq!(
+            serde_json::from_str::<TunDnsModeUpdate>(r#"{"Set":"hijack"}"#).unwrap(),
+            TunDnsModeUpdate::Set(TunDnsMode::Hijack)
+        );
+        assert!(serde_json::from_str::<TunDnsModeUpdate>(r#"{"Set":"unknown"}"#).is_err());
     }
 }

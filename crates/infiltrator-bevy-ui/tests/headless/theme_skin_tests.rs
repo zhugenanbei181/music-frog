@@ -20,8 +20,7 @@ use infiltrator_bevy_widgets::theme::{Theme, ThemeSkin, TokenColor};
 use infiltrator_bevy_widgets::theme_export::{
     DEFAULT_LADDER_STEPS, LadderSource, theme_tonal_ladders,
 };
-use infiltrator_contract::theme;
-use infiltrator_contract::theme::ThemePreference;
+use infiltrator_contract::theme::{self, AppearanceMode, ThemePreference};
 
 fn mounted_shell(preference: ThemePreference) -> App {
     let mut app = App::new();
@@ -54,23 +53,29 @@ fn widget_skin_mirror_matches_the_shared_contract() {
 #[test]
 fn system_preference_resolves_against_the_os_appearance() {
     assert_eq!(
-        resolved_skin(ThemePreference::System, Some(true)),
+        resolved_skin(
+            ThemePreference::System,
+            theme::SystemAppearance::Observed(AppearanceMode::Dark)
+        ),
         ThemeSkin::Dark
     );
     assert_eq!(
-        resolved_skin(ThemePreference::System, Some(false)),
+        resolved_skin(
+            ThemePreference::System,
+            theme::SystemAppearance::Observed(AppearanceMode::Light)
+        ),
         ThemeSkin::Light
     );
     // Unknown OS appearance: the documented dark cold start.
     assert_eq!(
-        resolved_skin(ThemePreference::System, None),
+        resolved_skin(ThemePreference::System, theme::SystemAppearance::Unobserved),
         ThemeSkin::Dark
     );
     // A pinned skin ignores the OS.
     assert_eq!(
         resolved_skin(
             ThemePreference::Fixed(theme::ThemeSkin::Forest),
-            Some(false)
+            theme::SystemAppearance::Observed(AppearanceMode::Light)
         ),
         ThemeSkin::Forest
     );
@@ -79,7 +84,10 @@ fn system_preference_resolves_against_the_os_appearance() {
 #[test]
 fn the_shell_follows_the_os_appearance_while_preference_is_system() {
     let mut app = mounted_shell(ThemePreference::System);
-    assert_eq!(app.world().resource::<SystemAppearance>().0, None);
+    assert_eq!(
+        app.world().resource::<SystemAppearance>().0,
+        theme::SystemAppearance::Unobserved
+    );
 
     let window = app
         .world_mut()
@@ -89,7 +97,10 @@ fn the_shell_follows_the_os_appearance_while_preference_is_system() {
         })
         .id();
     app.update();
-    assert_eq!(app.world().resource::<SystemAppearance>().0, Some(false));
+    assert_eq!(
+        app.world().resource::<SystemAppearance>().0,
+        theme::SystemAppearance::Observed(AppearanceMode::Light)
+    );
     assert_eq!(
         app.world().resource::<UiPalette>(),
         &UiPalette::new(&Theme::light()),
@@ -101,7 +112,10 @@ fn the_shell_follows_the_os_appearance_while_preference_is_system() {
         ..Window::default()
     });
     app.update();
-    assert_eq!(app.world().resource::<SystemAppearance>().0, Some(true));
+    assert_eq!(
+        app.world().resource::<SystemAppearance>().0,
+        theme::SystemAppearance::Observed(AppearanceMode::Dark)
+    );
     assert_eq!(
         app.world().resource::<UiPalette>(),
         &UiPalette::new(&Theme::dark())
@@ -121,7 +135,10 @@ fn a_pinned_skin_ignores_os_appearance_changes() {
         ..Window::default()
     });
     app.update();
-    assert_eq!(app.world().resource::<SystemAppearance>().0, Some(false));
+    assert_eq!(
+        app.world().resource::<SystemAppearance>().0,
+        theme::SystemAppearance::Observed(AppearanceMode::Light)
+    );
     assert_eq!(
         app.world().resource::<ThemeMode>().0,
         ThemePreference::Fixed(theme::ThemeSkin::Amoled)

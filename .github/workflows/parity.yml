@@ -34,7 +34,7 @@ jobs:
         run: python3 -m pip install Pillow
       - name: Enforce repository quality
         run: bash scripts/test.sh --guards-only
-      - uses: dtolnay/rust-toolchain@1.99.0
+      - uses: dtolnay/rust-toolchain@1.99.1
         with:
           components: rustfmt, clippy
       - uses: taiki-e/install-action@v2

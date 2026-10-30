@@ -100,15 +100,15 @@ impl CompiledNodeRegexPipeline {
                 let mut excluded = false;
 
                 for (idx, rule) in self.rules.iter().enumerate() {
-                    if let Ok(re) = &rule.compiled {
-                        if re.is_match(&current) {
-                            matched_indices.push(idx);
-                            if rule.is_exclude {
-                                excluded = true;
-                                break;
-                            }
-                            current = re.replace_all(&current, &rule.replacement).into_owned();
+                    if let Ok(re) = &rule.compiled
+                        && re.is_match(&current)
+                    {
+                        matched_indices.push(idx);
+                        if rule.is_exclude {
+                            excluded = true;
+                            break;
                         }
+                        current = re.replace_all(&current, &rule.replacement).into_owned();
                     }
                 }
 

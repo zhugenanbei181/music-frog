@@ -90,11 +90,11 @@
       "rationale": "Sets and restores proxy variables in the process environment."
     },
     {
-      "path": "crates/infiltrator-desktop/src/system_proxy.rs",
+      "path": "crates/infiltrator-desktop/src/system_proxy/journal.rs",
       "operations": 1,
       "max_undocumented": 0,
       "category": "ffi",
-      "rationale": "Windows MoveFileExW replacement of the proxy configuration file."
+      "rationale": "Windows MoveFileExW replacement of the proxy configuration journal."
     },
     {
       "path": "crates/infiltrator-domain/src/zeroize_guard.rs",

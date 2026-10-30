@@ -3,11 +3,10 @@
 //! [`TraySpec`] describes the menu (stable action ids, checkable entries,
 //! separators, submenus); [`TrayEvent`] reports user activations; the
 //! [`TrayController`] trait pushes spec updates to whichever backend is
-//! compiled in (ksni on Linux by default, muda/tray-icon on Windows/macOS or
-//! with the `native-tray-backend` feature). Neither backend is referenced
-//! here, so the spec, event resolution and the spec builder (see [`build_tray_spec`],
-//! implemented in `super::menu`) can all be unit tested without a display
-//! server or a D-Bus session.
+//! compiled in (ksni on Linux, muda/tray-icon on Windows/macOS). Neither
+//! backend is referenced here, so the spec, event resolution and the spec
+//! builder (see [`build_tray_spec`], implemented in `super::menu`) can all be
+//! unit tested without a display server or a D-Bus session.
 //!
 //! Red line: everything in this module is pure data plus pure functions —
 //! no app-state access, no I/O, no backend calls.

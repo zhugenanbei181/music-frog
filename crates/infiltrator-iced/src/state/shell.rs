@@ -17,7 +17,8 @@ use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::responsive_viewport::ResponsiveViewportSnapshot;
 use infiltrator_contract::shell_readout::ShellReadoutSnapshot;
 use infiltrator_contract::shortcuts::{ShortcutAction, ShortcutRegistry};
-use infiltrator_contract::theme::ThemePreference;
+use infiltrator_contract::theme::{SystemAppearance, ThemePreference};
+use infiltrator_contract::theme_palette::ResolvedThemePalette;
 use infiltrator_contract::toast::ToastGate;
 use infiltrator_presentation::app_routing_page_model::AppRoutingPageModel;
 use infiltrator_presentation::language_choice::LanguageChoiceState;
@@ -106,8 +107,8 @@ pub struct ShellState {
     pub window_focused: bool,
     /// Shared appearance preference (pinned skin or system follow).
     pub theme_preference: ThemePreference,
-    /// Latest OS appearance signal (`true` = the OS prefers dark).
-    pub system_prefers_dark: bool,
+    /// Latest typed OS appearance signal.
+    pub system_appearance: SystemAppearance,
     /// Shared global-shortcut registry (product defaults until settings load).
     pub shortcut_registry: ShortcutRegistry,
     /// Action awaiting the next captured chord, if any.
@@ -131,10 +132,10 @@ pub struct MiniHudDragAnchor {
 }
 
 impl ShellState {
-    /// Apply an appearance preference: store it and repaint the resolved skin
-    /// against the latest OS signal (shared `ThemePreference` resolution).
+    /// Apply an appearance preference against the last OS observation.
     pub fn apply_theme_preference(&mut self, preference: ThemePreference) {
         self.theme_preference = preference;
-        self.theme = theme_for_skin(preference.resolve(self.system_prefers_dark));
+        let resolved = ResolvedThemePalette::resolve(preference, self.system_appearance, None);
+        self.theme = theme_for_skin(resolved.skin);
     }
 }

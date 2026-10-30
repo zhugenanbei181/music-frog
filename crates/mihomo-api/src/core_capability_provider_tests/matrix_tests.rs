@@ -32,7 +32,7 @@ fn owner_managed_lifecycle_still_requires_an_owner_composed_port() {
 
 #[test]
 fn linux_real_process_evidence_does_not_authorize_android_or_ios_operations() {
-    let version = CoreVersion::new("v1.19.32").expect("valid version");
+    let version = CoreVersion::new("v1.19.33").expect("valid version");
     for (host, target) in [
         (HostKind::Android, EngineBinaryTarget::Aarch64LinuxAndroid),
         (HostKind::Ios, EngineBinaryTarget::Aarch64AppleIos),
@@ -62,7 +62,7 @@ fn linux_real_process_evidence_does_not_authorize_android_or_ios_operations() {
 
 #[test]
 fn mismatched_host_target_and_adapter_revision_fail_closed() {
-    let version = CoreVersion::new("v1.19.32").expect("valid version");
+    let version = CoreVersion::new("v1.19.33").expect("valid version");
     let cases = [
         (
             HostKind::Android,
@@ -128,7 +128,7 @@ fn capability_matrix_keeps_only_composition_audited_operations_available() {
         CoreOperation::all().iter().copied(),
     );
     let engine_id = EngineId::new("mihomo").expect("valid engine ID");
-    let version = CoreVersion::new("v1.19.32").expect("valid version");
+    let version = CoreVersion::new("v1.19.33").expect("valid version");
     let matrix = provider
         .matrix_for(&engine_id, Some(&version))
         .expect("Mihomo capability matrix");

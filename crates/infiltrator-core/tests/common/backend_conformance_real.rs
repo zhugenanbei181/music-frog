@@ -62,7 +62,7 @@ use tokio::sync;
 use tokio::task::JoinHandle;
 use tokio::time::{sleep, timeout};
 
-const MIHOMO_LOCKED_VERSION: &str = "v1.19.32";
+const MIHOMO_LOCKED_VERSION: &str = "v1.19.33";
 const SING_BOX_LOCKED_VERSION: &str = "v1.14.3";
 
 struct SmokeSecureStore(Mutex<HashMap<(String, String), String>>);
@@ -335,7 +335,7 @@ rules:
         engine: mihomo,
         expected_version,
         binary_target: EngineBinaryTarget::current(),
-        adapter_revision: AdapterRevision::new(1),
+        adapter_revision: AdapterRevision::new(2),
         declared_operations: {
             let mut operations = backend_conformance_declarations::supported_engine_operations();
             operations.extend(

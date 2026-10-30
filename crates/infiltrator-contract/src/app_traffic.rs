@@ -5,6 +5,7 @@
 //! ranking inspector.
 
 use serde::{Deserialize, Serialize};
+use std::cmp::Reverse;
 
 /// High-level application category classification.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -192,16 +193,16 @@ impl TopTalkersReport {
     pub fn of(mut apps: Vec<AppTrafficAggregate>, sort: TopTalkersSort) -> Self {
         match sort {
             TopTalkersSort::TotalBytesDesc => {
-                apps.sort_by(|a, b| b.total_bytes().cmp(&a.total_bytes()));
+                apps.sort_by_key(|app| Reverse(app.total_bytes()));
             }
             TopTalkersSort::DownloadBytesDesc => {
-                apps.sort_by(|a, b| b.download_total_bytes.cmp(&a.download_total_bytes));
+                apps.sort_by_key(|app| Reverse(app.download_total_bytes));
             }
             TopTalkersSort::UploadBytesDesc => {
-                apps.sort_by(|a, b| b.upload_total_bytes.cmp(&a.upload_total_bytes));
+                apps.sort_by_key(|app| Reverse(app.upload_total_bytes));
             }
             TopTalkersSort::ConnectionCountDesc => {
-                apps.sort_by(|a, b| b.connection_count.cmp(&a.connection_count));
+                apps.sort_by_key(|app| Reverse(app.connection_count));
             }
         }
 

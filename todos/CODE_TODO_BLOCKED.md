@@ -106,7 +106,7 @@
   - 产物：SDK/NDK/JDK 值统一由 `android/toolchain.properties` 提供给 Gradle、CI、模拟器与 Bevy 诊断构建；wrapper 和 Rust 使用各自唯一版本文件；本机/CI 核对由 `scripts/android-toolchain.py check` 执行。
   - 依赖：无。
   - 验收：本机 JDK/Gradle/SDK/NDK/Rust 与登记值匹配；Tag-only CI 在 SDK 安装后运行同一核对；配置漂移由检查拒绝。
-  - 当前证据：`scripts/android-toolchain.py check` 本机通过（JDK 17、Gradle 9.7.0、AGP 9.3.1、KGP 2.4.21、platform 37.0、Build Tools 36.0.0、cmdline-tools 12.0、NDK 29.0.14206865、Rust 1.99.0）。
+  - 当前证据：`scripts/android-toolchain.py check` 本机通过（JDK 17、Gradle 9.7.0、AGP 9.3.1、KGP 2.4.21、platform 37.0、Build Tools 36.0.0、cmdline-tools 12.0、NDK 29.0.14206865、Rust 1.99.1）。
   - 阻塞方：受控 tag release runner（CI 侧同一核对尚未执行）。
   - 解锁条件：tag run 中 toolchain 核对步骤的回执；取得后同次迁回过去佛办结。
   - 本板停留期间：本机核对已闭环，无剩余本机可执行动作。

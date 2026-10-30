@@ -41,7 +41,6 @@ private val LightColors = lightColorScheme(
     scrim = md_theme_light_scrim,
 )
 
-
 private val ForestColors = lightColorScheme(
     primary = md_theme_forest_primary,
     onPrimary = md_theme_forest_onPrimary,
@@ -123,13 +122,17 @@ fun InfiltratorTheme(
 ) {
     val baseColors = when (themeOverride) {
         ThemeOverride.Forest -> ForestColors
+
         ThemeOverride.Dark -> DarkColors
+
         ThemeOverride.Light -> LightColors
+
         ThemeOverride.Amoled -> DarkColors.copy(
             background = androidx.compose.ui.graphics.Color.Black,
             surface = androidx.compose.ui.graphics.Color.Black,
             surfaceVariant = androidx.compose.ui.graphics.Color(0xFF121212),
         )
+
         ThemeOverride.None -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)

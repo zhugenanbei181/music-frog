@@ -96,15 +96,15 @@ About view; this notice does not claim that an upstream license text was
 included in the archive. The vendored Material Slint component package keeps
 its own license at `crates/infiltrator-slint/lumen-source/material-1.1.0/LICENSE.md`.
 
-## 6. Bevy 0.20.0 engine family (`bevy` facade + sub-crates)
+## 6. Bevy 0.20.1 engine family (`bevy` facade + sub-crates)
 
 - Source: crates.io, upstream [bevyengine/bevy](https://github.com/bevyengine/bevy),
-  pinned by `Cargo.lock` to **0.20.0**. The crates are not vendored into
+  pinned by `Cargo.lock` to **0.20.1**. The crates are not vendored into
   this repository; they are pulled from crates.io at build time. / 不随仓库分发，
   构建时由 cargo 自 crates.io 拉取。License 逐个实证自本机
   `~/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/<name>-<version>/Cargo.toml`
   的 `license` 字段。
-- Members (all at 0.20.0): `bevy` (facade), `bevy_internal`, `bevy_a11y`,
+- Members (all at 0.20.1): `bevy` (facade), `bevy_internal`, `bevy_a11y`,
   `bevy_android`, `bevy_app`, `bevy_asset`, `bevy_asset_macros`, `bevy_camera`,
   `bevy_clipboard`, `bevy_color`, `bevy_core_pipeline`, `bevy_curve`,
   `bevy_derive`, `bevy_diagnostic`, `bevy_ecs`, `bevy_ecs_macro_logic`,
@@ -135,7 +135,7 @@ its own license at `crates/infiltrator-slint/lumen-source/material-1.1.0/LICENSE
   `Cargo.lock`. / 同上，构建时自 crates.io 拉取，license 实证自本机 vendored
   源码的 `Cargo.toml`。
 - Note: the iced client already brought `wgpu`/`naga` **27.x**; the entries
-  below are the **30.x** set added with bevy 0.20.0. Both generations
+  below are the **30.x** set added with bevy 0.20.1. Both generations
   coexist in `Cargo.lock`. / 27.x 系 iced 原有；下述为 bevy 新增的 30.x
   条目，两代并存。
 - Core (all **MIT OR Apache-2.0**): `wgpu` 30.0.1, `wgpu-core` 30.0.1,
@@ -279,14 +279,15 @@ checkouts (`~/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/`). /
   Slint's upstream license materials; the Rust crates are fetched at build time
   and are not vendored in this repository.
 
-## 13. Android host tunnelling stack (`tun2proxy`, `tun2`, `socks5-impl`)
+## 13. Android host tunnelling stack (`tun2proxy`, `tun2`, `tun`, `socks5-impl`)
 
-- Source: crates.io, pinned by `Cargo.lock`: `tun2proxy` 0.5.4 and `tun2` 3.1.8
+- Source: crates.io, pinned by `Cargo.lock`: `tun2proxy` 0.8.6 and `tun2` 3.1.8
   are direct dependencies of the Android host crate
-  (`crates/infiltrator-android/Cargo.toml`), and `socks5-impl` 0.5.17 is pulled
-  in by `tun2proxy`.
-- License: **`socks5-impl` is GPL-3.0-or-later**; `tun2` is under the WTFPL
-  and the rest of the stack is MIT/Apache-2.0. The copyleft crate is the one
+  (`crates/infiltrator-android/Cargo.toml`); `socks5-impl` 0.10.3 and `tun`
+  0.8.14 are pulled in by `tun2proxy`.
+- License: **`socks5-impl` is GPL-3.0-or-later**; `tun2` 3.1.8 and `tun`
+  0.8.14 are under the WTFPL, and the remaining crates are MIT/Apache-2.0.
+  The copyleft crate is the one
   item in the cargo graph that is not permissive, so it is the only one that
   needs a per-crate exception in `deny.toml`; the disclosure lives here and
   the open item is tracked in the engineering ledger.

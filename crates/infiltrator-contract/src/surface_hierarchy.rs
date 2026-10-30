@@ -7,9 +7,9 @@
 //! * Mathematical WCAG AA (>= 4.5:1) contrast validation across all container pairs and step distinctiveness;
 //! * FlClash v0.9.2 default color palette calibration and contrast verification.
 
-use crate::color_science::wcag_contrast_ratio;
-use crate::design_tokens::RgbaToken;
-use crate::theme::ThemeSkin;
+use crate::color_science::{MaterialColorScheme, TonalPalette, wcag_contrast_ratio};
+use crate::design_tokens::{RgbaToken, skin_core};
+use crate::theme::{AppearanceMode, ThemeSkin};
 use serde::{Deserialize, Serialize};
 
 /// Fine-grained surface elevation and container roles matching Material Design 3.
@@ -84,21 +84,22 @@ pub struct MaterialSurfaceTokens {
 impl MaterialSurfaceTokens {
     /// Resolve concrete M3 tokens for any theme skin, calibrated against FlClash v0.9.2 benchmarks.
     pub const fn of(skin: ThemeSkin) -> Self {
+        let core = skin_core(skin);
         match skin {
             ThemeSkin::Dark => Self {
                 // FlClash v0.9.2 High-Contrast Dark: crisp deep base with clearly tiered containers
-                canvas: RgbaToken::rgb(0.040, 0.045, 0.055), // #0a0b0e
-                sidebar: RgbaToken::rgb(0.060, 0.068, 0.080), // #0f1114
+                canvas: core.canvas,
+                sidebar: core.sidebar,
                 container_lowest: RgbaToken::rgb(0.025, 0.030, 0.035), // #060809
-                container_low: RgbaToken::rgb(0.080, 0.090, 0.105), // #14171b
-                container_card: RgbaToken::rgb(0.115, 0.130, 0.150), // #1d2126
+                container_low: RgbaToken::rgb(0.080, 0.090, 0.105),    // #14171b
+                container_card: core.card,
                 container_high: RgbaToken::rgb(0.160, 0.180, 0.205), // #292e35
                 container_highest: RgbaToken::rgb(0.210, 0.235, 0.265), // #363c44
                 floating_overlay: RgbaToken::rgb(0.180, 0.205, 0.235), // #2e343c
-                outline: RgbaToken::rgb(0.380, 0.420, 0.470), // #616b78 (crisp boundary)
+                outline: RgbaToken::rgb(0.380, 0.420, 0.470),        // #616b78 (crisp boundary)
                 outline_variant: RgbaToken::rgb(0.220, 0.250, 0.285), // #384049
-                text_primary: RgbaToken::rgb(0.941, 0.965, 0.988), // #f0f6fc (L* ~ 95, contrast > 14:1)
-                text_secondary: RgbaToken::rgb(0.647, 0.690, 0.737), // #a5b0bc (L* ~ 75, contrast > 7:1)
+                text_primary: core.ink,
+                text_secondary: core.ink_dim,
                 primary_pair: SemanticContainerPair::new(
                     RgbaToken::rgb(0.080, 0.220, 0.380),
                     RgbaToken::rgb(0.750, 0.880, 1.000),
@@ -117,18 +118,18 @@ impl MaterialSurfaceTokens {
                 ),
             },
             ThemeSkin::Light => Self {
-                canvas: RgbaToken::rgb(0.973, 0.976, 0.980),  // #f8f9fa
-                sidebar: RgbaToken::rgb(0.945, 0.953, 0.961), // #f1f3f5
+                canvas: core.canvas,
+                sidebar: core.sidebar,
                 container_lowest: RgbaToken::rgb(1.000, 1.000, 1.000), // #ffffff
-                container_low: RgbaToken::rgb(0.957, 0.965, 0.973), // #f4f6f8
-                container_card: RgbaToken::rgb(1.000, 1.000, 1.000), // #ffffff
+                container_low: RgbaToken::rgb(0.957, 0.965, 0.973),    // #f4f6f8
+                container_card: core.card,
                 container_high: RgbaToken::rgb(0.925, 0.933, 0.945), // #eceef1
                 container_highest: RgbaToken::rgb(0.890, 0.902, 0.914), // #e3e6e9
                 floating_overlay: RgbaToken::rgb(1.000, 1.000, 1.000), // #ffffff
-                outline: RgbaToken::rgb(0.451, 0.467, 0.498), // #73777f
+                outline: RgbaToken::rgb(0.451, 0.467, 0.498),        // #73777f
                 outline_variant: RgbaToken::rgb(0.769, 0.780, 0.812), // #c4c7cf
-                text_primary: RgbaToken::rgb(0.102, 0.110, 0.118), // #1a1c1e
-                text_secondary: RgbaToken::rgb(0.263, 0.278, 0.306), // #43474e
+                text_primary: core.ink,
+                text_secondary: core.ink_dim,
                 primary_pair: SemanticContainerPair::new(
                     RgbaToken::rgb(0.835, 0.910, 1.000),
                     RgbaToken::rgb(0.000, 0.118, 0.239),
@@ -147,19 +148,20 @@ impl MaterialSurfaceTokens {
                 ),
             },
             ThemeSkin::Forest => Self {
-                // Calibrated light sage paper theme matching SkinCorePalette and capture matrix
-                canvas: RgbaToken::rgb(0.945, 0.965, 0.937), // #f1f6ef
-                sidebar: RgbaToken::rgb(0.851, 0.910, 0.843), // #d9e8d7
+                // The outer paper, rail, card, and ink roles come from skin_core;
+                // only the M3 elevation steps are specialized here.
+                canvas: core.canvas,
+                sidebar: core.sidebar,
                 container_lowest: RgbaToken::rgb(0.973, 0.984, 0.961), // #f8fbf5
-                container_low: RgbaToken::rgb(0.910, 0.941, 0.898), // #e8f0e5
-                container_card: RgbaToken::rgb(1.000, 1.000, 1.000), // #ffffff
+                container_low: RgbaToken::rgb(0.910, 0.941, 0.898),    // #e8f0e5
+                container_card: core.card,
                 container_high: RgbaToken::rgb(0.878, 0.918, 0.851), // #e0ead9
                 container_highest: RgbaToken::rgb(0.835, 0.886, 0.800), // #d5e2cc
                 floating_overlay: RgbaToken::rgb(1.000, 1.000, 1.000), // #ffffff
-                outline: RgbaToken::rgb(0.400, 0.520, 0.420), // #66856b
+                outline: RgbaToken::rgb(0.400, 0.520, 0.420),        // #66856b
                 outline_variant: RgbaToken::rgb(0.757, 0.820, 0.745), // #c1d1be
-                text_primary: RgbaToken::rgb(0.122, 0.208, 0.145), // #1f3525
-                text_secondary: RgbaToken::rgb(0.255, 0.341, 0.275), // #415746
+                text_primary: core.ink,
+                text_secondary: core.ink_dim,
                 primary_pair: SemanticContainerPair::new(
                     RgbaToken::rgb(0.863, 0.933, 0.886), // #dceee2
                     RgbaToken::rgb(0.055, 0.243, 0.118), // #0e3e1e
@@ -178,18 +180,18 @@ impl MaterialSurfaceTokens {
                 ),
             },
             ThemeSkin::Amoled => Self {
-                canvas: RgbaToken::rgb(0.000, 0.000, 0.000),  // #000000
-                sidebar: RgbaToken::rgb(0.031, 0.043, 0.055), // #080b0e
+                canvas: core.canvas,
+                sidebar: core.sidebar,
                 container_lowest: RgbaToken::rgb(0.000, 0.000, 0.000), // #000000
-                container_low: RgbaToken::rgb(0.051, 0.067, 0.082), // #0d1115
-                container_card: RgbaToken::rgb(0.075, 0.098, 0.125), // #131920
+                container_low: RgbaToken::rgb(0.051, 0.067, 0.082),    // #0d1115
+                container_card: core.card,
                 container_high: RgbaToken::rgb(0.106, 0.133, 0.169), // #1b222b
                 container_highest: RgbaToken::rgb(0.141, 0.176, 0.220), // #242d38
                 floating_overlay: RgbaToken::rgb(0.094, 0.125, 0.161), // #182029
-                outline: RgbaToken::rgb(0.250, 0.300, 0.360), // #404c5c
+                outline: RgbaToken::rgb(0.250, 0.300, 0.360),        // #404c5c
                 outline_variant: RgbaToken::rgb(0.140, 0.170, 0.210), // #242b36
-                text_primary: RgbaToken::rgb(1.000, 1.000, 1.000), // #ffffff
-                text_secondary: RgbaToken::rgb(0.680, 0.720, 0.760), // #aeb8c2
+                text_primary: core.ink,
+                text_secondary: core.ink_dim,
                 primary_pair: SemanticContainerPair::new(
                     RgbaToken::rgb(0.094, 0.239, 0.400),
                     RgbaToken::rgb(0.706, 0.843, 1.000),
@@ -207,6 +209,47 @@ impl MaterialSurfaceTokens {
                     RgbaToken::rgb(1.000, 0.706, 0.671),
                 ),
             },
+        }
+    }
+
+    /// Resolve the surface and semantic roles for an HCT-generated scheme.
+    pub fn from_scheme(scheme: &MaterialColorScheme, mode: AppearanceMode) -> Self {
+        let (success_container_tone, success_ink_tone, warning_container_tone, warning_ink_tone) =
+            match mode {
+                AppearanceMode::Light => (90, 10, 90, 10),
+                AppearanceMode::Dark => (30, 90, 30, 90),
+            };
+        let success = TonalPalette::of(142.0, 48.0);
+        let warning = TonalPalette::of(82.0, 48.0);
+        Self {
+            canvas: scheme.background,
+            sidebar: scheme.surface_container_low,
+            container_lowest: scheme.surface_container_lowest,
+            container_low: scheme.surface_container_low,
+            container_card: scheme.surface_container,
+            container_high: scheme.surface_container_high,
+            container_highest: scheme.surface_container_highest,
+            floating_overlay: scheme.surface_container_highest,
+            outline: scheme.outline,
+            outline_variant: scheme.outline_variant,
+            text_primary: scheme.on_surface,
+            text_secondary: scheme.on_surface_variant,
+            primary_pair: SemanticContainerPair::new(
+                scheme.primary_container,
+                scheme.on_primary_container,
+            ),
+            success_pair: SemanticContainerPair::new(
+                success.tone(success_container_tone),
+                success.tone(success_ink_tone),
+            ),
+            warning_pair: SemanticContainerPair::new(
+                warning.tone(warning_container_tone),
+                warning.tone(warning_ink_tone),
+            ),
+            danger_pair: SemanticContainerPair::new(
+                scheme.error_container,
+                scheme.on_error_container,
+            ),
         }
     }
 
@@ -312,16 +355,52 @@ mod tests {
     }
 
     #[test]
-    fn dark_mode_skin_core_and_material_surface_tokens_align_on_shared_roles() {
-        use crate::design_tokens::skin_core;
-        let core = skin_core(ThemeSkin::Dark);
-        let m3 = MaterialSurfaceTokens::of(ThemeSkin::Dark);
-        assert_eq!(core.canvas, m3.canvas);
-        assert_eq!(core.sidebar, m3.sidebar);
-        assert_eq!(core.card, m3.container_card);
-        assert_eq!(core.ink, m3.text_primary);
-        assert_eq!(core.ink_dim, m3.text_secondary);
-        assert!(wcag_contrast_ratio(core.ink, core.card) >= 14.0);
-        assert!(wcag_contrast_ratio(core.ink_dim, core.card) >= 7.0);
+    fn all_skin_core_roles_are_the_material_surface_source() {
+        for skin in ThemeSkin::ALL {
+            let core = skin_core(skin);
+            let m3 = MaterialSurfaceTokens::of(skin);
+            assert_eq!(core.canvas, m3.canvas, "{skin:?} canvas drifted");
+            assert_eq!(core.sidebar, m3.sidebar, "{skin:?} sidebar drifted");
+            assert_eq!(core.card, m3.container_card, "{skin:?} card drifted");
+            assert_eq!(core.ink, m3.text_primary, "{skin:?} primary ink drifted");
+            assert_eq!(
+                core.ink_dim, m3.text_secondary,
+                "{skin:?} secondary ink drifted"
+            );
+            assert!(
+                wcag_contrast_ratio(core.ink, core.card) >= 4.5,
+                "{skin:?} primary ink does not meet WCAG AA"
+            );
+            assert!(
+                wcag_contrast_ratio(core.ink_dim, core.card) >= 4.5,
+                "{skin:?} secondary ink does not meet WCAG AA"
+            );
+        }
+    }
+
+    #[test]
+    fn generated_surface_roles_meet_contrast_floors_in_both_modes() {
+        use crate::color_science::{HctColor, MaterialCorePalette};
+
+        let core = MaterialCorePalette::of_seed(HctColor::from_rgb(0.12, 0.56, 0.96));
+        for (mode, scheme) in [
+            (
+                AppearanceMode::Light,
+                MaterialColorScheme::light_from_core(&core),
+            ),
+            (
+                AppearanceMode::Dark,
+                MaterialColorScheme::dark_high_contrast_from_core(&core),
+            ),
+        ] {
+            let tokens = MaterialSurfaceTokens::from_scheme(&scheme, mode);
+            assert!(wcag_contrast_ratio(tokens.text_primary, tokens.container_card) >= 4.5);
+            assert!(wcag_contrast_ratio(tokens.text_secondary, tokens.container_card) >= 4.5);
+            assert!(wcag_contrast_ratio(tokens.outline, tokens.container_card) >= 1.5);
+            assert!(tokens.primary_pair.meets_wcag_aa());
+            assert!(tokens.success_pair.meets_wcag_aa());
+            assert!(tokens.warning_pair.meets_wcag_aa());
+            assert!(tokens.danger_pair.meets_wcag_aa());
+        }
     }
 }

@@ -18,6 +18,7 @@ use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
 use infiltrator_application::system_proxy_application::SystemProxyApplication;
 use infiltrator_contract::cadence::RenderCadence;
 use infiltrator_contract::shortcuts::KeyModifiers;
+use infiltrator_contract::theme::AppearanceMode;
 use infiltrator_ports::host_runtime::HostRuntime;
 use infiltrator_ports::runtime_stream::{
     RuntimeStreamEvent, RuntimeStreamTerminal, ScopedRuntimeStreamEvent,
@@ -413,9 +414,10 @@ impl AppState {
         }));
 
         // 4a. 系统外观订阅：`system` 偏好下即时跟随 OS 明暗切换。
-        subs.push(
-            theme_changes().map(|mode| Message::SystemThemeChanged(matches!(mode, Mode::Dark))),
-        );
+        subs.push(theme_changes().map(|mode| {
+            let appearance = AppearanceMode::from_prefers_dark(matches!(mode, Mode::Dark));
+            Message::SystemThemeChanged(appearance)
+        }));
 
         // 4b. 窗口尺寸订阅：唯一驱动共享 4 阶响应式投影的来源。窗口拖拽
         // 只影响本地布局，但阶的判定必须走 shared contract，两端一致。

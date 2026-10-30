@@ -68,7 +68,7 @@ impl FakeBackend {
         let (engine_name, version, instance_name, details, probe, routing) = match kind {
             FakeBackendKind::MihomoLike => (
                 "mihomo",
-                "v1.19.32",
+                "v1.19.33",
                 "fake-mihomo",
                 DetailsBehavior::Ready,
                 ProbeBehavior::Measured,
@@ -297,7 +297,7 @@ pub fn declaration_matrix_keeps_evidence_open_and_unsupported_out_of_verified_su
             AdapterOperationSupport::Unsupported { .. }
         ));
     }
-    let mihomo_version = CoreVersion::new("v1.19.32").expect("locked Mihomo version is valid");
+    let mihomo_version = CoreVersion::new("v1.19.33").expect("locked Mihomo version is valid");
     for operation in [
         outbound_list,
         outbound_select,

@@ -9,6 +9,7 @@ use infiltrator_ports::mtu_probe::MtuProbePort;
 use lurker_core_contract::capability::Capability;
 use lurker_core_ports::error::PortError;
 use std::collections::HashMap;
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
 use std::process::Command;
 use tokio::task::spawn_blocking;
 
@@ -187,6 +188,7 @@ fn parse_linux_default_route(output: &str) -> Option<String> {
 }
 
 #[allow(dead_code)]
+#[cfg(any(target_os = "macos", test))]
 fn parse_ifconfig_mtu(output: &str) -> HashMap<String, u32> {
     output
         .lines()
@@ -203,6 +205,7 @@ fn parse_ifconfig_mtu(output: &str) -> HashMap<String, u32> {
 }
 
 #[allow(dead_code)]
+#[cfg(any(target_os = "macos", test))]
 fn parse_macos_default_route(output: &str) -> Option<String> {
     output.lines().find_map(|line| {
         let (key, value) = line.split_once(':')?;
@@ -211,6 +214,7 @@ fn parse_macos_default_route(output: &str) -> Option<String> {
 }
 
 #[allow(dead_code)]
+#[cfg(any(target_os = "windows", test))]
 fn parse_netsh_mtu(output: &str) -> HashMap<String, u32> {
     output
         .lines()
@@ -226,7 +230,7 @@ fn parse_netsh_mtu(output: &str) -> HashMap<String, u32> {
         .collect()
 }
 
-#[allow(dead_code)]
+#[cfg(any(target_os = "windows", test))]
 fn parse_windows_default_route(output: &str) -> Option<String> {
     output
         .lines()

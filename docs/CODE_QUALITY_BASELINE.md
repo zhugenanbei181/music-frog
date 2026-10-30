@@ -32,7 +32,7 @@
 
 ## 依赖、工具链与不安全点
 
-- **依赖政策只有两个面、互不越权**：仓库根的 `deny.toml` 是 cargo 依赖图的许可、公告、禁用与来源裁决面；第三方声明文件是分发披露面。`scripts/quality/dependency-policy-guard.py` 强制两者一致：披露面出现的许可必须在许可白名单内，copyleft（GPL/AGPL/SSPL/BUSL）不得进入 cargo 图，未知注册表与未知 git 源一律拒绝，通配版本号一律拒绝。生态门禁必须存在一个 tag 门控的 `cargo deny check` 作业，否则政策只是注释。
+- **依赖政策只有两个面、互不越权**：仓库根的 `deny.toml` 是 cargo 依赖图的许可、公告、禁用与来源裁决面；第三方声明文件是分发披露面。`scripts/quality/dependency-policy-guard.py` 强制两者一致：披露面出现的许可必须在许可白名单内；copyleft 不得进入全局白名单，只能经精确 crate 例外、分发披露和源代码提供决策准入；未知注册表与未知 git 源一律拒绝，通配版本号一律拒绝。公告例外必须给出原因、版本化的直接依赖者范围和未来复核日期。生态门禁必须存在一个 tag 门控的 `cargo deny check` 作业，否则政策只是注释。
 - **工具链只有一个版本**：`rust-toolchain.toml` 是唯一真源。各 CI workflow 必须钉同一个发布号，禁止 `stable`/`nightly` 之类浮动引用，manifest 的 `rust-version` 不得与真源分歧；`scripts/quality/toolchain-consistency-guard.py` 强制。
 - **不安全点必须可追溯**：本仓的 unsafe 是真实需求（libc 文件锁、Windows API、JNI、volatile 擦除），但必须登记在 `scripts/quality/unsafe_inventory.json`：条目记录操作数、类别与用途，操作数必须与源码一致，缺少 `SAFETY:` 说明的数量只能下降，新文件不得绕过登记。
 - **panic 边界必须显式**：每个 `catch_unwind` 都要在 `scripts/quality/panic_boundary_inventory.json` 登记它拦住的失败；任何 profile 禁止 `panic = "abort"`，否则登记的边界变成死代码。

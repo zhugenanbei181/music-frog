@@ -28,7 +28,7 @@ serde = { version = "1", features = ["derive"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
 android-activity = { version = "0.6.1", features = ["native-activity"] }
-bevy_android = "=0.20.0"
+bevy_android = "=0.20.1"
 jni = "0.22.4"
 
 [workspace]

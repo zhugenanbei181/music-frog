@@ -1,6 +1,6 @@
 //! test-intent: behavior
 //! Historical v1.19.18 controller response with synthetic nodes. This is a
-//! decoder fixture, not evidence for the currently locked v1.19.32 binary.
+//! decoder fixture, not evidence for the currently locked v1.19.33 binary.
 use crate::api::client::MihomoClient;
 use crate::api::proxy::ProxiesResponse;
 use mockito::Server;

@@ -178,6 +178,49 @@ class AndroidManifestContractRules(unittest.TestCase):
         self.assertTrue(any("android:launchMode must be 'singleTask'" in item for item in problems))
         self.assertTrue(any("android:exported must be 'true'" in item for item in problems))
 
+    def test_compose_owns_the_optional_leanback_launcher(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = fixture_repo(Path(directory))
+
+            def remove_compose_leanback_category(manifest):
+                activity = application(manifest).find("activity")
+                for intent_filter in list(activity.findall("intent-filter")):
+                    if any(
+                        category.get(GUARD.ANDROID_NAME) == GUARD.LEANBACK_LAUNCHER
+                        for category in intent_filter.findall("category")
+                    ):
+                        activity.remove(intent_filter)
+
+            mutate_manifest(
+                root,
+                "android/app/src/compose/AndroidManifest.xml",
+                remove_compose_leanback_category,
+            )
+            problems = GUARD.source_problems(root)
+        self.assertTrue(
+            any("Compose launcher must expose a MAIN/LEANBACK_LAUNCHER" in item for item in problems)
+        )
+
+    def test_leanback_capability_cannot_be_declared_by_a_shared_source_set(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = fixture_repo(Path(directory))
+
+            def add_main_leanback_feature(manifest):
+                feature = ET.Element("uses-feature")
+                feature.set(GUARD.ANDROID_NAME, GUARD.LEANBACK_FEATURE)
+                feature.set(f"{GUARD.ANDROID}required", "false")
+                manifest.append(feature)
+
+            mutate_manifest(
+                root,
+                "android/app/src/main/AndroidManifest.xml",
+                add_main_leanback_feature,
+            )
+            problems = GUARD.source_problems(root)
+        self.assertTrue(
+            any("Leanback capability must be declared once by the Compose flavor" in item for item in problems)
+        )
+
     def test_bevy_native_activity_library_binding_is_required(self):
         with tempfile.TemporaryDirectory() as directory:
             root = fixture_repo(Path(directory))

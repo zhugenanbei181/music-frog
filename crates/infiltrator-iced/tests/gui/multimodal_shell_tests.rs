@@ -20,7 +20,7 @@ use infiltrator_contract::design_tokens::type_scale;
 use infiltrator_contract::mini_hud::{MiniHudPlacement, MiniHudWaveformStrip};
 use infiltrator_contract::shortcuts::{KeyModifiers, ShortcutAction, ShortcutChord};
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot};
-use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
+use infiltrator_contract::theme::{AppearanceMode, ThemePreference, ThemeSkin};
 use infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot;
 use infiltrator_domain::runtime::TrafficData;
 use infiltrator_domain::settings::AppSettings;
@@ -44,9 +44,9 @@ fn the_shell_follows_the_os_appearance_while_the_preference_is_system() {
     let (mut state, _) = AppState::new();
     assert_eq!(state.shell.theme_preference, ThemePreference::System);
 
-    let _ = state.update(Message::SystemThemeChanged(false));
+    let _ = state.update(Message::SystemThemeChanged(AppearanceMode::Light));
     assert_eq!(state.shell.theme, iced::Theme::Light);
-    let _ = state.update(Message::SystemThemeChanged(true));
+    let _ = state.update(Message::SystemThemeChanged(AppearanceMode::Dark));
     assert_eq!(state.shell.theme, iced::Theme::Dark);
 
     // A pinned skin ignores later OS signals.
@@ -56,7 +56,7 @@ fn the_shell_follows_the_os_appearance_while_the_preference_is_system() {
         ThemePreference::Fixed(ThemeSkin::Forest)
     );
     assert!(is_forest(&state.shell.theme));
-    let _ = state.update(Message::SystemThemeChanged(false));
+    let _ = state.update(Message::SystemThemeChanged(AppearanceMode::Light));
     assert!(is_forest(&state.shell.theme));
 }
 

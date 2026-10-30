@@ -1,6 +1,6 @@
 // Mesh2d telemetry vertex stage.
 //
-// Binding layout verified against Bevy 0.20.0 GA `bevy_sprite_render`:
+// Binding layout verified against Bevy 0.20.1 GA `bevy_sprite_render`:
 // `mesh2d/view_bindings.wesl` binds `View` at `@group(0) @binding(0)`
 // (`ViewUniform`, visibility VERTEX_FRAGMENT), and the material bind group is
 // `@group(2)` (`MATERIAL_2D_BIND_GROUP_INDEX`). The world-to-clip field is

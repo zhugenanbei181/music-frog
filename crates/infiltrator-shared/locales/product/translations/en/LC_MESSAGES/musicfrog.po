@@ -310,8 +310,8 @@ msgstr "Close add profile"
 msgid "关于"
 msgstr "About"
 
-msgid "官方 Android v1.19.32 · 随 Lumen APK 提供，独立进程运行；GPL-3.0 许可与源码见关于页。当前："
-msgstr "Official Android v1.19.32 core ships with this Lumen APK as a separate process. See About for the GPL-3.0 license and source. Current: "
+msgid "官方 Android v1.19.33 · 随 Lumen APK 提供，独立进程运行；GPL-3.0 许可与源码见关于页。当前："
+msgstr "Official Android v1.19.33 core ships with this Lumen APK as a separate process. See About for the GPL-3.0 license and source. Current: "
 
 msgid "规则"
 msgstr "Rules"
@@ -925,8 +925,8 @@ msgstr "Install the Mihomo core in PATH. Third-party license texts are bundled o
 msgid "Mihomo 实时日志流已连接；保留最近 300 条并脱敏。"
 msgstr "Mihomo live log stream connected; the latest 300 entries are retained with sensitive data masked."
 
-msgid "Mihomo v1.19.32 是独立 GPL-3.0 核心进程，随本 ABI APK 提供；在依赖许可列表中搜索 Mihomo Core 可查看许可证和源码标签。"
-msgstr "Mihomo v1.19.32 ships as a separate GPL-3.0 core process in this ABI APK. Search Mihomo Core in the license list for its license and source tag."
+msgid "Mihomo v1.19.33 是独立 GPL-3.0 核心进程，随本 ABI APK 提供；在依赖许可列表中搜索 Mihomo Core 可查看许可证和源码标签。"
+msgstr "Mihomo v1.19.33 ships as a separate GPL-3.0 core process in this ABI APK. Search Mihomo Core in the license list for its license and source tag."
 
 msgid "Ping 测速"
 msgstr "Ping test"
@@ -1331,8 +1331,8 @@ msgstr "Select time"
 msgid "Android 通过系统 VPN 接管其他应用流量；MusicFrog 核心与转发器自身流量直连以避免回环。"
 msgstr "Android routes other apps through the system VPN; MusicFrog core and forwarding traffic bypass it to prevent a loop."
 
-msgid "官方 Android v1.19.32 · 随 MusicFrog APK 提供，独立进程运行；GPL-3.0 许可与源码见关于页。当前："
-msgstr "Official Android v1.19.32 core · bundled with the MusicFrog APK and run as a separate process; GPL-3.0 license and source are listed in About. Current: "
+msgid "官方 Android v1.19.33 · 随 MusicFrog APK 提供，独立进程运行；GPL-3.0 许可与源码见关于页。当前："
+msgstr "Official Android v1.19.33 core · bundled with the MusicFrog APK and run as a separate process; GPL-3.0 license and source are listed in About. Current: "
 
 msgid "版本 "
 msgstr "Version "

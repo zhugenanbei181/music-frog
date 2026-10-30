@@ -61,7 +61,7 @@ infiltrator-slint = { path = "../infiltrator-slint", default-features = false, o
 slint = { workspace = true, features = ["backend-android-activity-06"], optional = true }
 reqwest = { workspace = true, default-features = false, features = ["rustls-no-provider"] }
 rustls = { workspace = true }
-tun2proxy = "0.5"
+tun2proxy = { version = "0.8.6", default-features = false }
 tun2 = { version = "3", features = ["async"] }
 
 [target.'cfg(unix)'.dependencies]
