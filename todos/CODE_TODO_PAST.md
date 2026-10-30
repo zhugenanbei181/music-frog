@@ -1184,6 +1184,21 @@ timeout` 灵活入参，在未指定 timeout 时自动回读保持 `snapshot.pro
   - 待验证：统一全仓集成验证批次与四表面像素巡检。
   - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
 
+## 12.59 跨端微动效与页面过渡系统交付（2026-10-31 交付，1条 / 5pt）
+
+- [ ] FLPARITY-017 [kind: visual] [priority: P1] [points: 5] [owner: infiltrator-contract/design_tokens + infiltrator-bevy-widgets + infiltrator-iced + infiltrator-slint + android/ui] [status: Integrated] 跨端微动效与页面过渡系统（Motion System & Transitions）(FlClash v0.9.2 parity)
+  - 产物：
+    - **Contract 统一动效令牌与转场语义**：`infiltrator-contract::motion_spec` 扩展 `CubicBezier`（牛顿迭代 + 二分回退求解，固化 M3 Standard/Emphasized/Decelerated/Accelerated 四条官方曲线）、`EasingCurve`（Standard/Emphasized/Decelerated/Accelerated/Linear/Spring 六种）、`TransitionPattern`（FadeThrough/SharedAxisX/SharedAxisY/DrawerSlide/ModalElevation/ContainerTransform 六种 M3 转场模式）、`TransitionDirection`、`TransitionProgress` 与 `TransitionSpec::interpolate`（按 elapsed_ms 输出 progress/opacity/scale/offset/scrim 的 typed 插值，Reduced Motion 下时长减半且位移折叠为 20%，None 直接跳终态）；`MotionTokens` 固化 FAST 120ms/STANDARD 200ms/DELIBERATE 250ms/EXPANDED 350ms 与 SPRING_SNAPPY/SPRING_GENTLE 两档弹簧常量；
+    - **Presentation 统一投影**：新增 `infiltrator-presentation::motion_projection`，提供 `project_route_transition` 路由投影与 `project_modal_transition` 模态/抽屉投影（复用 `ui_presence::PresenceState` 生命周期，Entering→Enter、Exiting→Exit、Visible 保值、Absent 归零），并暴露 `is_headless_capture_active`（`INFILTRATOR_SCREENSHOT_MODE`/`CI_CAPTURE` 时动效自动归零，保证截图认证跳至终态）；
+    - **Iced 接入**：`AnimationCoordinator` 记录 `route_started_at` 并新增 `route_transition(at)` 返回完整投影（不透明度/缩放/垂直沉降），路由淡入时长从 300ms 收敛至 M3 Deliberate 250ms，抽屉 200ms 与 M3 Standard 对齐；
+    - **Bevy 接入**：`ShellPlugin` 注册 `SpringAnimationPlugin`（按钮回弹、开关阻尼、路由弹簧沉降、列表级联入场、卡片悬停抬升五套弹簧系统）；路由挂载 `sync_route` 为每个新页面根注入 `SpringRouteTransition` 入场弹簧（8px 上浮沉降），capture 模式下注入静止弹簧保证像素确定性；
+    - **Slint 接入**：`theme_util` 导出 `DURATION_FAST_MS`/`DURATION_STANDARD_MS`/`DURATION_DELIBERATE_MS` 三个 M3 时长常量与 `effective_motion_duration_ms` capture 归零入口，供 .slint 属性动画统一引用；
+    - **门禁全绿**：contract 11/11、presentation 3/3、Iced 1/1、Bevy route 5/5、Slint 1/1 定向 nextest 全绿；五包 Clippy `-D warnings` 零警告；cargo fmt 0 偏差；import/line/typed-state/implicit-state/i18n/mod-rs/doc-governance/closure-questions 八守卫全绿。
+  - 验收：路由切换连续感知（淡入 + 缩放 + 垂直沉降弹性）；模态弹窗 typed 进入/退出插值；Reduced Motion 与 headless capture 降级路径有测试覆盖；无头捕获自动跳至终态。
+  - 当前证据（L）：`infiltrator-contract`/`infiltrator-presentation`/`infiltrator-iced`/`infiltrator-bevy-ui`/`infiltrator-slint` 定向 nextest 21/21 passed（motion/route 相关）；Clippy `--all-targets -D warnings` 五包 passed；typed-state-guard 0 findings；implicit-state-audit 0 open 0 undecided；line budget 2864 文件 0 违规；cargo fmt 0 偏差。
+  - 待验证：统一全仓集成验证批次、Compose `AnimatedContent` 页面转场接线与四表面动效像素巡检。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份；Compose 转场接线作为后续切片。
+
 ## 12.53 实时请求历史页交付（2026-10-30 交付，1条 / 5pt）
 
 - [ ] FLPARITY-003 [kind: mechanism] [priority: P1] [points: 5] [owner: infiltrator-contract + infiltrator-ports + infiltrator-application + infiltrator-presentation + infiltrator-composition] [status: Integrated] 实时请求历史页 (FlClash v0.9.2 parity)

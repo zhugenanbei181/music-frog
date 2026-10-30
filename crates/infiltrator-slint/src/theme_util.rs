@@ -1,6 +1,22 @@
 //! Color and theme styling utilities for Slint presentation.
 
 use super::AppWindow;
+use infiltrator_contract::motion_spec::MotionTokens;
+use infiltrator_presentation::motion_projection::is_headless_capture_active;
+
+/// Material 3 animation duration constants for Slint property transitions.
+pub const DURATION_FAST_MS: i32 = MotionTokens::FAST_MS as i32;
+pub const DURATION_STANDARD_MS: i32 = MotionTokens::STANDARD_MS as i32;
+pub const DURATION_DELIBERATE_MS: i32 = MotionTokens::DELIBERATE_MS as i32;
+
+/// Effective duration taking headless capture / reduced motion into account.
+pub fn effective_motion_duration_ms(base_ms: i32) -> i32 {
+    if is_headless_capture_active() {
+        0
+    } else {
+        base_ms
+    }
+}
 
 /// Parses a six digit hexadecimal colour into a Slint colour.
 ///
@@ -62,4 +78,16 @@ pub(crate) fn hsv_hex(hue: f64, saturation: f64, value: f64) -> String {
         ((green + offset) * 255.0).round() as u8,
         ((blue + offset) * 255.0).round() as u8,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_motion_durations_alignment() {
+        assert_eq!(DURATION_FAST_MS, 120);
+        assert_eq!(DURATION_STANDARD_MS, 200);
+        assert_eq!(DURATION_DELIBERATE_MS, 250);
+    }
 }

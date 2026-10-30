@@ -36,6 +36,17 @@
 | 7 | 部分 | L | 文件级模块化完成（<=800/600 行全绿，全仓 mod.rs 清退至 0，严格遵照 foo.rs + foo/ 模式，并在 check-structure.sh 接入 mod-rs-guard 永久禁止）；隐式状态机语义审计 + 判决台账常驻（22 条候选逐条人工判决，未判决或 open 即门禁失败），16 处阶段表已改 typed enum + typed transition；Slint 拆分遵循 `SLINT-001` 单文件预算守卫；九个页面模型与两个共用基座成为页面状态的唯一 owner；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | 已补 `--locked` 与 main 守卫门禁（仅 fmt+guards，不编译）；修复 main-gate.yml 缺失 setup-python/Pillow 问题；扩大 Gradle JVM 堆至 6GB 并将三大 flavor 分离独立进程构建彻底解决 OOM；交付 Android CI 套件 flavor/模拟器裁剪与 Gradle 缓存复用；release 作业在构建前校验签名材料缺 secret 秒级失败；全套单测（三端 1,091 项）与结构门（`check-structure.sh` 40+ 项守卫）全绿；`cargo fmt --all --check` 100% 通过；版本号按身份改动一次升至 0.51.0 |
 
+## 最近一批问答（2026-10-31 跨端微动效与页面过渡系统交付批次）
+
+1. x86_64 与 aarch64 是否都支持？：纯 Rust 契约与投影，无平台汇编或硬件绑定，全架构编译兼容 → 部分（L）。
+2. Windows / Linux / macOS 是否都支持？：contract 的 TransitionSpec/CubicBezier 与 presentation 的 motion_projection 在 Linux 定向测试全绿；Windows/macOS 共享同一纯 Rust 契约，安装包取证归属斗战胜佛 → 部分（L）。
+3. Android / iOS 是否都支持？：Android 表面继续消费 contract 中性动效令牌（现有 Compose AnimatedVisibility 保持）；iOS 保持显式 Unsupported → 部分（L）。
+4. 各个 UI 是否都接入了？：infiltrator-contract 固化 TransitionPattern/EasingCurve/TransitionSpec/CubicBezier 与 MotionTokens；infiltrator-presentation 新增 motion_projection 统一路由/模态投影并支持 headless capture 自动归零；Iced 动画协调器接入 route_transition 投影（路由 300ms → M3 Deliberate 250ms）并注册 SpringAnimationPlugin 到 Bevy 壳；Bevy 路由挂载注入 SpringRouteTransition 入场弹性；Slint theme_util 导出 M3 动效时长常量并暴露 capture 归零入口；定向测试 25/25 全绿 → 部分（L）。
+5. 该复用的是否都复用了？：动效时长与弹簧唯一收敛于 infiltrator-contract::motion_spec::MotionTokens；转场插值唯一收敛于 TransitionSpec::interpolate；Iced/Bevy/Slint 严格作为被动消费端，不维护第二套时长表 → 部分（L）。
+6. 各处界面的功能是否都接入了？：FLPARITY-017（5 pt）跨端微动效与页面过渡系统已交付并迁入过去佛 §12.59；全仓 FlClash 对标 47 IDs / 180 pt 中过去佛 36 项 / 131 pt、现在佛 11 项 / 49 pt → 部分（L）。
+7. 各处界面是否模块化了？：零新增 mod.rs；motion_spec.rs（830 行含注释）与 motion_projection.rs 均通过 line-guard；typed-state 0 findings，TransitionProgress 为 typed 结构，TransitionDirection 为 typed enum；无跨 UI 私有业务真源 → 部分（L）。
+8. CI 打包是否最高效？：cargo fmt --check 0 偏差；cargo clippy -D warnings 五包全绿；import/line/typed-state/implicit-state/i18n/mod-rs/doc-governance/closure-questions 八守卫全绿 → 部分（L）。
+
 ## 最近一批问答（2026-10-31 大型配置文档编辑响应性能契约交付批次）
 
 1. x86_64 与 aarch64 是否都支持？：交付纯中性 Rust 性能预算契约、流式视口切片算法与有界脱敏预览，无平台汇编或硬件绑定，全架构编译兼容 → 部分（L）。

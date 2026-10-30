@@ -59,6 +59,7 @@ pub mod log_search;
 pub mod logical_rule_projection;
 pub mod media_unlock_projection;
 pub mod mixin_studio_projection;
+pub mod motion_projection;
 pub mod network_status_projection;
 pub mod operation_phase;
 pub mod overview_page_model;

@@ -8,13 +8,18 @@
 //! a still shell ticks no frames at all (#117).
 
 use iced::Animation;
+use infiltrator_contract::motion_spec::MotionPreference;
+use infiltrator_contract::motion_spec::MotionTokens;
+use infiltrator_contract::motion_spec::TransitionDirection;
+use infiltrator_contract::motion_spec::TransitionPattern;
+use infiltrator_presentation::motion_projection::RouteTransitionProjection;
+use infiltrator_presentation::motion_projection::project_route_transition;
 use std::time::{Duration, Instant};
 
-/// Route fade length; identical to the retired hand-rolled transition, so
-/// the migration changes the driver, not the visual.
-pub const ROUTE_FADE: Duration = Duration::from_millis(300);
-/// Drawer fade length of the modal command palette.
-pub const DRAWER_FADE: Duration = Duration::from_millis(200);
+/// Route fade length aligned with Material 3 Deliberate motion (250ms).
+pub const ROUTE_FADE: Duration = Duration::from_millis(MotionTokens::DELIBERATE_MS as u64);
+/// Drawer fade length of the modal command palette aligned with Material 3 Standard motion (200ms).
+pub const DRAWER_FADE: Duration = Duration::from_millis(MotionTokens::STANDARD_MS as u64);
 
 /// The presence of one animated surface: an official [`Animation`] driver
 /// whose `bool` target is the business state, plus the projection facts
@@ -71,6 +76,8 @@ pub struct AnimationCoordinator {
     /// and redirects to presented, so the arriving page fades in alone —
     /// the single-page discipline of the root view stays untouched.
     route: Presence,
+    /// When the current route transition started.
+    route_started_at: Option<Instant>,
     /// Presence of the modal command-palette drawer (#118).
     drawer: Presence,
 }
@@ -79,6 +86,7 @@ impl Default for AnimationCoordinator {
     fn default() -> Self {
         Self {
             route: Presence::settled(true, ROUTE_FADE),
+            route_started_at: None,
             drawer: Presence::settled(false, DRAWER_FADE),
         }
     }
@@ -88,12 +96,29 @@ impl AnimationCoordinator {
     /// A route change: snap to hidden, then fade the arriving page in.
     pub fn route_changed(&mut self, at: Instant) {
         self.route = Presence::settled(false, ROUTE_FADE);
+        self.route_started_at = Some(at);
         self.route.redirect(true, at);
     }
 
     /// Route fade progress in `0.0..=1.0` — the arriving page's opacity.
     pub fn route_opacity(&self, at: Instant) -> f32 {
         self.route.opacity(at)
+    }
+
+    /// Complete route transition projection including opacity, scale and subtle vertical settling.
+    pub fn route_transition(&self, at: Instant) -> RouteTransitionProjection {
+        if !self.route.is_animating(at) {
+            return RouteTransitionProjection::default();
+        }
+        let elapsed_ms = self.route_started_at.map_or(0, |start| {
+            at.saturating_duration_since(start).as_millis() as u32
+        });
+        project_route_transition(
+            TransitionPattern::FadeThrough,
+            TransitionDirection::Enter,
+            elapsed_ms,
+            MotionPreference::Full,
+        )
     }
 
     /// The drawer followed its business open state (`Toggle`/`Open`/`Close`
@@ -116,5 +141,34 @@ impl AnimationCoordinator {
     /// Whether any driver is mid-fade — the on-demand frame gate (#117).
     pub fn is_animating(&self, at: Instant) -> bool {
         self.route.is_animating(at) || self.drawer.is_animating(at)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_animation_coordinator_route_transition() {
+        let mut coord = AnimationCoordinator::default();
+        let now = Instant::now();
+        assert!(!coord.is_animating(now));
+
+        coord.route_changed(now);
+        assert!(coord.is_animating(now));
+        let trans_start = coord.route_transition(now);
+        assert!(trans_start.is_animating);
+        assert_eq!(trans_start.opacity, 0.0);
+
+        let half = now + Duration::from_millis(125);
+        let trans_half = coord.route_transition(half);
+        assert!(trans_half.is_animating);
+        assert!(trans_half.opacity > 0.0);
+
+        let completed_time = now + Duration::from_millis(300);
+        let trans_done = coord.route_transition(completed_time);
+        assert!(!trans_done.is_animating);
+        assert_eq!(trans_done.opacity, 1.0);
+        assert_eq!(trans_done.scale, 1.0);
     }
 }

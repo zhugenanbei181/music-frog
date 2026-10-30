@@ -12,7 +12,9 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::scene::CommandsSceneExt;
+use infiltrator_bevy_widgets::motion::{Spring, SpringRouteTransition};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_presentation::motion_projection::is_headless_capture_active;
 
 #[derive(SystemParam)]
 pub(crate) struct RouteMount<'w, 's> {
@@ -42,7 +44,17 @@ pub(crate) fn sync_route(trigger: On<RouteChanged>, mut mount: RouteMount, mut c
     );
     let scene = page_scene(route, &snapshot, &mount.history_ring, &mount.palette);
     commands.entity(slot).despawn_children();
-    commands.spawn_scene(scene).insert(ChildOf(slot));
+    let transition = if is_headless_capture_active() {
+        SpringRouteTransition {
+            translation_y: Spring::new(0.0, 300.0, 24.0),
+            is_active: false,
+        }
+    } else {
+        SpringRouteTransition::default()
+    };
+    commands
+        .spawn_scene(scene)
+        .insert((ChildOf(slot), transition));
     // Spawn is committed before plugin-installed projection observers run.
     trigger_page_projection_events(&snapshot, &mut commands);
     commands.insert_resource(ActiveRoute(Some(route)));
