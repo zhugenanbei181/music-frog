@@ -7,13 +7,18 @@ use crate::types::app::ToastStatus;
 use crate::types::editor::GeoDataUpdatePhase;
 use crate::types::message::Message;
 use iced::Task;
+use infiltrator_application::backup_restore_application::{
+    MIN_BACKUP_PASSPHRASE_LEN, decrypt_and_verify_bundle, encrypt_verified_bundle,
+};
 use infiltrator_contract::app_routing::AppRoutingMode;
+use infiltrator_contract::backup_restore::{BackupDeliveryTarget, BackupOperationReceipt};
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::speedtest::SpeedtestCancelOutcome;
 use infiltrator_contract::surface_snapshot::AppRoutingPageSnapshot;
 use infiltrator_contract::uwp::{UwpLoopbackSnapshot, UwpPackageSnapshot};
-use infiltrator_domain::backup::{BackupBundle, export_encrypted_bundle};
+use infiltrator_domain::backup::BackupBundle;
+use infiltrator_domain::backup::ProfileBackupItem;
 use infiltrator_domain::pcap_exporter::{PcapExporter, PcapHeader};
 use infiltrator_domain::rules::logical::{
     add_condition, build_logical_rule, remove_condition, select_operator, set_target,
@@ -21,7 +26,8 @@ use infiltrator_domain::rules::logical::{
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::error::ErrorCode;
 use lurker_core_contract::error::{Failure, InfiltratorError};
-use std::fs::write;
+use std::env;
+use std::fs::{read, write};
 
 fn map_uwp_failure(error: Failure) -> InfiltratorError {
     InfiltratorError::Internal(error.message)
@@ -416,40 +422,104 @@ impl AppState {
             }
             Message::ExportEncryptedPackage => {
                 let pass = self.profile.encrypted_backup.passphrase.trim();
-                if pass.len() < 6 {
+                if pass.len() < MIN_BACKUP_PASSPHRASE_LEN {
                     return Task::done(Message::ShowToast(
                         "Passphrase must be at least 6 characters".into(),
                         ToastStatus::Warning,
                     ));
                 }
-                let dummy_bundle = BackupBundle::new(vec![], String::new(), String::new());
-                if let Ok(bytes) = export_encrypted_bundle(&dummy_bundle, pass) {
-                    let out_path = "/tmp/infiltrator_backup.encpkg".to_string();
-                    let _ = write(&out_path, bytes);
-                    self.profile.encrypted_backup.last_exported_path = Some(out_path.clone());
-                    Task::done(Message::ShowToast(
-                        format!("Exported encrypted backup: {out_path}"),
-                        ToastStatus::Success,
-                    ))
-                } else {
-                    Task::done(Message::ShowToast(
-                        "Failed to encrypt backup bundle".into(),
-                        ToastStatus::Error,
-                    ))
+                let profiles = self
+                    .profile
+                    .profiles
+                    .iter()
+                    .map(|p| ProfileBackupItem::new(&p.name, &p.path))
+                    .collect();
+                let bundle = BackupBundle::new(profiles, String::new(), String::new());
+                let target = BackupDeliveryTarget::LocalFile;
+                let out_path = env::temp_dir()
+                    .join("infiltrator_backup.encpkg")
+                    .to_string_lossy()
+                    .into_owned();
+                let now = chrono::Utc::now().timestamp_millis().max(0) as u64;
+                match encrypt_verified_bundle(&bundle, pass, &out_path, target, now) {
+                    Ok((bytes, receipt)) => {
+                        if let Err(e) = write(&out_path, bytes) {
+                            Task::done(Message::ShowToast(
+                                format!("Failed to write backup: {e}"),
+                                ToastStatus::Error,
+                            ))
+                        } else {
+                            self.profile.encrypted_backup.last_exported_path =
+                                Some(out_path.clone());
+                            if let BackupOperationReceipt::ExportSucceeded {
+                                sha256_digest,
+                                profile_count,
+                                ..
+                            } = receipt
+                            {
+                                let short_sha: String = sha256_digest.chars().take(8).collect();
+                                Task::done(Message::ShowToast(
+                                    format!(
+                                        "Exported {profile_count} profiles ({short_sha}…): {out_path}"
+                                    ),
+                                    ToastStatus::Success,
+                                ))
+                            } else {
+                                Task::done(Message::ShowToast(
+                                    format!("Exported encrypted backup: {out_path}"),
+                                    ToastStatus::Success,
+                                ))
+                            }
+                        }
+                    }
+                    Err(BackupOperationReceipt::Failed { failure, .. }) => {
+                        Task::done(Message::ShowToast(failure.summary_zh(), ToastStatus::Error))
+                    }
+                    _ => Task::none(),
                 }
             }
             Message::ImportEncryptedPackage => {
                 let pass = self.profile.encrypted_backup.passphrase.trim();
-                if pass.is_empty() {
+                if pass.len() < MIN_BACKUP_PASSPHRASE_LEN {
                     return Task::done(Message::ShowToast(
-                        "Passphrase required for import".into(),
+                        "Passphrase must be at least 6 characters".into(),
                         ToastStatus::Warning,
                     ));
                 }
-                Task::done(Message::ShowToast(
-                    "Encrypted package imported successfully".into(),
-                    ToastStatus::Success,
-                ))
+                let in_path = self
+                    .profile
+                    .encrypted_backup
+                    .last_exported_path
+                    .clone()
+                    .unwrap_or_else(|| {
+                        env::temp_dir()
+                            .join("infiltrator_backup.encpkg")
+                            .to_string_lossy()
+                            .into_owned()
+                    });
+                let bytes = match read(&in_path) {
+                    Ok(b) => b,
+                    Err(e) => {
+                        return Task::done(Message::ShowToast(
+                            format!("Failed to read backup package: {e}"),
+                            ToastStatus::Error,
+                        ));
+                    }
+                };
+                let now = chrono::Utc::now().timestamp_millis().max(0) as u64;
+                match decrypt_and_verify_bundle(&bytes, pass, now) {
+                    Ok(bundle) => {
+                        let count = bundle.profiles.len();
+                        Task::done(Message::ShowToast(
+                            format!("Verified and imported {count} profiles successfully"),
+                            ToastStatus::Success,
+                        ))
+                    }
+                    Err(BackupOperationReceipt::Failed { failure, .. }) => {
+                        Task::done(Message::ShowToast(failure.summary_zh(), ToastStatus::Error))
+                    }
+                    _ => Task::none(),
+                }
             }
             _ => self.update_ui_wave4(message),
         }

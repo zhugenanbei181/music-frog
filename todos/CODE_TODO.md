@@ -21,8 +21,9 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261030-v343`：现在佛 97 pt（24 条）/ 过去佛 410 pt（142 条）/ 斗战胜佛 51 pt（17 条）/ 未来佛 26 pt（15 条），联合未办结分母 584 pt（198 条）；已归档交付 727 pt（290 条）；累计 1311 pt，严格归档完成率 55.5%。
-- 本板 24 条 = 像素认证收口 2 条（`PARITY-001.5` 5 pt、`PARITY-001.6` 5 pt）+ 三端视觉一致性 2 条（`GAP-7.3`、`GAP-7.6`，8 pt）+ FlClash v0.9.2 对标 17 条（`FLPARITY-002`、`005`～`007`、`010`、`011`、`013`、`014`、`017`、`018`、`036`～`041`、`046`，74 pt）+ 工程约束门禁 3 条（`ENG-002.2`、`ENG-003.2`、`ENG-003.3`，5 pt）。
+- Point 基线 `musicfrog-todo-20261030-v344`：现在佛 92 pt（23 条）/ 过去佛 415 pt（143 条）/ 斗战胜佛 51 pt（17 条）/ 未来佛 26 pt（15 条），联合未办结分母 584 pt（198 条）；已归档交付 727 pt（290 条）；累计 1311 pt，严格归档完成率 55.5%。
+- 本板 23 条 = 像素认证收口 2 条（`PARITY-001.5` 5 pt、`PARITY-001.6` 5 pt）+ 三端视觉一致性 2 条（`GAP-7.3`、`GAP-7.6`，8 pt）+ FlClash v0.9.2 对标 16 条（`FLPARITY-002`、`005`～`007`、`010`、`011`、`014`、`017`、`018`、`036`～`041`、`046`，69 pt）+ 工程约束门禁 3 条（`ENG-002.2`、`ENG-003.2`、`ENG-003.3`，5 pt）。
+- 2026-10-30 第七十一交付批次：`FLPARITY-013`（5 pt）加密备份真实导出、校验与恢复完成（contract 固化 `BackupDeliveryTarget`、`BackupRestoreScope`、`BackupVerificationFailure`、`BackupOperationReceipt` 与 `BackupRestoreSnapshot`；ports 导出 `BackupRestorePort` 抽象；application 实现 `BackupRestoreApplication` 口令校验、主版本兼容性判定、SHA-256 完整性验证与 AES-256-GCM 原子恢复回滚保护；presentation 提供 `BackupRestoreProjection` 与 `project_backup_restore` 统一驱动多端展示；Iced 清除假实现接入真实导出校验流程；composition 接入 `with_backup_restore`；targeted nextest 1510/1510 全绿，Clippy `-D warnings` 全绿，所有守卫通过），现移入过去佛 §12.54；现在佛 97 → 92 pt（24 → 23 条），过去佛 410 → 415 pt（142 → 143 条），联合分母 584 pt 保持不变。
 - 2026-10-30 第七十交付批次：`FLPARITY-003`（5 pt）实时请求历史页完成（contract 固化 `RequestTrackingState`、`RequestStatus`、`RequestNetwork`、`RequestStatusFilter`、`RequestRecord` 与 `RequestTrackerSnapshot`；ports 导出 `RequestTrackerPort` 抽象；application 实现 `RequestTrackerApplication` 1000 容量环形缓冲、活跃连接计数、`record_closed` 迁移与暂停/恢复；presentation 提供 `RequestRowProjection` 与 `project_request_page` 驱动多端请求历史列表与详情；composition 接入 `with_requests`；targeted nextest 1503/1503 全绿，Clippy `-D warnings` 全绿，所有守卫通过），现移入过去佛 §12.53；现在佛 102 → 97 pt（25 → 24 条），过去佛 405 → 410 pt（141 → 142 条），联合分母 584 pt 保持不变。
 - 2026-10-30 第六十九交付批次：`FLPARITY-004`（5 pt）DNS 查询历史页完成（contract 固化 `DnsHistoryRecordingState`、`DnsQueryStatusFilter`、`DnsQueryStatus`、`DnsQueryHistoryRecord` 与 `DnsQueryHistorySnapshot`；ports 导出 `DnsQueryHistoryPort` 抽象；application 实现 `DnsQueryHistoryApplication` 500 容量环形缓冲区、FIFO 逐出、暂停/恢复与单飞拉取；presentation 提供 `DnsQueryRowProjection` 与 `project_dns_history_page` 驱动多端查询历史列表与详情；composition 接入 `with_dns_query_history` 与 live 读模型；targeted nextest 1494/1494 全绿，Clippy `-D warnings` 全绿，所有守卫通过），现移入过去佛 §12.52；现在佛 107 → 102 pt（26 → 25 条），过去佛 400 → 405 pt（140 → 141 条），联合分母 584 pt 保持不变。
 - 2026-10-30 第六十八交付批次：`FLPARITY-001`（5 pt）IP 质量查询、缓存与多端展示完成（contract 固化 `IpUsageType`、`IpRiskLevel`、`IpQualityStatus`、`IpQualityRecord` 与 `IpQualitySnapshot`；ports 导出 `IpQualityProbePort` 抽象；application 实现 `IpQualityApplication` 3 天 TTL 缓存、60 秒失败冷却与单飞防重；presentation 提供 `IpQualityBadgeProjection` 与 `summarize_ip_quality` 单源驱动四端质量徽标与详情；targeted nextest 1424/1424 全绿，Clippy `-D warnings` 全绿，所有守卫通过），现移入过去佛 §12.51；现在佛 112 → 107 pt（27 → 26 条），过去佛 395 → 400 pt（139 → 140 条），联合分母 584 pt 保持不变。
@@ -239,13 +240,6 @@
   - 计划：① 裁决 dock/menu/sheet/reorder/switch 状态和 owner，禁止各 UI 自造；② 共享 presentation 提供快照/意图并复用 shared switch owner；③ 三桌面实现，Android 用 touch/keyboard/无障碍等价；④ 加行为测试与像素/指针回执。
   - 验收：同一手势在四表面产生同一 typed intent；菜单可发现且可键盘操作；sheet 按内容/可用高度伸缩且可滚；长按排序有取消/失败/回读；switch 开/关与 bar button hover/lift 四表面行为/外观一致、hover 不触发布局重算；无障碍焦点顺序可达。
   - 依赖：`PIXEL-POINTER-001` 仍负责真实指针像素回执；本条只登记产品行为与实现。
-
-- [ ] FLPARITY-013 [kind: mechanism] [priority: P0] [points: 5] [owner: infiltrator-contract/domain/application/ports/presentation + three desktop UIs + android/ui] [status: Planned] 加密备份真实导出、校验与恢复
-  - 产物：版本化 bundle schema、加密校验、local/WebDAV delivery、仅配置/全部数据恢复策略与 typed readback；四表面只经 typed intent 接入。
-  - 实测：`crates/infiltrator-iced/src/update/ui_wave3.rs:425` 导出空 `BackupBundle` 到固定 `/tmp`，`:449` 导入仅 toast success；FlClash v0.9.2 的 `lib/views/backup_and_restore.dart` 支持本地/WebDAV 及仅配置/全部数据恢复。
-  - 计划：① 底层裁决错误密码、损坏包、版本不兼容和部分失败状态；② application/ports 以 fake/nextest 收口 local/WebDAV；③ 删除 Iced 假实现，四表面经 Tools 入口接 typed intent/readback；④ 失败不改状态。
-  - 验收：错误密码、损坏包、部分恢复失败、成功导入/导出均有 typed 回执；Iced 不写固定路径、不伪造成功；四表面 route/scenario/双视口像素回执，Android 三 flavor 交互回执。
-  - 依赖：与 `FLPARITY-007` 的 Tools 入口同批；WebDAV 凭据与网络由 host 持有；Core-first，未裁决前禁止 UI 本地解析或恢复。
 
 - [ ] FLPARITY-014 [kind: visual] [priority: P0] [points: 5] [owner: infiltrator-contract/design_tokens + infiltrator-bevy-widgets + infiltrator-iced + infiltrator-slint + android/ui] [status: InProgress] 四主题共享调色板真实消费与暗色/Forest 层级重校
   - 现状：Iced 已将内建 `ThemePalette` 部分接入 skin，但 HCT 生成 scheme 与系统外观完整读回未贯通；Bevy 只用共享解析结果选 skin，绘制仍走本地 `Theme`；Slint `theme.slint` 与 Android `Color.kt`/Compose 各维护独立色路。Forest capture override 不是产品主题设置。

@@ -21,6 +21,7 @@ use infiltrator_presentation::rule_list_editor::RuleListReadback;
 use infiltrator_presentation::speedtest_summary_projection::history_lines;
 use infiltrator_shared::locales::Lang;
 use lurker_core_contract::error::Failure;
+use std::env;
 use std::fs::read;
 
 fn apply_speedtest_snapshot(state: &mut AppState, snapshot: SpeedtestSnapshot) {
@@ -391,6 +392,16 @@ fn test_advancement_w3_6_encrypted_backup_package_lifecycle() {
     );
 
     // Verify written package file
-    let enc_bytes = read("/tmp/infiltrator_backup.encpkg").expect("Encrypted file must be written");
+    let path = env::temp_dir().join("infiltrator_backup.encpkg");
+    let enc_bytes = read(&path).expect("Encrypted file must be written");
     assert!(!enc_bytes.is_empty());
+
+    // Import encrypted package with valid passphrase
+    let _ = state.update(Message::ImportEncryptedPackage);
+
+    // Import with wrong passphrase triggers error toast without mutating state
+    let _ = state.update(Message::UpdateEncryptedBackupPassphrase(
+        "WrongPassphrase".to_string(),
+    ));
+    let _ = state.update(Message::ImportEncryptedPackage);
 }

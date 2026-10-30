@@ -1268,3 +1268,17 @@ timeout` 灵活入参，在未指定 timeout 时自动回读保持 `snapshot.pro
   - 当前证据（L）：`infiltrator-contract` + `infiltrator-ports` + `infiltrator-application` + `infiltrator-presentation` + `infiltrator-composition` 1494/1494 passed；Clippy `--all-targets -D warnings` passed；typed-state-guard 0 findings；implicit-state-audit 0 open 0 undecided；line budget 0 违规；cargo fmt 0 偏差。
   - 待验证：统一全仓集成验证批次与四表面像素巡检。
   - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+## 12.54 加密备份真实导出、校验与恢复交付（2026-10-30 交付，1条 / 5pt）
+
+- [ ] FLPARITY-013 [kind: mechanism] [priority: P0] [points: 5] [owner: infiltrator-contract/domain/application/ports/presentation + three desktop UIs + android/ui] [status: Integrated] 加密备份真实导出、校验与恢复 (FlClash v0.9.2 parity)
+  - 产物：
+    - **Contract 类型化领域模型**：`infiltrator-contract::backup_restore` 固化 `BackupDeliveryTarget`（LocalFile/WebDav）、`BackupRestoreScope`（ConfigOnly/FullData 对标 FlClash v0.9.2）、`BackupVerificationFailure`（7 态详细失败分类与本地化诊断）、`BackupOperationReceipt`（Idle/ExportSucceeded/RestoreSucceeded/Failed）与 `BackupRestoreSnapshot`；
+    - **唯一异步端口抽象**：`infiltrator-ports::backup_restore::BackupRestorePort` 导出 `capture_current_bundle`、`deliver_encrypted_archive`、`fetch_encrypted_archive` 与 `apply_restored_bundle`；
+    - **Application 验证与加密恢复引擎**：`infiltrator-application::backup_restore_application::BackupRestoreApplication` 实现口令长度检查（>=6）、主版本号兼容性判定（v1）、SHA-256 数据完整性校验、AES-256-GCM 加密导出与原子恢复回滚保护，失败绝不修改活动配置与订阅状态；
+    - **Presentation 单源卡片投影**：`infiltrator-presentation::backup_restore_projection::BackupRestoreProjection` 与 `project_backup_restore` 统一驱动导出目标、恢复范围、状态徽标、主标题、哈希前缀摘要与归档列表；
+    - **UI 表面接线与假实现清除**：`infiltrator-iced` 彻底清除 `ui_wave3.rs` 中向固定 `/tmp` 导出硬编码假数据的旧代码，接入真实档案抓取、安全临时路径、typed 口令门禁与 `decrypt_and_verify_bundle` 解密校验；`SurfaceSnapshot` 接入 `pub backup_restore: BackupRestoreSnapshot`；`ProductSurfaceReader` 接入 `with_backup_restore`；
+    - **门禁全绿**：targeted nextest 1510/1510 全绿（含 iced advancement 测试与 application 端到端测试），Clippy `-D warnings` 零警告，所有质量守卫通过。
+  - 验收：单测覆盖错误密码、损坏包、版本不兼容、部分恢复失败原子回滚与成功导入/导出；无隐式状态机（typed-state-guard 0 findings）；四端同模型无私有推导。
+  - 当前证据（L）：`infiltrator-contract` + `infiltrator-ports` + `infiltrator-application` + `infiltrator-presentation` + `infiltrator-composition` + `infiltrator-iced` 1510/1510 passed；Clippy `--all-targets -D warnings` passed；typed-state-guard 0 findings；implicit-state-audit 0 open 0 undecided；line budget 0 违规；cargo fmt 0 偏差。
+  - 待验证：统一全仓集成验证批次与四表面像素巡检。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。

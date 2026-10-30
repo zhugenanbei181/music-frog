@@ -6,6 +6,7 @@
 //! Bevy.
 
 use infiltrator_application::active_exit_application::ActiveExitApplication;
+use infiltrator_application::backup_restore_application::BackupRestoreApplication;
 use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_application::connection_rate_application::{
     ConnectionRateApplication, connections_page_snapshot,
@@ -168,6 +169,7 @@ pub struct ProductSurfaceReader {
     dns_query: Option<DnsQueryApplication>,
     dns_query_history: Option<DnsQueryHistoryApplication>,
     requests: Option<RequestTrackerApplication>,
+    backup_restore: Option<BackupRestoreApplication>,
     /// DUAL-14-10/13: the shared latency prober whose last report drives both
     /// the latency row and the self-heal snapshot.
     dns_latency: Option<DnsLatencyApplication>,
@@ -684,6 +686,11 @@ impl SurfaceReader for ProductSurfaceReader {
                 .requests
                 .as_ref()
                 .map(RequestTrackerApplication::snapshot)
+                .unwrap_or_default(),
+            backup_restore: self
+                .backup_restore
+                .as_ref()
+                .map(BackupRestoreApplication::snapshot)
                 .unwrap_or_default(),
             dns_cache: self
                 .dns_cache

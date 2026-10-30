@@ -12,6 +12,7 @@
 
 pub mod aggregation_preview_projection;
 pub mod app_routing_page_model;
+pub mod backup_restore_projection;
 pub mod chart;
 pub mod clock;
 pub mod command_palette_projection;

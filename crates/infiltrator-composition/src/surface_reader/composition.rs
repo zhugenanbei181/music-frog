@@ -43,6 +43,7 @@ impl ProductSurfaceReader {
             dns_query: None,
             dns_query_history: None,
             requests: None,
+            backup_restore: None,
             dns_latency: None,
             dns_leak: None,
             stun_probe: None,
@@ -233,6 +234,11 @@ impl ProductSurfaceReader {
 
     pub fn with_requests(mut self, application: RequestTrackerApplication) -> Self {
         self.requests = Some(application);
+        self
+    }
+
+    pub fn with_backup_restore(mut self, application: BackupRestoreApplication) -> Self {
+        self.backup_restore = Some(application);
         self
     }
 

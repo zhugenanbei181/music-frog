@@ -13,6 +13,7 @@ pub mod active_profile_reference_store;
 pub mod android_core_process_recovery;
 pub mod app_routing_store;
 pub mod application_runtime;
+pub mod backup_restore;
 pub mod capability_provider;
 pub mod certificate_authority;
 pub mod command_sink;

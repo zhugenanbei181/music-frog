@@ -35,6 +35,7 @@ pub mod android_control;
 pub mod app_routing;
 pub mod app_traffic;
 pub mod apply_transaction;
+pub mod backup_restore;
 pub mod cadence;
 pub mod capability;
 pub mod color_science;

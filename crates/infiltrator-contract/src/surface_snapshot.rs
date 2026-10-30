@@ -9,6 +9,7 @@ use crate::aggregator::{AggregationReport, AggregationTemplate};
 use crate::android_control::VpnOwnerCoreReadback;
 use crate::app_routing::{AppRoutingMode, AppRoutingRule};
 use crate::apply_transaction::ApplyTransactionSnapshot;
+use crate::backup_restore::BackupRestoreSnapshot;
 use crate::capability::CapabilitySnapshot;
 use crate::connection::ConnectionRateObservation;
 use crate::controller::ControllerAuthSnapshot;
@@ -611,6 +612,8 @@ pub struct SurfaceSnapshot {
     pub dns_query_history: DnsQueryHistorySnapshot,
     #[serde(default)]
     pub requests: RequestTrackerSnapshot,
+    #[serde(default)]
+    pub backup_restore: BackupRestoreSnapshot,
     /// Simulation results survive unrelated page/provider read failures.
     #[serde(default)]
     pub rule_trace: RuleTraceExecution,
@@ -744,6 +747,7 @@ impl SurfaceSnapshot {
             dns_query: DnsQuerySnapshot::unavailable(),
             dns_query_history: DnsQueryHistorySnapshot::default(),
             requests: RequestTrackerSnapshot::default(),
+            backup_restore: BackupRestoreSnapshot::default(),
             rule_trace: RuleTraceExecution::default(),
             dns_hosts: unobserved_hosts(),
             surface,

@@ -21,6 +21,7 @@ use std::sync::mpsc::sync_channel;
 pub mod active_exit_application;
 pub mod android_control_application;
 pub mod android_core_owner_recovery_application;
+pub mod backup_restore_application;
 pub mod cache_application;
 pub mod certificate_authority_application;
 pub mod command_application;

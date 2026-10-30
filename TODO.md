@@ -70,17 +70,18 @@
 13. **cargo 并行预算与分组收口（2026-10-20 起强制，仿 ZhuGeTower 组批节奏）：** 构建资源全局共享（本机两条 cargo lane），并行流的 cargo 调用必须错峰：同一时刻只允许一条流跑 cargo，其余流只写源码与测试；**重构按组推进、一组一收口**——同一主题的重构（同一 owner 结构、同一族类型、同一契约面）作为一组同时落地，由收口方统一跑一次该组验证（一次 `--workspace` nextest + 一次结构门 + 该组专属 guard），禁止每条改动各跑一遍全仓；收口顺序：各流先交付源码，最后一条流统一构建、统一验证、统一提交。
 14. **同仓多会话的所有权纪律（2026-10-20 起强制）**：同一仓库可能同时被多个会话操作——动一个文件前先以工作树未提交改动与修改时间确认它当前归谁，**正在被别的会话写的文件一律不碰**（不修、不格式化、不提交）；自己派出的并行流必须把 crate 目录写进所有权清单，跨界只读不改；宁可把半成品留在工作树等对方落地，也不要在对方写到一半时插进同一批文件——两个会话改同一文件的结果是双方都丢改动。
 
-## Points 与完成度台账（2026-10-30，基线 `musicfrog-todo-20261030-v343`）
+## Points 与完成度台账（2026-10-30，基线 `musicfrog-todo-20261030-v344`）
 
 | 看板 | task | points |
 | --- | ---: | ---: |
-| 现在佛 | 24 | 97 |
-| 过去佛 | 142 | 410 |
+| 现在佛 | 23 | 92 |
+| 过去佛 | 143 | 415 |
 | 斗战胜佛 | 17 | 51 |
 | 未来佛 | 15 | 26 |
 | **未办结联合分母** | **198** | **584** |
 
 - **严格交付率：727 / 1311 = 55.5%**（archived 727pt / archived 727 + 未办结 584pt）。
+- 2026-10-30 第七十一交付批次：`FLPARITY-013`（5 pt）加密备份真实导出、校验与恢复完成（contract 固化 `BackupDeliveryTarget`、`BackupRestoreScope`、`BackupVerificationFailure`、`BackupOperationReceipt` 与 `BackupRestoreSnapshot`；ports 导出 `BackupRestorePort` 抽象；application 实现 `BackupRestoreApplication` 口令校验、主版本兼容性判定、SHA-256 完整性验证与 AES-256-GCM 原子恢复回滚保护；presentation 提供 `BackupRestoreProjection` 与 `project_backup_restore` 统一驱动多端展示；Iced 清除假实现接入真实导出校验流程；composition 接入 `with_backup_restore`；targeted nextest 1510/1510 全绿，Clippy `-D warnings` 全绿，所有守卫通过），现移入过去佛 §12.54；现在佛 97 → 92 pt（24 → 23 条），过去佛 410 → 415 pt（142 → 143 条），联合分母 584 pt 保持不变。
 - 2026-10-30 第七十交付批次：`FLPARITY-003`（5 pt）实时请求历史页完成（contract 固化 `RequestTrackingState`、`RequestStatus`、`RequestNetwork`、`RequestStatusFilter`、`RequestRecord` 与 `RequestTrackerSnapshot`；ports 导出 `RequestTrackerPort` 抽象；application 实现 `RequestTrackerApplication` 1000 容量环形缓冲、活跃连接计数、`record_closed` 迁移与暂停/恢复；presentation 提供 `RequestRowProjection` 与 `project_request_page` 驱动多端请求历史列表与详情；composition 接入 `with_requests`；targeted nextest 1503/1503 全绿，Clippy `-D warnings` 全绿，所有守卫通过），现移入过去佛 §12.53；现在佛 102 → 97 pt（25 → 24 条），过去佛 405 → 410 pt（141 → 142 条），联合分母 584 pt 保持不变。
 - 2026-10-30 第六十九交付批次：`FLPARITY-004`（5 pt）DNS 查询历史页完成（contract 固化 `DnsHistoryRecordingState`、`DnsQueryStatusFilter`、`DnsQueryStatus`、`DnsQueryHistoryRecord` 与 `DnsQueryHistorySnapshot`；ports 导出 `DnsQueryHistoryPort` 抽象；application 实现 `DnsQueryHistoryApplication` 500 容量环形缓冲区、FIFO 逐出、暂停/恢复与单飞拉取；presentation 提供 `DnsQueryRowProjection` 与 `project_dns_history_page` 驱动多端查询历史列表与详情；composition 接入 `with_dns_query_history` 与 live 读模型；targeted nextest 1494/1494 全绿，Clippy `-D warnings` 全绿，所有守卫通过），现移入过去佛 §12.52；现在佛 107 → 102 pt（26 → 25 条），过去佛 400 → 405 pt（140 → 141 条），联合分母 584 pt 保持不变。
 - 2026-10-30 第六十八交付批次：`FLPARITY-001`（5 pt）IP 质量查询、缓存与多端展示完成（contract 固化 `IpUsageType`、`IpRiskLevel`、`IpQualityStatus`、`IpQualityRecord` 与 `IpQualitySnapshot`；ports 导出 `IpQualityProbePort` 抽象；application 实现 `IpQualityApplication` 3 天 TTL 缓存、60 秒失败冷却与单飞防重；presentation 提供 `IpQualityBadgeProjection` 与 `summarize_ip_quality` 单源驱动四端质量徽标与详情；targeted nextest 1424/1424 全绿，Clippy `-D warnings` 全绿，所有守卫通过），现移入过去佛 §12.51；现在佛 112 → 107 pt（27 → 26 条），过去佛 395 → 400 pt（139 → 140 条），联合分母 584 pt 保持不变。
