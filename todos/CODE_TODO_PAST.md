@@ -1282,3 +1282,18 @@ timeout` 灵活入参，在未指定 timeout 时自动回读保持 `snapshot.pro
   - 当前证据（L）：`infiltrator-contract` + `infiltrator-ports` + `infiltrator-application` + `infiltrator-presentation` + `infiltrator-composition` + `infiltrator-iced` 1510/1510 passed；Clippy `--all-targets -D warnings` passed；typed-state-guard 0 findings；implicit-state-audit 0 open 0 undecided；line budget 0 违规；cargo fmt 0 偏差。
   - 待验证：统一全仓集成验证批次与四表面像素巡检。
   - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+
+## 12.55 将代理节点加入用户拥有的本地代理配置交付（2026-10-30 交付，1条 / 3pt）
+
+- [ ] FLPARITY-037 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-contract + infiltrator-ports + infiltrator-application + infiltrator-presentation + infiltrator-composition] [status: Integrated] 将代理节点加入用户拥有的本地代理配置 (FlClash v0.9.2 parity)
+  - 产物：
+    - **Contract 类型化领域模型**：`infiltrator-contract::local_proxy` 固化 `LocalProxyProtocol`（9 种主流协议解析与 badge）、`LocalProxyNode`（完整节点配置）、`LocalProxyNodeSummary`（安全脱敏摘要）、`AddLocalProxyCommand` 与 `RemoveLocalProxyCommand`（typed intent）、`AddLocalProxyReceipt`（Added/DuplicateNode/InvalidNode/StaleRevision typed enum）与 `RemoveLocalProxyReceipt`（Removed/NotFound/StaleRevision typed enum）以及 `LocalProxySnapshot`；
+    - **唯一异步持久化端口抽象**：`infiltrator-ports::local_proxy::LocalProxyStorePort` 导出 `load_collection` 与 `save_collection`；
+    - **Application 状态机与安全管理**：`infiltrator-application::local_proxy_application::LocalProxyApplication` 实现节点名称/地址非空校验、端口合法性判定、按 ID/名称/端点三重视角的重复检测（DuplicateNode）、版本围栏（StaleRevision）、安全快照脱敏输出与持久化同步；
+    - **Presentation 单源列表与详情投影**：`infiltrator-presentation::local_proxy_projection::LocalProxyRowProjection` 与 `project_local_proxies` 统一驱动本地代理卡片、协议徽章、端点显示与安全配置；
+    - **SurfaceSnapshot 与 Composition 接线**：`SurfaceSnapshot` 接入 `pub local_proxy: LocalProxySnapshot`，`ProductSurfaceReader` 接入 `with_local_proxy`，多端同源消费；
+    - **门禁全绿**：targeted nextest 1516/1516 全绿，Clippy `-D warnings` 零警告，所有质量守卫通过。
+  - 验收：单测覆盖参数校验、防重复录入、版本围栏控制、密钥脱敏与持久化 reload；无隐式状态机（typed-state-guard 0 findings）；四端同模型无私有推导。
+  - 当前证据（L）：`infiltrator-contract` + `infiltrator-ports` + `infiltrator-application` + `infiltrator-presentation` + `infiltrator-composition` 1516/1516 passed；Clippy `--all-targets -D warnings` passed；typed-state-guard 0 findings；implicit-state-audit 0 open 0 undecided；line budget 0 违规；cargo fmt 0 偏差。
+  - 待验证：统一全仓集成验证批次与四表面像素巡检。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。

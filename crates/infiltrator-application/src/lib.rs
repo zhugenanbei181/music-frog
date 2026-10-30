@@ -54,6 +54,7 @@ pub mod dns_workbench_application;
 pub mod doctor_application;
 pub mod geo_database_application;
 pub mod ip_quality_application;
+pub mod local_proxy_application;
 pub mod media_unlock_application;
 pub mod mini_hud_application;
 pub mod mrs_acceleration_application;

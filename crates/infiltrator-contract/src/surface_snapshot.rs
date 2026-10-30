@@ -30,6 +30,7 @@ use crate::ip_quality::IpQualitySnapshot;
 use crate::ipv6::Ipv6RoutingSnapshot;
 use crate::lan::{LanSecuritySnapshot, LanSharingSnapshot};
 use crate::language::LanguageSettingsSnapshot;
+use crate::local_proxy::LocalProxySnapshot;
 use crate::logs::LogStreamState;
 use crate::mini_hud::MiniHudPlacement;
 use crate::mrs_acceleration::MrsAccelerationSnapshot;
@@ -614,6 +615,8 @@ pub struct SurfaceSnapshot {
     pub requests: RequestTrackerSnapshot,
     #[serde(default)]
     pub backup_restore: BackupRestoreSnapshot,
+    #[serde(default)]
+    pub local_proxy: LocalProxySnapshot,
     /// Simulation results survive unrelated page/provider read failures.
     #[serde(default)]
     pub rule_trace: RuleTraceExecution,
@@ -748,6 +751,7 @@ impl SurfaceSnapshot {
             dns_query_history: DnsQueryHistorySnapshot::default(),
             requests: RequestTrackerSnapshot::default(),
             backup_restore: BackupRestoreSnapshot::default(),
+            local_proxy: LocalProxySnapshot::default(),
             rule_trace: RuleTraceExecution::default(),
             dns_hosts: unobserved_hosts(),
             surface,

@@ -49,6 +49,7 @@ pub mod lan_share_projection;
 pub mod language_choice;
 pub mod latency_projection;
 pub mod list_filter;
+pub mod local_proxy_projection;
 pub mod log_export_actions;
 pub mod log_export_projection;
 pub mod log_page_model;

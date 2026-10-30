@@ -73,6 +73,7 @@ pub mod lan;
 pub mod lan_share;
 pub mod language;
 pub mod latency_display;
+pub mod local_proxy;
 pub mod media_unlock;
 pub mod mini_hud;
 pub mod motion_spec;

@@ -44,6 +44,7 @@ impl ProductSurfaceReader {
             dns_query_history: None,
             requests: None,
             backup_restore: None,
+            local_proxy: None,
             dns_latency: None,
             dns_leak: None,
             stun_probe: None,
@@ -239,6 +240,11 @@ impl ProductSurfaceReader {
 
     pub fn with_backup_restore(mut self, application: BackupRestoreApplication) -> Self {
         self.backup_restore = Some(application);
+        self
+    }
+
+    pub fn with_local_proxy(mut self, application: LocalProxyApplication) -> Self {
+        self.local_proxy = Some(application);
         self
     }
 

@@ -39,6 +39,7 @@ pub mod geo_database;
 pub mod host_runtime;
 pub mod ip_quality;
 pub mod lan_interface;
+pub mod local_proxy;
 pub mod log_export;
 pub mod media_unlock;
 pub mod mini_hud_window;
