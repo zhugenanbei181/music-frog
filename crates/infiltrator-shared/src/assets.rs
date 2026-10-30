@@ -193,7 +193,7 @@ mod tests {
     use super::{AssetCatalog, AssetFormat, harmonyos_font_license_text};
     use std::collections::HashSet;
     use std::fs;
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
 
     fn identity_value(key: &str) -> Option<String> {
         let registry = include_str!("../../../product-identity.properties");
@@ -351,7 +351,7 @@ mod tests {
         );
     }
 
-    fn record_path(relative: &str) -> std::path::PathBuf {
+    fn record_path(relative: &str) -> PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("assets")
             .join(relative)

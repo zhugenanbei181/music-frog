@@ -70,17 +70,18 @@
 13. **cargo 并行预算与分组收口（2026-10-20 起强制，仿 ZhuGeTower 组批节奏）：** 构建资源全局共享（本机两条 cargo lane），并行流的 cargo 调用必须错峰：同一时刻只允许一条流跑 cargo，其余流只写源码与测试；**重构按组推进、一组一收口**——同一主题的重构（同一 owner 结构、同一族类型、同一契约面）作为一组同时落地，由收口方统一跑一次该组验证（一次 `--workspace` nextest + 一次结构门 + 该组专属 guard），禁止每条改动各跑一遍全仓；收口顺序：各流先交付源码，最后一条流统一构建、统一验证、统一提交。
 14. **同仓多会话的所有权纪律（2026-10-20 起强制）**：同一仓库可能同时被多个会话操作——动一个文件前先以工作树未提交改动与修改时间确认它当前归谁，**正在被别的会话写的文件一律不碰**（不修、不格式化、不提交）；自己派出的并行流必须把 crate 目录写进所有权清单，跨界只读不改；宁可把半成品留在工作树等对方落地，也不要在对方写到一半时插进同一批文件——两个会话改同一文件的结果是双方都丢改动。
 
-## Points 与完成度台账（2026-10-31，基线 `musicfrog-todo-20261031-v347`）
+## Points 与完成度台账（2026-10-31，基线 `musicfrog-todo-20261031-v348`）
 
 | 看板 | task | points |
 | --- | ---: | ---: |
-| 现在佛 | 20 | 82 |
-| 过去佛 | 146 | 425 |
+| 现在佛 | 18 | 80 |
+| 过去佛 | 139 | 409 |
 | 斗战胜佛 | 17 | 51 |
 | 未来佛 | 15 | 26 |
-| **未办结联合分母** | **198** | **584** |
+| **未办结联合分母** | **189** | **566** |
 
-- **严格交付率：729 / 1311 = 55.6%**（archived 729pt / archived 729 + 未办结 584pt）。
+- **严格交付率：747 / 1311 = 57.0%**（archived 747pt / archived 747 + 未办结 566pt）。
+- 2026-10-31 第七十五交付批次（统一验证收口，零交付新功能、纯验证办结 9 条 / 18 pt）：全量结构门 `check-structure.sh` exit 0（import 卫生 2863 文件 0 违规、特性矩阵 11 crates/34 features 全解析；并修掉结构门抓出的 `infiltrator-shared/src/assets.rs` 一处内联长路径）；cargo 四项专责批次 fmt 0 偏差、Clippy `-D warnings` exit 0、`cargo nextest run --workspace --no-fail-fast` 5680/5680 passed（15 skipped）、`cargo deny check advisories bans licenses sources` 四项 ok；`cargo metadata --locked` exit 0。一次性办结：现在佛 `ENG-003.2`/`ENG-003.3`（统一验证收口与一体提交推送）、过去佛 `ENG-001.1`（cargo deny 回执）、`ENG-001.4`/`001.6`/`001.7`（结构门复跑回执）、`ENG-001.8`（workspace Clippy 回执）、`ENG-001.9`（`cargo metadata --locked` + workspace 编译）、`ENG-002.1`（contract anyhow 归零 + workspace 编译）。现在佛 82 → 80 pt（20 → 18 条），过去佛 425 → 409 pt（146 → 139 条），联合分母 584 → 566 pt（198 → 189 条），archived 729 → 747 pt（291 → 300 条），严格归档率 55.6% → 57.0%。
 - 2026-10-31 第七十四交付批次：`FLPARITY-041`（2 pt）产品、桌面托盘与 Android 图标资产一致性审计完成（`product-identity.properties` 固化 `product.icon_variant_px` 16/24/32/48/256 共享 px 阶梯与 `product.android_icon_density` mdpi~xxxhdpi 五档密度桶为唯一真源；新增 `scripts/product_icon_variants.py` 从单一 canonical `icon.png` 生成全部变体并把 `icon.ico` 重写为五帧容器，逐变体 WCAG 对比度审计钉住浅/深/强调背景 ≥3:1、不透明覆盖率 ≥0.85；asset-catalog 登记 10 条派生变体；`infiltrator-shared` 新增 catalog/尺寸/ICO 帧注册表校验测试；Gradle `GenerateProductIcon` 改为从注册变体拷贝 `drawable-mdpi`~`drawable-xxxhdpi` 密度桶并删除死代码 `productIcons` 映射；`android-product-identity-guard` 扩展变体结构、ICO 帧镜像、catalog 覆盖与 APK badging 密度尺寸校验，自测 32/32 全绿；三 flavor `generate*ProductIcon` 任务实测生成五档密度资源全绿；守卫 0 违规，`infiltrator-shared` nextest 77/77 全绿），现移入过去佛 §12.57；现在佛 84 → 82 pt（21 → 20 条），过去佛 423 → 425 pt（145 → 146 条），联合分母 584 pt 保持不变。
 - 2026-10-31 第七十三交付批次：`FLPARITY-038`（5 pt）可选通用覆写及更早应用时机完成（contract 固化 `GeneralOverridePhase`、`GeneralOverrideBackendCompatibility`、typed 增删改查命令与 mutation/apply receipts；ports 导出 `GeneralOverrideStorePort` 抽象；application 实现 `GeneralOverrideApplication`，支持重名检测、版本围栏、排序重排、按阶段与启用状态过滤、后端引擎兼容性判定与 YAML/JSON 内容解析验证；presentation 提供 `project_general_overrides` 单源驱动多端展示；composition 接入 `with_general_override` 与 `SurfaceSnapshot` 读取；targeted nextest 1729/1729 全绿，Clippy `-D warnings` 全绿，所有守卫通过），现移入过去佛 §12.56；现在佛 89 → 84 pt（22 → 21 条），过去佛 418 → 423 pt（144 → 145 条），联合分母 584 pt 保持不变。
 - 2026-10-30 第七十二交付批次：`FLPARITY-037`（3 pt）将代理节点加入用户拥有的本地代理配置完成（contract 固化 `LocalProxyProtocol`、`LocalProxyNode`、`LocalProxyNodeSummary` 脱敏快照、`AddLocalProxyCommand`、`RemoveLocalProxyCommand`、`AddLocalProxyReceipt`、`RemoveLocalProxyReceipt` 与 `LocalProxySnapshot`；ports 导出 `LocalProxyStorePort` 抽象；application 实现 `LocalProxyApplication`，支持协议参数校验、防重复录入、版本围栏控制与安全脱敏；presentation 提供 `LocalProxyRowProjection`、`LocalProxyPageProjection` 与 `project_local_proxies` 单源驱动多端展示；composition 接入 `with_local_proxy` 与 `SurfaceSnapshot` 读取；targeted nextest 1516/1516 全绿，Clippy `-D warnings` 全绿，所有守卫通过），现移入过去佛 §12.55；现在佛 92 → 89 pt（23 → 22 条），过去佛 415 → 418 pt（143 → 144 条），联合分母 584 pt 保持不变。
@@ -234,11 +235,11 @@
 | 文案实现 | — | — | `interpolate` 在 `lurker-ui-presentation::copy` 与 `infiltrator-shared::i18n_interpolator` 各有一份 |
 
 
-### 已归档交付原子条目（明细 276 条 / 711 pt；累计 277 条 / 712 pt）
+### 已归档交付原子条目（明细 285 条 / 729 pt；累计 286 条 / 730 pt）
 
 > 证据等级：下表除显式标注 `C` 外均为本地 `L`（命令/run 见各行）；`cargo publish --dry-run` 目前只有 `lurker-core-contract` 取得。
 >
-> 明细口径说明：本表 276 行可逐行核对，合计 711 pt；与累计口径 277 条 / 712 pt 的 1 条 / 1 pt 差额是 v143 继承的历史差额（旧任务 ID 与证据无法还原，未猜填）。`docs/archive/TODO_ARCHIVED_ITEMS.md` 是本表的历史子集快照，不重复计数。
+> 明细口径说明：本表 285 行可逐行核对，合计 729 pt；与累计口径 286 条 / 730 pt 的 1 条 / 1 pt 差额是 v143 继承的历史差额（旧任务 ID 与证据无法还原，未猜填）。`docs/archive/TODO_ARCHIVED_ITEMS.md` 是本表的历史子集快照，不重复计数。
 | 条目 | pt | 证据身份 |
 | --- | ---: | --- |
 | `BANDROID-044.1` Android Lint 接入 | 2 | Lint 68 条（4 errors + 64 warnings）→ 0，三 flavor Debug 变体注册真实 lint task（`warningsAsErrors` + `abortOnError`，无 baseline），四条有据可查的窄豁免写在 `android/app/lint.xml` 并由架构红线守卫逐条钉住；`scripts/quality/android-quality-gates.sh` 一次跑完三 flavor。 |
@@ -517,6 +518,15 @@
 | `CORE-011/012-2` Speedtest/jitter identity and real Mihomo probe | 3 | Core-only nextest `5a52443d-e02c-4221-94cf-95bfcfd9f0a0`: 3202 passed, 13 skipped; non-UI composition/consumer batch; Iced/Bevy/Slint package validation transferred to CORE-UI-001 |
 | `CORE-015.9` Host retry/rebuild on the shared Core owner | 2 | Core-only nextest `5a52443d-e02c-4221-94cf-95bfcfd9f0a0`: 3202 passed, 13 skipped; non-UI composition/consumer batch; Iced/Bevy/Slint package validation transferred to CORE-UI-001 |
 | `BANDROID-043.5` V6 owner revision fence and scoped application commands | 3 | commit `28aa02a`; Rust nextest `9fc51584-c091-4c96-b44e-8d5b1d63a963`: 562 passed, 2 skipped; Compose Gradle JVM batch: 16/16; changed-path typed-state findings 0, doc-governance, retired-surface, rustfmt and diff checks passed; retired per-operation Logs/Connections UniFFI exports and verified `logs_clear`/`connection_close(s)` export search clear. No APK build or Android device acceptance; ARM64 hardware unavailable. |
+| `ENG-001.1` 依赖政策落地（deny.toml + 披露一致性守卫 + tag 门控） | 3 | 统一验证批次（2026-10-31）：`cargo deny check advisories bans licenses sources` 四项 ok（advisories/bans/licenses/sources）；结构门内 `dependency policy guard: deny.toml matches the disclosed licenses` 全绿。 |
+| `ENG-001.4` panic 边界显式台账与 `panic = "abort"` 禁令 | 2 | 统一验证批次（2026-10-31）：结构门 `check-structure.sh` exit 0，`panic boundary guard: 5 registered boundaries, 5 sites, no panic=abort` 复跑全绿。 |
+| `ENG-001.6` 构建脚本台账与副作用声明 | 2 | 统一验证批次（2026-10-31）：结构门 exit 0，`build surface guard: 5 declared build scripts, 1 write inside their own output directory` 复跑全绿。 |
+| `ENG-001.7` 特性矩阵台账与特性引用可解析 | 3 | 统一验证批次（2026-10-31）：结构门 exit 0，`feature matrix guard: 11 crates, 34 declared features, every script flag resolves` 复跑全绿。 |
+| `ENG-001.8` 工作区统一 lint 继承 | 3 | 统一验证批次（2026-10-31）：`cargo clippy --workspace --all-targets -- -D warnings` exit 0，三 deny 零触发；`lint inheritance guard` 全绿。 |
+| `ENG-001.9` 成员 manifest edition/rust-version 继承 | 2 | 统一验证批次（2026-10-31）：`cargo metadata --locked` exit 0 + workspace 全量编译/测试通过（nextest 5680/5680 passed）。 |
+| `ENG-002.1` 删除 infiltrator-contract 的未使用 anyhow 依赖 | 1 | 统一验证批次（2026-10-31）：contract 源/tests/build.rs anyhow 0 命中（词法复核），workspace Clippy `-D warnings` 与 nextest 全绿证明依赖删除后编译面完整。 |
+| `ENG-003.2` 工程约束门禁统一验证收口 | 1 | 统一验证批次（2026-10-31）：`check-structure.sh` exit 0 回执；`cargo fmt --all --check` 0 偏差；`cargo clippy --workspace --all-targets -- -D warnings` exit 0；`cargo nextest run --workspace --no-fail-fast` 5680/5680 passed（15 skipped）；`cargo deny check advisories bans licenses sources` 四项 ok。 |
+| `ENG-003.3` 当前工作树一体提交并推送 main | 1 | 统一验证批次（2026-10-31）：终态门禁通过后单条提交推送 `origin/main`（推送前 `8387a47..1b3d682` 与本批 `main -> main` 回执）；`git diff --check` 干净。 |
 > v143 在 v142 上归档 DNS display projection ownership，共 5 pt。继承的历史明细仍比累计少 1 条 / 1 pt，旧任务 ID 与证据无法还原；当前已知切片均登记，未猜填历史记录。
 
 ## 全局研判与产品交付收口门（2026-10-11）

@@ -36,6 +36,17 @@
 | 7 | 部分 | L | 文件级模块化完成（<=800/600 行全绿，全仓 mod.rs 清退至 0，严格遵照 foo.rs + foo/ 模式，并在 check-structure.sh 接入 mod-rs-guard 永久禁止）；隐式状态机语义审计 + 判决台账常驻（22 条候选逐条人工判决，未判决或 open 即门禁失败），16 处阶段表已改 typed enum + typed transition；Slint 拆分遵循 `SLINT-001` 单文件预算守卫；九个页面模型与两个共用基座成为页面状态的唯一 owner；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | 已补 `--locked` 与 main 守卫门禁（仅 fmt+guards，不编译）；修复 main-gate.yml 缺失 setup-python/Pillow 问题；扩大 Gradle JVM 堆至 6GB 并将三大 flavor 分离独立进程构建彻底解决 OOM；交付 Android CI 套件 flavor/模拟器裁剪与 Gradle 缓存复用；release 作业在构建前校验签名材料缺 secret 秒级失败；全套单测（三端 1,091 项）与结构门（`check-structure.sh` 40+ 项守卫）全绿；`cargo fmt --all --check` 100% 通过；版本号按身份改动一次升至 0.51.0 |
 
+## 最近一批问答（2026-10-31 统一验证收口批次）
+
+1. x86_64 与 aarch64 是否都支持？：统一验证批次覆盖 workspace 全量编译与测试（nextest 5680/5680 passed），x64 本机回执齐备；aarch64 交叉腿由 `scripts/cross-check.sh` 既有回执背书，本批未触碰架构敏感代码 → 部分（L）。
+2. Windows / Linux / macOS 是否都支持？：本批零功能改动，桌面三平台支持面不漂移；安装包真实产物仍归属 CI/打包腿 → 部分（L）。
+3. Android / iOS 是否都支持？：Android 源码级支持随 workspace 编译与既有密度图标守卫背书；iOS 保持显式 Unsupported → 部分（L）。
+4. 各个 UI 是否都接入了？：Iced/Bevy/Slint/Android 四表面随 workspace 全量测试（5680/5680）与结构门（11 crates 特性矩阵全解析）复跑验证，无接入回归 → 部分（L）。
+5. 该复用的是否都复用了？：本批只复跑门禁并修掉一处结构门违规（`infiltrator-shared/src/assets.rs` 内联长路径），零新增重复实现；统一验证批次一次性销账 9 条 / 18 pt → 部分（L）。
+6. 各处界面的功能是否都接入了？：FlClash 对标 47 IDs / 180 pt 中过去佛 34 项 / 121 pt、现在佛 13 项 / 59 pt 保持不变；联合分母 584 → 566 pt（办结 ENG 门禁条目）→ 部分（L）。
+7. 各处界面是否模块化了？：全量结构门 exit 0（mod-rs 0、line-guard 0、typed-state 0 findings、implicit-state 0 open 0 undecided），模块化纪律全绿 → 部分（L）。
+8. CI 打包是否最高效？：cargo 四项一次跑完（fmt/clippy/nextest/deny）+ 结构门一次复跑，`cargo deny check advisories bans licenses sources` 首次取得网络回执并确认四项 ok；推送后 main-gate 远端回执待下次 CI run → 部分（L）。
+
 ## 最近一批问答（2026-10-31 产品图标资产一致性审计交付批次）
 
 1. x86_64 与 aarch64 是否都支持？：本批产物为 PNG/ICO 位图资产、Gradle 资源拷贝任务与纯 Python 生成/守卫脚本，不含架构专用代码；Rust 侧仅有 `infiltrator-shared` 注册表测试，x64/arm64 编译面无漂移 → 部分（L）。

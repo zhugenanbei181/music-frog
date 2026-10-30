@@ -21,8 +21,9 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261031-v347`：现在佛 82 pt（20 条）/ 过去佛 425 pt（146 条）/ 斗战胜佛 51 pt（17 条）/ 未来佛 26 pt（15 条），联合未办结分母 584 pt（198 条）；已归档交付 729 pt（291 条）；累计 1311 pt，严格归档完成率 55.6%。
-- 本板 20 条 = 像素认证收口 2 条（`PARITY-001.5` 5 pt、`PARITY-001.6` 5 pt）+ 三端视觉一致性 2 条（`GAP-7.3`、`GAP-7.6`，8 pt）+ FlClash v0.9.2 对标 13 条（`FLPARITY-002`、`005`～`007`、`010`、`011`、`014`、`017`、`018`、`036`、`039`、`040`、`046`，59 pt）+ 工程约束门禁 3 条（`ENG-002.2`、`ENG-003.2`、`ENG-003.3`，5 pt）。
+- Point 基线 `musicfrog-todo-20261031-v348`：现在佛 80 pt（18 条）/ 过去佛 409 pt（139 条）/ 斗战胜佛 51 pt（17 条）/ 未来佛 26 pt（15 条），联合未办结分母 566 pt（189 条）；已归档交付 747 pt（300 条）；累计 1311 pt，严格归档完成率 57.0%。
+- 本板 18 条 = 像素认证收口 2 条（`PARITY-001.5` 5 pt、`PARITY-001.6` 5 pt）+ 三端视觉一致性 2 条（`GAP-7.3`、`GAP-7.6`，8 pt）+ FlClash v0.9.2 对标 13 条（`FLPARITY-002`、`005`～`007`、`010`、`011`、`014`、`017`、`018`、`036`、`039`、`040`、`046`，59 pt）+ 工程约束门禁 1 条（`ENG-002.2`，3 pt）。
+- 2026-10-31 第七十五交付批次（统一验证收口）：ENG-003.2 与 ENG-003.3 办结——全量结构门 `check-structure.sh` exit 0（import 卫生 2863 文件 0 违规，特性矩阵 11 crates/34 features 全解析，结构门修复了 `infiltrator-shared/src/assets.rs` 一处内联长路径）；cargo 四项专责批次 `cargo fmt --all --check` 0 偏差、`cargo clippy --workspace --all-targets -- -D warnings` exit 0、`cargo nextest run --workspace --no-fail-fast` 5680/5680 passed（15 skipped）、`cargo deny check advisories bans licenses sources` 四项 ok；`cargo metadata --locked` exit 0；统一验证批次同步销账过去佛 7 条（`ENG-001.1`、`001.4`、`001.6`、`001.7`、`001.8`、`001.9`、`002.1`，16 pt）并一体提交推送 `main`。现在佛 82 → 80 pt（20 → 18 条），过去佛 425 → 409 pt（146 → 139 条），联合分母 584 → 566 pt（198 → 189 条），archived 729 → 747 pt（291 → 300 条），严格归档率 55.6% → 57.0%。
 - 2026-10-31 第七十四交付批次：`FLPARITY-041`（2 pt）产品、桌面托盘与 Android 图标资产一致性审计完成（`product-identity.properties` 固化 `product.icon_variant_px` 16/24/32/48/256 共享 px 阶梯与 `product.android_icon_density` mdpi~xxxhdpi 五档密度桶为唯一真源；新增 `scripts/product_icon_variants.py` 从单一 canonical `icon.png` 生成全部变体并把 `icon.ico` 重写为五帧容器，逐变体 WCAG 对比度审计钉住浅/深/强调背景 ≥3:1、不透明覆盖率 ≥0.85；asset-catalog 登记 10 条派生变体；`infiltrator-shared` 新增 catalog/尺寸/ICO 帧注册表校验测试；Gradle `GenerateProductIcon` 改为从注册变体拷贝 `drawable-mdpi`~`drawable-xxxhdpi` 密度桶并删除死代码 `productIcons` 映射；`android-product-identity-guard` 扩展变体结构、ICO 帧镜像、catalog 覆盖与 APK badging 密度尺寸校验，自测 32/32 全绿；三 flavor `generate*ProductIcon` 任务实测生成五档密度资源全绿；守卫 0 违规，`infiltrator-shared` nextest 77/77 全绿），现移入过去佛 §12.57；现在佛 84 → 82 pt（21 → 20 条），过去佛 423 → 425 pt（145 → 146 条），联合分母 584 pt 保持不变。
 - 2026-10-31 第七十三交付批次：`FLPARITY-038`（5 pt）可选通用覆写及更早应用时机完成（contract 固化 `GeneralOverridePhase`（PreEngineLaunch/PostConfigLoad）、`GeneralOverrideBackendCompatibility`（Universal/MihomoOnly/SingBoxOnly/Incompatible）、`GeneralOverrideItem`、typed 增删改查命令与 `GeneralOverrideMutationReceipt`、`GeneralOverrideApplyReceipt` 与 `GeneralOverrideSnapshot`；ports 导出 `GeneralOverrideStorePort` 抽象；application 实现 `GeneralOverrideApplication`，支持重名检测、版本围栏、排序重排、按阶段与启用状态过滤、后端引擎兼容性判定与 YAML/JSON 内容解析验证；presentation 提供 `GeneralOverrideRowProjection`、`GeneralOverridePageProjection` 与 `project_general_overrides` 单源驱动多端展示；composition 接入 `with_general_override` 与 `SurfaceSnapshot` 读取；targeted nextest 1729/1729 全绿，Clippy `-D warnings` 全绿，所有守卫通过），现移入过去佛 §12.56；现在佛 89 → 84 pt（22 → 21 条），过去佛 418 → 423 pt（144 → 145 条），联合分母 584 pt 保持不变。
 - 2026-10-30 第七十二交付批次：`FLPARITY-037`（3 pt）将代理节点加入用户拥有的本地代理配置完成（contract 固化 `LocalProxyProtocol`、`LocalProxyNode`、`LocalProxyNodeSummary` 脱敏快照、`AddLocalProxyCommand`、`RemoveLocalProxyCommand`、`AddLocalProxyReceipt`、`RemoveLocalProxyReceipt` 与 `LocalProxySnapshot`；ports 导出 `LocalProxyStorePort` 抽象；application 实现 `LocalProxyApplication`，支持协议参数校验、防重复录入、版本围栏控制与安全脱敏；presentation 提供 `LocalProxyRowProjection`、`LocalProxyPageProjection` 与 `project_local_proxies` 单源驱动多端展示；composition 接入 `with_local_proxy` 与 `SurfaceSnapshot` 读取；targeted nextest 1516/1516 全绿，Clippy `-D warnings` 全绿，所有守卫通过），现移入过去佛 §12.55；现在佛 92 → 89 pt（23 → 22 条），过去佛 415 → 418 pt（143 → 144 条），联合分母 584 pt 保持不变。
@@ -93,7 +94,7 @@
 - Bevy UI 能力四条源自 2026-10-20 的强制化实测审计；执行状态（机器强制还是人工评审、存量欠账多少）以 Bevy UI 能力规范文档「强制化台账」为单一事实源，本板不另记第二份。
 <!-- POINT_LEDGER:END -->
 
-- **执行次序（2026-10-24 第二十三批次后复核）**：本板条目按 **Core-first** 排成一条可推的链——① Slint 表面（`EFFECTS-037`~`041`）→ ③ Slint 表面（`EFFECTS-037`~`041`）→ ④ Bevy 捕获证据（`BEVYCAP-002`）→ ⑤ 工程约束门禁（`ENG-002.2`）→ ⑥ 像素认证收口（`PARITY-001.5`）。上层条目在前置落地前不得开工；`ENG-003.2`/`003.3` 等统一 cargo 批次解锁。
+- **执行次序（2026-10-24 第二十三批次后复核）**：本板条目按 **Core-first** 排成一条可推的链——① Slint 表面（`EFFECTS-037`~`041`）→ ③ Slint 表面（`EFFECTS-037`~`041`）→ ④ Bevy 捕获证据（`BEVYCAP-002`）→ ⑤ 工程约束门禁（`ENG-002.2`）→ ⑥ 像素认证收口（`PARITY-001.5`）。上层条目在前置落地前不得开工。
 - **cargo 纪律（减少被 cargo 阻塞）**：同一时刻只有一条流允许跑 cargo；并行期只写代码，编译与像素取证由收口流**统一跑一次**（全仓 nextest → 守卫 → fmt → clippy → 三表面捕获 → 重建回执账本 → 全局验收）。**只有真正因缺少实际环境而无法在本机取回执的验收项**才进[未来佛](CODE_TODO_FUTURE.md)；排队等 cargo lane 不构成阻塞，那些条目留在本板按上面的次序推进。
 
 ## 一、大计划主线与推进顺序
@@ -293,7 +294,6 @@
   - 验收：compact/expanded 首页评审表覆盖率 100%；VPN 主状态、主操作与关键流量指标在目标视口层级明确；无重复业务真源；三 Android flavor 截图、scenario 与交互回执齐备。
   - 依赖：复用 `FLPARITY-001` 的出口 IP 质量 owner 与 `FLPARITY-005` 的 Android 导航/生命周期；以 `PARITY-001.6` 登记图像，不重复生成验收台账。
 
-
 ## 十一、工程约束门禁补齐（错误类型纪律与合规收尾）
 
 ### 11.1 错误类型纪律与可选审计工具（2026-10-22 实测登记；manifest 批次已交付）
@@ -306,17 +306,3 @@
   - 计划：先 domain 后 core，每层一个纵切批次；每批补齐失败类别的行为测试再迁调用点。
 
 ### 11.2 依赖政策落地后的合规缺口与收尾（2026-10-22 实测登记）
-
-- [ ] ENG-003.2 [kind: evidence] [priority: P1] [points: 1] [owner: workspace] [status: Planned] 工程约束门禁的统一验证收口：全量结构门复跑 + cargo 专责批次
-  - 产物：`bash scripts/quality/check-structure.sh` 在合并后的树上 exit 0（上一轮全量复跑撞上本批自改进行中的中间态，故未取得终态回执）；cargo 专责批次补一次 `cargo fmt --all --check`、`cargo clippy --workspace --all-targets -- -D warnings`、`cargo nextest run --workspace --no-fail-fast` 与 `cargo deny check advisories bans licenses sources`。
-  - 依赖：结构门复跑可推；cargo 批次由 cargo 专责流执行（共享 lane，按并行纪律错峰）。
-  - 验收：结构门 exit 0 的回执 + cargo 四项命令的 run 标识；本批七道守卫与 `ENG-001.1`～`ENG-001.7` 的「待验证」逐条销账。
-  - 事实依据：2026-10-22 实测——七道新守卫的 `--self-test` 与 `--mode enforce` 各自全绿、新增 21 项单测全绿、`doc-governance`/`closure-questions`/`ci-trigger`/`license`/`check-test-policy` 全绿、2735 个 Rust 文件的 rustfmt 形状零违例；但全量结构门在最后一次复跑时读到的是本批自改的中间态，缺一条终态回执。
-  - 计划：结构门与 cargo 四项各跑一次，证据写进本条与过去佛对应条目。
-
-- [ ] ENG-003.3 [kind: release] [priority: P1] [points: 1] [owner: workspace] [status: Planned] 把当前工作树一体提交并推送 `main`
-  - 产物：工作树 320+ 个在制品文件（含本批七道门禁与台账、Slint/Iced/Bevy 表面改动、Android host 改动、版本 pin 与锁文件）一次提交并推送到 `main`；提交前跑一次 `git diff --check` 与结构门。
-  - 依赖：无（可推）。提交会一并纳入其它会话遗留的在制品，故必须在终态结构门通过后执行。
-  - 验收：远端 `main` 收到该提交；`main-gate`（格式化 + 结构守卫）绿。
-  - 事实依据：2026-10-22 实测——工作树含 320 个已改文件与 130 个新增文件（含 24 张截图与 18 个 Rust/Kotlin 新模块），另有两处守卫回归已在本批修掉（parity 覆盖测试的 354→360 格、退役表面守卫的“已迁移符号”误判）。
-  - 计划：终态门禁通过后一次性 `git add -A` + 单条提交 + 推送，不再拆批。

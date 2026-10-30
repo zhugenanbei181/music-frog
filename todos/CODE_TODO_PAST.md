@@ -495,13 +495,6 @@
 
 ## 十一、工程约束门禁补齐（2026-10-22，依赖/工具链/不安全点/panic 边界/库层输出/构建脚本/特性矩阵）
 
-- [ ] ENG-001.1 [kind: toolchain] [priority: P1] [points: 3] [owner: workspace + ecosystem-gate] [status: Integrated] 依赖政策落地：`deny.toml` 裁决面、披露一致性守卫与 tag 门控生态作业
-  - 产物：仓库根新增 `deny.toml`（许可白名单、公告、禁用、来源四段；白名单按锁文件的真实依赖图校准，copyleft 与 `LicenseRef` 一律不进全局白名单、只走逐 crate 例外且必须在第三方声明里披露；未知注册表与未知 git 源拒绝、通配版本拒绝、`[licenses.private] ignore` 只跳过未发布工作区 crate）；`scripts/quality/dependency-policy-guard.py` 离线校验 `deny.toml` 与第三方声明文件一致并证明生态门禁里存在 tag 门控的 `cargo deny check` 作业；`.github/workflows/ecosystem-gate.yml` 新增 `dependency-policy` 作业。
-  - 依赖：无（纯离线守卫与配置，不依赖 cargo）。
-  - 验收：守卫 `--self-test` 与 `--mode enforce` 全绿；结构门已注册该守卫与自检。
-  - 当前证据：守卫自检 4 项通过、enforce 回执 `dependency policy guard: deny.toml matches the disclosed licenses`；`cargo deny check advisories bans licenses sources` 的执行面留给统一 cargo 批次（公告库需网络）。
-  - 待验证：统一 cargo 批次跑一次 `cargo deny check advisories bans licenses sources`；白名单已按锁文件实测校准（MIT/Apache-2.0/BSD/ISC/Unlicense/CC0-1.0/Zlib/MPL-2.0/OFL-1.1/Unicode-3.0/NCSA/WTFPL/bzip2-1.0.6/CDLA-Permissive-2.0 等宽松许可），逐 crate 例外只有 Slint 家族的免版税变体与 Android 隧道的 `socks5-impl`，两者都已在第三方声明里披露，Android 那条 copyleft 的处置另立 `ENG-003.1`。
-
 - [ ] ENG-001.2 [kind: toolchain] [priority: P1] [points: 1] [owner: workspace + CI] [status: Integrated] 工具链单一版本：钉版守卫与主门禁去浮动引用
   - 产物：`scripts/quality/toolchain-consistency-guard.py` 以 `rust-toolchain.toml` 为唯一真源，禁止各 workflow 浮动引用并禁止 manifest 的 `rust-version` 与真源分歧；`.github/workflows/main-gate.yml` 的 `dtolnay/rust-toolchain@stable` 改为钉住 `1.99.0`。
   - 依赖：无。
@@ -516,53 +509,12 @@
   - 当前证据：守卫自检 4 项通过、enforce 回执 `unsafe traceability guard: 22 files, 67 operations, 46 documented-debt ceiling`。
   - 待验证：随统一批次把 46 处缺说明的存量逐步降到 0（每降一处同步下调台账上限）。
 
-- [ ] ENG-001.4 [kind: toolchain] [priority: P1] [points: 2] [owner: workspace] [status: Integrated] panic 边界显式台账与 `panic = "abort"` 禁令
-  - 产物：`scripts/quality/panic_boundary_inventory.json` 登记 5 处 `catch_unwind` 及其拦住的失败（runtime_supervision/crash_reporting/ui_event_loop）；`scripts/quality/panic-boundary-guard.py` 要求台账与源码一一对应，并拒绝任何 profile 设置 `panic = "abort"`（否则登记的边界变成死代码）。
-  - 依赖：无。
-  - 验收：守卫 `--self-test` 与 `--mode enforce` 全绿。
-  - 当前证据：守卫自检 4 项通过、enforce 回执 `panic boundary guard: 5 registered boundaries, 5 sites, no panic=abort`。
-  - 待验证：随统一批次复跑，确认无 profile 在构建配置里引入 abort。
-
 - [ ] ENG-001.5 [kind: toolchain] [priority: P1] [points: 3] [owner: workspace] [status: Integrated] 库层标准输出纪律台账与内层零打印硬门
   - 产物：`scripts/quality/stdout_inventory.json` 登记 15 个库层打印站点（23 处 print/eprint）及其类别；`scripts/quality/stdout-discipline-guard.py` 让内层 crate（契约/领域/端口/应用/呈现）保持零打印，二进制入口与 CLI crate 的输出视为产品表面不登记。
   - 依赖：无。
   - 验收：守卫 `--self-test` 与 `--mode enforce` 全绿。
   - 当前证据：守卫自检 4 项通过、enforce 回执 `stdout discipline guard: 15 registered library sites, 23 print macros, inner layers at zero`。
   - 待验证：随统一批次把 23 处库层打印逐处迁成 typed 诊断（每迁一处同步下调台账上限）。
-
-- [ ] ENG-001.6 [kind: toolchain] [priority: P1] [points: 2] [owner: workspace] [status: Integrated] 构建脚本台账与副作用声明
-  - 产物：`scripts/quality/build_surface_inventory.json` 登记 5 个 `build.rs` 的归属 crate、构建依赖、是否派生进程与是否写文件；`scripts/quality/build-surface-guard.py` 要求台账与磁盘一一对应、构建依赖与 manifest 一致，并拒绝未声明的进程派生或文件写入。
-  - 依赖：无。
-  - 验收：守卫 `--self-test` 与 `--mode enforce` 全绿。
-  - 当前证据：守卫自检 4 项通过、enforce 回执 `build surface guard: 5 declared build scripts, 1 write inside their own output directory`。
-  - 待验证：随统一批次复跑，确认新增 build 脚本都会先登记。
-
-- [ ] ENG-001.7 [kind: toolchain] [priority: P1] [points: 3] [owner: workspace] [status: Integrated] 特性矩阵台账与特性引用可解析
-  - 产物：`scripts/quality/feature_matrix.json` 镜像 11 个 crate 的 35 个特性并逐个分类（product/platform/capture/test）；`scripts/quality/feature-matrix-guard.py` 要求台账与 manifest 逐字一致、`default` 不得隐式开启 capture/test 特性、脚本与 CI 的 `--features` 必须指向已登记特性、依赖边请求的工作区特性必须存在。
-  - 依赖：无。
-  - 验收：守卫 `--self-test` 与 `--mode enforce` 全绿。
-  - 当前证据：守卫自检 4 项通过、enforce 回执 `feature matrix guard: 11 crates, 35 declared features, every script flag resolves`。
-  - 待验证：随统一批次复跑，确认各 CI 腿的 `--features` 组合仍能解析。
-
-- [ ] ENG-001.8 [kind: toolchain] [priority: P1] [points: 3] [owner: workspace] [status: Integrated] 工作区统一 lint 继承：根 `[workspace.lints]` + 全成员 `[lints] workspace = true`
-  - 产物：根 manifest 落 `[workspace.lints]`（rustc 组：`ellipsis_inclusive_range_patterns`/`keyword_idents` 两条在 edition 2024 下构成硬错误、随任何成功构建天然为零违例的语法禁令；clippy 组：`dbg_macro`/`todo`/`unimplemented` 三条调试残留零容忍，2026-10-24 词法预检 src/tests 零违例、tests 中出现的 `todo!` 均为守卫夹具字符串不参与编译）；48 个成员 manifest 统一 `[lints] workspace = true`（此前成员内无任何私有 lint 配置需删除）；新增 `scripts/quality/lint-inheritance-guard.py` 并注册进 `check-structure.sh`。
-  - 依赖：无（独占写窗口已取得——工作树静默）。
-  - 验收：守卫 `--self-test`（4 项）与 `--mode enforce` 全绿；结构门 exit 0。
-  - 当前证据：`lint inheritance guard: every member inherits the workspace lint baseline`；`check-structure.sh` exit 0（2026-10-24 实跑）。
-  - 待验证：统一 cargo 批次跑 `cargo clippy --workspace --all-targets -- -D warnings` 确认三 deny 零触发（本批按指令不跑 cargo）。
-
-- [ ] ENG-001.9 [kind: toolchain] [priority: P1] [points: 2] [owner: workspace] [status: Integrated] 成员 manifest 的 `edition` 与 `rust-version` 继承到 `[workspace.package]`
-  - 产物：根 manifest `[workspace.package]` 落 `edition = "2024"` 与 `rust-version = "1.99.0"`；48 个成员 manifest 删除各自硬写的 `edition` 行改 `edition.workspace = true`，并新增 `rust-version.workspace = true`。
-  - 依赖：与 `ENG-001.8` 同批（同一批 manifest 的独占写窗口）。
-  - 验收：`toolchain-consistency-guard --mode enforce` 全绿（根声明与 `rust-toolchain.toml` 的 1.99.0 一致、成员零本地版本声明）；`feature-matrix-guard --mode enforce` 复跑全绿。
-  - 当前证据：`toolchain consistency guard: single pinned Rust release` + `feature matrix guard: 11 crates, 35 declared features`（2026-10-24 实跑）；结构门 exit 0。
-  - 待验证：`cargo metadata --locked` 与工作区编译（统一 cargo 批次）。
-
-- [ ] ENG-002.1 [kind: cleanup] [priority: P1] [points: 1] [owner: infiltrator-contract] [status: Integrated] 删除 `infiltrator-contract` 的未使用 `anyhow` 依赖
-  - 产物：`crates/infiltrator-contract/Cargo.toml` 去掉 `anyhow = { workspace = true }`；契约层保持零 `anyhow` 引用（错误类型纪律边界）。
-  - 依赖：与 manifest 批次同次改完。
-  - 验收：`grep -rn anyhow crates/infiltrator-contract` 零命中（2026-10-24 词法复核 src/tests/build.rs 均 0 处）；feature-matrix/toolchain 守卫全绿。
-  - 待验证：`cargo check -p infiltrator-contract --all-targets`（统一 cargo 批次）。
 
 - [ ] ENG-002.3 [kind: evidence] [priority: P2] [points: 2] [owner: workspace] [status: Integrated] 覆盖率与变异测试作为可选审计证据接入
   - 产物：本地可跑的覆盖率报告（`cargo llvm-cov`）与关键 crate 的变异测试（`cargo mutants`）入口写入根目录的测试与证据文档，先出基线报告再谈门槛；不把覆盖率数字写进结构门，避免用数字替代行为证据。
@@ -1194,7 +1146,6 @@ timeout` 灵活入参，在未指定 timeout 时自动回读保持 `snapshot.pro
   - 实现：typed claim/release 与权威读回；journal 持久化所有权，只有精确匹配的 claim 才能释放，外部改写、journal 不一致与读回失败均 fail closed；并发操作与过期快照受保护。
   - 验收：定向 nextest：application/desktop/ports 933/933、contract 450/450；三 crate Clippy `--all-targets -D warnings` 通过；尚待统一全仓验证与目标平台回执。
   - 本机可执行动作：统一 nextest/结构门收口并核对 Linux、Windows、macOS 真实代理读回行为。
-
 
 ## 12.49 Mihomo v1.19.33 升级与协议能力核对（2026-10-30 交付，1条 / 5pt）
 
