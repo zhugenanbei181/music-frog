@@ -19,6 +19,7 @@ use infiltrator_application::dns_cache_application::DnsCacheApplication;
 use infiltrator_application::dns_latency_application::DnsLatencyApplication;
 use infiltrator_application::dns_leak_application::DnsLeakApplication;
 use infiltrator_application::dns_query_application::DnsQueryApplication;
+use infiltrator_application::dns_query_history_application::DnsQueryHistoryApplication;
 use infiltrator_application::dns_workbench_application::leak_report;
 use infiltrator_application::doctor_application::DoctorApplication;
 use infiltrator_application::mrs_acceleration_application::MrsAccelerationApplication;
@@ -164,6 +165,7 @@ pub struct ProductSurfaceReader {
     subscription_quota: SubscriptionQuotaApplication,
     dns_cache: Option<DnsCacheApplication>,
     dns_query: Option<DnsQueryApplication>,
+    dns_query_history: Option<DnsQueryHistoryApplication>,
     /// DUAL-14-10/13: the shared latency prober whose last report drives both
     /// the latency row and the self-heal snapshot.
     dns_latency: Option<DnsLatencyApplication>,
@@ -671,6 +673,11 @@ impl SurfaceReader for ProductSurfaceReader {
                 .as_ref()
                 .map(DnsQueryApplication::snapshot)
                 .unwrap_or_else(DnsQuerySnapshot::unavailable),
+            dns_query_history: self
+                .dns_query_history
+                .as_ref()
+                .map(DnsQueryHistoryApplication::snapshot)
+                .unwrap_or_default(),
             dns_cache: self
                 .dns_cache
                 .as_ref()

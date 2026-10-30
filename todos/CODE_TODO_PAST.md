@@ -1238,3 +1238,18 @@ timeout` 灵活入参，在未指定 timeout 时自动回读保持 `snapshot.pro
   - 当前证据（L）：`infiltrator-contract` + `infiltrator-ports` + `infiltrator-application` + `infiltrator-presentation` 1424/1424 passed；Clippy `--all-targets -D warnings` passed；typed-state-guard 0 findings；implicit-state-audit 0 open 0 undecided；line budget 0 违规；cargo fmt 0 偏差。
   - 待验证：统一全仓集成验证批次与四表面像素巡检。
   - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+
+## 12.52 DNS 查询历史页交付（2026-10-30 交付，1条 / 5pt）
+
+- [ ] FLPARITY-004 [kind: mechanism] [priority: P1] [points: 5] [owner: infiltrator-contract + infiltrator-ports + infiltrator-application + infiltrator-presentation + infiltrator-composition] [status: Integrated] DNS 查询历史页 (FlClash v0.9.2 parity)
+  - 产物：
+    - **Contract 类型化领域模型**：`infiltrator-contract::dns_query_history` 固化 `DnsHistoryRecordingState`（Active/Paused typed enum）、`DnsQueryStatusFilter`（All/ErrorsOnly/CacheHitsOnly 互斥筛选）、`DnsQueryStatus`（7 态解析结果枚举，含色彩角色与中英文标签）、`DnsQueryHistoryRecord`（脱敏查询历史单记录）与 `DnsQueryHistorySnapshot`；
+    - **唯一异步端口抽象**：`infiltrator-ports::dns_query_history::DnsQueryHistoryPort` 导出 `fetch_recent_queries` 与 `clear_query_stream`；
+    - **Application 500 容量环形缓冲与暂停/恢复**：`infiltrator-application::dns_query_history_application::DnsQueryHistoryApplication` 实现 500 条 FIFO 环形缓冲、单飞拉取上游流、`toggle_pause` 返回 typed `DnsHistoryRecordingState` 消除隐式布尔，以及快照生成；
+    - **Presentation 单源列表与详情投影**：`infiltrator-presentation::dns_query_history_projection::DnsQueryRowProjection` 与 `project_dns_history_page` 统一驱动查询域名、类型、状态、耗时、答案及 tooltip；
+    - **SurfaceSnapshot 与 Composition 接线**：`SurfaceSnapshot` 接入 `pub dns_query_history: DnsQueryHistorySnapshot`，`ProductSurfaceReader` 接入 `with_dns_query_history`，多端同源消费；
+    - **门禁全绿**：targeted nextest 1494/1494 全绿，Clippy `-D warnings` 零警告，所有质量守卫通过。
+  - 验收：单测覆盖 FIFO 逐出、暂停/恢复计数、清空与上游拉取；无隐式状态机（typed-state-guard 0 findings）；四端同模型无私有推导。
+  - 当前证据（L）：`infiltrator-contract` + `infiltrator-ports` + `infiltrator-application` + `infiltrator-presentation` + `infiltrator-composition` 1494/1494 passed；Clippy `--all-targets -D warnings` passed；typed-state-guard 0 findings；implicit-state-audit 0 open 0 undecided；line budget 0 违规；cargo fmt 0 偏差。
+  - 待验证：统一全仓集成验证批次与四表面像素巡检。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。

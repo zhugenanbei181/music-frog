@@ -56,6 +56,7 @@ mod dns_hosts_alias;
 pub mod dns_latency;
 pub mod dns_leak;
 pub mod dns_query;
+pub mod dns_query_history;
 pub mod dns_self_heal;
 pub mod doctor;
 pub mod dpad_navigation;

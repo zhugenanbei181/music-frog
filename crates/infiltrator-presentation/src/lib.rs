@@ -31,6 +31,7 @@ pub mod dns_leak_projection;
 pub mod dns_mapping_projection;
 pub mod dns_page_model;
 pub mod dns_query_actions;
+pub mod dns_query_history_projection;
 pub mod dns_query_projection;
 pub mod dns_settings_projection;
 pub mod doctor_actions;

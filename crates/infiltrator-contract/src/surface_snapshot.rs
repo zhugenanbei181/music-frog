@@ -22,6 +22,7 @@ use crate::dns_hosts::DnsHostsProfile;
 use crate::dns_latency::DnsLatencyReport;
 use crate::dns_leak::DnsLeakReport;
 use crate::dns_query::DnsQuerySnapshot;
+use crate::dns_query_history::DnsQueryHistorySnapshot;
 use crate::dns_self_heal::DnsSelfHealSnapshot;
 use crate::doctor::{DoctorCheckKind, DoctorStatus};
 use crate::ip_quality::IpQualitySnapshot;
@@ -605,6 +606,8 @@ pub struct SurfaceSnapshot {
     pub dns_cache: DnsCacheSnapshot,
     #[serde(default = "DnsQuerySnapshot::unavailable")]
     pub dns_query: DnsQuerySnapshot,
+    #[serde(default)]
+    pub dns_query_history: DnsQueryHistorySnapshot,
     /// Simulation results survive unrelated page/provider read failures.
     #[serde(default)]
     pub rule_trace: RuleTraceExecution,
@@ -736,6 +739,7 @@ impl SurfaceSnapshot {
             dns_leak: Default::default(),
             dns_cache: DnsCacheSnapshot::unavailable(),
             dns_query: DnsQuerySnapshot::unavailable(),
+            dns_query_history: DnsQueryHistorySnapshot::default(),
             rule_trace: RuleTraceExecution::default(),
             dns_hosts: unobserved_hosts(),
             surface,

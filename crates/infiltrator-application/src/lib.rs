@@ -47,6 +47,7 @@ pub mod dns_cache_application;
 pub mod dns_latency_application;
 pub mod dns_leak_application;
 pub mod dns_query_application;
+pub mod dns_query_history_application;
 pub mod dns_self_heal_application;
 pub mod dns_workbench_application;
 pub mod doctor_application;

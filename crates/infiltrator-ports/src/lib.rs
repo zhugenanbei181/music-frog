@@ -28,6 +28,7 @@ pub mod data_store;
 pub mod dns_latency;
 pub mod dns_leak;
 pub mod dns_query;
+pub mod dns_query_history;
 pub mod doctor;
 pub mod endpoint;
 pub mod engine_backend;

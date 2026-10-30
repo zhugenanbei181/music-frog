@@ -21,8 +21,9 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261030-v341`：现在佛 107 pt（26 条）/ 过去佛 400 pt（140 条）/ 斗战胜佛 51 pt（17 条）/ 未来佛 26 pt（15 条），联合未办结分母 584 pt（198 条）；已归档交付 727 pt（290 条）；累计 1311 pt，严格归档完成率 55.5%。
-- 本板 26 条 = 像素认证收口 2 条（`PARITY-001.5` 5 pt、`PARITY-001.6` 5 pt）+ 三端视觉一致性 2 条（`GAP-7.3`、`GAP-7.6`，8 pt）+ FlClash v0.9.2 对标 19 条（`FLPARITY-002`～`007`、`010`、`011`、`013`、`014`、`017`、`018`、`036`～`041`、`046`，84 pt）+ 工程约束门禁 3 条（`ENG-002.2`、`ENG-003.2`、`ENG-003.3`，5 pt）。
+- Point 基线 `musicfrog-todo-20261030-v342`：现在佛 102 pt（25 条）/ 过去佛 405 pt（141 条）/ 斗战胜佛 51 pt（17 条）/ 未来佛 26 pt（15 条），联合未办结分母 584 pt（198 条）；已归档交付 727 pt（290 条）；累计 1311 pt，严格归档完成率 55.5%。
+- 本板 25 条 = 像素认证收口 2 条（`PARITY-001.5` 5 pt、`PARITY-001.6` 5 pt）+ 三端视觉一致性 2 条（`GAP-7.3`、`GAP-7.6`，8 pt）+ FlClash v0.9.2 对标 18 条（`FLPARITY-002`、`003`、`005`～`007`、`010`、`011`、`013`、`014`、`017`、`018`、`036`～`041`、`046`，79 pt）+ 工程约束门禁 3 条（`ENG-002.2`、`ENG-003.2`、`ENG-003.3`，5 pt）。
+- 2026-10-30 第六十九交付批次：`FLPARITY-004`（5 pt）DNS 查询历史页完成（contract 固化 `DnsHistoryRecordingState`、`DnsQueryStatusFilter`、`DnsQueryStatus`、`DnsQueryHistoryRecord` 与 `DnsQueryHistorySnapshot`；ports 导出 `DnsQueryHistoryPort` 抽象；application 实现 `DnsQueryHistoryApplication` 500 容量环形缓冲区、FIFO 逐出、暂停/恢复与单飞拉取；presentation 提供 `DnsQueryRowProjection` 与 `project_dns_history_page` 驱动多端查询历史列表与详情；composition 接入 `with_dns_query_history` 与 live 读模型；targeted nextest 1494/1494 全绿，Clippy `-D warnings` 全绿，所有守卫通过），现移入过去佛 §12.52；现在佛 107 → 102 pt（26 → 25 条），过去佛 400 → 405 pt（140 → 141 条），联合分母 584 pt 保持不变。
 - 2026-10-30 第六十八交付批次：`FLPARITY-001`（5 pt）IP 质量查询、缓存与多端展示完成（contract 固化 `IpUsageType`、`IpRiskLevel`、`IpQualityStatus`、`IpQualityRecord` 与 `IpQualitySnapshot`；ports 导出 `IpQualityProbePort` 抽象；application 实现 `IpQualityApplication` 3 天 TTL 缓存、60 秒失败冷却与单飞防重；presentation 提供 `IpQualityBadgeProjection` 与 `summarize_ip_quality` 单源驱动四端质量徽标与详情；targeted nextest 1424/1424 全绿，Clippy `-D warnings` 全绿，所有守卫通过），现移入过去佛 §12.51；现在佛 112 → 107 pt（27 → 26 条），过去佛 395 → 400 pt（139 → 140 条），联合分母 584 pt 保持不变。
 - 2026-10-30 第六十七交付批次：`GAP-7.4`（3 pt）三端用户可见文案与数据格式收口（英文直出/占位符/单位/版本单一源）完成（Slint demo owner 35+ 项业务错误/拒绝提示全部中文化；Bevy / Iced / test_support 路由意图错误文案收敛至 `routing_intent_token_rejected` / `routing_intent_refused_temporary` 键表；`rule_list_editor` 缺失观测提示中文化；Bevy 节点地理分布 `globe.rs` 全量中文化并接入 `locales_table_surface_*` 键表；`test_interface_flap_guard` 修复高 CPU 负载下的时间窗口抖动 flakiness；i18n-guard 0 违规，targeted nextest 1551/1551 全绿通过），现移入过去佛 §12.50；现在佛 115 → 112 pt（28 → 27 条），过去佛 392 → 395 pt（138 → 139 条），联合分母 584 pt 保持不变。
 - 2026-10-30 第六十六交付批次：`FLPARITY-043`（5 pt）将 Mihomo 从 v1.19.32 升级至 FlClash v0.9.2 的 v1.19.33 基线并核对协议能力完成（锁定全平台二进制 SHA-256；`mihomo-api` / `mihomo-driver` / `infiltrator-contract` / `infiltrator-core` 全量升级至 v1.19.33；真实二进制烟测与 conformance 证明双引擎 live owner switch 全绿通过；工具链统一至 Rust 1.99.1），现移入过去佛 §12.49；现在佛 120 → 115 pt（29 → 28 条），过去佛 387 → 392 pt（137 → 138 条），联合分母 584 pt 保持不变。
@@ -192,7 +193,7 @@
   - 验收：词表/令牌进 contract 且三端消费（无第二副本）；旧命名 grep 清零；重采巡检核对页面命名与语义色；`resolve_surface_evidence.py --structure-only` pass。
   - 依赖：contract 裁决先行（自底向上铁律）；Tools/About 与 Android 壳层分别由 `FLPARITY-007`/`FLPARITY-005` 承载；`design_tokens.rs` 有未提交改动（另一会话），开工前对齐。
 
-## 10.12 FlClash v0.9.2 对标缺口（2026-10-29 更新；21条 / 92pt）
+## 10.12 FlClash v0.9.2 对标缺口（2026-10-29 更新；20条 / 87pt）
 
 对标 [FlClash v0.9.2 release](https://github.com/chen08209/FlClash/releases/tag/v0.9.2) 的产品面与 UI。四表面问题按唯一 owner 归档：Iced 为静态内建 palette 已开始消费、但运行时动态 scheme/外观读回与全角色一致性未闭环（`FLPARITY-014`/`036`）；Bevy 的外观解析目前只选 skin，实际控件仍绘制本地 `Theme` 镜像（`FLPARITY-014`）；Slint 仍在 `theme.slint` 独立维护 hex/zinc 与状态角色（`FLPARITY-014`/`036`）；Android 仍由 `Color.kt`/Compose 动态色走独立 palette，且无主题实图（`FLPARITY-014`/`PARITY-001.6`）。118 条桌面业务 capture 与 Android debug capture 默认 Forest 只代表采集参数，不改变用户运行主题（`FLPARITY-045`）。47 个已知差距均映射到本节 ID 或 §10.10/§10.11 的唯一任务；旧 PNG 不作为当前结论。
 
@@ -209,13 +210,6 @@
   - 计划：① 定义与 Connections 的字段边界和流生命周期；② application 与 fake/nextest；③ 四表面接 typed intent/readback；④ 补搜索、排序、暂停和详情抽屉。
   - 验收：真实流断开/重连/清空/暂停/恢复均回读正确；无 UI 自建历史；四表面有 route、scenario、双视口像素回执，Android 三 flavor 有交互回执。
   - 依赖：需要 Core stream port 与共享表模型；不得用 Connections 快照冒充 requests。
-
-- [ ] FLPARITY-004 [kind: mechanism] [priority: P1] [points: 5] [owner: infiltrator-contract/domain/ports/application/presentation + three desktop UIs + android/ui] [status: Planned] DNS 查询历史页
-  - 产物：contract/domain/ports 新增 DnsQueryRecord/history snapshot；application 记录运行控制器的查询流，覆盖缓存命中、rcode、上游、延迟和失败；四表面提供历史页与详情。
-  - 实测：当前 `DnsQueryPort` 只有一次性 query；三桌面 DNS 页展示配置/单次查询/缓存，不保留可搜索历史；Android 只有 Fake-IP/DNS 设置；FlClash v0.9.2 有独立 DNS Queries 列表、搜索、排序、跟随和详情。
-  - 计划：① 定义历史窗口上限、脱敏与清空 owner；② application 记录与 fake/nextest；③ 四表面接列表和详情；④ 与缓存清理、网络切换事件对账。
-  - 验收：单次查询与历史读回不混淆；失败/超时/缓存命中均有 typed 行；清空/重连/暂停路径测试；四表面回执。
-  - 依赖：与 `FLPARITY-012` 共享网络切换事件；不得从 UI 轮询拼接历史。
 
 - [ ] FLPARITY-005 [kind: mechanism] [priority: P1] [points: 5] [owner: infiltrator-contract + android/ui + Android Bevy/Slint surfaces] [status: Planned] Android 移动壳、访问控制状态与系统入口
   - 产物：contract/Android owner 裁决一级导航与二级目的地；三 Android 表面共用可发现性模型；Connections/Logs/DNS/About 可达；底部状态条显示 access-control 模式、已选应用数与开关；内容边到边并避让系统栏/IME；TV 返回聚焦 dashboard，QS Tile 有深链。

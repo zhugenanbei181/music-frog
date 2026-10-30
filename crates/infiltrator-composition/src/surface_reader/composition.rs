@@ -41,6 +41,7 @@ impl ProductSurfaceReader {
             subscription_quota: SubscriptionQuotaApplication::default(),
             dns_cache: None,
             dns_query: None,
+            dns_query_history: None,
             dns_latency: None,
             dns_leak: None,
             stun_probe: None,
@@ -221,6 +222,11 @@ impl ProductSurfaceReader {
     /// honest last Fake-IP / OS-cache flush report.
     pub fn with_dns_query(mut self, application: DnsQueryApplication) -> Self {
         self.dns_query = Some(application);
+        self
+    }
+
+    pub fn with_dns_query_history(mut self, application: DnsQueryHistoryApplication) -> Self {
+        self.dns_query_history = Some(application);
         self
     }
 
