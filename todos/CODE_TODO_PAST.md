@@ -1199,6 +1199,21 @@ timeout` 灵活入参，在未指定 timeout 时自动回读保持 `snapshot.pro
   - 待验证：统一全仓集成验证批次、Compose `AnimatedContent` 页面转场接线与四表面动效像素巡检。
   - 本机可执行动作：统一验证批次复跑并回填全局门禁身份；Compose 转场接线作为后续切片。
 
+## 12.60 自定义种子色与 Material 色彩风格选择 Core 切片交付（2026-10-31 交付，1条 / 5pt）
+
+- [ ] FLPARITY-036 [kind: visual] [priority: P1] [points: 5] [owner: infiltrator-contract + infiltrator-application + infiltrator-presentation + four UI surfaces] [status: Integrated] 自定义种子色与 Material 色彩风格选择 (FlClash v0.9.2 parity)
+  - 产物：
+    - **Contract 类型化风格与种子**：`infiltrator-contract::palette_preference` 固化 `PaletteStylePreference` 八种 M3 动态色风格（TonalSpot/Vibrant/Expressive/Spritz/Content/Fidelity/FruitSalad/Rainbow），每种风格一张 typed `(hue_rotation, chroma)` 参数表（`StylePaletteParams`）作用于六族核心色板；`SeedColorSource`（FollowTheme/Custom 24-bit sRGB）带 24 位范围校验与 HCT 转换；`UpdatePalettePreferenceDraftCommand`/`SavePalettePreferenceCommand`/`PalettePreferenceMutationReceipt`（Applied/RevisionStale/InvalidSeed typed enum）与 `PalettePreferenceSnapshot`；`derive_core_palette` 从种子 + 风格推导六族核心色板，`TonalSpot` 与既有 `MaterialCorePalette::of_seed` 测试钉死相等；`SurfaceSnapshot` 新增 serde 默认的 `palette_preference` 字段；
+    - **Ports 唯一持久化端口**：`infiltrator-ports::palette_preference::PalettePreferenceStorePort` 导出 `load_preference`/`save_preference`；
+    - **Application 草稿-保存-读回流**：`infiltrator-application::palette_preference_application::PalettePreferenceApplication` 实现草稿更新（revision 围栏 + 无效种子拒绝）、取消草稿（saved 不动）、保存（revision 递增 + 时间戳）、`persist()` 落盘与 `reload()` 重启读回（无 store 时显式 0）；
+    - **Presentation 单源 scheme 推导**：`infiltrator-presentation::palette_preference_projection` 提供 `project_palette_preference`（种子中文标签 + 八风格选项选中态）与 `project_palette_scheme`（Custom 种子 → light/dark `MaterialColorScheme`；FollowTheme 返回 `None` 交还既有主题 owner，不在 UI 推导种子）；
+    - **Composition 接入**：`ProductSurfaceReader` 新增 `with_palette_preference` 并把快照发布到 `SurfaceSnapshot::palette_preference`；
+    - **门禁全绿**：定向 nextest contract 7/7 + application 8/8 + presentation 4/4 + composition 62/62 + 五包 palette 合计 1564/1564 全绿；workspace `cargo check --all-targets` 全绿；Clippy `-D warnings` 六包零警告；fmt/import/line/typed-state/implicit-state/i18n/mod-rs/doc-governance/closure-questions/test-layout 守卫全绿。
+  - 验收：seed 修改、取消、保存、重启读回、无效输入均有 fake/nextest（全绿）；四表面使用相同 scheme 的剩余部分依赖 `FLPARITY-014` 共享主题接线与各表面设置入口，作为后续切片。
+  - 当前证据（L）：`infiltrator-contract`/`infiltrator-ports`/`infiltrator-application`/`infiltrator-presentation`/`infiltrator-composition`/`infiltrator-bevy-ui` 定向 nextest 1564/1564 passed；Clippy `--all-targets -D warnings` 六包 passed；typed-state-guard 0 findings；implicit-state-audit 0 open 0 undecided；import/line budget 0 违规；cargo fmt 0 偏差。
+  - 待验证：统一全仓集成验证批次、四表面设置入口与 scheme 消费接线（依赖 FLPARITY-014）。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份；表面接线在共享主题 owner 落地后推进。
+
 ## 12.53 实时请求历史页交付（2026-10-30 交付，1条 / 5pt）
 
 - [ ] FLPARITY-003 [kind: mechanism] [priority: P1] [points: 5] [owner: infiltrator-contract + infiltrator-ports + infiltrator-application + infiltrator-presentation + infiltrator-composition] [status: Integrated] 实时请求历史页 (FlClash v0.9.2 parity)

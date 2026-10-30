@@ -63,6 +63,7 @@ pub mod motion_projection;
 pub mod network_status_projection;
 pub mod operation_phase;
 pub mod overview_page_model;
+pub mod palette_preference_projection;
 pub mod performance_watchdog;
 pub mod privilege_repair_projection;
 pub mod profile_edit_session;

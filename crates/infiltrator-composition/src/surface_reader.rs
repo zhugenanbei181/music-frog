@@ -33,6 +33,7 @@ use infiltrator_application::outbound_application::OutboundApplication;
 use infiltrator_application::outbound_application::preferences::OutboundUiPreferencesApplication;
 use infiltrator_application::overview_layout_application::OverviewLayoutApplication;
 use infiltrator_application::pac_application::PacApplication;
+use infiltrator_application::palette_preference_application::PalettePreferenceApplication;
 use infiltrator_application::port_conflict_application::PortConflictApplication;
 use infiltrator_application::privileged_network_application::PrivilegedNetworkApplication;
 use infiltrator_application::profile_aggregation_application::last_aggregation_report;
@@ -174,6 +175,7 @@ pub struct ProductSurfaceReader {
     backup_restore: Option<BackupRestoreApplication>,
     local_proxy: Option<LocalProxyApplication>,
     general_override: Option<GeneralOverrideApplication>,
+    palette_preference: Option<PalettePreferenceApplication>,
     /// DUAL-14-10/13: the shared latency prober whose last report drives both
     /// the latency row and the self-heal snapshot.
     dns_latency: Option<DnsLatencyApplication>,
@@ -705,6 +707,11 @@ impl SurfaceReader for ProductSurfaceReader {
                 .general_override
                 .as_ref()
                 .map(GeneralOverrideApplication::snapshot)
+                .unwrap_or_default(),
+            palette_preference: self
+                .palette_preference
+                .as_ref()
+                .map(PalettePreferenceApplication::snapshot)
                 .unwrap_or_default(),
             dns_cache: self
                 .dns_cache

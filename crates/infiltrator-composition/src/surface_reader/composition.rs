@@ -46,6 +46,7 @@ impl ProductSurfaceReader {
             backup_restore: None,
             local_proxy: None,
             general_override: None,
+            palette_preference: None,
             dns_latency: None,
             dns_leak: None,
             stun_probe: None,
@@ -251,6 +252,12 @@ impl ProductSurfaceReader {
 
     pub fn with_general_override(mut self, application: GeneralOverrideApplication) -> Self {
         self.general_override = Some(application);
+        self
+    }
+
+    /// Attach the user-owned palette preference application (FLPARITY-036).
+    pub fn with_palette_preference(mut self, application: PalettePreferenceApplication) -> Self {
+        self.palette_preference = Some(application);
         self
     }
 

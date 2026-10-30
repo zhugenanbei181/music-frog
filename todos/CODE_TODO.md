@@ -21,7 +21,8 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261031-v351`：现在佛 75 pt（17 条）/ 过去佛 418 pt（140 条）/ 斗战胜佛 51 pt（17 条）/ 未来佛 26 pt（15 条），联合未办结分母 570 pt（189 条）；已归档交付 748 pt（301 条）；累计 1311 pt，严格归档完成率 56.7%。
+- Point 基线 `musicfrog-todo-20261031-v352`：现在佛 75 pt（17 条）/ 过去佛 423 pt（141 条）/ 斗战胜佛 51 pt（17 条）/ 未来佛 26 pt（15 条），联合未办结分母 575 pt（190 条）；已归档交付 748 pt（301 条）；累计 1311 pt，严格归档完成率 56.5%。
+- 2026-10-31 第七十九交付批次：`FLPARITY-036`（5 pt）自定义种子色与 Material 色彩风格选择 Core 切片完成（contract `palette_preference` 固化八种 M3 风格 typed 参数表与 `SeedColorSource`/命令/回执/快照及 `derive_core_palette`（TonalSpot 与 `MaterialCorePalette::of_seed` 钉死相等）；ports 导出 `PalettePreferenceStorePort`；application 实现草稿/取消/保存/持久化/重启读回（revision 围栏 + 无效种子拒绝）；presentation 提供 `project_palette_preference` 与 `project_palette_scheme` 单源 light/dark scheme 推导（FollowTheme 返回 None 交还主题 owner）；composition 接入 `with_palette_preference` 与 `SurfaceSnapshot.palette_preference` 读取；定向 nextest 1564/1564 全绿，workspace check 全绿，六包 Clippy 零警告，十守卫全绿），Core 部分交付移入过去佛 §12.60；现在佛 75 pt（17 条）保持，过去佛 418 → 423 pt（140 → 141 条），联合分母 570 → 575 pt（189 → 190 条）。
 - 本板 17 条 = 像素认证收口 2 条（`PARITY-001.5` 5 pt、`PARITY-001.6` 5 pt）+ 三端视觉一致性 2 条（`GAP-7.3`、`GAP-7.6`，8 pt）+ FlClash v0.9.2 对标 12 条（`FLPARITY-002`、`005`～`007`、`010`、`011`、`014`、`017`（部分交付，余 Compose 接线）、`018`、`036`、`039`、`046`，54 pt）+ 工程约束门禁 1 条（`ENG-002.2`，3 pt）。
 - 2026-10-31 第七十八交付批次：`FLPARITY-017`（5 pt）跨端微动效与页面过渡系统完成（contract `motion_spec` 固化 `CubicBezier` 牛顿求解与 M3 四条官方曲线、`EasingCurve` 六种、`TransitionPattern` 六种 M3 转场模式、`TransitionSpec::interpolate` typed 插值与 `MotionTokens` 时长/弹簧令牌；presentation 新增 `motion_projection` 统一路由/模态投影并支持 headless capture 自动归零；Iced 接入 route_transition 投影且路由时长收敛至 M3 Deliberate 250ms；Bevy 壳注册 `SpringAnimationPlugin` 五套弹簧系统并在路由挂载注入 `SpringRouteTransition` 入场弹性；Slint 导出 M3 动效时长常量与 capture 归零入口；定向 nextest 21/21 全绿，五包 Clippy 零警告，八守卫全绿），桌面三端部分交付移入过去佛 §12.59；现在佛 75 pt（17 条）保持，过去佛 413 → 418 pt（139 → 140 条），联合分母 565 → 570 pt（188 → 189 条）。
 - 2026-10-31 第七十七交付批次：`FLPARITY-040`（5 pt）大型配置文档编辑在页面与弹层中的响应性能契约完成（`infiltrator-contract::editor_viewport` 固化 `DocumentPerformanceBudget` 4k/50k 性能预算、`DocumentPerformanceStatus`、`DocumentPerformanceReceipt` 与 `WindowSearchResult`；`EditorViewport` 扩展 `slice_visible_lines`、`search_in_window` 与 `measure_performance`；`infiltrator-presentation::profile_preview` 实现 64 KiB 快速通道与 `redact_profile_preview_bounded`；Slint `lumen_projection` 接入 1000 行有界预览消除 ScrollView 50k 行冻结；`profile_store_fixtures` 扩充 50k 规则基准；测试 1226/1226 全绿，Clippy 零警告，质量门全绿），现移入过去佛 §12.58；现在佛 80 → 75 pt（18 → 17 条），过去佛 408 → 413 pt（138 → 139 条），联合分母 565 pt 保持不变。
@@ -269,7 +270,7 @@
   - 验收：三桌面标题栏视觉语言统一且无按钮裁切；标题栏流速胶囊实时同步读回；Win11 下最大化按钮可唤起 Snap 菜单；desktop-smoke.sh 验证通过。
   - 依赖：EFFECTS-046 平台抽象；与 FLPARITY-006 托盘宿主协同。
 
-- [ ] FLPARITY-036 [kind: visual] [priority: P1] [points: 5] [owner: infiltrator-contract + infiltrator-application + infiltrator-presentation + four UI surfaces] [status: Planned] 自定义种子色与 Material 色彩风格选择
+- [ ] FLPARITY-036 [kind: visual] [priority: P1] [points: 5] [owner: infiltrator-contract + infiltrator-application + infiltrator-presentation + four UI surfaces] [status: InProgress] 自定义种子色与 Material 色彩风格选择 —— Core 切片（contract 风格/种子 + ports + application + presentation 投影 + composition 读回）已交付迁入过去佛 §12.60；剩余四表面设置入口与 scheme 消费依赖 `FLPARITY-014`
   - 产物：提供可保存的 seed color 与有限、显式的 palette style preference；由唯一 owner 读回并向四表面发布同一 `MaterialColorScheme`。
   - 实测：Android 仅消费系统壁纸动态色；桌面没有统一的 seed/style 设置与持久读回；contract 色彩工具本身不等于用户可选主题。
   - 计划：依赖真实 HCT 算法定可表达的 style 集合，再建立 typed preference、application readback 与 presentation 投影。

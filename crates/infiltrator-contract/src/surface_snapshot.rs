@@ -41,6 +41,7 @@ use crate::network_roaming::NetworkRoamingSnapshot;
 use crate::offline_startup::OfflineStartupSnapshot;
 use crate::overview_layout::OverviewLayoutSnapshot;
 use crate::pac::PacSnapshot;
+use crate::palette_preference::PalettePreferenceSnapshot;
 use crate::port_conflict::PortConflictSnapshot;
 use crate::privileged_network::PrivilegedNetworkSnapshot;
 use crate::profile_editor_read::ProfileEditorSnapshot;
@@ -620,6 +621,9 @@ pub struct SurfaceSnapshot {
     pub local_proxy: LocalProxySnapshot,
     #[serde(default)]
     pub general_override: GeneralOverrideSnapshot,
+    /// The user-owned seed/style preference; surfaces derive one scheme from it.
+    #[serde(default)]
+    pub palette_preference: PalettePreferenceSnapshot,
     /// Simulation results survive unrelated page/provider read failures.
     #[serde(default)]
     pub rule_trace: RuleTraceExecution,
@@ -756,6 +760,7 @@ impl SurfaceSnapshot {
             backup_restore: BackupRestoreSnapshot::default(),
             local_proxy: LocalProxySnapshot::default(),
             general_override: GeneralOverrideSnapshot::default(),
+            palette_preference: PalettePreferenceSnapshot::default(),
             rule_trace: RuleTraceExecution::default(),
             dns_hosts: unobserved_hosts(),
             surface,

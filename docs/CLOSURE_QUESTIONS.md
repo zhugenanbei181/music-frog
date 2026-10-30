@@ -36,6 +36,17 @@
 | 7 | 部分 | L | 文件级模块化完成（<=800/600 行全绿，全仓 mod.rs 清退至 0，严格遵照 foo.rs + foo/ 模式，并在 check-structure.sh 接入 mod-rs-guard 永久禁止）；隐式状态机语义审计 + 判决台账常驻（22 条候选逐条人工判决，未判决或 open 即门禁失败），16 处阶段表已改 typed enum + typed transition；Slint 拆分遵循 `SLINT-001` 单文件预算守卫；九个页面模型与两个共用基座成为页面状态的唯一 owner；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | 已补 `--locked` 与 main 守卫门禁（仅 fmt+guards，不编译）；修复 main-gate.yml 缺失 setup-python/Pillow 问题；扩大 Gradle JVM 堆至 6GB 并将三大 flavor 分离独立进程构建彻底解决 OOM；交付 Android CI 套件 flavor/模拟器裁剪与 Gradle 缓存复用；release 作业在构建前校验签名材料缺 secret 秒级失败；全套单测（三端 1,091 项）与结构门（`check-structure.sh` 40+ 项守卫）全绿；`cargo fmt --all --check` 100% 通过；版本号按身份改动一次升至 0.51.0 |
 
+## 最近一批问答（2026-10-31 自定义种子色与 Material 色彩风格选择交付批次）
+
+1. x86_64 与 aarch64 是否都支持？：纯 Rust 契约（HCT 派生）与状态服务，无平台汇编或硬件绑定，全架构编译兼容 → 部分（L）。
+2. Windows / Linux / macOS 是否都支持？：palette_preference 契约、store 端口、application 草稿/保存/读回流与 presentation scheme 投影在 Linux 定向测试全绿；Windows/macOS 共享同一纯 Rust 契约，安装包取证归属斗战胜佛 → 部分（L）。
+3. Android / iOS 是否都支持？：Android 表面继续消费中性 SurfaceSnapshot（新增 `palette_preference` 字段 serde 默认值，wire 兼容）；iOS 保持显式 Unsupported → 部分（L）。
+4. 各个 UI 是否都接入了？：infiltrator-contract 固化 `PaletteStylePreference` 八种 M3 风格（TonalSpot/Vibrant/Expressive/Spritz/Content/Fidelity/FruitSalad/Rainbow）与 typed 参数表、`SeedColorSource`、命令/回执/快照与 `derive_core_palette`；infiltrator-ports 导出 `PalettePreferenceStorePort`；infiltrator-application 实现 `PalettePreferenceApplication`（草稿更新/取消/保存/持久化/重启读回 + revision 围栏 + 无效种子拒绝）；infiltrator-presentation 提供 `project_palette_preference` 与 `project_palette_scheme` 单源 scheme 推导；composition 接入 `with_palette_preference` 与 SurfaceSnapshot 读取；四表面设置入口与 scheme 消费依赖 `FLPARITY-014` 共享主题接线，作为剩余切片 → 部分（L）。
+5. 该复用的是否都复用了？：HCT 求解与 Material scheme 复用 `color_science`；TonalSpot 与既有 `MaterialCorePalette::of_seed` 测试钉死相等；种子/风格状态唯一 owner 是 application + store 端口，UI 不本地保存 → 部分（L）。
+6. 各处界面的功能是否都接入了？：FLPARITY-036（5 pt）Core 切片已交付并迁入过去佛 §12.60；全仓 FlClash 对标 47 IDs / 180 pt 中过去佛 37 项 / 136 pt、现在佛 11 项 / 49 pt（`FLPARITY-017`/`036` 均为部分交付）→ 部分（L）。
+7. 各处界面是否模块化了？：零新增 mod.rs；palette_preference.rs（约 470 行）、palette_preference_application.rs、palette_preference_projection.rs 均通过 line-guard；draft/saved 是 typed 结构，mutation 回执是 typed enum（Applied/RevisionStale/InvalidSeed）；import-guard 0 违规；无跨 UI 私有业务真源 → 部分（L）。
+8. CI 打包是否最高效？：cargo fmt --check 0 偏差；cargo clippy -D warnings 六包全绿；定向 nextest 1564/1564 全绿；workspace check 全绿；八守卫全绿 → 部分（L）。
+
 ## 最近一批问答（2026-10-31 跨端微动效与页面过渡系统交付批次）
 
 1. x86_64 与 aarch64 是否都支持？：纯 Rust 契约与投影，无平台汇编或硬件绑定，全架构编译兼容 → 部分（L）。

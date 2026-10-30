@@ -49,6 +49,7 @@ pub mod network_roaming;
 pub mod offline_startup;
 pub mod overview;
 pub mod pac;
+pub mod palette_preference;
 pub mod port_conflict;
 pub mod privilege_repair;
 pub mod privileged_network;
