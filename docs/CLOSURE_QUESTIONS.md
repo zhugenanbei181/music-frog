@@ -45,7 +45,7 @@
 5. 该复用的是否都复用了？：动效时长与弹簧唯一收敛于 infiltrator-contract::motion_spec::MotionTokens；转场插值唯一收敛于 TransitionSpec::interpolate；Iced/Bevy/Slint 严格作为被动消费端，不维护第二套时长表 → 部分（L）。
 6. 各处界面的功能是否都接入了？：FLPARITY-017（5 pt）跨端微动效与页面过渡系统已交付并迁入过去佛 §12.59；全仓 FlClash 对标 47 IDs / 180 pt 中过去佛 36 项 / 131 pt、现在佛 11 项 / 49 pt → 部分（L）。
 7. 各处界面是否模块化了？：零新增 mod.rs；motion_spec.rs（830 行含注释）与 motion_projection.rs 均通过 line-guard；typed-state 0 findings，TransitionProgress 为 typed 结构，TransitionDirection 为 typed enum；无跨 UI 私有业务真源 → 部分（L）。
-8. CI 打包是否最高效？：cargo fmt --check 0 偏差；cargo clippy -D warnings 五包全绿；import/line/typed-state/implicit-state/i18n/mod-rs/doc-governance/closure-questions 八守卫全绿 → 部分（L）。
+8. CI 打包是否最高效？：cargo fmt --check 0 偏差；cargo clippy -D warnings 五包全绿；import/line/typed-state/implicit-state/i18n/mod-rs/doc-governance/closure-questions 八守卫全绿；远端 main-gate run 41103829832 全绿（首跑 41102830070 抓出 iced 内联测试守卫违规，已同批 path-mount 修复）→ 部分（L/C）。
 
 ## 最近一批问答（2026-10-31 大型配置文档编辑响应性能契约交付批次）
 
