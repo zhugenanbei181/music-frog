@@ -70,17 +70,18 @@
 13. **cargo 并行预算与分组收口（2026-10-20 起强制，仿 ZhuGeTower 组批节奏）：** 构建资源全局共享（本机两条 cargo lane），并行流的 cargo 调用必须错峰：同一时刻只允许一条流跑 cargo，其余流只写源码与测试；**重构按组推进、一组一收口**——同一主题的重构（同一 owner 结构、同一族类型、同一契约面）作为一组同时落地，由收口方统一跑一次该组验证（一次 `--workspace` nextest + 一次结构门 + 该组专属 guard），禁止每条改动各跑一遍全仓；收口顺序：各流先交付源码，最后一条流统一构建、统一验证、统一提交。
 14. **同仓多会话的所有权纪律（2026-10-20 起强制）**：同一仓库可能同时被多个会话操作——动一个文件前先以工作树未提交改动与修改时间确认它当前归谁，**正在被别的会话写的文件一律不碰**（不修、不格式化、不提交）；自己派出的并行流必须把 crate 目录写进所有权清单，跨界只读不改；宁可把半成品留在工作树等对方落地，也不要在对方写到一半时插进同一批文件——两个会话改同一文件的结果是双方都丢改动。
 
-## Points 与完成度台账（2026-10-31，基线 `musicfrog-todo-20261031-v348`）
+## Points 与完成度台账（2026-10-31，基线 `musicfrog-todo-20261031-v349`）
 
 | 看板 | task | points |
 | --- | ---: | ---: |
 | 现在佛 | 18 | 80 |
-| 过去佛 | 139 | 409 |
+| 过去佛 | 138 | 408 |
 | 斗战胜佛 | 17 | 51 |
 | 未来佛 | 15 | 26 |
-| **未办结联合分母** | **189** | **566** |
+| **未办结联合分母** | **188** | **565** |
 
-- **严格交付率：747 / 1311 = 57.0%**（archived 747pt / archived 747 + 未办结 566pt）。
+- **严格交付率：748 / 1311 = 57.1%**（archived 747pt / archived 747 + 未办结 566pt）。
+- 2026-10-31 第七十六交付批次：`ENG-001.2`（1 pt）工具链单一版本守卫通过远端 `main-gate` 运行 41093052155 真实取证办结；过去佛 409 → 408 pt（139 → 138 条），联合分母 566 → 565 pt（189 → 188 条），archived 747 → 748 pt（300 → 301 条），严格归档率 57.0% → 57.1%。
 - 2026-10-31 第七十五交付批次（统一验证收口，零交付新功能、纯验证办结 9 条 / 18 pt）：全量结构门 `check-structure.sh` exit 0（import 卫生 2863 文件 0 违规、特性矩阵 11 crates/34 features 全解析；并修掉结构门抓出的 `infiltrator-shared/src/assets.rs` 一处内联长路径）；cargo 四项专责批次 fmt 0 偏差、Clippy `-D warnings` exit 0、`cargo nextest run --workspace --no-fail-fast` 5680/5680 passed（15 skipped）、`cargo deny check advisories bans licenses sources` 四项 ok；`cargo metadata --locked` exit 0。一次性办结：现在佛 `ENG-003.2`/`ENG-003.3`（统一验证收口与一体提交推送）、过去佛 `ENG-001.1`（cargo deny 回执）、`ENG-001.4`/`001.6`/`001.7`（结构门复跑回执）、`ENG-001.8`（workspace Clippy 回执）、`ENG-001.9`（`cargo metadata --locked` + workspace 编译）、`ENG-002.1`（contract anyhow 归零 + workspace 编译）。现在佛 82 → 80 pt（20 → 18 条），过去佛 425 → 409 pt（146 → 139 条），联合分母 584 → 566 pt（198 → 189 条），archived 729 → 747 pt（291 → 300 条），严格归档率 55.6% → 57.0%。
 - 2026-10-31 第七十四交付批次：`FLPARITY-041`（2 pt）产品、桌面托盘与 Android 图标资产一致性审计完成（`product-identity.properties` 固化 `product.icon_variant_px` 16/24/32/48/256 共享 px 阶梯与 `product.android_icon_density` mdpi~xxxhdpi 五档密度桶为唯一真源；新增 `scripts/product_icon_variants.py` 从单一 canonical `icon.png` 生成全部变体并把 `icon.ico` 重写为五帧容器，逐变体 WCAG 对比度审计钉住浅/深/强调背景 ≥3:1、不透明覆盖率 ≥0.85；asset-catalog 登记 10 条派生变体；`infiltrator-shared` 新增 catalog/尺寸/ICO 帧注册表校验测试；Gradle `GenerateProductIcon` 改为从注册变体拷贝 `drawable-mdpi`~`drawable-xxxhdpi` 密度桶并删除死代码 `productIcons` 映射；`android-product-identity-guard` 扩展变体结构、ICO 帧镜像、catalog 覆盖与 APK badging 密度尺寸校验，自测 32/32 全绿；三 flavor `generate*ProductIcon` 任务实测生成五档密度资源全绿；守卫 0 违规，`infiltrator-shared` nextest 77/77 全绿），现移入过去佛 §12.57；现在佛 84 → 82 pt（21 → 20 条），过去佛 423 → 425 pt（145 → 146 条），联合分母 584 pt 保持不变。
 - 2026-10-31 第七十三交付批次：`FLPARITY-038`（5 pt）可选通用覆写及更早应用时机完成（contract 固化 `GeneralOverridePhase`、`GeneralOverrideBackendCompatibility`、typed 增删改查命令与 mutation/apply receipts；ports 导出 `GeneralOverrideStorePort` 抽象；application 实现 `GeneralOverrideApplication`，支持重名检测、版本围栏、排序重排、按阶段与启用状态过滤、后端引擎兼容性判定与 YAML/JSON 内容解析验证；presentation 提供 `project_general_overrides` 单源驱动多端展示；composition 接入 `with_general_override` 与 `SurfaceSnapshot` 读取；targeted nextest 1729/1729 全绿，Clippy `-D warnings` 全绿，所有守卫通过），现移入过去佛 §12.56；现在佛 89 → 84 pt（22 → 21 条），过去佛 418 → 423 pt（144 → 145 条），联合分母 584 pt 保持不变。
@@ -235,7 +236,7 @@
 | 文案实现 | — | — | `interpolate` 在 `lurker-ui-presentation::copy` 与 `infiltrator-shared::i18n_interpolator` 各有一份 |
 
 
-### 已归档交付原子条目（明细 285 条 / 729 pt；累计 286 条 / 730 pt）
+### 已归档交付原子条目（明细 286 条 / 730 pt；累计 287 条 / 731 pt）
 
 > 证据等级：下表除显式标注 `C` 外均为本地 `L`（命令/run 见各行）；`cargo publish --dry-run` 目前只有 `lurker-core-contract` 取得。
 >
@@ -527,6 +528,7 @@
 | `ENG-002.1` 删除 infiltrator-contract 的未使用 anyhow 依赖 | 1 | 统一验证批次（2026-10-31）：contract 源/tests/build.rs anyhow 0 命中（词法复核），workspace Clippy `-D warnings` 与 nextest 全绿证明依赖删除后编译面完整。 |
 | `ENG-003.2` 工程约束门禁统一验证收口 | 1 | 统一验证批次（2026-10-31）：`check-structure.sh` exit 0 回执；`cargo fmt --all --check` 0 偏差；`cargo clippy --workspace --all-targets -- -D warnings` exit 0；`cargo nextest run --workspace --no-fail-fast` 5680/5680 passed（15 skipped）；`cargo deny check advisories bans licenses sources` 四项 ok。 |
 | `ENG-003.3` 当前工作树一体提交并推送 main | 1 | 统一验证批次（2026-10-31）：终态门禁通过后单条提交推送 `origin/main`（推送前 `8387a47..1b3d682` 与本批 `main -> main` 回执）；`git diff --check` 干净。 |
+| `ENG-001.2` 工具链单一版本钉版守卫与主门禁去浮动引用 | 1 | 远端 `main-gate` CI 运行 41093052155（commit `a7ea33d`）全绿（Formatting + Structure guards passed）；结构门 `toolchain consistency guard: single pinned Rust release` 校验通过。 |
 > v143 在 v142 上归档 DNS display projection ownership，共 5 pt。继承的历史明细仍比累计少 1 条 / 1 pt，旧任务 ID 与证据无法还原；当前已知切片均登记，未猜填历史记录。
 
 ## 全局研判与产品交付收口门（2026-10-11）

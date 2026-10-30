@@ -495,12 +495,6 @@
 
 ## 十一、工程约束门禁补齐（2026-10-22，依赖/工具链/不安全点/panic 边界/库层输出/构建脚本/特性矩阵）
 
-- [ ] ENG-001.2 [kind: toolchain] [priority: P1] [points: 1] [owner: workspace + CI] [status: Integrated] 工具链单一版本：钉版守卫与主门禁去浮动引用
-  - 产物：`scripts/quality/toolchain-consistency-guard.py` 以 `rust-toolchain.toml` 为唯一真源，禁止各 workflow 浮动引用并禁止 manifest 的 `rust-version` 与真源分歧；`.github/workflows/main-gate.yml` 的 `dtolnay/rust-toolchain@stable` 改为钉住 `1.99.0`。
-  - 依赖：无。
-  - 验收：守卫 `--self-test` 与 `--mode enforce` 全绿；结构门已注册。
-  - 当前证据：守卫自检 3 项通过、enforce 回执 `toolchain consistency guard: single pinned Rust release`；CI trigger guard 同步全绿。
-  - 待验证：随统一批次复跑远端 `main-gate`（只做格式化与结构守卫，不编译）。
 
 - [ ] ENG-001.3 [kind: toolchain] [priority: P1] [points: 3] [owner: workspace] [status: Integrated] unsafe 操作可追溯台账与棘轮守卫
   - 产物：`scripts/quality/unsafe_inventory.json` 登记 22 个文件、67 处 unsafe 操作（ffi/jni/env/zeroize/test_support 五类与用途说明）；`scripts/quality/unsafe-traceability-guard.py` 要求操作数与源码逐个一致、缺 `SAFETY:` 说明的数量只能下降、未登记文件不得引入 unsafe。
