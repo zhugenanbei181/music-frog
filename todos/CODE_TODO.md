@@ -21,8 +21,9 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261030-v340`：现在佛 112 pt（27 条）/ 过去佛 395 pt（139 条）/ 斗战胜佛 51 pt（17 条）/ 未来佛 26 pt（15 条），联合未办结分母 584 pt（198 条）；已归档交付 727 pt（290 条）；累计 1311 pt，严格归档完成率 55.5%。
-- 本板 27 条 = 像素认证收口 2 条（`PARITY-001.5` 5 pt、`PARITY-001.6` 5 pt）+ 三端视觉一致性 2 条（`GAP-7.3`、`GAP-7.6`，8 pt）+ FlClash v0.9.2 对标 20 条（`FLPARITY-001`～`007`、`010`、`011`、`013`、`014`、`017`、`018`、`036`～`041`、`046`，89 pt）+ 工程约束门禁 3 条（`ENG-002.2`、`ENG-003.2`、`ENG-003.3`，5 pt）。
+- Point 基线 `musicfrog-todo-20261030-v341`：现在佛 107 pt（26 条）/ 过去佛 400 pt（140 条）/ 斗战胜佛 51 pt（17 条）/ 未来佛 26 pt（15 条），联合未办结分母 584 pt（198 条）；已归档交付 727 pt（290 条）；累计 1311 pt，严格归档完成率 55.5%。
+- 本板 26 条 = 像素认证收口 2 条（`PARITY-001.5` 5 pt、`PARITY-001.6` 5 pt）+ 三端视觉一致性 2 条（`GAP-7.3`、`GAP-7.6`，8 pt）+ FlClash v0.9.2 对标 19 条（`FLPARITY-002`～`007`、`010`、`011`、`013`、`014`、`017`、`018`、`036`～`041`、`046`，84 pt）+ 工程约束门禁 3 条（`ENG-002.2`、`ENG-003.2`、`ENG-003.3`，5 pt）。
+- 2026-10-30 第六十八交付批次：`FLPARITY-001`（5 pt）IP 质量查询、缓存与多端展示完成（contract 固化 `IpUsageType`、`IpRiskLevel`、`IpQualityStatus`、`IpQualityRecord` 与 `IpQualitySnapshot`；ports 导出 `IpQualityProbePort` 抽象；application 实现 `IpQualityApplication` 3 天 TTL 缓存、60 秒失败冷却与单飞防重；presentation 提供 `IpQualityBadgeProjection` 与 `summarize_ip_quality` 单源驱动四端质量徽标与详情；targeted nextest 1424/1424 全绿，Clippy `-D warnings` 全绿，所有守卫通过），现移入过去佛 §12.51；现在佛 112 → 107 pt（27 → 26 条），过去佛 395 → 400 pt（139 → 140 条），联合分母 584 pt 保持不变。
 - 2026-10-30 第六十七交付批次：`GAP-7.4`（3 pt）三端用户可见文案与数据格式收口（英文直出/占位符/单位/版本单一源）完成（Slint demo owner 35+ 项业务错误/拒绝提示全部中文化；Bevy / Iced / test_support 路由意图错误文案收敛至 `routing_intent_token_rejected` / `routing_intent_refused_temporary` 键表；`rule_list_editor` 缺失观测提示中文化；Bevy 节点地理分布 `globe.rs` 全量中文化并接入 `locales_table_surface_*` 键表；`test_interface_flap_guard` 修复高 CPU 负载下的时间窗口抖动 flakiness；i18n-guard 0 违规，targeted nextest 1551/1551 全绿通过），现移入过去佛 §12.50；现在佛 115 → 112 pt（28 → 27 条），过去佛 392 → 395 pt（138 → 139 条），联合分母 584 pt 保持不变。
 - 2026-10-30 第六十六交付批次：`FLPARITY-043`（5 pt）将 Mihomo 从 v1.19.32 升级至 FlClash v0.9.2 的 v1.19.33 基线并核对协议能力完成（锁定全平台二进制 SHA-256；`mihomo-api` / `mihomo-driver` / `infiltrator-contract` / `infiltrator-core` 全量升级至 v1.19.33；真实二进制烟测与 conformance 证明双引擎 live owner switch 全绿通过；工具链统一至 Rust 1.99.1），现移入过去佛 §12.49；现在佛 120 → 115 pt（29 → 28 条），过去佛 387 → 392 pt（137 → 138 条），联合分母 584 pt 保持不变。
 - 2026-10-29 第六十五交付批次：`FLPARITY-047`（3 pt）系统代理显式关闭的 Core 所有权保护完成（contract/ports/application/desktop 实现 typed claim/release、权威读回、仅精确 claim 可释放、journal 不一致与外部改写时 fail closed），现移入过去佛 §12.48；现在佛 123 → 120 pt（30 → 29 条），过去佛 384 → 387 pt（136 → 137 条），联合分母 584 pt 保持不变。
@@ -191,16 +192,9 @@
   - 验收：词表/令牌进 contract 且三端消费（无第二副本）；旧命名 grep 清零；重采巡检核对页面命名与语义色；`resolve_surface_evidence.py --structure-only` pass。
   - 依赖：contract 裁决先行（自底向上铁律）；Tools/About 与 Android 壳层分别由 `FLPARITY-007`/`FLPARITY-005` 承载；`design_tokens.rs` 有未提交改动（另一会话），开工前对齐。
 
-## 10.12 FlClash v0.9.2 对标缺口（2026-10-29 更新；22条 / 97pt）
+## 10.12 FlClash v0.9.2 对标缺口（2026-10-29 更新；21条 / 92pt）
 
 对标 [FlClash v0.9.2 release](https://github.com/chen08209/FlClash/releases/tag/v0.9.2) 的产品面与 UI。四表面问题按唯一 owner 归档：Iced 为静态内建 palette 已开始消费、但运行时动态 scheme/外观读回与全角色一致性未闭环（`FLPARITY-014`/`036`）；Bevy 的外观解析目前只选 skin，实际控件仍绘制本地 `Theme` 镜像（`FLPARITY-014`）；Slint 仍在 `theme.slint` 独立维护 hex/zinc 与状态角色（`FLPARITY-014`/`036`）；Android 仍由 `Color.kt`/Compose 动态色走独立 palette，且无主题实图（`FLPARITY-014`/`PARITY-001.6`）。118 条桌面业务 capture 与 Android debug capture 默认 Forest 只代表采集参数，不改变用户运行主题（`FLPARITY-045`）。47 个已知差距均映射到本节 ID 或 §10.10/§10.11 的唯一任务；旧 PNG 不作为当前结论。
-
-- [ ] FLPARITY-001 [kind: mechanism] [priority: P1] [points: 5] [owner: infiltrator-contract/domain/ports/application/presentation + three desktop UIs + android/ui] [status: Planned] IP 质量查询、缓存与多端展示
-  - 产物：contract 定义 IP 类型/风险/来源/可用性/缓存年龄；application 经 typed port 查询并按 3 天 TTL、失败冷却缓存；presentation 只投影 typed 快照，桌面三端与 Android 显示质量徽标和详情 sheet。
-  - 实测：全仓无 `IpQuality`/质量查询 contract；FlClash v0.9.2 将质量缓存放 3 天并在 dashboard/service sheet 展示；当前只有出口 IP/位置卡，不能区分 residential/mobile/business/hosting 或 proxy/vpn/tor/abuser。
-  - 计划：① 在 contract/domain/ports 裁决 provider 中立模型与缓存 key；② application 实现 TTL/冷却/陈旧读回和 fake 单测；③ 接真实 provider adapter，凭据只由 host 持有；④ presentation 投影后四表面接入，禁止 UI 直接发 HTTP。
-  - 验收：nextest 覆盖成功、超时、限流、IP mismatch、陈旧缓存和重试；四表面同 IP 同结论；每业务有 contract/scenario/双视口像素回执，Android 三 flavor 有交互回执。
-  - 依赖：Core-first；provider 选择与凭据策略须先裁决，未决时不得在 UI 本地推导或缓存。
 
 - [ ] FLPARITY-002 [kind: mechanism] [priority: P1] [points: 5] [owner: infiltrator-contract + infiltrator-application + infiltrator-ports + three desktop UIs + android/ui] [status: Planned] Profile 二维码分享与手机到电视导入
   - 产物：owner 产出脱敏 share payload 与一次性 pairing token；Profile share sheet 显示 QR/复制链接，TV/Android 经 typed import 接收并回读；四表面消费同一 contract。

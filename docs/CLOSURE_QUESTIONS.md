@@ -32,9 +32,20 @@
 | 3 | 部分 | L | Android 源码级接通，Bevy host driver lockfile 已同步 0.50.0 解决 buildRustDriver 101 错误；**本批：Android 静态质量门成为真门**（Lint 68→0、ktlint 5046→0、Detekt 项目配置 0 条、架构红线守卫 ARCH001–007 扫描 137 点 0 违例并带 23 条负例，已接入结构门）；Android 单测 192 core host + 391 app 全绿；**release 变体改用用户持久 keystore 签名**，无 secret 时 Gradle 配置期即以缺失清单失败，debug key 不再用于任何 release 产物；APK 真实产物与真机仍缺，APK/真机腿在斗战胜佛；iOS `Unsupported`（626 行 stub，GAP-3.2）；模拟器 M1 腿可推（`PARITY-001.4`、过去佛 `BANDROID-002.1`/`002.2`） |
 | 4 | 部分 | L | Iced/Bevy/Slint 深入接入，四表面使用 `SurfaceReader` + `CommandSink`；Forest 可以且已经作为 118 个桌面业务 capture 与 Android debug capture 的默认取证 skin，但不是产品运行时默认主题，不改变用户设置。四主题巡检 TSV 存在，当前 published theme manifest 仅 Iced 8、Bevy 8、Slint 1 行，图片仍早于 2026-10-29 palette 变更；Android 暂无主题截图回执。审计发现 `MaterialSurfaceTokens`/`MaterialColorScheme` 缺生产消费者，`FLPARITY-014` 重开，当前主题像素由 `PARITY-001.6` 收口 |
 | 5 | 部分 | L | 共享 ports/kernel/kits 已复用；Slint 无 kit；PUB-001.3 part 3 租约切换下沉；GAP-5.1/5.1.1、GAP-5.2、GAP-5.2.1 已完成；0.44 UI 管道与 0.5x 四大 UI 脚手架模板全部办结归档；presentation 纯净化与开源合规审计全绿；六个 owner 明确收敛（release 签名决策、圆角阶梯、中性 API 基线、页面状态推导、契约层页面事实、命令由真实 owner 回答带令牌与 stale 拒绝）；三端删除各自的私有推导，共享层事实唯一 |
-| 6 | 部分 | L | **对标 FlClash v0.9.2 共 47 IDs / 180 pt：过去佛 27 项 / 91 pt（含 `FLPARITY-043`、`FLPARITY-047`，待统一验证），现在佛 20 项 / 89 pt。** `FLPARITY-043`（5 pt）升级 Mihomo 至 v1.19.33 与真二进制 Conformance 已完成并迁入过去佛；`FLPARITY-047`（3 pt）系统代理 claim/release 所有权保护已交付。官方 release feature/fix/performance 已逐项映射；Forest 仅是 capture skin，不是运行时默认主题。 |
+| 6 | 部分 | L | **对标 FlClash v0.9.2 共 47 IDs / 180 pt：过去佛 28 项 / 96 pt（含 `FLPARITY-001`、`FLPARITY-043`、`FLPARITY-047`，待统一验证），现在佛 19 项 / 84 pt。** `FLPARITY-001`（5 pt）IP 质量查询与缓存已交付并迁入过去佛；`FLPARITY-043`（5 pt）升级 Mihomo 至 v1.19.33 与真二进制 Conformance 已完成并迁入过去佛；`FLPARITY-047`（3 pt）系统代理 claim/release 所有权保护已交付。官方 release feature/fix/performance 已逐项映射；Forest 仅是 capture skin，不是运行时默认主题。 |
 | 7 | 部分 | L | 文件级模块化完成（<=800/600 行全绿，全仓 mod.rs 清退至 0，严格遵照 foo.rs + foo/ 模式，并在 check-structure.sh 接入 mod-rs-guard 永久禁止）；隐式状态机语义审计 + 判决台账常驻（22 条候选逐条人工判决，未判决或 open 即门禁失败），16 处阶段表已改 typed enum + typed transition；Slint 拆分遵循 `SLINT-001` 单文件预算守卫；九个页面模型与两个共用基座成为页面状态的唯一 owner；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | 已补 `--locked` 与 main 守卫门禁（仅 fmt+guards，不编译）；修复 main-gate.yml 缺失 setup-python/Pillow 问题；扩大 Gradle JVM 堆至 6GB 并将三大 flavor 分离独立进程构建彻底解决 OOM；交付 Android CI 套件 flavor/模拟器裁剪与 Gradle 缓存复用；release 作业在构建前校验签名材料缺 secret 秒级失败；全套单测（三端 1,091 项）与结构门（`check-structure.sh` 40+ 项守卫）全绿；`cargo fmt --all --check` 100% 通过；版本号按身份改动一次升至 0.51.0 |
+
+## 最近一批问答（2026-10-30 IP 质量查询、缓存与多端展示交付批次）
+
+1. x86_64/aarch64：本批交付纯中性 Rust 合约模型、端口抽象、应用服务与呈现投影，无平台专用汇编或硬件绑定，全架构编译兼容；cross-check 保持通过 → 部分（L）。
+2. Windows/Linux/macOS：桌面端 IP 质量查询服务与投影在 Linux 上通过定向单元测试与行为验证；Windows 与 macOS 共享同一纯 Rust 契约与呈现模型；真实目标机运行仍归属斗战胜佛对应条目 → 部分（L）。
+3. Android/iOS：Android 消费 SurfaceSnapshot 中的 ip_quality 事实快照，无私有推导；iOS 保持显式 Unsupported → 部分（L）。
+4. 各 UI：SurfaceSnapshot 接入统一 typed ip_quality 快照，桌面三端与 Android 表面同源消费；infiltrator-presentation 导出 IpQualityBadgeProjection 统一投影住宅/数据中心/风险等级/欺诈分值徽标；定向测试 1424/1424 全绿 → 部分（L）。
+5. 复用：IP 质量模型唯一收敛于 infiltrator-contract::ip_quality，端口唯一由 infiltrator-ports::ip_quality 提供，缓存与冷却单源位于 infiltrator-application::ip_quality_application（3 天 TTL，对标 FlClash v0.9.2），各 UI 不直接发 HTTP、不维护第二份缓存副本 → 部分（L）。
+6. 功能接入：FLPARITY-001（5 pt）IP 质量查询、缓存与多端展示已交付并迁入过去佛 §12.51；全仓 FlClash 对标 47 IDs / 180 pt 中过去佛 28 项 / 96 pt、现在佛 19 项 / 84 pt；联合分母保持 584 pt → 部分（L）。
+7. 模块化：零新增 mod.rs；严格遵循 foo.rs 规范；所有新增与修改文件均 <=800 行（line-guard 0 违规）；typed-state 门禁 0 findings，显式枚举互斥；无跨 UI 私有业务真源 → 部分（L）。
+8. CI：cargo clippy -D warnings 全绿；cargo fmt --check 0 偏差；i18n-guard 0 违规；typed-state-guard 0 findings；implicit-state-audit 0 open 0 undecided；closure-questions-guard 8/8 通过 → 部分（L）。
 
 ## 最近一批问答（2026-10-30 三端用户可见文案与数据格式收口交付批次）
 

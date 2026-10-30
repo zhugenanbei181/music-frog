@@ -24,6 +24,7 @@ use crate::dns_leak::DnsLeakReport;
 use crate::dns_query::DnsQuerySnapshot;
 use crate::dns_self_heal::DnsSelfHealSnapshot;
 use crate::doctor::{DoctorCheckKind, DoctorStatus};
+use crate::ip_quality::IpQualitySnapshot;
 use crate::ipv6::Ipv6RoutingSnapshot;
 use crate::lan::{LanSecuritySnapshot, LanSharingSnapshot};
 use crate::language::LanguageSettingsSnapshot;
@@ -683,6 +684,8 @@ pub struct SurfaceSnapshot {
     #[serde(default)]
     pub public_ip: PublicIpProbeSnapshot,
     #[serde(default)]
+    pub ip_quality: IpQualitySnapshot,
+    #[serde(default)]
     pub overview_layout: OverviewLayoutSnapshot,
     #[serde(default)]
     pub reconnect_mask: ReconnectMaskSnapshot,
@@ -791,6 +794,7 @@ impl SurfaceSnapshot {
                 "engine-scoped outbound UI preferences are not composed",
             )),
             public_ip: PublicIpProbeSnapshot::default(),
+            ip_quality: IpQualitySnapshot::default(),
             overview_layout: OverviewLayoutSnapshot::default(),
             reconnect_mask: ReconnectMaskSnapshot::default(),
             viewport: ResponsiveViewportSnapshot::default(),

@@ -70,17 +70,18 @@
 13. **cargo 并行预算与分组收口（2026-10-20 起强制，仿 ZhuGeTower 组批节奏）：** 构建资源全局共享（本机两条 cargo lane），并行流的 cargo 调用必须错峰：同一时刻只允许一条流跑 cargo，其余流只写源码与测试；**重构按组推进、一组一收口**——同一主题的重构（同一 owner 结构、同一族类型、同一契约面）作为一组同时落地，由收口方统一跑一次该组验证（一次 `--workspace` nextest + 一次结构门 + 该组专属 guard），禁止每条改动各跑一遍全仓；收口顺序：各流先交付源码，最后一条流统一构建、统一验证、统一提交。
 14. **同仓多会话的所有权纪律（2026-10-20 起强制）**：同一仓库可能同时被多个会话操作——动一个文件前先以工作树未提交改动与修改时间确认它当前归谁，**正在被别的会话写的文件一律不碰**（不修、不格式化、不提交）；自己派出的并行流必须把 crate 目录写进所有权清单，跨界只读不改；宁可把半成品留在工作树等对方落地，也不要在对方写到一半时插进同一批文件——两个会话改同一文件的结果是双方都丢改动。
 
-## Points 与完成度台账（2026-10-30，基线 `musicfrog-todo-20261030-v339`）
+## Points 与完成度台账（2026-10-30，基线 `musicfrog-todo-20261030-v341`）
 
 | 看板 | task | points |
 | --- | ---: | ---: |
-| 现在佛 | 27 | 112 |
-| 过去佛 | 139 | 395 |
+| 现在佛 | 26 | 107 |
+| 过去佛 | 140 | 400 |
 | 斗战胜佛 | 17 | 51 |
 | 未来佛 | 15 | 26 |
 | **未办结联合分母** | **198** | **584** |
 
 - **严格交付率：727 / 1311 = 55.5%**（archived 727pt / archived 727 + 未办结 584pt）。
+- 2026-10-30 第六十八交付批次：`FLPARITY-001`（5 pt）IP 质量查询、缓存与多端展示完成（contract 固化 `IpUsageType`、`IpRiskLevel`、`IpQualityStatus`、`IpQualityRecord` 与 `IpQualitySnapshot`；ports 导出 `IpQualityProbePort` 抽象；application 实现 `IpQualityApplication` 3 天 TTL 缓存、60 秒失败冷却与单飞防重；presentation 提供 `IpQualityBadgeProjection` 与 `summarize_ip_quality` 单源驱动四端质量徽标与详情；targeted nextest 1424/1424 全绿，Clippy `-D warnings` 全绿，所有守卫通过），现移入过去佛 §12.51；现在佛 112 → 107 pt（27 → 26 条），过去佛 395 → 400 pt（139 → 140 条），联合分母 584 pt 保持不变。
 - 2026-10-30 第六十七交付批次：`GAP-7.4`（3 pt）三端用户可见文案与数据格式收口（英文直出/占位符/单位/版本单一源）完成（Slint demo owner 35+ 项业务错误/拒绝提示全部中文化；Bevy / Iced / test_support 路由意图错误文案收敛至 `routing_intent_token_rejected` / `routing_intent_refused_temporary` 键表；`rule_list_editor` 缺失观测提示中文化；Bevy 节点地理分布 `globe.rs` 全量中文化并接入 `locales_table_surface_*` 键表；`test_interface_flap_guard` 修复高 CPU 负载下的时间窗口抖动 flakiness；i18n-guard 0 违规，targeted nextest 1551/1551 全绿通过），现移入过去佛 §12.50；现在佛 115 → 112 pt（28 → 27 条），过去佛 392 → 395 pt（138 → 139 条），联合分母 584 pt 保持不变。
 - 2026-10-30 第六十六交付批次：`FLPARITY-043`（5 pt）将 Mihomo 从 v1.19.32 升级至 FlClash v0.9.2 的 v1.19.33 基线并核对协议能力完成（锁定全平台二进制 SHA-256；`mihomo-api` / `mihomo-driver` / `infiltrator-contract` / `infiltrator-core` 全量升级至 v1.19.33；真实二进制烟测与 conformance 证明双引擎 live owner switch 全绿通过；工具链统一至 Rust 1.99.1），现移入过去佛 §12.49；现在佛 120 → 115 pt（29 → 28 条），过去佛 387 → 392 pt（137 → 138 条），联合分母 584 pt 保持不变。
 - 2026-10-29 第六十二登记批次（FlClash v0.9.2 色彩与 Forest 采集复核）：确认 desktop Iced/Bevy/Slint 的 118 个业务场景和 Android debug 交互采集默认 Forest；这只控制截图采集，不改变产品运行时主题偏好。代码审计发现 `MaterialSurfaceTokens`/`MaterialColorScheme` 无生产消费者，Android/Slint 与 Iced/Bevy 仍有独立颜色通路；当前构建主题截图证据也过期且 manifest 只覆盖少数页。按缺口将 `FLPARITY-014`（5 pt）从过去佛 §12.45 退回现在佛 InProgress；`PARITY-001.6` 扩至 5 pt，补当前构建下四端主题像素回执。现在佛 110→117 pt（27→28 条），过去佛 389→384 pt（137→136 条），联合分母 576→578 pt（196 条），累计 1303→1305 pt，严格归档完成率 55.8%→55.7%；未修改生产代码，不宣称视觉问题已修复。

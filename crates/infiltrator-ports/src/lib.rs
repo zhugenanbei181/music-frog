@@ -35,6 +35,7 @@ pub mod engine_version_backend_factory;
 pub mod fake_ip_cache;
 pub mod geo_database;
 pub mod host_runtime;
+pub mod ip_quality;
 pub mod lan_interface;
 pub mod log_export;
 pub mod media_unlock;

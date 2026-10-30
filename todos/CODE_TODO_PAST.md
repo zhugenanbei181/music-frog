@@ -1223,3 +1223,18 @@ timeout` 灵活入参，在未指定 timeout 时自动回读保持 `snapshot.pro
   - 当前证据（L）：`infiltrator-platform` + `infiltrator-shared` + `infiltrator-presentation` + `infiltrator-slint` + `infiltrator-bevy-ui` + `infiltrator-iced` 1551/1551 passed；`globe_tests` 9/9 passed；`i18n-guard.py` 0 错误；`line-guard.py` 0 违规；`cargo fmt --check` 0 偏差。
   - 待验证：统一全仓 nextest、Clippy 与实机截图重采核验。
   - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+
+## 12.51 IP 质量查询、缓存与多端展示交付（2026-10-30 交付，1条 / 5pt）
+
+- [ ] FLPARITY-001 [kind: mechanism] [priority: P1] [points: 5] [owner: infiltrator-contract + infiltrator-ports + infiltrator-application + infiltrator-presentation] [status: Integrated] IP 质量查询、缓存与多端展示 (FlClash v0.9.2 parity)
+  - 产物：
+    - **Contract 类型化领域模型**：`infiltrator-contract::ip_quality` 固化 `IpUsageType`（住宅宽带/移动蜂窝/商业专线/数据中心/教育网/未知）、`IpRiskLevel`（安全洁净/低风险/中度风险/高度风险及 0..=100 分值派生）、`IpQualityStatus`（显式互斥状态机）、`IpQualityRecord` 与 `IpQualitySnapshot`；
+    - **唯一异步端口抽象**：`infiltrator-ports::ip_quality::IpQualityProbePort` 导出 `probe_ip_quality` 与 `probe_active_ip_quality`；
+    - **Application 3天TTL缓存与失败冷却**：`infiltrator-application::ip_quality_application::IpQualityApplication` 实现 3 天 TTL 缓存（对标 FlClash v0.9.2）、60 秒失败冷却、`IpQualityRefreshPolicy` 旁路策略与单飞防重，并支持生成快照；
+    - **Presentation 单源徽标与摘要投影**：`infiltrator-presentation::ip_quality_projection::IpQualityBadgeProjection` 提供纯净住宅/数据中心/代理/滥用历史/缓存时间等一键投影与富文本 tooltip；
+    - **SurfaceSnapshot 接线**：`SurfaceSnapshot` 接入 `pub ip_quality: IpQualitySnapshot`（`#[serde(default)]`），多端同 IP 共享同一事实；
+    - **门禁全绿**：targeted nextest 1424/1424 全绿，Clippy `-D warnings` 零警告，所有质量守卫通过。
+  - 验收：单测覆盖成功、冷却、限流、空输入校验与快照映射；无隐式状态机（typed-state-guard 0 findings）；四端同模型无私有推导。
+  - 当前证据（L）：`infiltrator-contract` + `infiltrator-ports` + `infiltrator-application` + `infiltrator-presentation` 1424/1424 passed；Clippy `--all-targets -D warnings` passed；typed-state-guard 0 findings；implicit-state-audit 0 open 0 undecided；line budget 0 违规；cargo fmt 0 偏差。
+  - 待验证：统一全仓集成验证批次与四表面像素巡检。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。

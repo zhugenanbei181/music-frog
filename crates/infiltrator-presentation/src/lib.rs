@@ -42,6 +42,7 @@ pub mod filter_query;
 pub mod geo;
 pub mod host_network_projection;
 pub mod input_intent;
+pub mod ip_quality_projection;
 pub mod lan_share_projection;
 pub mod language_choice;
 pub mod latency_projection;

@@ -65,6 +65,7 @@ use infiltrator_contract::core_capabilities::{
 };
 use infiltrator_contract::dns_cache::DnsCacheSnapshot;
 use infiltrator_contract::dns_query::DnsQuerySnapshot;
+use infiltrator_contract::ip_quality::IpQualitySnapshot;
 use infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot;
 use infiltrator_contract::named_override::NamedOverrideCatalog;
 use infiltrator_contract::provider_cache::RuleProviderCacheSnapshot;
@@ -708,6 +709,7 @@ impl SurfaceReader for ProductSurfaceReader {
             outbound_details,
             outbound_ui_preferences,
             public_ip: PublicIpProbeSnapshot::default(),
+            ip_quality: IpQualitySnapshot::default(),
             overview_layout: overview_layout_snapshot,
             reconnect_mask,
             viewport: Default::default(),

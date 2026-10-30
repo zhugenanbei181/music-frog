@@ -65,6 +65,7 @@ pub mod geo_database;
 pub mod geo_region;
 pub mod ime;
 pub mod intent;
+pub mod ip_quality;
 pub mod ipv6;
 pub mod lan;
 pub mod lan_share;
