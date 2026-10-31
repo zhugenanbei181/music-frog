@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 pub const SYSTEM_SETTING: &str = "system";
 
 /// Resolved color appearance supplied by the operating-system adapter.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum AppearanceMode {
     Light,
     #[default]
@@ -37,7 +37,7 @@ impl AppearanceMode {
 }
 
 /// The latest operating-system theme observation.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum SystemAppearance {
     /// The host has not reported its appearance yet; shells cold-start dark.
     #[default]

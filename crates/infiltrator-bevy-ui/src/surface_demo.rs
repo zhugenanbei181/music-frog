@@ -154,6 +154,7 @@ fn snapshot_from_overview_fixture(
         local_proxy: Default::default(),
         general_override: Default::default(),
         palette_preference: Default::default(),
+        theme_readback: surface_snapshot::theme_readback_cold_start(),
         dns_hosts: match fixture {
             OverviewFixture::DemoPages => PageData::ready(DnsHostsProfile {
                 profile: "demo".into(),
@@ -286,6 +287,7 @@ pub(crate) fn demo_snapshot() -> surface_snapshot::SurfaceSnapshot {
         local_proxy: Default::default(),
         general_override: Default::default(),
         palette_preference: Default::default(),
+        theme_readback: surface_snapshot::theme_readback_cold_start(),
         dns_leak: DnsProjection::demo().leak,
         dns_hosts: PageData::ready(DnsHostsProfile {
             profile: "demo".into(),

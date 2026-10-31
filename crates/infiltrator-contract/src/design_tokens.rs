@@ -29,9 +29,10 @@
 //!   shadow specification (EFFECTS-002 #9).
 
 use crate::theme::ThemeSkin;
+use serde::{Deserialize, Serialize};
 
 /// One sRGBA token, channel-exact.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
 pub struct RgbaToken {
     pub r: f32,
     pub g: f32,
@@ -50,7 +51,7 @@ impl RgbaToken {
 }
 
 /// The semantic core of one skin's palette, shared by both surfaces.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
 pub struct SkinCorePalette {
     /// Window/page backdrop.
     pub canvas: RgbaToken,
@@ -144,7 +145,7 @@ pub const fn skin_core(skin: ThemeSkin) -> SkinCorePalette {
 /// (`hover`, `pressed`), the keyboard `focus_ring` and the dimmed
 /// `disabled_ink`. Accent-tinted hover derivations (primary/danger buttons)
 /// and shadows are surface-local decoration and stay out of this palette.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
 pub struct SkinInteractionPalette {
     /// Modal / overlay backdrop painted over the page content.
     pub scrim: RgbaToken,
@@ -287,7 +288,7 @@ pub mod metrics {
 }
 
 /// Mobile navigation and interaction tokens for each skin (BANDROID-027.1).
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
 pub struct MobileThemeTokens {
     /// Bottom navigation bar container background.
     pub bottom_nav_bg: RgbaToken,

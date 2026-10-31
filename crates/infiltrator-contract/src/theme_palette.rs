@@ -14,8 +14,9 @@ use crate::design_tokens::{
 };
 use crate::surface_hierarchy::{MaterialSurfaceTokens, SemanticContainerPair};
 use crate::theme::{AppearanceMode, SystemAppearance, ThemePreference, ThemeSkin};
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
 pub enum ThemePaletteSource {
     BuiltIn(ThemeSkin),
     Seeded {
@@ -25,13 +26,13 @@ pub enum ThemePaletteSource {
 }
 
 /// Validated sRGB seed supplied by a host dynamic-color provider or user.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
 pub struct DynamicColorSeed(RgbaToken);
 
 /// The operating system's dynamic accent color observation. Unobserved is a
 /// real observation state: hosts without a dynamic-color API report it instead
 /// of pretending to hold a seed.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq)]
 pub enum SystemDynamicColor {
     /// The host has not reported a system accent seed.
     #[default]
@@ -43,7 +44,7 @@ pub enum SystemDynamicColor {
 /// One typed observation of the host's theme state. Both fields carry their
 /// own unobserved state, so a host adapter never has to fake a value it
 /// cannot read.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq)]
 pub struct SystemThemeObservation {
     pub appearance: SystemAppearance,
     pub dynamic_color: SystemDynamicColor,
@@ -76,7 +77,7 @@ impl DynamicColorSeed {
 }
 
 /// Complete semantic palette after theme preference resolution.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
 pub struct ThemePalette {
     pub source: ThemePaletteSource,
     pub core: SkinCorePalette,
@@ -192,7 +193,7 @@ impl ThemePalette {
 /// Authority readback tying the user's theme preference to its resolved skin
 /// and exact palette. OS unobserved is retained; the documented cold-start
 /// policy still resolves it through `SystemAppearance::mode()`.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct ResolvedThemePalette {
     pub preference: ThemePreference,
     pub system_appearance: SystemAppearance,

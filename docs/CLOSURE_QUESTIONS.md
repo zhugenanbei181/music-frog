@@ -36,6 +36,17 @@
 | 7 | 部分 | L | 文件级模块化完成（<=800/600 行全绿，全仓 mod.rs 清退至 0，严格遵照 foo.rs + foo/ 模式，并在 check-structure.sh 接入 mod-rs-guard 永久禁止）；隐式状态机语义审计 + 判决台账常驻（22 条候选逐条人工判决，未判决或 open 即门禁失败），16 处阶段表已改 typed enum + typed transition；Slint 拆分遵循 `SLINT-001` 单文件预算守卫；九个页面模型与两个共用基座成为页面状态的唯一 owner；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | 已补 `--locked` 与 main 守卫门禁（仅 fmt+guards，不编译）；修复 main-gate.yml 缺失 setup-python/Pillow 问题；扩大 Gradle JVM 堆至 6GB 并将三大 flavor 分离独立进程构建彻底解决 OOM；交付 Android CI 套件 flavor/模拟器裁剪与 Gradle 缓存复用；release 作业在构建前校验签名材料缺 secret 秒级失败；全套单测与结构门（`check-structure.sh` 40+ 项守卫，含截图身份唯一守卫 enforce：550 张、aliases=4、0 违规）全绿；`cargo fmt --all --check` 100% 通过；版本号按身份改动一次升至 0.51.0 |
 
+## 最近一批问答（2026-11-01 FLPARITY-014 计划②发布腿：快照主题权威读回）
+
+1. x86_64/aarch64：纯 Rust 契约/组合层改动，无平台特化代码；`cargo metadata --locked` ok，交叉腿结论不变 → 部分（L）。
+2. Windows/Linux/macOS：宿主动态色 adapter 仍未交付（观测保持 Unobserved）；Windows/macOS 受控环境腿在斗战胜佛 → 部分（L）。
+3. Android/iOS：Android JSON 反序列化由 serde 默认冷启动保持兼容；动态色/真机腿仍开放 → 部分（L）。
+4. 各 UI：快照已发布 `theme_readback` 权威读回，但 Iced/Bevy/Slint/Android 仍未改为消费发布读回（本地解析继续保留到消费切片），不宣称四端已接入 → 部分（L）。
+5. 复用：读回生成单点在 `project_theme_readback` + composition 单次调用；调色板数据类型补 serde 无第二份色表 → 部分（L）。
+6. 功能接入：`theme_readback` 冷启动默认与 seeded 往返由契约测试钉死；`SurfaceSnapshot::unavailable` 与 bevy-ui demo 全量字面量同步补字段 → 部分（L）。
+7. 模块化：无新增 bool/Option 隐式态；typed-state/implicit-state/rem 守卫 0 违规；定向 nextest 全绿（contract/composition/presentation/iced/bevy-ui）、六包 clippy `-D warnings` 零警告、fmt 0 偏差 → 部分（L）。
+8. CI：全量结构门收口一次跑通；单 commit 推送由 `main-gate` 复验 → 部分（L）。
+
 ## 最近一批问答（2026-11-01 FLPARITY-014 计划① Core 腿：主题权威读回完整化）
 
 1. x86_64/aarch64：本批为纯 Rust 契约/端口/呈现层改动，无平台特化代码；`cargo metadata --locked` ok，既有交叉腿结论不变 → 部分（L）。

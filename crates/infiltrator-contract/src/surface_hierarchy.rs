@@ -35,7 +35,7 @@ pub enum SurfaceRole {
 }
 
 /// Container and on-container color pair for semantic status badges and action cards.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
 pub struct SemanticContainerPair {
     /// Background container tint fill.
     pub container: RgbaToken,
@@ -61,7 +61,7 @@ impl SemanticContainerPair {
 }
 
 /// Complete Material 3 surface and semantic container palette for one skin.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
 pub struct MaterialSurfaceTokens {
     pub canvas: RgbaToken,
     pub sidebar: RgbaToken,

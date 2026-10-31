@@ -73,6 +73,40 @@ fn typed_outbound_details_and_preferences_are_required_surface_fields() {
 }
 
 #[test]
+fn theme_readback_publishes_the_cold_start_authority_and_round_trips() {
+    use crate::surface_snapshot::theme_readback_cold_start;
+    use crate::theme::AppearanceMode;
+    use crate::theme::SystemAppearance;
+    use crate::theme::ThemePreference;
+    use crate::theme::ThemeSkin;
+    use crate::theme_palette::DynamicColorSeed;
+    use crate::theme_palette::ResolvedThemePalette;
+    use crate::theme_palette::SystemDynamicColor;
+
+    let mut snapshot = SurfaceSnapshot::unavailable(
+        SurfaceKind::BevyDesktop,
+        HostKind::Desktop,
+        Failure::unsupported("not composed"),
+    );
+    assert_eq!(snapshot.theme_readback, theme_readback_cold_start());
+    assert_eq!(snapshot.theme_readback.skin, ThemeSkin::Dark);
+
+    let seed = DynamicColorSeed::new(0.12, 0.56, 0.96).expect("valid sRGB seed");
+    snapshot.theme_readback = ResolvedThemePalette::resolve(
+        ThemePreference::System,
+        SystemAppearance::Observed(AppearanceMode::Light),
+        SystemDynamicColor::Seed(seed),
+    );
+    let encoded = serde_json::to_string(&snapshot).expect("surface snapshot serializes");
+    let decoded: SurfaceSnapshot = serde_json::from_str(&encoded).expect("decode the snapshot");
+    assert_eq!(decoded.theme_readback, snapshot.theme_readback);
+    assert_eq!(
+        decoded.theme_readback.system_dynamic_color,
+        SystemDynamicColor::Seed(seed)
+    );
+}
+
+#[test]
 fn surface_snapshot_without_runtime_status_defaults_to_unknown_axes() {
     let snapshot = SurfaceSnapshot::unavailable(
         SurfaceKind::AndroidCompose,

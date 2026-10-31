@@ -75,6 +75,9 @@ use crate::subscription_quota::SubscriptionQuotaSnapshot;
 use crate::surface::{HostKind, SurfaceKind};
 use crate::sync_snapshot::SyncPageSnapshot;
 use crate::system_proxy::{SystemProxyRecoverySnapshot, SystemProxySnapshot};
+use crate::theme::SystemAppearance;
+use crate::theme::ThemePreference;
+use crate::theme_palette::{ResolvedThemePalette, SystemDynamicColor};
 use crate::traffic_history::{ClosedConnectionsSnapshot, TrafficHistorySnapshot};
 use crate::traffic_scale::TrafficScaleSnapshot;
 use crate::traffic_topology::TrafficTopologySnapshot;
@@ -588,6 +591,16 @@ pub fn unobserved_hosts() -> PageData<DnsHostsProfile> {
     ))
 }
 
+/// Cold-start readback: system preference, unobserved host facts, built-in
+/// dark skin. Matches the documented shell cold-start policy.
+pub fn theme_readback_cold_start() -> ResolvedThemePalette {
+    ResolvedThemePalette::resolve(
+        ThemePreference::System,
+        SystemAppearance::Unobserved,
+        SystemDynamicColor::Unobserved,
+    )
+}
+
 /// One canonical read model consumed by every inbound surface.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SurfaceSnapshot {
@@ -624,6 +637,10 @@ pub struct SurfaceSnapshot {
     /// The user-owned seed/style preference; surfaces derive one scheme from it.
     #[serde(default)]
     pub palette_preference: PalettePreferenceSnapshot,
+    /// The one authoritative theme readback (preference, host observation,
+    /// resolved skin and palette) surfaces consume instead of local mirrors.
+    #[serde(default = "theme_readback_cold_start")]
+    pub theme_readback: ResolvedThemePalette,
     /// Simulation results survive unrelated page/provider read failures.
     #[serde(default)]
     pub rule_trace: RuleTraceExecution,
@@ -761,6 +778,7 @@ impl SurfaceSnapshot {
             local_proxy: LocalProxySnapshot::default(),
             general_override: GeneralOverrideSnapshot::default(),
             palette_preference: PalettePreferenceSnapshot::default(),
+            theme_readback: theme_readback_cold_start(),
             rule_trace: RuleTraceExecution::default(),
             dns_hosts: unobserved_hosts(),
             surface,
