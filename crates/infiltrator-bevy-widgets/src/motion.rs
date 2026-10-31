@@ -89,6 +89,15 @@ pub fn lerp_color(start: Color, end: Color, t: f32) -> Color {
     )
 }
 
+/// Longest slice integrated in one substep. The stiffest spring in the
+/// workspace is 320 N/m, whose semi-implicit Euler stability limit
+/// (`2 / sqrt(stiffness)` ≈ 0.112 s) leaves a wide margin below this.
+const SPRING_MAX_SUBSTEP_SECS: f32 = 1.0 / 60.0;
+/// Simulated-time budget for a single call: past a half second of stalled
+/// frame the animation keeps catching up over the following frames instead
+/// of integrating an unbounded delta at once.
+const SPRING_MAX_SIMULATED_SECS: f32 = 0.5;
+
 /// Mass-Spring-Damper harmonic oscillator physics simulator.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Spring {
@@ -114,12 +123,24 @@ impl Spring {
 
     /// Step the simulation forward by `dt` seconds (e.g. 1/60s).
     pub fn step(&mut self, dt: f32) -> f32 {
-        let spring_force = -self.stiffness * (self.value - self.target);
-        let damping_force = -self.damping * self.velocity;
-        let acceleration = (spring_force + damping_force) / self.mass;
-
-        self.velocity += acceleration * dt;
-        self.value += self.velocity * dt;
+        if !dt.is_finite() || dt <= 0.0 {
+            return self.value;
+        }
+        // Semi-implicit Euler is only stable for steps below roughly
+        // `2 / sqrt(stiffness)` seconds. One stalled frame (compositor stall,
+        // window drag, capture screenshot) delivers a much longer delta, so
+        // the excess is integrated in bounded substeps instead of amplifying
+        // the oscillator until the value overflows into NaN.
+        let mut remaining = dt.min(SPRING_MAX_SIMULATED_SECS);
+        while remaining > 0.0 {
+            let substep = remaining.min(SPRING_MAX_SUBSTEP_SECS);
+            let spring_force = -self.stiffness * (self.value - self.target);
+            let damping_force = -self.damping * self.velocity;
+            let acceleration = (spring_force + damping_force) / self.mass;
+            self.velocity += acceleration * substep;
+            self.value += self.velocity * substep;
+            remaining -= substep;
+        }
         self.value
     }
 
@@ -566,6 +587,20 @@ mod tests {
             transition.translation_y.step(0.016);
         }
         assert!(transition.translation_y.value < 0.5);
+    }
+
+    #[test]
+    fn test_spring_step_survives_stalled_frame() {
+        // One second-long delta used to amplify the oscillator until the
+        // value overflowed into NaN and the layout died on a clamp panic.
+        let mut spring = Spring::new(8.0, 300.0, 24.0);
+        spring.target = 0.0;
+        for _ in 0..12 {
+            spring.step(1.0);
+            assert!(spring.value.is_finite());
+            assert!(spring.value.abs() < 16.0);
+        }
+        assert!(spring.is_settled(0.05));
     }
 
     #[test]
