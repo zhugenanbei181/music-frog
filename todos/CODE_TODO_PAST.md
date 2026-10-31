@@ -1210,8 +1210,7 @@ timeout` 灵活入参，在未指定 timeout 时自动回读保持 `snapshot.pro
     - **契约层零变化**：`infiltrator-contract`/`infiltrator-ports` 错误面 0 文件改动，对外错误面未因本条漂移。
   - 验收：两个 crate 内 `anyhow` 引用只剩边界收敛处（`error.rs` 的 `From<anyhow::Error>` 与 `remote_profile_namespace_tests.rs` 中外部 `dav-client::DavClient` trait 签名强制的 `anyhow::Result`）；workspace nextest 全绿；结构门全绿。
   - 当前证据（L）：workspace `cargo nextest run --no-fail-fast` 5723/5723 passed（15 skipped）；`cargo clippy --workspace --all-targets -- -D warnings` 0 error；`cargo fmt --all --check` 0 偏差；`check-structure.sh` 全绿（import hygiene 2871 文件 0 违规、line budget 0 违规、feature matrix 11 crates/34 features 全解析）；typed-state-guard 0 findings；implicit-state-audit 22 候选 0 undecided 0 open。
-  - 待验证：远端 `main-gate` CI 回执回填（本批统一验证批次已在本机全绿）。
-  - 本机可执行动作：push 后轮询 `main-gate` run 并回填 run ID。
+  - CI 回执（C）：远端 `main-gate` run `41154488324` completed success（commit `2e54d29`）。
 
 ## 12.60 自定义种子色与 Material 色彩风格选择 Core 切片交付（2026-10-31 交付，1条 / 5pt）
 
