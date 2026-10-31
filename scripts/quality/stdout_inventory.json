@@ -1,7 +1,12 @@
 {
   "version": 1,
   "note": "Direct stdout/stderr writes in library crates are a signal that a diagnostic has no typed owner. The inner layers keep a hard zero; every other library site is registered with a ceiling. Binary entry points and the CLI crate own their output as the product surface and are not listed.",
-  "categories": ["capture_tooling", "crash_diagnostic", "platform_diagnostic", "test_support"],
+  "categories": [
+    "capture_tooling",
+    "crash_diagnostic",
+    "platform_diagnostic",
+    "test_support"
+  ],
   "hard_zero_crates": [
     "infiltrator-application",
     "infiltrator-contract",
@@ -51,6 +56,18 @@
       "sites": 2,
       "category": "capture_tooling",
       "rationale": "Capture harness reports unusable widget geometry while recording."
+    },
+    {
+      "path": "crates/infiltrator-bevy-ui/src/interaction_capture/profiles_business.rs",
+      "sites": 1,
+      "category": "capture_tooling",
+      "rationale": "Capture harness reports the import-gesture stage progress once per stage so a stuck scenario names the stage it stalled at."
+    },
+    {
+      "path": "crates/infiltrator-bevy-ui/src/interaction_capture/proxies.rs",
+      "sites": 1,
+      "category": "capture_tooling",
+      "rationale": "Capture harness reports the group-fold stage progress once per stage so a stuck scenario names the stage it stalled at."
     },
     {
       "path": "crates/infiltrator-bevy-ui/src/interaction_capture/rule_trace.rs",

@@ -12,19 +12,31 @@ use super::{InteractionCapture, ObservedInteraction, selected};
 use crate::command::CommandSinkHandle;
 use crate::pages::profiles::{DeleteProfileButton, LastProfilesProjection, UpdateProfileButton};
 use crate::pages::profiles_import::ProfilesImportRoot;
+use crate::pages::profiles_import_channels::ImportSubscriptionUrlField;
 use crate::pages::profiles_outcome::{ProfileDeleteOutcomeText, ProfileRefreshText};
 use crate::route::surface_projection::replay_surface_snapshot;
 use crate::route::{ActiveRoute, Route};
 use crate::surface::LatestSurfaceSnapshot;
 use bevy::app::App;
+use bevy::camera::NormalizedRenderTarget;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::ChildOf;
+use bevy::ecs::hierarchy::Children;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
+use bevy::input::ButtonState;
+use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
+use bevy::math::Vec2;
+use bevy::picking::backend::HitData;
+use bevy::picking::events::{Pointer, PointerPress};
+use bevy::picking::pointer::{Location, PointerButton, PointerId};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, ScrollArea};
+use bevy::window::{PrimaryWindow, Window};
 use infiltrator_application::core_application::CoreApplication;
+use infiltrator_bevy_widgets::text_input::TextField;
+use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
@@ -39,6 +51,10 @@ use std::sync::{Arc, Mutex};
 /// The engine the capture's own profile store owns.
 const CAPTURE_ENGINE: &str = "mihomo";
 
+/// The demo subscription URL the import capture really types into the page's
+/// own URL field: the import intent is the typed readback.
+const IMPORT_DEMO_URL: &str = "https://capture.example.com/sub.yaml";
+
 /// The capture's own progress through one profiles gesture.
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum ProfilesStage {
@@ -47,6 +63,8 @@ enum ProfilesStage {
     Unpublished,
     /// The owner's readback is on the surface; the page's own control is ready.
     Published,
+    /// The page's own field was focused; the typed intent is awaited.
+    ImportIntent,
     /// The page's own control was activated; the owner's answer is awaited.
     Activated,
 }
@@ -55,6 +73,7 @@ enum ProfilesStage {
 #[derive(Resource)]
 struct ProfilesCapture {
     stage: ProfilesStage,
+    reported: Option<ProfilesStage>,
     reader: Arc<ProductSurfaceReader>,
 }
 
@@ -85,6 +104,7 @@ pub fn install(app: &mut App) {
     ))));
     app.insert_resource(ProfilesCapture {
         stage: ProfilesStage::Unpublished,
+        reported: None,
         reader,
     });
 }
@@ -99,15 +119,35 @@ pub struct ProfilesControls<'w, 's> {
     projection: Option<Res<'w, LastProfilesProjection>>,
     deletes: Query<'w, 's, (Entity, &'static DeleteProfileButton)>,
     updates: Query<'w, 's, (Entity, &'static UpdateProfileButton)>,
+    imports: Query<'w, 's, Entity, With<ProfilesImportRoot>>,
+    url_fields: Query<'w, 's, (Entity, &'static Children), With<ImportSubscriptionUrlField>>,
+    native_fields: Query<'w, 's, Entity, With<NativeTextField>>,
+    text_fields: Query<'w, 's, &'static TextField>,
+    parents: Query<'w, 's, &'static ChildOf>,
+    areas: Query<'w, 's, Entity, With<ScrollArea>>,
+    windows: Query<'w, 's, (Entity, &'static Window), With<PrimaryWindow>>,
 }
 
 /// Drive the Profiles page's own deletion and refresh gestures.
-pub fn activate(mut controls: ProfilesControls, mut commands: Commands) {
+pub fn activate(
+    mut controls: ProfilesControls,
+    mut geometry: CaptureGeometry,
+    mut commands: Commands,
+) {
     if controls.route.0 != Some(Route::Profiles) {
         return;
     }
     match controls.feature.feature {
         FeatureId::ProfilesImportModal => {
+            if controls.capture.reported != Some(controls.capture.stage) {
+                eprintln!(
+                    "import capture progress: stage={:?} roots={} url_fields={}",
+                    controls.capture.stage,
+                    controls.imports.iter().count(),
+                    controls.url_fields.iter().count()
+                );
+                controls.capture.reported = Some(controls.capture.stage);
+            }
             if !selected(
                 &controls.feature,
                 &controls.route,
@@ -116,7 +156,81 @@ pub fn activate(mut controls: ProfilesControls, mut commands: Commands) {
             ) {
                 return;
             }
-            controls.capture.stage = ProfilesStage::Activated;
+            match controls.capture.stage {
+                ProfilesStage::Unpublished => {
+                    // The owner's readback must really render first.
+                    if controls.imports.iter().next().is_none() {
+                        return;
+                    }
+                    controls.capture.stage = ProfilesStage::Published;
+                }
+                ProfilesStage::Published => {
+                    // Focus the page's own URL field, then type the demo
+                    // import intent; the typed field is the gesture. The
+                    // native field carries the focusable identity, not the
+                    // workbench wrapper.
+                    let Some(field) = controls.url_fields.iter().find_map(|(_, children)| {
+                        children
+                            .iter()
+                            .find_map(|child| controls.native_fields.get(*child).ok())
+                    }) else {
+                        return;
+                    };
+                    let Some((_, window)) = controls.windows.iter().next() else {
+                        return;
+                    };
+                    let Some(bounds) = geometry.rect(field) else {
+                        return;
+                    };
+                    if !geometry.unclipped(field) {
+                        // The workbench sits below the page's fold; scroll the
+                        // page's own viewport until the field is really shown.
+                        if let Some(area) =
+                            outermost_scroll_area(field, &controls.parents, &controls.areas)
+                            && let Some(viewport) = geometry.rect(area)
+                            && let Some(bounds) = geometry.rect(field)
+                        {
+                            request_scroll(&mut commands, area, bounds, viewport);
+                        }
+                        return;
+                    }
+                    commands.trigger(PointerPress {
+                        entity: field,
+                        pointer: Pointer::new(
+                            PointerId::Mouse,
+                            Location {
+                                target: NormalizedRenderTarget::None {
+                                    width: window.width() as u32,
+                                    height: window.height() as u32,
+                                },
+                                position: Vec2::new(
+                                    bounds[0] + bounds[2] / 2.0,
+                                    bounds[1] + bounds[3] / 2.0,
+                                ),
+                            },
+                        ),
+                        button: PointerButton::Primary,
+                        hit: HitData::new(Entity::PLACEHOLDER, 0.0, None, None),
+                        count: 1,
+                    });
+                    controls.capture.stage = ProfilesStage::ImportIntent;
+                }
+                ProfilesStage::ImportIntent => {
+                    let Some((window, _)) = controls.windows.iter().next() else {
+                        return;
+                    };
+                    commands.write_message(KeyboardInput {
+                        key_code: KeyCode::KeyC,
+                        logical_key: Key::Character(IMPORT_DEMO_URL.into()),
+                        text: Some(IMPORT_DEMO_URL.into()),
+                        state: ButtonState::Pressed,
+                        repeat: false,
+                        window,
+                    });
+                    controls.capture.stage = ProfilesStage::Activated;
+                }
+                ProfilesStage::Activated => {}
+            }
         }
         FeatureId::ProfilesDeleteConfirm => {
             if !selected(
@@ -173,6 +287,8 @@ fn activate_delete(controls: &mut ProfilesControls<'_, '_>, commands: &mut Comma
             controls.capture.stage = ProfilesStage::Activated;
             commands.trigger(Activate { entity });
         }
+        // The import gesture owns this stage; the delete flow never set it.
+        ProfilesStage::ImportIntent => {}
         ProfilesStage::Activated => {
             publish_readback(controls, commands);
         }
@@ -195,6 +311,8 @@ fn activate_refresh(controls: &mut ProfilesControls<'_, '_>, commands: &mut Comm
             controls.capture.stage = ProfilesStage::Activated;
             commands.trigger(Activate { entity });
         }
+        // The import gesture owns this stage; the refresh flow never set it.
+        ProfilesStage::ImportIntent => {}
         ProfilesStage::Activated => {}
     }
 }
@@ -234,6 +352,8 @@ pub struct ProfilesObservation<'w, 's> {
     deletions: Query<'w, 's, (Entity, &'static Text), With<ProfileDeleteOutcomeText>>,
     refreshes: Query<'w, 's, (Entity, &'static Text), With<ProfileRefreshText>>,
     imports: Query<'w, 's, Entity, With<ProfilesImportRoot>>,
+    url_fields: Query<'w, 's, (Entity, &'static Children), With<ImportSubscriptionUrlField>>,
+    text_fields: Query<'w, 's, &'static TextField>,
     parents: Query<'w, 's, &'static ChildOf>,
     areas: Query<'w, 's, Entity, With<ScrollArea>>,
 }
@@ -255,8 +375,17 @@ pub fn observe(
     }
     let subject = (|| match target {
         FeatureId::ProfilesImportModal => {
-            let entity = controls.imports.iter().next()?;
-            Some((entity, "profiles import card"))
+            // The typed import intent is the readback: the page's own URL
+            // field really carries the demo subscription URL.
+            let (field, children) = controls.url_fields.iter().next()?;
+            let typed = children
+                .iter()
+                .find_map(|child| controls.text_fields.get(*child).ok())
+                .is_some_and(|field| field.0.text().contains("capture.example.com"));
+            if !typed {
+                return None;
+            }
+            Some((field, "profiles import url intent"))
         }
         FeatureId::ProfilesDeleteConfirm => {
             let (entity, text) = controls.deletions.single().ok()?;

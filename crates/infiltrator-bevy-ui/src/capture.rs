@@ -24,15 +24,27 @@
 use crate::appearance::{SystemAppearance, ThemeMode, resolved_skin};
 use crate::controller::PumpSnapshotSeen;
 use crate::history::TrafficHistory;
+use crate::interaction_capture::geometry::CaptureGeometry;
+use crate::interaction_capture::geometry::GeometryRejections;
+use crate::interaction_capture::scroll::request_scroll;
 use crate::interaction_capture::{CaptureObservationSet, InteractionCapture, ObservedInteraction};
-use crate::route::{ActiveRoute, Route};
-use bevy::app::{App, Plugin, PostUpdate};
+use crate::pages::profiles_editor::ProfileEditorRoot;
+use crate::pages::profiles_editor_panes::ProfileEditorOptionsState;
+use crate::pages::profiles_editor_panes::ProfileEditorPane;
+use crate::pages::settings::settings_dialogs::FontLicenseButton;
+use crate::route::{ActiveRoute, PageRoot, Route};
+use bevy::app::{App, Plugin, PostUpdate, Update};
+use bevy::ecs::entity::Entity;
+use bevy::ecs::hierarchy::ChildOf;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
-use bevy::ecs::system::{Query, Res, ResMut, SystemParam};
+use bevy::ecs::system::Local;
+use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::ecs::{event::Event, observer::On};
+use bevy::ui_widgets::{Activate, ScrollArea};
 use bevy::window::{PrimaryWindow, Window};
+use infiltrator_bevy_widgets::surface::SurfacePanel;
 use infiltrator_bevy_widgets::theme::ThemeSkin;
 use std::path::PathBuf;
 use std::{env, fs};
@@ -108,6 +120,9 @@ pub fn parse_page(raw: &str) -> Option<Route> {
         "overview" => Some(Route::Overview),
         "proxies" => Some(Route::Proxies),
         "profiles" => Some(Route::Profiles),
+        // The editor card is the profiles workspace's own editor surface;
+        // the pane itself is the typed capture section below.
+        "editor" | "mixin" | "filter" => Some(Route::Profiles),
         "rules" => Some(Route::Rules),
         "connections" => Some(Route::Connections),
         "logs" => Some(Route::Logs),
@@ -116,8 +131,40 @@ pub fn parse_page(raw: &str) -> Option<Route> {
         "app_routing" | "approuting" | "app-routing" => Some(Route::AppRouting),
         "sync" => Some(Route::Sync),
         "settings" => Some(Route::Settings),
+        // The settings workspace's font-attribution details dialog.
+        "about" => Some(Route::Settings),
         _ => None,
     }
+}
+
+/// The typed page-capture target beyond the plain route: the anchored
+/// section a page capture must really render. `INFILTRATOR_BEVY_PAGE`
+/// carries it exactly like the iced demo's `INFILTRATOR_PAGE`:
+/// `editor|mixin|filter` select the profiles page's editor card with that
+/// pane active, and `about` opens the settings page's font-attribution
+/// details dialog. Pure function — unit-tested below without any env access.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CaptureSection {
+    EditorCard(ProfileEditorPane),
+    FontLicenseDialog,
+}
+
+/// Parse the capture section knob. Pure function.
+pub fn parse_section(raw: &str) -> Option<CaptureSection> {
+    match raw.trim().to_ascii_lowercase().as_str() {
+        "editor" => Some(CaptureSection::EditorCard(ProfileEditorPane::Profile)),
+        "mixin" => Some(CaptureSection::EditorCard(ProfileEditorPane::Mixin)),
+        "filter" => Some(CaptureSection::EditorCard(ProfileEditorPane::Filter)),
+        "about" => Some(CaptureSection::FontLicenseDialog),
+        _ => None,
+    }
+}
+
+/// The capture section from the environment, if set.
+pub fn section_from_env() -> Option<CaptureSection> {
+    env::var("INFILTRATOR_BEVY_PAGE")
+        .ok()
+        .and_then(|raw| parse_section(&raw))
 }
 
 /// The capture page from the environment, if set.
@@ -216,6 +263,81 @@ impl Plugin for CapturePlugin {
             PostUpdate,
             write_capture_marker.after(CaptureObservationSet),
         );
+        if let Some(section) = section_from_env() {
+            app.init_resource::<GeometryRejections>();
+            app.insert_resource(CaptureSectionTarget(section));
+            app.add_systems(Update, bootstrap_capture_section);
+        }
+    }
+}
+
+/// The parsed page-capture section, present only when a page capture asks
+/// for one.
+#[derive(Resource)]
+struct CaptureSectionTarget(CaptureSection);
+
+/// Drive the page-capture section the env asked for: switch the editor
+/// card's pane, top-align the anchored card inside the page's own scroll
+/// viewport and open the font-attribution details dialog — the same business
+/// states the shared receipts anchor, reached through the page's own
+/// controls, never a second state owner.
+fn bootstrap_capture_section(
+    target: Res<CaptureSectionTarget>,
+    mut options: ResMut<ProfileEditorOptionsState>,
+    editor_roots: Query<Entity, With<ProfileEditorRoot>>,
+    parents: Query<&ChildOf>,
+    cards: Query<(), With<SurfacePanel>>,
+    page_roots: Query<(Entity, &'static PageRoot)>,
+    scroll_children: Query<(Entity, &ChildOf), With<ScrollArea>>,
+    license_buttons: Query<Entity, With<FontLicenseButton>>,
+    mut geometry: CaptureGeometry,
+    mut commands: Commands,
+    mut dialog_fired: Local<bool>,
+) {
+    match target.0 {
+        CaptureSection::EditorCard(pane) => {
+            if options.pane != pane {
+                options.pane = pane;
+                return;
+            }
+            let Ok(root) = editor_roots.single() else {
+                return;
+            };
+            let Ok(parent) = parents.get(root) else {
+                return;
+            };
+            let card = parent.parent();
+            if cards.get(card).is_err() {
+                return;
+            }
+            // The profiles page nests its ScrollArea one level below the
+            // PageRoot entity (the page node clips; the inner child scrolls).
+            let Some((scroll, _)) = scroll_children.iter().find(|(_, parent)| {
+                page_roots
+                    .get(parent.parent())
+                    .is_ok_and(|(_, root)| root.0 == Route::Profiles)
+            }) else {
+                return;
+            };
+            let (Some(card_rect), Some(viewport)) = (geometry.rect(card), geometry.rect(scroll))
+            else {
+                return;
+            };
+            // request_scroll scrolls one step per frame until the card is
+            // fully inside the page viewport (top-aligned for a card taller
+            // than the viewport); the readiness marker fires afterwards.
+            request_scroll(&mut commands, scroll, card_rect, viewport);
+        }
+        CaptureSection::FontLicenseDialog => {
+            if *dialog_fired {
+                return;
+            }
+            let Ok(button) = license_buttons.single() else {
+                return;
+            };
+            commands.trigger(Activate { entity: button });
+            *dialog_fired = true;
+        }
     }
 }
 

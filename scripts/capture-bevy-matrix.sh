@@ -223,7 +223,7 @@ while IFS=$'\t' read -r name page skin window_size; do
     exit 2
   }
   case "$page" in
-  overview | proxies | profiles | rules | connections | logs | dns | doctor | app_routing | app-routing | sync | settings) ;;
+  overview | proxies | profiles | rules | connections | logs | dns | doctor | app_routing | app-routing | sync | settings | editor | mixin | filter | about) ;;
   *)
     printf 'invalid scenario row (bad page): %s -> %s\n' "$name" "$page" >&2
     exit 2
@@ -462,6 +462,13 @@ capture_one() {
   # The marker names the actual mounted route and activated interaction.
   local marker_page="$page"
   if [ "$marker_page" = "app-routing" ]; then marker_page="app_routing"; fi
+  # The editor/mixin/filter/about page identities mount the profiles and
+  # settings routes; the readiness marker names the route, not the section.
+  if [ "$marker_page" = "editor" ] || [ "$marker_page" = "mixin" ] || [ "$marker_page" = "filter" ]; then
+    marker_page="profiles"
+  elif [ "$marker_page" = "about" ]; then
+    marker_page="settings"
+  fi
   local scenario_dir="$RUN_DIR/$name"
   local log="$scenario_dir/app.log"
   local marker="$scenario_dir/marker.log"

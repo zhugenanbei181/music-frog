@@ -68,5 +68,5 @@ android/app/src/main/assets/mihomo/mihomo-android-arm64-v8
 android/app/src/main/java/infiltrator_android/
 android/Medium-Phone-*
 
-# Bevy UI local render evidence; keep captures out of Git.
-crates/infiltrator-bevy-ui/docs/screenshots/bevy/
+# The Bevy UI capture matrix is published identity evidence (GAP-7.3):
+# the 182 PNGs and their manifest.tsv are tracked and identity-guarded.

@@ -5,11 +5,13 @@
 //! dialog on the official Bevy behaviour layer: the capture activates the
 //! panel's own launcher control, so the panel really opens on screen.
 use super::geometry::CaptureGeometry;
+use super::scroll::request_scroll;
 use super::{CaptureObservationSet, InteractionCapture, ObservedInteraction, selected};
 use crate::pages::business_panel::{
-    BusinessPanelCard, BusinessPanelRoot, BusinessPanelState, OpenBusinessPanel, PanelKind,
+    BusinessPanelCard, BusinessPanelRoot, BusinessPanelScrollArea, BusinessPanelState,
+    OpenBusinessPanel, PanelKind,
 };
-use crate::pages::profiles_aggregator::PreviewAggregationButton;
+use crate::pages::profiles_aggregator::{AggregatorStatusText, PreviewAggregationButton};
 use crate::route::{ActiveRoute, Route};
 use bevy::app::{App, PostUpdate, Update};
 use bevy::ecs::entity::Entity;
@@ -17,7 +19,9 @@ use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
+use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
+use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_contract::parity::FeatureId;
 
 /// Track preview trigger in aggregator panel capture.
@@ -51,6 +55,9 @@ pub struct PanelControls<'w, 's> {
     cards: Query<'w, 's, (Entity, &'static BusinessPanelCard)>,
     roots: Query<'w, 's, (Entity, &'static BusinessPanelRoot)>,
     preview_buttons: Query<'w, 's, Entity, With<PreviewAggregationButton>>,
+    status_lines:
+        Query<'w, 's, (Entity, &'static Text, &'static LocalizedText), With<AggregatorStatusText>>,
+    panel_scrolls: Query<'w, 's, (Entity, &'static BusinessPanelScrollArea)>,
     state: ResMut<'w, PanelCaptureState>,
 }
 
@@ -86,6 +93,7 @@ pub fn activate(
 /// really shows, so the pixel judge compares the panel's own pixels.
 pub fn observe(
     controls: PanelControls,
+    mut commands: Commands,
     mut geometry: CaptureGeometry,
     mut feature: ResMut<InteractionCapture>,
     mut observation: ResMut<ObservedInteraction>,
@@ -105,8 +113,32 @@ pub fn observe(
             if !controls.state.preview_triggered {
                 return None;
             }
-            let entity = controls.preview_buttons.iter().next()?;
-            return geometry.bounds(entity, "aggregator preview button");
+            // The terminal readback is the surface's own submitted-status
+            // line; the receipt shows it scrolled into the panel's own
+            // viewport, not the launcher button that opened the panel.
+            let Some((status, _, _copy)) = controls
+                .status_lines
+                .iter()
+                .find(|(_, _, copy)| copy.key == "aggregation_preview_submitted")
+            else {
+                return None;
+            };
+            let Some((scroll, _scroll_marker)) = controls
+                .panel_scrolls
+                .iter()
+                .find(|(_, marker)| marker.0 == kind)
+            else {
+                return None;
+            };
+            if !geometry.unclipped(status) {
+                if let (Some(bounds), Some(viewport)) =
+                    (geometry.rect(status), geometry.rect(scroll))
+                {
+                    request_scroll(&mut commands, scroll, bounds, viewport);
+                }
+                return None;
+            }
+            return geometry.bounds(status, "aggregator preview submitted status");
         }
         let (card, _) = controls.cards.iter().find(|(_, marker)| marker.0 == kind)?;
         geometry.bounds(card, "business panel card")

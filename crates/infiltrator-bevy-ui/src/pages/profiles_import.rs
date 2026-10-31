@@ -475,19 +475,19 @@ pub fn profiles_import_card_scene(
                                 Node { width: percent(100) }
                                 ImportSubscriptionNameField
                                 Children [
-                                    @{ localized_field_scene(String::new(), LocalizedText::plain("field_profile_name"), palette) }
+                                    @{ (localized_field_scene(String::new(), LocalizedText::plain("field_profile_name"), palette), bsn! { NativeTextField(5) }) }
                                 ]
                                 --
                                 Node { width: percent(100) }
                                 ImportSubscriptionUrlField
                                 Children [
-                                    @{ localized_field_scene(String::new(), LocalizedText::plain("field_subscription_url"), palette) }
+                                    @{ (localized_field_scene(String::new(), LocalizedText::plain("field_subscription_url"), palette), bsn! { NativeTextField(6) }) }
                                 ]
                                 --
                                 Node { width: percent(100) }
                                 ImportLocalPathField
                                 Children [
-                                    @{ localized_field_scene(String::new(), LocalizedText::plain("field_profile_file"), palette) }
+                                    @{ (localized_field_scene(String::new(), LocalizedText::plain("field_profile_file"), palette), bsn! { NativeTextField(7) }) }
                                 ]
                             ]
             }),

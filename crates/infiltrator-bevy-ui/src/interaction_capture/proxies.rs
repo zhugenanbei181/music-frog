@@ -27,6 +27,7 @@ pub(super) struct FoldCapture {
     preferences: Option<OutboundPreferenceCaptureOwner>,
     group: Option<OutboundId>,
     stage: u8,
+    reported: Option<u8>,
 }
 
 pub fn install(app: &mut App) {
@@ -34,6 +35,7 @@ pub fn install(app: &mut App) {
         preferences: None,
         group: None,
         stage: 0,
+        reported: None,
     };
     app.insert_resource(capture);
 }
@@ -107,6 +109,26 @@ pub fn activate(
     ) {
         return;
     }
+    if surface.capture.reported != Some(surface.capture.stage) {
+        eprintln!(
+            "fold capture progress: stage={} collapsed={:?} latest_collapsed={:?} target={:?}",
+            surface.capture.stage,
+            surface
+                .capture
+                .preferences
+                .as_ref()
+                .map(|owner| owner.snapshot().collapsed_group_ids.len()),
+            surface
+                .latest
+                .0
+                .outbound_ui_preferences
+                .data
+                .as_ref()
+                .map(|p| p.collapsed_group_ids.len()),
+            surface.capture.group,
+        );
+        surface.capture.reported = Some(surface.capture.stage);
+    }
     let Some(owner) = &surface.capture.preferences else {
         return;
     };
@@ -125,27 +147,45 @@ pub fn activate(
         }
         return;
     }
-    let Some((entity, group)) = surface
-        .folds
-        .iter()
-        .find(|(_, button)| {
-            surface
-                .capture
-                .group
-                .as_ref()
-                .is_none_or(|id| button.collection_id.as_ref() == Some(id))
-        })
-        .map(|(entity, button)| (entity, button.collection_id.clone()))
-    else {
-        return;
-    };
-    let Some(group) = group else { return };
-    if surface.capture.stage == 1 && surface.visible(&group) {
+    if surface.capture.stage == 0 {
+        // The business is expanding a group the owner publishes as collapsed —
+        // never re-expanding one the plain page already shows open. The demo
+        // snapshot publishes the third group collapsed for exactly this receipt.
+        let collapsed = surface
+            .capture
+            .preferences
+            .as_ref()
+            .map(|owner| owner.snapshot().collapsed_group_ids)
+            .unwrap_or_default();
+        let Some((entity, group)) = surface
+            .folds
+            .iter()
+            .find(|(_, button)| {
+                button
+                    .collection_id
+                    .as_ref()
+                    .is_some_and(|id| collapsed.contains(id))
+            })
+            .map(|(entity, button)| (entity, button.collection_id.clone()))
+        else {
+            return;
+        };
+        let Some(group) = group else { return };
+        surface.capture.group = Some(group.clone());
+        commands.trigger(Activate { entity });
+        surface.capture.stage = 1;
         return;
     }
-    surface.capture.group = Some(group);
-    commands.trigger(Activate { entity });
-    surface.capture.stage += 1;
+    // Stage 1: the expansion cleared the owner's collapsed list, so the fold
+    // lookup can no longer find a button — wait on the captured identity for
+    // the readback that really shows the group's nodes.
+    let Some(group) = surface.capture.group.clone() else {
+        return;
+    };
+    if !surface.visible(&group) {
+        return;
+    }
+    surface.capture.stage = 2;
 }
 pub fn observe(
     surface: FoldSurface,

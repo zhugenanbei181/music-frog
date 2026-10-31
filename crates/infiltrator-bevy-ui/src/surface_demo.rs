@@ -563,6 +563,14 @@ fn demo_latency_history(delay_ms: u32) -> Vec<OutboundLatencySample> {
 
 fn demo_outbound_preferences() -> OutboundUiPreferencesSnapshot {
     let inventory = demo_outbound_inventory();
+    // The demo publishes the third group collapsed: a realistic list shows
+    // the first groups open and the rest folded, and the group-expansion
+    // capture needs a collapsed group to really expand.
+    let streaming = OutboundId::new(
+        EngineId::new("mihomo").expect("demo Mihomo engine ID is valid"),
+        "STREAMING",
+    )
+    .expect("demo STREAMING group ID is valid");
     OutboundUiPreferencesSnapshot::new(
         inventory.scope().clone(),
         SnapshotRevision::new(1),
@@ -570,7 +578,7 @@ fn demo_outbound_preferences() -> OutboundUiPreferencesSnapshot {
             search_query: String::new(),
             favorite_outbound_ids: Vec::new(),
             group_order: Vec::new(),
-            collapsed_group_ids: Vec::new(),
+            collapsed_group_ids: vec![streaming],
             sort_order: OutboundSortOrder::LatencyAscending,
             health_filter: OutboundHealthFilter::All,
             layout: OutboundLayout::Grid,
