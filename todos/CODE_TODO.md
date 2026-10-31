@@ -196,6 +196,7 @@
   - 其他坏数据：S editor 三张 compact 同 md5；I 脚本导出 SHA 非 hex 且 68 位；B 多张 compact 折叠线下同画面；B `overview-live` 与 demo 无差异；S 四业务只有错误 snackbar、无业务 UI。
   - 计划：① 修 Slint/Bevy compact 场景滚动锚点；② Iced artifact SHA fixture 改为真实 64-hex；③ 接 live fixture 与 Slint 成功态；④ manifest 生成器做全矩阵身份唯一守卫，alias 必须在独立清单显式声明。
   - 验收：所有非 alias 截图同页同主题唯一；目标状态可见；守卫对当前矩阵先报告、修后 enforce 全绿；`resolve_surface_evidence.py --structure-only` pass。
+  - 进展（2026-10-31，④守卫腿交付）：新增 `scripts/quality/screenshot-identity-guard.py`（三端 `docs/screenshots` 共 550 张 PNG 按 SHA-256 分组；非显式 alias 的重复组即违规）与显式 alias 清单 `scripts/parity/screenshot_aliases.tsv`（stale digest / canonical 字节漂移 / 文件缺失 / 空 reason / 重复声明均判违规，manifest 自身也被审计，不得腐烂成静默白名单）；守卫已接入 `check-structure.sh`（report 模式，重采腿完成后切 enforce）。当前矩阵基线：**21 组未声明重复**（Iced 6、Bevy 9、Slint 6，含审计点名的 connections=logs、editor/filter/mixin/profiles 同图、about=settings、aggregator preview=wizard、sync-conflict=restore 等）。②Iced 68 位非 hex SHA：现管线 `ScriptExportReview::validate` 已强制 64 hex（身份不再可能非法），旧截图为 10-22 旧构建产物，由重采腿证明。剩余：①Slint/Bevy compact 滚动锚点修复、③Slint live fixture 与成功态、三端重采后把守卫切 enforce。
 
 - [ ] GAP-7.6 [kind: mechanism] [priority: P2] [points: 5] [owner: infiltrator-contract + infiltrator-slint + infiltrator-bevy-ui + infiltrator-iced] [status: Planned] 三端信息架构与交互模型对齐（词表/字段/语义色）
   - 产物：contract 层共享导航词表 + 页面命名字典 + 语义色令牌（danger/延迟色阶）；底层先决，UI 只消费。
