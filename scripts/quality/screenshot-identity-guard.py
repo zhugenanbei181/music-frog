@@ -20,6 +20,7 @@ import argparse
 import hashlib
 import pathlib
 import re
+import subprocess
 import sys
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -73,14 +74,26 @@ def read_alias_manifest(root: pathlib.Path) -> list[dict[str, str]]:
 
 
 def scan_groups(root: pathlib.Path) -> tuple[dict[str, list[pathlib.Path]], int]:
-    """Hash every published PNG; return {sha: [paths]} and the total count."""
+    """Hash every git-tracked published PNG; return {sha: [paths]} and the count.
+
+    The corpus is the tracked matrix, not the local worktree: capture export
+    directories that were never committed (Bevy keeps its matrix in the
+    git-ignored `docs/screenshots/bevy/` until PARITY-001.6 lands it) are not
+    part of the published evidence and must not gate CI.
+    """
     groups: dict[str, list[pathlib.Path]] = {}
     total = 0
     for surface, relative in SCREENSHOT_ROOTS.items():
-        base = root / relative
-        if not base.is_dir():
-            raise FileNotFoundError(f"screenshot root missing: {relative}")
-        for path in sorted(base.rglob("*.png")):
+        tracked = subprocess.run(
+            ["git", "ls-files", "-z", "--", relative.as_posix()],
+            cwd=root, check=True, capture_output=True,
+        ).stdout.split(b"\0")
+        for entry in sorted(tracked):
+            if not entry or not entry.endswith(b".png"):
+                continue
+            path = root / entry.decode("utf-8")
+            if not path.exists():
+                raise FileNotFoundError(f"tracked screenshot missing from worktree: {path}")
             groups.setdefault(sha256_of(path), []).append(path)
             total += 1
     return groups, total
