@@ -81,7 +81,6 @@ use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot;
 use infiltrator_contract::theme::ThemePreference;
 use infiltrator_contract::theme_palette::ResolvedThemePalette;
-use infiltrator_contract::theme_palette::SystemThemeObservation;
 use infiltrator_contract::version::CoreVersionSnapshot;
 use infiltrator_domain::app_routing::{AppRoutingMode, AppRoutingRule};
 use infiltrator_domain::settings::AppSettings;
@@ -90,6 +89,7 @@ use infiltrator_ports::endpoint::EndpointSource;
 use infiltrator_ports::rule_provider_cache::RuleProviderCachePort;
 use infiltrator_ports::runtime_configuration::RuntimeConfigurationPorts;
 use infiltrator_ports::surface::SurfaceReader;
+use infiltrator_ports::system_theme::SystemThemeObservationPort;
 use infiltrator_presentation::doctor_projection::project_observation;
 use infiltrator_presentation::language_choice::project_language;
 use infiltrator_presentation::log_projection::project_log_facts;
@@ -200,6 +200,7 @@ pub struct ProductSurfaceReader {
     version_cache: Arc<Mutex<Option<(Instant, CoreVersionSnapshot)>>>,
     capabilities: CapabilitySnapshot,
     surface: SurfaceKind,
+    system_theme: Option<Arc<dyn SystemThemeObservationPort>>,
 }
 
 #[async_trait::async_trait]
@@ -718,7 +719,7 @@ impl SurfaceReader for ProductSurfaceReader {
                 .as_ref()
                 .map(PalettePreferenceApplication::snapshot)
                 .unwrap_or_default(),
-            theme_readback: theme_readback_from_settings(hydrated_settings.as_ref()),
+            theme_readback: self.theme_readback(hydrated_settings.as_ref()),
             dns_cache: self
                 .dns_cache
                 .as_ref()
@@ -821,14 +822,22 @@ mod script_tests;
 #[path = "surface_reader_profile_tests.rs"]
 mod profile_tests;
 
-/// One authoritative theme readback per snapshot: the stored preference plus
-/// the host observation (unobserved until a host adapter publishes facts).
-fn theme_readback_from_settings(
-    hydrated_settings: Option<&Result<AppSettings, Failure>>,
-) -> ResolvedThemePalette {
-    let preference = hydrated_settings
-        .and_then(|result| result.as_ref().ok())
-        .map(|settings| ThemePreference::from_setting(&settings.theme))
-        .unwrap_or_default();
-    project_theme_readback(preference, SystemThemeObservation::default())
+impl ProductSurfaceReader {
+    /// One authoritative theme readback per snapshot: the stored preference
+    /// plus the host observation (unobserved unless a host adapter is injected).
+    fn theme_readback(
+        &self,
+        hydrated_settings: Option<&Result<AppSettings, Failure>>,
+    ) -> ResolvedThemePalette {
+        let preference = hydrated_settings
+            .and_then(|result| result.as_ref().ok())
+            .map(|settings| ThemePreference::from_setting(&settings.theme))
+            .unwrap_or_default();
+        let observation = self
+            .system_theme
+            .as_ref()
+            .map(|port| port.observe())
+            .unwrap_or_default();
+        project_theme_readback(preference, observation)
+    }
 }

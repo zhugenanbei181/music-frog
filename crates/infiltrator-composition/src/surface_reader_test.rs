@@ -741,5 +741,51 @@ async fn surface_reader_rejects_a_snapshot_when_core_scope_changes_mid_read() {
     assert_ne!(core.snapshot().scope().as_ref(), Some(&starting_scope));
 }
 
+#[tokio::test]
+async fn surface_reader_with_system_theme_observes_host_dynamic_color_in_theme_readback() {
+    use infiltrator_contract::theme::{AppearanceMode, SystemAppearance, ThemePreference};
+    use infiltrator_contract::theme_palette::{
+        DynamicColorSeed, SystemDynamicColor, SystemThemeObservation,
+    };
+
+    struct TestSystemTheme(SystemThemeObservation);
+    impl SystemThemeObservationPort for TestSystemTheme {
+        fn observe(&self) -> SystemThemeObservation {
+            self.0
+        }
+    }
+
+    let core = Arc::new(CoreApplication::new(
+        Arc::new(ScopeProcess {
+            running: AtomicBool::new(false),
+        }),
+        Arc::new(TestReadiness),
+        Arc::new(TestRuntime),
+    ));
+    let seed = DynamicColorSeed::new(0.25, 0.5, 0.75).unwrap();
+    let observation = SystemThemeObservation {
+        appearance: SystemAppearance::Observed(AppearanceMode::Dark),
+        dynamic_color: SystemDynamicColor::Seed(seed),
+    };
+    let reader = ProductSurfaceReader::new(core, SurfaceKind::BevyDesktop, HostKind::Desktop)
+        .with_system_theme(Arc::new(TestSystemTheme(observation)));
+
+    let snapshot = reader.read().await.expect("surface snapshot");
+    assert_eq!(
+        snapshot.theme_readback.preference,
+        ThemePreference::System,
+        "unhydrated settings default to system preference"
+    );
+    assert_eq!(
+        snapshot.theme_readback.system_appearance,
+        SystemAppearance::Observed(AppearanceMode::Dark)
+    );
+    assert_eq!(
+        snapshot.theme_readback.system_dynamic_color,
+        SystemDynamicColor::Seed(seed),
+        "injected system theme observation is published on the snapshot"
+    );
+}
+
 #[path = "surface_reader_outbound_tests.rs"]
 mod outbound_tests;

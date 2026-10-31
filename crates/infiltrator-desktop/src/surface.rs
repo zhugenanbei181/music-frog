@@ -13,6 +13,7 @@ use crate::storage::{
     app_routing_store, endpoint_source, port_conflict, settings_store, version_factory,
 };
 use crate::system_proxy::DesktopSystemProxy;
+use crate::system_theme::DesktopSystemTheme;
 use crate::uwp_loopback_port::DesktopUwpLoopbackPort;
 use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_application::core_application::CoreApplication;
@@ -199,6 +200,7 @@ pub async fn product_surface_reader(
         .with_offline_startup(offline_startup)
         .with_mtu(mtu)
         .with_system_proxy(system_proxy)
+        .with_system_theme(Arc::new(DesktopSystemTheme::default()))
         .with_uwp_loopback(uwp_loopback)
         .with_pac(pac)
         .with_network_roaming(network_roaming)

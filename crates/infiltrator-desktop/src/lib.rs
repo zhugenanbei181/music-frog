@@ -39,6 +39,7 @@ pub mod subscription_notification_port;
 pub mod surface;
 pub mod system_dns_cache;
 pub mod system_proxy;
+pub mod system_theme;
 pub mod tray_badge;
 pub mod tray_event;
 pub mod tun_service;

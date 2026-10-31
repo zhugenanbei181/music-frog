@@ -58,7 +58,13 @@ impl ProductSurfaceReader {
             version_cache: Arc::new(Mutex::new(None)),
             capabilities: CapabilitySnapshot::new(host, 0, Vec::new()),
             surface,
+            system_theme: None,
         }
+    }
+
+    pub fn with_system_theme(mut self, port: Arc<dyn SystemThemeObservationPort>) -> Self {
+        self.system_theme = Some(port);
+        self
     }
 
     pub fn with_scripts(
