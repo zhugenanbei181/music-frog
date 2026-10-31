@@ -17,7 +17,8 @@ pub mod shell_focus;
 
 use crate::a11y::ShellA11yPlugin;
 use crate::appearance::{
-    SystemAppearance, ThemeMode, on_theme_pill_activated, resolved_skin, sync_system_appearance,
+    PublishedThemeBaseline, SystemAppearance, ThemeMode, on_theme_pill_activated, resolved_skin,
+    sync_system_appearance, sync_theme_readback,
 };
 use crate::chrome::WindowChromePlugin;
 use crate::command::{CommandSinkHandle, UiCommand};
@@ -519,6 +520,8 @@ impl Plugin for ShellPlugin {
         app.add_plugins(HostInsetsPlugin);
         app.insert_resource(ThemeMode(self.preference));
         app.init_resource::<SystemAppearance>();
+        app.init_resource::<PublishedThemeBaseline>();
+        app.add_systems(Update, sync_theme_readback);
         // ImagePlugin owns the live store, including the renderer's 3D LUTs.
         // Reinitializing it would recycle their handles into product textures.
         if !app.is_plugin_added::<ImagePlugin>() {

@@ -15,12 +15,15 @@ use infiltrator_bevy_ui::appearance::{
     skin_from_contract,
 };
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
+use infiltrator_bevy_ui::surface::LatestSurfaceSnapshot;
 use infiltrator_bevy_widgets::palette::{UiPalette, theme_color};
 use infiltrator_bevy_widgets::theme::{Theme, ThemeSkin, TokenColor};
 use infiltrator_bevy_widgets::theme_export::{
     DEFAULT_LADDER_STEPS, LadderSource, theme_tonal_ladders,
 };
 use infiltrator_contract::theme::{self, AppearanceMode, ThemePreference};
+use infiltrator_contract::theme_palette::ResolvedThemePalette;
+use lurker_core_contract::error::Failure;
 
 fn mounted_shell(preference: ThemePreference) -> App {
     let mut app = App::new();
@@ -147,6 +150,67 @@ fn a_pinned_skin_ignores_os_appearance_changes() {
         app.world().resource::<UiPalette>(),
         &UiPalette::new(&Theme::amoled()),
         "a pinned skin must not be repainted by the OS"
+    );
+}
+
+#[test]
+fn published_theme_readback_baseline_then_change_drives_paint() {
+    use infiltrator_contract::surface::{HostKind, SurfaceKind};
+    use infiltrator_contract::surface_snapshot;
+    use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
+    use infiltrator_contract::theme_palette::SystemDynamicColor;
+
+    fn published_snapshot() -> SurfaceSnapshot {
+        surface_snapshot::SurfaceSnapshot::unavailable(
+            SurfaceKind::BevyDesktop,
+            HostKind::Desktop,
+            Failure::unsupported("not composed"),
+        )
+    }
+
+    let mut app = mounted_shell(ThemePreference::Fixed(theme::ThemeSkin::Forest));
+
+    // The first published snapshot only establishes the baseline: a host may
+    // seed the mirror from capture knobs before any snapshot exists.
+    app.world_mut()
+        .insert_resource(LatestSurfaceSnapshot(published_snapshot()));
+    app.update();
+    assert_eq!(
+        app.world().resource::<ThemeMode>().0,
+        ThemePreference::Fixed(theme::ThemeSkin::Forest)
+    );
+    assert_eq!(
+        app.world().resource::<UiPalette>(),
+        &UiPalette::new(&Theme::forest())
+    );
+
+    // A republished identical readback changes nothing.
+    app.world_mut()
+        .insert_resource(LatestSurfaceSnapshot(published_snapshot()));
+    app.update();
+    assert_eq!(
+        app.world().resource::<UiPalette>(),
+        &UiPalette::new(&Theme::forest())
+    );
+
+    // A changed published readback drives the paint and the mirror.
+    let mut snapshot = published_snapshot();
+    snapshot.theme_readback = ResolvedThemePalette::resolve(
+        ThemePreference::Fixed(theme::ThemeSkin::Dark),
+        theme::SystemAppearance::Unobserved,
+        SystemDynamicColor::Unobserved,
+    );
+    app.world_mut()
+        .insert_resource(LatestSurfaceSnapshot(snapshot));
+    app.update();
+    assert_eq!(
+        app.world().resource::<ThemeMode>().0,
+        ThemePreference::Fixed(theme::ThemeSkin::Dark)
+    );
+    assert_eq!(
+        app.world().resource::<UiPalette>(),
+        &UiPalette::new(&Theme::dark()),
+        "the published readback repaints the shell"
     );
 }
 

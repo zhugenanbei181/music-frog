@@ -29,7 +29,10 @@ use infiltrator_bevy_widgets::theme_export::{
     theme_tonal_ladders,
 };
 use infiltrator_contract::theme::{self, AppearanceMode, ThemePreference};
-use infiltrator_contract::theme_palette::{ResolvedThemePalette, SystemDynamicColor};
+use infiltrator_contract::theme_palette::ResolvedThemePalette;
+use infiltrator_contract::theme_palette::SystemDynamicColor;
+
+use crate::surface::LatestSurfaceSnapshot;
 
 /// The shell's appearance preference (shared contract: a pinned skin or
 /// "follow the OS"). The painted token set is always resolved through
@@ -132,6 +135,41 @@ pub fn sync_system_appearance(
     if mode.0.follows_system() {
         commands.trigger(ThemeSwitch(resolved_skin(mode.0, observation)));
     }
+}
+
+/// The last published theme readback the shell has seen. The first
+/// observation only establishes the baseline (a host may seed the mirror from
+/// capture knobs before any snapshot exists); later published changes drive
+/// the paint so every surface follows one readback.
+#[derive(Resource, Default)]
+pub struct PublishedThemeBaseline(Option<ResolvedThemePalette>);
+
+/// Mirror the published theme readback onto the shell's preference and
+/// repaint when the published palette changes. The first published snapshot
+/// only anchors the baseline (a host may seed the mirror from capture knobs
+/// before composition starts), so seeding never replays as a switch.
+pub fn sync_theme_readback(
+    mut baseline: ResMut<PublishedThemeBaseline>,
+    snapshots: Option<Res<LatestSurfaceSnapshot>>,
+    mut mode: ResMut<ThemeMode>,
+    mut commands: Commands,
+) {
+    let Some(readback) = snapshots
+        .as_deref()
+        .map(|snapshot| &snapshot.0.theme_readback)
+    else {
+        return;
+    };
+    let Some(previous) = baseline.0.as_ref() else {
+        baseline.0 = Some(readback.clone());
+        return;
+    };
+    if *previous == *readback {
+        return;
+    }
+    mode.0 = readback.preference;
+    commands.trigger(ThemeSwitch(skin_from_contract(readback.skin)));
+    baseline.0 = Some(readback.clone());
 }
 
 // ---- BEVY-034: OKLCH tonal-ladder preview --------------------------------

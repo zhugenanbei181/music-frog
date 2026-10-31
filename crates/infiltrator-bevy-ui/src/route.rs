@@ -143,6 +143,7 @@ use bevy::input::keyboard::KeyboardInput;
 use bevy::scene::{CommandsSceneExt, Scene};
 use bevy::ui::widget::Text;
 use infiltrator_bevy_widgets::button::{sync_control_labels, sync_control_visuals};
+use infiltrator_bevy_widgets::drawer::animate_drawers;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -738,8 +739,12 @@ impl Plugin for PagesPlugin {
                 )
                     .chain()
                     .after(sync_shared_page_models),
-                sync_connections_drawer_phase,
-                sync_connections_drawer,
+                // The shared drawer widget owns the phase walk: request
+                // first, then the slide advances, then the layer mirrors the
+                // settled phase. Explicit ordering pins the frame flow, so
+                // unrelated Update insertions cannot flip close timing.
+                sync_connections_drawer_phase.before(animate_drawers),
+                sync_connections_drawer.after(animate_drawers),
                 sync_connections_virtual_window,
                 sync_logs_virtual_window,
                 reconcile_connection_inspection,

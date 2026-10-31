@@ -2,6 +2,7 @@
 use super::*;
 use bevy::ecs::message::Messages;
 use bevy::input::{ButtonInput, keyboard::KeyCode};
+use bevy::time::TimeUpdateStrategy;
 use infiltrator_bevy_ui::pages::connections_clipboard::{
     ClipboardHost, ClipboardPasteIntent, ClipboardPasteOutcome, ClipboardPasteReport,
     ClipboardPort, ClipboardRead, ClipboardWrite, CopyConnectionHostButton,
@@ -13,6 +14,7 @@ use infiltrator_bevy_widgets::toast::ToastKind;
 use infiltrator_contract::capability::Availability;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::connection::timing_availability;
+use std::time::Duration;
 
 fn open(app: &mut App) {
     let entity = app
@@ -31,6 +33,13 @@ fn open(app: &mut App) {
 fn connection_drawer_close_escape_navigation_and_stale_disconnect_are_safe() {
     let sink = Arc::new(DemoCommandSink::accepting());
     let mut app = setup_matrix_a_app(sink.clone());
+    // The 0.2s slide must settle inside one scripted frame, so the close
+    // assertions follow the documented "hide only when settled" semantics
+    // instead of racing the wall clock.
+    app.world_mut()
+        .insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f64(
+            0.25,
+        )));
     navigate_to(&mut app, Route::Connections);
     let original = app
         .world()
