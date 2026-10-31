@@ -146,7 +146,7 @@ export component NavButton inherits Rectangle {
         height: parent.height;
         border-radius: root.compact ? 22 * LumenUiScale.unit : 14 * LumenUiScale.unit;
         background: root.active ? LumenTheme.accent-soft : (nav-touch.has-hover ? LumenTheme.surface-muted : transparent);
-        border-width: nav-touch.has-hover && !root.active ? 1px : 0px;
+        border-width: nav-touch.has-hover && !root.active ? LumenTheme.hairline-width : 0 * LumenUiScale.unit;
         border-color: LumenTheme.hairline-glow;
         animate y, background, border-width { duration: 120ms; easing: ease-out; }
         if root.compact: VerticalLayout {
@@ -464,7 +464,7 @@ export component SettingRow inherits Rectangle {
     states [
         hovered when row-touch.has-hover: {
             background: LumenTheme.zinc-2;
-            border-width: 1px; border-color: LumenTheme.hairline-glow;
+            border-width: LumenTheme.hairline-width; border-color: LumenTheme.hairline-glow;
             in-out { animate background, border-width { duration: 120ms; easing: ease-out; } }
         }
     ]

@@ -2,7 +2,7 @@
 use super::capability::{capture_command_application, capture_core_capability_application};
 use super::geometry::CaptureGeometry;
 use super::host::{CaptureCapability, CaptureCommandSink};
-use super::scroll::{request_scroll, union};
+use super::scroll::{outermost_scroll_area, owning_scroll_area, request_scroll, union};
 use super::{InteractionCapture, ObservedInteraction, selected};
 use crate::command::CommandSinkHandle;
 use crate::pages::rules::RulesPageRoot;
@@ -19,11 +19,13 @@ use crate::route::{ActiveRoute, Route};
 use crate::surface::LatestSurfaceSnapshot;
 use bevy::app::App;
 use bevy::ecs::entity::Entity;
+use bevy::ecs::hierarchy::ChildOf;
 use bevy::ecs::query::{Or, QueryData, QueryFilter, With};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
+use bevy::ui_widgets::ScrollArea;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::rule_list_application::RuleListApplication;
 use infiltrator_application::rule_provider_runtime_application::RuleProviderRuntimeApplication;
@@ -44,11 +46,29 @@ use lurker_core_contract::error::ErrorCode;
 use lurker_core_contract::page::SurfaceOrigin;
 use std::sync::{Arc, Mutex, atomic::Ordering};
 
+/// Scroll one scroll area until the subject is inside its viewport.
+///
+/// The scroll owner has to be resolved from the subject the way the profiles
+/// capture does: a scroll addressed to an entity that owns no wheel behaviour
+/// is a no-op.
+fn scroll_subject(
+    commands: &mut Commands,
+    geometry: &mut CaptureGeometry<'_, '_>,
+    scroll: Entity,
+    subject: [f32; 4],
+) -> bool {
+    let Some(viewport) = geometry.rect(scroll) else {
+        return true;
+    };
+    request_scroll(commands, scroll, subject, viewport)
+}
+
 #[derive(Resource)]
 struct CaptureList {
     store: Arc<RuleTraceStore>,
     reader: Arc<ProductSurfaceReader>,
     stage: u8,
+    reported: Option<u8>,
 }
 pub fn install(app: &mut App) {
     let store = mihomo_rule_trace_fixture();
@@ -83,6 +103,7 @@ pub fn install(app: &mut App) {
         store,
         reader,
         stage: 0,
+        reported: None,
     });
 }
 #[derive(SystemParam)]
@@ -96,6 +117,8 @@ pub struct ListActivation<'w, 's> {
     tabs: Query<'w, 's, (Entity, &'static RulesTabChip)>,
     toggles: Query<'w, 's, (Entity, &'static RuleToggleButton, &'static ButtonDisabled)>,
     controls: Query<'w, 's, (Entity, &'static RuleListControl, &'static ButtonDisabled)>,
+    parents: Query<'w, 's, &'static ChildOf>,
+    areas: Query<'w, 's, Entity, With<ScrollArea>>,
     provider_buttons: Query<
         'w,
         's,
@@ -191,6 +214,18 @@ pub fn activate(
     ) {
         return;
     }
+    if surface.capture.reported != Some(surface.capture.stage) {
+        eprintln!(
+            "rule-list capture progress: stage={} editable={} can_save={} toggles={} controls={} rows={}",
+            surface.capture.stage,
+            surface.editor.model.editable(),
+            surface.editor.model.can_save(),
+            surface.toggles.iter().count(),
+            surface.controls.iter().count(),
+            surface.rows.iter().count()
+        );
+        surface.capture.reported = Some(surface.capture.stage);
+    }
     if surface.capture.stage == 0 {
         let reader = surface.capture.reader.clone();
         let observed = Arc::new(Mutex::new(None));
@@ -229,9 +264,9 @@ pub fn activate(
         _ => None,
     };
     if let Some(entity) = target {
-        if let Ok(page) = surface.pages.single()
-            && let (Some(bounds), Some(viewport)) = (geometry.rect(entity), geometry.rect(page))
-            && !request_scroll(&mut commands, page, bounds, viewport)
+        if let Some(bounds) = geometry.rect(entity)
+            && let Some(scroll) = outermost_scroll_area(entity, &surface.parents, &surface.areas)
+            && !scroll_subject(&mut commands, &mut geometry, scroll, bounds)
         {
             return;
         }
@@ -244,9 +279,10 @@ pub fn activate(
         }
     }
     if surface.capture.stage == 3 {
-        // The receipt needs the editor card and the changed rule row on screen
-        // at the same time: the page scrolls its own viewport until both are
-        // really rendered, and the capture measures them on the next frame.
+        // The receipt needs the changed rule row and the editor card on
+        // screen at the same time: the page scrolls its real viewport until
+        // both are really rendered, and the capture measures them on the
+        // next frame.
         reveal(&surface, &mut geometry, &mut commands);
     }
 }
@@ -264,9 +300,6 @@ fn reveal(
     let Ok(page) = surface.pages.single() else {
         return false;
     };
-    let Some(viewport) = geometry.rect(page) else {
-        return false;
-    };
     let Ok(card) = surface.cards.single() else {
         return false;
     };
@@ -279,7 +312,18 @@ fn reveal(
     let Some(subject) = union(&[card_box, row_box]) else {
         return false;
     };
-    !request_scroll(commands, page, subject, viewport)
+    let Some(viewport) = geometry.rect(page) else {
+        return false;
+    };
+    if subject[3] > viewport[3] {
+        // In the compact viewport the editor header and the rule row cannot
+        // fit together: scroll the editor card into view so its action controls
+        // and state notice are fully presented.
+        let scroll = outermost_scroll_area(card, &surface.parents, &surface.areas).unwrap_or(page);
+        return !scroll_subject(commands, geometry, scroll, card_box);
+    }
+    let scroll = outermost_scroll_area(card, &surface.parents, &surface.areas).unwrap_or(page);
+    !scroll_subject(commands, geometry, scroll, subject)
 }
 #[derive(SystemParam)]
 pub struct ListObservation<'w, 's> {
@@ -292,6 +336,8 @@ pub struct ListObservation<'w, 's> {
     preview: Query<'w, 's, (Entity, &'static Text), With<RuleListPreview>>,
     controls: Query<'w, 's, (Entity, &'static RuleListControl, &'static ButtonDisabled)>,
     provider_failures: Query<'w, 's, (Entity, &'static RuleProviderFailureText, &'static Text)>,
+    parents: Query<'w, 's, &'static ChildOf>,
+    areas: Query<'w, 's, Entity, With<ScrollArea>>,
     pages: Query<'w, 's, Entity, With<RulesPageRoot>>,
 }
 
@@ -419,21 +465,36 @@ pub fn observe(
     let Some((row, _)) = probe.rows.iter().find(|(_, marker)| marker.0 == 0) else {
         return;
     };
-    // The receipt needs the editor card and the rule row it really changed on
-    // screen at the same time: the page scrolls its own viewport until both
-    // are rendered, and the capture measures them on the next frame.
-    if !geometry.unclipped(card) || !geometry.unclipped(row) {
+    // The receipt needs the editor card unclipped so the action buttons,
+    // draft status and preview are fully visible.
+    if !geometry.unclipped(card) {
+        reveal_observation(&probe, &mut geometry, &mut commands);
+        return;
+    }
+    let Ok(page) = probe.pages.single() else {
+        return;
+    };
+    let viewport_height = geometry.rect(page).map(|v| v[3]).unwrap_or(0.0);
+    let card_box = geometry.rect(card);
+    let row_box = geometry.rect(row);
+    let both_fit = match (card_box, row_box) {
+        (Some(c), Some(r)) => union(&[c, r]).is_some_and(|u| u[3] <= viewport_height),
+        _ => false,
+    };
+    if both_fit && !geometry.unclipped(row) {
         reveal_observation(&probe, &mut geometry, &mut commands);
         return;
     }
     let Some(bounds) = geometry.bounds(card, "rule-list-editor") else {
         return;
     };
-    if geometry.bounds(row, "rule-list-actual-first-row").is_none() {
-        return;
-    }
-    if !first_row_copy_visible(&probe, &mut geometry) {
-        return;
+    if both_fit {
+        if geometry.bounds(row, "rule-list-actual-first-row").is_none() {
+            return;
+        }
+        if !first_row_copy_visible(&probe, &mut geometry) {
+            return;
+        }
     }
     for entity in [status, preview] {
         if geometry.bounds(entity, "rule-list-state-copy").is_none() {
@@ -470,9 +531,6 @@ fn reveal_observation(
     let Ok(page) = probe.pages.single() else {
         return;
     };
-    let Some(viewport) = geometry.rect(page) else {
-        return;
-    };
     let Ok(card) = probe.cards.single() else {
         return;
     };
@@ -485,5 +543,13 @@ fn reveal_observation(
     let Some(subject) = union(&[card_box, row_box]) else {
         return;
     };
-    request_scroll(commands, page, subject, viewport);
+    let Some(viewport) = geometry.rect(page) else {
+        return;
+    };
+    let scroll = outermost_scroll_area(card, &probe.parents, &probe.areas).unwrap_or(page);
+    if subject[3] > viewport[3] {
+        scroll_subject(commands, geometry, scroll, card_box);
+        return;
+    }
+    scroll_subject(commands, geometry, scroll, subject);
 }

@@ -360,6 +360,8 @@ impl CarriedScenario {
             Self::Business(BusinessId::ProxiesProbeSettings) => (280.0, 280.0),
             Self::Business(BusinessId::RulesStatisticsInspector) => (300.0, 300.0),
             Self::Business(BusinessId::RulesTracerDrawer) => (400.0, 400.0),
+            Self::Business(BusinessId::ProxiesNodeDetailDrawer) => (0.0, 300.0),
+            Self::Business(BusinessId::SpeedtestHistoryComparison) => (0.0, 300.0),
             Self::Business(BusinessId::SettingsLanSecurity) => (260.0, 260.0),
             Self::Business(BusinessId::SettingsPortConflictRepair) => (320.0, 320.0),
             Self::Business(BusinessId::SettingsPermissionPanel) => (380.0, 400.0),
@@ -367,6 +369,7 @@ impl CarriedScenario {
             Self::ProfilesScriptExportReview => (500.0, 460.0),
             Self::ProfilesDiffViewer => (1050.0, 1000.0),
             Self::ProfilesSnapshotRestoreConfirm => (1500.0, 1400.0),
+            Self::SyncRestoreConfirm => (0.0, 380.0),
             _ => (0.0, 0.0),
         };
         if compact { compact_offset } else { standard }

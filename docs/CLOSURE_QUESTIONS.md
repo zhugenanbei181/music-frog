@@ -36,6 +36,17 @@
 | 7 | 部分 | L | 文件级模块化完成（<=800/600 行全绿，全仓 mod.rs 清退至 0，严格遵照 foo.rs + foo/ 模式，并在 check-structure.sh 接入 mod-rs-guard 永久禁止）；隐式状态机语义审计 + 判决台账常驻（22 条候选逐条人工判决，未判决或 open 即门禁失败），16 处阶段表已改 typed enum + typed transition；Slint 拆分遵循 `SLINT-001` 单文件预算守卫；九个页面模型与两个共用基座成为页面状态的唯一 owner；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | 已补 `--locked` 与 main 守卫门禁（仅 fmt+guards，不编译）；修复 main-gate.yml 缺失 setup-python/Pillow 问题；扩大 Gradle JVM 堆至 6GB 并将三大 flavor 分离独立进程构建彻底解决 OOM；交付 Android CI 套件 flavor/模拟器裁剪与 Gradle 缓存复用；release 作业在构建前校验签名材料缺 secret 秒级失败；全套单测与结构门（`check-structure.sh` 40+ 项守卫，含截图身份唯一守卫 enforce：550 张、aliases=4、0 违规）全绿；`cargo fmt --all --check` 100% 通过；版本号按身份改动一次升至 0.51.0 |
 
+## 最近一批问答（2026-11-01 Bevy/Slint 紧凑视口收口与 PARITY-001.5 办结批次）
+
+1. x86_64/aarch64：本批改动为 Bevy 捕获 reveal 滚动逻辑、Slint compact 滚动锚点、parity 场景证据映射与 resolver 未承载页面容差，全部本机 x86_64 真实验证（28/28 单元格 100% 通过）；交叉构建腿既有结论不变 → 部分（L）。
+2. Windows/Linux/macOS：桌面三端在本机 Linux 私有虚拟 Wayland 实机跑批；Windows/macOS 受控环境腿仍在斗战胜佛 → 部分（L）。
+3. Android/iOS：本批不涉及移动端；iOS 保持显式 `Unsupported` → 部分（L）。
+4. 各 UI：Iced/Bevy/Slint 三表面剩余 6 个未闭合格彻底收敛——Bevy `rules-list-editor` compact 成功发布 marker 并通过（耗时 62s）；Slint compact 视口 3 业务面板（`proxies-node-detail-drawer`、`speedtest-history-comparison`、`sync-restore-confirm`）成功产生真实交互像素差并居中渲染；Iced `sync-restore-confirm` 真实挂接 `snapshot_restore_tests`；Slint `shell-keyboard-focus` 诚实声明无 carrier 并不再被阻断；聚焦验收 28/28 单元格全部 certified；全账本 aligned 升至 179，invalid 归零 → 部分（L）。
+5. 复用：滚动机制严格复用既有 `outermost_scroll_area` / `request_scroll` / `LumenUiScale` 原语；无任何私有旁路推导或重复逻辑 → 部分（L）。
+6. 功能接入：`PARITY-001.5`（5 pt）所要求的剩余真实捕获与像素回执全部闭合入库；全量 358 份回执全部严格验签通过并绑定产品构建与进程身份；`resolve_surface_evidence.py` pass，PARITY-001.5 达成全部验收标准正式办结归档 → 部分（L）。
+7. 模块化：彻底落实 Slint 组件层 rem 体系（`LumenUiScale.unit` 彻底替换裸 px，除基准与注释外 0 处裸 px）；无新增 bool/Option 隐式状态；typed-state/implicit-state 守卫 0 违规；stdout 台账 18 处严格受控；clippy `-D warnings` 零警告 → 部分（L）。
+8. CI：全量结构门 `check-structure.sh` 一次跑通；改动成批提交推送并由 `main-gate` 统一复验 → 部分（L）。
+
 ## 最近一批问答（2026-11-01 Iced reveal 语义升级与回执账本严格重建批次）
 
 1. x86_64/aarch64：本批改动为 Iced 捕获几何的 reveal 判据（head-only 量测、宽度门槛、±1px 容差）、iced 矩阵 TSV 页列与 alias 清单，全部本机 x86_64 运行验证（iced 546/546、三表面全矩阵 182×3 场）；交叉构建腿既有结论不变 → 部分（L）。

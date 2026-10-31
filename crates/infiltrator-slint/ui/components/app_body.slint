@@ -368,7 +368,7 @@ export component AppBody inherits Rectangle {
                     changed content-y => {
                         let delta = self.content-y - root.last-page-scroll-y;
                         if root.primary-page && root.hide-bottom-bar-on-scroll && (delta > 3 * LumenUiScale.unit || delta < -3 * LumenUiScale.unit) {
-                            root.bottom-bar-visible = delta > 0px;
+                            root.bottom-bar-visible = delta > 0 * LumenUiScale.unit;
                         } else if !root.hide-bottom-bar-on-scroll || !root.primary-page {
                             root.bottom-bar-visible = true;
                         }

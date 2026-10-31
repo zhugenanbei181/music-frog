@@ -167,7 +167,12 @@ def validate(manifest, evidence, catalogue=None, discovery=None, require_complet
     for feature in require_features:
         if specs is None or feature not in specs:
             invalid.append(f"unknown required feature: {feature}")
+            continue
         for surface in required_surfaces:
+            # A pending non-carrier cell is the honest registry state; closure
+            # is only demanded from surfaces the business actually mounts on.
+            if not specs[feature].get(f"{surface}_page"):
+                continue
             if (feature, surface) not in scope_aligned:
                 invalid.append(f"required feature lacks L1/L2/L3 closure: {(feature, surface)}")
     return {"status": "fail" if invalid or dangling else "pass", "invalid": sorted(invalid),

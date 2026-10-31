@@ -168,13 +168,14 @@ export global LumenTheme {
     // EFFECTS-037 #151: diffuse two-tier shadows — ambient under resting
     // cards on the panel, key under raised interactive surfaces.
     out property <color> shadow-ambient-color: root.dark-mode || root.amoled-mode ? #00000055 : #0F172A22;
-    out property <length> shadow-ambient-blur: 24px;
-    out property <length> shadow-ambient-offset-y: 6px;
+    out property <length> shadow-ambient-blur: 24 * LumenUiScale.unit;
+    out property <length> shadow-ambient-offset-y: 6 * LumenUiScale.unit;
     out property <color> shadow-key-color: root.dark-mode || root.amoled-mode ? #00000070 : #0F172A38;
-    out property <length> shadow-key-blur: 8px;
-    out property <length> shadow-key-offset-y: 2px;
+    out property <length> shadow-key-blur: 8 * LumenUiScale.unit;
+    out property <length> shadow-key-offset-y: 2 * LumenUiScale.unit;
     // EFFECTS-037 #152: the 1px semi-transparent inner hairline of cards.
     out property <color> hairline-glow: root.dark-mode || root.amoled-mode ? #FFFFFF14 : #0F172A0F;
+    out property <length> hairline-width: LumenUiScale.unit;
         // SLINTUI-007 #31: the mono family for live-updating numerals — fixed
     // advance widths keep counters from jittering as digits change.
     out property <string> mono-family: "JetBrains Mono";

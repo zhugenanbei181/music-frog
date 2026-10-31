@@ -92,9 +92,9 @@ features! {
     LogsRedactedExport => ("logs-redacted-export", "runtime", "logs", "logs_workbench", ["success", "cancel", "error", "retry", "stale", "pending", "unsupported", "filtered"]),
     LogsSearchHighlight => ("logs-search-highlight", "runtime", "logs", "logs", ["success", "empty", "error", "clear", "refresh", "locale", "stale"]),
     SyncConflictResolver => ("sync-conflict-resolver", "sync", "sync", "sync", ["success", "cancel", "error"]),
-    // The Iced sync page carries no snapshot-restore business: an empty
-    // carrier page states that honestly instead of naming a page the
-    // surface never renders the business on.
+    // The Iced sync page renders no snapshot list and submits no restore
+    // action; the surface carries the shared snapshot-restore workbench on
+    // its editor page, the same owner view as the profiles restore review.
     SyncRestoreConfirm => ("sync-restore-confirm", "editor", "sync", "sync", ["success", "cancel", "error"]),
     DoctorFailureRecovery => ("doctor-failure-recovery", "doctor", "doctor", "doctor", ["success", "error", "retry"]),
     // The repair-progress business: the doctor's own progress indicator is

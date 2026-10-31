@@ -70,6 +70,12 @@
       "rationale": "Capture harness reports the group-fold stage progress once per stage so a stuck scenario names the stage it stalled at."
     },
     {
+        "path": "crates/infiltrator-bevy-ui/src/interaction_capture/rule_list.rs",
+        "sites": 1,
+        "category": "capture_tooling",
+        "rationale": "Capture harness reports the rule-list capture stage progress once per stage so a stuck scenario names the stage it stalled at."
+    },
+    {
       "path": "crates/infiltrator-bevy-ui/src/interaction_capture/rule_trace.rs",
       "sites": 1,
       "category": "capture_tooling",
