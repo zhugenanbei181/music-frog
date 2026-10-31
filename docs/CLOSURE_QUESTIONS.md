@@ -36,6 +36,17 @@
 | 7 | 部分 | L | 文件级模块化完成（<=800/600 行全绿，全仓 mod.rs 清退至 0，严格遵照 foo.rs + foo/ 模式，并在 check-structure.sh 接入 mod-rs-guard 永久禁止）；隐式状态机语义审计 + 判决台账常驻（22 条候选逐条人工判决，未判决或 open 即门禁失败），16 处阶段表已改 typed enum + typed transition；Slint 拆分遵循 `SLINT-001` 单文件预算守卫；九个页面模型与两个共用基座成为页面状态的唯一 owner；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | 已补 `--locked` 与 main 守卫门禁（仅 fmt+guards，不编译）；修复 main-gate.yml 缺失 setup-python/Pillow 问题；扩大 Gradle JVM 堆至 6GB 并将三大 flavor 分离独立进程构建彻底解决 OOM；交付 Android CI 套件 flavor/模拟器裁剪与 Gradle 缓存复用；release 作业在构建前校验签名材料缺 secret 秒级失败；全套单测与结构门（`check-structure.sh` 40+ 项守卫，含截图身份唯一守卫 enforce：550 张、aliases=4、0 违规）全绿；`cargo fmt --all --check` 100% 通过；版本号按身份改动一次升至 0.51.0 |
 
+## 最近一批问答（2026-11-01 FLPARITY-014 计划②写通腿：主题切换持久化）
+
+1. x86_64/aarch64：纯 UI 状态流改动，无平台特化代码；交叉腿结论不变 → 部分（L）。
+2. Windows/Linux/macOS：切换写通经 settings owner，无宿主平台代码；Windows/macOS 受控环境腿在斗战胜佛 → 部分（L）。
+3. Android/iOS：本批不涉及移动端；iOS 保持显式 `Unsupported` → 部分（L）。
+4. 各 UI：Iced 三处（Toggle/Cycle/SetTheme）与 Bevy 三处（pill/shortcut/command palette）切换意图全部写通；Slint/Android 表面消费仍是该条目剩余工作，不宣称接入 → 部分（L）。
+5. 复用：写通复用既有 `UpdateSetting` 通道与 `command_application` 的 `theme` 键校验，无第二份持久化路径；Bevy 写通收敛为单一 `persist_theme_preference` 助手 → 部分（L）。
+6. 功能接入：settings 生命周期旅程测试更新为写通语义（切换任务产生 Noop 回执），启动路径仍从存储真源镜像回灌；演示/无核模式 `command_ingress` 缺席时保持纯本地行为 → 部分（L）。
+7. 模块化：无新增 bool/Option 隐式态；typed-state/implicit-state/rem 守卫 0 违规；定向 nextest 740/740、clippy `-D warnings` 零警告、fmt 0 偏差 → 部分（L）。
+8. CI：全量结构门收口一次跑通；单 commit 推送由 `main-gate` 复验 → 部分（L）。
+
 ## 最近一批问答（2026-11-01 FLPARITY-014 计划②发布腿：快照主题权威读回）
 
 1. x86_64/aarch64：纯 Rust 契约/组合层改动，无平台特化代码；`cargo metadata --locked` ok，交叉腿结论不变 → 部分（L）。

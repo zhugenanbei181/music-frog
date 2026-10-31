@@ -8,7 +8,7 @@
 //! local appearance command).
 
 use crate::app::SidebarToggleProjection;
-use crate::appearance::{SystemAppearance, ThemeMode, resolved_skin};
+use crate::appearance::{SystemAppearance, ThemeMode, persist_theme_preference, resolved_skin};
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::command_palette::ToggleCommandPalette;
 use crate::mini_hud::ToggleMiniHud;
@@ -271,6 +271,7 @@ pub fn dispatch_chords(
             ShortcutAction::CycleTheme => {
                 let next = theme.0.next();
                 theme.0 = next;
+                persist_theme_preference(sink.as_deref(), next);
                 commands.trigger(ThemeSwitch(resolved_skin(next, appearance.0)));
             }
             ShortcutAction::OpenCommandPalette => {

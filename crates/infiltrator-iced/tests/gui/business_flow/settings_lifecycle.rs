@@ -198,7 +198,7 @@ fn language_and_theme_switches_persist_and_mirror_back_on_startup() {
     let readback = block_on(settings.load()).unwrap();
     state.observe_language_settings(&project_language(Some(&Ok(readback))));
     let units = feed(&mut state, Message::SetTheme("light".into()));
-    assert_eq!(units, 0);
+    assert_eq!(units, 1, "the switch writes through to the settings owner");
     assert_eq!(state.shell.theme, iced::Theme::Light);
 
     let task = state.update(Message::SaveAppSettings);

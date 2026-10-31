@@ -5,6 +5,7 @@
 //! the live OS appearance reported by winit, and repaints on switch.
 
 use crate::app::ThemeToggle;
+use crate::command::{CommandSinkHandle, UiCommand};
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
@@ -83,6 +84,7 @@ pub fn on_theme_pill_activated(
     toggles: Query<(), With<ThemeToggle>>,
     mut mode: ResMut<ThemeMode>,
     appearance: Option<Res<SystemAppearance>>,
+    sink: Option<Res<CommandSinkHandle>>,
     mut commands: Commands,
 ) {
     if !toggles.contains(activate.entity) {
@@ -93,7 +95,19 @@ pub fn on_theme_pill_activated(
     let system = appearance
         .map(|appearance| appearance.0)
         .unwrap_or_default();
+    persist_theme_preference(sink.as_deref(), next);
     commands.trigger(ThemeSwitch(resolved_skin(next, system)));
+}
+
+/// The appearance preference is written through to the settings owner at
+/// toggle time, so a switch survives restart and stays the single persisted
+/// source the snapshot readback mirrors.
+pub fn persist_theme_preference(sink: Option<&CommandSinkHandle>, preference: ThemePreference) {
+    let Some(sink) = sink else { return };
+    sink.submit(UiCommand::UpdateSetting {
+        key: "theme".to_owned(),
+        value: preference.as_setting().to_owned(),
+    });
 }
 
 /// Follow the OS appearance while the preference is `system`.

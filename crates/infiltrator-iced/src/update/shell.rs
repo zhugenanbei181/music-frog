@@ -13,6 +13,7 @@ use crate::types::dns_query::QueryAction;
 use crate::types::message::Message;
 use crate::utils::sanitize_ui_text;
 use iced::Task;
+use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::shortcuts::{KeyModifiers, ShortcutAction, ShortcutChord};
 use infiltrator_contract::theme::{SystemAppearance, ThemePreference};
 use infiltrator_contract::toast::{ToastAdmission, ToastSeverity};
@@ -29,12 +30,12 @@ impl AppState {
             Message::ToggleTheme | Message::CycleThemePreference => {
                 let next = self.shell.theme_preference.next();
                 self.shell.apply_theme_preference(next);
-                Some(Task::none())
+                Some(self.persist_theme_preference(next))
             }
             Message::SetTheme(theme_name) => {
                 let preference = ThemePreference::from_setting(&theme_name);
                 self.shell.apply_theme_preference(preference);
-                Some(Task::none())
+                Some(self.persist_theme_preference(preference))
             }
             Message::SystemThemeChanged(system_appearance) => {
                 self.shell.system_appearance = SystemAppearance::Observed(system_appearance);
@@ -237,5 +238,26 @@ impl AppState {
                 .update_shell(Message::CycleThemePreference)
                 .unwrap_or_else(Task::none),
         }
+    }
+}
+
+impl AppState {
+    /// The appearance preference is written through to the settings owner at
+    /// toggle time, so a switch survives restart and stays the single
+    /// persisted source the settings hydration mirrors.
+    fn persist_theme_preference(&self, preference: ThemePreference) -> Task<Message> {
+        let Some(ingress) = self.command_ingress() else {
+            return Task::none();
+        };
+        let intent = CommandIntent::UpdateSetting {
+            key: "theme".to_owned(),
+            value: preference.as_setting().to_owned(),
+        };
+        Task::perform(
+            async move {
+                ingress.execute(intent).await;
+            },
+            |_| Message::Noop,
+        )
     }
 }

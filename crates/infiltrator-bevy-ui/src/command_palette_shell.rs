@@ -7,7 +7,7 @@
 //! `ExecuteCommand` arm one-to-one.
 
 use crate::app::SidebarToggleProjection;
-use crate::appearance::{SystemAppearance, ThemeMode, resolved_skin};
+use crate::appearance::{SystemAppearance, ThemeMode, persist_theme_preference, resolved_skin};
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::command_palette::{
     CloseCommandPalette, CommandPaletteOverlayRoot, CommandPaletteRow, CommandPaletteState,
@@ -273,6 +273,7 @@ pub fn on_execute_selected_palette_action(
             if let Some(mut mode) = theme_mode {
                 mode.0 = next;
             }
+            persist_theme_preference(sink.as_deref(), next);
             commands.trigger(ThemeSwitch(resolved_skin(
                 next,
                 appearance.as_ref().map(|value| value.0).unwrap_or_default(),
