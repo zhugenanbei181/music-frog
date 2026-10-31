@@ -12,6 +12,7 @@ use crate::pages::rules_draft::{
 use crate::pages::rules_edit::RuleToggleButton;
 use crate::pages::rules_outcome::{RuleProviderFailureText, RuleProviderRefreshButton};
 use crate::pages::rules_projection::{RuleIndexText, RulePayloadText, RuleProxyText, RuleTypeText};
+use crate::pages::rules_tabs::{RulesTabChip, RulesTabState};
 use crate::pages::rules_view::RuleRow;
 use crate::route::surface_projection::replay_surface_snapshot;
 use crate::route::{ActiveRoute, Route};
@@ -33,6 +34,7 @@ use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_composition::tokio_application_runtime;
 use infiltrator_contract::parity::FeatureId;
+use infiltrator_contract::rules_workspace::RulesTab;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_ports::surface::SurfaceReader;
 use infiltrator_test_support::core_process_fixtures::CoreCaptureProcess;
@@ -88,8 +90,10 @@ pub struct ListActivation<'w, 's> {
     feature: Res<'w, InteractionCapture>,
     route: Res<'w, ActiveRoute>,
     capture: ResMut<'w, CaptureList>,
+    tab: Res<'w, RulesTabState>,
     latest: ResMut<'w, LatestSurfaceSnapshot>,
     editor: Res<'w, RulesDraftState>,
+    tabs: Query<'w, 's, (Entity, &'static RulesTabChip)>,
     toggles: Query<'w, 's, (Entity, &'static RuleToggleButton, &'static ButtonDisabled)>,
     controls: Query<'w, 's, (Entity, &'static RuleListControl, &'static ButtonDisabled)>,
     provider_buttons: Query<
@@ -142,6 +146,24 @@ pub fn activate(
             return;
         }
         if surface.capture.stage == 1 {
+            // The refresh control lives in the Providers partition; the page
+            // hides inactive partitions, so the tab must switch first. The
+            // read-only tab state is the proof the partition really showed.
+            if surface.tab.tab != RulesTab::Providers {
+                let Some((entity, _)) = surface
+                    .tabs
+                    .iter()
+                    .find(|(_, tab)| tab.0 == RulesTab::Providers.index())
+                else {
+                    return;
+                };
+                commands.trigger(Activate { entity });
+                return;
+            }
+            surface.capture.stage = 2;
+            return;
+        }
+        if surface.capture.stage == 2 {
             let target = surface
                 .provider_buttons
                 .iter()
@@ -156,7 +178,7 @@ pub fn activate(
                     return;
                 }
                 commands.trigger(Activate { entity });
-                surface.capture.stage = 2;
+                surface.capture.stage = 3;
             }
         }
         return;
@@ -341,7 +363,7 @@ pub fn observe(
     mut commands: Commands,
 ) {
     if feature.feature == FeatureId::RulesProviderRefreshError {
-        if probe.capture.stage < 2 {
+        if probe.capture.stage < 3 {
             return;
         }
         let Some((entity, _, text)) = probe

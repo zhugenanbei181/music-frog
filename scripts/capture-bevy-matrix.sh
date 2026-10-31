@@ -85,7 +85,7 @@ KWIN_DISPLAY=""
 
 MARKER_TIMEOUT_ITERS=120 # 120 * 0.25s = 30s readiness budget
 WINDOW_TIMEOUT_ITERS=80  # 80 * 0.25s = 20s window-discovery budget
-INTERACTION_TIMEOUT_ITERS=80 # 80 * 0.25s = 20s post-shot gesture/readback budget
+INTERACTION_TIMEOUT_ITERS=240 # 240 * 0.25s = 60s; low-frame-rate rollback confirm needs ~240 app frames
 KWIN_START_ITERS=40      # 40 * 0.2s = 8s virtual-host socket budget
 NIRI_START_ITERS=60      # 60 * 0.2s = 12s compositor-start budget
 

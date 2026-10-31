@@ -5,7 +5,7 @@
 //! shows. The capture activates the card's own control, so the card really
 //! renders the window.
 use super::geometry::CaptureGeometry;
-use super::scroll::{outermost_scroll_area, request_scroll};
+use super::scroll::{outermost_scroll_area, request_scroll, union};
 use super::{InteractionCapture, ObservedInteraction, selected};
 use crate::pages::profiles::ProfilesPageRoot;
 use crate::pages::profiles_editor::{
@@ -233,17 +233,21 @@ pub fn observe(
             if text.0.is_empty() {
                 return None;
             }
-            if !geometry.unclipped(panel) {
+            let close = surface.closes.single().ok()?;
+            // The window is an internally paged viewport over a document
+            // far taller than the page, so the panel itself is clipped by
+            // design. The receipt region is the window's interaction core:
+            // the owner's status readback through the paging/close row.
+            if !geometry.unclipped(close) || !geometry.unclipped(status) {
+                // The panel is taller than the viewport, so the scroll
+                // top-aligns it: the header lands at the top of the page and
+                // the windowed rows fill the rest of the viewport.
                 reveal(&surface, &mut geometry, &mut commands, panel);
                 return None;
             }
-            geometry.bounds(panel, "profile editor large document window")?;
-            geometry.bounds(status, "profile editor large document status")?;
-            geometry.bounds(
-                surface.closes.single().ok()?,
-                "profile editor large document close",
-            )?;
-            geometry.bounds(panel, "profile editor large document window")
+            let status_bounds = geometry.bounds(status, "profile editor large document status")?;
+            let close_bounds = geometry.bounds(close, "profile editor large document close")?;
+            union(&[status_bounds, close_bounds])
         }
         FeatureId::EditorSnippetInsertion => {
             let (button, _) = surface.snippet_buttons.iter().find(|(_, b)| b.index == 0)?;
