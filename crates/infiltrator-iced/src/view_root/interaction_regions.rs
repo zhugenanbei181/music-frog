@@ -15,6 +15,10 @@ pub(crate) enum InteractionRegion {
     ConfirmationCancel,
     Connection,
     ConnectionGroups,
+    /// The whole connections workbench card of the runtime page.
+    ConnectionsSection,
+    /// The whole logs workbench card of the runtime page.
+    LogsSection,
     ConnectionGroupingControls,
     ConnectionGroupFlat,
     ConnectionGroupProcess,
@@ -93,6 +97,8 @@ pub(crate) enum InteractionRegion {
     SettingsLanSecurity,
     SettingsPortConflict,
     SettingsPermissionPanel,
+    /// The font-attribution (about) card of the settings page.
+    SettingsAbout,
     CoreRollbackAction,
     OverviewReconnectMask,
     SpeedtestProgressCancel,
@@ -161,6 +167,8 @@ impl InteractionRegion {
             Self::ConfirmationCancel => "confirmation-cancel",
             Self::Connection => "connection-inspection",
             Self::ConnectionGroups => "connection-groups",
+            Self::ConnectionsSection => "connections-section",
+            Self::LogsSection => "logs-section",
             Self::ConnectionGroupingControls => "connection-grouping-controls",
             Self::ConnectionGroupFlat => "connection-group-flat",
             Self::ConnectionGroupProcess => "connection-group-process",
@@ -221,6 +229,7 @@ impl InteractionRegion {
             Self::SettingsLanSecurity => "settings-lan-security",
             Self::SettingsPortConflict => "settings-port-conflict",
             Self::SettingsPermissionPanel => "settings-permission-panel",
+            Self::SettingsAbout => "settings-about",
             Self::CoreRollbackAction => "core-rollback-action",
             Self::OverviewReconnectMask => "overview-reconnect-mask",
             Self::SpeedtestProgressCancel => "speedtest-progress-cancel",

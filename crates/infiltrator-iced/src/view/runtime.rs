@@ -28,6 +28,7 @@ use crate::view::components::{empty_state, icon_button, modern_scrollable, toggl
 use crate::view::svg_icons::Icon;
 use crate::view::theme;
 use crate::view::theme::{FONT_SEMIBOLD, SP_LG, SP_MD, tokens};
+use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Space, column, container, pick_list, row, text};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -69,7 +70,11 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         return modern_scrollable(
             column![
                 stopped,
-                card(None, logs::logs_section(state, Lang(&state.shell.lang)))
+                container(card(
+                    None,
+                    logs::logs_section(state, Lang(&state.shell.lang))
+                ))
+                .id(InteractionRegion::LogsSection.id())
             ]
             .spacing(SP_LG),
         )
@@ -312,12 +317,17 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         runtime_proxy_selector,
         traffic::traffic_section(state, Lang(&state.shell.lang)),
         pcap_card(state, &lang),
-        card(
+        container(card(
             None,
             connections::connections_section(state, Lang(&state.shell.lang))
-        ),
+        ),)
+        .id(InteractionRegion::ConnectionsSection.id()),
         card(None, delay::delay_section(state, Lang(&state.shell.lang))),
-        card(None, logs::logs_section(state, Lang(&state.shell.lang))),
+        container(card(
+            None,
+            logs::logs_section(state, Lang(&state.shell.lang))
+        ))
+        .id(InteractionRegion::LogsSection.id()),
     ]
     .spacing(SP_LG);
 

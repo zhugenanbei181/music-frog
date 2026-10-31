@@ -511,6 +511,7 @@ impl AppState {
                 capture_marker: None,
                 capture_region_bounds: None,
                 capture_scenario: None,
+                capture_section: Default::default(),
                 capture_marker_written: AtomicBool::new(false),
                 capture_frame: Default::default(),
                 readout: Default::default(),

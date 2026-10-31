@@ -6,6 +6,7 @@
 //! exactly like any external consumer.
 //! test-intent: behavior
 
+use infiltrator_iced::capture_section::CaptureSection;
 use infiltrator_iced::demo::{DemoEnv, parse_skin};
 use infiltrator_iced::state::AppState;
 use infiltrator_iced::types::app::Route;
@@ -20,6 +21,7 @@ pub fn demo_env(page: Route) -> DemoEnv {
     DemoEnv {
         enabled: true,
         page,
+        capture_section: CaptureSection::RouteTop,
         pane: EditorPane::Profile,
         providers_tab: false,
         lang: "zh-CN".to_string(),

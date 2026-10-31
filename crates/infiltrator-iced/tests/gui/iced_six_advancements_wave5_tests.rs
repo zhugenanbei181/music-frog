@@ -28,6 +28,7 @@ use infiltrator_contract::system_proxy::{
 };
 use infiltrator_contract::tun::{TunStack, TunStackAvailability};
 use infiltrator_domain::rules::RuleEntry;
+use infiltrator_iced::capture_section::CaptureSection;
 use infiltrator_iced::demo::DemoEnv;
 use infiltrator_iced::types::app;
 use infiltrator_iced::types::options;
@@ -223,6 +224,7 @@ fn test_advancement_w5_2_typed_outbound_latency_history_is_observed_and_probe_fa
     let env = DemoEnv {
         enabled: true,
         page: app::Route::Proxies,
+        capture_section: CaptureSection::RouteTop,
         pane: options::EditorPane::Profile,
         providers_tab: false,
         lang: "zh-CN".to_owned(),

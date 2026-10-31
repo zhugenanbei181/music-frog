@@ -199,8 +199,11 @@ impl AppState {
                 // DUAL-13-10: the high-throughput pulse breathes only while a
                 // real connection stays above the shared threshold; the same
                 // shared phase drives the Bevy pulse through the same domain
-                // intensity function.
-                if self.diag.connection_pulse_active() {
+                // intensity function. A pending capture freezes the breath:
+                // the settled-frame receipt needs pixels that stop changing.
+                if self.shell.capture_marker.is_some() {
+                    self.diag.connection_pulse_phase = 0.0;
+                } else if self.diag.connection_pulse_active() {
                     // The breath frequency is the shared domain constant, so
                     // both surfaces pulse at the same rate.
                     self.diag.connection_pulse_phase =

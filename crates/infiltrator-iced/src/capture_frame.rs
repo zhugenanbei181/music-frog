@@ -55,6 +55,10 @@ impl AppState {
             && !self.shell.capture_marker_written.load(Ordering::SeqCst)
             && self
                 .shell
+                .capture_section
+                .is_ready(self.shell.capture_region_bounds.is_some())
+            && self
+                .shell
                 .capture_scenario
                 .is_none_or(|feature| capture_scenario::business_opened(self, feature))
     }

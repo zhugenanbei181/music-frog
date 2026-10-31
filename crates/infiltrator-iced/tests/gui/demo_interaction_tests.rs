@@ -30,6 +30,7 @@ fn demo_env(page: Route, scenario: FeatureId) -> DemoEnv {
     DemoEnv {
         enabled: true,
         page,
+        capture_section: CaptureSection::RouteTop,
         pane: EditorPane::Profile,
         providers_tab: false,
         lang: "zh-CN".to_string(),

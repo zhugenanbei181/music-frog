@@ -16,7 +16,7 @@
 //! | Variable                    | Meaning                                        |
 //! |-----------------------------|------------------------------------------------|
 //! | `INFILTRATOR_DEMO=1`        | enable demo mode (`--demo` argv also works)    |
-//! | `INFILTRATOR_PAGE`          | initial route: overview\|proxies\|runtime\|rules\|dns\|profiles\|sync\|editor\|settings |
+//! | `INFILTRATOR_PAGE`          | initial route: overview\|proxies\|runtime\|rules\|dns\|profiles\|sync\|editor\|settings; `connections`\|`logs` and `about` name sections of the runtime/settings pages |
 //! | `INFILTRATOR_SKIN`          | `light` or `dark` (default dark)               |
 //! | `INFILTRATOR_LANG`          | `zh-CN` (default) or `en-US`                   |
 //! | `INFILTRATOR_WINDOW_SIZE`   | `WxH` (default 1180x780)                       |
@@ -26,6 +26,7 @@
 //! [`AppState`] constructor in [`state`] and the capture-marker plumbing in
 //! [`capture`].
 
+use crate::capture_section::CaptureSection;
 use crate::types::message::Message;
 use crate::view::theme::{theme_from_name, theme_to_name};
 use crate::window_chrome::{MIN_WINDOW_SIZE, window_settings};
@@ -83,6 +84,7 @@ const DEFAULT_WINDOW: (f32, f32) = (1180.0, 780.0);
 pub struct DemoEnv {
     pub enabled: bool,
     pub page: Route,
+    pub capture_section: CaptureSection,
     pub pane: EditorPane,
     pub providers_tab: bool,
     pub lang: String,
@@ -98,12 +100,14 @@ impl DemoEnv {
     pub fn from_environment() -> Self {
         let enabled = args().any(|arg| arg == "--demo")
             || var("INFILTRATOR_DEMO").is_ok_and(|v| v.trim() == "1");
+        let (page, capture_section) = var("INFILTRATOR_PAGE")
+            .ok()
+            .and_then(|v| parse_page_name(&v))
+            .unwrap_or((Route::Overview, CaptureSection::RouteTop));
         Self {
             enabled,
-            page: var("INFILTRATOR_PAGE")
-                .ok()
-                .and_then(|v| parse_page(&v))
-                .unwrap_or(Route::Overview),
+            page,
+            capture_section,
             pane: var("INFILTRATOR_PAGE")
                 .ok()
                 .and_then(|v| match v.trim().to_ascii_lowercase().as_str() {
@@ -141,26 +145,32 @@ impl DemoEnv {
 }
 
 /// `overview|proxies|runtime|rules|rules-providers|dns|profiles|sync|editor|mixin|filter|settings`
-/// -> Route. `mixin` maps to the Editor route with the Mixin pane active,
-/// `rules-providers` to the Rules route with the Providers tab active; the
-/// other values yield the plain route. Unknown values yield `None`
-/// (callers fall back to [`Route::Overview`]).
-pub fn parse_page(value: &str) -> Option<Route> {
+/// -> (Route, capture section). `mixin` maps to the Editor route with the
+/// Mixin pane active, `rules-providers` to the Rules route with the Providers
+/// tab active; the other values yield the plain route. Unknown values yield
+/// `None` (callers fall back to [`Route::Overview`]).
+fn parse_page_name(value: &str) -> Option<(Route, CaptureSection)> {
     match value.trim().to_ascii_lowercase().as_str() {
-        "overview" => Some(Route::Overview),
-        "proxies" => Some(Route::Proxies),
-        "runtime" => Some(Route::Runtime),
-        "dns" => Some(Route::Dns),
-        "profiles" => Some(Route::Profiles),
-        "sync" => Some(Route::Sync),
-        "editor" | "mixin" | "filter" => Some(Route::Editor),
-        "rules" | "rules-providers" => Some(Route::Rules),
-        "settings" => Some(Route::Settings),
-        "app_routing" | "app-routing" => Some(Route::AppRouting),
-        "doctor" => Some(Route::Doctor),
-        "connections" | "logs" => Some(Route::Runtime),
+        "overview" => Some((Route::Overview, CaptureSection::RouteTop)),
+        "proxies" => Some((Route::Proxies, CaptureSection::RouteTop)),
+        "runtime" => Some((Route::Runtime, CaptureSection::RouteTop)),
+        "dns" => Some((Route::Dns, CaptureSection::RouteTop)),
+        "profiles" => Some((Route::Profiles, CaptureSection::RouteTop)),
+        "sync" => Some((Route::Sync, CaptureSection::RouteTop)),
+        "editor" | "mixin" | "filter" => Some((Route::Editor, CaptureSection::RouteTop)),
+        "rules" | "rules-providers" => Some((Route::Rules, CaptureSection::RouteTop)),
+        "settings" => Some((Route::Settings, CaptureSection::RouteTop)),
+        "app_routing" | "app-routing" => Some((Route::AppRouting, CaptureSection::RouteTop)),
+        "doctor" => Some((Route::Doctor, CaptureSection::RouteTop)),
+        "connections" => Some((Route::Runtime, CaptureSection::RuntimeConnections)),
+        "logs" => Some((Route::Runtime, CaptureSection::RuntimeLogs)),
+        "about" => Some((Route::Settings, CaptureSection::SettingsAbout)),
         _ => None,
     }
+}
+
+pub fn parse_page(value: &str) -> Option<Route> {
+    parse_page_name(value).map(|(route, _)| route)
 }
 
 /// Inverse of [`parse_page`] — the canonical env name of a route.

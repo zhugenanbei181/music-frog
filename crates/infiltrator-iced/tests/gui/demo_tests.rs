@@ -26,6 +26,7 @@ fn demo_env(page: Route) -> DemoEnv {
     DemoEnv {
         enabled: true,
         page,
+        capture_section: CaptureSection::RouteTop,
         pane: EditorPane::Profile,
         providers_tab: false,
         lang: "zh-CN".to_string(),
@@ -268,6 +269,41 @@ fn env_page_mapping_is_exhaustive() {
     }
     assert_eq!(parse_page("nope"), None);
     assert_eq!(parse_page(""), None);
+}
+
+#[test]
+fn page_sections_parse_to_their_typed_capture_anchor() {
+    let cases = [
+        ("runtime", Route::Runtime, CaptureSection::RouteTop),
+        ("settings", Route::Settings, CaptureSection::RouteTop),
+        (
+            "connections",
+            Route::Runtime,
+            CaptureSection::RuntimeConnections,
+        ),
+        ("logs", Route::Runtime, CaptureSection::RuntimeLogs),
+        ("about", Route::Settings, CaptureSection::SettingsAbout),
+    ];
+    for (name, route, section) in cases {
+        assert_eq!(parse_page(name), Some(route));
+        assert_eq!(parse_page_name(name), Some((route, section)));
+    }
+    assert_eq!(parse_page_name("nope"), None);
+}
+
+#[test]
+fn section_captures_need_a_measured_region_the_route_top_does_not() {
+    assert!(CaptureSection::RouteTop.is_ready(false));
+    assert!(!CaptureSection::RuntimeConnections.is_ready(false));
+    assert!(!CaptureSection::RuntimeLogs.is_ready(false));
+    assert!(!CaptureSection::SettingsAbout.is_ready(false));
+    for section in [
+        CaptureSection::RuntimeConnections,
+        CaptureSection::RuntimeLogs,
+        CaptureSection::SettingsAbout,
+    ] {
+        assert!(section.is_ready(true));
+    }
 }
 
 #[test]

@@ -3,6 +3,7 @@
 use crate::admin_server::{AdminServerManager, AdminSharedRuntime, SharedAdminCommandReceiver};
 use crate::animation::AnimationCoordinator;
 use crate::capture_frame::CaptureFrameGate;
+use crate::capture_section::CaptureSection;
 use crate::tray::SharedTrayEventReceiver;
 use crate::tray::spec::TrayController;
 use crate::types::app::{ConfirmAction, Route, RouteHistory, ToastStatus};
@@ -80,6 +81,7 @@ pub struct ShellState {
     pub capture_marker: Option<PathBuf>,
     pub capture_region_bounds: Option<Rectangle>,
     pub capture_scenario: Option<FeatureId>,
+    pub capture_section: CaptureSection,
     pub capture_marker_written: AtomicBool,
     pub capture_frame: CaptureFrameGate,
     pub command_palette_open: bool,

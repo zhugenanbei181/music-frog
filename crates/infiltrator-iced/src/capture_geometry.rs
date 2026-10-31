@@ -1,4 +1,5 @@
 //! Read native widget layout after rendering. A route or state flag never proves visible controls.
+use crate::capture_section::CaptureSection;
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::view::app_routing::APP_ROUTING_SCROLL_ID;
@@ -52,6 +53,90 @@ impl Operation<Option<Rectangle>> for RevealScrollable {
     }
 }
 
+/// Page-section capture probe: align the section's top edge with the top of
+/// the page scrollable's clip and measure the visible head.
+///
+/// A workbench section can be taller than the viewport, so full containment
+/// is unreachable; the aligned head is the honest receipt that the named
+/// section is the content on screen. A section shorter than the clip (the
+/// settings about card) is aligned the same way, which keeps the section
+/// capture distinct from the plain route-top capture.
+struct AlignSection {
+    scroll_id: Id,
+    section_id: Id,
+    viewport: Rectangle,
+    scroll_bounds: Option<Rectangle>,
+    content_bounds: Option<Rectangle>,
+    clip: Option<Rectangle>,
+    translation: Option<Vector>,
+    section: Option<Rectangle>,
+    section_visits: usize,
+}
+impl Operation<Option<Rectangle>> for AlignSection {
+    fn traverse(&mut self, visit: &mut dyn FnMut(&mut dyn Operation<Option<Rectangle>>)) {
+        visit(self);
+    }
+    fn scrollable(
+        &mut self,
+        id: Option<&Id>,
+        bounds: Rectangle,
+        content: Rectangle,
+        translation: Vector,
+        _: &mut dyn Scrollable,
+    ) {
+        if id == Some(&self.scroll_id) {
+            self.scroll_bounds = Some(bounds);
+            self.content_bounds = Some(content);
+            self.clip = self.viewport.intersection(&bounds);
+            self.translation = Some(translation);
+        }
+    }
+    fn container(&mut self, id: Option<&Id>, bounds: Rectangle) {
+        if id == Some(&self.section_id) {
+            self.section_visits += 1;
+            let mut visual = bounds;
+            if let Some(translation) = self.translation {
+                visual.x -= translation.x;
+                visual.y -= translation.y;
+            }
+            self.section = Some(visual);
+        }
+    }
+    fn finish(&self) -> Outcome<Option<Rectangle>> {
+        if self.section_visits != 1 {
+            return Outcome::Some(None);
+        }
+        let (Some(section), Some(translation), Some(clip)) =
+            (self.section, self.translation, self.clip)
+        else {
+            return Outcome::Some(None);
+        };
+        // The scrollable clamps the target offset to its content bounds, so a
+        // short section with not enough content below it can never reach the
+        // clip top. The capture accepts that clamped rest position: chaining
+        // the same clamped offset again would spin forever.
+        let max_offset = self
+            .scroll_bounds
+            .zip(self.content_bounds)
+            .map(|(bounds, content)| (content.height - bounds.height).max(0.0))
+            .unwrap_or(0.0);
+        let target = (translation.y + (section.y - clip.y)).clamp(0.0, max_offset);
+        if (target - translation.y).abs() > 0.5 {
+            return Outcome::Chain(Box::new(RevealScrollable {
+                id: self.scroll_id.clone(),
+                offset: AbsoluteOffset {
+                    x: None,
+                    y: Some(target),
+                },
+            }));
+        }
+        match clip.intersection(&section) {
+            Some(visible) if visible.height > 0.0 => Outcome::Some(Some(visible)),
+            _ => Outcome::Some(None),
+        }
+    }
+}
+
 struct RequiredRegion {
     id: Id,
     found: Option<Rectangle>,
@@ -59,6 +144,7 @@ struct RequiredRegion {
     measured: Option<Rectangle>,
     visits: usize,
 }
+
 struct VisibleRegion {
     target: Id,
     clip: Rectangle,
@@ -269,7 +355,7 @@ impl AppState {
             return Task::none();
         }
         let Some(feature) = self.shell.capture_scenario else {
-            return Task::none();
+            return self.capture_section_geometry_task();
         };
         let target = match feature {
             FeatureId::ProxiesGroupExpanded | FeatureId::ProxiesSearchHighlight => {
@@ -552,6 +638,44 @@ impl AppState {
             });
             Message::CaptureRegionMeasured(bounds)
         })
+    }
+}
+
+impl AppState {
+    /// Page-variant captures align their named section with the top of the
+    /// page's clip before the marker is written; the route default keeps the
+    /// page top.
+    fn capture_section_geometry_task(&self) -> Task<Message> {
+        let (target, page_scroll) = match self.shell.capture_section {
+            CaptureSection::RouteTop => return Task::none(),
+            CaptureSection::RuntimeConnections => (
+                InteractionRegion::ConnectionsSection.id(),
+                Id::new("runtime-scroll"),
+            ),
+            CaptureSection::RuntimeLogs => (
+                InteractionRegion::LogsSection.id(),
+                Id::new("runtime-scroll"),
+            ),
+            CaptureSection::SettingsAbout => (
+                InteractionRegion::SettingsAbout.id(),
+                Id::new(SETTINGS_SCROLL_ID),
+            ),
+        };
+        let probe = AlignSection {
+            scroll_id: page_scroll,
+            section_id: target,
+            viewport: Rectangle::with_size(Size::new(
+                self.shell.viewport.width_px,
+                self.shell.viewport.height_px,
+            )),
+            scroll_bounds: None,
+            content_bounds: None,
+            clip: None,
+            translation: None,
+            section: None,
+            section_visits: 0,
+        };
+        operate(probe).map(Message::CaptureRegionMeasured)
     }
 }
 

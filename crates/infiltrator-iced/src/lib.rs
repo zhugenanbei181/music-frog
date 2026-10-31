@@ -23,6 +23,7 @@ mod capture_frame;
 mod capture_geometry;
 #[cfg(any(feature = "capture-tools", test))]
 mod capture_scenario;
+pub mod capture_section;
 mod command_ingress;
 pub mod configs_dir;
 pub mod configuration;

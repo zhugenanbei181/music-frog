@@ -239,14 +239,15 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         .spacing(theme::SP_SM),
     );
 
-    let font_attribution = card(
+    let font_attribution = container(card(
         Some(lang.tr("settings_font_attribution_title").into_owned()),
         column![
             secondary_text(lang.tr("settings_font_attribution_copy").into_owned(),),
             text(harmonyos_font_license_text()).size(10).font(MONO),
         ]
         .spacing(theme::SP_SM),
-    );
+    ))
+    .id(InteractionRegion::SettingsAbout.id());
     let language_card = language::language_card(state);
     let mut content = column![
         header,

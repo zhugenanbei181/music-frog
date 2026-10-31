@@ -8,6 +8,7 @@ use iced_runtime::Action;
 use iced_runtime::task::into_stream;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_catalogue::CommandTarget;
+use infiltrator_iced::capture_section::CaptureSection;
 use infiltrator_iced::demo::DemoEnv;
 use infiltrator_iced::state::AppState;
 use infiltrator_iced::types::app::{ConfirmAction, Route};
@@ -20,6 +21,7 @@ fn close_all_confirmation_cancel_keeps_connections_and_schedules_no_work() {
     let env = DemoEnv {
         enabled: true,
         page: Route::Runtime,
+        capture_section: CaptureSection::RouteTop,
         pane: EditorPane::Profile,
         providers_tab: false,
         lang: "en-US".into(),

@@ -209,7 +209,7 @@ const COLLECTIONS: [CollectionFixture; 7] = [
 /// A fully explicit demo surface with typed inventory, details and preferences.
 /// Core capability evidence stays unavailable, so demo data never enables a
 /// product probe command.
-pub(super) fn demo_outbound_surface() -> SurfaceSnapshot {
+pub(super) fn demo_outbound_surface(core_lifecycle: CoreLifecycle) -> SurfaceSnapshot {
     let engine = EngineId::new("mihomo").expect("valid fixture engine");
     let scope = CoreScope {
         identity: CoreIdentity::new(
@@ -366,7 +366,7 @@ pub(super) fn demo_outbound_surface() -> SurfaceSnapshot {
     snapshot.core.identity = Some(scope.identity.clone());
     snapshot.core.generation = 1;
     snapshot.core.session_token = scope.session_token;
-    snapshot.core.lifecycle = CoreLifecycle::Stopped;
+    snapshot.core.lifecycle = core_lifecycle;
     snapshot.core.routing_intent = RoutingIntentSnapshot::demo_fixture();
     snapshot.core.core_version = Some("1.19.32".to_owned());
     snapshot.resources = CoreResourceSnapshot::Observed {

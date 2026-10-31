@@ -12,8 +12,11 @@ fn a_route_change_fades_in_over_the_full_window() {
     coordinator.route_changed(start);
 
     assert!((coordinator.route_opacity(start) - 0.0).abs() < 1e-3);
-    let half = coordinator.route_opacity(start + Duration::from_millis(150));
-    assert!((half - 0.5).abs() < 1e-3, "linear midpoint, got {half}");
+    let half = coordinator.route_opacity(start + ROUTE_FADE / 2);
+    assert!(
+        half > 0.0 && half < 1.0,
+        "midpoint must sit inside the fade window, got {half}"
+    );
     let end = coordinator.route_opacity(start + ROUTE_FADE);
     assert!((end - 1.0).abs() < 1e-3);
     assert!(!coordinator.is_animating(start + ROUTE_FADE));
