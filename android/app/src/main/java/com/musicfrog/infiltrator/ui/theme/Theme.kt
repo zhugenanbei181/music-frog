@@ -158,3 +158,23 @@ fun InfiltratorTheme(
         content = content,
     )
 }
+
+/// The capture fixture's pinned skin, or `null` when the activity runs the
+/// real published theme. Capture seeds are debug-only pixel-evidence knobs
+/// and always win over the owner readback.
+internal fun captureThemeOverride(seed: String?): ThemeOverride? = when (seed?.lowercase()) {
+    "forest" -> ThemeOverride.Forest
+
+    "dark" -> ThemeOverride.Dark
+
+    "light" -> ThemeOverride.Light
+
+    "amoled" -> ThemeOverride.Amoled
+
+    else -> null
+}
+
+/// The activity's theme override: the capture pin wins, then the owner's
+/// published theme readback, then the platform (dynamic color on 12+).
+internal fun resolveThemeOverride(captureSeed: String?, published: ThemeOverride?): ThemeOverride =
+    captureThemeOverride(captureSeed) ?: published ?: ThemeOverride.None

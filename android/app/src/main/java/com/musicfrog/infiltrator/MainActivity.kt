@@ -27,8 +27,11 @@ import androidx.lifecycle.lifecycleScope
 import com.musicfrog.infiltrator.ui.InfiltratorApp
 import com.musicfrog.infiltrator.ui.common.FailureTextKey
 import com.musicfrog.infiltrator.ui.common.localizedFailure
+import com.musicfrog.infiltrator.ui.common.readPublishedThemeOverride
 import com.musicfrog.infiltrator.ui.common.toLocalizedFailure
 import com.musicfrog.infiltrator.ui.theme.InfiltratorTheme
+import com.musicfrog.infiltrator.ui.theme.ThemeOverride
+import com.musicfrog.infiltrator.ui.theme.resolveThemeOverride
 import infiltrator_android.AndroidControlIntent
 import infiltrator_android.FfiStatus
 import infiltrator_android.VpnAuthorizationResult
@@ -43,6 +46,7 @@ class MainActivity : AppCompatActivity() {
     private var vpnBinding: VpnServiceBinding? = null
     private var pendingImportUrl = mutableStateOf<String?>(null)
     private var pendingControlIntent: AndroidControlIntent? = null
+    private var publishedThemeOverride by mutableStateOf<ThemeOverride?>(null)
     private lateinit var vpnAuthorizationFlow: AndroidVpnAuthorizationFlow
 
     private val vpnAuthorizationReceiver = object : BroadcastReceiver() {
@@ -109,13 +113,7 @@ class MainActivity : AppCompatActivity() {
             } else {
                 null
             }
-            val themeOverride = when (testTheme?.lowercase()) {
-                "forest" -> com.musicfrog.infiltrator.ui.theme.ThemeOverride.Forest
-                "dark" -> com.musicfrog.infiltrator.ui.theme.ThemeOverride.Dark
-                "light" -> com.musicfrog.infiltrator.ui.theme.ThemeOverride.Light
-                "amoled" -> com.musicfrog.infiltrator.ui.theme.ThemeOverride.Amoled
-                else -> com.musicfrog.infiltrator.ui.theme.ThemeOverride.None
-            }
+            val themeOverride = resolveThemeOverride(testTheme, publishedThemeOverride)
 
             InfiltratorTheme(
                 darkTheme = isSystemInDarkTheme(),
@@ -143,6 +141,7 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         AndroidActivityState.refreshVpnAuthorization(this)
+        refreshPublishedThemeOverride()
     }
 
     override fun onStart() {
@@ -173,6 +172,18 @@ class MainActivity : AppCompatActivity() {
             }
         }
         pendingControlIntent = intent?.let(::readControlIntent)
+    }
+
+    // The settings owner is the theme authority: the Compose surface mirrors
+    // the published readback on every resume. A failed read keeps the last
+    // observed override instead of flapping back to the platform theme.
+    private fun refreshPublishedThemeOverride() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val override = readPublishedThemeOverride() ?: return@launch
+            withContext(Dispatchers.Main.immediate) {
+                publishedThemeOverride = override
+            }
+        }
     }
 
     override fun onPostResume() {

@@ -4,8 +4,10 @@ import com.musicfrog.infiltrator.CoreOwnerFailureWire
 import com.musicfrog.infiltrator.CoreOwnerIdentityWire
 import com.musicfrog.infiltrator.CoreOwnerLifecycleWire
 import com.musicfrog.infiltrator.VpnOwnerSnapshotWire
+import com.musicfrog.infiltrator.ui.theme.ThemeOverride
 import infiltrator_android.FfiErrorCode
 import infiltrator_android.androidSurfaceSnapshotJson
+import org.json.JSONException
 import org.json.JSONObject
 
 internal suspend fun readOwnerSurfaceSnapshot(): OwnerSurfaceRead {
@@ -92,6 +94,47 @@ internal fun parseOwnerSurfaceSnapshot(json: String): OwnerSurfaceRead = try {
     }
 } catch (error: Exception) {
     OwnerSurfaceRead.Unavailable(error.toLocalizedFailure())
+}
+
+internal suspend fun readPublishedThemeOverride(): ThemeOverride? {
+    val result = androidSurfaceSnapshotJson()
+    if (result.status.code != FfiErrorCode.OK) {
+        return null
+    }
+    val json = result.value ?: return null
+    return parsePublishedThemeOverride(json)
+}
+
+internal fun parsePublishedThemeOverride(json: String): ThemeOverride? = try {
+    val root = JSONObject(json)
+    if (root.optString("origin") != "live") {
+        null
+    } else {
+        themeOverrideFromReadback(root.optJSONObject("theme_readback"))
+    }
+} catch (_: JSONException) {
+    null
+}
+
+private fun themeOverrideFromReadback(readback: JSONObject?): ThemeOverride? {
+    if (readback == null) return null
+    return when (val preference = readback.opt("preference")) {
+        "system" -> ThemeOverride.None
+
+        is JSONObject -> when (preference.optString("fixed")) {
+            "dark" -> ThemeOverride.Dark
+
+            "light" -> ThemeOverride.Light
+
+            "forest" -> ThemeOverride.Forest
+
+            "amoled" -> ThemeOverride.Amoled
+
+            else -> null
+        }
+
+        else -> null
+    }
 }
 
 private fun parseVpnObservation(value: Any): OwnerVpnObservation = when (value) {

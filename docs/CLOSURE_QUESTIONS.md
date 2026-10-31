@@ -36,6 +36,17 @@
 | 7 | 部分 | L | 文件级模块化完成（<=800/600 行全绿，全仓 mod.rs 清退至 0，严格遵照 foo.rs + foo/ 模式，并在 check-structure.sh 接入 mod-rs-guard 永久禁止）；隐式状态机语义审计 + 判决台账常驻（22 条候选逐条人工判决，未判决或 open 即门禁失败），16 处阶段表已改 typed enum + typed transition；Slint 拆分遵循 `SLINT-001` 单文件预算守卫；九个页面模型与两个共用基座成为页面状态的唯一 owner；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | 已补 `--locked` 与 main 守卫门禁（仅 fmt+guards，不编译）；修复 main-gate.yml 缺失 setup-python/Pillow 问题；扩大 Gradle JVM 堆至 6GB 并将三大 flavor 分离独立进程构建彻底解决 OOM；交付 Android CI 套件 flavor/模拟器裁剪与 Gradle 缓存复用；release 作业在构建前校验签名材料缺 secret 秒级失败；全套单测与结构门（`check-structure.sh` 40+ 项守卫，含截图身份唯一守卫 enforce：550 张、aliases=4、0 违规）全绿；`cargo fmt --all --check` 100% 通过；版本号按身份改动一次升至 0.51.0 |
 
+## 最近一批问答（2026-11-01 FLPARITY-014 计划②消费腿：Android Compose 快照主题读回消费）
+
+1. x86_64/aarch64：本批为 Kotlin/Compose 消费层，Rust 零改动；JVM 单测全绿，aarch64 交叉腿结论不变 → 部分（L）。
+2. Windows/Linux/macOS：N/A——本批为 Android 消费切片，桌面三端已于 batch 88–90 接线完毕。
+3. Android/iOS：Compose 消费腿接线完成（本地 Gradle JVM 404/404 全绿、结构门含架构红线守卫 exit 0）；受控 tag CI 与真机/模拟器交互回执仍在斗战胜佛/未来佛，iOS 保持显式 `Unsupported` → 部分（L）。
+4. 各 UI：四端消费发布读回全部接线（Iced/Bevy/Slint/Compose）；像素验收仍由 `PARITY-001.6` 收口，不宣称 → 部分（L）。
+5. 复用：读取复用既有 `androidSurfaceSnapshotJson` FFI 与 org.json 解析约定；主题词汇复用既有 `ThemeOverride`，无第二份枚举 → 部分（L）。
+6. 功能接入：capture 种子 > 发布读回 > 平台跟随的显式优先级；失败读保留上次观测不抖动；测试钉死 serde 形状（`"system"` / `{"fixed":skin}`）与优先级 → 部分（L）。
+7. 模块化：解析单点在 ui/common、组合单点在 ui/theme；无新增 bool/Option 隐式态；架构红线守卫 0 违例、结构门 exit 0 → 部分（L）。
+8. CI：Android CI 为 tag-gated 外部环境腿；本批以本地 Gradle + 全量结构门收口，推送由 `main-gate` 复验 → 部分（L）。
+
 ## 最近一批问答（2026-11-01 FLPARITY-014 计划②消费腿：Slint 快照主题读回消费）
 
 1. x86_64/aarch64：纯 Slint 投影层改动，无平台特化代码；定向 nextest/clippy 全绿，交叉腿结论不变 → 部分（L）。
