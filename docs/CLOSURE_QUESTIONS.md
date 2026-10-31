@@ -36,6 +36,17 @@
 | 7 | 部分 | L | 文件级模块化完成（<=800/600 行全绿，全仓 mod.rs 清退至 0，严格遵照 foo.rs + foo/ 模式，并在 check-structure.sh 接入 mod-rs-guard 永久禁止）；隐式状态机语义审计 + 判决台账常驻（22 条候选逐条人工判决，未判决或 open 即门禁失败），16 处阶段表已改 typed enum + typed transition；Slint 拆分遵循 `SLINT-001` 单文件预算守卫；九个页面模型与两个共用基座成为页面状态的唯一 owner；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | 已补 `--locked` 与 main 守卫门禁（仅 fmt+guards，不编译）；修复 main-gate.yml 缺失 setup-python/Pillow 问题；扩大 Gradle JVM 堆至 6GB 并将三大 flavor 分离独立进程构建彻底解决 OOM；交付 Android CI 套件 flavor/模拟器裁剪与 Gradle 缓存复用；release 作业在构建前校验签名材料缺 secret 秒级失败；全套单测与结构门（`check-structure.sh` 40+ 项守卫，含截图身份唯一守卫 enforce：550 张、aliases=4、0 违规）全绿；`cargo fmt --all --check` 100% 通过；版本号按身份改动一次升至 0.51.0 |
 
+## 最近一批问答（2026-11-01 FLPARITY-014 计划②消费腿：Slint 快照主题读回消费）
+
+1. x86_64/aarch64：纯 Slint 投影层改动，无平台特化代码；定向 nextest/clippy 全绿，交叉腿结论不变 → 部分（L）。
+2. Windows/Linux/macOS：无宿主平台代码；Windows/macOS 受控环境腿在斗战胜佛 → 部分（L）。
+3. Android/iOS：本批不涉及移动端；iOS 保持显式 `Unsupported` → 部分（L）。
+4. 各 UI：Iced/Bevy/Slint 消费腿均已接线；Android 消费发布读回仍是该条目剩余工作，不宣称四端接入 → 部分（L）。
+5. 复用：投影单点消费 `snapshot.theme_readback`，删除 settings 字符串二次解析；fixture readback 与真实 composition 同源（`ResolvedThemePalette::resolve`）→ 部分（L）。
+6. 功能接入：主题投影升为快照级事实（不再被 settings 页可用性门控）；pinned 皮肤驱动 application_dark_mode，System 跟随平台；新测试钉死读回→投影 → 部分（L）。
+7. 模块化：无新增 bool/Option 隐式态（implicit-state audit 22 候选全判决）；typed-state/implicit-state/rem 守卫 0 违规；slint 359/359、clippy `-D warnings` 零警告、fmt 0 偏差、结构门 exit 0 → 部分（L）。
+8. CI：全量结构门收口一次跑通；单 commit 推送由 `main-gate` 复验 → 部分（L）。
+
 ## 最近一批问答（2026-11-01 FLPARITY-014 计划②消费腿：Iced 快照主题读回消费）
 
 1. x86_64/aarch64：纯 Iced UI 状态流改动，无平台特化代码；定向 nextest/clippy 全绿，交叉腿结论不变 → 部分（L）。

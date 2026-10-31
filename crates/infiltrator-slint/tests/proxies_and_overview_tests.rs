@@ -13,6 +13,8 @@ use infiltrator_contract::runtime_control::{RuntimeControlSnapshot, RuntimeContr
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{SettingsPageSnapshot, SurfaceSnapshot};
 use infiltrator_contract::system_proxy::SystemProxyStatus;
+use infiltrator_contract::theme::{SystemAppearance, ThemePreference, ThemeSkin};
+use infiltrator_contract::theme_palette::{ResolvedThemePalette, SystemDynamicColor};
 use infiltrator_slint::surface::harness;
 use infiltrator_slint::widget_vocabulary;
 use lurker_core_contract::error::{ErrorCode, Failure};
@@ -221,6 +223,13 @@ fn overview_snapshot() -> SurfaceSnapshot {
         Failure::new(ErrorCode::NotReady, "initial", true),
     );
     snapshot.pages.settings = PageData::ready(default_settings_snapshot());
+    // The fixture settings pin "dark", so the published readback matches
+    // what the composition derives from that hydrated setting.
+    snapshot.theme_readback = ResolvedThemePalette::resolve(
+        ThemePreference::Fixed(ThemeSkin::Dark),
+        SystemAppearance::Unobserved,
+        SystemDynamicColor::Unobserved,
+    );
     snapshot
 }
 

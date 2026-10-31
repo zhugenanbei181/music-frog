@@ -476,6 +476,21 @@ fn overview_card_title(kind: OverviewCardKind, lang: &Lang<'_>) -> String {
 }
 
 fn project_settings(window: &AppWindow, snapshot: &SurfaceSnapshot, autostart: Option<bool>) {
+    // The published theme readback is the snapshot's authoritative theme
+    // fact; the settings page only carries the remaining preferences.
+    let readback = &snapshot.theme_readback;
+    let mode = match readback.preference {
+        ThemePreference::System => "system",
+        ThemePreference::Fixed(ThemeSkin::Light) => "light",
+        ThemePreference::Fixed(ThemeSkin::Dark) => "dark",
+        ThemePreference::Fixed(ThemeSkin::Forest) => "forest",
+        ThemePreference::Fixed(ThemeSkin::Amoled) => "amoled",
+    };
+    window.set_theme_mode(widget_vocabulary::theme_mode(mode));
+    match readback.preference {
+        ThemePreference::System => {}
+        ThemePreference::Fixed(skin) => window.set_application_dark_mode(skin.is_dark()),
+    }
     let Some(settings) = snapshot.pages.settings.data.as_ref() else {
         return;
     };
@@ -485,19 +500,6 @@ fn project_settings(window: &AppWindow, snapshot: &SurfaceSnapshot, autostart: O
         &settings.language,
     ));
     window.set_system_language(system_language_for_ui());
-    let theme = ThemePreference::from_setting(&settings.theme);
-    let mode = match theme {
-        ThemePreference::System => "system",
-        ThemePreference::Fixed(ThemeSkin::Light) => "light",
-        ThemePreference::Fixed(ThemeSkin::Dark) => "dark",
-        ThemePreference::Fixed(ThemeSkin::Forest) => "forest",
-        ThemePreference::Fixed(ThemeSkin::Amoled) => "amoled",
-    };
-    window.set_theme_mode(widget_vocabulary::theme_mode(mode));
-    match theme {
-        ThemePreference::System => {}
-        ThemePreference::Fixed(skin) => window.set_application_dark_mode(skin.is_dark()),
-    }
     window.set_refresh_current_profile_on_start(settings.refresh_current_profile_on_start);
     if let Some(color_hex) = &settings.custom_accent_color {
         apply_theme_color(&window.as_weak(), color_hex);

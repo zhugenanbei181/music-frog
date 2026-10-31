@@ -10,6 +10,8 @@ use infiltrator_contract::runtime_control::{RuntimeControlSnapshot, RuntimeContr
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{SettingsPageSnapshot, SurfaceSnapshot};
 use infiltrator_contract::system_proxy::SystemProxyStatus;
+use infiltrator_contract::theme::{SystemAppearance, ThemePreference, ThemeSkin};
+use infiltrator_contract::theme_palette::{ResolvedThemePalette, SystemDynamicColor};
 use infiltrator_slint::SlintAction;
 use infiltrator_slint::surface::harness;
 use lurker_core_contract::error::{ErrorCode, Failure};
@@ -43,11 +45,19 @@ fn default_settings_snapshot() -> SettingsPageSnapshot {
 }
 
 fn desktop_snapshot() -> SurfaceSnapshot {
-    SurfaceSnapshot::unavailable(
+    let mut snapshot = SurfaceSnapshot::unavailable(
         SurfaceKind::SlintDesktop,
         HostKind::Desktop,
         Failure::new(ErrorCode::NotReady, "ready", false),
-    )
+    );
+    // The fixture settings pin "dark", so the published readback matches
+    // what the composition derives from that hydrated setting.
+    snapshot.theme_readback = ResolvedThemePalette::resolve(
+        ThemePreference::Fixed(ThemeSkin::Dark),
+        SystemAppearance::Unobserved,
+        SystemDynamicColor::Unobserved,
+    );
+    snapshot
 }
 
 /// Asserts that the surface dispatched exactly one owner command.

@@ -11,6 +11,8 @@ use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::language::LanguagePreference;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{RulesPageSnapshot, SurfaceSnapshot};
+use infiltrator_contract::theme::{SystemAppearance, ThemePreference, ThemeSkin};
+use infiltrator_contract::theme_palette::{ResolvedThemePalette, SystemDynamicColor};
 use infiltrator_slint::SlintAction;
 use infiltrator_slint::surface::harness;
 use infiltrator_slint::theme_util;
@@ -50,6 +52,23 @@ fn desktop_snapshot() -> SurfaceSnapshot {
     .expect("rules page JSON");
     snapshot.pages.rules = PageData::ready(page);
     snapshot
+}
+
+#[test]
+fn the_published_theme_readback_drives_the_projected_theme() {
+    let surface = harness::SurfaceHarness::new(None).unwrap();
+    let mut snapshot = desktop_snapshot();
+    snapshot.theme_readback = ResolvedThemePalette::resolve(
+        ThemePreference::Fixed(ThemeSkin::Dark),
+        SystemAppearance::Unobserved,
+        SystemDynamicColor::Unobserved,
+    );
+    surface.publish_snapshot(snapshot);
+    assert_eq!(
+        surface.window().get_theme_mode(),
+        infiltrator_slint::ThemeMode::Dark
+    );
+    assert!(surface.window().get_application_dark_mode());
 }
 
 /// Asserts that the surface dispatched exactly one owner command.
