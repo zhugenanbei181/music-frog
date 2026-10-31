@@ -1,3 +1,5 @@
 scenario	page	skin	requested_window	app_pid	window_id	width	height	bytes	sha256	status
-profiles-snapshot-restore-confirm-standard	editor	forest	1180x780	1884668	2	1180	780	128816	79477df862ecf8aa653cf9deaca5e4ffb2c37f37658a05b54e230d4d361b5aeb	ok
-profiles-snapshot-restore-confirm-compact	editor	forest	720x480	1885374	3	720	480	57049	3b72b44cfec70cf24d0c590ed27b4565dabcdf466610bbf37d08ec20c8a64792	ok
+settings-permission-panel-standard	settings_workbench	forest	1180x780	2565517	2	1180	780	103648	3daa765611e796f365b35980970868121f4c9e35da01dd495310cf81caabab24	ok
+settings-permission-panel-compact	settings_workbench	forest	720x480	2565762	3	720	480	42269	6f635628d961e9071c3bf9e4573fb7763b91944c66cf8747cf77d87450fa2d71	ok
+settings-tun-permission-standard	settings_workbench	forest	1180x780	2566018	4	1180	780	99389	8ef2779c01da69be9a3ae5eed5e1447a0c3afc19e177fff1afd0105acb726608	ok
+settings-tun-permission-compact	settings_workbench	forest	720x480	2566152	5	720	480	39971	3ef142b4d60ae3a3fe0a02338ed020ed3c82e722017201baae9e098c4c62b7e9	ok

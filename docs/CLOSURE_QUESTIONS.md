@@ -36,6 +36,17 @@
 | 7 | 部分 | L | 文件级模块化完成（<=800/600 行全绿，全仓 mod.rs 清退至 0，严格遵照 foo.rs + foo/ 模式，并在 check-structure.sh 接入 mod-rs-guard 永久禁止）；隐式状态机语义审计 + 判决台账常驻（22 条候选逐条人工判决，未判决或 open 即门禁失败），16 处阶段表已改 typed enum + typed transition；Slint 拆分遵循 `SLINT-001` 单文件预算守卫；九个页面模型与两个共用基座成为页面状态的唯一 owner；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | 已补 `--locked` 与 main 守卫门禁（仅 fmt+guards，不编译）；修复 main-gate.yml 缺失 setup-python/Pillow 问题；扩大 Gradle JVM 堆至 6GB 并将三大 flavor 分离独立进程构建彻底解决 OOM；交付 Android CI 套件 flavor/模拟器裁剪与 Gradle 缓存复用；release 作业在构建前校验签名材料缺 secret 秒级失败；全套单测与结构门（`check-structure.sh` 40+ 项守卫，含截图身份唯一守卫 report 模式）全绿；`cargo fmt --all --check` 100% 通过；版本号按身份改动一次升至 0.51.0 |
 
+## 最近一批问答（2026-10-31 Slint 权限锚点重采与守卫切 enforce 批次）
+
+1. x86_64 与 aarch64 是否都支持？：本批只补 Slint 捕获滚动锚点、声明共享页面模型既有合并关系的 alias 并切换守卫模式，无平台能力面改动；infiltrator-slint 358 项测试本机全绿 → 部分（L）。
+2. Windows / Linux / macOS 是否都支持？：不触平台能力面；Windows/macOS 安装包取证归属斗战胜佛既有条目 → 部分（L）。
+3. Android / iOS 是否都支持？：不触及 Android/iOS；iOS 保持显式 Unsupported → 部分（L）。
+4. 各个 UI 是否都接入了？：Slint `SettingsPermissionPanel`/`SettingsTunPermission` 四张重采后各自显示真实业务卡；editor=mixin × 4 按共享页面模型声明 alias；截图身份守卫全矩阵 368 张 0 违规并切 enforce；Bevy 矩阵仍未入库（.gitignore），由 `PARITY-001.5`/`001.6` 承载 → 部分（L）。
+5. 该复用的是否都复用了？：锚点复用既有 `CarriedScenario::scroll_offset` 与 `invoke_scroll_page_to`；alias 语义复用既有守卫清单 schema，无第二份机制 → 部分（L）。
+6. 各处界面的功能是否都接入了？：GAP-7.3 已入库语料（Iced+Slint）重复组全部清零；台账进展与剩余 Bevy 收口已登记 → 部分（L）。
+7. 各处界面是否模块化了？：锚点为 typed match 新增 arm，alias 为数据清单；无新增 bool/Option 状态机；fmt/line 守卫 0 违规 → 部分（L）。
+8. CI 打包是否最高效？：定向 `cargo nextest -p infiltrator-slint` 358/358、Clippy `-D warnings` 0 error、`screenshot-identity-guard --mode enforce` 全绿；全仓结构门在本批收口统一复跑一次 → 部分（L）。
+
 ## 最近一批问答（2026-10-31 Iced 页面变体锚点与 16 张重采交付批次）
 
 1. x86_64 与 aarch64 是否都支持？：本批改 Iced demo/capture 装配与视图区段 id，纯 Rust 类型与布局操作，无平台汇编；infiltrator-iced 636 项测试与 Clippy 本机 x86_64 全绿 → 部分（L）。

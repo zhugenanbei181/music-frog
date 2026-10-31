@@ -6,8 +6,8 @@ have a unique SHA-256 inside its surface unless the duplicate cell is
 declared in the explicit alias manifest (`scripts/parity/screenshot_aliases.tsv`).
 Two different business cells sharing one byte-identical capture is bad data:
 the acceptance pixel judgement cannot tell them apart. Recapture slices fix
-the undeclared groups; this guard starts in report mode and flips to enforce
-once the matrix is clean.
+the undeclared groups; the recapture slices fixed every undeclared group, so
+the structure gate now runs this guard in enforce mode.
 
 The alias manifest itself is audited: stale entries (file gone, digest
 drifted, canonical mismatch, entry no longer duplicated) are violations, so

@@ -362,6 +362,8 @@ impl CarriedScenario {
             Self::Business(BusinessId::RulesTracerDrawer) => (400.0, 400.0),
             Self::Business(BusinessId::SettingsLanSecurity) => (260.0, 260.0),
             Self::Business(BusinessId::SettingsPortConflictRepair) => (320.0, 320.0),
+            Self::Business(BusinessId::SettingsPermissionPanel) => (380.0, 400.0),
+            Self::Business(BusinessId::SettingsTunPermission) => (660.0, 670.0),
             Self::ProfilesScriptExportReview => (500.0, 460.0),
             Self::ProfilesDiffViewer => (1050.0, 1000.0),
             Self::ProfilesSnapshotRestoreConfirm => (1500.0, 1400.0),
