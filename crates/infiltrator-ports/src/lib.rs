@@ -82,6 +82,7 @@ pub mod surface;
 pub mod sync;
 pub mod system_dns_cache;
 pub mod system_proxy;
+pub mod system_theme;
 pub mod touch_gesture;
 pub mod uwp_loopback;
 pub mod version;

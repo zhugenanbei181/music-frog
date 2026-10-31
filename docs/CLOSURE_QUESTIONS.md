@@ -23,7 +23,7 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-01）
+## 当前状态（2026-11-01 第八十五批次）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
@@ -35,6 +35,17 @@
 | 6 | 部分 | L | **对标 FlClash v0.9.2 共 47 IDs / 180 pt：过去佛 34 项 / 121 pt（含 `FLPARITY-001`、`FLPARITY-003`、`FLPARITY-004`、`FLPARITY-013`、`FLPARITY-037`、`FLPARITY-038`、`FLPARITY-041`、`FLPARITY-043`、`FLPARITY-047`，待统一验证；`FLPARITY-040` 已由第八十四统一验证批次办结归档），现在佛 12 项 / 54 pt。** `FLPARITY-040`（5 pt）大型配置文档编辑性能契约已交付并迁入过去佛 §12.58； `FLPARITY-041`（2 pt）产品、桌面托盘与 Android 图标资产一致性审计已交付并迁入过去佛 §12.57；`FLPARITY-038`（5 pt）可选通用覆写及更早应用时机已交付并迁入过去佛 §12.56；`FLPARITY-037`（3 pt）将代理节点加入用户拥有的本地代理配置已交付；`FLPARITY-013`（5 pt）加密备份真实导出、校验与恢复已交付；`FLPARITY-003`（5 pt）实时请求历史页已交付；`FLPARITY-004`（5 pt）DNS 查询历史页已交付；`FLPARITY-001`（5 pt）IP 质量查询与缓存已交付；`FLPARITY-043`（5 pt）升级 Mihomo 至 v1.19.33；`FLPARITY-047`（3 pt）系统代理 claim/release 所有权保护已交付。**本批（2026-10-31）：Bevy 全量矩阵 182/182 全绿（证据 `.evidence/captures/bevy/20261031T085038Z_a60e88ce6ae8_dirty_3651513`），此前台账记录的 5 场独立业务缺口全部闭合且回执真实呈现业务事实。**官方 release feature/fix/performance 已逐项映射；Forest 仅是 capture skin，不是运行时默认主题。 |
 | 7 | 部分 | L | 文件级模块化完成（<=800/600 行全绿，全仓 mod.rs 清退至 0，严格遵照 foo.rs + foo/ 模式，并在 check-structure.sh 接入 mod-rs-guard 永久禁止）；隐式状态机语义审计 + 判决台账常驻（22 条候选逐条人工判决，未判决或 open 即门禁失败），16 处阶段表已改 typed enum + typed transition；Slint 拆分遵循 `SLINT-001` 单文件预算守卫；九个页面模型与两个共用基座成为页面状态的唯一 owner；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | 已补 `--locked` 与 main 守卫门禁（仅 fmt+guards，不编译）；修复 main-gate.yml 缺失 setup-python/Pillow 问题；扩大 Gradle JVM 堆至 6GB 并将三大 flavor 分离独立进程构建彻底解决 OOM；交付 Android CI 套件 flavor/模拟器裁剪与 Gradle 缓存复用；release 作业在构建前校验签名材料缺 secret 秒级失败；全套单测与结构门（`check-structure.sh` 40+ 项守卫，含截图身份唯一守卫 enforce：550 张、aliases=4、0 违规）全绿；`cargo fmt --all --check` 100% 通过；版本号按身份改动一次升至 0.51.0 |
+
+## 最近一批问答（2026-11-01 FLPARITY-014 计划① Core 腿：主题权威读回完整化）
+
+1. x86_64/aarch64：本批为纯 Rust 契约/端口/呈现层改动，无平台特化代码；`cargo metadata --locked` ok，既有交叉腿结论不变 → 部分（L）。
+2. Windows/Linux/macOS：零宿主平台代码；系统动态色宿主 adapter 与快照发布仍是后续腿，Windows/macOS 受控环境腿在斗战胜佛 → 部分（L）。
+3. Android/iOS：本批不涉及移动端；iOS 保持显式 `Unsupported`；Android Color.kt 本地色路仍在 `FLPARITY-014` 剩余计划内 → 部分（L）。
+4. 各 UI：Iced/Bevy 调用点迁至 typed `SystemDynamicColor::Unobserved` 签名（行为保持）；Slint/Android 消费同一 readback 仍是该条目剩余工作，未宣称接入 → 部分（L）。
+5. 复用：主题解析唯一 owner 收敛到契约 `ResolvedThemePalette` + presentation `project_theme_readback` 单一投影；ports 只定义观测端口 trait，无第二份解析 → 部分（L）。
+6. 功能接入：优先级矩阵（System+Seed → seeded，System+Unobserved → built-in fallback，Fixed+Seed → built-in）由穷举契约测试钉死；无快照字段、无 UI 行为变更，不宣称像素验收 → 部分（L）。
+7. 模块化：typed enum 取代 `Option<DynamicColorSeed>` 隐式观测态（红线条款）；读回携带观测事实本身；定向 nextest 1587/1587、五包 clippy `-D warnings` 零警告、fmt 0 偏差 → 部分（L）。
+8. CI：全量结构门收口一次跑通；单 commit 推送由 `main-gate` 复验 → 部分（L）。
 
 ## 最近一批问答（2026-11-01 统一验证批次 archive 43 条 / 119pt）
 

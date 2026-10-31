@@ -28,7 +28,7 @@ use infiltrator_bevy_widgets::theme_export::{
     theme_tonal_ladders,
 };
 use infiltrator_contract::theme::{self, AppearanceMode, ThemePreference};
-use infiltrator_contract::theme_palette::ResolvedThemePalette;
+use infiltrator_contract::theme_palette::{ResolvedThemePalette, SystemDynamicColor};
 
 /// The shell's appearance preference (shared contract: a pinned skin or
 /// "follow the OS"). The painted token set is always resolved through
@@ -68,7 +68,11 @@ pub fn resolved_skin(
     preference: ThemePreference,
     system_appearance: theme::SystemAppearance,
 ) -> ThemeSkin {
-    let resolved = ResolvedThemePalette::resolve(preference, system_appearance, None);
+    let resolved = ResolvedThemePalette::resolve(
+        preference,
+        system_appearance,
+        SystemDynamicColor::Unobserved,
+    );
     skin_from_contract(resolved.skin)
 }
 

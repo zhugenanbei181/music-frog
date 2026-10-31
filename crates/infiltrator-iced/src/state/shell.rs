@@ -19,7 +19,7 @@ use infiltrator_contract::responsive_viewport::ResponsiveViewportSnapshot;
 use infiltrator_contract::shell_readout::ShellReadoutSnapshot;
 use infiltrator_contract::shortcuts::{ShortcutAction, ShortcutRegistry};
 use infiltrator_contract::theme::{SystemAppearance, ThemePreference};
-use infiltrator_contract::theme_palette::ResolvedThemePalette;
+use infiltrator_contract::theme_palette::{ResolvedThemePalette, SystemDynamicColor};
 use infiltrator_contract::toast::ToastGate;
 use infiltrator_presentation::app_routing_page_model::AppRoutingPageModel;
 use infiltrator_presentation::language_choice::LanguageChoiceState;
@@ -137,7 +137,11 @@ impl ShellState {
     /// Apply an appearance preference against the last OS observation.
     pub fn apply_theme_preference(&mut self, preference: ThemePreference) {
         self.theme_preference = preference;
-        let resolved = ResolvedThemePalette::resolve(preference, self.system_appearance, None);
+        let resolved = ResolvedThemePalette::resolve(
+            preference,
+            self.system_appearance,
+            SystemDynamicColor::Unobserved,
+        );
         self.theme = theme_for_skin(resolved.skin);
     }
 }

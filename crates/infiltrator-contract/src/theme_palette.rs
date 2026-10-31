@@ -28,6 +28,27 @@ pub enum ThemePaletteSource {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DynamicColorSeed(RgbaToken);
 
+/// The operating system's dynamic accent color observation. Unobserved is a
+/// real observation state: hosts without a dynamic-color API report it instead
+/// of pretending to hold a seed.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub enum SystemDynamicColor {
+    /// The host has not reported a system accent seed.
+    #[default]
+    Unobserved,
+    /// A current validated sRGB accent seed from the host.
+    Seed(DynamicColorSeed),
+}
+
+/// One typed observation of the host's theme state. Both fields carry their
+/// own unobserved state, so a host adapter never has to fake a value it
+/// cannot read.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct SystemThemeObservation {
+    pub appearance: SystemAppearance,
+    pub dynamic_color: SystemDynamicColor,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DynamicColorSeedError {
     NonFiniteChannel,
@@ -175,6 +196,7 @@ impl ThemePalette {
 pub struct ResolvedThemePalette {
     pub preference: ThemePreference,
     pub system_appearance: SystemAppearance,
+    pub system_dynamic_color: SystemDynamicColor,
     pub skin: ThemeSkin,
     pub palette: ThemePalette,
 }
@@ -183,11 +205,11 @@ impl ResolvedThemePalette {
     pub fn resolve(
         preference: ThemePreference,
         system_appearance: SystemAppearance,
-        system_dynamic_seed: Option<DynamicColorSeed>,
+        system_dynamic_color: SystemDynamicColor,
     ) -> Self {
         let skin = preference.resolve(system_appearance);
-        let palette = match (preference, system_dynamic_seed) {
-            (ThemePreference::System, Some(seed)) => {
+        let palette = match (preference, system_dynamic_color) {
+            (ThemePreference::System, SystemDynamicColor::Seed(seed)) => {
                 ThemePalette::from_seed(seed, system_appearance.mode())
             }
             _ => ThemePalette::of_skin(skin),
@@ -195,6 +217,7 @@ impl ResolvedThemePalette {
         Self {
             preference,
             system_appearance,
+            system_dynamic_color,
             skin,
             palette,
         }
@@ -263,7 +286,7 @@ mod tests {
         let system = ResolvedThemePalette::resolve(
             ThemePreference::System,
             SystemAppearance::Observed(AppearanceMode::Light),
-            None,
+            SystemDynamicColor::Unobserved,
         );
         assert_eq!(system.skin, ThemeSkin::Light);
         assert_eq!(
@@ -278,7 +301,7 @@ mod tests {
         let cold_start = ResolvedThemePalette::resolve(
             ThemePreference::System,
             SystemAppearance::Unobserved,
-            None,
+            SystemDynamicColor::Unobserved,
         );
         assert_eq!(cold_start.skin, ThemeSkin::Dark);
         assert_eq!(cold_start.system_appearance, SystemAppearance::Unobserved);
@@ -286,7 +309,7 @@ mod tests {
         let fixed = ResolvedThemePalette::resolve(
             ThemePreference::Fixed(ThemeSkin::Forest),
             SystemAppearance::Observed(AppearanceMode::Dark),
-            None,
+            SystemDynamicColor::Unobserved,
         );
         assert_eq!(fixed.skin, ThemeSkin::Forest);
     }
@@ -297,7 +320,7 @@ mod tests {
         let system = ResolvedThemePalette::resolve(
             ThemePreference::System,
             SystemAppearance::Observed(AppearanceMode::Dark),
-            Some(seed),
+            SystemDynamicColor::Seed(seed),
         );
         assert_eq!(system.skin, ThemeSkin::Dark);
         assert_eq!(
@@ -311,12 +334,40 @@ mod tests {
         let fixed = ResolvedThemePalette::resolve(
             ThemePreference::Fixed(ThemeSkin::Forest),
             SystemAppearance::Observed(AppearanceMode::Dark),
-            Some(seed),
+            SystemDynamicColor::Seed(seed),
         );
         assert_eq!(fixed.skin, ThemeSkin::Forest);
         assert_eq!(
             fixed.palette.source,
             ThemePaletteSource::BuiltIn(ThemeSkin::Forest)
+        );
+    }
+
+    #[test]
+    fn resolved_readback_reports_the_dynamic_color_observation_itself() {
+        let seed = DynamicColorSeed::new(0.12, 0.56, 0.96).expect("valid sRGB seed");
+        let observed = ResolvedThemePalette::resolve(
+            ThemePreference::System,
+            SystemAppearance::Observed(AppearanceMode::Light),
+            SystemDynamicColor::Seed(seed),
+        );
+        assert_eq!(
+            observed.system_dynamic_color,
+            SystemDynamicColor::Seed(seed)
+        );
+
+        let unobserved = ResolvedThemePalette::resolve(
+            ThemePreference::System,
+            SystemAppearance::Unobserved,
+            SystemDynamicColor::Unobserved,
+        );
+        assert_eq!(
+            unobserved.system_dynamic_color,
+            SystemDynamicColor::Unobserved
+        );
+        assert_eq!(
+            unobserved.palette.source,
+            ThemePaletteSource::BuiltIn(ThemeSkin::Dark)
         );
     }
 
