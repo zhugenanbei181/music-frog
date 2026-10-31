@@ -304,6 +304,7 @@ fn every_carried_scenario_really_opens_its_carrier() {
             &snapshot,
             surface.workbenches(),
             &activation,
+            false,
         );
         if matches!(scenario.carrier(), ScenarioCarrier::WorkbenchPage(_)) {
             assert!(
@@ -338,6 +339,7 @@ fn every_carried_scenario_really_opens_its_carrier() {
                 &snapshot,
                 surface.workbenches(),
                 &activation,
+                false,
             ),
             "the surface carries {} and must show its outcome",
             scenario.name()
@@ -427,6 +429,7 @@ fn the_capture_gesture_changes_the_rendered_page() {
         &snapshot,
         surface.workbenches(),
         &activation,
+        false,
     );
     let after = surface.workbench_items();
     assert!(
@@ -449,6 +452,7 @@ fn the_capture_gesture_changes_the_rendered_page() {
             &snapshot,
             surface.workbenches(),
             &activation,
+            false,
         ),
         "the business shows the owner's answer"
     );
@@ -470,6 +474,7 @@ fn a_business_the_surface_does_not_carry_is_never_activated() {
                 &snapshot,
                 surface.workbenches(),
                 &activation,
+                false,
             ),
             "{absent} has no carrier on the Slint surface and must never be activated"
         );

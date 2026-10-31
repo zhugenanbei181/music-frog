@@ -348,20 +348,26 @@ impl CarriedScenario {
         }
     }
 
-    /// The vertical scroll offset that brings this business card into the viewport.
-    pub fn scroll_offset(self) -> f32 {
-        match self {
-            Self::Business(BusinessId::EditorSnippetInsertion) => 360.0,
-            Self::Business(BusinessId::EditorLargeDocumentWindow) => 620.0,
-            Self::Business(BusinessId::EditorYamlErrorNavigation) => 880.0,
-            Self::Business(BusinessId::ProxiesUriImportPreview) => 350.0,
-            Self::Business(BusinessId::ProxiesProbeSettings) => 280.0,
-            Self::Business(BusinessId::RulesStatisticsInspector) => 300.0,
-            Self::Business(BusinessId::RulesTracerDrawer) => 400.0,
-            Self::Business(BusinessId::SettingsLanSecurity) => 260.0,
-            Self::Business(BusinessId::SettingsPortConflictRepair) => 320.0,
-            _ => 0.0,
-        }
+    /// The vertical scroll offset that brings this business card into the
+    /// viewport. The editor workbench wraps taller on the narrow viewport, so
+    /// standard and compact carry their own anchors.
+    pub fn scroll_offset(self, compact: bool) -> f32 {
+        let (standard, compact_offset) = match self {
+            Self::Business(BusinessId::EditorSnippetInsertion) => (360.0, 360.0),
+            Self::Business(BusinessId::EditorLargeDocumentWindow) => (620.0, 620.0),
+            Self::Business(BusinessId::EditorYamlErrorNavigation) => (880.0, 880.0),
+            Self::Business(BusinessId::ProxiesUriImportPreview) => (350.0, 350.0),
+            Self::Business(BusinessId::ProxiesProbeSettings) => (280.0, 280.0),
+            Self::Business(BusinessId::RulesStatisticsInspector) => (300.0, 300.0),
+            Self::Business(BusinessId::RulesTracerDrawer) => (400.0, 400.0),
+            Self::Business(BusinessId::SettingsLanSecurity) => (260.0, 260.0),
+            Self::Business(BusinessId::SettingsPortConflictRepair) => (320.0, 320.0),
+            Self::ProfilesScriptExportReview => (500.0, 460.0),
+            Self::ProfilesDiffViewer => (1050.0, 1000.0),
+            Self::ProfilesSnapshotRestoreConfirm => (1500.0, 1400.0),
+            _ => (0.0, 0.0),
+        };
+        if compact { compact_offset } else { standard }
     }
 
     /// The gesture a user performs to open this business.
@@ -520,6 +526,7 @@ pub fn activate(
     snapshot: &SurfaceSnapshot,
     workbenches: &Workbenches,
     activation: &Activation,
+    compact: bool,
 ) -> bool {
     let Some(carried) = CarriedScenario::from_name(scenario) else {
         return false;
@@ -538,7 +545,7 @@ pub fn activate(
                 if let Some(gesture) = carried.gesture() {
                     perform(window, gesture);
                 }
-                let offset = carried.scroll_offset();
+                let offset = carried.scroll_offset(compact);
                 if offset > 0.0 {
                     window.invoke_scroll_page_to(offset);
                 }

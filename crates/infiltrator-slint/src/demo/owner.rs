@@ -12,6 +12,7 @@ use crate::{CommandIntent, CommandOutput, SlintAction};
 use infiltrator_contract::script_export_review::{ScriptExportIdentity, ScriptExportReview};
 use infiltrator_contract::snapshot_restore::{SnapshotRestoreIdentity, SnapshotRestoreReview};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
+use infiltrator_domain::profile_source::hash_document_bytes;
 use infiltrator_domain::script_export_review::content_sha256;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::outbound::identity::SnapshotRevision;
@@ -19,7 +20,7 @@ use lurker_core_contract::outbound::preferences::{
     OutboundUiPreferenceIntent, OutboundUiPreferencesSnapshot, OutboundUiPreferencesValues,
 };
 use lurker_core_contract::page::PageData;
-use lurker_core_contract::profile_document_identity::ProfileId;
+use lurker_core_contract::profile_document_identity::{ProfileDocumentRevision, ProfileId};
 
 /// Answers one owner action the way the capture's business needs it.
 pub fn respond(
@@ -105,16 +106,23 @@ fn respond_to_intent(
             let profile_id =
                 ProfileId::new(&target.profile).unwrap_or(workspace.document.profile_id);
             workspace.document.profile_id = profile_id;
+            // The workbench validates the review identities against the
+            // bytes, so the fixture carries the real document hashes.
+            let before_yaml = "mode: global\n";
+            let restored_yaml = "mode: rule\n";
+            workspace.document.revision =
+                ProfileDocumentRevision::new(hash_document_bytes(before_yaml))
+                    .expect("hex digest is a valid revision");
             let review = SnapshotRestoreReview {
                 identity: SnapshotRestoreIdentity {
                     owner: 1,
                     sequence: 1,
-                    snapshot_hash: "a".repeat(64),
+                    snapshot_hash: hash_document_bytes(restored_yaml),
                     workspace_identity: workspace,
                 },
                 target: target.clone(),
-                before_yaml: "mode: global\n".to_string(),
-                restored_yaml: "mode: rule\n".to_string(),
+                before_yaml: before_yaml.to_string(),
+                restored_yaml: restored_yaml.to_string(),
                 difference: diff,
             };
             Ok(CommandOutput::SnapshotRestorePrepared(Box::new(review)))

@@ -1,2 +1,3 @@
 scenario	page	skin	requested_window	app_pid	window_id	width	height	bytes	sha256	status
-settings-dark	settings	dark	1180x780	3773132	2	1180	780	89735	fa681f2ed56bcf7382d368599fd801daf0fcde6e46d18bffbe70aff2ad094a2d	ok
+profiles-snapshot-restore-confirm-standard	editor	forest	1180x780	1884668	2	1180	780	128816	79477df862ecf8aa653cf9deaca5e4ffb2c37f37658a05b54e230d4d361b5aeb	ok
+profiles-snapshot-restore-confirm-compact	editor	forest	720x480	1885374	3	720	480	57049	3b72b44cfec70cf24d0c590ed27b4565dabcdf466610bbf37d08ec20c8a64792	ok

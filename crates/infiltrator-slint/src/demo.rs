@@ -815,6 +815,7 @@ fn install_capture_timer(
     let activation = Rc::new(capture_scenario::Activation::default());
     let previous_bounds = Cell::new(None::<CaptureBounds>);
     let ticks = Cell::new(0u32);
+    let compact = settings.window_size.0 < 900.0;
     let timer = Rc::new(slint::Timer::default());
     let timer_for_callback = Rc::clone(&timer);
     timer.start(
@@ -837,6 +838,7 @@ fn install_capture_timer(
                     &snapshot,
                     &workbenches,
                     &activation,
+                    compact,
                 ));
             }
             let bounds = capture_scenario::bounds(&window);
