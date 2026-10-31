@@ -23,7 +23,7 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-10-31）
+## 当前状态（2026-11-01）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
@@ -32,9 +32,20 @@
 | 3 | 部分 | L | Android 源码级接通，Bevy host driver lockfile 已同步 0.50.0 解决 buildRustDriver 101 错误；**本批：Android 静态质量门成为真门**（Lint 68→0、ktlint 5046→0、Detekt 项目配置 0 条、架构红线守卫 ARCH001–007 扫描 137 点 0 违例并带 23 条负例，已接入结构门）；Android 单测 192 core host + 391 app 全绿；**release 变体改用用户持久 keystore 签名**，无 secret 时 Gradle 配置期即以缺失清单失败，debug key 不再用于任何 release 产物；APK 真实产物与真机仍缺，APK/真机腿在斗战胜佛；iOS `Unsupported`（626 行 stub，GAP-3.2）；模拟器 M1 腿可推（`PARITY-001.4`、过去佛 `BANDROID-002.1`/`002.2`） |
 | 4 | 部分 | L | Iced/Bevy/Slint 深入接入，四表面使用 `SurfaceReader` + `CommandSink`；Forest 可以且已经作为 118 个桌面业务 capture 与 Android debug capture 的默认取证 skin，但不是产品运行时默认主题，不改变用户设置。**本批（2026-10-31）：Bevy 全量矩阵剩余 5 场根因清零——rollback 场是捕获脚本 post-shot 轮询预算不足（`INTERACTION_TIMEOUT_ITERS` 80→240）；`rules-provider-refresh-error` 双视口真因是提供者分区 `Display::None` 隐藏挂载而 capture 未切 tab（新增 typed 切 tab 阶段，以只读 `RulesTabState` 为推进证据）；`editor-large-document-window` 双视口是 125 行大文档面板高于视口而 observe 仍要求整面板 unclipped（改按窗口交互核心状态行+翻页/关闭控件验收，reveal 顶对齐整面板）——Bevy 全量 182 场景实测 182/182 全绿。**四主题巡检 TSV 存在，当前 published theme manifest 仅 Iced 8、Bevy 8、Slint 1 行，图片仍早于 2026-10-29 palette 变更；Android 暂无主题截图回执。审计发现 `MaterialSurfaceTokens`/`MaterialColorScheme` 缺生产消费者，`FLPARITY-014` 重开，当前主题像素由 `PARITY-001.6` 收口。**本批（2026-10-31 Bevy 重采腿）：Bevy 矩阵 11 组非 alias 重复全清（typed `CaptureSection` 引导 editor/mixin/filter/about、import URL 真实键入、proxies 组展开 readback、aggregator preview 状态行回执），182 场重采 182/182 全绿、182 PNG 唯一 SHA 0 重复；矩阵入库后身份守卫 enforce 扫 550 张 aliases=4 violations=0** |
 | 5 | 部分 | L | 共享 ports/kernel/kits 已复用；Slint 无 kit；PUB-001.3 part 3 租约切换下沉；GAP-5.1/5.1.1、GAP-5.2、GAP-5.2.1 已完成；0.44 UI 管道与 0.5x 四大 UI 脚手架模板全部办结归档；presentation 纯净化与开源合规审计全绿；六个 owner 明确收敛（release 签名决策、圆角阶梯、中性 API 基线、页面状态推导、契约层页面事实、命令由真实 owner 回答带令牌与 stale 拒绝）；三端删除各自的私有推导，共享层事实唯一 |
-| 6 | 部分 | L | **对标 FlClash v0.9.2 共 47 IDs / 180 pt：过去佛 35 项 / 126 pt（含 `FLPARITY-001`、`FLPARITY-003`、`FLPARITY-004`、`FLPARITY-013`、`FLPARITY-037`、`FLPARITY-038`、`FLPARITY-040`、`FLPARITY-041`、`FLPARITY-043`、`FLPARITY-047`，待统一验证），现在佛 12 项 / 54 pt。** `FLPARITY-040`（5 pt）大型配置文档编辑性能契约已交付并迁入过去佛 §12.58； `FLPARITY-041`（2 pt）产品、桌面托盘与 Android 图标资产一致性审计已交付并迁入过去佛 §12.57；`FLPARITY-038`（5 pt）可选通用覆写及更早应用时机已交付并迁入过去佛 §12.56；`FLPARITY-037`（3 pt）将代理节点加入用户拥有的本地代理配置已交付；`FLPARITY-013`（5 pt）加密备份真实导出、校验与恢复已交付；`FLPARITY-003`（5 pt）实时请求历史页已交付；`FLPARITY-004`（5 pt）DNS 查询历史页已交付；`FLPARITY-001`（5 pt）IP 质量查询与缓存已交付；`FLPARITY-043`（5 pt）升级 Mihomo 至 v1.19.33；`FLPARITY-047`（3 pt）系统代理 claim/release 所有权保护已交付。**本批（2026-10-31）：Bevy 全量矩阵 182/182 全绿（证据 `.evidence/captures/bevy/20261031T085038Z_a60e88ce6ae8_dirty_3651513`），此前台账记录的 5 场独立业务缺口全部闭合且回执真实呈现业务事实。**官方 release feature/fix/performance 已逐项映射；Forest 仅是 capture skin，不是运行时默认主题。 |
+| 6 | 部分 | L | **对标 FlClash v0.9.2 共 47 IDs / 180 pt：过去佛 34 项 / 121 pt（含 `FLPARITY-001`、`FLPARITY-003`、`FLPARITY-004`、`FLPARITY-013`、`FLPARITY-037`、`FLPARITY-038`、`FLPARITY-041`、`FLPARITY-043`、`FLPARITY-047`，待统一验证；`FLPARITY-040` 已由第八十四统一验证批次办结归档），现在佛 12 项 / 54 pt。** `FLPARITY-040`（5 pt）大型配置文档编辑性能契约已交付并迁入过去佛 §12.58； `FLPARITY-041`（2 pt）产品、桌面托盘与 Android 图标资产一致性审计已交付并迁入过去佛 §12.57；`FLPARITY-038`（5 pt）可选通用覆写及更早应用时机已交付并迁入过去佛 §12.56；`FLPARITY-037`（3 pt）将代理节点加入用户拥有的本地代理配置已交付；`FLPARITY-013`（5 pt）加密备份真实导出、校验与恢复已交付；`FLPARITY-003`（5 pt）实时请求历史页已交付；`FLPARITY-004`（5 pt）DNS 查询历史页已交付；`FLPARITY-001`（5 pt）IP 质量查询与缓存已交付；`FLPARITY-043`（5 pt）升级 Mihomo 至 v1.19.33；`FLPARITY-047`（3 pt）系统代理 claim/release 所有权保护已交付。**本批（2026-10-31）：Bevy 全量矩阵 182/182 全绿（证据 `.evidence/captures/bevy/20261031T085038Z_a60e88ce6ae8_dirty_3651513`），此前台账记录的 5 场独立业务缺口全部闭合且回执真实呈现业务事实。**官方 release feature/fix/performance 已逐项映射；Forest 仅是 capture skin，不是运行时默认主题。 |
 | 7 | 部分 | L | 文件级模块化完成（<=800/600 行全绿，全仓 mod.rs 清退至 0，严格遵照 foo.rs + foo/ 模式，并在 check-structure.sh 接入 mod-rs-guard 永久禁止）；隐式状态机语义审计 + 判决台账常驻（22 条候选逐条人工判决，未判决或 open 即门禁失败），16 处阶段表已改 typed enum + typed transition；Slint 拆分遵循 `SLINT-001` 单文件预算守卫；九个页面模型与两个共用基座成为页面状态的唯一 owner；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | 已补 `--locked` 与 main 守卫门禁（仅 fmt+guards，不编译）；修复 main-gate.yml 缺失 setup-python/Pillow 问题；扩大 Gradle JVM 堆至 6GB 并将三大 flavor 分离独立进程构建彻底解决 OOM；交付 Android CI 套件 flavor/模拟器裁剪与 Gradle 缓存复用；release 作业在构建前校验签名材料缺 secret 秒级失败；全套单测与结构门（`check-structure.sh` 40+ 项守卫，含截图身份唯一守卫 enforce：550 张、aliases=4、0 违规）全绿；`cargo fmt --all --check` 100% 通过；版本号按身份改动一次升至 0.51.0 |
+
+## 最近一批问答（2026-11-01 统一验证批次 archive 43 条 / 119pt）
+
+1. x86_64/aarch64：本批为台账与验收收口，零代码改动；`cargo metadata --locked` ok，既有 `scripts/cross-check.sh` 交叉腿结论不变 → 部分（L）。
+2. Windows/Linux/macOS：零代码改动，桌面三端既有平台结论不变；Windows/macOS 受控环境腿仍在斗战胜佛 → 部分（L）。
+3. Android/iOS：零代码改动；iOS 保持显式 `Unsupported`；Android 真机/模拟器腿保留在 `Integrated` 条目内，不随本批办结 → 部分（L）。
+4. 各 UI：`resolve_surface_evidence.py` pass（registry/discovery true、anchors 359、无 dangling）；358 份进程绑定回执全部严格验签通过；`cargo nextest run --workspace --no-fail-fast` 5726 passed / 0 failed；`bevy_rem_guard --mode enforce` 0 违规 → 部分（L）。
+5. 复用：纯验收批次零代码改动，无新增重复实现；TOKEN-001.1/001.2 圆角收敛经代码复核确认单一路径（Iced `R_MODAL`、Bevy `modal_radius_px`）→ 部分（L）。
+6. 功能接入：一次性办结过去佛 43 条 / 119 pt（EFFECTS-001~026/031/038/040/042~045、BEVYCAP-001.x/002/003.1、TOKEN-001.1、SLINT-001.1、SLINTUI-004、FLPARITY-009、PARITY-001.3、PLATFORM-001.2、ENG-002.2）；含设备/tag/真实二进制 smoke/重采腿的 98 条如实保留 `Integrated` → 部分（L）。
+7. 模块化：零代码改动，无新增状态表达；typed-state、implicit-state、stdout-discipline、rem 守卫全绿；`cargo clippy --workspace --all-targets -- -D warnings` 零警告 → 部分（L）。
+8. CI：全量结构门 `check-structure.sh` 收口一次跑通；台账四板与本表按批次一次提交推送并由 `main-gate` 复验 → 部分（L）。
 
 ## 最近一批问答（2026-11-01 Bevy/Slint 紧凑视口收口与 PARITY-001.5 办结批次）
 
