@@ -19,13 +19,17 @@ use infiltrator_contract::command_catalogue::{CommandTarget, ShellPage};
 use infiltrator_contract::design_tokens::type_scale;
 use infiltrator_contract::mini_hud::{MiniHudPlacement, MiniHudWaveformStrip};
 use infiltrator_contract::shortcuts::{KeyModifiers, ShortcutAction, ShortcutChord};
+use infiltrator_contract::surface::{HostKind, SurfaceKind};
+use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot};
-use infiltrator_contract::theme::{AppearanceMode, ThemePreference, ThemeSkin};
+use infiltrator_contract::theme::{AppearanceMode, SystemAppearance, ThemePreference, ThemeSkin};
+use infiltrator_contract::theme_palette::{ResolvedThemePalette, SystemDynamicColor};
 use infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot;
 use infiltrator_domain::runtime::TrafficData;
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_presentation::system_toggle_projection::compact_status_line;
 use infiltrator_shared::locales::Lang;
+use lurker_core_contract::error::Failure;
 use lurker_core_contract::routing_intent::{
     RoutingIntent, RoutingIntentSnapshot, RoutingIntentStatus,
 };
@@ -37,6 +41,58 @@ fn chord(key: &str, modifiers: KeyModifiers) -> Message {
         key: key.to_string(),
         modifiers,
     }
+}
+
+fn published_theme_snapshot(revision: u64, readback: ResolvedThemePalette) -> SurfaceSnapshot {
+    let mut snapshot = SurfaceSnapshot::unavailable(
+        SurfaceKind::IcedDesktop,
+        HostKind::Desktop,
+        Failure::unsupported("not composed"),
+    );
+    snapshot.revision = revision;
+    snapshot.theme_readback = readback;
+    snapshot
+}
+
+#[test]
+fn published_theme_readback_anchors_a_baseline_then_drives_changes() {
+    let (mut state, _) = AppState::new();
+    // A local switch (or capture seed) is live state before any publication.
+    let _ = state.update(Message::SetTheme("forest".to_string()));
+    assert!(is_forest(&state.shell.theme));
+
+    // The first published snapshot only anchors the baseline: the cold-start
+    // readback must not replay over the seeded skin.
+    let cold_start = ResolvedThemePalette::resolve(
+        ThemePreference::System,
+        SystemAppearance::Unobserved,
+        SystemDynamicColor::Unobserved,
+    );
+    let _ = state.update(Message::SurfaceSnapshotUpdated(Box::new(
+        published_theme_snapshot(0, cold_start.clone()),
+    )));
+    assert!(is_forest(&state.shell.theme));
+
+    // A republished identical readback changes nothing.
+    let _ = state.update(Message::SurfaceSnapshotUpdated(Box::new(
+        published_theme_snapshot(1, cold_start),
+    )));
+    assert!(is_forest(&state.shell.theme));
+
+    // A changed published readback mirrors the authoritative preference.
+    let pinned = ResolvedThemePalette::resolve(
+        ThemePreference::Fixed(ThemeSkin::Light),
+        SystemAppearance::Unobserved,
+        SystemDynamicColor::Unobserved,
+    );
+    let _ = state.update(Message::SurfaceSnapshotUpdated(Box::new(
+        published_theme_snapshot(2, pinned),
+    )));
+    assert_eq!(
+        state.shell.theme_preference,
+        ThemePreference::Fixed(ThemeSkin::Light)
+    );
+    assert_eq!(state.shell.theme, iced::Theme::Light);
 }
 
 #[test]

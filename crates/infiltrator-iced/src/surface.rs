@@ -10,6 +10,8 @@ use iced::futures::stream::BoxStream;
 use iced::{Subscription, stream};
 use infiltrator_application::surface_application::{SurfacePump, SurfacePumpBridge};
 use infiltrator_contract::surface_snapshot::{PageId, SurfaceEvent, SurfaceSnapshot};
+use infiltrator_contract::theme::ThemePreference;
+use infiltrator_contract::theme_palette::ResolvedThemePalette;
 use lurker_core_contract::page::PageStatus;
 use std::hash::{Hash, Hasher};
 use std::time::Duration;
@@ -18,6 +20,10 @@ use tokio::time::sleep;
 #[derive(Clone, Debug, Default)]
 pub struct SurfaceModel {
     latest: Option<SurfaceSnapshot>,
+    /// The last published theme readback this surface has seen. The first
+    /// observation only anchors the baseline (capture seeds and demo skins
+    /// must not replay as switches); later published changes drive the shell.
+    published_theme_baseline: Option<ResolvedThemePalette>,
 }
 
 /// Iced's thin adapter over the application pump. It only translates owned
@@ -127,6 +133,24 @@ impl SurfaceModel {
 
     pub fn latest(&self) -> Option<&SurfaceSnapshot> {
         self.latest.as_ref()
+    }
+
+    /// Observe the published theme readback. The first published snapshot
+    /// only anchors the baseline; a changed readback returns the settings
+    /// owner's authoritative preference for the shell to mirror.
+    pub fn observe_published_theme(
+        &mut self,
+        readback: &ResolvedThemePalette,
+    ) -> Option<ThemePreference> {
+        let Some(previous) = self.published_theme_baseline.as_ref() else {
+            self.published_theme_baseline = Some(readback.clone());
+            return None;
+        };
+        if *previous == *readback {
+            return None;
+        }
+        self.published_theme_baseline = Some(readback.clone());
+        Some(readback.preference)
     }
 
     pub fn revision(&self) -> u64 {

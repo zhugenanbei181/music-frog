@@ -29,6 +29,16 @@ impl AppState {
         if !self.surface.apply(snapshot.clone()) {
             return false;
         }
+        if let Some(preference) = self
+            .surface
+            .observe_published_theme(&snapshot.theme_readback)
+        {
+            // The settings owner is the authoritative theme source; the shell
+            // mirrors the published preference and keeps its own OS-appearance
+            // observation, so a pinned readback and a live window theme compose
+            // instead of fighting.
+            self.shell.apply_theme_preference(preference);
+        }
         self.rebind_product_command_scope(&snapshot);
         let product_outbound = self.is_product_command_ingress();
         let demo_outbound = self.shell.demo && snapshot.origin == SurfaceOrigin::Demo;
