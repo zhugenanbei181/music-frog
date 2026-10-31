@@ -1,4 +1,5 @@
 use super::*;
+use crate::error::CoreError;
 use async_trait::async_trait;
 use chrono::Utc;
 use std::collections::{HashMap, HashSet};
@@ -104,7 +105,7 @@ impl FakeWebDav {
     fn trip(state: &mut FakeState, point: FailurePoint) -> Result<(), anyhow::Error> {
         if state.failure == Some(point) {
             state.failure = None;
-            return Err(anyhow::anyhow!("injected {point:?} failure"));
+            return Err(CoreError::invalid(format!("injected {point:?} failure")).into());
         }
         Ok(())
     }
@@ -126,7 +127,7 @@ impl DavClient for FakeWebDav {
         let path = normalized_path(path);
         let state = self.0.lock().expect("fake WebDAV state");
         if !path.is_empty() && !state.directories.contains(&path) {
-            return Err(anyhow::anyhow!("missing directory {path}"));
+            return Err(CoreError::not_found(format!("missing directory {path}")).into());
         }
         let mut entries = vec![Self::entry(
             if path.is_empty() {
@@ -182,7 +183,7 @@ impl DavClient for FakeWebDav {
             .files
             .get(&path)
             .map(|file| file.bytes.clone())
-            .ok_or_else(|| anyhow::anyhow!("missing file {path}"))
+            .ok_or_else(|| CoreError::not_found(format!("missing file {path}")).into())
     }
 
     async fn put(
@@ -194,12 +195,11 @@ impl DavClient for FakeWebDav {
         let path = normalized_path(path);
         let mut state = self.0.lock().expect("fake WebDAV state");
         if let Some(expected) = if_match {
-            let current = state
-                .files
-                .get(&path)
-                .ok_or_else(|| anyhow::anyhow!("missing file {path}"))?;
+            let current = state.files.get(&path).ok_or_else(|| {
+                anyhow::Error::from(CoreError::not_found(format!("missing file {path}")))
+            })?;
             if current.etag != expected {
-                return Err(anyhow::anyhow!("ETag changed for {path}"));
+                return Err(CoreError::invalid(format!("ETag changed for {path}")).into());
             }
         }
         state.next_etag += 1;
@@ -219,7 +219,7 @@ impl DavClient for FakeWebDav {
         let mut state = self.0.lock().expect("fake WebDAV state");
         Self::trip(&mut state, FailurePoint::Copy)?;
         if state.files.contains_key(&path) {
-            return Err(anyhow::anyhow!("destination exists: {path}"));
+            return Err(CoreError::invalid(format!("destination exists: {path}")).into());
         }
         state.next_etag += 1;
         let etag = format!("etag-{}", state.next_etag);
@@ -253,7 +253,7 @@ impl DavClient for FakeWebDav {
                 state.files.remove(&path);
                 Ok(())
             }
-            Some(false) => Err(anyhow::anyhow!("ETag changed for {path}")),
+            Some(false) => Err(CoreError::invalid(format!("ETag changed for {path}")).into()),
         }
     }
 
@@ -261,10 +261,9 @@ impl DavClient for FakeWebDav {
         let mut state = self.0.lock().expect("fake WebDAV state");
         let from = normalized_path(from);
         let to = normalized_path(to);
-        let file = state
-            .files
-            .remove(&from)
-            .ok_or_else(|| anyhow::anyhow!("missing file {from}"))?;
+        let file = state.files.remove(&from).ok_or_else(|| {
+            anyhow::Error::from(CoreError::not_found(format!("missing file {from}")))
+        })?;
         state.files.insert(to, file);
         Ok(())
     }

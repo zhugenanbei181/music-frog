@@ -4,6 +4,7 @@
 //! these values are the owned data exchanged with application and inbound
 //! surfaces.
 
+use crate::error::DomainError;
 use chrono::{DateTime, Utc};
 use lurker_core_contract::profile_name::validate_profile_name;
 use serde::{Deserialize, Serialize};
@@ -73,9 +74,9 @@ pub struct ProfileDetail {
     pub expire_at: Option<i64>,
 }
 
-pub fn sanitize_profile_name(name: &str) -> anyhow::Result<String> {
+pub fn sanitize_profile_name(name: &str) -> Result<String, DomainError> {
     let trimmed = name.trim();
-    validate_profile_name(trimmed)?;
+    validate_profile_name(trimmed).map_err(|error| DomainError::invalid(error.to_string()))?;
     Ok(trimmed.to_string())
 }
 

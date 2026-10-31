@@ -64,7 +64,6 @@ use infiltrator_bevy_widgets::WidgetsPlugin;
 use infiltrator_bevy_widgets::feathers_theme::sync_ui_theme;
 use infiltrator_bevy_widgets::icon::status_dot_image;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
-use infiltrator_bevy_widgets::motion::SpringAnimationPlugin;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::responsive::{
@@ -484,7 +483,6 @@ impl Plugin for ShellPlugin {
             self.preference,
             theme::SystemAppearance::Unobserved,
         ))));
-        app.add_plugins(SpringAnimationPlugin);
         // BEVY-031/035/038: the screen-reader gate seam, the shell-level layout
         // direction, and the D-pad/analog focus controller are part of the
         // shell, so a headless composition exercises the same wiring.

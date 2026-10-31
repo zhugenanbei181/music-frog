@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, anyhow, bail};
+use crate::error::{DomainContext, DomainError};
 use serde::{Deserialize, Serialize};
 use serde_yaml_ng::{Mapping, Value};
 use std::collections::BTreeMap;
@@ -24,8 +24,8 @@ impl ProtocolSniffConfig {
         }
     }
 
-    pub fn to_json_value(&self) -> Result<serde_json::Value> {
-        serde_json::to_value(self).context("serialize protocol sniff config")
+    pub fn to_json_value(&self) -> Result<serde_json::Value, DomainError> {
+        serde_json::to_value(self).domain_context("serialize protocol sniff config")
     }
 }
 
@@ -170,11 +170,13 @@ pub fn is_valid_domain_pattern(s: &str) -> bool {
 }
 
 /// Validate typed `SnifferConfig`.
-pub fn validate_typed_sniffer_config(config: &SnifferConfig) -> Result<()> {
+pub fn validate_typed_sniffer_config(config: &SnifferConfig) -> Result<(), DomainError> {
     if let Some(ref domains) = config.skip_domain {
         for domain in domains {
             if !is_valid_domain_pattern(domain) {
-                bail!("Invalid domain pattern in skip-domain: '{domain}'");
+                return Err(DomainError::invalid(format!(
+                    "Invalid domain pattern in skip-domain: '{domain}'"
+                )));
             }
         }
     }
@@ -182,7 +184,9 @@ pub fn validate_typed_sniffer_config(config: &SnifferConfig) -> Result<()> {
     if let Some(ref domains) = config.force_domain {
         for domain in domains {
             if !is_valid_domain_pattern(domain) {
-                bail!("Invalid domain pattern in force-domain: '{domain}'");
+                return Err(DomainError::invalid(format!(
+                    "Invalid domain pattern in force-domain: '{domain}'"
+                )));
             }
         }
     }
@@ -190,7 +194,9 @@ pub fn validate_typed_sniffer_config(config: &SnifferConfig) -> Result<()> {
     if let Some(ref ports) = config.port_whitelist {
         for port in ports {
             if !is_valid_port_or_range(port) {
-                bail!("Invalid port or port range in port-whitelist: '{port}'");
+                return Err(DomainError::invalid(format!(
+                    "Invalid port or port range in port-whitelist: '{port}'"
+                )));
             }
         }
     }
@@ -198,10 +204,12 @@ pub fn validate_typed_sniffer_config(config: &SnifferConfig) -> Result<()> {
     if let Some(ref sniff_map) = config.sniff {
         for (proto, val) in sniff_map {
             if proto.trim().is_empty() {
-                bail!("Sniff protocol name cannot be empty");
+                return Err(DomainError::invalid("Sniff protocol name cannot be empty"));
             }
             if !val.is_object() {
-                bail!("Sniff configuration for protocol '{proto}' must be an object");
+                return Err(DomainError::invalid(format!(
+                    "Sniff configuration for protocol '{proto}' must be an object"
+                )));
             }
         }
     }
@@ -210,15 +218,15 @@ pub fn validate_typed_sniffer_config(config: &SnifferConfig) -> Result<()> {
 }
 
 /// Validate a generic JSON `Value` representing sniffer configuration.
-pub fn validate_sniffer_config(config: &serde_json::Value) -> Result<()> {
+pub fn validate_sniffer_config(config: &serde_json::Value) -> Result<(), DomainError> {
     let obj = config
         .as_object()
-        .ok_or_else(|| anyhow!("sniffer config must be a JSON object"))?;
+        .ok_or_else(|| DomainError::invalid("sniffer config must be a JSON object"))?;
 
     if let Some(enable) = obj.get("enable")
         && !enable.is_boolean()
     {
-        bail!("sniffer 'enable' must be a boolean");
+        return Err(DomainError::invalid("sniffer 'enable' must be a boolean"));
     }
 
     if let Some(val) = obj
@@ -226,7 +234,9 @@ pub fn validate_sniffer_config(config: &serde_json::Value) -> Result<()> {
         .or_else(|| obj.get("force-dns-mapping"))
         && !val.is_boolean()
     {
-        bail!("sniffer 'force-dns-mapping' must be a boolean");
+        return Err(DomainError::invalid(
+            "sniffer 'force-dns-mapping' must be a boolean",
+        ));
     }
 
     if let Some(val) = obj
@@ -234,19 +244,23 @@ pub fn validate_sniffer_config(config: &serde_json::Value) -> Result<()> {
         .or_else(|| obj.get("parse-pure-ip"))
         && !val.is_boolean()
     {
-        bail!("sniffer 'parse-pure-ip' must be a boolean");
+        return Err(DomainError::invalid(
+            "sniffer 'parse-pure-ip' must be a boolean",
+        ));
     }
 
     if let Some(skip) = obj.get("skip_domain").or_else(|| obj.get("skip-domain")) {
         let arr = skip
             .as_array()
-            .ok_or_else(|| anyhow!("sniffer 'skip-domain' must be an array"))?;
+            .ok_or_else(|| DomainError::invalid("sniffer 'skip-domain' must be an array"))?;
         for item in arr {
             let s = item
                 .as_str()
-                .ok_or_else(|| anyhow!("'skip-domain' entries must be strings"))?;
+                .ok_or_else(|| DomainError::invalid("'skip-domain' entries must be strings"))?;
             if !is_valid_domain_pattern(s) {
-                bail!("Invalid domain in 'skip-domain': '{s}'");
+                return Err(DomainError::invalid(format!(
+                    "Invalid domain in 'skip-domain': '{s}'"
+                )));
             }
         }
     }
@@ -254,13 +268,15 @@ pub fn validate_sniffer_config(config: &serde_json::Value) -> Result<()> {
     if let Some(force) = obj.get("force_domain").or_else(|| obj.get("force-domain")) {
         let arr = force
             .as_array()
-            .ok_or_else(|| anyhow!("sniffer 'force-domain' must be an array"))?;
+            .ok_or_else(|| DomainError::invalid("sniffer 'force-domain' must be an array"))?;
         for item in arr {
             let s = item
                 .as_str()
-                .ok_or_else(|| anyhow!("'force-domain' entries must be strings"))?;
+                .ok_or_else(|| DomainError::invalid("'force-domain' entries must be strings"))?;
             if !is_valid_domain_pattern(s) {
-                bail!("Invalid domain in 'force-domain': '{s}'");
+                return Err(DomainError::invalid(format!(
+                    "Invalid domain in 'force-domain': '{s}'"
+                )));
             }
         }
     }
@@ -271,17 +287,21 @@ pub fn validate_sniffer_config(config: &serde_json::Value) -> Result<()> {
     {
         let arr = whitelist
             .as_array()
-            .ok_or_else(|| anyhow!("sniffer 'port-whitelist' must be an array"))?;
+            .ok_or_else(|| DomainError::invalid("sniffer 'port-whitelist' must be an array"))?;
         for item in arr {
             let s = if let Some(str_val) = item.as_str() {
                 str_val.to_string()
             } else if let Some(num_val) = item.as_u64() {
                 num_val.to_string()
             } else {
-                bail!("'port-whitelist' entries must be strings or port numbers");
+                return Err(DomainError::invalid(
+                    "'port-whitelist' entries must be strings or port numbers",
+                ));
             };
             if !is_valid_port_or_range(&s) {
-                bail!("Invalid port or range in 'port-whitelist': '{s}'");
+                return Err(DomainError::invalid(format!(
+                    "Invalid port or range in 'port-whitelist': '{s}'"
+                )));
             }
         }
     }
@@ -289,13 +309,15 @@ pub fn validate_sniffer_config(config: &serde_json::Value) -> Result<()> {
     if let Some(sniff) = obj.get("sniff") {
         let sniff_obj = sniff
             .as_object()
-            .ok_or_else(|| anyhow!("sniffer 'sniff' must be an object"))?;
+            .ok_or_else(|| DomainError::invalid("sniffer 'sniff' must be an object"))?;
         for (proto, val) in sniff_obj {
             if proto.trim().is_empty() {
-                bail!("Sniff protocol name cannot be empty");
+                return Err(DomainError::invalid("Sniff protocol name cannot be empty"));
             }
             if !val.is_object() {
-                bail!("Sniff configuration for protocol '{proto}' must be an object");
+                return Err(DomainError::invalid(format!(
+                    "Sniff configuration for protocol '{proto}' must be an object"
+                )));
             }
         }
     }
@@ -304,83 +326,100 @@ pub fn validate_sniffer_config(config: &serde_json::Value) -> Result<()> {
 }
 
 /// Extract typed `SnifferConfig` from a YAML document AST.
-pub fn extract_sniffer_config(doc: &Value) -> Result<SnifferConfig> {
+pub fn extract_sniffer_config(doc: &Value) -> Result<SnifferConfig, DomainError> {
     let json_val = extract_sniffer_config_from_doc(doc)?;
-    let config: SnifferConfig = serde_json::from_value(json_val).context("parse sniffer config")?;
+    let config: SnifferConfig =
+        serde_json::from_value(json_val).domain_context("parse sniffer config")?;
     validate_typed_sniffer_config(&config)?;
     Ok(config)
 }
 
 /// Extract sniffer JSON value from a YAML document AST.
-pub fn extract_sniffer_config_from_doc(doc: &Value) -> Result<serde_json::Value> {
+pub fn extract_sniffer_config_from_doc(doc: &Value) -> Result<serde_json::Value, DomainError> {
     let value = doc
         .get("sniffer")
         .cloned()
         .unwrap_or(Value::Mapping(Mapping::new()));
-    let config = serde_json::to_value(value).context("encode sniffer config")?;
+    let config = serde_json::to_value(value).domain_context("encode sniffer config")?;
     validate_sniffer_config(&config)?;
     Ok(config)
 }
 
 /// Apply a generic JSON sniffer configuration into a YAML document AST.
-pub fn apply_sniffer_config(doc: &mut Value, config: &serde_json::Value) -> Result<()> {
+pub fn apply_sniffer_config(
+    doc: &mut Value,
+    config: &serde_json::Value,
+) -> Result<(), DomainError> {
     validate_sniffer_config(config)?;
     let map = doc
         .as_mapping_mut()
-        .ok_or_else(|| anyhow!("profile config is not a mapping"))?;
+        .ok_or_else(|| DomainError::invalid("profile config is not a mapping"))?;
     let is_empty = config.as_object().is_some_and(|value| value.is_empty());
     if is_empty {
         map.remove(Value::String("sniffer".to_string()));
         return Ok(());
     }
 
-    let yaml_value = serde_yaml_ng::to_value(config).context("decode sniffer config")?;
+    let yaml_value = serde_yaml_ng::to_value(config).domain_context("decode sniffer config")?;
     map.insert(Value::String("sniffer".to_string()), yaml_value);
     Ok(())
 }
 
 /// Apply typed `SnifferConfig` into a YAML document AST.
-pub fn apply_typed_sniffer_config(doc: &mut Value, config: &SnifferConfig) -> Result<()> {
+pub fn apply_typed_sniffer_config(
+    doc: &mut Value,
+    config: &SnifferConfig,
+) -> Result<(), DomainError> {
     validate_typed_sniffer_config(config)?;
     let map = doc
         .as_mapping_mut()
-        .ok_or_else(|| anyhow!("profile config is not a mapping"))?;
+        .ok_or_else(|| DomainError::invalid("profile config is not a mapping"))?;
     if config.is_empty() {
         map.remove(Value::String("sniffer".to_string()));
         return Ok(());
     }
 
-    let yaml_value = serde_yaml_ng::to_value(config).context("serialize sniffer config to yaml")?;
+    let yaml_value =
+        serde_yaml_ng::to_value(config).domain_context("serialize sniffer config to yaml")?;
     map.insert(Value::String("sniffer".to_string()), yaml_value);
     Ok(())
 }
 
 /// Apply a `SnifferConfigPatch` into an existing YAML document AST.
-pub fn apply_sniffer_patch(doc: &mut Value, patch: &SnifferConfigPatch) -> Result<()> {
+pub fn apply_sniffer_patch(doc: &mut Value, patch: &SnifferConfigPatch) -> Result<(), DomainError> {
     let mut current = extract_sniffer_config(doc).unwrap_or_default();
     current.apply_patch(patch.clone());
     apply_typed_sniffer_config(doc, &current)
 }
 
 /// Apply sniffer changes to an in-memory profile YAML string.
-pub fn apply_sniffer_to_yaml(content: &str, config: &serde_json::Value) -> Result<String> {
-    let mut doc: Value = serde_yaml_ng::from_str(content).context("parse profile yaml")?;
+pub fn apply_sniffer_to_yaml(
+    content: &str,
+    config: &serde_json::Value,
+) -> Result<String, DomainError> {
+    let mut doc: Value = serde_yaml_ng::from_str(content).domain_context("parse profile yaml")?;
     apply_sniffer_config(&mut doc, config)?;
-    serde_yaml_ng::to_string(&doc).context("serialize profile yaml")
+    serde_yaml_ng::to_string(&doc).domain_context("serialize profile yaml")
 }
 
 /// Apply typed `SnifferConfig` to an in-memory profile YAML string.
-pub fn apply_typed_sniffer_to_yaml(content: &str, config: &SnifferConfig) -> Result<String> {
-    let mut doc: Value = serde_yaml_ng::from_str(content).context("parse profile yaml")?;
+pub fn apply_typed_sniffer_to_yaml(
+    content: &str,
+    config: &SnifferConfig,
+) -> Result<String, DomainError> {
+    let mut doc: Value = serde_yaml_ng::from_str(content).domain_context("parse profile yaml")?;
     apply_typed_sniffer_config(&mut doc, config)?;
-    serde_yaml_ng::to_string(&doc).context("serialize profile yaml")
+    serde_yaml_ng::to_string(&doc).domain_context("serialize profile yaml")
 }
 
 /// Apply a patch to an in-memory profile YAML string.
-pub fn apply_sniffer_patch_to_yaml(content: &str, patch: &SnifferConfigPatch) -> Result<String> {
-    let mut doc: Value = serde_yaml_ng::from_str(content).context("parse profile yaml")?;
+pub fn apply_sniffer_patch_to_yaml(
+    content: &str,
+    patch: &SnifferConfigPatch,
+) -> Result<String, DomainError> {
+    let mut doc: Value = serde_yaml_ng::from_str(content).domain_context("parse profile yaml")?;
     apply_sniffer_patch(&mut doc, patch)?;
-    serde_yaml_ng::to_string(&doc).context("serialize profile yaml")
+    serde_yaml_ng::to_string(&doc).domain_context("serialize profile yaml")
 }
 
 #[cfg(test)]

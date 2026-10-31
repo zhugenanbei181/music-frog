@@ -23,6 +23,7 @@
 
 use super::model::ProxyNode;
 use super::profile_yaml::parse_profile_yaml;
+use crate::error::DomainError;
 use crate::rules::analyzer::ProxyGroupTopology;
 use serde_yaml_ng::Value;
 use std::collections::{BTreeMap, BTreeSet};
@@ -152,7 +153,7 @@ impl DialerGraphFacts {
 
     /// Parse a profile document into dialer/group facts. A profile without a
     /// `proxies:` section is an empty graph, not an error.
-    pub fn from_profile_yaml(text: &str) -> anyhow::Result<Self> {
+    pub fn from_profile_yaml(text: &str) -> Result<Self, DomainError> {
         let nodes = parse_profile_yaml(text)?;
         let mut facts = Self::from_nodes(&nodes);
         let document: Value = serde_yaml_ng::from_str(text)?;

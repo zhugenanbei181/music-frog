@@ -1,5 +1,6 @@
 //! Adapter from the concrete mihomo-version manager to the version port.
 
+use crate::error::CoreError;
 use infiltrator_contract::version::{
     CoreArtifactVerification, CoreRelease, CoreReleaseSummary, CoreRollbackSnapshot,
     EngineNeutralReleaseChannel, EngineReleaseChannel, InstalledCoreVersion, ReleaseChannelId,
@@ -63,14 +64,14 @@ impl MihomoVersionPort {
         Arc::clone(&self.verification)
     }
 
-    pub fn current(engine_id: EngineId) -> anyhow::Result<Self> {
+    pub fn current(engine_id: EngineId) -> Result<Self, CoreError> {
         let manager = VersionManager::for_engine(get_home_dir()?, engine_id.clone())?;
-        Self::new(engine_id, manager).map_err(|error| anyhow::anyhow!(error))
+        Self::new(engine_id, manager).map_err(CoreError::from)
     }
 
-    pub fn with_home(home: PathBuf, engine_id: EngineId) -> anyhow::Result<Self> {
+    pub fn with_home(home: PathBuf, engine_id: EngineId) -> Result<Self, CoreError> {
         let manager = VersionManager::for_engine(home, engine_id.clone())?;
-        Self::new(engine_id, manager).map_err(|error| anyhow::anyhow!(error))
+        Self::new(engine_id, manager).map_err(CoreError::from)
     }
 }
 

@@ -1,6 +1,6 @@
 //! PCAP packet capture serialization and HTTP/URL rewrite engine.
 
-use anyhow::{Context, Result, bail};
+use crate::error::{DomainContext, DomainError};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -59,13 +59,18 @@ impl PcapHeader {
         b
     }
 
-    pub fn from_bytes(b: &[u8]) -> Result<Self> {
+    pub fn from_bytes(b: &[u8]) -> Result<Self, DomainError> {
         if b.len() < 24 {
-            bail!("PCAP header requires 24 bytes, got {}", b.len());
+            return Err(DomainError::invalid(format!(
+                "PCAP header requires 24 bytes, got {}",
+                b.len()
+            )));
         }
         let magic = u32::from_le_bytes(b[0..4].try_into().unwrap());
         if magic != Self::MAGIC_MICROS && magic != Self::MAGIC_NANOS {
-            bail!("Invalid PCAP magic: 0x{magic:08x}");
+            return Err(DomainError::invalid(format!(
+                "Invalid PCAP magic: 0x{magic:08x}"
+            )));
         }
         Ok(Self {
             magic,
@@ -113,9 +118,12 @@ impl PcapRecordHeader {
         b
     }
 
-    pub fn from_bytes(b: &[u8]) -> Result<Self> {
+    pub fn from_bytes(b: &[u8]) -> Result<Self, DomainError> {
         if b.len() < 16 {
-            bail!("PCAP record header requires 16 bytes, got {}", b.len());
+            return Err(DomainError::invalid(format!(
+                "PCAP record header requires 16 bytes, got {}",
+                b.len()
+            )));
         }
         Ok(Self {
             ts_sec: u32::from_le_bytes(b[0..4].try_into().unwrap()),
@@ -212,9 +220,12 @@ impl PcapExporter {
         self.total_bytes_captured = 0;
     }
 
-    pub fn parse_packets(bytes: &[u8]) -> Result<(PcapHeader, Vec<CapturedPacket>)> {
+    pub fn parse_packets(bytes: &[u8]) -> Result<(PcapHeader, Vec<CapturedPacket>), DomainError> {
         if bytes.len() < 24 {
-            bail!("Buffer too short for PCAP header: {} bytes", bytes.len());
+            return Err(DomainError::invalid(format!(
+                "Buffer too short for PCAP header: {} bytes",
+                bytes.len()
+            )));
         }
         let header = PcapHeader::from_bytes(&bytes[0..24])?;
         let mut packets = Vec::new();
@@ -224,7 +235,9 @@ impl PcapExporter {
             offset += 16;
             let caplen = rec_hdr.caplen as usize;
             if offset + caplen > bytes.len() {
-                bail!("Truncated packet data at offset {offset}");
+                return Err(DomainError::invalid(format!(
+                    "Truncated packet data at offset {offset}"
+                )));
             }
             let payload = bytes[offset..offset + caplen].to_vec();
             offset += caplen;
@@ -294,8 +307,9 @@ impl RewriteRule {
         replacement: &str,
         redirect: bool,
         status_code: Option<u16>,
-    ) -> Result<Self> {
-        let reg = Regex::new(pattern).with_context(|| format!("Invalid regex: '{pattern}'"))?;
+    ) -> Result<Self, DomainError> {
+        let reg =
+            Regex::new(pattern).domain_context_with(|| format!("Invalid regex: '{pattern}'"))?;
         Ok(Self {
             pattern: reg,
             replacement: replacement.to_string(),
@@ -304,15 +318,15 @@ impl RewriteRule {
         })
     }
 
-    pub fn redirect_302(pattern: &str, replacement: &str) -> Result<Self> {
+    pub fn redirect_302(pattern: &str, replacement: &str) -> Result<Self, DomainError> {
         Self::new(pattern, replacement, true, Some(302))
     }
 
-    pub fn redirect_307(pattern: &str, replacement: &str) -> Result<Self> {
+    pub fn redirect_307(pattern: &str, replacement: &str) -> Result<Self, DomainError> {
         Self::new(pattern, replacement, true, Some(307))
     }
 
-    pub fn direct(pattern: &str, replacement: &str) -> Result<Self> {
+    pub fn direct(pattern: &str, replacement: &str) -> Result<Self, DomainError> {
         Self::new(pattern, replacement, false, None)
     }
 
@@ -352,18 +366,26 @@ impl UrlRewriteEngine {
         self.rules.push(rule);
     }
 
-    pub fn add_direct(&mut self, pattern: &str, replacement: &str) -> Result<()> {
+    pub fn add_direct(&mut self, pattern: &str, replacement: &str) -> Result<(), DomainError> {
         self.rules.push(RewriteRule::direct(pattern, replacement)?);
         Ok(())
     }
 
-    pub fn add_redirect_302(&mut self, pattern: &str, replacement: &str) -> Result<()> {
+    pub fn add_redirect_302(
+        &mut self,
+        pattern: &str,
+        replacement: &str,
+    ) -> Result<(), DomainError> {
         self.rules
             .push(RewriteRule::redirect_302(pattern, replacement)?);
         Ok(())
     }
 
-    pub fn add_redirect_307(&mut self, pattern: &str, replacement: &str) -> Result<()> {
+    pub fn add_redirect_307(
+        &mut self,
+        pattern: &str,
+        replacement: &str,
+    ) -> Result<(), DomainError> {
         self.rules
             .push(RewriteRule::redirect_307(pattern, replacement)?);
         Ok(())
@@ -430,9 +452,9 @@ impl HeaderRule {
         target: HeaderTarget,
         action: HeaderAction,
         pattern: &str,
-    ) -> Result<Self> {
-        let reg =
-            Regex::new(pattern).with_context(|| format!("Invalid URL pattern: '{pattern}'"))?;
+    ) -> Result<Self, DomainError> {
+        let reg = Regex::new(pattern)
+            .domain_context_with(|| format!("Invalid URL pattern: '{pattern}'"))?;
         Ok(Self {
             target,
             action,
@@ -597,8 +619,8 @@ impl MockResponse {
         }
     }
 
-    pub fn ok_json(value: &serde_json::Value) -> Result<Self> {
-        let body = serde_json::to_vec(value).context("serialize JSON mock body")?;
+    pub fn ok_json(value: &serde_json::Value) -> Result<Self, DomainError> {
+        let body = serde_json::to_vec(value).domain_context("serialize JSON mock body")?;
         let mut headers = HashMap::new();
         headers.insert(
             "Content-Type".to_string(),
@@ -685,8 +707,9 @@ impl MockResponseRule {
         status_code: u16,
         headers: HashMap<String, String>,
         body: Vec<u8>,
-    ) -> Result<Self> {
-        let reg = Regex::new(pattern).with_context(|| format!("Invalid regex: '{pattern}'"))?;
+    ) -> Result<Self, DomainError> {
+        let reg =
+            Regex::new(pattern).domain_context_with(|| format!("Invalid regex: '{pattern}'"))?;
         Ok(Self {
             url_pattern: reg,
             status_code,
@@ -695,14 +718,18 @@ impl MockResponseRule {
         })
     }
 
-    pub fn json(pattern: &str, status_code: u16, json_val: &serde_json::Value) -> Result<Self> {
-        let body = serde_json::to_vec(json_val).context("serialize JSON mock body")?;
+    pub fn json(
+        pattern: &str,
+        status_code: u16,
+        json_val: &serde_json::Value,
+    ) -> Result<Self, DomainError> {
+        let body = serde_json::to_vec(json_val).domain_context("serialize JSON mock body")?;
         let mut headers = HashMap::new();
         headers.insert("Content-Type".to_string(), "application/json".to_string());
         Self::new(pattern, status_code, headers, body)
     }
 
-    pub fn text(pattern: &str, status_code: u16, text_val: &str) -> Result<Self> {
+    pub fn text(pattern: &str, status_code: u16, text_val: &str) -> Result<Self, DomainError> {
         let mut headers = HashMap::new();
         headers.insert("Content-Type".to_string(), "text/plain".to_string());
         Self::new(pattern, status_code, headers, text_val.as_bytes().to_vec())
@@ -741,13 +768,18 @@ impl MockResponseEngine {
         pattern: &str,
         status_code: u16,
         json: &serde_json::Value,
-    ) -> Result<()> {
+    ) -> Result<(), DomainError> {
         self.rules
             .push(MockResponseRule::json(pattern, status_code, json)?);
         Ok(())
     }
 
-    pub fn add_text_mock(&mut self, pattern: &str, status_code: u16, text: &str) -> Result<()> {
+    pub fn add_text_mock(
+        &mut self,
+        pattern: &str,
+        status_code: u16,
+        text: &str,
+    ) -> Result<(), DomainError> {
         self.rules
             .push(MockResponseRule::text(pattern, status_code, text)?);
         Ok(())

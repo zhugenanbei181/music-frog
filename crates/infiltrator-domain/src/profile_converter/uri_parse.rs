@@ -1,23 +1,24 @@
 //! URI parsing implementations for proxy protocols.
 
+use crate::error::DomainError;
 use crate::profile_converter::{ProxyNodeItem, ReservedField, uri_parse_aux};
-use anyhow::{Result, anyhow};
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
 use url::Url;
 
 /// Parses any supported proxy URI string into a strongly-typed [`ProxyNodeItem`].
-pub fn parse_uri(raw_uri: &str) -> Result<ProxyNodeItem> {
+pub fn parse_uri(raw_uri: &str) -> Result<ProxyNodeItem, DomainError> {
     let uri = raw_uri.trim();
     if uri.is_empty() {
-        return Err(anyhow!("Empty URI string"));
+        return Err(DomainError::invalid("Empty URI string"));
     }
 
     if let Some(rest) = uri.strip_prefix("vmess://") {
         return uri_parse_aux::parse_vmess_uri(rest);
     }
 
-    let parsed = Url::parse(uri).map_err(|e| anyhow!("Invalid URL format: {e}"))?;
+    let parsed =
+        Url::parse(uri).map_err(|e| DomainError::invalid(format!("Invalid URL format: {e}")))?;
     let scheme = parsed.scheme();
 
     match scheme {
@@ -29,11 +30,13 @@ pub fn parse_uri(raw_uri: &str) -> Result<ProxyNodeItem> {
         "wireguard" | "wg" | "awg" | "amnezia-wg" => parse_wireguard(&parsed),
         "anytls" => parse_anytls(&parsed),
         "ssh" => uri_parse_aux::parse_ssh(&parsed),
-        _ => Err(anyhow!("Unsupported proxy scheme: {scheme}")),
+        _ => Err(DomainError::invalid(format!(
+            "Unsupported proxy scheme: {scheme}"
+        ))),
     }
 }
 
-fn parse_vless(parsed: &Url) -> Result<ProxyNodeItem> {
+fn parse_vless(parsed: &Url) -> Result<ProxyNodeItem, DomainError> {
     let name = parsed
         .fragment()
         .map(|f| urlencoding::decode(f).unwrap_or_default().to_string())
@@ -221,7 +224,7 @@ fn parse_vless(parsed: &Url) -> Result<ProxyNodeItem> {
     })
 }
 
-fn parse_hysteria2(parsed: &Url) -> Result<ProxyNodeItem> {
+fn parse_hysteria2(parsed: &Url) -> Result<ProxyNodeItem, DomainError> {
     let name = parsed
         .fragment()
         .map(|f| urlencoding::decode(f).unwrap_or_default().to_string())
@@ -350,7 +353,7 @@ fn parse_hysteria2(parsed: &Url) -> Result<ProxyNodeItem> {
     })
 }
 
-fn parse_tuic(parsed: &Url) -> Result<ProxyNodeItem> {
+fn parse_tuic(parsed: &Url) -> Result<ProxyNodeItem, DomainError> {
     let name = parsed
         .fragment()
         .map(|f| urlencoding::decode(f).unwrap_or_default().to_string())
@@ -483,7 +486,7 @@ fn parse_tuic(parsed: &Url) -> Result<ProxyNodeItem> {
     })
 }
 
-fn parse_wireguard(parsed: &Url) -> Result<ProxyNodeItem> {
+fn parse_wireguard(parsed: &Url) -> Result<ProxyNodeItem, DomainError> {
     let name = parsed
         .fragment()
         .map(|f| urlencoding::decode(f).unwrap_or_default().to_string())
@@ -667,7 +670,7 @@ fn parse_wireguard(parsed: &Url) -> Result<ProxyNodeItem> {
     })
 }
 
-fn parse_anytls(parsed: &Url) -> Result<ProxyNodeItem> {
+fn parse_anytls(parsed: &Url) -> Result<ProxyNodeItem, DomainError> {
     let name = parsed
         .fragment()
         .map(|f| urlencoding::decode(f).unwrap_or_default().to_string())

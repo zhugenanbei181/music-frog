@@ -2,14 +2,16 @@
 
 use crate::bootstrap::ensure_bootstrap_at;
 use crate::doctor::{DoctorEnv, explain_check, fix_with, list_checks, run_with};
+use crate::error::CoreError;
 use crate::{bootstrap, doctor};
 use infiltrator_contract::doctor::{
     BootstrapReport, BootstrapStep, DoctorCheckMeta, DoctorCheckResult, DoctorFixAction,
     DoctorFixReport, DoctorReport, DoctorStatus,
 };
+use infiltrator_domain::error::DomainFailureCategory;
 use infiltrator_ports::doctor::DoctorPort;
 use lurker_core_ports::error::PortError;
-use std::io::{Error, ErrorKind};
+use std::io::ErrorKind;
 use std::path::PathBuf;
 
 pub struct MihomoDoctor {
@@ -17,7 +19,7 @@ pub struct MihomoDoctor {
 }
 
 impl MihomoDoctor {
-    pub fn detect() -> anyhow::Result<Self> {
+    pub fn detect() -> Result<Self, CoreError> {
         Ok(Self {
             environment: DoctorEnv::detect()?,
         })
@@ -83,20 +85,14 @@ impl DoctorPort for MihomoDoctor {
     }
 }
 
-fn adapter_error(error: anyhow::Error) -> PortError {
-    if let Some(failure) = error.downcast_ref::<PortError>() {
-        return failure.clone();
-    }
-    let message = format!("{error:#}");
-    match error
-        .chain()
-        .find_map(|cause| cause.downcast_ref::<Error>())
-        .map(Error::kind)
-    {
-        Some(ErrorKind::PermissionDenied) => PortError::PermissionDenied(message),
-        Some(ErrorKind::NotFound) => PortError::NotFound(message),
-        Some(_) => PortError::Io(message),
-        None => PortError::Failed(message),
+fn adapter_error(error: CoreError) -> PortError {
+    let message = error.message().to_owned();
+    match (error.category(), error.io_kind()) {
+        (_, Some(ErrorKind::PermissionDenied)) => PortError::PermissionDenied(message),
+        (_, Some(ErrorKind::NotFound)) => PortError::NotFound(message),
+        (DomainFailureCategory::Io, _) => PortError::Io(message),
+        (DomainFailureCategory::NotFound, _) => PortError::NotFound(message),
+        _ => PortError::Failed(message),
     }
 }
 

@@ -5,22 +5,25 @@ use super::{
     NodeSortOrder, PipelineStats, PortFilterConfig, ServerFilterConfig, compute_node_fingerprint,
     extract_country_code, extract_multiplier, is_private_ip, normalize_country_code, strip_emojis,
 };
+use crate::error::DomainError;
 use crate::profile_converter::ProxyNodeItem;
-use anyhow::Result;
 use regex::Regex;
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::result;
 
 impl FilterStage {
-    pub fn regex_rename(pattern: &str, replacement: impl Into<String>) -> Result<Self> {
+    pub fn regex_rename(
+        pattern: &str,
+        replacement: impl Into<String>,
+    ) -> Result<Self, DomainError> {
         Ok(Self::RegexRename {
             pattern: Regex::new(pattern)?,
             replacement: replacement.into(),
         })
     }
 
-    pub fn multiplier_override(pattern: &str, multiplier: f64) -> Result<Self> {
+    pub fn multiplier_override(pattern: &str, multiplier: f64) -> Result<Self, DomainError> {
         Ok(Self::MultiplierOverride {
             pattern: Regex::new(pattern)?,
             multiplier,
@@ -45,7 +48,7 @@ impl FilterStage {
         Self::RemoveEmojis
     }
 
-    pub fn keyword_blacklist<I, S>(keywords: I) -> Result<Self>
+    pub fn keyword_blacklist<I, S>(keywords: I) -> Result<Self, DomainError>
     where
         I: IntoIterator<Item = S>,
         S: AsRef<str>,
@@ -57,7 +60,7 @@ impl FilterStage {
         Ok(Self::KeywordBlacklist { patterns })
     }
 
-    pub fn keyword_whitelist<I, S>(keywords: I) -> Result<Self>
+    pub fn keyword_whitelist<I, S>(keywords: I) -> Result<Self, DomainError>
     where
         I: IntoIterator<Item = S>,
         S: AsRef<str>,

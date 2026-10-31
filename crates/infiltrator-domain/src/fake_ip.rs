@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, anyhow};
+use crate::error::{DomainContext, DomainError};
 use serde::{Deserialize, Serialize};
 use serde_yaml_ng::{Mapping, Value};
 use std::cmp::{max, min};
@@ -201,9 +201,10 @@ pub struct FakeIpPool {
 
 impl FakeIpPool {
     /// Creates a new FakeIpPool for the given IPv4 CIDR (e.g., `198.18.0.1/16`).
-    pub fn new(cidr: &str) -> Result<Self> {
-        let (start, end) = parse_cidr_range_u32(cidr)
-            .ok_or_else(|| anyhow!("invalid CIDR for Fake-IP pool: {}", cidr))?;
+    pub fn new(cidr: &str) -> Result<Self, DomainError> {
+        let (start, end) = parse_cidr_range_u32(cidr).ok_or_else(|| {
+            DomainError::invalid(format!("invalid CIDR for Fake-IP pool: {}", cidr))
+        })?;
         // Start from start + 1 (reserve network IP), up to end - 1 (reserve broadcast)
         let pool_start = start.saturating_add(1);
         let pool_end = end.saturating_sub(1);
@@ -214,7 +215,10 @@ impl FakeIpPool {
         };
 
         if capacity == 0 {
-            return Err(anyhow!("CIDR range too small for Fake-IP pool: {}", cidr));
+            return Err(DomainError::invalid(format!(
+                "CIDR range too small for Fake-IP pool: {}",
+                cidr
+            )));
         }
 
         Ok(Self {
@@ -235,7 +239,7 @@ impl FakeIpPool {
     }
 
     /// Allocates or retrieves an existing Fake-IP for the specified domain.
-    pub fn allocate(&mut self, domain: &str) -> Result<String> {
+    pub fn allocate(&mut self, domain: &str) -> Result<String, DomainError> {
         let domain_lower = domain.trim().to_ascii_lowercase();
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -260,10 +264,9 @@ impl FakeIpPool {
             next
         } else {
             // Evict oldest from LRU queue
-            let evicted_ip = self
-                .lru_queue
-                .pop_front()
-                .ok_or_else(|| anyhow!("fake-ip pool exhaustion and no LRU candidate"))?;
+            let evicted_ip = self.lru_queue.pop_front().ok_or_else(|| {
+                DomainError::invalid("fake-ip pool exhaustion and no LRU candidate")
+            })?;
             if let Some(old_domain) = self.ip_to_domain.remove(&evicted_ip) {
                 self.domain_to_ip.remove(&old_domain);
             }
@@ -355,19 +358,19 @@ impl FakeIpPool {
     }
 
     /// Exports active mappings as a serialized JSON string.
-    pub fn export_mappings_json(&self) -> Result<String> {
+    pub fn export_mappings_json(&self) -> Result<String, DomainError> {
         let map: HashMap<String, String> = self
             .domain_to_ip
             .iter()
             .map(|(d, (ip, _))| (d.clone(), Ipv4Addr::from(*ip).to_string()))
             .collect();
-        serde_json::to_string_pretty(&map).context("serialize fake-ip mappings")
+        serde_json::to_string_pretty(&map).domain_context("serialize fake-ip mappings")
     }
 
     /// Imports mappings from JSON, merging with current pool without reallocating duplicate domains.
-    pub fn import_mappings_json(&mut self, json_str: &str) -> Result<usize> {
+    pub fn import_mappings_json(&mut self, json_str: &str) -> Result<usize, DomainError> {
         let map: HashMap<String, String> =
-            serde_json::from_str(json_str).context("parse fake-ip mappings JSON")?;
+            serde_json::from_str(json_str).domain_context("parse fake-ip mappings JSON")?;
         let mut count = 0;
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -467,34 +470,37 @@ fn match_domain_pattern(domain: &str, pattern: &str) -> bool {
 
 /// Apply a Fake-IP patch to an in-memory profile document for the shared
 /// atomic Apply transaction.
-pub fn apply_fake_ip_patch_to_yaml(content: &str, patch: FakeIpConfigPatch) -> Result<String> {
-    let mut doc: Value = serde_yaml_ng::from_str(content).context("parse profile yaml")?;
+pub fn apply_fake_ip_patch_to_yaml(
+    content: &str,
+    patch: FakeIpConfigPatch,
+) -> Result<String, DomainError> {
+    let mut doc: Value = serde_yaml_ng::from_str(content).domain_context("parse profile yaml")?;
     let mut config = extract_fake_ip_config_from_doc(&doc)?;
     config.apply_patch(patch);
     validate_fake_ip_config(&config)?;
     apply_fake_ip_config(&mut doc, &config)?;
-    serde_yaml_ng::to_string(&doc).context("serialize profile yaml")
+    serde_yaml_ng::to_string(&doc).domain_context("serialize profile yaml")
 }
 
-pub fn extract_fake_ip_config_from_doc(doc: &Value) -> Result<FakeIpConfig> {
+pub fn extract_fake_ip_config_from_doc(doc: &Value) -> Result<FakeIpConfig, DomainError> {
     let dns_value = doc
         .get("dns")
         .cloned()
         .unwrap_or(Value::Mapping(Mapping::new()));
-    let config = serde_yaml_ng::from_value(dns_value).context("decode fake-ip config")?;
+    let config = serde_yaml_ng::from_value(dns_value).domain_context("decode fake-ip config")?;
     Ok(config)
 }
 
-fn apply_fake_ip_config(doc: &mut Value, config: &FakeIpConfig) -> Result<()> {
+fn apply_fake_ip_config(doc: &mut Value, config: &FakeIpConfig) -> Result<(), DomainError> {
     let map = doc
         .as_mapping_mut()
-        .ok_or_else(|| anyhow!("profile config is not a mapping"))?;
+        .ok_or_else(|| DomainError::invalid("profile config is not a mapping"))?;
     let dns_entry = map
         .entry(Value::String("dns".to_string()))
         .or_insert_with(|| Value::Mapping(Mapping::new()));
     let dns_map = dns_entry
         .as_mapping_mut()
-        .ok_or_else(|| anyhow!("dns section is not a mapping"))?;
+        .ok_or_else(|| DomainError::invalid("dns section is not a mapping"))?;
 
     if let Some(range) = config.fake_ip_range.as_ref() {
         dns_map.insert(
@@ -503,7 +509,7 @@ fn apply_fake_ip_config(doc: &mut Value, config: &FakeIpConfig) -> Result<()> {
         );
     }
     if let Some(filter) = config.fake_ip_filter.as_ref() {
-        let value = serde_yaml_ng::to_value(filter).context("encode fake-ip-filter")?;
+        let value = serde_yaml_ng::to_value(filter).domain_context("encode fake-ip-filter")?;
         dns_map.insert(Value::String("fake-ip-filter".to_string()), value);
     }
     if let Some(mode) = config.fake_ip_filter_mode.as_ref() {
@@ -527,45 +533,60 @@ fn apply_fake_ip_config(doc: &mut Value, config: &FakeIpConfig) -> Result<()> {
     Ok(())
 }
 
-fn validate_fake_ip_config(config: &FakeIpConfig) -> Result<()> {
+fn validate_fake_ip_config(config: &FakeIpConfig) -> Result<(), DomainError> {
     if let Some(range) = config.fake_ip_range.as_ref() {
         if range.trim().is_empty() {
-            return Err(anyhow!("fake-ip-range is empty"));
+            return Err(DomainError::invalid("fake-ip-range is empty"));
         }
         if parse_cidr_range_u32(range).is_none() {
-            return Err(anyhow!("invalid fake-ip-range CIDR format: {}", range));
+            return Err(DomainError::invalid(format!(
+                "invalid fake-ip-range CIDR format: {}",
+                range
+            )));
         }
     }
     if let Some(mode) = config.fake_ip_filter_mode.as_ref() {
         let m = mode.trim().to_ascii_lowercase();
         if m != "blacklist" && m != "whitelist" && m != "rule" {
-            return Err(anyhow!("unsupported fake-ip-filter-mode: {}", mode));
+            return Err(DomainError::invalid(format!(
+                "unsupported fake-ip-filter-mode: {}",
+                mode
+            )));
         }
     }
     if let Some(filter) = config.fake_ip_filter.as_ref() {
         for entry in filter {
             if entry.trim().is_empty() {
-                return Err(anyhow!("fake-ip-filter contains empty entry"));
+                return Err(DomainError::invalid("fake-ip-filter contains empty entry"));
             }
         }
     }
     if let Some(ipv6_range) = config.ipv6_fake_ip_range.as_ref() {
         if ipv6_range.trim().is_empty() {
-            return Err(anyhow!("ipv6-fake-ip-range is empty"));
+            return Err(DomainError::invalid("ipv6-fake-ip-range is empty"));
         }
         // Basic IPv6 CIDR validation
         let parts: Vec<&str> = ipv6_range.trim().split('/').collect();
         if parts.len() != 2 {
-            return Err(anyhow!("invalid ipv6-fake-ip-range format: {}", ipv6_range));
+            return Err(DomainError::invalid(format!(
+                "invalid ipv6-fake-ip-range format: {}",
+                ipv6_range
+            )));
         }
         if parts[0].parse::<Ipv6Addr>().is_err() {
-            return Err(anyhow!("invalid IPv6 in ipv6-fake-ip-range: {}", parts[0]));
+            return Err(DomainError::invalid(format!(
+                "invalid IPv6 in ipv6-fake-ip-range: {}",
+                parts[0]
+            )));
         }
-        let prefix: u32 = parts[1]
-            .parse()
-            .map_err(|_| anyhow!("invalid IPv6 prefix length in ipv6-fake-ip-range"))?;
+        let prefix: u32 = parts[1].parse().map_err(|_| {
+            DomainError::invalid("invalid IPv6 prefix length in ipv6-fake-ip-range")
+        })?;
         if prefix > 128 {
-            return Err(anyhow!("IPv6 prefix length exceeds 128: {}", prefix));
+            return Err(DomainError::invalid(format!(
+                "IPv6 prefix length exceeds 128: {}",
+                prefix
+            )));
         }
     }
     Ok(())

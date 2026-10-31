@@ -1,7 +1,7 @@
 //! Subscription values, parsing, decoding, quota tracking, and security
 //! auditing for Mihomo / Clash.Meta.
 
-use anyhow::{Result, anyhow};
+use crate::error::DomainError;
 use flate2::read::{GzDecoder, ZlibDecoder};
 use serde::{Deserialize, Serialize};
 use std::io::Read;
@@ -13,7 +13,7 @@ use std::str::from_utf8;
 pub struct CheckedSubscriptionUrl(String);
 
 impl CheckedSubscriptionUrl {
-    pub fn parse(url: &str) -> Result<Self> {
+    pub fn parse(url: &str) -> Result<Self, DomainError> {
         validate_subscription_url(url)?;
         Ok(Self(url.trim().to_string()))
     }
@@ -576,16 +576,16 @@ impl SubscriptionSecurityAuditor {
     }
 }
 
-pub fn validate_subscription_url(url: &str) -> Result<()> {
-    let parsed = url::Url::parse(url).map_err(|_| anyhow!("订阅链接格式无效"))?;
+pub fn validate_subscription_url(url: &str) -> Result<(), DomainError> {
+    let parsed = url::Url::parse(url).map_err(|_| DomainError::invalid("订阅链接格式无效"))?;
     if !matches!(parsed.scheme(), "http" | "https") {
-        return Err(anyhow!("订阅链接仅支持 http/https 协议"));
+        return Err(DomainError::invalid("订阅链接仅支持 http/https 协议"));
     }
     if parsed.host_str().is_none_or(str::is_empty) {
-        return Err(anyhow!("订阅链接缺少主机名"));
+        return Err(DomainError::invalid("订阅链接缺少主机名"));
     }
     if !parsed.username().is_empty() || parsed.password().is_some() {
-        return Err(anyhow!("订阅链接不应内嵌用户名/密码"));
+        return Err(DomainError::invalid("订阅链接不应内嵌用户名/密码"));
     }
     Ok(())
 }
@@ -650,7 +650,10 @@ fn percent_decode(input: &str) -> String {
     String::from_utf8_lossy(&output).into_owned()
 }
 
-pub fn decode_subscription_bytes(bytes: Vec<u8>, encoding: Option<&str>) -> Result<Vec<u8>> {
+pub fn decode_subscription_bytes(
+    bytes: Vec<u8>,
+    encoding: Option<&str>,
+) -> Result<Vec<u8>, DomainError> {
     if bytes.is_empty() {
         return Ok(Vec::new());
     }

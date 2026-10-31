@@ -8,13 +8,13 @@
 //! The filter pipeline runs first (it reshapes the raw subscription's
 //! `proxies` sequence), then the mixin overlay deep-merges over the result.
 
+use crate::error::{DomainContext, DomainError};
 use crate::filter::{
     ContentDedupStrategy, DeduplicationStrategy, FilterRule, MultiplierRule, NodeMutatorConfig,
     NodeSortOrder, RenameRule, SubscriptionFilterPipeline,
 };
 use crate::mixin::{MixinConfig, merge_profile_with_config, merge_profile_with_config_fidelity};
 use crate::yaml_edit::SourceDoc;
-use anyhow::{Context, anyhow};
 use infiltrator_contract::subscription_filter_result::FilterReport;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -124,7 +124,7 @@ impl FilterSpec {
     /// patterns fail here with the offending pattern named, so a broken
     /// stored spec surfaces as an actionable error instead of silently
     /// passing every proxy through.
-    pub fn to_rule(&self) -> anyhow::Result<FilterRule> {
+    pub fn to_rule(&self) -> Result<FilterRule, DomainError> {
         if self
             .allowed_ports
             .iter()
@@ -132,38 +132,44 @@ impl FilterSpec {
             .flatten()
             .any(|port| *port == 0)
         {
-            anyhow::bail!("Filter ports must be between 1 and 65535");
+            return Err(DomainError::invalid(
+                "Filter ports must be between 1 and 65535",
+            ));
         }
         let mut include = Vec::new();
         for pattern in &self.include_keywords {
             include.push(
                 Regex::new(pattern)
-                    .with_context(|| format!("包含关键字不是有效的正则: {pattern}"))?,
+                    .domain_context_with(|| format!("包含关键字不是有效的正则: {pattern}"))?,
             );
         }
         let mut exclude = Vec::new();
         for pattern in &self.exclude_keywords {
             exclude.push(
                 Regex::new(pattern)
-                    .with_context(|| format!("排除关键字不是有效的正则: {pattern}"))?,
+                    .domain_context_with(|| format!("排除关键字不是有效的正则: {pattern}"))?,
             );
         }
         let mut renames = Vec::new();
         for spec in &self.rename_rules {
             renames.push(RenameRule {
-                pattern: Regex::new(&spec.pattern)
-                    .with_context(|| format!("重命名规则不是有效的正则: {}", spec.pattern))?,
+                pattern: Regex::new(&spec.pattern).domain_context_with(|| {
+                    format!("重命名规则不是有效的正则: {}", spec.pattern)
+                })?,
                 replacement: spec.replacement.clone(),
             });
         }
         let mut multipliers = Vec::new();
         for spec in &self.multiplier_rules {
             if !spec.multiplier.is_finite() || spec.multiplier <= 0.0 {
-                anyhow::bail!("Filter multiplier must be finite and greater than zero");
+                return Err(DomainError::invalid(
+                    "Filter multiplier must be finite and greater than zero",
+                ));
             }
             multipliers.push(MultiplierRule {
-                pattern: Regex::new(&spec.pattern)
-                    .with_context(|| format!("倍率重写规则不是有效的正则: {}", spec.pattern))?,
+                pattern: Regex::new(&spec.pattern).domain_context_with(|| {
+                    format!("倍率重写规则不是有效的正则: {}", spec.pattern)
+                })?,
                 multiplier: spec.multiplier,
             });
         }
@@ -249,7 +255,7 @@ pub fn options_path(config_dir: &Path, profile: &str) -> PathBuf {
 pub fn compose_content(
     content: &str,
     options: &ProfileOptions,
-) -> anyhow::Result<(String, Option<FilterReport>)> {
+) -> Result<(String, Option<FilterReport>), DomainError> {
     if options.is_empty() {
         return Ok((content.to_string(), None));
     }
@@ -261,7 +267,7 @@ pub fn compose_content(
         let pipeline = SubscriptionFilterPipeline::new(spec.to_rule()?);
         let (filtered, filtered_report) = pipeline
             .apply_to_yaml(&current)
-            .map_err(|error| anyhow!("订阅过滤管道执行失败: {error}"))?;
+            .map_err(|error| DomainError::invalid(format!("订阅过滤管道执行失败: {error}")))?;
         current = filtered;
         report = Some(filtered_report);
     }

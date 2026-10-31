@@ -1199,6 +1199,20 @@ timeout` 灵活入参，在未指定 timeout 时自动回读保持 `snapshot.pro
   - 待验证：统一全仓集成验证批次、Compose `AnimatedContent` 页面转场接线与四表面动效像素巡检。
   - 本机可执行动作：统一验证批次复跑并回填全局门禁身份；Compose 转场接线作为后续切片。
 
+## 12.61 domain / core 层 typed 错误收敛交付（2026-10-31 交付，1条 / 3pt）
+
+- [ ] ENG-002.2 [kind: refactor] [priority: P1] [points: 3] [owner: infiltrator-domain + infiltrator-core] [status: Integrated] domain / core 层的 `anyhow` 收敛到 typed 错误
+  - 产物：
+    - **Domain typed 错误**：`infiltrator-domain::error` 固化 `DomainFailureCategory`（Invalid/Parse/Serialize/Io/NotFound/Other 六类封闭集合，带中文标签与 `ALL` 枚举）、`DomainError`（类别 + 上下文消息，`std::error::Error`）、`DomainContext` 类别保持上下文 trait（`domain_context`/`domain_context_with`，typed 替代 `anyhow::Context`），以及 31 个文件从 `anyhow::Result`/`bail!`/`anyhow!` 到 `Result<T, DomainError>`/`DomainError::invalid/parse/serialize/io/not_found/other` 的迁移；
+    - **Core typed 错误**：`infiltrator-core::error` 固化 `CoreError`（复用 domain 六类失败类别 + `io_kind: Option<std::io::ErrorKind>` 经 `io_with_kind` 保留 IO 错误种类）与 `CoreContext` trait，27 个文件迁移完毕；每层仅保留唯一 `From<anyhow::Error>` 边界收敛，第三方错误各一个 `From` impl（io/serde_yaml_ng/serde_json/toml/url/base64/zip/DomainError/MihomoError/PortError/BackupError/reqwest）；
+    - **下游边界接线（同批一次完成）**：`infiltrator-desktop` storage 与 `infiltrator-admin` support 的宿主边界改 `Ok(..?)` typed 收敛；`infiltrator-android` FFI 以 `map_core_error`/`map_domain_error` 按 `DomainFailureCategory` 映射 `FfiErrorCode` 取代 anyhow downcast（`MihomoError` 细分类别在 core 边界已归并为 typed 类别）；`infiltrator-iced` `save_task`/`save_task_with_strategy`/`save_current_profile_content` 的 transform 错误泛型化（`E: Display`），不再要求调用方包 anyhow；
+    - **顺带修复**：`infiltrator-bevy-ui::app` 的 `ShellPlugin` 删除重复 `SpringAnimationPlugin` 注册（`WidgetsPlugin` 自 a5ae886 起已注册，重复添加 panic 为 FLPARITY-017 遗留回归）；
+    - **契约层零变化**：`infiltrator-contract`/`infiltrator-ports` 错误面 0 文件改动，对外错误面未因本条漂移。
+  - 验收：两个 crate 内 `anyhow` 引用只剩边界收敛处（`error.rs` 的 `From<anyhow::Error>` 与 `remote_profile_namespace_tests.rs` 中外部 `dav-client::DavClient` trait 签名强制的 `anyhow::Result`）；workspace nextest 全绿；结构门全绿。
+  - 当前证据（L）：workspace `cargo nextest run --no-fail-fast` 5723/5723 passed（15 skipped）；`cargo clippy --workspace --all-targets -- -D warnings` 0 error；`cargo fmt --all --check` 0 偏差；`check-structure.sh` 全绿（import hygiene 2871 文件 0 违规、line budget 0 违规、feature matrix 11 crates/34 features 全解析）；typed-state-guard 0 findings；implicit-state-audit 22 候选 0 undecided 0 open。
+  - 待验证：远端 `main-gate` CI 回执回填（本批统一验证批次已在本机全绿）。
+  - 本机可执行动作：push 后轮询 `main-gate` run 并回填 run ID。
+
 ## 12.60 自定义种子色与 Material 色彩风格选择 Core 切片交付（2026-10-31 交付，1条 / 5pt）
 
 - [ ] FLPARITY-036 [kind: visual] [priority: P1] [points: 5] [owner: infiltrator-contract + infiltrator-application + infiltrator-presentation + four UI surfaces] [status: Integrated] 自定义种子色与 Material 色彩风格选择 (FlClash v0.9.2 parity)

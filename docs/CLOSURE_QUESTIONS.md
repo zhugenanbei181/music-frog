@@ -36,6 +36,17 @@
 | 7 | 部分 | L | 文件级模块化完成（<=800/600 行全绿，全仓 mod.rs 清退至 0，严格遵照 foo.rs + foo/ 模式，并在 check-structure.sh 接入 mod-rs-guard 永久禁止）；隐式状态机语义审计 + 判决台账常驻（22 条候选逐条人工判决，未判决或 open 即门禁失败），16 处阶段表已改 typed enum + typed transition；Slint 拆分遵循 `SLINT-001` 单文件预算守卫；九个页面模型与两个共用基座成为页面状态的唯一 owner；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | 已补 `--locked` 与 main 守卫门禁（仅 fmt+guards，不编译）；修复 main-gate.yml 缺失 setup-python/Pillow 问题；扩大 Gradle JVM 堆至 6GB 并将三大 flavor 分离独立进程构建彻底解决 OOM；交付 Android CI 套件 flavor/模拟器裁剪与 Gradle 缓存复用；release 作业在构建前校验签名材料缺 secret 秒级失败；全套单测（三端 1,091 项）与结构门（`check-structure.sh` 40+ 项守卫）全绿；`cargo fmt --all --check` 100% 通过；版本号按身份改动一次升至 0.51.0 |
 
+## 最近一批问答（2026-10-31 domain/core typed 错误收敛交付批次）
+
+1. x86_64 与 aarch64 是否都支持？：typed 错误是纯 Rust 类型重写，无平台汇编或硬件绑定；workspace check/clippy/nextest 在本机 x86_64 全绿，交叉腿无新平台面 → 部分（L）。
+2. Windows / Linux / macOS 是否都支持？：错误收敛只在 domain/core 与下游边界接线，不影响平台能力面；Windows/macOS 安装包取证归属斗战胜佛既有条目 → 部分（L）。
+3. Android / iOS 是否都支持？：Android FFI 错误映射改 typed 类别映射（`map_core_error`/`map_domain_error`），UniFFI 导出面不变；iOS 保持显式 Unsupported → 部分（L）。
+4. 各个 UI 是否都接入了？：domain 31 文件 + core 27 文件迁移完毕；下游消费边界（desktop storage/admin、Android FFI、iced save_task）同批一次接线，无 anyhow 兼容双轨；四表面行为面不受影响 → 部分（L）。
+5. 该复用的是否都复用了？：core 复用 domain `DomainFailureCategory` 单一失败类别真源；`CoreError` 仅新增 `io_kind` IO 上下文；contract/ports 错误面 0 文件改动 → 部分（L）。
+6. 各处界面的功能是否都接入了？：ENG-002.2（3 pt）已交付并迁入过去佛 §12.61；本条为工程约束门禁，不新增业务功能面；workspace nextest 5723/5723 全绿 → 部分（L）。
+7. 各处界面是否模块化了？：每层一个 typed 错误枚举 + 类别保持 Context trait，取代散落 anyhow；`dns.rs` 压回 800 行预算内；line/import 守卫 0 违规；typed-state-guard 0 findings → 部分（L）。
+8. CI 打包是否最高效？：cargo fmt 0 偏差；clippy `--workspace --all-targets -D warnings` 0 error；workspace nextest 5723/5723 passed（15 skipped）；结构门（import hygiene 2871 文件 0 违规、line budget 0、feature matrix 全解析）全绿；typed-state/implicit-state 守卫全绿 → 部分（L/C）。
+
 ## 最近一批问答（2026-10-31 自定义种子色与 Material 色彩风格选择交付批次）
 
 1. x86_64 与 aarch64 是否都支持？：纯 Rust 契约（HCT 派生）与状态服务，无平台汇编或硬件绑定，全架构编译兼容 → 部分（L）。

@@ -1,12 +1,12 @@
 //! URI exporting implementations for proxy protocols.
 
+use crate::error::DomainError;
 use crate::profile_converter::ProxyNodeItem;
-use anyhow::{Result, anyhow};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde_json::json;
 
 /// Exports a [`ProxyNodeItem`] to a canonical URI string.
-pub fn export_uri(node: &ProxyNodeItem) -> Result<String> {
+pub fn export_uri(node: &ProxyNodeItem) -> Result<String, DomainError> {
     match node.node_type.as_str() {
         "ss" => export_shadowsocks(node),
         "trojan" => export_trojan(node),
@@ -17,14 +17,14 @@ pub fn export_uri(node: &ProxyNodeItem) -> Result<String> {
         "wireguard" | "wg" | "awg" | "amnezia-wg" => export_wireguard(node),
         "anytls" => export_anytls(node),
         "ssh" => export_ssh(node),
-        _ => Err(anyhow!(
+        _ => Err(DomainError::invalid(format!(
             "Unsupported export scheme for type: {}",
             node.node_type
-        )),
+        ))),
     }
 }
 
-fn export_shadowsocks(node: &ProxyNodeItem) -> Result<String> {
+fn export_shadowsocks(node: &ProxyNodeItem) -> Result<String, DomainError> {
     let cipher = node.cipher.as_deref().unwrap_or("aes-128-gcm");
     let password = node.password.as_deref().unwrap_or_default();
     let userinfo = STANDARD.encode(format!("{cipher}:{password}"));
@@ -74,7 +74,7 @@ fn export_shadowsocks(node: &ProxyNodeItem) -> Result<String> {
     Ok(uri)
 }
 
-fn export_trojan(node: &ProxyNodeItem) -> Result<String> {
+fn export_trojan(node: &ProxyNodeItem) -> Result<String, DomainError> {
     let password = node.password.as_deref().unwrap_or_default();
     let mut uri = format!(
         "trojan://{}@{}:{}",
@@ -118,7 +118,7 @@ fn export_trojan(node: &ProxyNodeItem) -> Result<String> {
     Ok(uri)
 }
 
-fn export_vless(node: &ProxyNodeItem) -> Result<String> {
+fn export_vless(node: &ProxyNodeItem) -> Result<String, DomainError> {
     let uuid = node.uuid.as_deref().unwrap_or_default();
     let mut uri = format!(
         "vless://{}@{}:{}",
@@ -186,7 +186,7 @@ fn export_vless(node: &ProxyNodeItem) -> Result<String> {
     Ok(uri)
 }
 
-fn export_vmess(node: &ProxyNodeItem) -> Result<String> {
+fn export_vmess(node: &ProxyNodeItem) -> Result<String, DomainError> {
     let mut payload = json!({
         "v": "2",
         "ps": node.name,
@@ -214,7 +214,7 @@ fn export_vmess(node: &ProxyNodeItem) -> Result<String> {
     Ok(format!("vmess://{}", encoded))
 }
 
-fn export_hysteria2(node: &ProxyNodeItem) -> Result<String> {
+fn export_hysteria2(node: &ProxyNodeItem) -> Result<String, DomainError> {
     let auth = node
         .auth
         .as_deref()
@@ -273,7 +273,7 @@ fn export_hysteria2(node: &ProxyNodeItem) -> Result<String> {
     Ok(uri)
 }
 
-fn export_tuic(node: &ProxyNodeItem) -> Result<String> {
+fn export_tuic(node: &ProxyNodeItem) -> Result<String, DomainError> {
     let uuid = node.uuid.as_deref().unwrap_or_default();
     let password = node.password.as_deref().unwrap_or_default();
     let mut uri = format!(
@@ -337,7 +337,7 @@ fn export_tuic(node: &ProxyNodeItem) -> Result<String> {
     Ok(uri)
 }
 
-fn export_wireguard(node: &ProxyNodeItem) -> Result<String> {
+fn export_wireguard(node: &ProxyNodeItem) -> Result<String, DomainError> {
     let pk = node.private_key.as_deref().unwrap_or_default();
     let scheme = if node.amnezia_opts.is_some() {
         "awg"
@@ -400,7 +400,7 @@ fn export_wireguard(node: &ProxyNodeItem) -> Result<String> {
     Ok(uri)
 }
 
-fn export_anytls(node: &ProxyNodeItem) -> Result<String> {
+fn export_anytls(node: &ProxyNodeItem) -> Result<String, DomainError> {
     let auth = node
         .password
         .as_deref()
@@ -445,7 +445,7 @@ fn export_anytls(node: &ProxyNodeItem) -> Result<String> {
     Ok(uri)
 }
 
-fn export_ssh(node: &ProxyNodeItem) -> Result<String> {
+fn export_ssh(node: &ProxyNodeItem) -> Result<String, DomainError> {
     let user = node.username.as_deref().unwrap_or("root");
     let mut uri = if let Some(ref pw) = node.password {
         format!(

@@ -53,11 +53,11 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 
 pub fn home_dir() -> anyhow::Result<PathBuf> {
-    host_io::home_dir()
+    Ok(host_io::home_dir()?)
 }
 
 pub async fn profile_store() -> anyhow::Result<Arc<dyn ProfileStore>> {
-    open().await
+    Ok(open().await?)
 }
 
 pub struct DesktopEngineProfileStores {
@@ -128,7 +128,7 @@ pub async fn endpoint_source() -> anyhow::Result<impl EndpointSource> {
 }
 
 pub async fn save_webdav_password(password: &str) -> anyhow::Result<()> {
-    host_io::save_webdav_password(password).await
+    Ok(host_io::save_webdav_password(password).await?)
 }
 
 pub async fn webdav_password() -> Option<String> {
@@ -145,11 +145,11 @@ pub fn subscription_source() -> impl SubscriptionSource {
 }
 
 pub fn sync() -> anyhow::Result<impl SyncPort> {
-    FileWebDavSync::current()
+    Ok(FileWebDavSync::current()?)
 }
 
 pub async fn snapshot_store() -> anyhow::Result<impl SnapshotStore> {
-    FileSnapshotStore::current().await
+    Ok(FileSnapshotStore::current().await?)
 }
 
 pub fn port_conflict() -> anyhow::Result<impl PortConflictPort> {
@@ -195,7 +195,7 @@ pub fn public_ip_probe() -> impl PublicIpProbe {
 }
 
 pub fn doctor() -> anyhow::Result<impl DoctorPort> {
-    MihomoDoctor::detect()
+    Ok(MihomoDoctor::detect()?)
 }
 
 pub fn profile_reset() -> impl ProfileResetPort {
@@ -211,11 +211,11 @@ pub fn speedtest_history_store() -> anyhow::Result<impl SpeedtestHistoryStore> {
 }
 
 pub fn app_routing_store() -> anyhow::Result<impl AppRoutingStore> {
-    FileAppRoutingStore::current()
+    Ok(FileAppRoutingStore::current()?)
 }
 
 pub async fn reset_profiles_to_default() -> anyhow::Result<()> {
-    profile_reset::reset_profiles_to_default().await
+    Ok(profile_reset::reset_profiles_to_default().await?)
 }
 
 #[cfg(test)]
@@ -223,7 +223,7 @@ pub async fn reset_profiles_to_default() -> anyhow::Result<()> {
 mod tests;
 
 pub fn factory_reset(home: &Path, configs_dir: Option<&Path>) -> anyhow::Result<Vec<String>> {
-    execute(home, configs_dir).map(|report| report.warnings)
+    Ok(execute(home, configs_dir).map(|report| report.warnings)?)
 }
 
 pub async fn load_profile_options(

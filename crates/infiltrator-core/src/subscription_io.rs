@@ -6,8 +6,8 @@
 //! HTTP client: response-body limits, retries, header extraction and request
 //! construction.
 
+use crate::error::CoreError;
 use crate::profile_options_io::apply_saved_options_for;
-use anyhow::{Result, anyhow};
 use infiltrator_domain::subscription;
 use infiltrator_domain::subscription::{
     CheckedSubscriptionUrl, SubscriptionFetchOptions, SubscriptionUserInfo, UserAgentCatalog,
@@ -134,7 +134,7 @@ async fn fetch_subscription_conditional(
     raw_client: &HttpClient,
     url: &CheckedSubscriptionUrl,
     headers: &ConditionalFetchHeaders,
-) -> Result<ConditionalDocumentResultIntermediate> {
+) -> Result<ConditionalDocumentResultIntermediate, CoreError> {
     let mut req = client.get(url.as_str());
     if let Some(ref ua) = headers.custom_user_agent {
         req = req.header("User-Agent", ua.as_str());
@@ -211,9 +211,15 @@ async fn fetch_subscription_conditional(
         let status = resp.status().as_u16();
         let diag = WafChallengeDetector::inspect_response(status, resp.headers(), "");
         if diag.is_challenge {
-            return Err(anyhow!("订阅请求被拦截 [{}]: {}", status, diag.summary));
+            return Err(CoreError::io(format!(
+                "订阅请求被拦截 [{}]: {}",
+                status, diag.summary
+            )));
         }
-        return Err(anyhow!("订阅链接请求失败: HTTP {}", resp.status()));
+        return Err(CoreError::io(format!(
+            "订阅链接请求失败: HTTP {}",
+            resp.status()
+        )));
     }
 
     let etag = resp
@@ -235,11 +241,12 @@ async fn fetch_subscription_conditional(
     let encoding = content_encoding(resp.headers());
     let bytes = read_body_capped(resp).await?;
     let decoded_bytes = decode_subscription_bytes(bytes, encoding)?;
-    let text = String::from_utf8(decoded_bytes).map_err(|e| anyhow!("UTF-8 编码错误: {}", e))?;
+    let text = String::from_utf8(decoded_bytes)
+        .map_err(|e| CoreError::parse(format!("UTF-8 编码错误: {}", e)))?;
 
     if subscription::WafChallengeDetector::is_html_disguised(&text) {
-        return Err(anyhow!(
-            "订阅返回了 HTML 网页内容而非节点配置，可能已被防爬/5秒盾拦截或套餐已过期"
+        return Err(CoreError::io(
+            "订阅返回了 HTML 网页内容而非节点配置，可能已被防爬/5秒盾拦截或套餐已过期",
         ));
     }
 
@@ -257,7 +264,7 @@ pub async fn fetch_subscription_text(
     client: &HttpClient,
     raw_client: &HttpClient,
     url: &CheckedSubscriptionUrl,
-) -> Result<String> {
+) -> Result<String, CoreError> {
     fetch_subscription_with_info(client, raw_client, url)
         .await
         .map(|(text, _)| text)
@@ -269,7 +276,7 @@ pub async fn fetch_subscription_with_info(
     client: &HttpClient,
     raw_client: &HttpClient,
     url: &CheckedSubscriptionUrl,
-) -> Result<(String, Option<SubscriptionUserInfo>)> {
+) -> Result<(String, Option<SubscriptionUserInfo>), CoreError> {
     let mut resp = client.get(url.as_str()).send().await?;
     if !resp.status().is_success() {
         resp = raw_client.get(url.as_str()).send().await?;
@@ -279,9 +286,15 @@ pub async fn fetch_subscription_with_info(
         let status = resp.status().as_u16();
         let diag = WafChallengeDetector::inspect_response(status, resp.headers(), "");
         if diag.is_challenge {
-            return Err(anyhow!("订阅请求被拦截 [{}]: {}", status, diag.summary));
+            return Err(CoreError::io(format!(
+                "订阅请求被拦截 [{}]: {}",
+                status, diag.summary
+            )));
         }
-        return Err(anyhow!("订阅链接请求失败: HTTP {}", resp.status()));
+        return Err(CoreError::io(format!(
+            "订阅链接请求失败: HTTP {}",
+            resp.status()
+        )));
     }
 
     let userinfo = resp
@@ -293,11 +306,12 @@ pub async fn fetch_subscription_with_info(
     let encoding = content_encoding(resp.headers());
     let bytes = read_body_capped(resp).await?;
     let decoded_bytes = decode_subscription_bytes(bytes, encoding)?;
-    let text = String::from_utf8(decoded_bytes).map_err(|e| anyhow!("UTF-8 编码错误: {}", e))?;
+    let text = String::from_utf8(decoded_bytes)
+        .map_err(|e| CoreError::parse(format!("UTF-8 编码错误: {}", e)))?;
 
     if subscription::WafChallengeDetector::is_html_disguised(&text) {
-        return Err(anyhow!(
-            "订阅返回了 HTML 网页内容而非节点配置，可能已被防爬/5秒盾拦截或套餐已过期"
+        return Err(CoreError::io(
+            "订阅返回了 HTML 网页内容而非节点配置，可能已被防爬/5秒盾拦截或套餐已过期",
         ));
     }
 
@@ -311,11 +325,11 @@ pub async fn fetch_subscription_advanced(
     raw_client: &HttpClient,
     url: &CheckedSubscriptionUrl,
     options: &SubscriptionFetchOptions,
-) -> Result<(String, Option<SubscriptionUserInfo>, Option<WafDiagnostic>)> {
+) -> Result<(String, Option<SubscriptionUserInfo>, Option<WafDiagnostic>), CoreError> {
     let mut candidate_urls = vec![url.clone()];
     candidate_urls.extend(options.fallback_mirrors.clone());
 
-    let mut last_err = anyhow!("无可用订阅地址");
+    let mut last_err = CoreError::not_found("无可用订阅地址");
 
     for cand_url in candidate_urls {
         let ua = if let Some(ref custom_ua) = options.user_agent {
@@ -345,7 +359,7 @@ pub async fn fetch_subscription_advanced(
                 let sample_bytes = read_body_capped(r).await.unwrap_or_default();
                 let sample_text = String::from_utf8_lossy(&sample_bytes);
                 let diag = WafChallengeDetector::inspect_response(status, &headers, &sample_text);
-                last_err = anyhow!("请求失败 HTTP {}: {}", status, diag.summary);
+                last_err = CoreError::io(format!("请求失败 HTTP {}: {}", status, diag.summary));
                 continue;
             }
             Err(e) => {
@@ -358,11 +372,11 @@ pub async fn fetch_subscription_advanced(
                     Ok(r) if r.status().is_success() => r,
                     Ok(r) => {
                         let status = r.status().as_u16();
-                        last_err = anyhow!("Raw 请求失败 HTTP {}", status);
+                        last_err = CoreError::io(format!("Raw 请求失败 HTTP {}", status));
                         continue;
                     }
                     Err(raw_e) => {
-                        last_err = anyhow!("网络连接失败: {} / {}", e, raw_e);
+                        last_err = CoreError::io(format!("网络连接失败: {} / {}", e, raw_e));
                         continue;
                     }
                 }
@@ -378,12 +392,12 @@ pub async fn fetch_subscription_advanced(
         let encoding = content_encoding(resp.headers());
         let bytes = read_body_capped(resp).await?;
         let decoded_bytes = decode_subscription_bytes(bytes, encoding)?;
-        let text =
-            String::from_utf8(decoded_bytes).map_err(|e| anyhow!("UTF-8 编码错误: {}", e))?;
+        let text = String::from_utf8(decoded_bytes)
+            .map_err(|e| CoreError::parse(format!("UTF-8 编码错误: {}", e)))?;
 
         if subscription::WafChallengeDetector::is_html_disguised(&text) {
             let diag = WafChallengeDetector::inspect_response(200, &HeaderMap::new(), &text);
-            last_err = anyhow!("订阅返回了网页 HTML 内容: {}", diag.summary);
+            last_err = CoreError::invalid(format!("订阅返回了网页 HTML 内容: {}", diag.summary));
             continue;
         }
 
@@ -408,21 +422,21 @@ fn content_encoding(headers: &HeaderMap) -> Option<&'static str> {
         })
 }
 
-async fn read_body_capped(resp: Response) -> Result<Vec<u8>> {
+async fn read_body_capped(resp: Response) -> Result<Vec<u8>, CoreError> {
     if let Some(len) = resp.content_length()
         && len as usize > MAX_SUBSCRIPTION_BYTES
     {
-        return Err(anyhow!(
+        return Err(CoreError::invalid(format!(
             "订阅内容超过大小上限 ({MAX_SUBSCRIPTION_BYTES} 字节)"
-        ));
+        )));
     }
     let mut resp = resp;
     let mut buffer = Vec::new();
     while let Some(chunk) = resp.chunk().await? {
         if buffer.len().saturating_add(chunk.len()) > MAX_SUBSCRIPTION_BYTES {
-            return Err(anyhow!(
+            return Err(CoreError::invalid(format!(
                 "订阅内容超过大小上限 ({MAX_SUBSCRIPTION_BYTES} 字节)"
-            ));
+            )));
         }
         buffer.extend_from_slice(&chunk);
     }

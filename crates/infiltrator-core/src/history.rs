@@ -7,12 +7,12 @@
 //! transaction, so restores inherit validation, atomic write, readiness and
 //! rollback — never a raw file overwrite.
 
+use crate::error::CoreError;
 use chrono::Utc;
 use infiltrator_domain::backup;
 use infiltrator_domain::snapshots::{SnapshotMeta, content_hash, parse_snapshot_name};
 use lurker_core_contract::identity::EngineId;
 use mihomo_config::manager::paths::scope_config_dir;
-use mihomo_driver::error::{MihomoError, Result};
 use std::cmp::Reverse;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
@@ -26,8 +26,11 @@ pub(crate) fn snapshot_dir(config_dir: &Path, profile: &str) -> PathBuf {
     config_dir.join("snapshots").join(profile)
 }
 
-fn engine_config_dir(engine_id: &EngineId, config_root_or_scoped: &Path) -> Result<PathBuf> {
-    scope_config_dir(config_root_or_scoped, engine_id)
+fn engine_config_dir(
+    engine_id: &EngineId,
+    config_root_or_scoped: &Path,
+) -> Result<PathBuf, CoreError> {
+    scope_config_dir(config_root_or_scoped, engine_id).map_err(CoreError::from)
 }
 
 /// Persist `content` as the newest snapshot of `profile`.
@@ -40,7 +43,7 @@ pub async fn save_snapshot(
     config_dir: &Path,
     profile: &str,
     content: &str,
-) -> Result<SnapshotMeta> {
+) -> Result<SnapshotMeta, CoreError> {
     let config_dir = engine_config_dir(engine_id, config_dir)?;
     let dir = snapshot_dir(&config_dir, profile);
     create_dir_all(&dir).await?;
@@ -64,7 +67,7 @@ pub async fn list_snapshots(
     engine_id: &EngineId,
     config_dir: &Path,
     profile: &str,
-) -> Result<Vec<SnapshotMeta>> {
+) -> Result<Vec<SnapshotMeta>, CoreError> {
     let config_dir = engine_config_dir(engine_id, config_dir)?;
     let dir = snapshot_dir(&config_dir, profile);
     let mut out = Vec::new();
@@ -72,7 +75,7 @@ pub async fn list_snapshots(
         Ok(entries) => entries,
         // No snapshots yet is not an error — the list is just empty.
         Err(err) if err.kind() == ErrorKind::NotFound => return Ok(out),
-        Err(err) => return Err(MihomoError::from(err)),
+        Err(err) => return Err(CoreError::io(err.to_string())),
     };
     while let Some(entry) = entries.next_entry().await? {
         let name = entry.file_name().to_string_lossy().to_string();
@@ -93,8 +96,8 @@ pub async fn list_snapshots(
 
 /// Read the content of a snapshot previously listed by
 /// [`list_snapshots`].
-pub async fn read_snapshot(path: &Path) -> Result<String> {
-    read_to_string(path).await.map_err(MihomoError::from)
+pub async fn read_snapshot(path: &Path) -> Result<String, CoreError> {
+    read_to_string(path).await.map_err(CoreError::from)
 }
 
 /// DUAL-09-07: prune `profile`'s history with the shared smart policy —
@@ -109,7 +112,7 @@ pub async fn prune_snapshots(
     config_dir: &Path,
     profile: &str,
     keep: usize,
-) -> Result<usize> {
+) -> Result<usize, CoreError> {
     let mut snapshots = list_snapshots(engine_id, config_dir, profile).await?;
     snapshots.sort_by_key(|meta| Reverse(meta.timestamp));
     let doomed = backup::prune_snapshots(&snapshots, keep);

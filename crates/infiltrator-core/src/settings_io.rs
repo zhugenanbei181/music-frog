@@ -1,4 +1,4 @@
-use anyhow::anyhow;
+use crate::error::CoreError;
 use infiltrator_contract::runtime_settings::{
     DEFAULT_RUNTIME_PROBE_TIMEOUT_MS, DEFAULT_RUNTIME_PROBE_URL, RuntimeProbeSettings,
 };
@@ -35,11 +35,14 @@ pub async fn load_webdav_password<S: SecureStore>(store: &S) -> Option<String> {
 
 /// 把 WebDAV 密码写入 keyring。失败返回 `Err`，由调用方决定是否中断
 /// （保存路径应当中断，避免「文件已更新而凭据丢失」的不一致）。
-pub async fn save_webdav_password<S: SecureStore>(store: &S, password: &str) -> anyhow::Result<()> {
+pub async fn save_webdav_password<S: SecureStore>(
+    store: &S,
+    password: &str,
+) -> Result<(), CoreError> {
     store
         .set(WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY, password)
         .await
-        .map_err(|err| anyhow!("webdav password keyring set failed: {err}"))
+        .map_err(|err| CoreError::io(format!("webdav password keyring set failed: {err}")))
 }
 
 /// 清除 keyring 中的 WebDAV 密码。条目不存在或删除失败只告警（幂等清空：
@@ -95,15 +98,20 @@ fn legacy_delay_sort_key(value: &str) -> Option<&'static str> {
 
 /// Convert the unversioned settings layout to the current typed schema.
 /// Historical keys are read only here and are removed before AppSettings is decoded.
-fn migrate_runtime_settings(value: &mut toml::Value) -> anyhow::Result<bool> {
+fn migrate_runtime_settings(value: &mut toml::Value) -> Result<bool, CoreError> {
     let table = value
         .as_table_mut()
-        .ok_or_else(|| anyhow!("settings document root must be a TOML table"))?;
+        .ok_or_else(|| CoreError::invalid("settings document root must be a TOML table"))?;
     let version = match table.get("settings_schema_version") {
         None => 1,
-        Some(toml::Value::Integer(version)) => u32::try_from(*version)
-            .map_err(|_| anyhow!("settings schema version is outside the supported range"))?,
-        Some(_) => return Err(anyhow!("settings schema version must be an integer")),
+        Some(toml::Value::Integer(version)) => u32::try_from(*version).map_err(|_| {
+            CoreError::invalid("settings schema version is outside the supported range")
+        })?,
+        Some(_) => {
+            return Err(CoreError::invalid(
+                "settings schema version must be an integer",
+            ));
+        }
     };
 
     match version {
@@ -117,8 +125,8 @@ fn migrate_runtime_settings(value: &mut toml::Value) -> anyhow::Result<bool> {
                         .any(|key| panel.contains_key(*key))
                 })
             {
-                return Err(anyhow!(
-                    "current settings schema contains retired runtime-panel keys"
+                return Err(CoreError::invalid(
+                    "current settings schema contains retired runtime-panel keys",
                 ));
             }
             Ok(false)
@@ -128,33 +136,48 @@ fn migrate_runtime_settings(value: &mut toml::Value) -> anyhow::Result<bool> {
                 .entry("runtime_panel")
                 .or_insert_with(|| toml::Value::Table(Map::new()))
                 .as_table_mut()
-                .ok_or_else(|| anyhow!("runtime_panel settings must be a TOML table"))?;
+                .ok_or_else(|| CoreError::invalid("runtime_panel settings must be a TOML table"))?;
 
             if panel.contains_key("probe_settings") || panel.contains_key("delay_sort_order") {
-                return Err(anyhow!(
-                    "unversioned settings mix legacy and typed runtime settings"
+                return Err(CoreError::invalid(
+                    "unversioned settings mix legacy and typed runtime settings",
                 ));
             }
 
             let url = match panel.remove("delay_test_url") {
                 None => DEFAULT_RUNTIME_PROBE_URL.to_owned(),
                 Some(toml::Value::String(value)) => value,
-                Some(_) => return Err(anyhow!("legacy probe URL must be a string")),
+                Some(_) => return Err(CoreError::invalid("legacy probe URL must be a string")),
             };
             let timeout_ms = match panel.remove("delay_timeout_ms") {
                 None => DEFAULT_RUNTIME_PROBE_TIMEOUT_MS,
-                Some(toml::Value::Integer(value)) => u32::try_from(value)
-                    .map_err(|_| anyhow!("legacy probe timeout must be a positive u32"))?,
-                Some(_) => return Err(anyhow!("legacy probe timeout must be an integer")),
+                Some(toml::Value::Integer(value)) => u32::try_from(value).map_err(|_| {
+                    CoreError::invalid("legacy probe timeout must be a positive u32")
+                })?,
+                Some(_) => {
+                    return Err(CoreError::invalid(
+                        "legacy probe timeout must be an integer",
+                    ));
+                }
             };
-            let probe = RuntimeProbeSettings::new(url, timeout_ms)
-                .map_err(|error| anyhow!("invalid legacy runtime probe settings: {error}"))?;
+            let probe = RuntimeProbeSettings::new(url, timeout_ms).map_err(|error| {
+                CoreError::invalid(format!("invalid legacy runtime probe settings: {error}"))
+            })?;
 
             let sort_order = match panel.remove("delay_sort") {
                 None => "latency_ascending",
-                Some(toml::Value::String(value)) => legacy_delay_sort_key(&value)
-                    .ok_or_else(|| anyhow!("unknown legacy runtime delay sort key: {value}"))?,
-                Some(_) => return Err(anyhow!("legacy runtime delay sort key must be a string")),
+                Some(toml::Value::String(value)) => {
+                    legacy_delay_sort_key(&value).ok_or_else(|| {
+                        CoreError::invalid(format!(
+                            "unknown legacy runtime delay sort key: {value}"
+                        ))
+                    })?
+                }
+                Some(_) => {
+                    return Err(CoreError::invalid(
+                        "legacy runtime delay sort key must be a string",
+                    ));
+                }
             };
             let mut probe_table = Map::new();
             probe_table.insert(
@@ -176,37 +199,39 @@ fn migrate_runtime_settings(value: &mut toml::Value) -> anyhow::Result<bool> {
             );
             Ok(true)
         }
-        other => Err(anyhow!(
+        other => Err(CoreError::invalid(format!(
             "settings schema version {other} is unsupported; current version is {CURRENT_SETTINGS_SCHEMA_VERSION}"
-        )),
+        ))),
     }
 }
 
-fn decode_settings_document(mut value: toml::Value) -> anyhow::Result<(AppSettings, bool)> {
+fn decode_settings_document(mut value: toml::Value) -> Result<(AppSettings, bool), CoreError> {
     let migrated = migrate_runtime_settings(&mut value)?;
     let settings = value
         .try_into::<AppSettings>()
-        .map_err(|error| anyhow!("invalid typed settings document: {error}"))?;
+        .map_err(|error| CoreError::invalid(format!("invalid typed settings document: {error}")))?;
     Ok((settings, migrated))
 }
 
-pub(crate) fn parse_settings_toml(content: &str) -> anyhow::Result<(AppSettings, bool)> {
+pub(crate) fn parse_settings_toml(content: &str) -> Result<(AppSettings, bool), CoreError> {
     let value = toml::from_str(content)?;
     decode_settings_document(value)
 }
 
-fn migrate_runtime_settings_json(value: &mut serde_json::Value) -> anyhow::Result<bool> {
+fn migrate_runtime_settings_json(value: &mut serde_json::Value) -> Result<bool, CoreError> {
     let root = value
         .as_object_mut()
-        .ok_or_else(|| anyhow!("settings document root must be a JSON object"))?;
+        .ok_or_else(|| CoreError::invalid("settings document root must be a JSON object"))?;
     let version = match root.get("settings_schema_version") {
         None => 1,
         Some(value) => u32::try_from(
             value
                 .as_u64()
-                .ok_or_else(|| anyhow!("settings schema version must be an integer"))?,
+                .ok_or_else(|| CoreError::invalid("settings schema version must be an integer"))?,
         )
-        .map_err(|_| anyhow!("settings schema version is outside the supported range"))?,
+        .map_err(|_| {
+            CoreError::invalid("settings schema version is outside the supported range")
+        })?,
     };
     match version {
         CURRENT_SETTINGS_SCHEMA_VERSION => {
@@ -219,8 +244,8 @@ fn migrate_runtime_settings_json(value: &mut serde_json::Value) -> anyhow::Resul
                         .any(|key| panel.contains_key(*key))
                 })
             {
-                return Err(anyhow!(
-                    "current settings schema contains retired runtime-panel keys"
+                return Err(CoreError::invalid(
+                    "current settings schema contains retired runtime-panel keys",
                 ));
             }
             Ok(false)
@@ -230,33 +255,42 @@ fn migrate_runtime_settings_json(value: &mut serde_json::Value) -> anyhow::Resul
                 .entry("runtime_panel")
                 .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()))
                 .as_object_mut()
-                .ok_or_else(|| anyhow!("runtime_panel settings must be a JSON object"))?;
+                .ok_or_else(|| {
+                    CoreError::invalid("runtime_panel settings must be a JSON object")
+                })?;
             if panel.contains_key("probe_settings") || panel.contains_key("delay_sort_order") {
-                return Err(anyhow!(
-                    "unversioned settings mix legacy and typed runtime settings"
+                return Err(CoreError::invalid(
+                    "unversioned settings mix legacy and typed runtime settings",
                 ));
             }
             let url = match panel.remove("delay_test_url") {
                 None => DEFAULT_RUNTIME_PROBE_URL.to_owned(),
                 Some(serde_json::Value::String(value)) => value,
-                Some(_) => return Err(anyhow!("legacy probe URL must be a string")),
+                Some(_) => return Err(CoreError::invalid("legacy probe URL must be a string")),
             };
             let timeout_ms = match panel.remove("delay_timeout_ms") {
                 None => DEFAULT_RUNTIME_PROBE_TIMEOUT_MS,
-                Some(value) => u32::try_from(
-                    value
-                        .as_u64()
-                        .ok_or_else(|| anyhow!("legacy probe timeout must be a positive u32"))?,
-                )
-                .map_err(|_| anyhow!("legacy probe timeout must be a positive u32"))?,
+                Some(value) => u32::try_from(value.as_u64().ok_or_else(|| {
+                    CoreError::invalid("legacy probe timeout must be a positive u32")
+                })?)
+                .map_err(|_| CoreError::invalid("legacy probe timeout must be a positive u32"))?,
             };
-            let settings = RuntimeProbeSettings::new(url, timeout_ms)
-                .map_err(|error| anyhow!("invalid legacy runtime probe settings: {error}"))?;
+            let settings = RuntimeProbeSettings::new(url, timeout_ms).map_err(|error| {
+                CoreError::invalid(format!("invalid legacy runtime probe settings: {error}"))
+            })?;
             let sort_order = match panel.remove("delay_sort") {
                 None => "latency_ascending",
                 Some(serde_json::Value::String(value)) => legacy_delay_sort_key(&value)
-                    .ok_or_else(|| anyhow!("unknown legacy runtime delay sort key: {value}"))?,
-                Some(_) => return Err(anyhow!("legacy runtime delay sort key must be a string")),
+                    .ok_or_else(|| {
+                        CoreError::invalid(format!(
+                            "unknown legacy runtime delay sort key: {value}"
+                        ))
+                    })?,
+                Some(_) => {
+                    return Err(CoreError::invalid(
+                        "legacy runtime delay sort key must be a string",
+                    ));
+                }
             };
             panel.insert(
                 "probe_settings".to_owned(),
@@ -275,20 +309,20 @@ fn migrate_runtime_settings_json(value: &mut serde_json::Value) -> anyhow::Resul
             );
             Ok(true)
         }
-        other => Err(anyhow!(
+        other => Err(CoreError::invalid(format!(
             "settings schema version {other} is unsupported; current version is {CURRENT_SETTINGS_SCHEMA_VERSION}"
-        )),
+        ))),
     }
 }
 
-fn decode_settings_json(mut value: serde_json::Value) -> anyhow::Result<(AppSettings, bool)> {
+fn decode_settings_json(mut value: serde_json::Value) -> Result<(AppSettings, bool), CoreError> {
     let migrated = migrate_runtime_settings_json(&mut value)?;
     let settings = serde_json::from_value(value)
-        .map_err(|error| anyhow!("invalid typed settings document: {error}"))?;
+        .map_err(|error| CoreError::invalid(format!("invalid typed settings document: {error}")))?;
     Ok((settings, migrated))
 }
 
-pub async fn load_settings(path: &Path) -> anyhow::Result<AppSettings> {
+pub async fn load_settings(path: &Path) -> Result<AppSettings, CoreError> {
     load_settings_with_store(path, &DefaultCredentialStore::default()).await
 }
 
@@ -297,7 +331,7 @@ pub async fn load_settings(path: &Path) -> anyhow::Result<AppSettings> {
 pub async fn load_settings_with_store<S: SecureStore>(
     path: &Path,
     store: &S,
-) -> anyhow::Result<AppSettings> {
+) -> Result<AppSettings, CoreError> {
     if path.exists() {
         let content = read_to_string(path).await?;
         let (mut settings, migrated) = parse_settings_toml(&content)?;
@@ -330,7 +364,7 @@ pub async fn load_settings_with_store<S: SecureStore>(
 /// UI 水合专用：[`load_settings`] 之后把 keyring 中的 WebDAV 密码填回
 /// `settings.webdav.password` 内存镜像（iced 的 `webdav_pass` 域、需要完整
 /// 凭据的同步调用方）。password 序列化被跳过，因此水合值不会落盘。
-pub async fn load_settings_hydrated(path: &Path) -> anyhow::Result<AppSettings> {
+pub async fn load_settings_hydrated(path: &Path) -> Result<AppSettings, CoreError> {
     load_settings_hydrated_with_store(path, &DefaultCredentialStore::default()).await
 }
 
@@ -338,7 +372,7 @@ pub async fn load_settings_hydrated(path: &Path) -> anyhow::Result<AppSettings> 
 pub async fn load_settings_hydrated_with_store<S: SecureStore>(
     path: &Path,
     store: &S,
-) -> anyhow::Result<AppSettings> {
+) -> Result<AppSettings, CoreError> {
     let mut settings = load_settings_with_store(path, store).await?;
     if settings.webdav.password.is_empty()
         && let Some(password) = load_webdav_password(store).await
@@ -348,7 +382,7 @@ pub async fn load_settings_hydrated_with_store<S: SecureStore>(
     Ok(settings)
 }
 
-pub async fn save_settings(path: &Path, settings: &AppSettings) -> anyhow::Result<()> {
+pub async fn save_settings(path: &Path, settings: &AppSettings) -> Result<(), CoreError> {
     if let Some(parent) = path.parent() {
         create_dir_all(parent).await?;
     }
@@ -357,9 +391,9 @@ pub async fn save_settings(path: &Path, settings: &AppSettings) -> anyhow::Resul
     Ok(())
 }
 
-pub fn settings_path(base_dir: &Path) -> anyhow::Result<PathBuf> {
+pub fn settings_path(base_dir: &Path) -> Result<PathBuf, CoreError> {
     if base_dir.as_os_str().is_empty() {
-        return Err(anyhow!("settings base dir is empty"));
+        return Err(CoreError::invalid("settings base dir is empty"));
     }
     Ok(base_dir.join("settings.toml"))
 }
@@ -368,7 +402,7 @@ pub fn settings_path(base_dir: &Path) -> anyhow::Result<PathBuf> {
 /// configs 目录跟随 settings 的 `configs_dir` 字段（解析优先级见
 /// `mihomo_config::manager::paths::resolve_configs_dir_in`）。
 /// 全部业务门面的 ConfigManager 构造都必须经由这里，禁止再自行 `new()`。
-pub async fn app_config_manager() -> anyhow::Result<ConfigManager<DefaultCredentialStore>> {
+pub async fn app_config_manager() -> Result<ConfigManager<DefaultCredentialStore>, CoreError> {
     let home = get_home_dir()?;
     app_config_manager_in(&home).await
 }
@@ -376,7 +410,7 @@ pub async fn app_config_manager() -> anyhow::Result<ConfigManager<DefaultCredent
 /// Product reset uses a distinct initialization policy so it can reach and
 /// resume its durable intent before ordinary profile mutations are enabled.
 pub async fn app_config_manager_for_profile_reset()
--> anyhow::Result<ConfigManager<DefaultCredentialStore>> {
+-> Result<ConfigManager<DefaultCredentialStore>, CoreError> {
     let home = get_home_dir()?;
     app_config_manager_in_with_policy(
         &home,
@@ -389,7 +423,7 @@ pub async fn app_config_manager_for_profile_reset()
 /// settings 从 `<home>/settings.toml` 读取。
 pub async fn app_config_manager_in(
     home: &Path,
-) -> anyhow::Result<ConfigManager<DefaultCredentialStore>> {
+) -> Result<ConfigManager<DefaultCredentialStore>, CoreError> {
     app_config_manager_in_with_policy(home, ConfigManagerInitializationPolicy::Standard).await
 }
 
@@ -402,7 +436,7 @@ enum ConfigManagerInitializationPolicy {
 async fn app_config_manager_in_with_policy(
     home: &Path,
     policy: ConfigManagerInitializationPolicy,
-) -> anyhow::Result<ConfigManager<DefaultCredentialStore>> {
+) -> Result<ConfigManager<DefaultCredentialStore>, CoreError> {
     let settings = load_settings(&settings_path(home)?).await?;
     let manager = ConfigManager::with_home_configs_dir_and_store(
         home.to_path_buf(),

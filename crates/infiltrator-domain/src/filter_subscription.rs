@@ -5,7 +5,7 @@ use super::{
     SubscriptionFilterPipeline, extract_country_code, extract_multiplier, is_private_ip,
     normalize_country_code, strip_emojis,
 };
-use anyhow::{Context, Result};
+use crate::error::{DomainContext, DomainError};
 use infiltrator_contract::subscription_filter_result::FilterReport;
 use regex::Regex;
 use serde_yaml_ng::Value;
@@ -17,8 +17,9 @@ impl SubscriptionFilterPipeline {
         Self { rule }
     }
 
-    pub fn apply_to_yaml(&self, yaml_str: &str) -> Result<(String, FilterReport)> {
-        let mut doc: Value = serde_yaml_ng::from_str(yaml_str).context("Failed to parse YAML")?;
+    pub fn apply_to_yaml(&self, yaml_str: &str) -> Result<(String, FilterReport), DomainError> {
+        let mut doc: Value =
+            serde_yaml_ng::from_str(yaml_str).domain_context("Failed to parse YAML")?;
         let mut report = FilterReport::default();
 
         if let Some(proxies_seq) = doc.get_mut("proxies").and_then(Value::as_sequence_mut) {

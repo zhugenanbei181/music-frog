@@ -7,7 +7,7 @@
 //! single domain into a scalar keeps the written profile identical to the
 //! common case, and grouping into a list preserves multi-address domains.
 
-use anyhow::{Context, Result, anyhow};
+use crate::error::{DomainContext, DomainError};
 use infiltrator_contract::dns_hosts::{DnsHostEntry, validate_hosts};
 use serde_json::value;
 use serde_yaml_ng::Value;
@@ -18,9 +18,13 @@ use std::collections::{BTreeMap, BTreeSet};
 /// One row for a domain writes a scalar string; several rows write a list in
 /// first-seen order. Later duplicates of the same `(domain, address)` pair are
 /// dropped so the editor cannot produce a repeated list entry.
-pub fn hosts_map_from_entries(entries: &[DnsHostEntry]) -> Result<BTreeMap<String, value::Value>> {
+pub fn hosts_map_from_entries(
+    entries: &[DnsHostEntry],
+) -> Result<BTreeMap<String, value::Value>, DomainError> {
     if let Some(issue) = validate_hosts(entries).first() {
-        return Err(anyhow!("invalid Hosts mapping: {issue:?}"));
+        return Err(DomainError::invalid(format!(
+            "invalid Hosts mapping: {issue:?}"
+        )));
     }
     let mut grouped: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for entry in entries {
@@ -52,11 +56,13 @@ pub fn hosts_map_from_entries(entries: &[DnsHostEntry]) -> Result<BTreeMap<Strin
 ///
 /// Non-string list members (a shape the host would reject) are skipped rather
 /// than rendered as a fabricated address.
-pub fn hosts_entries_from_map(map: &BTreeMap<String, value::Value>) -> Result<Vec<DnsHostEntry>> {
+pub fn hosts_entries_from_map(
+    map: &BTreeMap<String, value::Value>,
+) -> Result<Vec<DnsHostEntry>, DomainError> {
     let identities: BTreeSet<_> = map.keys().map(|key| key.to_lowercase()).collect();
     if identities.len() != map.len() {
-        return Err(anyhow!(
-            "Hosts contains keys with the same case-insensitive identity"
+        return Err(DomainError::invalid(
+            "Hosts contains keys with the same case-insensitive identity",
         ));
     }
     let mut entries = Vec::new();
@@ -74,39 +80,43 @@ pub fn hosts_entries_from_map(map: &BTreeMap<String, value::Value>) -> Result<Ve
                             address: address.clone(),
                         });
                     } else {
-                        return Err(anyhow!(
-                            "Hosts mapping {domain} contains a non-string address"
+                        return Err(DomainError::invalid(
+                            "Hosts mapping {domain} contains a non-string address",
                         ));
                     }
                 }
                 if addresses.is_empty() {
-                    return Err(anyhow!("Hosts mapping {domain} has no addresses"));
+                    return Err(DomainError::invalid(format!(
+                        "Hosts mapping {domain} has no addresses"
+                    )));
                 }
             }
             _ => {
-                return Err(anyhow!(
-                    "Hosts mapping {domain} is not a string or address list"
+                return Err(DomainError::invalid(
+                    "Hosts mapping {domain} is not a string or address list",
                 ));
             }
         }
     }
     if let Some(issue) = validate_hosts(&entries).first() {
-        return Err(anyhow!("invalid Hosts mapping: {issue:?}"));
+        return Err(DomainError::invalid(format!(
+            "invalid Hosts mapping: {issue:?}"
+        )));
     }
     Ok(entries)
 }
 
 /// Read either the active root map or the preserved historical nested map.
-pub fn entries_from_document(doc: &Value, legacy: bool) -> Result<Vec<DnsHostEntry>> {
+pub fn entries_from_document(doc: &Value, legacy: bool) -> Result<Vec<DnsHostEntry>, DomainError> {
     if !doc.is_mapping() {
-        return Err(anyhow!("profile config is not a mapping"));
+        return Err(DomainError::invalid("profile config is not a mapping"));
     }
     let container = if legacy { doc.get("dns") } else { Some(doc) };
     let Some(raw) = container.and_then(|container| container.get("hosts")) else {
         return Ok(Vec::new());
     };
     let map: BTreeMap<String, value::Value> =
-        serde_yaml_ng::from_value(raw.clone()).context("decode Hosts mapping")?;
+        serde_yaml_ng::from_value(raw.clone()).domain_context("decode Hosts mapping")?;
     hosts_entries_from_map(&map)
 }
 
@@ -115,19 +125,19 @@ pub fn apply_hosts_patch_to_yaml(
     content: &str,
     entries: &[DnsHostEntry],
     remove_legacy: bool,
-) -> Result<String> {
+) -> Result<String, DomainError> {
     let map = hosts_map_from_entries(entries)?;
-    let mut doc: Value = serde_yaml_ng::from_str(content).context("parse profile yaml")?;
+    let mut doc: Value = serde_yaml_ng::from_str(content).domain_context("parse profile yaml")?;
     let root = doc
         .as_mapping_mut()
-        .ok_or_else(|| anyhow!("profile config is not a mapping"))?;
+        .ok_or_else(|| DomainError::invalid("profile config is not a mapping"))?;
     let key = Value::String("hosts".into());
     if map.is_empty() {
         root.remove(&key);
     } else {
         root.insert(
             key,
-            serde_yaml_ng::to_value(map).context("encode Hosts mapping")?,
+            serde_yaml_ng::to_value(map).domain_context("encode Hosts mapping")?,
         );
     }
     if remove_legacy
@@ -137,7 +147,7 @@ pub fn apply_hosts_patch_to_yaml(
     {
         dns.remove(Value::String("hosts".into()));
     }
-    serde_yaml_ng::to_string(&doc).context("serialize profile yaml")
+    serde_yaml_ng::to_string(&doc).domain_context("serialize profile yaml")
 }
 
 #[cfg(test)]

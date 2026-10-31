@@ -1,5 +1,6 @@
 //! Filesystem/keyring adapter for the runtime-neutral settings port.
 
+use crate::error::CoreError;
 use crate::settings_io::{
     load_settings, load_settings_hydrated_with_store, save_settings, settings_path,
 };
@@ -55,7 +56,7 @@ where
     }
 }
 
-pub fn for_current_home() -> anyhow::Result<FileSettingsStore> {
+pub fn for_current_home() -> Result<FileSettingsStore, CoreError> {
     let home = get_home_dir()?;
     Ok(FileSettingsStore::for_home(home))
 }

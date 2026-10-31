@@ -4,6 +4,7 @@
 //! `infiltrator-domain::app_routing`. This module owns only the legacy
 //! `app_routing.toml` location and mutation helpers.
 
+use crate::error::CoreError;
 use infiltrator_domain::app_routing::AppRoutingConfig;
 use infiltrator_platform::paths::get_home_dir;
 use infiltrator_ports::app_routing_store::AppRoutingStore;
@@ -11,7 +12,7 @@ use lurker_core_ports::error::PortError;
 use std::fs::{read_to_string, write};
 use std::path::PathBuf;
 
-fn config_path() -> anyhow::Result<PathBuf> {
+fn config_path() -> Result<PathBuf, CoreError> {
     let home = get_home_dir()?;
     Ok(home.join("app_routing.toml"))
 }
@@ -21,7 +22,7 @@ pub struct FileAppRoutingStore {
 }
 
 impl FileAppRoutingStore {
-    pub fn current() -> anyhow::Result<Self> {
+    pub fn current() -> Result<Self, CoreError> {
         Ok(Self {
             path: config_path()?,
         })

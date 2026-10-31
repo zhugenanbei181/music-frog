@@ -1,3 +1,4 @@
+use crate::error::DomainError;
 use infiltrator_contract::mtu::{DEFAULT_TUN_OVERHEAD_BYTES, MAX_TUN_MTU_BYTES, MIN_TUN_MTU_BYTES};
 use serde::{Deserialize, Serialize};
 
@@ -57,14 +58,14 @@ impl MtuOptimizer {
     }
 
     /// Validate if MTU is within typical range [1280, 9000]
-    pub fn validate_mtu_range(mtu: u16) -> Result<(), anyhow::Error> {
+    pub fn validate_mtu_range(mtu: u16) -> Result<(), DomainError> {
         if (1280..=9000).contains(&mtu) {
             Ok(())
         } else {
-            Err(anyhow::anyhow!(
+            Err(DomainError::invalid(format!(
                 "MTU {} is out of valid range [1280, 9000]",
                 mtu
-            ))
+            )))
         }
     }
 }

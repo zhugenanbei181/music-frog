@@ -22,6 +22,7 @@
 //!   失败只记入 [`ResetReport::warnings`]，不中断其余目标；
 //! * 不存在的目标静默跳过并记入 [`ResetReport::skipped`]。
 
+use crate::error::CoreError;
 use std::fs::{remove_dir_all, remove_file};
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
@@ -49,9 +50,9 @@ impl ResetReport {
 /// `home` 是应用主目录；`configs_dir` 是调用方在 settings 删除**前**解析出
 /// 的生效 configs 目录（可能被云同步重定向）。`None` 表示解析失败——此时
 /// 其余目标照常清理，仅在报告中记录 configs 目录可能残留的 warning。
-pub fn execute(home: &Path, configs_dir: Option<&Path>) -> anyhow::Result<ResetReport> {
+pub fn execute(home: &Path, configs_dir: Option<&Path>) -> Result<ResetReport, CoreError> {
     if home.as_os_str().is_empty() {
-        anyhow::bail!("恢复出厂失败: home 目录为空");
+        return Err(CoreError::io("恢复出厂失败: home 目录为空"));
     }
     let mut report = ResetReport::default();
 
@@ -73,7 +74,7 @@ pub fn execute(home: &Path, configs_dir: Option<&Path>) -> anyhow::Result<ResetR
 }
 
 /// settings / config 指针文件：删除失败即 `Err`。
-fn remove_file_hard(path: &Path, report: &mut ResetReport) -> anyhow::Result<()> {
+fn remove_file_hard(path: &Path, report: &mut ResetReport) -> Result<(), CoreError> {
     match remove_file(path) {
         Ok(()) => {
             report.removed.push(path.to_path_buf());
@@ -83,7 +84,10 @@ fn remove_file_hard(path: &Path, report: &mut ResetReport) -> anyhow::Result<()>
             report.skipped.push(path.to_path_buf());
             Ok(())
         }
-        Err(error) => Err(anyhow::anyhow!("删除 {} 失败: {error}", path.display())),
+        Err(error) => Err(CoreError::io(format!(
+            "删除 {} 失败: {error}",
+            path.display()
+        ))),
     }
 }
 

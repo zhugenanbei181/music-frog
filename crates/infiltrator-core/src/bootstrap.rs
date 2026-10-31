@@ -6,6 +6,7 @@
 //! `mihomo-config` manager capabilities and just records whether the step
 //! had to change anything or was already satisfied.
 
+use crate::error::CoreError;
 use crate::settings_io::{app_config_manager_in, load_settings, settings_path};
 use infiltrator_platform::paths::get_home_dir;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
@@ -49,14 +50,14 @@ impl BootstrapReport {
 }
 
 /// Bootstrap the real installation (home from `infiltrator-platform`).
-pub async fn ensure_bootstrap() -> anyhow::Result<BootstrapReport> {
+pub async fn ensure_bootstrap() -> Result<BootstrapReport, CoreError> {
     let home = get_home_dir()?;
     ensure_bootstrap_at(&home).await
 }
 
 /// Bootstrap the installation rooted at `home`. Idempotent: a second run on
 /// an already-initialized home reports every step as skipped.
-pub async fn ensure_bootstrap_at(home: &Path) -> anyhow::Result<BootstrapReport> {
+pub async fn ensure_bootstrap_at(home: &Path) -> Result<BootstrapReport, CoreError> {
     // Capture the root state before manager initialization. Namespace setup
     // creates the shared root as part of acquiring its reset fence, so
     // measuring it afterward would report a freshly-created directory as

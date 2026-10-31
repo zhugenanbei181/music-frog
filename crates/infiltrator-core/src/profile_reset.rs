@@ -1,5 +1,5 @@
+use crate::error::CoreError;
 use crate::settings_io::app_config_manager_for_profile_reset;
-use anyhow::anyhow;
 use infiltrator_platform::defaults::DefaultCredentialStore;
 use infiltrator_ports::profile_reset::ProfileResetPort;
 use infiltrator_ports::profile_store::ProfileStore;
@@ -31,22 +31,22 @@ impl ProfileResetPort for FileProfileReset {
     }
 }
 
-pub async fn reset_profiles_to_default() -> anyhow::Result<()> {
+pub async fn reset_profiles_to_default() -> Result<(), CoreError> {
     FileProfileReset::current()
         .reset_to_default()
         .await
-        .map_err(|error| anyhow!(error.to_string()))
+        .map_err(|error| CoreError::other(error.to_string()))
 }
 
-async fn reset_profiles_to_default_impl() -> anyhow::Result<()> {
+async fn reset_profiles_to_default_impl() -> Result<(), CoreError> {
     let manager = app_config_manager_for_profile_reset().await?;
     reset_profiles_with_default_builder(&manager, build_default_config).await
 }
 
 async fn reset_profiles_with_default_builder(
     manager: &ConfigManager<DefaultCredentialStore>,
-    build_default_config: impl FnOnce() -> anyhow::Result<String>,
-) -> anyhow::Result<()> {
+    build_default_config: impl FnOnce() -> Result<String, CoreError>,
+) -> Result<(), CoreError> {
     let engine_id = manager.engine_id();
     match manager
         .reset_profiles_to_default(ActiveProfileReferenceResetRequest::ResumePendingIntent)
@@ -78,16 +78,15 @@ async fn reset_profiles_with_default_builder(
 fn finish_reset_outcome(
     outcome: ActiveProfileReferenceResetOutcome,
     engine_id: &EngineId,
-) -> anyhow::Result<()> {
+) -> Result<(), CoreError> {
     match outcome {
-        ActiveProfileReferenceResetOutcome::NoPendingIntent => Err(anyhow!(
-            "profile reset did not start after receiving a new request"
+        ActiveProfileReferenceResetOutcome::NoPendingIntent => Err(CoreError::invalid(
+            "profile reset did not start after receiving a new request",
         )),
         ActiveProfileReferenceResetOutcome::Committed { previous, current } => {
-            let expected_next_revision = previous
-                .revision()
-                .next()
-                .ok_or_else(|| anyhow!("active profile reference revision overflowed"))?;
+            let expected_next_revision = previous.revision().next().ok_or_else(|| {
+                CoreError::invalid("active profile reference revision overflowed")
+            })?;
             validate_reset_commit(
                 &previous,
                 expected_next_revision,
@@ -102,10 +101,9 @@ fn finish_reset_outcome(
             current,
             error,
         } => {
-            let expected_next_revision = previous
-                .revision()
-                .next()
-                .ok_or_else(|| anyhow!("active profile reference revision overflowed"))?;
+            let expected_next_revision = previous.revision().next().ok_or_else(|| {
+                CoreError::invalid("active profile reference revision overflowed")
+            })?;
             validate_reset_commit(
                 &previous,
                 expected_next_revision,
@@ -113,15 +111,17 @@ fn finish_reset_outcome(
                 &previous,
                 &current,
             )?;
-            Err(anyhow!(
+            Err(CoreError::invalid(format!(
                 "profile reset committed the default reference at revision {}, but cleanup is pending: {error}",
                 current.revision().value()
-            ))
+            )))
         }
-        ActiveProfileReferenceResetOutcome::Stale { observed, .. } => Err(anyhow!(
-            "profile reset lost a concurrent active-profile selection at revision {}",
-            observed.revision().value()
-        )),
+        ActiveProfileReferenceResetOutcome::Stale { observed, .. } => {
+            Err(CoreError::invalid(format!(
+                "profile reset lost a concurrent active-profile selection at revision {}",
+                observed.revision().value()
+            )))
+        }
     }
 }
 
@@ -131,7 +131,7 @@ fn validate_reset_commit(
     engine_id: &EngineId,
     previous: &ActiveProfileReferenceState,
     current: &ActiveProfileReferenceState,
-) -> anyhow::Result<()> {
+) -> Result<(), CoreError> {
     if previous == expected
         && current.revision() == expected_next_revision
         && matches!(
@@ -143,15 +143,15 @@ fn validate_reset_commit(
     {
         Ok(())
     } else {
-        Err(anyhow!(
-            "profile reset committed an unexpected active reference"
+        Err(CoreError::invalid(
+            "profile reset committed an unexpected active reference",
         ))
     }
 }
 
-fn build_default_config() -> anyhow::Result<String> {
+fn build_default_config() -> Result<String, CoreError> {
     let port = find_available_port(9090)
-        .ok_or_else(|| anyhow!("无法找到可用的控制接口端口（9090-9190）"))?;
+        .ok_or_else(|| CoreError::not_found("无法找到可用的控制接口端口（9090-9190）"))?;
     Ok(format!(
         r#"# mihomo configuration
 port: 7890
@@ -228,7 +228,7 @@ mod tests {
         let called = Arc::clone(&builder_called);
         reset_profiles_with_default_builder(&manager, move || {
             called.store(true, Ordering::SeqCst);
-            Err(anyhow!("no control port available"))
+            Err(CoreError::not_found("no control port available"))
         })
         .await
         .unwrap();

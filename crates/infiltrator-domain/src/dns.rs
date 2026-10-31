@@ -4,7 +4,7 @@
 //! full anti-leak topologies (multi-tier upstreams, domain routing policies,
 //! fallback filters, Fake-IP controls, ECS subnet governance, and DNS cache tuning).
 
-use anyhow::{Context, Result, anyhow};
+use crate::error::{DomainContext, DomainError};
 use serde::{Deserialize, Serialize};
 use serde_yaml_ng::{Mapping, Value};
 use std::collections::BTreeMap;
@@ -381,10 +381,12 @@ pub struct ParsedUpstream {
 /// - `https://cloudflare-dns.com/dns-query?h3=true#Proxy` -> DoH3
 /// - `quic://dns.adguard.com:853#Proxy` -> DoQ (RFC 9250)
 /// - `sdns://...` -> DNSCrypt
-pub fn parse_upstream_uri(server: &str) -> Result<ParsedUpstream> {
+pub fn parse_upstream_uri(server: &str) -> Result<ParsedUpstream, DomainError> {
     let trimmed = server.trim();
     if trimmed.is_empty() {
-        return Err(anyhow!("upstream server address cannot be empty"));
+        return Err(DomainError::invalid(
+            "upstream server address cannot be empty",
+        ));
     }
 
     // Split outbound tag anchor `#...`
@@ -462,22 +464,24 @@ pub fn parse_upstream_uri(server: &str) -> Result<ParsedUpstream> {
     })
 }
 
-fn parse_host_port(hp: &str, scheme: &str) -> Result<(String, u16)> {
+fn parse_host_port(hp: &str, scheme: &str) -> Result<(String, u16), DomainError> {
     if hp.starts_with('[') {
         // IPv6 bracket notation
         if let Some(closing) = hp.find(']') {
             let host = hp[1..closing].to_string();
             let remainder = &hp[closing + 1..];
             let port = if let Some(port_str) = remainder.strip_prefix(':') {
-                port_str
-                    .parse::<u16>()
-                    .map_err(|_| anyhow!("invalid port in upstream: {}", remainder))?
+                port_str.parse::<u16>().map_err(|_| {
+                    DomainError::invalid(format!("invalid port in upstream: {}", remainder))
+                })?
             } else {
                 default_port_for_scheme(scheme)
             };
             return Ok((host, port));
         } else {
-            return Err(anyhow!("unclosed IPv6 bracket in upstream: {}", hp));
+            return Err(DomainError::invalid(format!(
+                "unclosed IPv6 bracket in upstream: {hp}"
+            )));
         }
     }
 
@@ -490,7 +494,7 @@ fn parse_host_port(hp: &str, scheme: &str) -> Result<(String, u16)> {
         }
         let port = p_str
             .parse::<u16>()
-            .map_err(|_| anyhow!("invalid port in upstream: {}", p_str))?;
+            .map_err(|_| DomainError::invalid(format!("invalid port in upstream: {}", p_str)))?;
         Ok((h.to_string(), port))
     } else {
         let port = default_port_for_scheme(scheme);
@@ -519,27 +523,25 @@ pub fn is_pure_ip_server(server: &str) -> bool {
 /// Sanitizes and validates an EDNS Client Subnet CIDR string.
 ///
 /// Converts host addresses to network prefix (e.g. `101.10.20.30/24` -> `101.10.20.0/24`).
-pub fn sanitize_ecs_subnet(cidr: &str) -> Result<String> {
+pub fn sanitize_ecs_subnet(cidr: &str) -> Result<String, DomainError> {
     let parts: Vec<&str> = cidr.trim().split('/').collect();
     if parts.len() != 2 {
-        return Err(anyhow!(
-            "invalid EDNS client subnet format (expected IP/prefix): {}",
-            cidr
-        ));
+        return Err(DomainError::invalid(format!(
+            "invalid EDNS client subnet format (expected IP/prefix): {cidr}"
+        )));
     }
 
     let ip_str = parts[0].trim();
     let prefix_len: u8 = parts[1]
         .trim()
         .parse()
-        .map_err(|_| anyhow!("invalid subnet prefix length: {}", parts[1]))?;
+        .map_err(|_| DomainError::invalid(format!("invalid subnet prefix length: {}", parts[1])))?;
 
     if let Ok(ipv4) = ip_str.parse::<Ipv4Addr>() {
         if prefix_len > 32 {
-            return Err(anyhow!(
-                "IPv4 subnet prefix cannot exceed /32: {}",
-                prefix_len
-            ));
+            return Err(DomainError::invalid(format!(
+                "IPv4 subnet prefix cannot exceed /32: {prefix_len}"
+            )));
         }
         let ip_num = u32::from(ipv4);
         let mask = if prefix_len == 0 {
@@ -551,10 +553,9 @@ pub fn sanitize_ecs_subnet(cidr: &str) -> Result<String> {
         Ok(format!("{}/{}", sanitized, prefix_len))
     } else if let Ok(ipv6) = ip_str.parse::<Ipv6Addr>() {
         if prefix_len > 128 {
-            return Err(anyhow!(
-                "IPv6 subnet prefix cannot exceed /128: {}",
-                prefix_len
-            ));
+            return Err(DomainError::invalid(format!(
+                "IPv6 subnet prefix cannot exceed /128: {prefix_len}"
+            )));
         }
         let ip_num = u128::from(ipv6);
         let mask = if prefix_len == 0 {
@@ -565,55 +566,58 @@ pub fn sanitize_ecs_subnet(cidr: &str) -> Result<String> {
         let sanitized = Ipv6Addr::from(ip_num & mask);
         Ok(format!("{}/{}", sanitized, prefix_len))
     } else {
-        Err(anyhow!(
-            "invalid IP address in EDNS client subnet: {}",
-            ip_str
-        ))
+        Err(DomainError::invalid(format!(
+            "invalid IP address in EDNS client subnet: {ip_str}"
+        )))
     }
 }
 
-pub fn apply_dns_config_to_yaml(content: &str, config: &DnsConfig) -> Result<String> {
+pub fn apply_dns_config_to_yaml(content: &str, config: &DnsConfig) -> Result<String, DomainError> {
     validate_dns_config(config)?;
-    let mut doc: Value = serde_yaml_ng::from_str(content).context("parse profile yaml")?;
+    let mut doc: Value = serde_yaml_ng::from_str(content).domain_context("parse profile yaml")?;
     apply_dns_config(&mut doc, config)?;
-    serde_yaml_ng::to_string(&doc).context("serialize profile yaml")
+    serde_yaml_ng::to_string(&doc).domain_context("serialize profile yaml")
 }
 
-pub fn apply_dns_patch_to_yaml(content: &str, patch: DnsConfigPatch) -> Result<String> {
-    let mut doc: Value = serde_yaml_ng::from_str(content).context("parse profile yaml")?;
+pub fn apply_dns_patch_to_yaml(
+    content: &str,
+    patch: DnsConfigPatch,
+) -> Result<String, DomainError> {
+    let mut doc: Value = serde_yaml_ng::from_str(content).domain_context("parse profile yaml")?;
     let mut config = extract_dns_config_from_doc(&doc)?;
     config.apply_patch(patch);
     validate_dns_config(&config)?;
     apply_dns_config(&mut doc, &config)?;
-    serde_yaml_ng::to_string(&doc).context("serialize profile yaml")
+    serde_yaml_ng::to_string(&doc).domain_context("serialize profile yaml")
 }
 
-pub fn extract_dns_config_from_doc(doc: &Value) -> Result<DnsConfig> {
+pub fn extract_dns_config_from_doc(doc: &Value) -> Result<DnsConfig, DomainError> {
     let value = doc
         .get("dns")
         .cloned()
         .unwrap_or(Value::Mapping(Mapping::new()));
-    let config = serde_yaml_ng::from_value(value).context("decode dns config")?;
+    let config = serde_yaml_ng::from_value(value).domain_context("decode dns config")?;
     Ok(config)
 }
 
-pub fn apply_dns_config_to_doc(doc: &mut Value, config: &DnsConfig) -> Result<()> {
+pub fn apply_dns_config_to_doc(doc: &mut Value, config: &DnsConfig) -> Result<(), DomainError> {
     apply_dns_config(doc, config)
 }
 
-fn apply_dns_config(doc: &mut Value, config: &DnsConfig) -> Result<()> {
+fn apply_dns_config(doc: &mut Value, config: &DnsConfig) -> Result<(), DomainError> {
     let map = doc
         .as_mapping_mut()
-        .ok_or_else(|| anyhow!("profile config is not a mapping"))?;
+        .ok_or_else(|| DomainError::invalid("profile config is not a mapping"))?;
     let key = Value::String("dns".to_string());
     let mut preserved = match map.get(&key) {
         Some(Value::Mapping(existing)) => existing.clone(),
         None | Some(Value::Null) => Mapping::new(),
-        _ => return Err(anyhow!("dns config is not a mapping")),
+        _ => return Err(DomainError::invalid("dns config is not a mapping")),
     };
     // Own only declared DNS fields. Unknown options and historical dns.hosts remain
     // intact until their specific owner performs an explicit migration.
-    let declared = serde_yaml_ng::to_value(DnsConfig::default()).context("encode DNS keys")?;
+    let declared =
+        serde_yaml_ng::to_value(DnsConfig::default()).domain_context("encode DNS keys")?;
     for declared_key in declared
         .as_mapping()
         .expect("DNS structure serializes as a mapping")
@@ -622,7 +626,7 @@ fn apply_dns_config(doc: &mut Value, config: &DnsConfig) -> Result<()> {
         preserved.remove(declared_key);
     }
     if !config.is_empty() {
-        let mut encoded = serde_yaml_ng::to_value(config).context("encode dns config")?;
+        let mut encoded = serde_yaml_ng::to_value(config).domain_context("encode dns config")?;
         remove_absent_option_values(&mut encoded);
         preserved.extend(
             encoded
@@ -662,49 +666,59 @@ fn remove_absent_option_values(value: &mut Value) {
 }
 
 /// Comprehensive DNS topology auditor and validator.
-pub fn validate_dns_config(config: &DnsConfig) -> Result<()> {
+pub fn validate_dns_config(config: &DnsConfig) -> Result<(), DomainError> {
     if let Some(l) = config.listen.as_ref()
         && l.trim().is_empty()
     {
-        return Err(anyhow!("listen cannot be empty"));
+        return Err(DomainError::invalid("listen cannot be empty"));
     }
     if let Some(f) = config.fake_ip_range.as_ref() {
         if f.trim().is_empty() {
-            return Err(anyhow!("fake-ip-range cannot be empty"));
+            return Err(DomainError::invalid("fake-ip-range cannot be empty"));
         }
         // Validate CIDR format
         if let Err(e) = sanitize_ecs_subnet(f) {
-            return Err(anyhow!("invalid fake-ip-range CIDR: {}", e));
+            return Err(DomainError::invalid(format!(
+                "invalid fake-ip-range CIDR: {e}"
+            )));
         }
     }
     if let Some(e) = config.edns_client_subnet.as_ref() {
         if e.trim().is_empty() {
-            return Err(anyhow!("edns-client-subnet cannot be empty"));
+            return Err(DomainError::invalid("edns-client-subnet cannot be empty"));
         }
-        sanitize_ecs_subnet(e).context("validate edns-client-subnet")?;
+        sanitize_ecs_subnet(e).domain_context("validate edns-client-subnet")?;
     }
     if let Some(mode) = config.enhanced_mode.as_ref() {
         let lower = mode.trim().to_ascii_lowercase();
         if lower != "fake-ip" && lower != "redir-host" {
-            return Err(anyhow!("unsupported dns enhanced-mode: {}", mode));
+            return Err(DomainError::invalid(format!(
+                "unsupported dns enhanced-mode: {mode}"
+            )));
         }
     }
     if let Some(mode) = config.fake_ip_filter_mode.as_ref() {
         let lower = mode.trim().to_ascii_lowercase();
         if lower != "whitelist" && lower != "blacklist" && lower != "rule" {
-            return Err(anyhow!("unsupported fake-ip-filter-mode: {}", mode));
+            return Err(DomainError::invalid(format!(
+                "unsupported fake-ip-filter-mode: {mode}"
+            )));
         }
     }
     if let Some(algo) = config.cache_algorithm.as_ref() {
         let lower = algo.trim().to_ascii_lowercase();
         if lower != "lru" && lower != "arc" {
-            return Err(anyhow!("unsupported cache-algorithm: {}", algo));
+            return Err(DomainError::invalid(format!(
+                "unsupported cache-algorithm: {algo}"
+            )));
         }
     }
     if let Some(policy) = config.ecs_override_policy.as_ref() {
         let lower = policy.trim().to_ascii_lowercase();
         if lower != "strip" && lower != "pass" && lower != "custom" {
-            return Err(anyhow!("unsupported ecs-override-policy: {}", policy));
+            return Err(DomainError::invalid(format!(
+                "unsupported ecs-override-policy: {policy}"
+            )));
         }
     }
 
@@ -723,47 +737,52 @@ pub fn validate_dns_config(config: &DnsConfig) -> Result<()> {
     if let Some(policy) = config.nameserver_policy.as_ref() {
         for (k, v) in policy {
             if k.trim().is_empty() {
-                return Err(anyhow!("nameserver-policy contains empty domain key"));
+                return Err(DomainError::invalid(
+                    "nameserver-policy contains empty domain key",
+                ));
             }
             match v {
                 serde_json::Value::String(s) => {
                     if s.trim().is_empty() {
-                        return Err(anyhow!("nameserver-policy for '{}' has empty server", k));
+                        return Err(DomainError::invalid(format!(
+                            "nameserver-policy for '{k}' has empty server"
+                        )));
                     }
-                    parse_upstream_uri(s)
-                        .map_err(|e| anyhow!("nameserver-policy for '{}' invalid URI: {}", k, e))?;
+                    parse_upstream_uri(s).map_err(|e| {
+                        DomainError::invalid(format!(
+                            "nameserver-policy for '{k}' invalid URI: {e}"
+                        ))
+                    })?;
                 }
                 serde_json::Value::Array(arr) => {
                     if arr.is_empty() {
-                        return Err(anyhow!(
-                            "nameserver-policy for '{}' has empty server list",
-                            k
-                        ));
+                        return Err(DomainError::invalid(format!(
+                            "nameserver-policy for '{k}' has empty server list"
+                        )));
                     }
                     for item in arr {
                         if let Some(s) = item.as_str() {
                             if s.trim().is_empty() {
-                                return Err(anyhow!(
-                                    "nameserver-policy for '{}' contains empty server entry",
-                                    k
-                                ));
+                                return Err(DomainError::invalid(format!(
+                                    "nameserver-policy for '{k}' contains empty server entry"
+                                )));
                             }
                             parse_upstream_uri(s).map_err(|e| {
-                                anyhow!("nameserver-policy for '{}' invalid URI: {}", k, e)
+                                DomainError::invalid(format!(
+                                    "nameserver-policy for '{k}' invalid URI: {e}"
+                                ))
                             })?;
                         } else {
-                            return Err(anyhow!(
-                                "nameserver-policy for '{}' contains non-string entry",
-                                k
-                            ));
+                            return Err(DomainError::invalid(format!(
+                                "nameserver-policy for '{k}' contains non-string entry"
+                            )));
                         }
                     }
                 }
                 _ => {
-                    return Err(anyhow!(
-                        "nameserver-policy for '{}' has invalid value type",
-                        k
-                    ));
+                    return Err(DomainError::invalid(format!(
+                        "nameserver-policy for '{k}' has invalid value type"
+                    )));
                 }
             }
         }
@@ -773,91 +792,89 @@ pub fn validate_dns_config(config: &DnsConfig) -> Result<()> {
         if let Some(ref code) = ff.geoip_code
             && code.trim().is_empty()
         {
-            return Err(anyhow!("fallback-filter geoip-code cannot be empty"));
+            return Err(DomainError::invalid(
+                "fallback-filter geoip-code cannot be empty",
+            ));
         }
         if let Some(ref ipcidr) = ff.ipcidr {
             for entry in ipcidr {
                 if entry.trim().is_empty() {
-                    return Err(anyhow!("fallback-filter ipcidr contains empty entry"));
+                    return Err(DomainError::invalid(
+                        "fallback-filter ipcidr contains empty entry",
+                    ));
                 }
-                sanitize_ecs_subnet(entry)
-                    .map_err(|e| anyhow!("fallback-filter ipcidr entry invalid: {}", e))?;
+                sanitize_ecs_subnet(entry).map_err(|e| {
+                    DomainError::invalid(format!("fallback-filter ipcidr entry invalid: {e}"))
+                })?;
             }
         }
         if let Some(ref domain) = ff.domain {
-            for entry in domain {
-                if entry.trim().is_empty() {
-                    return Err(anyhow!("fallback-filter domain contains empty entry"));
-                }
-            }
+            ensure_all_non_empty(Some(domain), "fallback-filter domain")?;
         }
         if let Some(ref domain_suffix) = ff.domain_suffix {
-            for entry in domain_suffix {
-                if entry.trim().is_empty() {
-                    return Err(anyhow!(
-                        "fallback-filter domain-suffix contains empty entry"
-                    ));
-                }
-            }
+            ensure_all_non_empty(Some(domain_suffix), "fallback-filter domain-suffix")?;
         }
         if let Some(ref geosite) = ff.geosite {
-            for entry in geosite {
-                if entry.trim().is_empty() {
-                    return Err(anyhow!("fallback-filter geosite contains empty entry"));
-                }
-            }
+            ensure_all_non_empty(Some(geosite), "fallback-filter geosite")?;
         }
     }
 
-    if let Some(filters) = config.fake_ip_filter.as_ref() {
-        for entry in filters {
-            if entry.trim().is_empty() {
-                return Err(anyhow!("fake-ip-filter contains empty entry"));
-            }
-        }
-    }
-
-    if let Some(bogus) = config.bogus_nxdomain.as_ref() {
-        for entry in bogus {
-            if entry.trim().is_empty() {
-                return Err(anyhow!("bogus-nxdomain contains empty entry"));
-            }
-        }
-    }
+    ensure_all_non_empty(config.fake_ip_filter.as_ref(), "fake-ip-filter")?;
+    ensure_all_non_empty(config.bogus_nxdomain.as_ref(), "bogus-nxdomain")?;
 
     if let Some(min) = config.min_ttl
         && let Some(max) = config.max_ttl
         && min > max
     {
-        return Err(anyhow!("min-ttl ({}) cannot exceed max-ttl ({})", min, max));
+        return Err(DomainError::invalid(format!(
+            "min-ttl ({}) cannot exceed max-ttl ({})",
+            min, max
+        )));
     }
     Ok(())
 }
 
-fn validate_server_list(list: Option<&Vec<String>>, name: &str) -> Result<()> {
-    if let Some(servers) = list {
-        for server in servers {
-            if server.trim().is_empty() {
-                return Err(anyhow!("{} contains empty server entry", name));
+fn ensure_all_non_empty(entries: Option<&Vec<String>>, name: &str) -> Result<(), DomainError> {
+    if let Some(list) = entries {
+        for entry in list {
+            if entry.trim().is_empty() {
+                return Err(DomainError::invalid(format!("{name} contains empty entry")));
             }
-            parse_upstream_uri(server)
-                .map_err(|e| anyhow!("{} invalid entry '{}': {}", name, server, e))?;
         }
     }
     Ok(())
 }
 
-fn validate_bootstrap_server_list(list: Option<&Vec<String>>) -> Result<()> {
+fn validate_server_list(list: Option<&Vec<String>>, name: &str) -> Result<(), DomainError> {
     if let Some(servers) = list {
         for server in servers {
             if server.trim().is_empty() {
-                return Err(anyhow!("default-nameserver contains empty server entry"));
+                return Err(DomainError::invalid(format!(
+                    "{} contains empty server entry",
+                    name
+                )));
+            }
+            parse_upstream_uri(server).map_err(|e| {
+                DomainError::invalid(format!("{} invalid entry '{}': {}", name, server, e))
+            })?;
+        }
+    }
+    Ok(())
+}
+
+fn validate_bootstrap_server_list(list: Option<&Vec<String>>) -> Result<(), DomainError> {
+    if let Some(servers) = list {
+        for server in servers {
+            if server.trim().is_empty() {
+                return Err(DomainError::invalid(
+                    "default-nameserver contains empty server entry",
+                ));
             }
             if !is_pure_ip_server(server) {
-                return Err(anyhow!(
+                return Err(DomainError::invalid(format!(
                     "default-nameserver '{}' must be a pure IP address to prevent bootstrap loops",
                     server
-                ));
+                )));
             }
         }
     }

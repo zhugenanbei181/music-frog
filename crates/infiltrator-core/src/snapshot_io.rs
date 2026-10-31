@@ -1,5 +1,6 @@
 //! Filesystem adapter for configuration snapshot history.
 
+use crate::error::CoreError;
 use crate::history::{list_snapshots, read_snapshot, save_snapshot, snapshot_dir};
 use crate::profile_store_io::open;
 use infiltrator_domain::snapshots::SnapshotMeta;
@@ -41,7 +42,7 @@ impl FileSnapshotStore {
         }
     }
 
-    pub async fn current() -> anyhow::Result<Self> {
+    pub async fn current() -> Result<Self, CoreError> {
         let profiles = open().await?;
         Ok(Self::new_scoped(
             profiles.engine_id(),

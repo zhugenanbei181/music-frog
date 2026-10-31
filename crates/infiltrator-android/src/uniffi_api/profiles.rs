@@ -15,7 +15,7 @@ use crate::host_session::{
     apply_selected_profile_reference_status,
 };
 use crate::host_support::{
-    build_config_manager, get_runtime, map_anyhow_error, map_application_failure,
+    build_config_manager, get_runtime, map_application_failure, map_domain_error,
     subscription_source,
 };
 use chrono::Utc;
@@ -289,10 +289,10 @@ pub(super) async fn save_owner_profile(name: String, content: String, activate: 
             }
             let profile_name = match sanitize_profile_name(&name) {
                 Ok(value) => value,
-                Err(err) => return map_anyhow_error(err),
+                Err(err) => return map_domain_error(err),
             };
             if let Err(err) = validate_yaml(&content) {
-                return map_anyhow_error(err);
+                return map_domain_error(err);
             }
 
             let application = match build_profile_application().await {
@@ -340,7 +340,7 @@ pub(super) async fn delete_owner_profile(name: String) -> FfiStatus {
             }
             let profile_name = match sanitize_profile_name(&name) {
                 Ok(value) => value,
-                Err(err) => return map_anyhow_error(err),
+                Err(err) => return map_domain_error(err),
             };
             let application = match build_profile_application().await {
                 Ok(value) => value,
@@ -382,7 +382,7 @@ pub(super) async fn save_owner_profile_subscription(
             }
             let profile_name = match sanitize_profile_name(&name) {
                 Ok(value) => value,
-                Err(err) => return map_anyhow_error(err),
+                Err(err) => return map_domain_error(err),
             };
             let source_url = url.trim();
             if source_url.is_empty() {
@@ -446,7 +446,7 @@ pub(super) async fn clear_owner_profile_subscription(name: String) -> FfiStatus 
             }
             let profile_name = match sanitize_profile_name(&name) {
                 Ok(value) => value,
-                Err(err) => return map_anyhow_error(err),
+                Err(err) => return map_domain_error(err),
             };
             let application = match build_profile_application().await {
                 Ok(value) => value,

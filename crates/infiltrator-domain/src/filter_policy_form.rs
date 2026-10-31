@@ -1,7 +1,7 @@
 //! Shared advanced-policy syntax and complete filter form conversion.
+use crate::error::{DomainContext, DomainError};
 use crate::filter::NodeMutatorConfig;
 use crate::profile_options::{FilterDedup, FilterSpec, RenameSpec};
-use anyhow::{Context, anyhow, bail};
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use serde_yaml_ng::Value;
 
@@ -13,33 +13,39 @@ const BASIC_FIELDS: [&str; 5] = [
     "deduplication",
 ];
 
-fn advanced_policy(raw: Option<&str>) -> anyhow::Result<FilterSpec> {
+fn advanced_policy(raw: Option<&str>) -> Result<FilterSpec, DomainError> {
     let Some(raw) = raw.filter(|raw| !raw.trim().is_empty()) else {
         return Ok(FilterSpec::default());
     };
-    let yaml: Value = serde_yaml_ng::from_str(raw)
-        .map_err(|error| anyhow!("Advanced filter policy is not valid YAML: {error}"))?;
+    let yaml: Value = serde_yaml_ng::from_str(raw).map_err(|error| {
+        DomainError::invalid(format!("Advanced filter policy is not valid YAML: {error}"))
+    })?;
     let mapping = yaml
         .as_mapping()
-        .context("Advanced filter policy must be a mapping")?;
+        .domain_context("Advanced filter policy must be a mapping")?;
     for key in mapping.keys() {
         let key = key
             .as_str()
-            .context("Advanced filter policy keys must be strings")?;
+            .domain_context("Advanced filter policy keys must be strings")?;
         if BASIC_FIELDS.contains(&key) {
-            bail!("Use the dedicated basic filter field for {key}");
+            return Err(DomainError::invalid(format!(
+                "Use the dedicated basic filter field for {key}"
+            )));
         }
     }
     serde_yaml_ng::from_value(yaml).map_err(|error| {
-        anyhow!("Advanced filter policy contains an unknown field or invalid value: {error}")
+        DomainError::invalid(format!(
+            "Advanced filter policy contains an unknown field or invalid value: {error}"
+        ))
     })
 }
 
-fn render_advanced(spec: &FilterSpec) -> anyhow::Result<String> {
-    let mut value = serde_json::to_value(spec).context("Cannot project advanced filter policy")?;
+fn render_advanced(spec: &FilterSpec) -> Result<String, DomainError> {
+    let mut value =
+        serde_json::to_value(spec).domain_context("Cannot project advanced filter policy")?;
     let object = value
         .as_object_mut()
-        .context("Filter policy must be an object")?;
+        .domain_context("Filter policy must be an object")?;
     for key in BASIC_FIELDS {
         object.remove(key);
     }
@@ -53,7 +59,7 @@ fn render_advanced(spec: &FilterSpec) -> anyhow::Result<String> {
     if spec.blocked_ports.as_ref().is_some_and(Vec::is_empty) {
         object.remove("blocked-ports");
     }
-    serde_json::to_string(&value).context("Cannot render advanced filter policy")
+    serde_json::to_string(&value).domain_context("Cannot render advanced filter policy")
 }
 
 /// Split a free-text keyword field on commas (ASCII or full-width) and
@@ -71,7 +77,7 @@ pub fn split_filter_keywords(raw: &str) -> Vec<String> {
 /// Every regex is compiled here (via `to_rule` at apply time) but the rename
 /// syntax is validated now so a malformed `pattern => replacement` line
 /// surfaces as an actionable error rather than silently dropping the rename.
-pub fn filter_spec_from_draft(draft: &SubscriptionFilterDraft) -> anyhow::Result<FilterSpec> {
+pub fn filter_spec_from_draft(draft: &SubscriptionFilterDraft) -> Result<FilterSpec, DomainError> {
     let mut spec = advanced_policy(draft.advanced_policy.as_deref())?;
     spec.include_keywords = split_filter_keywords(&draft.include);
     spec.exclude_keywords = split_filter_keywords(&draft.exclude);
@@ -82,7 +88,9 @@ pub fn filter_spec_from_draft(draft: &SubscriptionFilterDraft) -> anyhow::Result
             continue;
         }
         let Some((pattern, replacement)) = line.split_once("=>") else {
-            anyhow::bail!("重命名规则格式错误（应为 模式 => 替换）: {line}");
+            return Err(DomainError::invalid(format!(
+                "重命名规则格式错误（应为 模式 => 替换）: {line}"
+            )));
         };
         spec.rename_rules.push(RenameSpec {
             pattern: pattern.trim().to_string(),
@@ -94,14 +102,14 @@ pub fn filter_spec_from_draft(draft: &SubscriptionFilterDraft) -> anyhow::Result
         1 => FilterDedup::KeepFirst,
         2 => FilterDedup::KeepLast,
         3 => FilterDedup::AppendIndex,
-        _ => anyhow::bail!("Unsupported deduplication strategy"),
+        _ => return Err(DomainError::invalid("Unsupported deduplication strategy")),
     };
     spec.to_rule()?;
     Ok(spec)
 }
 
 /// Render a stored [`FilterSpec`] back into the surface-editable draft.
-pub fn filter_spec_to_draft(spec: &FilterSpec) -> anyhow::Result<SubscriptionFilterDraft> {
+pub fn filter_spec_to_draft(spec: &FilterSpec) -> Result<SubscriptionFilterDraft, DomainError> {
     spec.to_rule()?;
     Ok(SubscriptionFilterDraft {
         advanced_policy: Some(render_advanced(spec)?),

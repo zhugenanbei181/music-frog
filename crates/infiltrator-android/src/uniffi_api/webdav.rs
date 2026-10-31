@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use crate::ffi::{FfiErrorCode, FfiStatus};
 #[cfg(test)]
-use crate::host_support::map_anyhow_error;
+use crate::host_support::map_core_error;
 use crate::host_support::{
     build_settings_application, build_sync_application, map_application_failure,
 };
@@ -160,7 +160,7 @@ async fn persist_webdav_configuration_in<S: SecureStore>(
     } else {
         save_webdav_password(store, &settings.password)
             .await
-            .map_err(map_anyhow_error)?;
+            .map_err(map_core_error)?;
     }
     let mut core_config = to_webdav_config(settings.clone());
     // password 的序列化被 core 跳过；这里仍显式清空内存镜像，保证不落盘。
@@ -172,7 +172,7 @@ async fn persist_webdav_configuration_in<S: SecureStore>(
         &app_settings,
     )
     .await
-    .map_err(map_anyhow_error)?;
+    .map_err(map_core_error)?;
     // 回显完整记录（含密码内存镜像），与迁移前 FFI 行为一致。
     Ok(settings)
 }
@@ -249,7 +249,7 @@ async fn synchronize_webdav_now_in<S: SecureStore + 'static>(
 async fn load_app_settings_in(home: &path::Path) -> Result<AppSettings, FfiStatus> {
     let path = settings_path(home)
         .map_err(|err| FfiStatus::err(FfiErrorCode::InvalidState, err.to_string()))?;
-    load_settings(&path).await.map_err(map_anyhow_error)
+    load_settings(&path).await.map_err(map_core_error)
 }
 
 /// 水合加载：[`load_app_settings_in`] 之后把 OS keyring 中的 WebDAV 密码
@@ -264,7 +264,7 @@ async fn load_hydrated_app_settings_in<S: SecureStore>(
         .map_err(|err| FfiStatus::err(FfiErrorCode::InvalidState, err.to_string()))?;
     load_settings_hydrated_with_store(&path, store)
         .await
-        .map_err(map_anyhow_error)
+        .map_err(map_core_error)
 }
 
 fn to_settings_record(config: &WebDavConfig) -> WebDavSettings {

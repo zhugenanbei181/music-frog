@@ -7,6 +7,7 @@
 //! core process hint; a recycled pid owned by any other program is reported
 //! as a foreign process and the record treated as stale.
 
+use crate::error::CoreError;
 use std::io::ErrorKind;
 use std::path::Path;
 use sysinfo::{Pid, ProcessesToUpdate, System};
@@ -105,7 +106,7 @@ pub(super) async fn service_running(path: &Path) -> bool {
 /// Remove the pid file only when it is provably stale: malformed content, a
 /// dead pid, or a pid recycled by a foreign process. An unreadable file or a
 /// file backed by a running core is never touched.
-pub(super) async fn remove_stale_pid_file(path: &Path) -> anyhow::Result<bool> {
+pub(super) async fn remove_stale_pid_file(path: &Path) -> Result<bool, CoreError> {
     let stale = match read_pid_state(path).await {
         PidFileState::Absent | PidFileState::Unreadable(_) => false,
         PidFileState::Malformed(_) => true,

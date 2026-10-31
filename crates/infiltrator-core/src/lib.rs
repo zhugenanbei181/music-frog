@@ -20,6 +20,7 @@ pub mod dns_wire;
 pub mod doctor;
 pub mod doctor_port;
 pub mod engine_version_backend_factory;
+pub mod error;
 pub mod factory_reset;
 pub mod fake_ip_cache_io;
 pub mod flow_control;

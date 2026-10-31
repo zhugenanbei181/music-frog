@@ -12,12 +12,14 @@ use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_application::sync_application::SyncApplication;
 use infiltrator_core::app_routing_io::FileAppRoutingStore;
 use infiltrator_core::doctor_port::MihomoDoctor;
+use infiltrator_core::error::CoreError;
 use infiltrator_core::fake_ip_cache_io::FileFakeIpCache;
 use infiltrator_core::public_ip_io::HttpPublicIpProbe;
 use infiltrator_core::settings_io;
 use infiltrator_core::settings_store::for_current_home;
 use infiltrator_core::subscription_io::HttpSubscriptionSource;
 use infiltrator_core::sync_port::FileWebDavSync;
+use infiltrator_domain::error::{DomainError, DomainFailureCategory};
 use infiltrator_platform::defaults::DefaultCredentialStore;
 use infiltrator_platform::paths::get_home_dir;
 use infiltrator_ports::subscription_source::SubscriptionSource;
@@ -81,7 +83,7 @@ pub(super) async fn configs_dir_override() -> Option<String> {
 }
 
 pub(super) async fn build_settings_application() -> Result<SettingsApplication, FfiStatus> {
-    let store = for_current_home().map_err(map_anyhow_error)?;
+    let store = for_current_home().map_err(map_core_error)?;
     Ok(SettingsApplication::new(Arc::new(store)))
 }
 
@@ -101,7 +103,7 @@ pub(crate) async fn save_webdav_password(password: &str) -> Result<(), FfiStatus
     let store = DefaultCredentialStore::default();
     settings_io::save_webdav_password(&store, password)
         .await
-        .map_err(map_anyhow_error)
+        .map_err(map_core_error)
 }
 
 pub(crate) async fn clear_webdav_password() {
@@ -110,7 +112,7 @@ pub(crate) async fn clear_webdav_password() {
 }
 
 pub(super) fn doctor_application() -> Result<DoctorApplication, FfiStatus> {
-    let doctor = MihomoDoctor::detect().map_err(map_anyhow_error)?;
+    let doctor = MihomoDoctor::detect().map_err(map_core_error)?;
     Ok(DoctorApplication::new(Arc::new(doctor)))
 }
 
@@ -119,7 +121,7 @@ pub(super) fn cache_application() -> CacheApplication {
 }
 
 pub(super) fn build_routing_application() -> Result<RoutingApplication, FfiStatus> {
-    let store = FileAppRoutingStore::current().map_err(map_anyhow_error)?;
+    let store = FileAppRoutingStore::current().map_err(map_core_error)?;
     Ok(RoutingApplication::new(Arc::new(store)))
 }
 
@@ -148,11 +150,25 @@ pub(super) async fn build_sync_application() -> Result<SyncApplication, FfiStatu
     Ok(SyncApplication::new(Arc::new(sync)))
 }
 
-pub(super) fn map_anyhow_error(err: anyhow::Error) -> FfiStatus {
-    if let Some(source) = err.downcast_ref::<MihomoError>() {
-        return map_mihomo_error_ref(source);
-    }
-    FfiStatus::err(FfiErrorCode::Unknown, err.to_string())
+pub(super) fn map_core_error(error: CoreError) -> FfiStatus {
+    map_failure_category(error.category(), error.message())
+}
+
+pub(super) fn map_domain_error(error: DomainError) -> FfiStatus {
+    map_failure_category(error.category(), error.message())
+}
+
+fn map_failure_category(category: DomainFailureCategory, message: &str) -> FfiStatus {
+    let code = match category {
+        DomainFailureCategory::Invalid => FfiErrorCode::InvalidInput,
+        DomainFailureCategory::Parse | DomainFailureCategory::Serialize => {
+            FfiErrorCode::InvalidState
+        }
+        DomainFailureCategory::Io => FfiErrorCode::Io,
+        DomainFailureCategory::NotFound => FfiErrorCode::NotReady,
+        DomainFailureCategory::Other => FfiErrorCode::Unknown,
+    };
+    FfiStatus::err(code, message.to_string())
 }
 
 pub(super) fn map_application_failure(failure: Failure) -> FfiStatus {

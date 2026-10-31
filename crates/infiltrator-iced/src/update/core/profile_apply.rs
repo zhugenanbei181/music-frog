@@ -16,6 +16,7 @@ use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_ports::host_runtime::HostRuntime;
 use lurker_core_contract::error::InfiltratorError;
+use std::fmt::Display;
 use std::sync::Arc;
 
 /// Convert the host's optional capability slot at the Iced-to-application
@@ -30,13 +31,14 @@ pub(crate) fn runtime_access(
     }
 }
 
-pub(crate) fn save_task<F>(
+pub(crate) fn save_task<F, E>(
     runtime: ProfileRuntimeAccess<dyn HostRuntime>,
     transform: F,
     result_message: fn(Result<(), InfiltratorError>) -> Message,
 ) -> Task<Message>
 where
-    F: FnOnce(&str) -> anyhow::Result<String> + Send + 'static,
+    F: FnOnce(&str) -> Result<String, E> + Send + 'static,
+    E: Display + Send + 'static,
 {
     save_task_with_strategy(
         runtime,
@@ -46,14 +48,15 @@ where
     )
 }
 
-pub(crate) fn save_task_with_strategy<F>(
+pub(crate) fn save_task_with_strategy<F, E>(
     runtime: ProfileRuntimeAccess<dyn HostRuntime>,
     strategy: ApplyStrategy,
     transform: F,
     result_message: fn(Result<(), InfiltratorError>) -> Message,
 ) -> Task<Message>
 where
-    F: FnOnce(&str) -> anyhow::Result<String> + Send + 'static,
+    F: FnOnce(&str) -> Result<String, E> + Send + 'static,
+    E: Display + Send + 'static,
 {
     Task::perform(
         save_current_profile_content(runtime, strategy, transform),
@@ -61,13 +64,14 @@ where
     )
 }
 
-pub(super) async fn save_current_profile_content<F>(
+pub(super) async fn save_current_profile_content<F, E>(
     runtime: ProfileRuntimeAccess<dyn HostRuntime>,
     strategy: ApplyStrategy,
     transform: F,
 ) -> Result<(), InfiltratorError>
 where
-    F: FnOnce(&str) -> anyhow::Result<String> + Send + 'static,
+    F: FnOnce(&str) -> Result<String, E> + Send + 'static,
+    E: Display + Send + 'static,
 {
     let store = config_manager().await?;
     let application = profiles_for_mihomo(store);

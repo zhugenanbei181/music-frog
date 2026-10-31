@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, bail};
+use crate::error::{DomainContext, DomainError};
 use flate2::read::GzDecoder;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -155,13 +155,13 @@ pub fn is_valid_mrs_magic(magic: &[u8]) -> bool {
 }
 
 /// Parse standard 16-byte fixed header plus UTF-8 description from MRS binary content.
-pub fn parse_mrs_header(bytes: &[u8]) -> Result<MrsMetadata> {
+pub fn parse_mrs_header(bytes: &[u8]) -> Result<MrsMetadata, DomainError> {
     if bytes.len() < 4 || !is_valid_mrs_magic(&bytes[0..4]) {
-        bail!("Invalid magic header");
+        return Err(DomainError::invalid("Invalid magic header"));
     }
 
     if bytes.len() < 16 {
-        bail!("Header too short");
+        return Err(DomainError::invalid("Header too short"));
     }
 
     let version = bytes[4];
@@ -171,11 +171,11 @@ pub fn parse_mrs_header(bytes: &[u8]) -> Result<MrsMetadata> {
     let desc_len = u16::from_le_bytes(bytes[14..16].try_into().unwrap()) as usize;
 
     if bytes.len() < 16 + desc_len {
-        bail!("Incomplete description");
+        return Err(DomainError::invalid("Incomplete description"));
     }
 
     let description = String::from_utf8(bytes[16..16 + desc_len].to_vec())
-        .context("Invalid UTF-8 in description")?;
+        .domain_context("Invalid UTF-8 in description")?;
 
     Ok(MrsMetadata {
         behavior,
@@ -187,7 +187,7 @@ pub fn parse_mrs_header(bytes: &[u8]) -> Result<MrsMetadata> {
 }
 
 /// Parse extended MRS header details including detected compression, timestamp and digests.
-pub fn parse_mrs_header_extended(bytes: &[u8]) -> Result<MrsHeader> {
+pub fn parse_mrs_header_extended(bytes: &[u8]) -> Result<MrsHeader, DomainError> {
     let meta = parse_mrs_header(bytes)?;
     let magic: [u8; 4] = bytes[0..4].try_into().unwrap();
     let desc_len = u16::from_le_bytes(bytes[14..16].try_into().unwrap()) as usize;
@@ -226,7 +226,7 @@ pub fn parse_mrs_header_extended(bytes: &[u8]) -> Result<MrsHeader> {
 }
 
 /// Validate raw MRS bytes against format specifications and compute integrity reports.
-pub fn validate_mrs_bytes(bytes: &[u8]) -> Result<MrsValidationReport> {
+pub fn validate_mrs_bytes(bytes: &[u8]) -> Result<MrsValidationReport, DomainError> {
     let mut errors = Vec::new();
     let mut warnings = Vec::new();
 
@@ -342,7 +342,7 @@ pub fn verify_mrs_integrity(
     bytes: &[u8],
     expected_sha256: Option<&str>,
     expected_crc32: Option<u32>,
-) -> Result<bool> {
+) -> Result<bool, DomainError> {
     if let Some(expected_sha) = expected_sha256 {
         let actual_sha = compute_sha256(bytes);
         if !actual_sha.eq_ignore_ascii_case(expected_sha) {
@@ -416,19 +416,22 @@ use crate::rules::RuleEntry;
 use std::io::Read;
 
 /// Deconstruct raw MRS binary payload into line items (domains, CIDRs, or classical rules).
-pub fn deconstruct_mrs_payload(bytes: &[u8]) -> Result<Vec<String>> {
+pub fn deconstruct_mrs_payload(bytes: &[u8]) -> Result<Vec<String>, DomainError> {
     let report = validate_mrs_bytes(bytes)?;
     if !report.is_valid {
-        bail!("Cannot deconstruct invalid MRS binary: {:?}", report.errors);
+        return Err(DomainError::invalid(format!(
+            "Cannot deconstruct invalid MRS binary: {:?}",
+            report.errors
+        )));
     }
     let Some(meta) = report.metadata else {
-        bail!("Missing MRS metadata");
+        return Err(DomainError::invalid("Missing MRS metadata"));
     };
 
     let desc_len = u16::from_le_bytes(bytes[14..16].try_into().unwrap()) as usize;
     let header_len = 16 + desc_len;
     if bytes.len() < header_len {
-        bail!("Truncated MRS header");
+        return Err(DomainError::invalid("Truncated MRS header"));
     }
     let payload = &bytes[header_len..];
 
@@ -439,7 +442,7 @@ pub fn deconstruct_mrs_payload(bytes: &[u8]) -> Result<Vec<String>> {
             let mut buf = Vec::new();
             decoder
                 .read_to_end(&mut buf)
-                .context("Gzip decompression failed")?;
+                .domain_context("Gzip decompression failed")?;
             buf
         }
         CompressionType::None | CompressionType::Zstd | CompressionType::Unknown(_) => {
@@ -486,7 +489,10 @@ pub fn deconstruct_mrs_payload(bytes: &[u8]) -> Result<Vec<String>> {
 }
 
 /// Unpack an entire MRS binary into standard local  records with target outbound.
-pub fn unpack_mrs_to_rule_entries(bytes: &[u8], target: &str) -> Result<Vec<RuleEntry>> {
+pub fn unpack_mrs_to_rule_entries(
+    bytes: &[u8],
+    target: &str,
+) -> Result<Vec<RuleEntry>, DomainError> {
     let rules = deconstruct_mrs_payload(bytes)?;
     Ok(rules
         .into_iter()

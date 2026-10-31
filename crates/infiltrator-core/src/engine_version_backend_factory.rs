@@ -1,5 +1,6 @@
 //! Engine-keyed version backend registry and the Mihomo product adapter.
 
+use crate::error::CoreError;
 use crate::mihomo_binary_selection::MihomoBinarySelectionAdapter;
 use crate::version_port::MihomoVersionPort;
 use infiltrator_contract::version::CoreArtifactVerification;
@@ -88,7 +89,7 @@ pub struct MihomoEngineVersionBackendFactory {
 }
 
 impl MihomoEngineVersionBackendFactory {
-    pub fn current() -> anyhow::Result<Self> {
+    pub fn current() -> Result<Self, CoreError> {
         Ok(Self::with_home(get_home_dir()?))
     }
 

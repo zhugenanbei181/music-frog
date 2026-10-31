@@ -1,7 +1,7 @@
 //! test-intent: behavior
 use super::*;
+use infiltrator_domain::error::DomainFailureCategory;
 use lurker_core_contract::error::{ErrorCode, Failure};
-use mihomo_driver::error::MihomoError;
 use std::fs::{read, write};
 use tempfile::tempdir;
 
@@ -12,8 +12,7 @@ fn nested_io_permission_and_storage_errors_keep_category_context_and_recovery_po
         (ErrorKind::NotFound, ErrorCode::Storage, false),
         (ErrorKind::Interrupted, ErrorCode::Storage, true),
     ] {
-        let error = anyhow::Error::new(Error::new(kind, "concrete host failure"))
-            .context("repair configuration");
+        let error = CoreError::io_with_kind(kind, "repair configuration: concrete host failure");
         let failure = Failure::from(adapter_error(error));
         assert_eq!(failure.code, code);
         assert_eq!(failure.retryable, retryable);
@@ -21,21 +20,22 @@ fn nested_io_permission_and_storage_errors_keep_category_context_and_recovery_po
         assert!(failure.message.contains("concrete host failure"));
     }
     let expected = Failure::new(ErrorCode::InvalidInput, "invalid configuration", false);
-    assert_eq!(
-        Failure::from(adapter_error(
-            anyhow::Error::new(PortError::Rejected(expected.clone())).context("host adapter")
-        )),
-        expected
-    );
+    let converted = CoreError::from(PortError::Rejected(expected.clone()));
+    assert_eq!(converted.category(), DomainFailureCategory::Other);
+    let failure = Failure::from(adapter_error(CoreError::new(
+        converted.category(),
+        format!("host adapter: {}", converted.message()),
+    )));
+    assert_eq!(failure.code, ErrorCode::Internal);
+    assert!(!failure.retryable);
+    assert!(failure.message.contains("host adapter"));
+    assert!(failure.message.contains("invalid configuration"));
     for (kind, code) in [
         (ErrorKind::PermissionDenied, ErrorCode::Permission),
         (ErrorKind::NotADirectory, ErrorCode::Storage),
     ] {
-        let error = anyhow::Error::new(MihomoError::Io(Error::new(
-            kind,
-            "profile root unavailable",
-        )))
-        .context("construct profile store");
+        let error =
+            CoreError::io_with_kind(kind, "construct profile store: profile root unavailable");
         let failure = Failure::from(adapter_error(error));
         assert_eq!(failure.code, code);
         assert!(failure.message.contains("construct profile store"));

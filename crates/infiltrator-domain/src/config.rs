@@ -1,13 +1,13 @@
-use anyhow::anyhow;
+use crate::error::DomainError;
 use yaml_rust2::YamlLoader;
 
-pub fn validate_yaml(content: &str) -> anyhow::Result<()> {
+pub fn validate_yaml(content: &str) -> Result<(), DomainError> {
     if content.trim().is_empty() {
-        return Err(anyhow!("配置内容不能为空"));
+        return Err(DomainError::invalid("配置内容不能为空"));
     }
     YamlLoader::load_from_str(content)
         .map(|_| ())
-        .map_err(|e| anyhow!("配置内容不是有效的 YAML: {e}"))
+        .map_err(|e| DomainError::invalid(format!("配置内容不是有效的 YAML: {e}")))
 }
 
 #[cfg(test)]

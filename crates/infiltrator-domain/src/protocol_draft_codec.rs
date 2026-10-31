@@ -1,29 +1,29 @@
 //! Engine-neutral protocol draft/URI conversions and measured URI fidelity.
 
+use crate::error::DomainError;
 use crate::profile_converter::ProfileConverter;
 use crate::protocol_node_params::node_from_draft;
 use crate::protocol_node_projection::draft_from_node;
-use anyhow::{Result, anyhow, bail};
 use infiltrator_contract::protocol_fidelity::ProtocolDraft;
 
-pub fn draft_from_uri(uri: &str) -> Result<ProtocolDraft> {
+pub fn draft_from_uri(uri: &str) -> Result<ProtocolDraft, DomainError> {
     let trimmed = uri.trim();
     if trimmed.is_empty() {
-        bail!("share link must not be empty");
+        return Err(DomainError::invalid("share link must not be empty"));
     }
     let item = ProfileConverter::parse_uri(trimmed)
-        .map_err(|error| anyhow!("could not parse share link: {error}"))?;
+        .map_err(|error| DomainError::invalid(format!("could not parse share link: {error}")))?;
     let draft = draft_from_node(&item);
     if draft.node_type.trim().is_empty() {
-        bail!("share link did not name a protocol");
+        return Err(DomainError::invalid("share link did not name a protocol"));
     }
     Ok(draft)
 }
 
-pub fn uri_from_draft(draft: &ProtocolDraft) -> Result<String> {
+pub fn uri_from_draft(draft: &ProtocolDraft) -> Result<String, DomainError> {
     let item = node_from_draft(draft);
     ProfileConverter::export_uri(&item)
-        .map_err(|error| anyhow!("could not encode share link: {error}"))
+        .map_err(|error| DomainError::invalid(format!("could not encode share link: {error}")))
 }
 
 /// Compare a draft with an actual URI round-trip instead of assuming that the

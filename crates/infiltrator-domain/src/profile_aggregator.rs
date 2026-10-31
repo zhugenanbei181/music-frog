@@ -15,6 +15,7 @@
 //! counters and the derived topology, so both surfaces can render real dedup
 //! facts and real regional groups instead of fabricated placeholders.
 
+use crate::error::DomainError;
 use crate::filter::{
     COUNTRY_DEFS, ContentDedupStrategy, DeduplicationStrategy, FilterPipeline, FilterStage,
     NodeSortOrder, extract_country_code,
@@ -24,7 +25,6 @@ use crate::profile_converter::{
 };
 use crate::proxy_nodes::profile_yaml::parse_profile_yaml;
 use crate::proxy_nodes::validate::{validate, validate_item};
-use anyhow::{Result, anyhow, bail};
 use infiltrator_contract::aggregator::AggregationCustomGroup;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -124,7 +124,7 @@ impl ProfileAggregator {
     pub fn plan(
         sources: &[SourceSubscription],
         options: &AggregationOptions,
-    ) -> Result<AggregationPlan> {
+    ) -> Result<AggregationPlan, DomainError> {
         Self::validate_options(options)?;
 
         let mut all_nodes: Vec<ProxyNodeItem> = Vec::new();
@@ -161,12 +161,14 @@ impl ProfileAggregator {
         }
 
         if all_nodes.is_empty() && invalid_nodes_removed == 0 {
-            return Err(anyhow!(
-                "No valid proxy nodes found across sources to aggregate"
+            return Err(DomainError::invalid(
+                "No valid proxy nodes found across sources to aggregate",
             ));
         }
         if all_nodes.is_empty() {
-            bail!("all {invalid_nodes_removed} nodes failed the availability precheck");
+            return Err(DomainError::invalid(format!(
+                "all {invalid_nodes_removed} nodes failed the availability precheck"
+            )));
         }
 
         let input_nodes = merged_nodes;
@@ -241,7 +243,7 @@ impl ProfileAggregator {
     fn validate_custom_groups(
         regions: &[RegionalCluster],
         options: &AggregationOptions,
-    ) -> Result<()> {
+    ) -> Result<(), DomainError> {
         let mut reserved: BTreeSet<String> = [
             MASTER_SELECT_GROUP,
             AUTO_SELECT_GROUP,
@@ -254,10 +256,10 @@ impl ProfileAggregator {
         reserved.extend(regions.iter().map(RegionalCluster::group_name));
         for group in &options.custom_groups {
             if !reserved.insert(group.name.trim().to_owned()) {
-                bail!(
+                return Err(DomainError::invalid(format!(
                     "custom group `{}` collides with an existing proxy group",
                     group.name
-                );
+                )));
             }
         }
         Ok(())
@@ -265,19 +267,20 @@ impl ProfileAggregator {
 
     /// DUAL-08-08/08-10: reject option values the pipeline cannot honour
     /// instead of silently ignoring them.
-    fn validate_options(options: &AggregationOptions) -> Result<()> {
+    fn validate_options(options: &AggregationOptions) -> Result<(), DomainError> {
         for (index, group) in options.custom_groups.iter().enumerate() {
             if group.name.trim().is_empty() {
-                bail!("custom group #{} needs a name", index + 1);
+                return Err(DomainError::invalid(format!(
+                    "custom group #{} needs a name",
+                    index + 1
+                )));
             }
             let group_type = group.group_type.trim();
             if !CUSTOM_GROUP_TYPES.contains(&group_type) {
-                bail!(
+                return Err(DomainError::invalid(format!(
                     "custom group `{}` has unsupported type `{}` (expected one of {:?})",
-                    group.name,
-                    group_type,
-                    CUSTOM_GROUP_TYPES
-                );
+                    group.name, group_type, CUSTOM_GROUP_TYPES
+                )));
             }
         }
         Ok(())
@@ -286,12 +289,18 @@ impl ProfileAggregator {
     /// DUAL-08-08: the user-authored rename stages, applied before the shared
     /// cleaning pipeline so country-code normalisation and dedup see the
     /// renamed values. Invalid patterns surface as an actionable error.
-    pub fn rename_pipeline(options: &AggregationOptions) -> Result<FilterPipeline> {
+    pub fn rename_pipeline(options: &AggregationOptions) -> Result<FilterPipeline, DomainError> {
         let mut pipeline = FilterPipeline::new();
         for (index, rule) in options.rename_rules.iter().enumerate() {
             pipeline.add_stage(
                 FilterStage::regex_rename(&rule.pattern, rule.replacement.clone()).map_err(
-                    |error| anyhow!("rename rule #{} ({:?}): {error}", index + 1, rule.pattern),
+                    |error| {
+                        DomainError::invalid(format!(
+                            "rename rule #{} ({:?}): {error}",
+                            index + 1,
+                            rule.pattern
+                        ))
+                    },
                 )?,
             );
         }
@@ -418,7 +427,10 @@ impl ProfileAggregator {
     }
 
     /// Render the plan as a standalone mihomo YAML document.
-    fn render_yaml(nodes: &[ProxyNodeItem], groups: &[GeneratedGroup]) -> Result<String> {
+    fn render_yaml(
+        nodes: &[ProxyNodeItem],
+        groups: &[GeneratedGroup],
+    ) -> Result<String, DomainError> {
         let mut doc = serde_yaml_ng::Mapping::new();
         doc.insert(
             serde_yaml_ng::Value::String("port".into()),
@@ -474,7 +486,7 @@ impl ProfileAggregator {
                     );
                     Ok(serde_yaml_ng::Value::Mapping(entry))
                 })
-                .collect::<Result<Vec<_>>>()?;
+                .collect::<Result<Vec<_>, DomainError>>()?;
             doc.insert(
                 serde_yaml_ng::Value::String("proxy-groups".into()),
                 serde_yaml_ng::Value::Sequence(group_values),
@@ -489,7 +501,8 @@ impl ProfileAggregator {
             serde_yaml_ng::Value::Sequence(rules),
         );
 
-        serde_yaml_ng::to_string(&serde_yaml_ng::Value::Mapping(doc)).map_err(|e| anyhow!("{e}"))
+        serde_yaml_ng::to_string(&serde_yaml_ng::Value::Mapping(doc))
+            .map_err(|e| DomainError::invalid(format!("{e}")))
     }
 }
 

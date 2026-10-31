@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use crate::error::DomainError;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -203,8 +203,8 @@ fn parse_native(source: &str) -> Result<LogicalRule, RuleSyntaxError> {
 pub fn validate_logical_rule_syntax(source: &str) -> Result<(), RuleSyntaxError> {
     parse_native(source).map(|_| ())
 }
-pub fn parse_logical_rule(source: &str) -> Result<LogicalRule> {
-    parse_native(source).map_err(|error| anyhow!("{error}"))
+pub fn parse_logical_rule(source: &str) -> Result<LogicalRule, DomainError> {
+    parse_native(source).map_err(|error| DomainError::invalid(error.to_string()))
 }
 pub fn format_logical_rule(rule: &LogicalRule) -> String {
     format!("{},{}", format_ast(&rule.payload), rule.target)

@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, anyhow};
+use crate::error::{DomainContext, DomainError};
 use serde::{Deserialize, Serialize};
 use serde_yaml_ng::{Mapping, Value};
 use std::collections::BTreeMap;
@@ -12,35 +12,38 @@ pub struct ProxyProvidersPayload {
 
 /// Apply proxy-provider changes to an in-memory profile document so a
 /// frontend can use the shared atomic Apply transaction.
-pub fn apply_proxy_providers_to_yaml(content: &str, providers: &ProxyProviders) -> Result<String> {
-    let mut doc: Value = serde_yaml_ng::from_str(content).context("parse profile yaml")?;
+pub fn apply_proxy_providers_to_yaml(
+    content: &str,
+    providers: &ProxyProviders,
+) -> Result<String, DomainError> {
+    let mut doc: Value = serde_yaml_ng::from_str(content).domain_context("parse profile yaml")?;
     apply_proxy_providers(&mut doc, providers)?;
-    serde_yaml_ng::to_string(&doc).context("serialize profile yaml")
+    serde_yaml_ng::to_string(&doc).domain_context("serialize profile yaml")
 }
 
-pub fn extract_proxy_providers_from_doc(doc: &Value) -> Result<ProxyProviders> {
+pub fn extract_proxy_providers_from_doc(doc: &Value) -> Result<ProxyProviders, DomainError> {
     let value = doc
         .get("proxy-providers")
         .cloned()
         .unwrap_or(Value::Mapping(Mapping::new()));
     let mapping = value
         .as_mapping()
-        .ok_or_else(|| anyhow!("proxy-providers is not a mapping"))?;
+        .ok_or_else(|| DomainError::invalid("proxy-providers is not a mapping"))?;
     let mut providers = BTreeMap::new();
     for (key, val) in mapping {
         let name = key
             .as_str()
-            .ok_or_else(|| anyhow!("proxy-providers contains non-string key"))?;
-        let json_value = serde_json::to_value(val).context("encode proxy provider")?;
+            .ok_or_else(|| DomainError::invalid("proxy-providers contains non-string key"))?;
+        let json_value = serde_json::to_value(val).domain_context("encode proxy provider")?;
         providers.insert(name.to_string(), json_value);
     }
     Ok(providers)
 }
 
-fn apply_proxy_providers(doc: &mut Value, providers: &ProxyProviders) -> Result<()> {
+fn apply_proxy_providers(doc: &mut Value, providers: &ProxyProviders) -> Result<(), DomainError> {
     let map = doc
         .as_mapping_mut()
-        .ok_or_else(|| anyhow!("profile config is not a mapping"))?;
+        .ok_or_else(|| DomainError::invalid("profile config is not a mapping"))?;
     if providers.is_empty() {
         map.remove(Value::String("proxy-providers".to_string()));
         return Ok(());
@@ -48,7 +51,7 @@ fn apply_proxy_providers(doc: &mut Value, providers: &ProxyProviders) -> Result<
 
     let mut yaml_map = Mapping::new();
     for (name, value) in providers {
-        let yaml_value = serde_yaml_ng::to_value(value).context("decode proxy provider")?;
+        let yaml_value = serde_yaml_ng::to_value(value).domain_context("decode proxy provider")?;
         yaml_map.insert(Value::String(name.to_string()), yaml_value);
     }
     map.insert(

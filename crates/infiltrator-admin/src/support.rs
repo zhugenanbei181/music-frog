@@ -92,7 +92,7 @@ where
 async fn load_app_settings() -> anyhow::Result<AppSettings> {
     let home = get_home_dir()?;
     let settings_file = settings_io::settings_path(&home)?;
-    settings_io::load_settings(&settings_file).await
+    Ok(settings_io::load_settings(&settings_file).await?)
 }
 
 /// settings 感知的 ConfigManager 构造：home → settings.toml →

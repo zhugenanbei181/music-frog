@@ -1,6 +1,6 @@
+use crate::error::DomainError;
 use crate::sub_rules;
 use crate::sub_rules::LogicalRule;
-use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -129,7 +129,7 @@ pub struct ParsedRule {
     pub source_ip: bool,
 }
 
-pub fn parse_rule_str(source: &str) -> Result<ParsedRule> {
+pub fn parse_rule_str(source: &str) -> Result<ParsedRule, DomainError> {
     let trimmed = source.trim();
     let kind = trimmed.split(',').next().unwrap_or("").to_ascii_uppercase();
     if ["AND", "OR", "NOT", "SUB-RULE"].contains(&kind.as_str()) {
@@ -144,16 +144,16 @@ pub fn parse_rule_str(source: &str) -> Result<ParsedRule> {
     parse_atomic_rule(trimmed, true)
 }
 
-pub fn parse_rule_condition(source: &str) -> Result<ParsedRule> {
+pub fn parse_rule_condition(source: &str) -> Result<ParsedRule, DomainError> {
     parse_atomic_rule(source.trim(), false)
 }
 
-fn parse_atomic_rule(source: &str, needs_target: bool) -> Result<ParsedRule> {
+fn parse_atomic_rule(source: &str, needs_target: bool) -> Result<ParsedRule, DomainError> {
     let parts: Vec<&str> = source.split(',').map(str::trim).collect();
     let type_str = parts[0].to_ascii_uppercase();
     if type_str == "MATCH" {
         if !needs_target || parts.len() < 2 || parts[1].is_empty() {
-            return Err(anyhow!("MATCH requires an outbound target"));
+            return Err(DomainError::invalid("MATCH requires an outbound target"));
         }
         return Ok(ParsedRule {
             rule_type: RuleType::Match,
@@ -164,8 +164,8 @@ fn parse_atomic_rule(source: &str, needs_target: bool) -> Result<ParsedRule> {
     }
     let minimum = if needs_target { 3 } else { 2 };
     if parts.len() < minimum || parts[0].is_empty() || parts[1].is_empty() {
-        return Err(anyhow!(
-            "Rule has a missing type, payload or target: {source}"
+        return Err(DomainError::invalid(
+            "Rule has a missing type, payload or target: {source}",
         ));
     }
     let regex =
@@ -194,7 +194,7 @@ fn parse_atomic_rule(source: &str, needs_target: bool) -> Result<ParsedRule> {
         )
     };
     if needs_target && target.is_empty() {
-        return Err(anyhow!("Rule has an empty outbound target"));
+        return Err(DomainError::invalid("Rule has an empty outbound target"));
     }
     let parameterized = [
         "IP-CIDR",

@@ -1,6 +1,7 @@
 //! Corporate/private subnet classification and bypass rule generation.
 
 use super::{CorporateSubnetDetector, SubnetCategory, matches_cidr, parse_cidr};
+use crate::error::DomainError;
 use crate::rules::RuleEntry;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
@@ -38,10 +39,13 @@ impl CorporateSubnetDetector {
         detector
     }
 
-    pub fn add_custom_subnet(&mut self, cidr: &str) -> anyhow::Result<()> {
+    pub fn add_custom_subnet(&mut self, cidr: &str) -> Result<(), DomainError> {
         let trimmed = cidr.trim();
         if parse_cidr(trimmed).is_none() {
-            anyhow::bail!("Invalid CIDR subnet notation: '{}'", cidr);
+            return Err(DomainError::invalid(format!(
+                "Invalid CIDR subnet notation: '{}'",
+                cidr
+            )));
         }
         if !self.custom_subnets.iter().any(|s| s == trimmed) {
             self.custom_subnets.push(trimmed.to_string());

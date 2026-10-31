@@ -1,18 +1,19 @@
 //! Filesystem adapter for the runtime-neutral backup bundle.
 
+use crate::error::CoreError;
 use crate::settings_io::settings_path;
 use infiltrator_domain::backup::{BackupBundle, BackupError, ProfileBackupItem, Result};
 use std::path::Path;
 use tokio::fs::{create_dir_all, read_dir, read_to_string, try_exists, write};
 
 /// Export all active configs and settings into a single JSON backup bundle string.
-pub async fn export_all_configs_bundle(base_dir: &Path) -> anyhow::Result<String> {
+pub async fn export_all_configs_bundle(base_dir: &Path) -> Result<String, CoreError> {
     let bundle = export_bundle_from_dir(base_dir).await?;
     Ok(serde_json::to_string_pretty(&bundle)?)
 }
 
 /// Reads local configurations, profiles, and options from `base_dir` into a `BackupBundle`.
-pub async fn export_bundle_from_dir(base_dir: &Path) -> Result<BackupBundle> {
+pub async fn export_bundle_from_dir(base_dir: &Path) -> Result<BackupBundle, CoreError> {
     let settings_p =
         settings_path(base_dir).map_err(|e| BackupError::InvalidFormat(e.to_string()))?;
     let settings_toml = if try_exists(&settings_p).await.unwrap_or(false) {
@@ -65,7 +66,7 @@ pub async fn restore_bundle_to_dir(
     bundle: &BackupBundle,
     base_dir: &Path,
     overwrite: bool,
-) -> Result<()> {
+) -> Result<(), CoreError> {
     bundle.validate_checksum()?;
 
     let settings_p =

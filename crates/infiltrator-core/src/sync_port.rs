@@ -1,5 +1,6 @@
 //! File/keyring/WebDAV adapter for the runtime-neutral sync port.
 
+use crate::error::CoreError;
 use crate::remote_profile_namespace::{migrate_remote_profile_namespace, remote_profile_path};
 use crate::settings_io::load_webdav_password;
 use dav_client::DavClient;
@@ -48,7 +49,7 @@ impl<S> FileWebDavSync<S> {
 }
 
 impl FileWebDavSync<DefaultCredentialStore> {
-    pub fn current() -> anyhow::Result<Self> {
+    pub fn current() -> Result<Self, CoreError> {
         Ok(Self::new(
             get_home_dir()?,
             DefaultCredentialStore::default(),

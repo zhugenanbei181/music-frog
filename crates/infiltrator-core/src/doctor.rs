@@ -12,6 +12,7 @@
 //! logic. All filesystem inputs come from the injectable [`DoctorEnv`] so
 //! tests and embedded hosts never touch global state.
 
+use crate::error::CoreError;
 use crate::settings_io::{load_settings, parse_settings_toml};
 use crate::version_port::MihomoVersionPort;
 use infiltrator_domain::settings::AppSettings;
@@ -208,11 +209,11 @@ pub fn list_checks() -> &'static [DoctorCheckMeta] {
 }
 
 /// Self-description of one check, for `doctor explain <id>`.
-pub fn explain_check(check_id: &str) -> anyhow::Result<&'static DoctorCheckMeta> {
+pub fn explain_check(check_id: &str) -> Result<&'static DoctorCheckMeta, CoreError> {
     CHECKS
         .iter()
         .find(|check| check.id == check_id)
-        .ok_or_else(|| anyhow::anyhow!("unknown doctor check '{check_id}'"))
+        .ok_or_else(|| CoreError::invalid(format!("unknown doctor check '{check_id}'")))
 }
 
 /// Filesystem inputs for a doctor run.
@@ -244,7 +245,7 @@ pub(super) enum ActiveProfileObservation {
 
 impl DoctorEnv {
     /// Env pointing at the real installation (home from `infiltrator-platform`).
-    pub fn detect() -> anyhow::Result<Self> {
+    pub fn detect() -> Result<Self, CoreError> {
         let home = get_home_dir()?;
         Ok(Self::with_home(home))
     }
@@ -327,7 +328,7 @@ impl DoctorEnv {
     /// pointer.
     pub(super) async fn active_profile_observation(
         &self,
-    ) -> anyhow::Result<ActiveProfileObservation> {
+    ) -> Result<ActiveProfileObservation, CoreError> {
         let manager = self.read_only_config_manager().await?;
         let profile_store = manager.engine_profile_store();
         match ActiveProfileReferenceStore::read(profile_store).await? {
@@ -360,7 +361,7 @@ impl DoctorEnv {
     /// Resolved configs directory. Derivation goes through
     /// the same shared root and engine namespace used by `ConfigManager`,
     /// without initializing the store before the directory check runs.
-    pub(super) async fn configs_dir(&self) -> anyhow::Result<PathBuf> {
+    pub(super) async fn configs_dir(&self) -> Result<PathBuf, CoreError> {
         let settings = self.read_only_settings().await;
         let root = resolve_configs_dir_in(settings.configs_dir.as_deref(), &self.home)?;
         Ok(engine_config_dir(&root, &mihomo_config::engine_id()))
@@ -432,12 +433,12 @@ fn home_unavailable_report(filter: Option<&str>, reason: &str) -> DoctorReport {
 }
 
 /// Apply the conservative fixes to the real installation.
-pub async fn fix(filter: Option<&str>) -> anyhow::Result<DoctorFixReport> {
+pub async fn fix(filter: Option<&str>) -> Result<DoctorFixReport, CoreError> {
     fix_with(&DoctorEnv::detect()?, filter).await
 }
 
 /// Apply the conservative fixes against an explicit environment.
-pub async fn fix_with(env: &DoctorEnv, filter: Option<&str>) -> anyhow::Result<DoctorFixReport> {
+pub async fn fix_with(env: &DoctorEnv, filter: Option<&str>) -> Result<DoctorFixReport, CoreError> {
     let filter = CheckFilter::parse(filter);
     let mut actions = Vec::new();
     if filter.matches("config.configs_dir", "config")

@@ -4,19 +4,20 @@
 
 use super::pidfile::remove_stale_pid_file;
 use super::{DoctorEnv, DoctorFixAction};
+use crate::error::CoreError;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use std::io::ErrorKind;
 use tokio::fs;
 
-pub(super) async fn fix_configs_dir(env: &DoctorEnv) -> anyhow::Result<Option<DoctorFixAction>> {
+pub(super) async fn fix_configs_dir(env: &DoctorEnv) -> Result<Option<DoctorFixAction>, CoreError> {
     let dir = env.configs_dir().await?;
     match fs::metadata(&dir).await {
         Ok(meta) if meta.is_dir() => return Ok(None),
         Ok(_) => {
-            anyhow::bail!(
+            return Err(CoreError::invalid(format!(
                 "refusing to fix configs directory '{}': it exists but is not a directory",
                 dir.display()
-            );
+            )));
         }
         Err(err) if err.kind() != ErrorKind::NotFound => {
             return Err(err.into());
@@ -30,7 +31,9 @@ pub(super) async fn fix_configs_dir(env: &DoctorEnv) -> anyhow::Result<Option<Do
     }))
 }
 
-pub(super) async fn fix_current_yaml(env: &DoctorEnv) -> anyhow::Result<Option<DoctorFixAction>> {
+pub(super) async fn fix_current_yaml(
+    env: &DoctorEnv,
+) -> Result<Option<DoctorFixAction>, CoreError> {
     let manager = env.initialized_config_manager().await?;
     let profile_store = manager.engine_profile_store();
     let previous_selection = ActiveProfileReferenceStore::read(profile_store).await?;
@@ -44,15 +47,15 @@ pub(super) async fn fix_current_yaml(env: &DoctorEnv) -> anyhow::Result<Option<D
             summary: format!("Initialized active profile config '{}'", path.display()),
         }));
     }
-    anyhow::bail!(
+    Err(CoreError::invalid(format!(
         "active profile document '{}' is missing; refusing to create a different namespace-default profile",
         path.display()
-    )
+    )))
 }
 
 pub(super) async fn fix_external_controller(
     env: &DoctorEnv,
-) -> anyhow::Result<Option<DoctorFixAction>> {
+) -> Result<Option<DoctorFixAction>, CoreError> {
     let manager = env.initialized_config_manager().await?;
     manager.migrate_legacy_mihomo_selection().await?;
     let profile_path = manager.get_current_path().await?;
@@ -70,7 +73,7 @@ pub(super) async fn fix_external_controller(
     }))
 }
 
-pub(super) async fn fix_stale_pid(env: &DoctorEnv) -> anyhow::Result<Option<DoctorFixAction>> {
+pub(super) async fn fix_stale_pid(env: &DoctorEnv) -> Result<Option<DoctorFixAction>, CoreError> {
     let pid_file = env.pid_file();
     if remove_stale_pid_file(&pid_file).await? {
         Ok(Some(DoctorFixAction {

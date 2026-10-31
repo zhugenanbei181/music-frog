@@ -3,10 +3,10 @@
 //! Provides bidirectional lossless translation between Clash YAML,
 //! Shadowrocket/V2Ray/QuantumultX URI formats, raw JSON, and Base64 subscriptions.
 
+use crate::error::DomainError;
 use crate::filter::{ContentDedupStrategy, DeduplicationStrategy, NodeSortOrder};
 use crate::profile_aggregator::ProfileAggregator;
 use crate::proxy_nodes::model::PortHopping;
-use anyhow::{Result, anyhow};
 use base64::engine::general_purpose::{STANDARD_NO_PAD, URL_SAFE, URL_SAFE_NO_PAD};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use infiltrator_contract::aggregator::{AggregationCustomGroup, AggregationRenameRule};
@@ -411,24 +411,27 @@ struct ClashProfile {
 pub struct ProfileConverter;
 
 impl ProfileConverter {
-    pub fn parse_uri(uri: &str) -> Result<ProxyNodeItem> {
+    pub fn parse_uri(uri: &str) -> Result<ProxyNodeItem, DomainError> {
         uri_parse::parse_uri(uri)
     }
 
-    pub fn export_uri(node: &ProxyNodeItem) -> Result<String> {
+    pub fn export_uri(node: &ProxyNodeItem) -> Result<String, DomainError> {
         uri_export::export_uri(node)
     }
 
-    pub fn parse_nodes(input: &str, format: ProfileFormat) -> Result<Vec<ProxyNodeItem>> {
+    pub fn parse_nodes(
+        input: &str,
+        format: ProfileFormat,
+    ) -> Result<Vec<ProxyNodeItem>, DomainError> {
         match format {
             ProfileFormat::ClashYaml => {
                 let profile: ClashProfile = serde_yaml_ng::from_str(input)
-                    .map_err(|e| anyhow!("Failed to parse YAML: {e}"))?;
+                    .map_err(|e| DomainError::invalid(format!("Failed to parse YAML: {e}")))?;
                 Ok(profile.proxies)
             }
             ProfileFormat::RawJson => {
                 let nodes: Vec<ProxyNodeItem> = serde_json::from_str(input)
-                    .map_err(|e| anyhow!("Failed to parse JSON: {e}"))?;
+                    .map_err(|e| DomainError::invalid(format!("Failed to parse JSON: {e}")))?;
                 Ok(nodes)
             }
             ProfileFormat::ShadowrocketUriList => {
@@ -451,7 +454,10 @@ impl ProfileConverter {
         }
     }
 
-    pub fn export_nodes(nodes: &[ProxyNodeItem], target_format: ProfileFormat) -> Result<String> {
+    pub fn export_nodes(
+        nodes: &[ProxyNodeItem],
+        target_format: ProfileFormat,
+    ) -> Result<String, DomainError> {
         match target_format {
             ProfileFormat::ClashYaml => {
                 let profile = ClashProfile {
@@ -459,10 +465,10 @@ impl ProfileConverter {
                     extra: BTreeMap::new(),
                 };
                 serde_yaml_ng::to_string(&profile)
-                    .map_err(|e| anyhow!("Failed to export YAML: {e}"))
+                    .map_err(|e| DomainError::invalid(format!("Failed to export YAML: {e}")))
             }
             ProfileFormat::RawJson => serde_json::to_string_pretty(nodes)
-                .map_err(|e| anyhow!("Failed to export JSON: {e}")),
+                .map_err(|e| DomainError::invalid(format!("Failed to export JSON: {e}"))),
             ProfileFormat::ShadowrocketUriList => {
                 let mut out = String::new();
                 for node in nodes {
@@ -478,7 +484,7 @@ impl ProfileConverter {
         }
     }
 
-    pub fn detect_and_convert(input: &str) -> Result<String> {
+    pub fn detect_and_convert(input: &str) -> Result<String, DomainError> {
         let trimmed = input.trim();
         if trimmed.starts_with("proxies:")
             || (trimmed.contains("proxies:") && trimmed.contains("port:"))
@@ -510,10 +516,12 @@ impl ProfileConverter {
         if let Ok(nodes) = Self::parse_nodes(trimmed, ProfileFormat::Base64Subscription) {
             return Self::export_nodes(&nodes, ProfileFormat::ClashYaml);
         }
-        Err(anyhow!("Unrecognized subscription or node format"))
+        Err(DomainError::invalid(
+            "Unrecognized subscription or node format",
+        ))
     }
 
-    pub fn aggregate_profiles(profile_yamls: &[&str]) -> Result<String> {
+    pub fn aggregate_profiles(profile_yamls: &[&str]) -> Result<String, DomainError> {
         let mut all_nodes = Vec::new();
         let mut seen_names = HashSet::new();
 
@@ -535,29 +543,34 @@ impl ProfileConverter {
         }
 
         if all_nodes.is_empty() {
-            return Err(anyhow!(
-                "No valid proxy nodes found across profiles to aggregate"
+            return Err(DomainError::invalid(
+                "No valid proxy nodes found across profiles to aggregate",
             ));
         }
 
         Self::export_nodes(&all_nodes, ProfileFormat::ClashYaml)
     }
 
-    pub fn convert(input: &str, from_fmt: ProfileFormat, to_fmt: ProfileFormat) -> Result<String> {
+    pub fn convert(
+        input: &str,
+        from_fmt: ProfileFormat,
+        to_fmt: ProfileFormat,
+    ) -> Result<String, DomainError> {
         let nodes = Self::parse_nodes(input, from_fmt)?;
         Self::export_nodes(&nodes, to_fmt)
     }
 }
 
-pub(crate) fn decode_base64_flexible(input: &str) -> Result<String> {
+pub(crate) fn decode_base64_flexible(input: &str) -> Result<String, DomainError> {
     let sanitized: String = input.chars().filter(|c| !c.is_whitespace()).collect();
     let decoded = STANDARD
         .decode(&sanitized)
         .or_else(|_| URL_SAFE.decode(&sanitized))
         .or_else(|_| STANDARD_NO_PAD.decode(&sanitized))
         .or_else(|_| URL_SAFE_NO_PAD.decode(&sanitized))
-        .map_err(|e| anyhow!("Failed to decode Base64: {e}"))?;
-    String::from_utf8(decoded).map_err(|e| anyhow!("Invalid UTF-8 in Base64: {e}"))
+        .map_err(|e| DomainError::invalid(format!("Failed to decode Base64: {e}")))?;
+    String::from_utf8(decoded)
+        .map_err(|e| DomainError::invalid(format!("Invalid UTF-8 in Base64: {e}")))
 }
 
 /// Source subscription input for multi-subscription aggregation.
@@ -614,7 +627,7 @@ impl MultiSubscriptionAggregator {
     pub fn aggregate(
         sources: &[SourceSubscription],
         options: &AggregationOptions,
-    ) -> Result<String> {
+    ) -> Result<String, DomainError> {
         Ok(ProfileAggregator::plan(sources, options)?.yaml)
     }
 }

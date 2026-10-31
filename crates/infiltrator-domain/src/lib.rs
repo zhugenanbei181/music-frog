@@ -19,6 +19,7 @@ pub mod dns;
 pub mod dns_hosts;
 pub mod dns_tester;
 pub mod dns_topology;
+pub mod error;
 pub mod failover_arbiter;
 pub mod fake_ip;
 pub mod filter;

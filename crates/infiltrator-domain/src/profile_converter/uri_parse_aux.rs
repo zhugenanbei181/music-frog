@@ -1,15 +1,15 @@
 //! Auxiliary URI parsing implementations for Shadowsocks, VMess, Trojan, and SSH.
 
+use crate::error::DomainError;
 use crate::profile_converter::{ProxyNodeItem, decode_base64_flexible};
-use anyhow::{Result, anyhow};
 use serde_json::Value;
 use std::collections::BTreeMap;
 use url::Url;
 
-pub(crate) fn parse_vmess_uri(encoded: &str) -> Result<ProxyNodeItem> {
+pub(crate) fn parse_vmess_uri(encoded: &str) -> Result<ProxyNodeItem, DomainError> {
     let json_str = decode_base64_flexible(encoded)?;
-    let val: Value =
-        serde_json::from_str(&json_str).map_err(|e| anyhow!("Invalid VMess JSON: {e}"))?;
+    let val: Value = serde_json::from_str(&json_str)
+        .map_err(|e| DomainError::invalid(format!("Invalid VMess JSON: {e}")))?;
 
     let name = val["ps"].as_str().unwrap_or("VMess Node").to_string();
     let server = val["add"].as_str().unwrap_or_default().to_string();
@@ -60,7 +60,7 @@ pub(crate) fn parse_vmess_uri(encoded: &str) -> Result<ProxyNodeItem> {
     })
 }
 
-pub(crate) fn parse_shadowsocks(parsed: &Url) -> Result<ProxyNodeItem> {
+pub(crate) fn parse_shadowsocks(parsed: &Url) -> Result<ProxyNodeItem, DomainError> {
     let raw_username = parsed.username();
     let name = parsed
         .fragment()
@@ -151,7 +151,7 @@ pub(crate) fn parse_shadowsocks(parsed: &Url) -> Result<ProxyNodeItem> {
     })
 }
 
-pub(crate) fn parse_trojan(parsed: &Url) -> Result<ProxyNodeItem> {
+pub(crate) fn parse_trojan(parsed: &Url) -> Result<ProxyNodeItem, DomainError> {
     let name = parsed
         .fragment()
         .map(|f| urlencoding::decode(f).unwrap_or_default().to_string())
@@ -226,7 +226,7 @@ pub(crate) fn parse_trojan(parsed: &Url) -> Result<ProxyNodeItem> {
     })
 }
 
-pub(crate) fn parse_ssh(parsed: &Url) -> Result<ProxyNodeItem> {
+pub(crate) fn parse_ssh(parsed: &Url) -> Result<ProxyNodeItem, DomainError> {
     let name = parsed
         .fragment()
         .map(|f| urlencoding::decode(f).unwrap_or_default().to_string())

@@ -3,8 +3,8 @@
 //! Provides both node-level [`FilterPipeline`] with composable stages and YAML-level
 //! [`SubscriptionFilterPipeline`] for reshaping subscription documents.
 
+use crate::error::DomainError;
 use crate::profile_converter::ProxyNodeItem;
-use anyhow::Result;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -58,7 +58,7 @@ pub struct RenameRule {
 }
 
 impl RenameRule {
-    pub fn new(pattern: &str, replacement: impl Into<String>) -> Result<Self> {
+    pub fn new(pattern: &str, replacement: impl Into<String>) -> Result<Self, DomainError> {
         Ok(Self {
             pattern: Regex::new(pattern)?,
             replacement: replacement.into(),
@@ -74,7 +74,7 @@ pub struct MultiplierRule {
 }
 
 impl MultiplierRule {
-    pub fn new(pattern: &str, multiplier: f64) -> Result<Self> {
+    pub fn new(pattern: &str, multiplier: f64) -> Result<Self, DomainError> {
         Ok(Self {
             pattern: Regex::new(pattern)?,
             multiplier,

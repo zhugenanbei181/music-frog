@@ -1,3 +1,4 @@
+use crate::error::DomainError;
 use crate::yaml_edit::SourceDoc;
 use crate::yaml_edit::mixin_fidelity::{apply_mixin_with_reference, can_apply_mixin_via_fidelity};
 use mem::take;
@@ -15,7 +16,7 @@ use std::mem;
 pub fn merge_profile_with_config_fidelity(
     base_yaml: &str,
     config: &MixinConfig,
-) -> anyhow::Result<String> {
+) -> Result<String, DomainError> {
     let reference = merge_profile_with_config(base_yaml, config)?;
     if can_apply_mixin_via_fidelity(config)
         && let Ok(mut doc) = SourceDoc::parse(base_yaml)
@@ -154,13 +155,13 @@ impl CascadeOverlayPipeline {
     }
 
     /// Execute the full cascade overlay pipeline and return the final merged YAML string.
-    pub fn execute(&self) -> anyhow::Result<String> {
+    pub fn execute(&self) -> Result<String, DomainError> {
         let merged_val = self.execute_to_value()?;
         Ok(serde_yaml_ng::to_string(&merged_val)?)
     }
 
     /// Execute the pipeline to intermediate YAML AST Value.
-    pub fn execute_to_value(&self) -> anyhow::Result<Value> {
+    pub fn execute_to_value(&self) -> Result<Value, DomainError> {
         // Stage 1: Base Profile
         let mut doc: Value = if let Some(ref base) = self.base_profile {
             if base.trim().is_empty() {
@@ -219,7 +220,7 @@ pub fn cascade_overlay_merge(
     custom_overwrites: Option<&str>,
     pre_mixin: Option<&MixinConfig>,
     post_mixin: Option<&MixinConfig>,
-) -> anyhow::Result<String> {
+) -> Result<String, DomainError> {
     let mut pipeline = CascadeOverlayPipeline::new();
     if let Some(b) = base_profile {
         pipeline = pipeline.with_base_profile(b);
@@ -239,12 +240,15 @@ pub fn cascade_overlay_merge(
     pipeline.execute()
 }
 
-pub fn merge_profile_with_mixin(base_yaml: &str, mixin_yaml: &str) -> anyhow::Result<String> {
+pub fn merge_profile_with_mixin(base_yaml: &str, mixin_yaml: &str) -> Result<String, DomainError> {
     let mixin: MixinConfig = serde_yaml_ng::from_str(mixin_yaml)?;
     merge_profile_with_config(base_yaml, &mixin)
 }
 
-pub fn merge_profile_with_config(base_yaml: &str, config: &MixinConfig) -> anyhow::Result<String> {
+pub fn merge_profile_with_config(
+    base_yaml: &str,
+    config: &MixinConfig,
+) -> Result<String, DomainError> {
     let mut base_val: Value = if base_yaml.trim().is_empty() {
         Value::Mapping(Mapping::new())
     } else {
@@ -261,7 +265,7 @@ fn apply_mixin_config_to_value(
     config: &MixinConfig,
     dedup_rules: bool,
     dedup_named: bool,
-) -> anyhow::Result<()> {
+) -> Result<(), DomainError> {
     let mut mixin_val = serde_yaml_ng::to_value(config)?;
 
     if let Value::Mapping(ref mut m) = mixin_val {
@@ -440,24 +444,24 @@ pub fn merge_yaml_key_picks(
     remote_yaml: &str,
     take_remote: &[String],
     accept_removals: &[String],
-) -> anyhow::Result<String> {
+) -> Result<String, DomainError> {
     let mut local: Value = serde_yaml_ng::from_str(local_yaml)
-        .map_err(|error| anyhow::anyhow!("本地 YAML 解析失败: {error}"))?;
+        .map_err(|error| DomainError::invalid(format!("本地 YAML 解析失败: {error}")))?;
     let remote: Value = serde_yaml_ng::from_str(remote_yaml)
-        .map_err(|error| anyhow::anyhow!("远端 YAML 解析失败: {error}"))?;
+        .map_err(|error| DomainError::invalid(format!("远端 YAML 解析失败: {error}")))?;
     let local_map = local
         .as_mapping_mut()
-        .ok_or_else(|| anyhow::anyhow!("本地 YAML 顶层不是映射"))?;
+        .ok_or_else(|| DomainError::invalid("本地 YAML 顶层不是映射"))?;
     let remote_map = remote
         .as_mapping()
-        .ok_or_else(|| anyhow::anyhow!("远端 YAML 顶层不是映射"))?;
+        .ok_or_else(|| DomainError::invalid("远端 YAML 顶层不是映射"))?;
 
     for key in accept_removals {
         local_map.remove(Value::String(key.clone()));
     }
     for key in take_remote {
         let Some(value) = remote_map.get(Value::String(key.clone())) else {
-            return Err(anyhow::anyhow!("远端配置中不存在键: {key}"));
+            return Err(DomainError::invalid(format!("远端配置中不存在键: {key}")));
         };
         local_map.insert(Value::String(key.clone()), value.clone());
     }

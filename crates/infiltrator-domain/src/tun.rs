@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, anyhow};
+use crate::error::{DomainContext, DomainError};
 use infiltrator_contract::tun::{TunDnsMode, TunDnsModeUpdate, TunStack, TunStackUpdate};
 use serde::{Deserialize, Serialize};
 use serde_yaml_ng::{Mapping, Value};
@@ -77,55 +77,61 @@ impl TunConfig {
 
 /// Apply a TUN patch to an in-memory profile document for the shared atomic
 /// Apply transaction.
-pub fn apply_tun_patch_to_yaml(content: &str, patch: TunConfigPatch) -> Result<String> {
-    let mut doc: Value = serde_yaml_ng::from_str(content).context("parse profile yaml")?;
+pub fn apply_tun_patch_to_yaml(
+    content: &str,
+    patch: TunConfigPatch,
+) -> Result<String, DomainError> {
+    let mut doc: Value = serde_yaml_ng::from_str(content).domain_context("parse profile yaml")?;
     let mut config = extract_tun_config_from_doc(&doc)?;
     config.apply_patch(patch);
     validate_tun_config(&config)?;
     apply_tun_config(&mut doc, &config)?;
-    serde_yaml_ng::to_string(&doc).context("serialize profile yaml")
+    serde_yaml_ng::to_string(&doc).domain_context("serialize profile yaml")
 }
 
-pub fn extract_tun_config_from_doc(doc: &Value) -> Result<TunConfig> {
+pub fn extract_tun_config_from_doc(doc: &Value) -> Result<TunConfig, DomainError> {
     let value = doc
         .get("tun")
         .cloned()
         .unwrap_or(Value::Mapping(Mapping::new()));
-    let config = serde_yaml_ng::from_value(value).context("decode tun config")?;
+    let config = serde_yaml_ng::from_value(value).domain_context("decode tun config")?;
     Ok(config)
 }
 
-fn apply_tun_config(doc: &mut Value, config: &TunConfig) -> Result<()> {
+fn apply_tun_config(doc: &mut Value, config: &TunConfig) -> Result<(), DomainError> {
     let map = doc
         .as_mapping_mut()
-        .ok_or_else(|| anyhow!("profile config is not a mapping"))?;
+        .ok_or_else(|| DomainError::invalid("profile config is not a mapping"))?;
     if config.is_empty() {
         map.remove(Value::String("tun".to_string()));
         return Ok(());
     }
-    let tun_value = serde_yaml_ng::to_value(config).context("encode tun config")?;
+    let tun_value = serde_yaml_ng::to_value(config).domain_context("encode tun config")?;
     map.insert(Value::String("tun".to_string()), tun_value);
     Ok(())
 }
 
-fn validate_tun_config(config: &TunConfig) -> Result<()> {
+fn validate_tun_config(config: &TunConfig) -> Result<(), DomainError> {
     if let Some(stack) = config.stack.as_ref() {
         let parsed = TunStack::parse(stack);
         if parsed.is_none_or(|value| !value.is_live_supported()) {
-            return Err(anyhow!("unsupported tun stack: {}", stack));
+            return Err(DomainError::invalid(format!(
+                "unsupported tun stack: {}",
+                stack
+            )));
         }
     }
     if let Some(dns_hijack) = config.dns_hijack.as_ref() {
         for entry in dns_hijack {
             if entry.trim().is_empty() {
-                return Err(anyhow!("dns-hijack contains empty entry"));
+                return Err(DomainError::invalid("dns-hijack contains empty entry"));
             }
         }
     }
     if let Some(mtu) = config.mtu
         && mtu == 0
     {
-        return Err(anyhow!("mtu must be greater than 0"));
+        return Err(DomainError::invalid("mtu must be greater than 0"));
     }
     Ok(())
 }

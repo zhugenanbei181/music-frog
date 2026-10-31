@@ -1,6 +1,6 @@
 //! Pure YAML conflict inspection for synchronization surfaces.
 
-use anyhow::Result;
+use crate::error::DomainError;
 use serde::{Deserialize, Serialize};
 use serde_yaml_ng::Value;
 
@@ -12,16 +12,19 @@ pub struct ConfigDiffSummary {
     pub has_conflict: bool,
 }
 
-pub fn diff_yaml_configs(local_yaml: &str, remote_yaml: &str) -> Result<ConfigDiffSummary> {
+pub fn diff_yaml_configs(
+    local_yaml: &str,
+    remote_yaml: &str,
+) -> Result<ConfigDiffSummary, DomainError> {
     let local: Value = serde_yaml_ng::from_str(local_yaml)?;
     let remote: Value = serde_yaml_ng::from_str(remote_yaml)?;
 
     let local_map = local
         .as_mapping()
-        .ok_or_else(|| anyhow::anyhow!("Local YAML is not a mapping"))?;
+        .ok_or_else(|| DomainError::invalid("Local YAML is not a mapping"))?;
     let remote_map = remote
         .as_mapping()
-        .ok_or_else(|| anyhow::anyhow!("Remote YAML is not a mapping"))?;
+        .ok_or_else(|| DomainError::invalid("Remote YAML is not a mapping"))?;
 
     let mut added_keys = Vec::new();
     let mut removed_keys = Vec::new();
