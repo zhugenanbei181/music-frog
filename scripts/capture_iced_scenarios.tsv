@@ -177,7 +177,7 @@ filter-dark	filter	dark	1180x780
 filter-light	filter	light	1180x780
 filter-forest	filter	forest	1180x780
 filter-amoled	filter	amoled	1180x780
-about-dark	settings	dark	1180x780
-about-light	settings	light	1180x780
-about-forest	settings	forest	1180x780
-about-amoled	settings	amoled	1180x780
+about-dark	about	dark	1180x780
+about-light	about	light	1180x780
+about-forest	about	forest	1180x780
+about-amoled	about	amoled	1180x780

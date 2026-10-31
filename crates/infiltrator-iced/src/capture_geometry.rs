@@ -246,16 +246,38 @@ impl Operation<Option<Rectangle>> for VisibleRegion {
                 && bounds.width > 0.0
                 && bounds.height > 0.0
                 && bounds.x >= self.clip.x
-                && bounds.y >= self.clip.y
                 && bounds.x + bounds.width <= self.clip.x + self.clip.width
-                && bounds.y + bounds.height <= self.clip.y + self.clip.height
             {
+                // Fully visible reports keep their measured size; a report
+                // taller than the clip is proven by its top-aligned head, so
+                // only the visible part is the measured region.
+                let fits_height = bounds.y >= self.clip.y
+                    && bounds.y + bounds.height <= self.clip.y + self.clip.height;
+                let head_only = !fits_height
+                    && bounds.height > self.clip.height
+                    && bounds.y + 1.0 >= self.clip.y
+                    && bounds.y <= self.clip.y + 1.0;
+                if !(fits_height || head_only) {
+                    self.clipped = Some((bounds, self.clip));
+                    if id == Some(&self.target) {
+                        self.target_clipped = self.clipped;
+                    }
+                    return;
+                }
+                let measured = if head_only {
+                    // The head overlaps the clip by construction.
+                    bounds
+                        .intersection(&self.clip)
+                        .expect("the top-aligned head overlaps the clip")
+                } else {
+                    bounds
+                };
                 if id == Some(&self.target) {
-                    self.found = Some(bounds);
+                    self.found = Some(measured);
                 } else {
                     for required in &mut self.required {
                         if id == Some(&required.id) {
-                            required.found = Some(bounds);
+                            required.found = Some(measured);
                         }
                     }
                 }
@@ -285,10 +307,17 @@ impl Operation<Option<Rectangle>> for VisibleRegion {
         if let Some((bounds, clip)) = self.target_clipped.or(self.clipped)
             && let (Some(id), Some(offset)) = (&self.reveal_scroll, self.reveal_offset)
             && let clip = self.reveal_clip.unwrap_or(clip)
-            && bounds.height <= clip.height
+            // A target wider than the viewport can never fit, so no scroll
+            // would make the receipt provable.
+            && bounds.width <= clip.width
         {
-            // Centre within the spare space instead of aligning to a clip edge.
-            let delta = bounds.y - (clip.y + (clip.height - bounds.height) / 2.0);
+            // Centre targets smaller than the clip; top-align targets taller
+            // than the clip so the head is visible in the viewport.
+            let delta = if bounds.height <= clip.height {
+                bounds.y - (clip.y + (clip.height - bounds.height) / 2.0)
+            } else {
+                bounds.y - clip.y
+            };
             if delta != 0.0 {
                 if !CLIPPED_REGION_REPORTED.swap(true, Ordering::Relaxed) {
                     eprintln!(

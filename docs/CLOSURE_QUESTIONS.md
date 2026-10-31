@@ -36,6 +36,17 @@
 | 7 | 部分 | L | 文件级模块化完成（<=800/600 行全绿，全仓 mod.rs 清退至 0，严格遵照 foo.rs + foo/ 模式，并在 check-structure.sh 接入 mod-rs-guard 永久禁止）；隐式状态机语义审计 + 判决台账常驻（22 条候选逐条人工判决，未判决或 open 即门禁失败），16 处阶段表已改 typed enum + typed transition；Slint 拆分遵循 `SLINT-001` 单文件预算守卫；九个页面模型与两个共用基座成为页面状态的唯一 owner；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | 已补 `--locked` 与 main 守卫门禁（仅 fmt+guards，不编译）；修复 main-gate.yml 缺失 setup-python/Pillow 问题；扩大 Gradle JVM 堆至 6GB 并将三大 flavor 分离独立进程构建彻底解决 OOM；交付 Android CI 套件 flavor/模拟器裁剪与 Gradle 缓存复用；release 作业在构建前校验签名材料缺 secret 秒级失败；全套单测与结构门（`check-structure.sh` 40+ 项守卫，含截图身份唯一守卫 enforce：550 张、aliases=4、0 违规）全绿；`cargo fmt --all --check` 100% 通过；版本号按身份改动一次升至 0.51.0 |
 
+## 最近一批问答（2026-11-01 Iced reveal 语义升级与回执账本严格重建批次）
+
+1. x86_64/aarch64：本批改动为 Iced 捕获几何的 reveal 判据（head-only 量测、宽度门槛、±1px 容差）、iced 矩阵 TSV 页列与 alias 清单，全部本机 x86_64 运行验证（iced 546/546、三表面全矩阵 182×3 场）；交叉构建腿既有结论不变 → 部分（L）。
+2. Windows/Linux/macOS：桌面三端在本机 Linux 私有虚拟 Wayland 实机跑批；Windows/macOS 受控环境腿仍在斗战胜佛 → 部分（L）。
+3. Android/iOS：本批不涉及移动端；iOS 保持显式 `Unsupported` → 部分（L）。
+4. 各 UI：Iced/Slint/Bevy 三表面全矩阵按当前树重跑 182/182×3 全绿；验收批次 aligned 174/179，354 份回执严格验证发布；6 个未闭合格在台账逐格登记（bevy compact marker×1、slint compact 0 像素差×3、slint 键盘焦点锚点闭合×1、iced sync-restore 锚点诚实不承载×1）→ 部分（L）。
+5. 复用：reveal 语义复用既有 `VisibleRegion`/`RevealScrollable` 原语扩展（不新增第二套滚动机制）；alias 复用既有守卫清单 schema；账本复用 `visual_receipts.py` 严格验签管道 → 部分（L）。
+6. 功能接入：`profiles-aggregator-preview-compact` 由全矩阵唯一失败转为通过；`about-*` 场景修复坏数据（此前 About section 从未激活）；`sync-restore-confirm ≡ profiles-snapshot-restore-confirm` 重复对按共享工作台事实显式 alias；354 份回执绑定归档构建与进程身份 → 部分（L）。
+7. 模块化：无新增 bool/Option 隐式状态；几何判据拆为 fits_height/head_only 命名谓词；fmt/typed-state/implicit-state 守卫 0 违规；iced 546/546、clippy `-D warnings` 全绿 → 部分（L）。
+8. CI：本批改动（捕获几何+TSV+alias+台账）按批次一次提交推送并由 `main-gate` 复验；全量结构门与 workspace nextest 留给本批收口统一跑一次 → 部分（L）。
+
 ## 最近一批问答（2026-10-31 Bevy 重采腿与全矩阵入库办结批次）
 
 1. x86_64/aarch64：本批改动为 Bevy 捕获引导（typed `CaptureSection` + 嵌套滚动查找）、profiles_import 三个字段补 `NativeTextField` 标记、proxies/import/aggregator 三处捕获流程与 demo 偏好基线，全部本机 x86_64 运行验证；无交叉构建腿改动，`scripts/cross-check.sh`/`scripts/android-check.sh` 既有结论不变 → 部分（L）。

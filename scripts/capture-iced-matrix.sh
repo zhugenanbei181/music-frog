@@ -205,7 +205,7 @@ while IFS=$'\t' read -r name page skin window_size; do
     exit 2
   }
   case "$page" in
-  overview | proxies | runtime | rules | rules-providers | dns | profiles | sync | editor | mixin | filter | settings | app_routing | doctor | connections | logs) ;;
+  overview | proxies | runtime | rules | rules-providers | dns | profiles | sync | editor | mixin | filter | settings | about | app_routing | doctor | connections | logs) ;;
   *)
     printf 'invalid scenario row (bad page): %s -> %s\n' "$name" "$page" >&2
     exit 2

@@ -72,7 +72,7 @@ fn reveal_uses_native_scroll_then_requires_a_fresh_fully_visible_layout() {
     assert!(matches!(fresh.finish(), Outcome::Some(Some(rect)) if rect == bounds(210.0, 180.0)));
 }
 #[test]
-fn native_scroll_cannot_accept_a_report_larger_than_the_viewport() {
+fn a_native_scroll_reveals_a_report_taller_than_the_viewport_by_its_head() {
     let region = Id::new("report");
     let scroll = Id::new("native-scroll");
     let mut probe =
@@ -85,7 +85,32 @@ fn native_scroll_cannot_accept_a_report_larger_than_the_viewport() {
         &mut ReadOnlyScroll,
     );
     probe.traverse(&mut |operation| operation.container(Some(&region), bounds(220.0, 250.0)));
-    assert!(matches!(probe.finish(), Outcome::Some(None)));
+    // A report taller than the viewport is revealed top-aligned: the chain
+    // scrolls its head to the clip's top edge instead of giving up.
+    let Outcome::Chain(mut operation) = probe.finish() else {
+        panic!("a taller report must request a native top-aligning scroll");
+    };
+    let mut state = RecordedScroll::default();
+    operation.scrollable(
+        Some(&scroll),
+        bounds(200.0, 200.0),
+        bounds(200.0, 900.0),
+        Vector::ZERO,
+        &mut state,
+    );
+    assert_eq!(state.offset.unwrap().y, Some(20.0));
+    // The next pass proves the report by its visible head inside the clip.
+    let mut fresh =
+        VisibleRegion::new(region.clone(), Size::new(720.0, 480.0)).revealing(scroll.clone());
+    fresh.scrollable(
+        Some(&scroll),
+        bounds(200.0, 200.0),
+        bounds(200.0, 900.0),
+        Vector::ZERO,
+        &mut ReadOnlyScroll,
+    );
+    fresh.traverse(&mut |operation| operation.container(Some(&region), bounds(200.0, 250.0)));
+    assert!(matches!(fresh.finish(), Outcome::Some(Some(rect)) if rect == bounds(200.0, 200.0)));
 }
 
 #[test]
