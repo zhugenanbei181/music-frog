@@ -1,3 +1,4 @@
+pub mod about;
 pub mod active_exit;
 pub mod app_routing;
 pub mod apply_guard_card;

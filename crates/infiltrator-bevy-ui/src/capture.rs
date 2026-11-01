@@ -132,8 +132,11 @@ pub fn parse_page(raw: &str) -> Option<Route> {
         "app_routing" | "approuting" | "app-routing" => Some(Route::AppRouting),
         "sync" => Some(Route::Sync),
         "settings" => Some(Route::Settings),
-        // The settings workspace's font-attribution details dialog.
-        "about" => Some(Route::Settings),
+        "tools" => Some(Route::Tools),
+        "about" => Some(Route::About),
+        "disclaimer" => Some(Route::Disclaimer),
+        "licenses" => Some(Route::Licenses),
+        "font-license" | "settings-about" => Some(Route::Settings),
         _ => None,
     }
 }
@@ -188,6 +191,10 @@ pub fn route_slug(route: Route) -> &'static str {
         Route::AppRouting => "app_routing",
         Route::Sync => "sync",
         Route::Settings => "settings",
+        Route::Tools => "tools",
+        Route::About => "about",
+        Route::Disclaimer => "disclaimer",
+        Route::Licenses => "licenses",
     }
 }
 

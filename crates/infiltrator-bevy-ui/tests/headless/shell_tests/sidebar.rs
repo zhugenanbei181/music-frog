@@ -22,8 +22,8 @@ fn sidebar_mounts_nav_and_routing_intent_segment() {
     }
     assert_eq!(active, 1, "exactly one active nav item (核心概览)");
     assert_eq!(
-        idle, 10,
-        "the remaining 10 routes in Route::ALL mount as idle items"
+        idle, 14,
+        "the remaining 14 routes in Route::ALL mount as idle items"
     );
 
     let mut pills = world.query::<(&OverviewRoutingIntentPill, &ControlVisual)>();

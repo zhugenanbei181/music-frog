@@ -74,13 +74,14 @@
 
 | 看板 | task | points |
 | --- | ---: | ---: |
-| 现在佛 | 10 | 46 |
-| 过去佛 | 100 | 312 |
+| 现在佛 | 9 | 41 |
+| 过去佛 | 101 | 317 |
 | 斗战胜佛 | 17 | 51 |
 | 未来佛 | 15 | 26 |
 | **未办结联合分母** | **142** | **435** |
 
 - **严格交付率：878 / 1313 = 66.9%**（archived 878pt / archived 878 + 未办结 435pt）。
+- 2026-11-01 第九十八交付批次：`FLPARITY-007`（5 pt）Tools 信息架构与 About/Disclaimer/Licenses 页面四端闭环与 rem 体系严格落实交付：Contract 扩充 PageId 至 15 项并补齐命令字典与权威读回；Shared 统一资产与本地化键表；Iced、Bevy、Android Compose 闭环路由并消除 Settings 裸铺正文；Bevy UI 严格落实 rem 体系（`bevy_rem_guard` violations=0, debt=0；`route.rs` 773 行，`mount.rs` 102 行）；结构门 40+ 项全绿，Clippy `--all-targets -D warnings` 零警告，定向单测 1709/1709 全绿。`FLPARITY-007` 从现在佛销账并在过去佛 §12.62 登记为 Integrated；现在佛 46 → 41 pt（10 → 9 条），过去佛 312 → 317 pt（100 → 101 条），联合未办结分母 435 pt（142 条）保持，严格归档率 66.9%（878/1313）保持。
 - 2026-11-01 第九十七交付批次：`FLPARITY-010`（3 pt）Slint 输入法、焦点与键盘导航模型闭环交付与 parity 矩阵全量锚定：在 contract 层为 KeyModifiers 补充 shift() 构造并设置 ShellKeyboardFocus 的 slint_page 为 overview；Slint surface 增加 focus_ime 模块，实现窗口焦点与 RenderCadence 节拍映射（Active 60FPS vs Background 2FPS）、多阶段中文输入法（ImeCompositionTracker）状态追踪与 ToolkitProvided 光标支持、Tab/Shift-Tab 焦点循环与 Esc/Enter 语义分发；严守输入法核心红线：在 composition 活跃期间严格拦截并抑制全局快捷键 chord，打拼音不误触发全局快捷键；在 AppWindow 接入 window-focused 属性与回调，并在 SurfaceHarness 接入键盘事件与 IME 驱动；补齐 4 项场景测试全绿；更新跨端平价清单与证据表，实现全仓 60 业务 × 3 表面 × 2 层级 = 360/360 单元格 100% anchored（0 pending，0 missing）；修复 lumen-app.slint 代码行超限，严格遵守 ≤600 行预算；全量结构门 check-structure.sh（40+ 项）全绿，Clippy --all-targets -D warnings 零警告，cargo fmt 0 偏差。`FLPARITY-010` 从现在佛销账并在过去佛 §12.61 登记为 Integrated；现在佛 49 → 46 pt（11 → 10 条），过去佛 309 → 312 pt（99 → 100 条），联合未办结分母 435 pt（142 条）保持，严格归档率 66.9%（878/1313）保持。
 - 2026-11-01 第九十六交付批次：`FLPARITY-036`（5 pt）自定义种子色与 Material 色彩风格选择全量闭环交付：在 contract 层扩展 `CommandIntent` 三项意图（草稿更新/保存/取消）与 `CommandOutput::PalettePreferenceMutated` 回执匹配与校验，`ThemePalette::from_seed_and_style` 与 `ResolvedThemePalette::resolve_with_style` 动态派生 M3 风格调色板；application 层挂载 `PalettePreferenceApplication` 并打通命令派发、草稿事务与异步持久化；presentation 层 `project_theme_readback_with_palette` 将自选动态色注入读回；composition 层 `surface_reader` 接入调色板快照发布并驱动四端重绘渲染；桌面端新增 `FilePalettePreferenceStore` 实现标准路径 JSON 持久化存储与 `MihomoRuntime` 装配；彻底落实 rem 唯一尺寸体系，修复 Slint `cards.slint` 裸 48px 为 `48 * LumenUiScale.unit`；定向 nextest 1780/1780 全绿，`check-structure.sh` 40+ 结构守卫全绿，全仓 cargo fmt/clippy 零警告。`FLPARITY-036` 从现在佛销账并在过去佛 §12.60 更新为全量 Integrated；现在佛 54 → 49 pt（12 → 11 条），过去佛 309 pt（99 条）保持，联合未办结分母 440 → 435 pt（143 → 142 条），严格归档率 66.6% → 66.9%（878/1313）。
 - 2026-11-01 第九十五交付批次：`FLPARITY-017`（5 pt）跨端微动效与页面过渡系统 Compose 切片闭环交付：在 `android/app/src/main/java/com/musicfrog/infiltrator/ui/App.kt` 接入 Material 3 `AnimatedContent` 路由转场动效（`fadeIn(200ms) + scaleIn(0.96f)` 组合 `fadeOut(150ms)`），并保留 `SaveableStateProvider` 状态隔离；修复 `OwnerSurfaceSnapshotReader.kt` when 穷尽性分支与 ktlint 换行；在 Compose AndroidManifest.xml 补齐 Leanback TV 所需的 `android.hardware.touchscreen` 与 banner 属性，通过 Android Lint Gate；本地 JVM 单测 404/404 全绿，ktlintCheck/detekt 0 违规，androidLintGate 0 error 0 warning，结构门与全量守卫通过。`FLPARITY-017` 从现在佛销账；现在佛 59 → 54 pt（13 → 12 条），过去佛 309 pt（99 条）保持，联合未办结分母 445 → 440 pt（144 → 143 条），严格归档率 66.4% → 66.6%（878/1318）。

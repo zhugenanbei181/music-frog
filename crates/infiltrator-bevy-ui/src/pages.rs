@@ -17,6 +17,7 @@
 //! - All colors come from palette tokens; fonts come from text roles.
 //!   Pages never touch bevy color/asset constructors directly.
 
+pub mod about;
 pub mod app_routing;
 mod app_routing_copy;
 pub mod app_routing_uwp;

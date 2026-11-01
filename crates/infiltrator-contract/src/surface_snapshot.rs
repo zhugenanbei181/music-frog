@@ -112,10 +112,14 @@ pub enum PageId {
     AppRouting,
     Sync,
     Settings,
+    Tools,
+    About,
+    Disclaimer,
+    Licenses,
 }
 
 impl PageId {
-    pub const ALL: [Self; 11] = [
+    pub const ALL: [Self; 15] = [
         Self::Overview,
         Self::Proxies,
         Self::Profiles,
@@ -127,6 +131,10 @@ impl PageId {
         Self::AppRouting,
         Self::Sync,
         Self::Settings,
+        Self::Tools,
+        Self::About,
+        Self::Disclaimer,
+        Self::Licenses,
     ];
 
     pub const fn as_str(self) -> &'static str {
@@ -142,6 +150,10 @@ impl PageId {
             Self::AppRouting => "app_routing",
             Self::Sync => "sync",
             Self::Settings => "settings",
+            Self::Tools => "tools",
+            Self::About => "about",
+            Self::Disclaimer => "disclaimer",
+            Self::Licenses => "licenses",
         }
     }
 }
@@ -571,7 +583,11 @@ impl SurfacePages {
     fn status(&self, page: PageId) -> Option<&PageStatus> {
         match page {
             PageId::Overview => Some(&self.overview.status),
-            PageId::Proxies => None,
+            PageId::Proxies
+            | PageId::Tools
+            | PageId::About
+            | PageId::Disclaimer
+            | PageId::Licenses => None,
             PageId::Profiles => Some(&self.profiles.status),
             PageId::Rules => Some(&self.rules.status),
             PageId::Connections => Some(&self.connections.status),
@@ -853,6 +869,17 @@ impl SurfaceSnapshot {
     pub fn page_status(&self, page: PageId) -> PageStatus {
         if page == PageId::Proxies {
             return outbound_page_status(&self.outbound_inventory);
+        }
+        if matches!(
+            page,
+            PageId::Tools | PageId::About | PageId::Disclaimer | PageId::Licenses
+        ) {
+            if let Some(ref failure) = self.failure {
+                return PageStatus::Unavailable {
+                    failure: failure.clone(),
+                };
+            }
+            return PageStatus::Ready;
         }
         self.pages
             .status(page)

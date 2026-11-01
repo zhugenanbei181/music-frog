@@ -15,6 +15,7 @@ import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.BatteryChargingFull
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Dns
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Router
@@ -51,6 +52,7 @@ fun SettingsScreen(
     onNavigateToRules: () -> Unit,
     onNavigateToConnections: () -> Unit = {},
     onNavigateToLogs: () -> Unit = {},
+    onNavigateToAbout: () -> Unit = {},
 ) {
     val currentLocale by viewModel.currentLocale.collectAsStateWithLifecycle()
     var showLanguageDialog by remember { mutableStateOf(false) }
@@ -141,6 +143,15 @@ fun SettingsScreen(
                     supporting = stringResource(R.string.setting_logs_desc),
                     leadingIcon = Icons.Outlined.Description,
                     onClick = onNavigateToLogs,
+                )
+                HorizontalDivider()
+            }
+            item {
+                StandardListItem(
+                    headline = stringResource(R.string.setting_about_title),
+                    supporting = stringResource(R.string.setting_about_desc),
+                    leadingIcon = Icons.Outlined.Info,
+                    onClick = onNavigateToAbout,
                 )
             }
         }

@@ -26,6 +26,7 @@ internal enum class SettingsDestination(val titleRes: Int) {
     Rules(R.string.setting_rules_title),
     Connections(R.string.setting_connections_title),
     Logs(R.string.setting_logs_title),
+    About(R.string.setting_about_title),
 }
 
 /** Explicit native navigation states and their Android back-stack transition. */

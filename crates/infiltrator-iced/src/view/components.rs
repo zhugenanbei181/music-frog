@@ -782,6 +782,10 @@ pub fn nav_button<'a>(label: String, route: Route, current_route: &Route) -> Ele
         Route::Editor => Icon::Code2,
         Route::AppRouting => Icon::LayoutGrid,
         Route::Doctor => Icon::ListChecks,
+        Route::Tools => Icon::Settings,
+        Route::About => Icon::FileText,
+        Route::Disclaimer => Icon::Shield,
+        Route::Licenses => Icon::FileText,
     };
 
     let indicator =
@@ -874,6 +878,10 @@ pub fn nav_rail_icon<'a>(route: Route, current_route: &Route) -> Element<'a, Mes
         Route::Editor => Icon::Code2,
         Route::AppRouting => Icon::LayoutGrid,
         Route::Doctor => Icon::ListChecks,
+        Route::Tools => Icon::Settings,
+        Route::About => Icon::FileText,
+        Route::Disclaimer => Icon::Shield,
+        Route::Licenses => Icon::FileText,
     };
 
     let glyph = svg_icons::icon_themed(icon, 18.0, move |t: &Theme| {

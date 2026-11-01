@@ -70,10 +70,11 @@ pub const NAV_PRIMARY: [(Route, &str, Icon); 5] = [
 
 /// Secondary destinations the vertical sidebar keeps below the divider; the
 /// compact bottom bar has no room for them.
-pub const NAV_SECONDARY: [(Route, &str, Icon); 3] = [
+pub const NAV_SECONDARY: [(Route, &str, Icon); 4] = [
     (Route::AppRouting, "nav_app_routing", Icon::Network),
     (Route::Doctor, "nav_doctor", Icon::ListChecks),
     (Route::Sync, "nav_sync", Icon::RefreshCw),
+    (Route::About, "nav_about", Icon::FileText),
 ];
 
 fn sidebar_inner(state: &AppState) -> Element<'_, Message> {
@@ -216,6 +217,7 @@ pub fn sidebar_rail(state: &AppState) -> Element<'_, Message> {
         Route::AppRouting,
         Route::Sync,
         Route::Settings,
+        Route::About,
     ];
 
     let mut items = column![

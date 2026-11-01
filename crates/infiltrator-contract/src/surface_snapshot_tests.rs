@@ -32,10 +32,14 @@ use lurker_core_contract::profile_document_identity::{ProfileFormatId, ProfileSc
 use lurker_core_contract::session::SessionToken;
 
 #[test]
-fn page_vocabulary_has_exactly_eleven_entries() {
-    assert_eq!(PageId::ALL.len(), 11);
+fn page_vocabulary_has_exactly_fifteen_entries() {
+    assert_eq!(PageId::ALL.len(), 15);
     assert_eq!(PageId::ALL[0].as_str(), "overview");
     assert_eq!(PageId::ALL[10].as_str(), "settings");
+    assert_eq!(PageId::ALL[11].as_str(), "tools");
+    assert_eq!(PageId::ALL[12].as_str(), "about");
+    assert_eq!(PageId::ALL[13].as_str(), "disclaimer");
+    assert_eq!(PageId::ALL[14].as_str(), "licenses");
 }
 
 #[test]

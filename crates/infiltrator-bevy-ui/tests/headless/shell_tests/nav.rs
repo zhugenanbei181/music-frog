@@ -27,7 +27,7 @@ fn nav_entries_mode_pills_and_content_region_carry_semantics() {
         .collect();
     assert_eq!(
         nav_labels, expected_nav_labels,
-        "every nav entry is a named button; all 11 routes are enabled"
+        "every nav entry is a named button; all 15 routes are enabled"
     );
 
     let mut pills = world.query::<(&OverviewRoutingIntentPill, &AccessibilityNode)>();

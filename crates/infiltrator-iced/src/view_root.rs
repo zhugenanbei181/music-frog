@@ -25,7 +25,8 @@ use view::mini_hud::mini_hud_view;
 use view::routing_intent_issue::routing_intent_issue;
 use view::sidebar::sidebar_for_tier;
 use view::{
-    app_routing, dns, doctor, editor, overview, profiles, proxies, rules, runtime, settings, sync,
+    about, app_routing, dns, doctor, editor, overview, profiles, proxies, rules, runtime, settings,
+    sync,
 };
 pub(crate) mod aggregator_modal;
 mod command_palette;
@@ -75,6 +76,10 @@ impl AppState {
             Route::Settings => settings::view(self),
             Route::AppRouting => app_routing::view(self),
             Route::Doctor => doctor::view(self),
+            Route::Tools => about::tools_view(self),
+            Route::About => about::about_view(self),
+            Route::Disclaimer => about::disclaimer_view(self),
+            Route::Licenses => about::licenses_view(self),
         };
         let body = if self.runtime.routing_intent_actions.failure().is_some() {
             Element::from(column![routing_intent_issue(self), page].spacing(8))

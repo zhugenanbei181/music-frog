@@ -282,7 +282,12 @@ fn page_sections_parse_to_their_typed_capture_anchor() {
             CaptureSection::RuntimeConnections,
         ),
         ("logs", Route::Runtime, CaptureSection::RuntimeLogs),
-        ("about", Route::Settings, CaptureSection::SettingsAbout),
+        (
+            "settings-about",
+            Route::Settings,
+            CaptureSection::SettingsAbout,
+        ),
+        ("about", Route::About, CaptureSection::RouteTop),
     ];
     for (name, route, section) in cases {
         assert_eq!(parse_page(name), Some(route));

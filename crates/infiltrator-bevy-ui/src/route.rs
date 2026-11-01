@@ -19,11 +19,9 @@ use crate::command_execution::drain_command_results;
 use crate::history::TrafficHistory;
 use crate::ime::ShellImeSet;
 use crate::localization::read_language_preference;
-use crate::pages::app_routing::{AppRoutingProjectionUpdated, app_routing_page};
+use crate::pages::app_routing::AppRoutingProjectionUpdated;
 use crate::pages::business_panel::{BusinessPanelState, activate_panel, cancel_panel};
-use crate::pages::connections::{
-    ConnectionsProjectionUpdated, LastConnectionsProjection, connections_page,
-};
+use crate::pages::connections::{ConnectionsProjectionUpdated, LastConnectionsProjection};
 use crate::pages::connections_confirm::{cancel_on_escape_or_navigation, request_confirmation};
 use crate::pages::connections_drawer::dismiss_connection_inspection;
 use crate::pages::connections_drawer::{
@@ -34,7 +32,7 @@ use crate::pages::connections_idle::ConnectionsIdleState;
 use crate::pages::connections_pulse::{ConnectionsPulseState, animate_connection_pulses};
 use crate::pages::connections_view::{ConnectionsCloseAllState, ConnectionsViewState};
 use crate::pages::connections_virtual::{ConnectionsVirtualState, sync_connections_virtual_window};
-use crate::pages::dns::{DnsProjectionUpdated, LastDnsProjection, dns_page};
+use crate::pages::dns::{DnsProjectionUpdated, LastDnsProjection};
 use crate::pages::dns_cache::{self, CacheConfirmation};
 use crate::pages::dns_cache_scene::spawn;
 use crate::pages::dns_edit::sync_dns_edit_dirty;
@@ -46,15 +44,15 @@ use crate::pages::dns_leak_rows;
 use crate::pages::dns_query::{self, QueryPanel};
 use crate::pages::dns_query_scene;
 use crate::pages::dns_self_heal::sync_dns_observation_lines;
-use crate::pages::doctor::{DoctorProjectionUpdated, LastDoctorProjection, doctor_page};
+use crate::pages::doctor::{DoctorProjectionUpdated, LastDoctorProjection};
 use crate::pages::doctor_actions::{DoctorActions, on_action, on_result, sync_controls};
 use crate::pages::doctor_rows::{reconcile_rows, replay_copy, replay_header, sort_rows};
 use crate::pages::globe::GlobePagePlugin;
-use crate::pages::logs::{LogsProjectionUpdated, logs_page};
+use crate::pages::logs::LogsProjectionUpdated;
 use crate::pages::logs_virtual::{LogsVirtualState, sync_logs_virtual_window};
 use crate::pages::overview::{
-    LastOverviewProjection, OverviewProjectionUpdated, banner_note, overview_page,
-    replay_projection_after_theme, sync_overview_metrics_columns,
+    LastOverviewProjection, OverviewProjectionUpdated, banner_note, replay_projection_after_theme,
+    sync_overview_metrics_columns,
 };
 use crate::pages::overview_lifecycle::CoreControlPlugin;
 use crate::pages::overview_restamp::reskin_overview_tokens;
@@ -71,9 +69,8 @@ use crate::pages::page_models::{
     SyncPageModelState, sync_shared_page_models,
 };
 use crate::pages::plugin::PageBindingsPlugin;
-use crate::pages::profiles::{ProfilesProjectionUpdated, profiles_page};
+use crate::pages::profiles::ProfilesProjectionUpdated;
 use crate::pages::profiles_aggregator::replay_aggregation_copy;
-use crate::pages::proxies::scene::proxies_page;
 use crate::pages::proxies::{ProxiesProjectionUpdated, sync_proxies_node_columns};
 use crate::pages::proxies_form::{CustomNodeForm, finish_custom_node, sync_protocol_form};
 use crate::pages::proxies_highlight::sync_name_highlights;
@@ -96,7 +93,7 @@ use crate::pages::proxy_inspection::ProxyInspectionPlugin;
 use crate::pages::proxy_probe_settings::{
     ProbeSettingsState, activate, finish, sync_editor, sync_fields, sync_surface,
 };
-use crate::pages::rules::{RulesProjectionUpdated, rules_page};
+use crate::pages::rules::RulesProjectionUpdated;
 use crate::pages::rules_builder_input;
 use crate::pages::rules_draft;
 use crate::pages::rules_json::{
@@ -109,13 +106,13 @@ use crate::pages::rules_tracer_confirm;
 use crate::pages::rules_tracer_sandbox;
 use crate::pages::rules_view::{sync_rules_view, sync_rules_window};
 use crate::pages::settings::settings_copy::replay_locale;
-use crate::pages::settings::{LastSettingsProjection, SettingsProjectionUpdated, settings_page};
+use crate::pages::settings::{LastSettingsProjection, SettingsProjectionUpdated};
 use crate::pages::settings_language::{
     LanguageChoiceResource, activate_language, finish_language, sync_language_controls,
     sync_language_model,
 };
 use crate::pages::snapshot_restore::SnapshotRestorePlugin;
-use crate::pages::sync::{SyncProjectionUpdated, sync_page};
+use crate::pages::sync::SyncProjectionUpdated;
 use crate::pages::{dns_hosts_actions, dns_hosts_rows, dns_hosts_scene, dns_hosts_sync};
 use crate::projection::OverviewSource;
 use crate::route::mount::sync_route;
@@ -140,7 +137,7 @@ use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::input::keyboard::KeyboardInput;
-use bevy::scene::{CommandsSceneExt, Scene};
+use bevy::scene::CommandsSceneExt;
 use bevy::ui::widget::Text;
 use infiltrator_bevy_widgets::button::{sync_control_labels, sync_control_visuals};
 use infiltrator_bevy_widgets::drawer::animate_drawers;
@@ -189,11 +186,19 @@ pub enum Route {
     Sync,
     /// 系统设置 (Settings: autostart, system proxy, tun stack, theme).
     Settings,
+    /// 工具箱 (Tools: diagnostics, app routing, sync, backup, rules, editor).
+    Tools,
+    /// 关于软件 (About: version, product info, links).
+    About,
+    /// 免责声明 (Disclaimer: compliance notice and terms).
+    Disclaimer,
+    /// 开源许可 (Licenses: third-party notices and font license).
+    Licenses,
 }
 
 impl Route {
     /// Every route in stable enumeration order.
-    pub const ALL: [Route; 11] = [
+    pub const ALL: [Route; 15] = [
         Route::Overview,
         Route::Proxies,
         Route::Profiles,
@@ -205,6 +210,10 @@ impl Route {
         Route::AppRouting,
         Route::Sync,
         Route::Settings,
+        Route::Tools,
+        Route::About,
+        Route::Disclaimer,
+        Route::Licenses,
     ];
 
     /// Canonical copy identity shared with the other peer.
@@ -221,6 +230,10 @@ impl Route {
             Self::AppRouting => "nav_app_routing",
             Self::Sync => "nav_sync",
             Self::Settings => "nav_settings",
+            Self::Tools => "nav_tools",
+            Self::About => "nav_about",
+            Self::Disclaimer => "nav_disclaimer",
+            Self::Licenses => "nav_licenses",
         }
     }
 
@@ -246,6 +259,10 @@ impl Route {
             Self::AppRouting => IconId::Target,
             Self::Sync => IconId::Server,
             Self::Settings => IconId::Settings,
+            Self::Tools => IconId::Settings,
+            Self::About => IconId::FileText,
+            Self::Disclaimer => IconId::Shield,
+            Self::Licenses => IconId::FileText,
         }
     }
 
@@ -265,6 +282,10 @@ impl Route {
             ShellPage::AppRouting => Self::AppRouting,
             ShellPage::Sync => Self::Sync,
             ShellPage::Settings => Self::Settings,
+            ShellPage::Tools => Self::Tools,
+            ShellPage::About => Self::About,
+            ShellPage::Disclaimer => Self::Disclaimer,
+            ShellPage::Licenses => Self::Licenses,
         }
     }
 }
@@ -849,32 +870,10 @@ pub(crate) const fn page_id_for_route(route: Route) -> PageId {
         Route::AppRouting => PageId::AppRouting,
         Route::Sync => PageId::Sync,
         Route::Settings => PageId::Settings,
-    }
-}
-
-/// The route → scene table. The only place that knows which page backs
-/// which route.
-pub(super) fn page_scene(
-    route: Route,
-    snapshot: &SurfaceSnapshot,
-    history: &TrafficHistory,
-    palette: &UiPalette,
-) -> Box<dyn Scene> {
-    let projection = overview_projection(snapshot);
-    match route {
-        Route::Overview => Box::new(overview_page(&projection, history, palette)),
-        Route::Proxies => Box::new(proxies_page(&proxies_projection(snapshot), palette)),
-        Route::Profiles => Box::new(profiles_page(&profiles_projection(snapshot), palette)),
-        Route::Rules => Box::new(rules_page(&rules_projection(snapshot), palette)),
-        Route::Connections => {
-            Box::new(connections_page(&connections_projection(snapshot), palette))
-        }
-        Route::Logs => Box::new(logs_page(&logs_projection(snapshot), palette)),
-        Route::Dns => Box::new(dns_page(&dns_projection(snapshot), palette)),
-        Route::Doctor => Box::new(doctor_page(&doctor_projection(snapshot), palette)),
-        Route::AppRouting => Box::new(app_routing_page(&app_routing_projection(snapshot), palette)),
-        Route::Sync => Box::new(sync_page(&sync_projection(snapshot), palette)),
-        Route::Settings => Box::new(settings_page(&settings_projection(snapshot), palette)),
+        Route::Tools => PageId::Tools,
+        Route::About => PageId::About,
+        Route::Disclaimer => PageId::Disclaimer,
+        Route::Licenses => PageId::Licenses,
     }
 }
 

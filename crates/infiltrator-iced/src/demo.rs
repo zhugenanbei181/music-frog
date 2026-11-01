@@ -164,7 +164,13 @@ fn parse_page_name(value: &str) -> Option<(Route, CaptureSection)> {
         "doctor" => Some((Route::Doctor, CaptureSection::RouteTop)),
         "connections" => Some((Route::Runtime, CaptureSection::RuntimeConnections)),
         "logs" => Some((Route::Runtime, CaptureSection::RuntimeLogs)),
-        "about" => Some((Route::Settings, CaptureSection::SettingsAbout)),
+        "settings-about" | "settings_about" => {
+            Some((Route::Settings, CaptureSection::SettingsAbout))
+        }
+        "tools" => Some((Route::Tools, CaptureSection::RouteTop)),
+        "about" => Some((Route::About, CaptureSection::RouteTop)),
+        "disclaimer" => Some((Route::Disclaimer, CaptureSection::RouteTop)),
+        "licenses" => Some((Route::Licenses, CaptureSection::RouteTop)),
         _ => None,
     }
 }
@@ -187,6 +193,10 @@ pub fn route_env_name(route: Route) -> &'static str {
         Route::Settings => "settings",
         Route::AppRouting => "app_routing",
         Route::Doctor => "doctor",
+        Route::Tools => "tools",
+        Route::About => "about",
+        Route::Disclaimer => "disclaimer",
+        Route::Licenses => "licenses",
     }
 }
 

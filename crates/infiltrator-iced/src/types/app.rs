@@ -18,6 +18,10 @@ pub enum Route {
     Settings,
     AppRouting,
     Doctor,
+    Tools,
+    About,
+    Disclaimer,
+    Licenses,
 }
 
 impl Route {
@@ -37,6 +41,10 @@ impl Route {
             ShellPage::AppRouting => Self::AppRouting,
             ShellPage::Sync => Self::Sync,
             ShellPage::Settings => Self::Settings,
+            ShellPage::Tools => Self::Tools,
+            ShellPage::About => Self::About,
+            ShellPage::Disclaimer => Self::Disclaimer,
+            ShellPage::Licenses => Self::Licenses,
         }
     }
 }

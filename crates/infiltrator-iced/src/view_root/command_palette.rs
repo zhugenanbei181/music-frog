@@ -39,6 +39,10 @@ pub fn command_icon(target: &CommandTarget) -> Icon {
             ShellPage::AppRouting => Icon::LayoutGrid,
             ShellPage::Sync => Icon::RefreshCw,
             ShellPage::Settings => Icon::Settings,
+            ShellPage::Tools => Icon::Settings,
+            ShellPage::About => Icon::FileText,
+            ShellPage::Disclaimer => Icon::Shield,
+            ShellPage::Licenses => Icon::FileText,
         },
         CommandTarget::SetRoutingIntent(intent) => match intent {
             RoutingIntent::FollowRules => Icon::Target,

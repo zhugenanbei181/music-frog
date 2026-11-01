@@ -188,6 +188,30 @@ pub fn harmonyos_font_license_text() -> &'static str {
     include_str!("../assets/fonts/HarmonyOS-Sans-LICENSE.txt")
 }
 
+/// Complete third-party dependency notices and license text embedded from repository root.
+pub fn third_party_notices_text() -> &'static str {
+    include_str!("../../../THIRD-PARTY-NOTICES.md")
+}
+
+/// Product disclaimer text in Chinese.
+pub fn disclaimer_text_zh() -> &'static str {
+    "本软件仅用于网络技术测试、科学研究与合规网络协议调试。\n用户应当自觉遵守所在国家和地区的相关法律法规，严禁将本软件用于任何危害网络安全、侵犯他人隐私或从事任何非法活动。\n因使用本软件所产生的一切直接或间接法律责任和风险均由使用者自行承担，软件作者及贡献者概不承担任何法律责任。"
+}
+
+/// Product disclaimer text in English.
+pub fn disclaimer_text_en() -> &'static str {
+    "This software is provided for network protocol testing, technical research, and compliant diagnostic purposes only.\nUsers must comply with all applicable local laws and regulations. The use of this software for any illegal activities or unauthorized access is strictly prohibited.\nThe authors and contributors assume no liability and shall not be held responsible for any damages or legal consequences arising from the use or misuse of this software."
+}
+
+/// Disclaimer text localized according to preferred language tag.
+pub fn disclaimer_text(lang: &str) -> &'static str {
+    if lang.starts_with("zh") {
+        disclaimer_text_zh()
+    } else {
+        disclaimer_text_en()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{AssetCatalog, AssetFormat, harmonyos_font_license_text};
@@ -282,6 +306,9 @@ mod tests {
         assert!(AssetCatalog::find("app.product", AssetFormat::Png, "launcher").is_some());
         assert!(AssetCatalog::find("app.product", AssetFormat::Ico, "launcher").is_some());
         assert!(harmonyos_font_license_text().contains("HarmonyOS Sans"));
+        assert!(super::third_party_notices_text().contains("THIRD-PARTY NOTICES"));
+        assert!(super::disclaimer_text("zh-CN").contains("网络技术测试"));
+        assert!(super::disclaimer_text("en-US").contains("protocol testing"));
         assert!(AssetCatalog::find("font.CJK-Regular", AssetFormat::Ttf, "default").is_some());
     }
 

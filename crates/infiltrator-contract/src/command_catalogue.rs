@@ -33,11 +33,15 @@ pub enum ShellPage {
     AppRouting,
     Sync,
     Settings,
+    Tools,
+    About,
+    Disclaimer,
+    Licenses,
 }
 
 impl ShellPage {
     /// Every shared page in stable enumeration order.
-    pub const ALL: [Self; 11] = [
+    pub const ALL: [Self; 15] = [
         Self::Overview,
         Self::Proxies,
         Self::Profiles,
@@ -49,6 +53,10 @@ impl ShellPage {
         Self::AppRouting,
         Self::Sync,
         Self::Settings,
+        Self::Tools,
+        Self::About,
+        Self::Disclaimer,
+        Self::Licenses,
     ];
 
     pub const fn id(self) -> &'static str {
@@ -64,6 +72,10 @@ impl ShellPage {
             Self::AppRouting => "app_routing",
             Self::Sync => "sync",
             Self::Settings => "settings",
+            Self::Tools => "tools",
+            Self::About => "about",
+            Self::Disclaimer => "disclaimer",
+            Self::Licenses => "licenses",
         }
     }
 
@@ -81,6 +93,10 @@ impl ShellPage {
             Self::AppRouting => "nav_app_routing",
             Self::Sync => "cmd_nav_sync",
             Self::Settings => "cmd_nav_settings",
+            Self::Tools => "cmd_nav_tools",
+            Self::About => "cmd_nav_about",
+            Self::Disclaimer => "cmd_nav_disclaimer",
+            Self::Licenses => "cmd_nav_licenses",
         }
     }
 
@@ -98,6 +114,10 @@ impl ShellPage {
             Self::AppRouting => "前往 应用分流",
             Self::Sync => "前往 数据同步",
             Self::Settings => "前往 系统设置",
+            Self::Tools => "前往 工具箱",
+            Self::About => "前往 关于软件",
+            Self::Disclaimer => "前往 免责声明",
+            Self::Licenses => "前往 开源许可",
         }
     }
 }
@@ -294,6 +314,10 @@ impl CommandCatalogue {
                     ShellPage::AppRouting => "nav.app_routing",
                     ShellPage::Sync => "nav.sync",
                     ShellPage::Settings => "nav.settings",
+                    ShellPage::Tools => "nav.tools",
+                    ShellPage::About => "nav.about",
+                    ShellPage::Disclaimer => "nav.disclaimer",
+                    ShellPage::Licenses => "nav.licenses",
                 },
                 CommandCategory::Navigation,
                 page.title_key(),
@@ -444,7 +468,7 @@ mod tests {
         assert_eq!(
             catalogue.len(),
             ShellPage::ALL.len() + 12,
-            "11 pages + 3 modes + 8 actions + 1 appearance"
+            "15 pages + 3 modes + 8 actions + 1 appearance"
         );
         for page in ShellPage::ALL {
             let id = format!("nav.{}", page.id());

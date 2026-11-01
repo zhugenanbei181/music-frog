@@ -88,6 +88,8 @@
     <string name="setting_connections_desc">Manage active connections and disconnect stale sessions</string>
     <string name="setting_logs_title">Logs</string>
     <string name="setting_logs_desc">View core runtime logs</string>
+    <string name="setting_about_title">About</string>
+    <string name="setting_about_desc">Application version, disclaimer, and open source licenses</string>
 
     <!-- App Routing -->
     <string name="routing_mode_label">Routing Mode</string>

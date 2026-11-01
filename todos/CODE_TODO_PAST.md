@@ -1057,3 +1057,18 @@ timeout` 灵活入参，在未指定 timeout 时自动回读保持 `snapshot.pro
   - 当前证据（L）：`infiltrator-slint::keyboard_focus_tests` 4/4 passed；`infiltrator-contract` + `infiltrator-slint` 434/434 passed；Clippy `--all-targets -D warnings` passed；`parity-coverage-guard --mode enforce` 360/360 anchored 0 pending 0 missing；`bevy_rem_guard` 0 违规 0 debt；Slint 尺寸统一 `* LumenUiScale.unit`；`check-structure.sh` 40+ 项结构门全绿；cargo fmt 0 偏差。
   - 待验证：统一全仓集成验证批次与取证台架。
   - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+
+## 12.62 Tools 信息架构与 About/Disclaimer/Licenses 页面四端闭环交付（2026-11-01 交付，1条 / 5pt）
+
+- [ ] FLPARITY-007 [kind: mechanism] [priority: P1] [points: 5] [owner: infiltrator-contract + infiltrator-shared + three desktop UIs + android/ui] [status: Integrated] Tools 信息架构与 About/Disclaimer/Licenses 页面 (FlClash v0.9.2 parity)
+  - 产物：
+    - **Contract 类型化页面词表与命令目录**：`infiltrator-contract::surface_snapshot::PageId` 扩充 `Tools`、`About`、`Disclaimer`、`Licenses` 四页面至 15 项并补齐 `page_status` 权威读回；`command_catalogue.rs` 补齐 4 页面 27 条导航命令字典与路由条目；
+    - **Shared 共享资产与双语本地化**：`infiltrator-shared::assets` 导出 `third_party_notices_text()` 与 `disclaimer_text()`；`locales_table_surface_zh.rs` 与 `locales_table_surface_en.rs` 补充 16 项中英双语键值；
+    - **Iced 表现层与路由接线**：新建 `view/about.rs`，提供 `about_view`、`disclaimer_view`、`licenses_view`、`tools_view`；彻底清退 `view/settings.rs` 裸铺字体许可证正文，替换为标准导航按钮；
+    - **Android Compose 路由与本地化**：`strings.xml`（en/zh-CN/zh-TW）补齐本地化字符串；`AppRoute.kt` 扩充路由；`SettingsScreen.kt` 与 `AboutScreen.kt` 闭环交付；
+    - **Bevy UI 表现层与 rem 体系严格落实**：新建 `pages/about.rs`，所有尺寸使用 `rem(space::*)`，字号使用 `FontSize::Rem`，`bevy_rem_guard` 0 违规 0 debt；精简 `route.rs` 与 `route/mount.rs`，SLOC 严格控制在 773 行与 102 行（≤800 行硬门）。
+  - 验收：四表面均可从主导航两步内到达 About/免责声明/许可证；无裸许可证全文铺页；旧 route/命名 grep 清零；单测与结构门全绿。
+  - 当前证据（L）：`infiltrator-contract` + `infiltrator-shared` + `infiltrator-iced` 1108/1108 passed；`infiltrator-bevy-ui` 601/601 passed；Android `:app:testComposeDebugUnitTest` 404/404 passed；Clippy `--all-targets -D warnings` 零警告；`bevy_rem_guard` 0 违例 0 debt；`line-guard` 2880 文件 0 违规；`i18n-guard` 0 errors；`check-structure.sh` 40+ 项结构门全绿。
+  - 待验证：统一全仓集成验证批次与四表面双视口像素回执采集。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+

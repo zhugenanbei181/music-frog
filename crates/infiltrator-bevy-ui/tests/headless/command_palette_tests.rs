@@ -410,7 +410,7 @@ fn palette_locale_category_search_keeps_all_navigation_targets() {
     let mut state = CommandPaletteState::new();
     state.set_language("en-US");
     state.set_query("Navigation");
-    assert_eq!(state.filtered_indices.len(), 11);
+    assert_eq!(state.filtered_indices.len(), 15);
     assert!(state.filtered_indices.iter().all(|index| matches!(
         state.catalogue.entry(*index).unwrap().target,
         CommandTarget::Navigate(_)

@@ -54,7 +54,7 @@ fn palette_locale_category_search_keeps_all_navigation_targets() {
     let _ = state.update(Message::OpenCommandPalette);
     let _ = state.update(Message::SetCommandQuery("Navigation".into()));
     let indices = state.filtered_command_indices();
-    assert_eq!(indices.len(), 11);
+    assert_eq!(indices.len(), 15);
     assert!(indices.iter().all(|index| matches!(
         state.shell.command_catalogue.entry(*index).unwrap().target,
         CommandTarget::Navigate(_)

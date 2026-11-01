@@ -2,6 +2,7 @@
 //! hotkeys and admin surfaces.
 
 use crate::state::AppState;
+use crate::types::app::Route;
 use crate::types::message::Message;
 use crate::view::apply_guard_card::apply_guard_card;
 use crate::view::component_card::card;
@@ -23,12 +24,12 @@ use crate::view::uwp_card::uwp_card;
 use crate::view::vpn_card::vpn_card;
 use crate::view::web_dash_card::web_dash_card;
 use crate::view_root::interaction_regions::InteractionRegion;
-use iced::widget::{Space, column, container, row, text, text_input};
+use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_ports::host_runtime::TunServiceStatus;
 use infiltrator_presentation::profiles_page_model::ProfilesOperation;
 use infiltrator_presentation::settings_status_projection::format_runtime_status;
-use infiltrator_shared::assets::harmonyos_font_license_text;
+
 use infiltrator_shared::locales::{Lang, Localizer};
 use integration::{CORE_CHANNEL_OPTIONS, secondary_text};
 
@@ -242,8 +243,14 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let font_attribution = container(card(
         Some(lang.tr("settings_font_attribution_title").into_owned()),
         column![
-            secondary_text(lang.tr("settings_font_attribution_copy").into_owned(),),
-            text(harmonyos_font_license_text()).size(10).font(MONO),
+            secondary_text(lang.tr("settings_font_attribution_copy").into_owned()),
+            button(
+                text(lang.tr("nav_licenses").into_owned())
+                    .size(12)
+                    .font(FONT_SEMIBOLD),
+            )
+            .padding([6, 12])
+            .on_press(Message::Navigate(Route::Licenses)),
         ]
         .spacing(theme::SP_SM),
     ))

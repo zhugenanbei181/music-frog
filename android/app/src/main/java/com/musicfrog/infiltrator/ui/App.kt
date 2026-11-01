@@ -46,6 +46,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.musicfrog.infiltrator.AndroidVpnAuthorizationUiState
 import com.musicfrog.infiltrator.R
+import com.musicfrog.infiltrator.ui.about.AboutScreen
 import com.musicfrog.infiltrator.ui.connections.ConnectionsScreen
 import com.musicfrog.infiltrator.ui.logs.LogsScreen
 import com.musicfrog.infiltrator.ui.overview.OverviewScreen
@@ -214,6 +215,9 @@ fun InfiltratorApp(
                                     onNavigateToLogs = {
                                         route = AppRoute.SettingsDetail(SettingsDestination.Logs)
                                     },
+                                    onNavigateToAbout = {
+                                        route = AppRoute.SettingsDetail(SettingsDestination.About)
+                                    },
                                 )
 
                                 AppSection.Sync -> SyncScreen()
@@ -227,6 +231,7 @@ fun InfiltratorApp(
                                 SettingsDestination.Rules -> RulesScreen()
                                 SettingsDestination.Connections -> ConnectionsScreen()
                                 SettingsDestination.Logs -> LogsScreen()
+                                SettingsDestination.About -> AboutScreen()
                             }
                         }
                     }

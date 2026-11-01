@@ -89,6 +89,8 @@
     <string name="setting_connections_desc">查看活動連線並按需中斷</string>
     <string name="setting_logs_title">運行日誌</string>
     <string name="setting_logs_desc">查看核心運行日誌</string>
+    <string name="setting_about_title">關於軟體</string>
+    <string name="setting_about_desc">版本資訊、免責聲明與開源許可</string>
 
     <!-- App Routing -->
     <string name="routing_mode_label">路由模式</string>
