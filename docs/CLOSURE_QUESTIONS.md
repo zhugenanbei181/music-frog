@@ -23,18 +23,29 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-01 第一百零三批次）
+## 当前状态（2026-11-02 第一百零四批次）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
 | 1 | 部分 | L | 中性内核 x64/arm64 × Windows/Linux/Android/macOS **八个组合**全部通过；本机交叉复跑入口 `scripts/cross-check.sh`（zig 0.14.1 + `cargo-zigbuild`、`cargo-xwin`）与 `scripts/android-check.sh`（NDK 29.0.14206865）保持全绿；本批修掉了交叉腿实测报出的一个真实缺陷（`infiltrator-slint` 的 `clippy::missing-const-for-thread-local`，已改为 `const { Cell::new(false) }` 初始化），该腿由 `scripts/blocked/foreign-target-evidence.sh` 复跑验证；最终安装包与目标设备证据仍缺，由 CI runner 与设备矩阵取证（GAP-1.1） |
 | 2 | 部分 | C（旧 commit）+ L | Windows/Linux v0.42.6 四条腿 success（旧源码）；macOS `Unsupported`（无 CI/无产物，GAP-2.2）；安装包未验证（GAP-2.1）；Windows 安装包与 macOS/iOS 目标机腿已整条迁入斗战胜佛并写明阻塞方，Linux 打包腿在现在佛 `APPID-001.3`；**本批：release 作业的签名前置改为 fail closed**——缺 secret 时在昂贵的三 flavor release 构建之前就明确失败，桌面产物不再由 debug key 背书 |
 | 3 | 部分 | L | Android 源码级接通，Bevy host driver lockfile 已同步 0.50.0 解决 buildRustDriver 101 错误；**本批：Android 静态质量门成为真门**（Lint 68→0、ktlint 5046→0、Detekt 项目配置 0 条、架构红线守卫 ARCH001–007 扫描 137 点 0 违例并带 23 条负例，已接入结构门）；Android 单测 192 core host + 391 app 全绿；**release 变体改用用户持久 keystore 签名**，无 secret 时 Gradle 配置期即以缺失清单失败，debug key 不再用于任何 release 产物；APK 真实产物与真机仍缺，APK/真机腿在斗战胜佛；iOS `Unsupported`（626 行 stub，GAP-3.2）；模拟器 M1 腿可推（`PARITY-001.4`、过去佛 `BANDROID-002.1`/`002.2`） |
-| 4 | 部分 | L | Iced/Bevy/Slint/Compose 全量接入，四表面使用 `SurfaceReader` + `CommandSink`。**本批（2026-11-01 第一百零三批次）：`FLPARITY-039`（3 pt）桌面侧栏系统材质效果与诚实降级交付（契约层 `SidebarMaterialKind`/`SidebarMaterialSupport`/`SidebarMaterialSpec`、presentation 侧栏材质投影 `project_sidebar_material`/`project_sidebar_surface_wash`、desktop 宿主材质检测、三端 UI 侧栏接入动态材质表面与失焦/减弱动态效果退回、implicit-state-verdicts 登记、rem 严格零容忍）。严格落实 rem 尺寸标尺（bevy_rem_guard 0 违规 0 debt，Slint 统一 * LumenUiScale.unit 0 裸 px）。现在佛 21 → 18 pt（5 → 4 条），过去佛 58 → 61 pt（20 → 21 条），联合分母 161 pt（58 条）保持，严格归档率 87.7%（1,152/1,313 pt）保持。** |
+| 4 | 部分 | L | Iced/Bevy/Slint/Compose 全量接入，四表面使用 `SurfaceReader` + `CommandSink`。**本批（2026-11-02 第一百零四批次）：统一验证批次一次性办结过去佛 13 条 / 38 pt `Integrated` 条目（BANDROID-043.3/043.7/009.1、PUB-006.1/006.13、EFFECTS-028/041、FLPARITY-035/041/006/018/039、GAP-7.6）；严格落实 rem 尺寸标尺（`bevy_rem_guard --mode enforce` 0 违规 0 debt，Slint 统一 `* LumenUiScale.unit` 0 裸 px，`slint-syntax-guard` 100% PASS）。现在佛 4 条 / 18 pt，过去佛 8 条 / 23 pt，联合分母 45 条 / 123 pt，严格归档率 90.6%（1,190/1,313 pt）。** |
 | 5 | 部分 | L | 共享 ports/kernel/kits 已复用；统一验证批次集中跑通全量 5,748 nextest 与 40+ 项结构门，一次性批量解锁并归档办结 84 条 Integrated 条目，消除重复构建开销；代码零重复旁路，事实单一真源 |
-| 6 | 部分 | L | **对标 FlClash v0.9.2 与跨端平价：`FLPARITY-039`（3 pt）桌面侧栏系统材质效果与诚实降级交付，从现在佛迁入过去佛 §12.66（Integrated）；现在佛余 4 项 / 18 pt（全量 FlClash 对标），过去佛 21 项 / 61 pt。** 平价覆盖矩阵 360/360 单元格保持 100% anchored（0 pending，0 missing）。三桌面 192 张四主题实图在库；Android 36 张实机截图仍待外部设备腿。 |
+| 6 | 部分 | L | **对标 FlClash v0.9.2 与跨端平价：第一百零四统一验证批次办结 FLPARITY-035/041/006/018/039 与 GAP-7.6 等 13 条 / 38 pt；现在佛余 4 项 / 18 pt（全量 FlClash 对标），过去佛余 8 项 / 23 pt（M1 模拟器腿与桌面运行时/读屏/niri 台架腿）。** 平价覆盖矩阵 360/360 单元格保持 100% anchored（0 pending，0 missing）。三桌面 192 张四主题实图在库；Android 36 张实机截图仍待外部设备腿。 |
 | 7 | 部分 | L | 文件级模块化完成（<=800/600 行全绿，全仓 mod.rs 清退至 0，严格遵照 foo.rs + foo/ 模式，并在 check-structure.sh 接入 mod-rs-guard 永久禁止）；**严格落实 rem 体系，Bevy 0 违规（bevy_rem_guard --mode enforce 0 违规，debt 归零），Slint 统一 LumenUiScale.unit**；隐式状态机语义审计 + 判决台账常驻（22 条候选逐条人工判决，未判决或 open 即门禁失败）；九个页面模型与两个共用基座成为页面状态的唯一 owner；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | 已补 `--locked` 与 main 守卫门禁（仅 fmt+guards，不编译）；修复 main-gate.yml 缺失 setup-python/Pillow 问题；扩大 Gradle JVM 堆至 6GB 并将三大 flavor 分离独立进程构建彻底解决 OOM；交付 Android CI 套件 flavor/模拟器裁剪与 Gradle 缓存复用；release 作业在构建前校验签名材料缺 secret 秒级失败；全套单测与结构门（`check-structure.sh` 40+ 项守卫，含截图身份唯一守卫 enforce：550 张、aliases=10、0 违规）全绿；`cargo fmt --all --check` 100% 通过；版本号按身份改动一次升至 0.51.0 |
+
+## 最近一批问答（2026-11-02 第一百零四交付批次：统一验证批次与集中归档，过去佛 13 条 / 38 pt 一次性办结）
+
+1. x86_64/aarch64：统一批次 `cargo nextest run --workspace --no-fail-fast` 5,767 passed / 0 failed / 15 skipped，clippy `--workspace --all-targets -D warnings` 零警告；`neutral-crate-release.sh structure` 七个中性 crate 全 ready；sing-box 真实二进制 v1.14.3 driver smoke 四项 proof 全 proven（`node_speed_test` 实测 983ms）→ 部分（L）。
+2. Windows/Linux/macOS：托盘、CSD 标题栏与侧栏材质三桌面代码路径随统一批次编译与全量测试验证；真实安装包、Win11 Snap 菜单与 DWM/Vibrancy 原生材质像素腿随斗战胜佛/未来佛既有条目取证 → 部分（L）。
+3. Android/iOS：Android 三 flavor `testComposeDebugUnitTest`/`testBevyDebugUnitTest`/`testSlintDebugUnitTest` BUILD SUCCESSFUL（BANDROID-043.3/043.7 本地 Gradle 腿回执）；模拟器 M1 取证腿（BANDROID-002.1/002.2、PARITY-001.4、FLPARITY-045）留待下一统一批次；iOS 保持 Unsupported → 部分（L）。
+4. 各 UI：本批为验证归档批次、无新 UI 代码；四表面共享 owner（contract/presentation/desktop/composition）全部随 workspace 编译与测试覆盖；严格落实 rem 唯一标尺（`bevy_rem_guard` 0 违规 0 debt，Slint 统一 `* LumenUiScale.unit` 0 裸 px，`slint-syntax-guard` 100% PASS）→ 部分（L）。
+5. 复用：集中归档消除重复全仓验证开销；无新旧双轨、无重复旁路引入；`PUB-006.13` 真实引擎语义与 `PUB-006.1` 发布拓扑均复用单源守卫（`core-backend-smoke-singbox.sh`、`neutral-release-guard.py`）→ 部分（L）。
+6. 功能接入：过去佛 21 → 8 条 / 61 → 23 pt，现在佛 4 条 / 18 pt 保持，联合分母 58 → 45 条 / 161 → 123 pt，已归档 1,152 → 1,190 pt（430 → 443 条），严格归档率 87.7% → 90.6%（1,190/1,313 pt）→ 部分（L）。
+7. 模块化：`check-structure.sh` 40+ 结构守卫 exit 0（行预算/import 卫生/mod-rs 清退/typed-state/implicit-state 判决台账全绿）；`resolve_surface_evidence.py` pass（status=pass，360 anchors，180 cells）→ 部分（L）。
+8. CI：`cargo fmt --all --check` 0 偏差；clippy 零警告；`cargo deny check advisories bans licenses sources` 四项 ok；`cargo metadata --locked` ok；同批提交并推送 main → 部分（L）。
 
 ## 最近一批问答（2026-11-01 第一百零三交付批次：FLPARITY-039 桌面侧栏系统材质效果与诚实降级交付与 rem 体系严格落实）
 
