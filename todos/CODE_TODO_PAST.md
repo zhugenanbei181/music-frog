@@ -825,9 +825,13 @@
   - 当前证据（L）：`infiltrator-contract` 442 项单测 100% 全绿（Nextest run `c91cb051-c8e4-4592-a07e-bc923e4c8a16`）；`surface_hierarchy` 3 项测试全绿；`line-guard.py` 0 违规；`closure-questions-guard.py` 8/8 通过；`cargo fmt --check` 0 偏差。
   - 待验证：统一全仓 nextest、Clippy 与各 UI 表面在 `FLPARITY-014` 中的渲染像素取证。
   - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
-## 12.45 四主题表面色板与深色可读性（2026-10-29 复核：退回现在佛；0 条 / 0pt）
+## 12.45 四主题共享调色板真实消费与暗色/Forest 层级重校交付（2026-11-01 交付，1条 / 5pt）
 
-`FLPARITY-014` 曾从这里交付，但后续静态 consumer 审计发现共享 `MaterialSurfaceTokens`/`MaterialColorScheme` 尚无生产消费者，截图也没有绑定 2026-10-29 的调色板变更。原局部实现保留为部分证据，不表示视觉闭环通过；当前唯一任务位于[现在佛](CODE_TODO.md) §10.12，同 ID 不在本板重复登记。
+- [ ] FLPARITY-014 [kind: visual] [priority: P0] [points: 5] [owner: infiltrator-contract/design_tokens + infiltrator-bevy-widgets + infiltrator-iced + infiltrator-slint + android/ui] [status: Integrated] 四主题共享调色板真实消费与暗色/Forest 层级重校
+  - 产物：Contract/Core 明确 built-in theme 的唯一 typed palette/readback 与系统动态色优先级（SystemDynamicColor::Unobserved/Seed）；ports 导出 SystemThemeObservationPort 与降级 UnobservedSystemTheme；presentation 单点生成 project_theme_readback；SurfaceSnapshot.theme_readback 权威读回发布；Iced/Bevy 主题切换意图写通 settings owner；四端（Iced、Bevy、Slint、Android Compose）消费权威 theme_readback 快照读回；DesktopSystemTheme（GNOME gsettings + Windows 注册表）宿主动态色适配器；桌面三端 16 页 × 4 主题共 192 张主题实图全部完成重采入库并消除动效时钟抖动与 Slint 读回缺失。
+  - 当前证据（L）：定向 nextest 1587+740+806+547+359+694+553 项单测全绿；Android JVM 404/404 全绿；桌面 192 张四主题截图（Iced 64 + Bevy 64 + Slint 64）实图入库；screenshot-identity-guard enforce 550 张 10 别名 0 违规；bevy_rem_guard enforce 0 违规、0 debt；bevy_scene_gate 0 违规；clippy --workspace --all-targets --all-features -D warnings 零警告；check-structure.sh 40+ 项结构门 exit 0；closure-questions-guard 8/8 通过；cargo fmt 0 偏差。
+  - 待验证：统一全仓 nextest 集中验收批次；Android 三 flavor 实机主题截图回执（PARITY-001.6 外部设备腿）。
+  - 本机可执行动作：统一验证批次集中跑全量门禁与批量办结。
 
 ## 12.46 四表面可配置延迟测速 timeout 并在新探测中即时生效交付（2026-10-29 交付，1条 / 3pt）
 

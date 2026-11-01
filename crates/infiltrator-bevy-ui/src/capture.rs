@@ -285,44 +285,50 @@ impl Plugin for CapturePlugin {
 #[derive(Resource)]
 struct CaptureSectionTarget(CaptureSection);
 
+#[derive(SystemParam)]
+struct CaptureSectionControls<'w, 's> {
+    target: Res<'w, CaptureSectionTarget>,
+    options: ResMut<'w, ProfileEditorOptionsState>,
+    editor_roots: Query<'w, 's, Entity, With<ProfileEditorRoot>>,
+    parents: Query<'w, 's, &'static ChildOf>,
+    cards: Query<'w, 's, (), With<SurfacePanel>>,
+    page_roots: Query<'w, 's, (Entity, &'static PageRoot)>,
+    scroll_children: Query<'w, 's, (Entity, &'static ChildOf), With<ScrollArea>>,
+    license_buttons: Query<'w, 's, Entity, With<FontLicenseButton>>,
+}
+
 /// Drive the page-capture section the env asked for: switch the editor
 /// card's pane, top-align the anchored card inside the page's own scroll
 /// viewport and open the font-attribution details dialog — the same business
 /// states the shared receipts anchor, reached through the page's own
 /// controls, never a second state owner.
 fn bootstrap_capture_section(
-    target: Res<CaptureSectionTarget>,
-    mut options: ResMut<ProfileEditorOptionsState>,
-    editor_roots: Query<Entity, With<ProfileEditorRoot>>,
-    parents: Query<&ChildOf>,
-    cards: Query<(), With<SurfacePanel>>,
-    page_roots: Query<(Entity, &'static PageRoot)>,
-    scroll_children: Query<(Entity, &ChildOf), With<ScrollArea>>,
-    license_buttons: Query<Entity, With<FontLicenseButton>>,
-    mut geometry: CaptureGeometry,
+    mut controls: CaptureSectionControls,
+    geometry: CaptureGeometry,
     mut commands: Commands,
     mut dialog_fired: Local<bool>,
 ) {
-    match target.0 {
+    match controls.target.0 {
         CaptureSection::EditorCard(pane) => {
-            if options.pane != pane {
-                options.pane = pane;
+            if controls.options.pane != pane {
+                controls.options.pane = pane;
                 return;
             }
-            let Ok(root) = editor_roots.single() else {
+            let Ok(root) = controls.editor_roots.single() else {
                 return;
             };
-            let Ok(parent) = parents.get(root) else {
+            let Ok(parent) = controls.parents.get(root) else {
                 return;
             };
             let card = parent.parent();
-            if cards.get(card).is_err() {
+            if controls.cards.get(card).is_err() {
                 return;
             }
             // The profiles page nests its ScrollArea one level below the
             // PageRoot entity (the page node clips; the inner child scrolls).
-            let Some((scroll, _)) = scroll_children.iter().find(|(_, parent)| {
-                page_roots
+            let Some((scroll, _)) = controls.scroll_children.iter().find(|(_, parent)| {
+                controls
+                    .page_roots
                     .get(parent.parent())
                     .is_ok_and(|(_, root)| root.0 == Route::Profiles)
             }) else {
@@ -341,7 +347,7 @@ fn bootstrap_capture_section(
             if *dialog_fired {
                 return;
             }
-            let Ok(button) = license_buttons.single() else {
+            let Ok(button) = controls.license_buttons.single() else {
                 return;
             };
             commands.trigger(Activate { entity: button });

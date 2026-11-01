@@ -122,18 +122,13 @@ pub struct ProfilesControls<'w, 's> {
     imports: Query<'w, 's, Entity, With<ProfilesImportRoot>>,
     url_fields: Query<'w, 's, (Entity, &'static Children), With<ImportSubscriptionUrlField>>,
     native_fields: Query<'w, 's, Entity, With<NativeTextField>>,
-    text_fields: Query<'w, 's, &'static TextField>,
     parents: Query<'w, 's, &'static ChildOf>,
     areas: Query<'w, 's, Entity, With<ScrollArea>>,
     windows: Query<'w, 's, (Entity, &'static Window), With<PrimaryWindow>>,
 }
 
 /// Drive the Profiles page's own deletion and refresh gestures.
-pub fn activate(
-    mut controls: ProfilesControls,
-    mut geometry: CaptureGeometry,
-    mut commands: Commands,
-) {
+pub fn activate(mut controls: ProfilesControls, geometry: CaptureGeometry, mut commands: Commands) {
     if controls.route.0 != Some(Route::Profiles) {
         return;
     }
@@ -351,7 +346,6 @@ pub struct ProfilesObservation<'w, 's> {
     capture: Res<'w, ProfilesCapture>,
     deletions: Query<'w, 's, (Entity, &'static Text), With<ProfileDeleteOutcomeText>>,
     refreshes: Query<'w, 's, (Entity, &'static Text), With<ProfileRefreshText>>,
-    imports: Query<'w, 's, Entity, With<ProfilesImportRoot>>,
     url_fields: Query<'w, 's, (Entity, &'static Children), With<ImportSubscriptionUrlField>>,
     text_fields: Query<'w, 's, &'static TextField>,
     parents: Query<'w, 's, &'static ChildOf>,

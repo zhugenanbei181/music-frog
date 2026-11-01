@@ -209,10 +209,10 @@ impl SurfaceComposition {
 fn capture_composition() -> SurfaceComposition {
     #[cfg(feature = "capture-controller")]
     {
-        return match controller::controller_config_from_env() {
+        match controller::controller_config_from_env() {
             Some(config) => SurfaceComposition::Controller(config),
             None => SurfaceComposition::Demo,
-        };
+        }
     }
     #[cfg(not(feature = "capture-controller"))]
     SurfaceComposition::Demo

@@ -400,7 +400,7 @@ fn build_demo_snapshot(settings: &DemoSettings) -> SurfaceSnapshot {
     // real composition derives from this hydrated setting, so every
     // projection paints the fixture skin from the authoritative readback.
     snapshot.theme_readback = ResolvedThemePalette::resolve(
-        ThemePreference::from_setting(&theme_str),
+        ThemePreference::from_setting(theme_str),
         SystemAppearance::Unobserved,
         SystemDynamicColor::Unobserved,
     );

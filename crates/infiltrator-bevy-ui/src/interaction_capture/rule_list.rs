@@ -2,7 +2,7 @@
 use super::capability::{capture_command_application, capture_core_capability_application};
 use super::geometry::CaptureGeometry;
 use super::host::{CaptureCapability, CaptureCommandSink};
-use super::scroll::{outermost_scroll_area, owning_scroll_area, request_scroll, union};
+use super::scroll::{outermost_scroll_area, request_scroll, union};
 use super::{InteractionCapture, ObservedInteraction, selected};
 use crate::command::CommandSinkHandle;
 use crate::pages::rules::RulesPageRoot;

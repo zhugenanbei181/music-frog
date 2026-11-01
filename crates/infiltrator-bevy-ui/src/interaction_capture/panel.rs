@@ -116,20 +116,14 @@ pub fn observe(
             // The terminal readback is the surface's own submitted-status
             // line; the receipt shows it scrolled into the panel's own
             // viewport, not the launcher button that opened the panel.
-            let Some((status, _, _copy)) = controls
+            let (status, _, _copy) = controls
                 .status_lines
                 .iter()
-                .find(|(_, _, copy)| copy.key == "aggregation_preview_submitted")
-            else {
-                return None;
-            };
-            let Some((scroll, _scroll_marker)) = controls
+                .find(|(_, _, copy)| copy.key == "aggregation_preview_submitted")?;
+            let (scroll, _scroll_marker) = controls
                 .panel_scrolls
                 .iter()
-                .find(|(_, marker)| marker.0 == kind)
-            else {
-                return None;
-            };
+                .find(|(_, marker)| marker.0 == kind)?;
             if !geometry.unclipped(status) {
                 if let (Some(bounds), Some(viewport)) =
                     (geometry.rect(status), geometry.rect(scroll))
