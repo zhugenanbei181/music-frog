@@ -32,6 +32,8 @@ export component AppWindow inherits MaterialWindow {
     callback window-toggle-maximize();
     callback window-close();
     in-out property <bool> is-maximized: false;
+    in-out property <bool> window-focused: true;
+    callback window-focus-changed(bool);
     in-out property <bool> android-platform: false;
     in-out property <string> product-version: "0.68.2";
     in-out property <bool> layout-debug-tools-enabled: false;
@@ -335,13 +337,7 @@ export component AppWindow inherits MaterialWindow {
     changed back-request-revision => { root.go-back(); }
     changed application-dark-mode => { root.update-color-scheme(); }
     changed platform-dark-mode => { if root.theme-mode == ThemeMode.system { root.application-dark-mode = root.platform-dark-mode; } }
-    changed theme-mode => {
-        LumenTheme.forest-mode = root.theme-mode == ThemeMode.forest; LumenTheme.amoled-mode = root.theme-mode == ThemeMode.amoled;
-        if root.theme-mode == ThemeMode.system { root.application-dark-mode = root.platform-dark-mode; }
-        else if root.theme-mode == ThemeMode.dark || root.theme-mode == ThemeMode.amoled { root.application-dark-mode = true; }
-        else { root.application-dark-mode = false; }
-        root.update-color-scheme();
-    }
+    changed theme-mode => { LumenTheme.forest-mode = root.theme-mode == ThemeMode.forest; LumenTheme.amoled-mode = root.theme-mode == ThemeMode.amoled; if root.theme-mode == ThemeMode.system { root.application-dark-mode = root.platform-dark-mode; } else if root.theme-mode == ThemeMode.dark || root.theme-mode == ThemeMode.amoled { root.application-dark-mode = true; } else { root.application-dark-mode = false; } root.update-color-scheme(); }
     changed page-scale-percent => { LumenUiScale.unit = 1px * (root.page-scale-percent / 100.0); }
     changed theme-color => { LumenTheme.user-accent = root.theme-color; MaterialPalette.schemes = LumenTheme.material-schemes; }
     changed theme-color-code => { if root.theme-color-dialog-open && !root.theme-color-code-edited { root.theme-color-code-draft = root.theme-color-input-code; root.theme-color-draft = root.theme-color-input-code; } }

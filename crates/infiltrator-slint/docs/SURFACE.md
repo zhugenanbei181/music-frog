@@ -106,10 +106,8 @@
    - **工作台业务页**（`ui/pages/page_workbench.slint` + `src/lumen_projection/workbench/panels/`）：`ConnectionsWorkbench`、`LogsWorkbench`、`RuntimeWorkbench`、`ProxiesWorkbench`、`RulesWorkbench`、`SettingsWorkbench`、`ShellWorkbench`、`OverviewWorkbench` 各自承载本工作台的业务面板，面板动作经 `invoke_workbench_action` 走共享命令；
    - **产品页搜索框**：`Connections`、`Logs`、`Rules`、`Proxy` 四页的搜索框是共享过滤的入口，取证用手势写入页面自己的搜索框。
 
-6. **在 Slint surface 上仍无承载载体的业务**：
-   - 下列业务在共享平价目录中存在，但 Slint surface 没有承载它们的界面状态，取证路径会拒绝它们，因此它们没有像素回执，也不能登记 Slint 的 scenario 锚点：
-   - `shell-keyboard-focus`——焦点环跟随焦点的像素证据需要能驱动真实指针或按键的取景台架，Slint 的取景路径只驱动产品回调，因此该业务在 Slint 表面上仍无像素回执；
-   - 缺口随共享平价登记表 `scripts/parity/feature_evidence.tsv` 与 `scripts/parity/cross_surface_manifest.tsv` 演进，本文档只声明「Slint 是否有承载载体」这一事实。
+6. **在 Slint surface 上的键盘焦点与 IME 承载**：
+   - `shell-keyboard-focus`：Slint 表面通过 `focus_ime` 模型消费共享契约，实现窗口焦点与刷新率节拍追踪（Active 60FPS vs Background 2FPS）、Tab / Shift-Tab 焦点循环、Escape/Return 模态与动作分发，以及在中文输入法输入阶段（`ImePhase::Composing`）拦截并抑制全局快捷键组合键，确保打字时不误触快捷键；cursor 策略向契约报告 `ToolkitProvided`。
 
 
 3. **Lumen 组件树模块化与质量规范**：

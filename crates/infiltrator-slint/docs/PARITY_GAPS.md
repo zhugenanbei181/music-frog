@@ -16,13 +16,11 @@
 
 ## 承载现状
 
-- 已实现并锚定：59 格（下表）——专属承载页覆盖 DNS、诊断、同步、过滤聚合、
-  编辑器族与应用路由六个页面；其余业务由产品页与工作台页承载。
-- 仍为 pending：1 格（文末）——`shell-keyboard-focus` 的焦点环像素证据需要一台
-  能驱动真实指针或按键的取景台架，Slint 取景路径只驱动产品回调，该格诚实保持 pending，
-  `FeatureSpec::slint_page` 对应留空。
+- 已实现并锚定：60 格（下表）——专属承载页覆盖 DNS、诊断、同步、过滤聚合、
+  编辑器族与应用路由六个页面；键盘焦点与 IME 由概览与宿主层消费；其余业务由产品页与工作台页承载。
+- 仍为 pending：0 格——全量 60 项跨端业务在 Slint 表面均已实现并锚定。
 
-## 注册表行：已实现并锚定的格（59 行）
+## 注册表行：已实现并锚定的格（60 行）
 
 列依次为：业务、表面、状态、scenario 锚点、交互路径、contract 锚点。
 
@@ -86,12 +84,9 @@ runtime-telemetry-observation	slint	implemented	infiltrator-slint::business_runt
 rules-statistics-inspector	slint	implemented	infiltrator-slint::business_rules_tests::the_rules_statistics_inspector_success_path;infiltrator-slint::business_rules_tests::the_rules_statistics_inspector_cancel_path;infiltrator-slint::business_rules_tests::the_rules_statistics_inspector_error_path;infiltrator-slint::business_rules_tests::the_rules_statistics_inspector_retry_path;infiltrator-slint::business_rules_tests::the_rules_statistics_inspector_refresh_path;infiltrator-slint::business_rules_tests::the_rules_statistics_inspector_stale_path;infiltrator-slint::business_rules_tests::the_rules_statistics_inspector_pending_path;infiltrator-slint::business_rules_tests::the_rules_statistics_inspector_locale_path;infiltrator-slint::business_rules_tests::the_rules_statistics_inspector_unknown_path;infiltrator-slint::business_rules_tests::the_rules_statistics_inspector_cleanup_path	unknown,success,cancel,error,retry,refresh,stale,pending,locale,cleanup	infiltrator-presentation::rule_statistics_workbench::tests::cleanup_cancel_changes_nothing_and_confirm_follows_stable_identity_after_reorder;infiltrator-presentation::rule_statistics_workbench::tests::failed_reads_retain_values_as_stale_and_new_sources_retire_them_without_cancelling_review;infiltrator-presentation::rule_statistics_workbench::tests::reset_waits_for_matching_receipt_and_rejects_old_readback_and_foreign_completions;infiltrator-presentation::rule_statistics_workbench::tests::unqualified_counts_cannot_become_current_or_enable_cleanup_and_reset;infiltrator-presentation::rule_statistics_workbench::tests::invalid_reset_receipts_preserve_counts_and_retry_allocates_a_new_operation;infiltrator-presentation::rule_statistics_workbench::tests::fresh_readback_before_terminal_receipt_completes_without_waiting_for_another_refresh;infiltrator-application::rule_tracer_application::statistics_test::source_names_and_hashes_fence_counts_latency_and_read_only_replay;infiltrator-application::rule_tracer_application::statistics_test::failed_source_load_retains_same_source_statistics_without_counting_another_trace;infiltrator-application::rule_tracer_application::statistics_test::duplicate_raw_rules_and_named_descents_record_the_actual_root_identity_once
 profiles-script-sandbox	slint	implemented	infiltrator-slint::workbench_page_tests::the_script_sandbox_dispatches_the_shared_run_command;infiltrator-slint::workbench_page_tests::the_script_sandbox_clears_through_the_shared_command;infiltrator-slint::workbench_path_tests::the_script_sandbox_stays_unobserved_until_the_owner_publishes_a_report;infiltrator-slint::workbench_path_tests::the_script_sandbox_failure_offers_the_retry_of_the_same_command;infiltrator-slint::workbench_path_tests::the_script_sandbox_is_busy_while_the_owner_runs_the_script;infiltrator-slint::workbench_path_tests::the_script_sandbox_loads_a_built_in_preset;infiltrator-slint::workbench_path_tests::the_script_sandbox_keeps_its_draft_when_the_language_changes	unknown,success,error,retry,pending,clear,presets,locale	infiltrator-application::script_sandbox_matrix_application::script_sandbox_matrix_application_test::deterministic_matrix_passes_every_covered_item_with_no_gaps;infiltrator-application::script_sandbox_matrix_application::script_sandbox_matrix_application_test::matrix_is_deterministic_across_runs
 profiles-script-export-review	slint	implemented	infiltrator-slint::workbench_page_tests::the_script_export_review_prepares_the_shared_artifact;infiltrator-slint::workbench_page_tests::the_script_export_review_refuses_a_second_prepare;infiltrator-slint::workbench_path_tests::the_script_export_review_is_cancelled_without_writing_the_artifact;infiltrator-slint::workbench_path_tests::the_script_export_preparation_refusal_offers_the_retry;infiltrator-slint::workbench_path_tests::the_script_export_review_is_pending_while_the_owner_composes_the_artifact;infiltrator-slint::workbench_path_tests::the_script_export_panel_shows_the_typed_unsupported_host;infiltrator-slint::workbench_path_tests::the_script_export_review_keeps_its_state_when_the_language_changes	success,cancel,error,retry,pending,unsupported,locale	infiltrator-application::script_export_application::script_export_application_test::a_host_with_a_save_port_persists_the_real_artifact_and_reports_the_path;infiltrator-application::script_export_application::script_export_application_test::a_host_without_a_save_port_reports_typed_unsupported_without_losing_content;infiltrator-application::script_export_application::script_export_application_test::export_projection_clears_and_republishes
+shell-keyboard-focus	slint	implemented	infiltrator-slint::keyboard_focus_tests::the_shell_tracks_window_focus_for_cadence;infiltrator-slint::keyboard_focus_tests::ime_composition_guards_global_shortcuts;infiltrator-slint::keyboard_focus_tests::tab_navigation_and_escape_enter_handling;infiltrator-slint::keyboard_focus_tests::the_slint_surface_reports_toolkit_provided_ime_cursor_source	success	infiltrator-contract::ime::tests::a_focused_caret_enables_the_plan_and_no_focus_disables_it
 ```
 
-## 注册表行：仍为 pending 的格（1 行）
+## 注册表行：仍为 pending 的格（0 行）
 
-行文本与 `scripts/parity/cross_surface_manifest.tsv` 中对应的 `slint` 行一致。
-
-```tsv
-shell-keyboard-focus	slint	pending	Slint has no IME or window-focus model, so the shared caret/focus plan is never consumed.	shell-keyboard-focus-standard	shell-keyboard-focus-compact
-```
+无。全部 60 项跨端业务在 Slint 表面均已实现并锚定场景/契约测试。

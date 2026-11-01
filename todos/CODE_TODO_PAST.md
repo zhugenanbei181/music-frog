@@ -1043,3 +1043,17 @@ timeout` 灵活入参，在未指定 timeout 时自动回读保持 `snapshot.pro
   - 当前证据（L）：`infiltrator-contract` + `infiltrator-presentation` + `infiltrator-slint` + `infiltrator-test-support` 1226/1226 passed；Clippy `--all-targets -D warnings` passed；typed-state-guard 0 findings；implicit-state-audit 0 open 0 undecided；line budget 0 违规；cargo fmt 0 偏差。
   - 待验证：统一全仓集成验证批次与四表面像素巡检。
   - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+
+## 12.61 Slint 输入法、焦点与键盘导航模型交付（2026-11-01 交付，1条 / 3pt）
+
+- [ ] FLPARITY-010 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-contract + infiltrator-slint] [status: Integrated] Slint 输入法、焦点与键盘导航模型 (FlClash v0.9.2 parity)
+  - 产物：
+    - **Contract 类型化快捷键与平价目录**：`infiltrator-contract::shortcuts` 增加 `KeyModifiers::shift()` 构造；`infiltrator-contract::parity` 将 `ShellKeyboardFocus` 的 `slint_page` 设为 `"overview"`；
+    - **Slint 焦点与 IME 会话模型**：`infiltrator-slint::surface::focus_ime` 实现 `cursor_support() -> ImeCursorSupport::Hosted { source: ToolkitProvided }`，`SlintWindowFocus` 追踪窗口激活状态并驱动共享 `RenderCadence`（Active 60 FPS / Background 2 FPS），`SlintImeSession` 基于 `ImeCompositionTracker` 追踪多阶段中文输入生命周期；
+    - **按键分发与组合键保护铁律**：`SlintKeyboardDispatcher` 实现 Tab/Shift-Tab 焦点循环与 Esc/Enter 语义；在 `ImePhase::Composing` 期间，组合输入事件属于输入法，严禁触发全局快捷键组合键（如 `Ctrl+K`、`Ctrl+Alt+P`）；
+    - **AppWindow 与取景台架接线**：`lumen-app.slint` 声明 `window-focused` 属性与 `window-focus-changed` 回调，`SurfaceHarness` 接入 dispatcher 与 IME 驱动接口；
+    - **场景测试验证**：`infiltrator-slint::keyboard_focus_tests` 4 项测试全绿；平价覆盖矩阵（`parity coverage guard`）360/360 单元格 100% anchored，0 pending，0 missing。
+  - 验收：中文输入不丢字、不误发全局 chord；Tab/Shift-Tab/Esc/Enter 路径行为测试通过；`shell-keyboard-focus` 在 Slint 表面完整锚定。
+  - 当前证据（L）：`infiltrator-slint::keyboard_focus_tests` 4/4 passed；`infiltrator-contract` + `infiltrator-slint` 434/434 passed；Clippy `--all-targets -D warnings` passed；`parity-coverage-guard --mode enforce` 360/360 anchored 0 pending 0 missing；`bevy_rem_guard` 0 违规 0 debt；Slint 尺寸统一 `* LumenUiScale.unit`；`check-structure.sh` 40+ 项结构门全绿；cargo fmt 0 偏差。
+  - 待验证：统一全仓集成验证批次与取证台架。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。

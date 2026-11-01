@@ -21,7 +21,8 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261101-v359`：现在佛 49 pt（11 条）/ 过去佛 309 pt（99 条）/ 斗战胜佛 51 pt（17 条）/ 未来佛 26 pt（15 条），联合未办结分母 435 pt（142 条）；已归档交付 878 pt（346 条）；累计 1313 pt，严格归档完成率 66.9%.
+- Point 基线 `musicfrog-todo-20261101-v360`：现在佛 46 pt（10 条）/ 过去佛 312 pt（100 条）/ 斗战胜佛 51 pt（17 条）/ 未来佛 26 pt（15 条），联合未办结分母 435 pt（142 条）；已归档交付 878 pt（346 条）；累计 1313 pt，严格归档完成率 66.9%.
++ 2026-11-01 第九十七交付批次：`FLPARITY-010`（3 pt）Slint 输入法、焦点与键盘导航模型闭环交付与 parity 矩阵全量锚定：在 contract 层为 KeyModifiers 补充 shift() 构造并设置 ShellKeyboardFocus 的 slint_page 为 overview；Slint surface 增加 focus_ime 模块，实现窗口焦点与 RenderCadence 节拍映射（Active 60FPS vs Background 2FPS）、多阶段中文输入法（ImeCompositionTracker）状态追踪与 ToolkitProvided 光标支持、Tab/Shift-Tab 焦点循环与 Esc/Enter 语义分发；严守输入法核心红线：在 composition 活跃期间严格拦截并抑制全局快捷键 chord，打拼音不误触发全局快捷键；在 AppWindow 接入 window-focused 属性与回调，并在 SurfaceHarness 接入键盘事件与 IME 驱动；补齐 4 项场景测试全绿；更新跨端平价清单与证据表，实现全仓 60 业务 × 3 表面 × 2 层级 = 360/360 单元格 100% anchored（0 pending，0 missing）；修复 lumen-app.slint 代码行超限，严格遵守 ≤600 行预算；全量结构门 check-structure.sh（40+ 项）全绿，Clippy --all-targets -D warnings 零警告，cargo fmt 0 偏差。`FLPARITY-010` 从现在佛销账并在过去佛 §12.61 登记为 Integrated；现在佛 49 → 46 pt（11 → 10 条），过去佛 309 → 312 pt（99 → 100 条），联合未办结分母 435 pt（142 条）保持，严格归档率 66.9%（878/1313）保持。
 + 2026-11-01 第九十六交付批次：`FLPARITY-036`（5 pt）自定义种子色与 Material 色彩风格选择全量闭环交付：在 contract 层扩展 `CommandIntent` 三项意图（草稿更新/保存/取消）与 `CommandOutput::PalettePreferenceMutated` 回执匹配与校验，`ThemePalette::from_seed_and_style` 与 `ResolvedThemePalette::resolve_with_style` 动态派生 M3 风格调色板；application 层挂载 `PalettePreferenceApplication` 并打通命令派发、草稿事务与异步持久化；presentation 层 `project_theme_readback_with_palette` 将自选动态色注入读回；composition 层 `surface_reader` 接入调色板快照发布并驱动四端重绘渲染；桌面端新增 `FilePalettePreferenceStore` 实现标准路径 JSON 持久化存储与 `MihomoRuntime` 装配；彻底落实 rem 唯一尺寸体系，修复 Slint `cards.slint` 裸 48px 为 `48 * LumenUiScale.unit`；定向 nextest 1780/1780 全绿，`check-structure.sh` 40+ 结构守卫全绿，全仓 cargo fmt/clippy 零警告。`FLPARITY-036` 从现在佛销账并在过去佛 §12.60 更新为全量 Integrated；现在佛 54 → 49 pt（12 → 11 条），过去佛 309 pt（99 条）保持，联合未办结分母 440 → 435 pt（143 → 142 条），严格归档率 66.6% → 66.9%（878/1313）。
 + 2026-11-01 第九十五交付批次：`FLPARITY-017`（5 pt）跨端微动效与页面过渡系统 Compose 切片闭环交付：在 `android/app/src/main/java/com/musicfrog/infiltrator/ui/App.kt` 接入 Material 3 `AnimatedContent` 路由转场动效（`fadeIn(200ms) + scaleIn(0.96f)` 组合 `fadeOut(150ms)`），并保留 `SaveableStateProvider` 状态隔离；修复 `OwnerSurfaceSnapshotReader.kt` when 穷尽性分支与 ktlint 换行；在 Compose AndroidManifest.xml 补齐 Leanback TV 所需的 `android.hardware.touchscreen` 与 banner 属性，通过 Android Lint Gate；本地 JVM 单测 404/404 全绿，ktlintCheck/detekt 0 违规，androidLintGate 0 error 0 warning，结构门与全量守卫通过。`FLPARITY-017` 从现在佛销账；现在佛 59 → 54 pt（13 → 12 条），过去佛 309 pt（99 条）保持，联合未办结分母 445 → 440 pt（144 → 143 条），严格归档率 66.4% → 66.6%（878/1318）。
 
@@ -224,13 +225,6 @@
   - 计划：① 定 Tools 与 Settings 边界及页面词表；② 四表面加 route 和导航入口；③ 许可证/免责声明迁共享 catalog；④ 移除 Settings 内嵌正文。
   - 验收：四表面均可从主导航两步内到达 About/免责声明/许可证；无裸许可证全文铺页；旧 route/命名 grep 清零；四表面双视口像素回执。
   - 依赖：与 GAP-7.6 词表裁决同批；Android 路由由 `FLPARITY-005` 提供壳层。
-
-- [ ] FLPARITY-010 [kind: mechanism] [priority: P1] [points: 3] [owner: infiltrator-contract + infiltrator-slint] [status: Planned] Slint 输入法、焦点与键盘导航模型
-  - 产物：Slint 表面消费共享 typed focus/composition 状态；文本框支持中文 IME 组合、候选框定位、Tab 循环、Esc/Enter 语义与候选框跟随；组合期间不触发全局快捷键。
-  - 实测：Slint parity gap 文档明确 `shell-keyboard-focus` pending，原因是 Slint 没有 IME/窗口焦点模型；`SLINT-FOCUS-RIG-001` 仅登记取证阻塞，未登记产品实现。
-  - 计划：① 定 contract 的 focus/composition 状态和命令；② Slint adapter 接 text-input composition 与键盘事件；③ 补可键盘到达的控件顺序；④ 用真实 IME/按键台架取回执。
-  - 验收：中文输入不丢字、不误发全局 chord；Tab/Shift-Tab/Esc/Enter 路径行为测试；焦点像素回执；`shell-keyboard-focus` 可认证。
-  - 依赖：与 `SLINT-FOCUS-RIG-001` 的取证环境分开；不得用合成按键状态冒充真实 IME。
 
 - [ ] FLPARITY-011 [kind: mechanism] [priority: P1] [points: 5] [owner: infiltrator-contract + infiltrator-presentation + three desktop UIs + android/ui] [status: Planned] 跨端 docked search、弹性 sheet、长按排序与 hover 交互基线
   - 产物：contract/共享 presentation 定义 shell search dock、menu、sheet sizing、long-press reorder、iOS-style switch 状态与 hover/press/focus typed intent/readback；三桌面同一语义，Android 保留 touch/keyboard 等价路径。

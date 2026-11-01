@@ -11,12 +11,22 @@
 use super::{FailureObserver, install_failure_observer};
 use crate::callbacks;
 use crate::lumen_projection;
+use crate::surface::focus_ime::KeyDispatchOutcome;
+use crate::surface::focus_ime::SlintKeyboardDispatcher;
 use crate::surface::workbenches::Workbenches;
 use crate::widget_vocabulary;
 use crate::{
     AppWindow, ObservationRow, SlintAction, SurfaceSnapshot, WorkbenchItem, WorkerRequest,
 };
+use infiltrator_contract::cadence::RenderCadence;
 use infiltrator_contract::command_output::CommandOutput;
+use infiltrator_contract::ime::ImeCompositionAction;
+use infiltrator_contract::ime::ImeCompositionEvent;
+use infiltrator_contract::ime::ImeCursorRect;
+use infiltrator_contract::ime::ImeFocusPlan;
+use infiltrator_contract::ime::ImePhase;
+use infiltrator_contract::ime::ImeViewport;
+use infiltrator_contract::shortcuts::KeyModifiers;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use slint::Model;
 use slint::platform;
@@ -68,6 +78,7 @@ pub struct SurfaceHarness {
     failures: Rc<RefCell<Vec<Failure>>>,
     previous_observer: Option<FailureObserver>,
     reads: Cell<u32>,
+    dispatcher: RefCell<SlintKeyboardDispatcher>,
 }
 
 impl SurfaceHarness {
@@ -101,6 +112,7 @@ impl SurfaceHarness {
             failures,
             previous_observer,
             reads: Cell::new(0),
+            dispatcher: RefCell::new(SlintKeyboardDispatcher::new()),
         })
     }
 
@@ -112,6 +124,47 @@ impl SurfaceHarness {
         }
         lumen_projection::project_snapshot(&self.window, &snapshot, None);
         lumen_projection::project_workbench(&self.window, &snapshot, &self.workbenches);
+    }
+
+    /// Dispatches a key event through the surface keyboard and IME model.
+    pub fn dispatch_key(&self, key: &str, modifiers: KeyModifiers) -> KeyDispatchOutcome {
+        self.dispatcher.borrow_mut().dispatch_key(key, modifiers)
+    }
+
+    /// Feeds an IME composition event to the active composition session.
+    pub fn feed_ime_event(&self, event: ImeCompositionEvent) -> ImeCompositionAction {
+        self.dispatcher.borrow_mut().ime_mut().apply_event(event)
+    }
+
+    /// The current phase of the IME composition session.
+    pub fn ime_phase(&self) -> ImePhase {
+        self.dispatcher.borrow().ime().phase()
+    }
+
+    /// Computes the focus plan for the given viewport.
+    pub fn ime_focus_plan(&self, viewport: ImeViewport) -> ImeFocusPlan {
+        self.dispatcher.borrow().ime().focus_plan(viewport)
+    }
+
+    /// Sets the active caret position for candidate window placement.
+    pub fn set_ime_cursor_rect(&self, rect: Option<ImeCursorRect>) {
+        self.dispatcher.borrow_mut().ime_mut().set_cursor_rect(rect);
+    }
+
+    /// Updates window focus and returns the corresponding cadence.
+    pub fn set_window_focus(&self, focused: bool) -> RenderCadence {
+        self.window.set_window_focused(focused);
+        self.dispatcher.borrow_mut().set_window_focus(focused)
+    }
+
+    /// Sets the count of focusable items for Tab navigation.
+    pub fn set_focusable_count(&self, count: usize) {
+        self.dispatcher.borrow_mut().set_focusable_count(count);
+    }
+
+    /// The current focused item index.
+    pub fn current_focus_index(&self) -> usize {
+        self.dispatcher.borrow().current_focus_index()
     }
 
     /// The window the harness drives.

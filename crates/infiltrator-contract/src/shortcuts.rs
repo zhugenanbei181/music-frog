@@ -108,6 +108,15 @@ impl KeyModifiers {
         }
     }
 
+    pub const fn shift() -> Self {
+        Self {
+            ctrl: false,
+            shift: true,
+            alt: false,
+            meta: false,
+        }
+    }
+
     pub const fn is_empty(self) -> bool {
         !self.ctrl && !self.shift && !self.alt && !self.meta
     }

@@ -17,6 +17,7 @@
 
 pub mod action;
 pub mod business;
+pub mod focus_ime;
 pub mod harness;
 pub mod workbenches;
 

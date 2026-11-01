@@ -104,7 +104,7 @@ features! {
     ShellCommandPalette => ("shell-command-palette", "overview", "overview", "shell_workbench", ["success", "cancel", "empty", "full-list", "locale", "refresh"]),
     ShellRoutingIntentControl => ("shell-routing-intent-control", "overview", "overview", "shell_workbench", ["success", "error", "retry", "close", "stale", "refresh", "pending", "unsupported", "guide"]),
     ShellRoutingIntentAuthentication => ("shell-routing-intent-authentication", "overview", "overview", "shell_workbench", ["error", "guide", "close"]),
-    ShellKeyboardFocus => ("shell-keyboard-focus", "overview", "overview", "", ["success"]),
+    ShellKeyboardFocus => ("shell-keyboard-focus", "overview", "overview", "overview", ["success"]),
 }
 
 #[cfg(test)]

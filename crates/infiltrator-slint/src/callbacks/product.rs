@@ -12,6 +12,12 @@ pub(super) fn register(
     latest: Arc<Mutex<Option<SurfaceSnapshot>>>,
 ) {
     let weak = window.as_weak();
+    let weak_for_focus = weak.clone();
+    window.on_window_focus_changed(move |focused| {
+        if let Some(w) = weak_for_focus.upgrade() {
+            w.set_window_focused(focused);
+        }
+    });
     let tx = requests.clone();
     let weak_for_confirm_delete = weak.clone();
     window.on_confirm_delete_profile(move |profile_id| {
