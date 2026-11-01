@@ -24,6 +24,7 @@
 use crate::appearance::{SystemAppearance, ThemeMode, resolved_skin};
 use crate::controller::PumpSnapshotSeen;
 use crate::history::TrafficHistory;
+use crate::host_capabilities::{EnergyPreference, HostPreferences, MotionPreference};
 use crate::interaction_capture::geometry::CaptureGeometry;
 use crate::interaction_capture::geometry::GeometryRejections;
 use crate::interaction_capture::scroll::request_scroll;
@@ -254,6 +255,14 @@ impl CapturePlugin {
 
 impl Plugin for CapturePlugin {
     fn build(&self, app: &mut App) {
+        // Screenshot determinism (FLPARITY-017): captures freeze non-essential
+        // motion — the breathing halos and card pulses follow the typed
+        // motion preference, so two runs of one scenario render identical
+        // pixels instead of racing the wall clock.
+        app.insert_resource(HostPreferences {
+            motion: MotionPreference::Reduced,
+            energy: EnergyPreference::Saver,
+        });
         app.insert_resource(CaptureMarkerPath(self.marker_path.clone()));
         app.insert_resource(CaptureInteractionGate);
         app.insert_resource(WaitForLiveSnapshot(self.waiting_for_first_snapshot));

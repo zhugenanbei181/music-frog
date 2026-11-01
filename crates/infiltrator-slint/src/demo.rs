@@ -22,6 +22,8 @@ use infiltrator_contract::surface_snapshot::{
     SettingsPageSnapshot, SurfaceSnapshot,
 };
 use infiltrator_contract::system_proxy::{SystemProxyObservation, SystemProxySnapshot};
+use infiltrator_contract::theme::{SystemAppearance, ThemePreference};
+use infiltrator_contract::theme_palette::{ResolvedThemePalette, SystemDynamicColor};
 use infiltrator_contract::traffic_waveform::{TrafficSample, TrafficWaveformSnapshot};
 use lurker_core_contract::error::Failure;
 use lurker_core_contract::identity::{
@@ -394,6 +396,14 @@ fn build_demo_snapshot(settings: &DemoSettings) -> SurfaceSnapshot {
         "amoled" => "amoled",
         _ => "dark",
     };
+    // One theme fact, one source: the fixture publishes the readback the
+    // real composition derives from this hydrated setting, so every
+    // projection paints the fixture skin from the authoritative readback.
+    snapshot.theme_readback = ResolvedThemePalette::resolve(
+        ThemePreference::from_setting(&theme_str),
+        SystemAppearance::Unobserved,
+        SystemDynamicColor::Unobserved,
+    );
 
     snapshot.pages.settings = PageData::ready(SettingsPageSnapshot {
         close_to_tray: Some(false),
@@ -770,13 +780,11 @@ fn prepare_demo_window(
     lumen_projection::project_snapshot(window, snapshot, Some(true));
     lumen_projection::project_workbench(window, snapshot, workbenches);
 
-    // Explicitly enforce skin and page after projection.
+    // Explicitly enforce the page after projection; the theme rides the
+    // snapshot's published readback, so there is no second theme writer.
     window.set_page(settings.page.clone().into());
     lumen_projection::project_workbench(window, snapshot, workbenches);
     open_proxies_group(window, snapshot);
-    let is_dark = settings.skin == "dark" || settings.skin == "amoled";
-    window.set_theme_mode(widget_vocabulary::theme_mode(&settings.skin));
-    window.set_application_dark_mode(is_dark);
     window.set_notice("".into());
 
     install_capture_timer(window, Arc::clone(workbenches), settings, snapshot.clone());
