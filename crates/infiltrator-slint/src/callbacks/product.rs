@@ -3,6 +3,7 @@
 use super::super::*;
 use crate::surface::action::overview_card_move_action;
 use crate::surface::action::overview_card_reset_action;
+use crate::theme_util::project_slint_sidebar_wash;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 
@@ -16,6 +17,8 @@ pub(super) fn register(
     window.on_window_focus_changed(move |focused| {
         if let Some(w) = weak_for_focus.upgrade() {
             w.set_window_focused(focused);
+            let dark = w.get_application_dark_mode();
+            w.set_sidebar_background(project_slint_sidebar_wash(focused, dark));
         }
     });
     let tx = requests.clone();

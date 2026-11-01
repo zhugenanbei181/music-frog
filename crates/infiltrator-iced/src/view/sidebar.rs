@@ -34,6 +34,11 @@ use iced::widget::{Space, button, column, container, progress_bar, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_contract::a11y::ShellA11yNode;
 use infiltrator_contract::responsive_viewport::{SidebarForm, ViewportTier};
+use infiltrator_contract::sidebar_material::SidebarMaterialKind;
+use infiltrator_contract::window_chrome::DesktopPlatformKind;
+use infiltrator_presentation::sidebar_material_projection::{
+    project_sidebar_material, project_sidebar_surface_wash,
+};
 use infiltrator_shared::locales::{Lang, Localizer};
 
 /// Standard labelled sidebar width. Mirrors
@@ -190,15 +195,31 @@ pub fn sidebar_for_tier(state: &AppState) -> Element<'_, Message> {
 }
 
 /// Standard / wide labelled sidebar; width is taken from the shared tier form.
+fn sidebar_background_color(state: &AppState, t: &Theme) -> Color {
+    let base = theme::tokens(t).sidebar;
+    let is_dark = theme::tokens(t).canvas.r < 0.3;
+    let material_state = project_sidebar_material(
+        SidebarMaterialKind::OpaqueFallback,
+        false,
+        state.shell.window_focused,
+        DesktopPlatformKind::Linux,
+        None,
+    );
+    let (r, g, b, a) =
+        project_sidebar_surface_wash(&material_state, (base.r, base.g, base.b), is_dark);
+    Color::from_rgba(r, g, b, a)
+}
+
 fn sidebar_with_form(state: &AppState, form: SidebarForm) -> Element<'_, Message> {
     let width = form.width_px().map(f32::from).unwrap_or(SIDEBAR_WIDTH);
     let inner = sidebar_inner(state);
+    let bg = sidebar_background_color(state, &state.shell.theme);
     container(inner)
         .width(width)
         .height(Length::Fill)
         .padding([theme::SP_LG, theme::SP_MD])
-        .style(|t: &Theme| container::Style {
-            background: Some(theme::tokens(t).sidebar.into()),
+        .style(move |_t: &Theme| container::Style {
+            background: Some(bg.into()),
             ..Default::default()
         })
         .into()
@@ -243,12 +264,13 @@ pub fn sidebar_rail(state: &AppState) -> Element<'_, Message> {
         items = items.push(nav_rail_icon(route, &state.shell.current_route));
     }
 
+    let bg = sidebar_background_color(state, &state.shell.theme);
     container(items)
         .width(RAIL_WIDTH)
         .height(Length::Fill)
         .padding([theme::SP_MD, theme::SP_XS])
-        .style(|t: &Theme| container::Style {
-            background: Some(theme::tokens(t).sidebar.into()),
+        .style(move |_t: &Theme| container::Style {
+            background: Some(bg.into()),
             ..Default::default()
         })
         .into()

@@ -229,3 +229,17 @@
   - 当前证据（L）：受影响六包（contract/presentation/desktop/iced/bevy-ui/slint）定向 nextest 2,230/2,230 pass；六包 clippy `--all-targets -- -D warnings` 零警告；`cargo fmt --all --check` 0 偏差；`bevy_rem_guard` 0 违规 0 debt；`slint-syntax-guard` 100% PASS；`closure-questions-guard` 8/8。
   - 待验证：统一全仓集成验证批次与三桌面真实环境窗口管理 smoke（Win11 Snap 菜单需真实 Windows 实机）。
   - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+
+## 12.66 桌面侧栏系统材质效果与诚实降级交付（待集成验证与实机巡检，1条 / 3pt）
+
+- [ ] FLPARITY-039 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-desktop + three desktop UI hosts] [status: Integrated] 桌面侧栏系统材质效果与诚实降级
+  - 产物：
+    - **Contract 层侧栏系统材质契约**：`infiltrator-contract/src/sidebar_material.rs` 统一定义 `SidebarMaterialKind`（`OpaqueFallback`、`WindowsMica`、`WindowsMicaAlt`、`WindowsAcrylic`、`MacVibrancy`、`WaylandBlur`）、`SidebarMaterialSupport` 与 `SidebarMaterialSpec`，实现减弱动态透明度偏好下强制回退、窗口失焦时降级纯色表面、平台版本号门禁（Win11 Mica 22000 / MicaAlt 22621 / Acrylic 17134）与跨平台降级规则；
+    - **Presentation 层侧栏材质与表面着色投影**：`infiltrator-presentation/src/sidebar_material_projection.rs` 提供 `project_sidebar_material` 与 `project_sidebar_surface_wash`，在半透明材质生效时动态输出安全透明度（暗色 0.12~0.65 / 浅色 0.18~0.72），不透明回退时恒为 1.0；
+    - **Desktop 宿主平台材质检测**：`infiltrator-desktop/src/sidebar_material.rs` 接入平台材质能力检测与诚实回退（无平台扩展时返回 `None`，不伪造材质）；
+    - **三桌面表面全面接入**：Iced 侧栏经 `sidebar_background_color` 接入材质着色；Bevy `sync_sidebar_panel` 接入 `WindowCadenceState` 焦点与材质投影；Slint 侧栏与 AppBody 接入 `sidebar-background` 并在窗口失焦/聚焦时驱动材质刷新；
+    - **严守质量红线与 rem 尺寸规范**：`bevy_rem_guard --mode enforce` 0 违规 0 debt；Slint 尺寸统一 `* LumenUiScale.unit` 0 裸 px；`slint-syntax-guard` 100% PASS；隐式状态机审计 23 项候选全量判决 0 undecided 0 open；`typed-state-guard` 0 findings。
+  - 验收：三端侧栏在窗口聚焦/失焦与减弱动态效果下平滑自适应；系统关闭透明时不伪造系统 blur；全量测试与 Clippy 全绿。
+  - 当前证据（L）：受影响六包定向 nextest 2,241/2,241 pass；六包 clippy `--all-targets -- -D warnings` 零警告；`cargo fmt --all --check` 0 偏差；`bevy_rem_guard` 0 违规 0 debt；`slint-syntax-guard` 100% PASS；`closure-questions-guard` 8/8。
+  - 待验证：统一全仓集成验证批次与 Windows/macOS/Linux 桌面真实环境材质巡检。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。

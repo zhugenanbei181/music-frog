@@ -11,11 +11,12 @@ export component DesktopSideBar inherits Rectangle {
     in property <string> active-profile;
     in property <string> network-mode-label;
     in property <string> product-version;
+    in property <color> sidebar-background: LumenTheme.zinc-2;
 
     callback navigate-to(string);
 
     width: 228 * LumenUiScale.unit;
-    background: LumenTheme.zinc-2; // #150: the rail asks by tier
+    background: root.sidebar-background; // #150: the rail asks by tier
     border-width: 0 * LumenUiScale.unit;
 
     VerticalLayout {

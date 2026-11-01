@@ -154,6 +154,7 @@ pub mod service_mode;
 pub mod shell_gesture;
 pub mod shell_readout;
 pub mod shortcuts;
+pub mod sidebar_material;
 pub mod skeleton_shimmer;
 pub mod snapshot;
 pub mod snapshot_history;

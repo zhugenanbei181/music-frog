@@ -306,6 +306,18 @@
       ],
       "verdict": "legitimate",
       "reason": "The switch stage is carried by the typed `EngineOwnerState::Switching { stage }` with `EngineSwitchStage`; `pending_target` and `reservation` are the payloads of the selection-changed and binding stages, and the code clears the complementary payload when the stage moves. Known follow-up: the binding stage keeps the previous pending target instead of clearing it, so a stale payload can linger even though the stage itself stays readable from the typed owner state."
+    },
+    {
+      "key": "crates/infiltrator-contract/src/sidebar_material.rs::SidebarMaterialState::multi-bool",
+      "file": "crates/infiltrator-contract/src/sidebar_material.rs",
+      "type": "SidebarMaterialState",
+      "kind": "multi-bool",
+      "fields": [
+        "reduce_transparency_active",
+        "window_focused"
+      ],
+      "verdict": "legitimate",
+      "reason": "The material effect stage is a typed enum (`SidebarMaterialKind`). `reduce_transparency_active` and `window_focused` are independent binary facts reflecting OS accessibility preference and window focus."
     }
   ]
 }

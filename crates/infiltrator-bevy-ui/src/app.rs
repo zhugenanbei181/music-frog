@@ -20,6 +20,7 @@ use crate::appearance::{
     PublishedThemeBaseline, SystemAppearance, ThemeMode, on_theme_pill_activated, resolved_skin,
     sync_system_appearance, sync_theme_readback,
 };
+use crate::cadence::WindowCadenceState;
 use crate::chrome::WindowChromePlugin;
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::command_palette_shell::CommandPalettePlugin;
@@ -48,6 +49,7 @@ use crate::{shell_routing_intent, shell_routing_intent_issue};
 use bevy::app::{App, Plugin, Startup, Update};
 use bevy::asset::{AssetApp, Assets, Handle};
 use bevy::camera::{Camera2d, ClearColor};
+use bevy::color::Color;
 use bevy::ecs::change_detection::DetectChanges;
 use bevy::ecs::component::Component;
 use bevy::ecs::observer::On;
@@ -73,9 +75,13 @@ use infiltrator_bevy_widgets::responsive::{
 use infiltrator_bevy_widgets::theme::{Breakpoint, Theme, space};
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::shell_gesture;
+use infiltrator_contract::sidebar_material::SidebarMaterialKind;
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot};
 use infiltrator_contract::theme::{self, ThemePreference};
-use infiltrator_contract::window_chrome::CHROME_DRAG_STRIP_HEIGHT_PX;
+use infiltrator_contract::window_chrome::{CHROME_DRAG_STRIP_HEIGHT_PX, DesktopPlatformKind};
+use infiltrator_presentation::sidebar_material_projection::{
+    project_sidebar_material, project_sidebar_surface_wash,
+};
 use infiltrator_presentation::system_toggle_projection;
 use lurker_ui_presentation::routing_intent_actions::{
     PendingRoutingIntentChange, RoutingIntentActions,
@@ -615,14 +621,31 @@ fn spawn_shell(
     ));
 }
 
-/// Repaint the sidebar rail from the live palette.
+/// Repaint the sidebar rail from the live palette and material adaptation (FLPARITY-039).
 fn sync_sidebar_panel(
     palette: Res<UiPalette>,
+    cadence: Option<Res<WindowCadenceState>>,
     mut panels: Query<&mut BackgroundColor, With<SidebarPanel>>,
 ) {
+    let window_focused = cadence.map(|c| c.focused).unwrap_or(true);
+    let material_state = project_sidebar_material(
+        SidebarMaterialKind::OpaqueFallback,
+        false,
+        window_focused,
+        DesktopPlatformKind::Linux,
+        None,
+    );
+    let srgba = palette.sidebar.to_srgba();
+    let is_dark = palette.surface.to_srgba().red < 0.3;
+    let (r, g, b, a) = project_sidebar_surface_wash(
+        &material_state,
+        (srgba.red, srgba.green, srgba.blue),
+        is_dark,
+    );
+    let target = Color::srgba(r, g, b, a);
     for mut fill in &mut panels {
-        if fill.0 != palette.sidebar {
-            fill.0 = palette.sidebar;
+        if fill.0 != target {
+            fill.0 = target;
         }
     }
 }

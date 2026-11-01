@@ -31,6 +31,7 @@ export component AppWindow inherits MaterialWindow {
     callback window-minimize(); callback window-toggle-maximize(); callback window-close();
     in-out property <bool> is-maximized: false; in-out property <bool> window-focused: true; callback window-focus-changed(bool);
     in-out property <string> title-bar-upload: "0 B/s"; in-out property <string> title-bar-download: "0 B/s"; callback title-bar-search-clicked();
+    in-out property <color> sidebar-background: LumenTheme.zinc-2;
     in-out property <bool> android-platform: false;
     in-out property <string> product-version: "0.68.2";
     in-out property <bool> layout-debug-tools-enabled: false;
@@ -395,6 +396,7 @@ export component AppWindow inherits MaterialWindow {
     app-body := AppBody {
         x: root.safe-area-insets.left; y: root.safe-area-insets.top + (!root.android-platform ? 40 * LumenUiScale.unit : 0 * LumenUiScale.unit); width: max(0 * LumenUiScale.unit, root.width - root.safe-area-insets.left - root.safe-area-insets.right); height: max(0 * LumenUiScale.unit, root.height - root.safe-area-insets.top - root.safe-area-insets.bottom - (!root.android-platform ? 40 * LumenUiScale.unit : 0 * LumenUiScale.unit));
         page: root.page; page-origin: root.page-origin; compact-layout: root.compact-layout; primary-page: root.primary-page; android-platform: root.android-platform; application-dark-mode: root.application-dark-mode; layout-debug-bounds: root.layout-debug-bounds;
+        sidebar-background: root.sidebar-background;
         layout-debug-tools-enabled: root.layout-debug-tools-enabled; predictive-back-enabled: root.predictive-back-enabled; predictive-back-supported: root.predictive-back-supported; safe-top: root.safe-area-insets.top; safe-bottom: root.safe-area-insets.bottom; safe-left: root.safe-area-insets.left; safe-right: root.safe-area-insets.right;
         bottom-bar-visible <=> root.bottom-bar-visible; hide-bottom-bar-on-scroll: root.hide-bottom-bar-on-scroll;
         last-page-scroll-y <=> root.last-page-scroll-y; home-title-gap: root.home-title-gap;

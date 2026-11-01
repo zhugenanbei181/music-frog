@@ -18,6 +18,7 @@ export component AppBody inherits Rectangle {
     in property <bool> primary-page;
     in property <bool> android-platform;
     in property <bool> application-dark-mode;
+    in property <color> sidebar-background: LumenTheme.zinc-2;
     in property <bool> layout-debug-bounds;
     in property <bool> layout-debug-tools-enabled;
     in property <bool> predictive-back-enabled;
@@ -280,6 +281,7 @@ export component AppBody inherits Rectangle {
             active-profile: root.active-profile;
             network-mode-label: root.network-mode-label;
             product-version: root.product-version;
+            sidebar-background: root.sidebar-background;
             navigate-to(target) => { root.navigate(target); }
         }
 

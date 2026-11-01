@@ -13,7 +13,7 @@ use super::flag_assets;
 use super::slint_model;
 use super::{AppWindow, OverrideCard, OverviewCardSlot, ProfileCard, ProfileOverrideChoice};
 use crate::surface::workbenches::Workbenches;
-use crate::theme_util::apply_theme_color;
+use crate::theme_util::{apply_theme_color, project_slint_sidebar_wash};
 use crate::widget_vocabulary;
 use infiltrator_contract::capability::Availability;
 use infiltrator_contract::language::LanguagePreference;
@@ -57,6 +57,7 @@ pub(super) fn project_initial(window: &AppWindow, language: &str, autostart: Opt
     window.set_stat_total_up("—".into());
     window.set_title_bar_upload("0 B/s".into());
     window.set_title_bar_download("0 B/s".into());
+    window.set_sidebar_background(project_slint_sidebar_wash(true, false));
 }
 
 pub(super) fn snapshot_language(snapshot: &SurfaceSnapshot) -> String {
@@ -134,6 +135,9 @@ pub(super) fn project_snapshot(
         project_traffic_readout(&snapshot.shell_readout, &snapshot.traffic_waveform, &lang);
     window.set_title_bar_upload(traffic.upload.clone().into());
     window.set_title_bar_download(traffic.download.clone().into());
+    let dark = window.get_application_dark_mode();
+    let focused = window.get_window_focused();
+    window.set_sidebar_background(project_slint_sidebar_wash(focused, dark));
 
     window.set_runtime_status(widget_vocabulary::runtime_status(
         snapshot.core.lifecycle.clone(),
