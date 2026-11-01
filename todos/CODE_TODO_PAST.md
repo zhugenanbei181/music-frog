@@ -201,3 +201,17 @@
   - 当前证据（L）：`infiltrator-contract` 485/485 pass、`infiltrator-presentation` 340/340 pass、`infiltrator-iced` 548/548 pass、`infiltrator-slint` 363/363 pass；`import-guard.py` 0 违规；`bevy_rem_guard` 0 违规 0 debt；`check-structure.sh` exit 0；`resolve_surface_evidence.py --structure-only` pass。
   - 待验证：统一全仓集成验证批次与三端实机截图巡检。
   - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+
+## 12.64 桌面托盘宿主与彩色状态图标交付（待集成验证与实机巡检，1条 / 5pt）
+
+- [ ] FLPARITY-006 [kind: mechanism] [priority: P1] [points: 5] [owner: infiltrator-desktop + infiltrator-bevy-desktop-host + infiltrator-slint + infiltrator-iced] [status: Integrated] 桌面托盘宿主与彩色状态图标
+  - 产物：
+    - **Contract 层共享托盘动作集与上下文契约**：`infiltrator-contract/src/tray_menu.rs` 统一定义 `TrayActionId` 稳定动作编号（展示/退出/路由/代理/配置/内核/同步/自启/颜色模式等）、`TrayMenuCapabilities`（区分 `full()` 与 `shared_desktop()` 能力集，严禁提供静默 no-op 动作）、`TrayMenuItem` 中立菜单树与 `TrayMenuContext`；
+    - **Presentation 层共享中立菜单构建器与动态状态图标**：`infiltrator-presentation/src/tray_projection.rs` 实现 `build_tray_spec`，按宿主 capabilities 声明严格动态裁切未支持项；`generate_tray_icon_rgba` 动态光栅化 32x32 RGBA 状态图标（Running/Connecting/Warning/Stopped 权威色阶）与 macOS 专属单色轮廓；
+    - **Desktop 宿主平台中立托盘适配缝**：`infiltrator-desktop/src/tray.rs` 抽象 `spawn_tray`、`DesktopTrayHost` 与 `TrayController`，后端统筹 Linux StatusNotifierItem（`ksni`）与 Windows/macOS（`muda` + `tray-icon`）；
+    - **三桌面表面全面接入**：`infiltrator-iced/src/tray.rs` 清理旧冗余菜单代码，全面委托至中立契约与 presentation 投影；`infiltrator-bevy-ui/src/tray_host.rs` 与 `infiltrator-bevy-desktop-host/src/desktop.rs` 实现 `TrayHost` 注入与 `TrayHostPlugin` 系统；`infiltrator-slint/src/desktop.rs` 与 `infiltrator-slint/src/lib.rs` 接入 `SlintTrayHost` 并在 `run_with_host_prepared_impl` 驱动托盘刷新与事件分发；
+    - **严守质量红线与 rem 尺寸规范**：`bevy_rem_guard --mode enforce` 0 违规 0 debt；Slint 尺寸统一 `* LumenUiScale.unit` 0 裸 px；`import-guard` 0 违规；Clippy `--all-targets -D warnings` 零警告；fmt 0 偏差；结构门 40+ 项全绿；workspace nextest 5,748/5,748 全绿。
+  - 验收：三桌面表面均能显示、退出、切换 routing/profile/系统代理；无 tray 时 typed unsupported；macOS monochrome 可切换；全量 nextest 与 Clippy 全绿。
+  - 当前证据（L）：`cargo nextest run --workspace --no-fail-fast` 5,748/5,748 pass；`cargo clippy --workspace --all-targets -- -D warnings` 零警告；`check-structure.sh` exit 0；`bevy_rem_guard` 0 违规 0 debt；`cargo fmt --all --check` 0 偏差。
+  - 待验证：统一全仓集成验证批次与 Windows/macOS/Linux 桌面真实环境 smoke。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。

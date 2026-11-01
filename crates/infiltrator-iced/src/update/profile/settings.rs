@@ -91,6 +91,7 @@ impl AppState {
                 };
                 let notifications_enabled = self.shell.notifications_enabled;
                 let close_to_tray = self.shell.close_to_tray;
+                let tray_icon_color_mode = self.shell.tray_icon_color_mode.as_str().to_string();
                 let system_proxy_bypass = if self.shell.system_proxy_bypass.trim().is_empty() {
                     None
                 } else {
@@ -116,6 +117,7 @@ impl AppState {
                         settings.webdav = webdav;
                         settings.notifications_enabled = notifications_enabled;
                         settings.close_to_tray = close_to_tray;
+                        settings.tray_icon_color_mode = tray_icon_color_mode;
                         settings.system_proxy_bypass = system_proxy_bypass;
                         save(&settings).await?;
                         Ok(())

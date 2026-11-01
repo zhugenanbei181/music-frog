@@ -1,24 +1,21 @@
-//! Headless tray tests: pure spec→menu mapping, event→intent resolution and
-//! update-handler transitions through an injected fake event receiver.
-//! No D-Bus session, no ksni/muda spawn, no network, no mihomo — red lines.
-//!
-//! The pure builder/resolver tests live in the nested [`spec_menu`] module
-//! (`tray_spec_menu_tests.rs`); this file keeps the AppState-level routing
-//! tests and the ksni mapping tests.
+//! Headless Iced tray tests: update-handler transitions through an injected
+//! fake event receiver and the AppState -> shared menu context assembly.
+//! No D-Bus session, no tray spawn, no network, no mihomo — red lines.
+//! The pure menu/event/ksni/muda mappings live with their owners in
+//! `infiltrator-presentation` and `infiltrator-desktop`.
 
-use super::spec::{
-    TRAY_ACTION_FACTORY_RESET, TRAY_ACTION_INFO_SYNC, TRAY_ACTION_ROUTING_ALL_THROUGH_PROXY,
-    TRAY_ACTION_SELECT_GLOBAL_PROXY, TRAY_ACTION_SET_PROFILE_AUTO_UPDATE,
-    TRAY_ACTION_TOGGLE_AUTOSTART, TRAY_ACTION_TOGGLE_TUN, TrayEventContext, TrayMenuItem,
-};
 use super::*;
 use crate::state::AppState;
-use crate::tray::spec::TrayActionId;
 use crate::types::app::Route;
 use crate::types::message::Message;
-use infiltrator_contract::version::InstalledCoreVersion;
+use infiltrator_contract::tray_menu::TRAY_ACTION_TOGGLE_COLOR_MODE;
+use infiltrator_contract::tray_menu::{
+    TRAY_ACTION_FACTORY_RESET, TRAY_ACTION_INFO_SYNC, TRAY_ACTION_ROUTING_ALL_THROUGH_PROXY,
+    TRAY_ACTION_SELECT_GLOBAL_PROXY, TRAY_ACTION_SET_PROFILE_AUTO_UPDATE,
+    TRAY_ACTION_TOGGLE_AUTOSTART, TRAY_ACTION_TOGGLE_TUN, TrayActionId, TrayMenuItem,
+};
+use infiltrator_contract::tray_status::TrayIconColorMode;
 use infiltrator_domain::profiles::ProfileInfo;
-use infiltrator_presentation::routing_intent_projection::routing_intent_copy;
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
@@ -35,10 +32,6 @@ use lurker_core_contract::page::PageData;
 use lurker_core_contract::routing_intent::RoutingIntent;
 use std::sync::mpsc;
 
-// Pure spec-side coverage (layout, labels, codecs, resolution).
-#[path = "tray_spec_menu_tests.rs"]
-mod spec_menu;
-
 /// App state with a fake tray event receiver installed (no controller, i.e.
 /// exactly the window-only degradation a failed tray startup produces).
 fn state_with_fake_receiver() -> (AppState, mpsc::Sender<TrayEvent>) {
@@ -50,47 +43,6 @@ fn state_with_fake_receiver() -> (AppState, mpsc::Sender<TrayEvent>) {
     (state, tx)
 }
 
-/// Minimal snapshot: empty data domains, core stopped.
-fn base_ctx<'a>() -> TraySpecContext<'a> {
-    TraySpecContext {
-        lang: "zh-CN",
-        routing_intent: None,
-        system_proxy: false,
-        tun: false,
-        groups: &[],
-        profiles: &[],
-        kernels: &[],
-        status: TrayCoreStatus::Stopped,
-        core_checking: false,
-        core_downloading: false,
-        core_download_percent: None,
-        webdav_enabled: false,
-        syncing: false,
-        sync_step: None,
-        autostart: false,
-        controller: Some("http://127.0.0.1:9090"),
-        admin_enabled: false,
-        admin_port: 25210,
-        // DUAL-15-02: no live sample in the minimal snapshot; tests that need
-        // the badge install a real `TrafficWaveformSnapshot` first.
-        rate_badge: None,
-    }
-}
-
-fn proxy_group(name: &str, current: &str, nodes: &[(&str, Option<u32>)]) -> TrayProxyGroup {
-    TrayProxyGroup {
-        name: name.to_string(),
-        current: current.to_string(),
-        nodes: nodes
-            .iter()
-            .map(|(node, delay)| TrayProxyNode {
-                name: (*node).to_string(),
-                delay_ms: *delay,
-            })
-            .collect(),
-    }
-}
-
 fn test_profile(name: &str, active: bool, auto_update: bool) -> ProfileInfo {
     let mut profile = ProfileInfo {
         name: name.to_string(),
@@ -100,24 +52,6 @@ fn test_profile(name: &str, active: bool, auto_update: bool) -> ProfileInfo {
     };
     profile.auto_update_enabled = auto_update;
     profile
-}
-
-fn test_kernel(version: &str, is_default: bool) -> InstalledCoreVersion {
-    InstalledCoreVersion {
-        engine_id: EngineId::new("mihomo").unwrap(),
-        version: version.to_string(),
-        path: format!("/tmp/kernels/{version}"),
-        is_default,
-    }
-}
-
-fn event_ctx<'a>(profiles: &'a [ProfileInfo]) -> TrayEventContext<'a> {
-    TrayEventContext {
-        system_proxy: true,
-        tun: false,
-        autostart: false,
-        profiles,
-    }
 }
 
 fn activated(id: TrayActionId, payload: Option<&str>) -> TrayEvent {
@@ -208,6 +142,28 @@ fn tray_global_proxy_selection_targets_the_global_group() {
 }
 
 #[test]
+fn tray_color_mode_toggle_flips_the_shared_preference() {
+    let (mut state, tx) = state_with_fake_receiver();
+    assert_eq!(state.shell.tray_icon_color_mode, TrayIconColorMode::Colored);
+
+    tx.send(activated(TRAY_ACTION_TOGGLE_COLOR_MODE, None))
+        .expect("fake receiver is live");
+    let events = drain_tray_events(state.shell.tray_events.as_ref().expect("injected"));
+    for event in events {
+        let _ = state.update(Message::TrayEvent(event));
+    }
+    assert_eq!(
+        state.shell.tray_icon_color_mode,
+        TrayIconColorMode::Monochrome,
+        "the tray icon preference follows the shared toggle"
+    );
+    assert_eq!(
+        Lang("zh-CN").tr("tray_toggle_color_mode").as_ref(),
+        "单色托盘图标"
+    );
+}
+
+#[test]
 fn tray_auto_update_activation_forwards_the_profile_flip() {
     let (mut state, tx) = state_with_fake_receiver();
     state.profile.profiles = vec![test_profile("Paid", true, false)];
@@ -224,7 +180,7 @@ fn tray_auto_update_activation_forwards_the_profile_flip() {
 }
 
 #[test]
-fn current_tray_spec_assembles_the_five_state_domains() {
+fn current_tray_spec_assembles_the_state_domains_into_the_shared_context() {
     let (mut state, _) = AppState::new();
     // Pin the language: AppState::new() detects it from the environment.
     state.shell.lang = "zh-CN".to_string();
@@ -275,7 +231,7 @@ fn current_tray_spec_assembles_the_five_state_domains() {
 
     // Autostart checkmark reflects the runtime domain.
     assert_eq!(
-        items[12],
+        items[13],
         TrayMenuItem::checkmark(TRAY_ACTION_TOGGLE_AUTOSTART, "开机自启", true)
     );
     // The submenu is built from typed inventory; legacy delay facts are not
@@ -300,9 +256,9 @@ fn current_tray_spec_assembles_the_five_state_domains() {
     // The sync submenu reflects the profile domain (WebDAV enabled).
     let TrayMenuItem::Submenu {
         items: sync_items, ..
-    } = &items[11]
+    } = &items[12]
     else {
-        panic!("entry 11 must be the sync submenu");
+        panic!("entry 12 must be the sync submenu");
     };
     assert_eq!(
         sync_items[0],
@@ -326,214 +282,4 @@ fn tray_unavailable_startup_degrades_to_a_functional_window_only_app() {
 
     // A stray tray event is handled without a tray and without panicking.
     let _ = state.update(Message::TrayEvent(TrayEvent::IconActivated));
-}
-
-// The spec→ksni menu mapping only exists in the ksni backend configuration.
-#[cfg(all(unix, not(target_os = "macos")))]
-mod ksni_mapping {
-    use super::*;
-    use crate::tray::ksni_backend::{KsniTray, map_items, to_ksni_icon};
-    use crate::tray::spec::{TRAY_ACTION_TOGGLE_TUN, TrayIconData};
-    use ksni::MenuItem;
-    use ksni::Tray as _;
-    use ksni::menu::{CheckmarkItem, StandardItem, SubMenu};
-    use std::collections::HashMap;
-
-    fn sample_tray(events: mpsc::Sender<TrayEvent>) -> KsniTray {
-        let groups = vec![proxy_group("GLOBAL", "A", &[("A", None), ("B", Some(64))])];
-        let mut ctx = base_ctx();
-        let intent = RoutingIntent::BypassProxy;
-        ctx.routing_intent = Some(&intent);
-        ctx.tun = true;
-        ctx.groups = &groups;
-        let spec = build_tray_spec(&ctx);
-        KsniTray {
-            spec,
-            checked_overrides: HashMap::new(),
-            events,
-        }
-    }
-
-    #[test]
-    fn ksni_menu_mapping_preserves_spec_structure_and_state() {
-        let (tx, _rx) = mpsc::channel::<TrayEvent>();
-        let tray = sample_tray(tx);
-        let menu = map_items(&tray.spec.menu.items, &tray.checked_overrides, &tray.events);
-
-        assert_eq!(menu.len(), 18);
-        match &menu[0] {
-            MenuItem::Standard(StandardItem { label, .. }) => {
-                assert_eq!(label, "显示主界面")
-            }
-            _ => panic!("entry 0 must be a standard item"),
-        }
-        assert!(matches!(&menu[1], MenuItem::Separator));
-
-        match &menu[2] {
-            MenuItem::SubMenu(SubMenu { label, submenu, .. }) => {
-                assert_eq!(label, Lang("zh-CN").tr("routing_intent_title").as_ref());
-                assert_eq!(submenu.len(), 3);
-                match &submenu[2] {
-                    MenuItem::Standard(StandardItem { label, .. }) => {
-                        assert_eq!(
-                            label,
-                            &format!(
-                                "● {}",
-                                routing_intent_copy(&RoutingIntent::BypassProxy, &Lang("zh-CN"))
-                            )
-                        )
-                    }
-                    _ => panic!("active routing intent must be a standard item"),
-                }
-            }
-            _ => panic!("entry 2 must be a submenu"),
-        }
-
-        match &menu[3] {
-            MenuItem::SubMenu(SubMenu { label, submenu, .. }) => {
-                assert_eq!(label, "节点切换");
-                assert_eq!(submenu.len(), 1, "one group submenu");
-                match &submenu[0] {
-                    MenuItem::SubMenu(SubMenu { label, submenu, .. }) => {
-                        assert_eq!(label, "GLOBAL");
-                        assert_eq!(submenu.len(), 2);
-                        match &submenu[0] {
-                            MenuItem::Standard(StandardItem { label, .. }) => {
-                                assert_eq!(label, "● A")
-                            }
-                            _ => panic!("proxy entry must be a standard item"),
-                        }
-                    }
-                    _ => panic!("group entry must be a nested submenu"),
-                }
-            }
-            _ => panic!("entry 3 must be a submenu"),
-        }
-
-        match &menu[5] {
-            MenuItem::Checkmark(CheckmarkItem { checked, .. }) => assert!(!checked),
-            _ => panic!("entry 5 must be a checkmark"),
-        }
-        match &menu[6] {
-            MenuItem::Checkmark(CheckmarkItem { checked, .. }) => assert!(checked),
-            _ => panic!("entry 6 must be a checkmark"),
-        }
-        match &menu[14] {
-            MenuItem::SubMenu(SubMenu { label, .. }) => assert_eq!(label, "信息"),
-            _ => panic!("entry 14 must be the info submenu"),
-        }
-        assert!(matches!(&menu[17], MenuItem::Standard(_)));
-    }
-
-    #[test]
-    fn ksni_checkmark_activation_flips_local_state_and_emits_event() {
-        let (tx, rx) = mpsc::channel::<TrayEvent>();
-        let mut tray = sample_tray(tx);
-
-        let menu = tray.menu();
-        let MenuItem::Checkmark(item) = &menu[6] else {
-            panic!("entry 6 must be the TUN checkmark");
-        };
-        assert!(item.checked);
-        // Simulate the user clicking the TUN entry in the shell menu.
-        (item.activate)(&mut tray);
-        assert_eq!(
-            rx.try_recv(),
-            Ok(TrayEvent::MenuActivated {
-                id: TRAY_ACTION_TOGGLE_TUN,
-                payload: None,
-            })
-        );
-
-        // The flip is visible immediately, before the app pushes a new spec.
-        let menu = tray.menu();
-        let MenuItem::Checkmark(item) = &menu[6] else {
-            panic!("entry 6 must still be the TUN checkmark");
-        };
-        assert!(!item.checked);
-    }
-
-    #[test]
-    fn ksni_checkmark_overrides_are_keyed_per_payload() {
-        let profiles = vec![
-            test_profile("Paid", true, true),
-            test_profile("Free", false, false),
-        ];
-        let mut ctx = base_ctx();
-        ctx.profiles = &profiles;
-        let spec = build_tray_spec(&ctx);
-        let (tx, rx) = mpsc::channel::<TrayEvent>();
-        let mut tray = KsniTray {
-            spec,
-            checked_overrides: HashMap::new(),
-            events: tx,
-        };
-
-        // Profiles submenu: [P, P, sep, update-all, sep, check Paid, check Free].
-        let menu = tray.menu();
-        let MenuItem::SubMenu(SubMenu {
-            submenu: profile_items,
-            ..
-        }) = &menu[9]
-        else {
-            panic!("entry 9 must be the profiles submenu");
-        };
-        let MenuItem::Checkmark(paid) = &profile_items[5] else {
-            panic!("entry 5 must be the Paid auto-update checkmark");
-        };
-        assert!(paid.checked);
-        let MenuItem::Checkmark(free) = &profile_items[6] else {
-            panic!("entry 6 must be the Free auto-update checkmark");
-        };
-        assert!(!free.checked);
-
-        // Click the Paid entry: its own state flips, the sibling stays put,
-        // and the event carries the profile-name payload.
-        (paid.activate)(&mut tray);
-        assert_eq!(
-            rx.try_recv(),
-            Ok(TrayEvent::MenuActivated {
-                id: TRAY_ACTION_SET_PROFILE_AUTO_UPDATE,
-                payload: Some("Paid".to_string()),
-            })
-        );
-        assert_eq!(
-            tray.checked_overrides.get(&(
-                TRAY_ACTION_SET_PROFILE_AUTO_UPDATE,
-                Some("Paid".to_string())
-            )),
-            Some(&false),
-            "the override key is (id, payload)"
-        );
-
-        let menu = tray.menu();
-        let MenuItem::SubMenu(SubMenu {
-            submenu: profile_items,
-            ..
-        }) = &menu[9]
-        else {
-            panic!("entry 9 must be the profiles submenu");
-        };
-        let MenuItem::Checkmark(paid) = &profile_items[5] else {
-            panic!("entry 5 must be the Paid auto-update checkmark");
-        };
-        let MenuItem::Checkmark(free) = &profile_items[6] else {
-            panic!("entry 6 must be the Free auto-update checkmark");
-        };
-        assert!(!paid.checked, "clicked entry flips immediately");
-        assert!(!free.checked, "sibling keeps the spec state (no crosstalk)");
-    }
-
-    #[test]
-    fn ksni_icon_conversion_maps_rgba_to_argb32_network_byte_order() {
-        let icon = TrayIconData {
-            width: 2,
-            height: 1,
-            rgba: vec![1, 2, 3, 4, 5, 6, 7, 8],
-        };
-        let converted = to_ksni_icon(&icon);
-        assert_eq!(converted.width, 2);
-        assert_eq!(converted.height, 1);
-        assert_eq!(converted.data, vec![4, 1, 2, 3, 8, 5, 6, 7]);
-    }
 }

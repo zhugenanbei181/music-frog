@@ -1,3 +1,6 @@
+//! Headless muda wire-id and checkmark-flip tests. No tray spawn, no native
+//! event loop — the pure cores of the Windows/macOS backend only.
+
 use super::*;
 
 #[test]

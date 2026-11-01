@@ -13,6 +13,8 @@ anyhow = { workspace = true }
 async-trait = { workspace = true }
 futures-util = { workspace = true }
 infiltrator-composition = { path = "../infiltrator-composition" }
+infiltrator-presentation = { path = "../infiltrator-presentation" }
+infiltrator-shared = { path = "../infiltrator-shared" }
 infiltrator-application = { path = "../infiltrator-application" }
 infiltrator-contract = { path = "../infiltrator-contract" }
 infiltrator-domain = { path = "../infiltrator-domain" }
@@ -42,13 +44,22 @@ yaml-rust2 = { workspace = true }
 [target.'cfg(not(target_os = "android"))'.dependencies]
 reqwest = { workspace = true, default-features = false, features = ["native-tls"] }
 
+# Linux StatusNotifierItem tray: the same ksni tree the Iced reference host
+# used, now owned by the shared desktop tray seam (FLPARITY-006).
+[target.'cfg(all(unix, not(target_os = "macos"), not(target_os = "android")))'.dependencies]
+ksni = { workspace = true }
+
+# Windows/macOS tray backend for the same seam.
+[target.'cfg(any(windows, target_os = "macos"))'.dependencies]
+muda = { workspace = true }
+tray-icon = { workspace = true }
+
 [target.'cfg(windows)'.dependencies]
 winreg = { workspace = true }
 windows-sys = { workspace = true, features = ["Win32_System_Threading", "Win32_Storage_FileSystem"] }
 
 [dev-dependencies]
 infiltrator-composition = { path = "../infiltrator-composition", features = ["capture-fixtures"] }
-infiltrator-presentation = { path = "../infiltrator-presentation" }
 lurker-ui-presentation = { version = "0.68.2", path = "../lurker-ui-presentation" }
 infiltrator-shared = { path = "../infiltrator-shared" }
 infiltrator-test-support = { path = "../infiltrator-test-support" }

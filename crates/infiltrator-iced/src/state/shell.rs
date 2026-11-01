@@ -5,7 +5,6 @@ use crate::animation::AnimationCoordinator;
 use crate::capture_frame::CaptureFrameGate;
 use crate::capture_section::CaptureSection;
 use crate::tray::SharedTrayEventReceiver;
-use crate::tray::spec::TrayController;
 use crate::types::app::{ConfirmAction, Route, RouteHistory, ToastStatus};
 use crate::view::theme::theme_for_skin;
 use iced::Rectangle;
@@ -21,6 +20,8 @@ use infiltrator_contract::shortcuts::{ShortcutAction, ShortcutRegistry};
 use infiltrator_contract::theme::{SystemAppearance, ThemePreference};
 use infiltrator_contract::theme_palette::{ResolvedThemePalette, SystemDynamicColor};
 use infiltrator_contract::toast::ToastGate;
+use infiltrator_contract::tray_status::TrayIconColorMode;
+use infiltrator_desktop::tray::TrayController;
 use infiltrator_presentation::app_routing_page_model::AppRoutingPageModel;
 use infiltrator_presentation::language_choice::LanguageChoiceState;
 use std::path::PathBuf;
@@ -44,6 +45,9 @@ pub struct ShellState {
     pub language_user_selected: bool,
     pub tray_controller: Option<Box<dyn TrayController>>,
     pub tray_events: Option<SharedTrayEventReceiver>,
+    /// The tray icon style the user chose (FlClash parity: coloured status
+    /// disc vs the macOS/dark-taskbar monochrome template glyph).
+    pub tray_icon_color_mode: TrayIconColorMode,
     pub admin_enabled: bool,
     pub admin_port: u16,
     pub admin_port_input: String,

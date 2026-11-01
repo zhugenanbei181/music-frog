@@ -15,6 +15,7 @@ use infiltrator_contract::surface_snapshot::{SettingsPageSnapshot, SurfaceSnapsh
 use infiltrator_contract::system_proxy::SystemProxyStatus;
 use infiltrator_contract::theme::{SystemAppearance, ThemePreference, ThemeSkin};
 use infiltrator_contract::theme_palette::{ResolvedThemePalette, SystemDynamicColor};
+use infiltrator_contract::tray_status::TrayIconColorMode;
 use infiltrator_slint::surface::harness;
 use infiltrator_slint::widget_vocabulary;
 use lurker_core_contract::error::{ErrorCode, Failure};
@@ -256,6 +257,7 @@ fn default_settings_snapshot() -> SettingsPageSnapshot {
         mini_hud: Default::default(),
         refresh_current_profile_on_start: false,
         custom_accent_color: None,
+        tray_icon_color_mode: TrayIconColorMode::default(),
     }
 }
 

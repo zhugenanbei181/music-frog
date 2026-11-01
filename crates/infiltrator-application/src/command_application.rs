@@ -406,6 +406,7 @@ impl CommandApplication {
                 | "refresh_current_profile_on_start"
                 | "refresh_profile_on_start"
                 | "custom_accent_color"
+                | "tray_icon_color_mode"
         ) {
             return Err(Failure::new(
                 ErrorCode::InvalidInput,
@@ -442,6 +443,13 @@ impl CommandApplication {
         } else {
             None
         };
+        if key == "tray_icon_color_mode" && !matches!(value, "colored" | "monochrome") {
+            return Err(Failure::new(
+                ErrorCode::InvalidInput,
+                format!("unknown tray icon color mode {value}"),
+                false,
+            ));
+        }
         // A theme value is a shared appearance preference: reject a typo
         // instead of storing a string no surface can resolve, and persist the
         // canonical spelling so both ends read the same value back.
@@ -479,6 +487,9 @@ impl CommandApplication {
                 }
                 "custom_accent_color" => {
                     settings.custom_accent_color = custom_color.expect("color validated above");
+                }
+                "tray_icon_color_mode" => {
+                    settings.tray_icon_color_mode = value.to_string();
                 }
                 _ => {}
             })

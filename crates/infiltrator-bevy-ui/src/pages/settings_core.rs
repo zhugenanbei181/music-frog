@@ -43,6 +43,7 @@ use infiltrator_contract::resources::CoreResourceSnapshot;
 use infiltrator_contract::runtime_control::RuntimeControlStatus;
 use infiltrator_contract::service_mode::{ServiceModeSnapshot, ServiceModeState};
 use infiltrator_contract::system_proxy::{SystemProxyRecoverySnapshot, SystemProxySnapshot};
+use infiltrator_contract::tray_status::TrayIconColorMode;
 use infiltrator_contract::tun::TunStack;
 use infiltrator_contract::version::{CoreArtifactVerification, CoreVersionSnapshot};
 use infiltrator_contract::vpn::VpnSurfaceObservation;
@@ -178,6 +179,9 @@ pub struct SettingsProjection {
     /// DUAL-15-04: the persisted Mini HUD placement from the shared settings
     /// snapshot.
     pub mini_hud: MiniHudPlacement,
+    /// The shared tray icon style (FLPARITY-006): coloured status disc or the
+    /// monochrome template glyph for the macOS menu bar / dark taskbars.
+    pub tray_icon_color_mode: TrayIconColorMode,
 }
 
 pub(super) fn controller_settings_card(

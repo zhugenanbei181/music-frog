@@ -83,6 +83,7 @@ use crate::traffic_history::{ClosedConnectionsSnapshot, TrafficHistorySnapshot};
 use crate::traffic_scale::TrafficScaleSnapshot;
 use crate::traffic_topology::TrafficTopologySnapshot;
 use crate::traffic_waveform::TrafficWaveformSnapshot;
+use crate::tray_status::TrayIconColorMode;
 use crate::uwp::UwpLoopbackSnapshot;
 use crate::version::CoreVersionSnapshot;
 use crate::vpn::VpnSurfaceObservation;
@@ -572,6 +573,9 @@ pub struct SettingsPageSnapshot {
     /// Custom accent color hex code (e.g. "#016888").
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub custom_accent_color: Option<String>,
+    /// Tray icon color style preference (FlClash v0.9.2: colored vs macOS/system monochrome).
+    #[serde(default)]
+    pub tray_icon_color_mode: TrayIconColorMode,
 }
 
 fn default_language_code() -> String {

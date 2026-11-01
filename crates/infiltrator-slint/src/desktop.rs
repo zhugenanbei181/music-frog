@@ -5,9 +5,29 @@ use infiltrator_application::surface_application::SurfacePump;
 use infiltrator_contract::command::CommandResult;
 use infiltrator_contract::core_identity::CoreCommandRequest;
 use infiltrator_contract::surface::SurfaceKind;
+use infiltrator_contract::tray_menu::{TrayMenuCapabilities, TrayMenuContext, TraySpec};
+use infiltrator_contract::tray_status::{TrayEvent, TrayIconColorMode, TraySupport};
 use infiltrator_desktop::product::DesktopProductSession;
+use infiltrator_desktop::tray::DesktopTrayHost;
+use infiltrator_presentation::tray_projection::build_tray_spec;
 use infiltrator_shared::autostart::{is_autostart_enabled, set_autostart_enabled};
 use std::sync::Arc;
+
+struct SlintDesktopTrayHost(DesktopTrayHost);
+
+impl SlintTrayHost for SlintDesktopTrayHost {
+    fn push(&self, spec: TraySpec) {
+        self.0.push(spec);
+    }
+
+    fn drain(&self) -> Vec<TrayEvent> {
+        self.0.drain()
+    }
+
+    fn support(&self) -> TraySupport {
+        self.0.support()
+    }
+}
 
 struct DesktopProductHost {
     application: Arc<CoreApplication>,
@@ -112,5 +132,19 @@ pub fn run() -> anyhow::Result<()> {
         pump: session.surface_pump(),
         _session: session,
     });
-    run_with_host(host).map_err(|error| anyhow::anyhow!(error.to_string()))
+    let initial_spec = build_tray_spec(
+        &TrayMenuContext {
+            lang: "zh-CN".into(),
+            capabilities: TrayMenuCapabilities::shared_desktop(),
+            ..TrayMenuContext::default()
+        },
+        TrayIconColorMode::Colored,
+    );
+    let tray: Option<Box<dyn SlintTrayHost>> =
+        DesktopTrayHost::start(initial_spec, TrayIconColorMode::Colored)
+            .ok()
+            .map(|th| Box::new(SlintDesktopTrayHost(th)) as Box<dyn SlintTrayHost>);
+
+    run_with_host_prepared_and_tray(host, |_, _| {}, tray)
+        .map_err(|error| anyhow::anyhow!(error.to_string()))
 }

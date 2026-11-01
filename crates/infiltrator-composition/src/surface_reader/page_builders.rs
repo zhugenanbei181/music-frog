@@ -23,6 +23,7 @@ use infiltrator_contract::runtime_control::RuntimeControlSnapshot;
 use infiltrator_contract::sync::SyncStatus;
 use infiltrator_contract::sync_snapshot::{SnapshotItemSnapshot, SyncPageSnapshot};
 use infiltrator_contract::system_proxy::SystemProxySnapshot;
+use infiltrator_contract::tray_status::TrayIconColorMode;
 use infiltrator_contract::uwp::UwpLoopbackSnapshot;
 use infiltrator_domain::app_routing::AppRoutingConfig;
 use infiltrator_domain::settings::AppSettings;
@@ -231,5 +232,10 @@ pub(super) fn build_settings_page(
         mini_hud: settings.mini_hud,
         refresh_current_profile_on_start: settings.refresh_current_profile_on_start,
         custom_accent_color: settings.custom_accent_color.clone(),
+        tray_icon_color_mode: if settings.tray_icon_color_mode == "monochrome" {
+            TrayIconColorMode::Monochrome
+        } else {
+            TrayIconColorMode::Colored
+        },
     })
 }

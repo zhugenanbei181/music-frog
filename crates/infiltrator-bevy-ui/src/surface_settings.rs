@@ -2,6 +2,7 @@
 use crate::pages::settings::settings_core::SettingsProjection;
 use infiltrator_contract::runtime_control::RuntimeControlStatus;
 use infiltrator_contract::surface_snapshot;
+use infiltrator_contract::tray_status::TrayIconColorMode;
 use infiltrator_contract::version::CoreVersionSnapshot;
 use lurker_core_contract::identity::EngineId;
 use lurker_core_contract::page::PageStatus;
@@ -42,6 +43,7 @@ pub(crate) fn empty_settings() -> SettingsProjection {
         offline_startup: Default::default(),
         mtu: Default::default(),
         mini_hud: Default::default(),
+        tray_icon_color_mode: TrayIconColorMode::default(),
     }
 }
 
@@ -68,6 +70,7 @@ impl From<SettingsProjection> for surface_snapshot::SettingsPageSnapshot {
             mini_hud: value.mini_hud,
             refresh_current_profile_on_start: false,
             custom_accent_color: None,
+            tray_icon_color_mode: value.tray_icon_color_mode,
         }
     }
 }

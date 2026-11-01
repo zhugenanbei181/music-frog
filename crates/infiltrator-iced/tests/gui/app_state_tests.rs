@@ -9,7 +9,6 @@ use crate::state::runtime::{
     RuntimePatchRefusal, RuntimePatchStage, SystemProxyRefusal, SystemProxyStage,
 };
 use crate::test_mounts::profile_edit_fixture;
-use crate::tray::spec::{TRAY_ACTION_QUIT, TrayEvent, TrayIntent, resolve_tray_event};
 use crate::types::app::{ConfirmAction, CoreDownloadProgress, Route, SyncProgress, ToastStatus};
 use crate::types::message::Message;
 use crate::types::profile_edit::ProfileEditReply;
@@ -26,6 +25,8 @@ use infiltrator_contract::rules_workspace::{RulesJsonSection, RulesTab};
 use infiltrator_contract::runtime_control::RuntimeControlStatus;
 use infiltrator_contract::system_toggle::SystemToggleSnapshot;
 use infiltrator_contract::system_toggle::SystemToggleState;
+use infiltrator_contract::tray_menu::TRAY_ACTION_QUIT;
+use infiltrator_contract::tray_status::{TrayEvent, TrayIntent};
 use infiltrator_domain::connection_rate::pulse_intensity;
 use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_domain::rules::RuleEntry;

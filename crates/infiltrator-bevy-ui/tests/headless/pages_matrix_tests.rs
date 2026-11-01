@@ -525,6 +525,7 @@ fn settings_page_in_place_update() {
         offline_startup: OfflineStartupSnapshot::ready(LocalAssetStatus::Available),
         mtu: Default::default(),
         mini_hud: Default::default(),
+        tray_icon_color_mode: Default::default(),
     };
 
     app.world_mut()

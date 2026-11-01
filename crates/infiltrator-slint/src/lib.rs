@@ -39,6 +39,12 @@ use infiltrator_contract::subscription_import::{
     SubscriptionImportChannel, SubscriptionScheduleDraft,
 };
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
+use infiltrator_contract::system_proxy::SystemProxyStatus;
+use infiltrator_contract::tray_menu::{TrayMenuCapabilities, TraySpec};
+use infiltrator_contract::tray_status::{
+    TrayEvent, TrayEventContext, TrayIntent, TraySupport, resolve_tray_event_in,
+};
+use infiltrator_presentation::tray_projection::{build_tray_spec, tray_context_from_snapshot};
 use infiltrator_shared::locales::{Lang, Localizer, resolve_language_code};
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::CoreScope;
@@ -294,8 +300,23 @@ pub(crate) enum WorkerEvent {
 
 /// Launch the same Slint component on a native host supplied by the product
 /// composition root.
+/// Host-provided system tray port for the Slint surface.
+pub trait SlintTrayHost {
+    fn push(&self, spec: TraySpec);
+    fn drain(&self) -> Vec<TrayEvent>;
+    fn support(&self) -> TraySupport;
+}
+
 pub fn run_with_host(host: Arc<dyn SlintProductHost>) -> Result<(), slint::PlatformError> {
     run_with_host_prepared(host, |_, _| {})
+}
+
+pub fn run_with_host_prepared_and_tray(
+    host: Arc<dyn SlintProductHost>,
+    prepare: impl FnOnce(&AppWindow, &Arc<Workbenches>),
+    tray: Option<Box<dyn SlintTrayHost>>,
+) -> Result<(), slint::PlatformError> {
+    run_with_host_prepared_impl(host, prepare, tray)
 }
 
 /// Select the desktop GPU backend (EFFECTS-036 #146~#149, = SLINTUI-001 #1~#4).
@@ -326,6 +347,21 @@ fn select_desktop_gpu_backend() -> Result<(), slint::PlatformError> {
 pub fn run_with_host_prepared(
     host: Arc<dyn SlintProductHost>,
     prepare: impl FnOnce(&AppWindow, &Arc<Workbenches>),
+) -> Result<(), slint::PlatformError> {
+    run_with_host_prepared_impl(host, prepare, None)
+}
+
+/// Launch the Slint component with the window preparation *and* the host's
+/// system tray seam.
+///
+/// The tray is a host capability: the surface never talks to the OS tray
+/// itself. The host hands over the seam, the surface publishes the shared
+/// menu from the owner's snapshot and forwards the user's activations back
+/// as typed intents.
+fn run_with_host_prepared_impl(
+    host: Arc<dyn SlintProductHost>,
+    prepare: impl FnOnce(&AppWindow, &Arc<Workbenches>),
+    tray: Option<Box<dyn SlintTrayHost>>,
 ) -> Result<(), slint::PlatformError> {
     #[cfg(not(target_os = "android"))]
     select_desktop_gpu_backend()?;
@@ -389,6 +425,22 @@ pub fn run_with_host_prepared(
                 // workbench state; the outer loop keeps its own.
                 let workbenches = Arc::clone(&workbenches);
                 let latest_for_terminal = Arc::clone(&latest_for_terminal);
+                if let WorkerEvent::Snapshot(Ok(ref snapshot), _) = event {
+                    if let Some(tray) = tray.as_ref() {
+                        let color_mode = snapshot
+                            .pages
+                            .settings
+                            .data
+                            .as_ref()
+                            .map(|s| s.tray_icon_color_mode)
+                            .unwrap_or_default();
+                        let lang = lumen_projection::snapshot_language(snapshot);
+                        let mut ctx = tray_context_from_snapshot(snapshot, &lang);
+                        ctx.capabilities = TrayMenuCapabilities::shared_desktop();
+                        let spec = build_tray_spec(&ctx, color_mode);
+                        tray.push(spec);
+                    }
+                }
                 let _ = weak.upgrade_in_event_loop(move |window| match event {
                     WorkerEvent::Snapshot(Ok(snapshot), autostart) => {
                         let language = lumen_projection::snapshot_language(&snapshot);
@@ -452,6 +504,66 @@ pub fn run_with_host_prepared(
                     }
                 });
             }
+            if let Some(tray) = tray.as_ref() {
+                let events = tray.drain();
+                if !events.is_empty() {
+                    let snap_guard = latest_for_terminal.lock().ok().and_then(|g| g.clone());
+                    let context = tray_event_context(snap_guard.as_ref());
+                    for event in events {
+                        if let Some(intent) = resolve_tray_event_in(&event, &context) {
+                            match intent {
+                                TrayIntent::ShowWindow => {
+                                    if let Some(w) = update_window.upgrade() {
+                                        let _ = w.show();
+                                        w.window().set_minimized(false);
+                                    }
+                                }
+                                TrayIntent::Exit => {
+                                    let _ = slint::quit_event_loop();
+                                }
+                                TrayIntent::ToggleIconColorMode => {
+                                    let next = snap_guard
+                                        .as_ref()
+                                        .and_then(|s| s.pages.settings.data.as_ref())
+                                        .map(|s| s.tray_icon_color_mode)
+                                        .unwrap_or_default()
+                                        .toggle();
+                                    let _ = poll_tx.send(WorkerRequest::Action(
+                                        SlintAction::Command(CommandIntent::UpdateSetting {
+                                            key: "tray_icon_color_mode".into(),
+                                            value: next.as_str().to_string(),
+                                        }),
+                                    ));
+                                }
+                                TrayIntent::SetRoutingIntent(intent) => {
+                                    let _ =
+                                        poll_tx.send(WorkerRequest::Action(SlintAction::Command(
+                                            CommandIntent::SetRoutingIntent { intent },
+                                        )));
+                                }
+                                TrayIntent::SetSystemProxy(enabled) => {
+                                    let _ =
+                                        poll_tx.send(WorkerRequest::Action(SlintAction::Command(
+                                            CommandIntent::SetSystemProxy { enabled },
+                                        )));
+                                }
+                                TrayIntent::SetTunEnabled(enabled) => {
+                                    let _ = poll_tx.send(WorkerRequest::Action(
+                                        SlintAction::Command(CommandIntent::ToggleTun { enabled }),
+                                    ));
+                                }
+                                TrayIntent::ActivateProfile(name) => {
+                                    let _ =
+                                        poll_tx.send(WorkerRequest::Action(SlintAction::Command(
+                                            CommandIntent::SwitchProfile { profile_id: name },
+                                        )));
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+            }
         },
     );
 
@@ -461,6 +573,23 @@ pub fn run_with_host_prepared(
     drop(window);
     drop(request_tx);
     result
+}
+
+fn tray_event_context(snapshot: Option<&SurfaceSnapshot>) -> TrayEventContext<'static> {
+    let Some(snapshot) = snapshot else {
+        return TrayEventContext {
+            system_proxy: false,
+            tun: false,
+            autostart: false,
+            profiles: &[],
+        };
+    };
+    TrayEventContext {
+        system_proxy: matches!(snapshot.system_proxy.status, SystemProxyStatus::Enabled),
+        tun: snapshot.runtime_control.tun_enabled.unwrap_or(false),
+        autostart: false,
+        profiles: &[],
+    }
 }
 
 fn select_translation(window: &AppWindow, language: &str) {

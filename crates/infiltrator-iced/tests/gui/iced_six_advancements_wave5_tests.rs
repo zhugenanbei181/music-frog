@@ -26,6 +26,7 @@ use infiltrator_contract::system_proxy::{
     SystemProxyObservation, SystemProxyRecoverySnapshot, SystemProxyRecoveryStatus,
     SystemProxySnapshot, SystemProxyStatus,
 };
+use infiltrator_contract::tray_status::TrayIconColorMode;
 use infiltrator_contract::tun::{TunStack, TunStackAvailability};
 use infiltrator_domain::rules::RuleEntry;
 use infiltrator_iced::capture_section::CaptureSection;
@@ -407,6 +408,7 @@ fn test_shared_surface_route_flags_update_the_iced_projection() {
         mini_hud: Default::default(),
         refresh_current_profile_on_start: false,
         custom_accent_color: None,
+        tray_icon_color_mode: TrayIconColorMode::default(),
     });
 
     assert!(state.apply_shared_surface_snapshot(snapshot));
@@ -700,6 +702,7 @@ fn test_shared_surface_keeps_a_dirty_lan_draft_until_apply_result() {
         mini_hud: Default::default(),
         refresh_current_profile_on_start: false,
         custom_accent_color: None,
+        tray_icon_color_mode: TrayIconColorMode::default(),
     });
 
     assert!(state.apply_shared_surface_snapshot(snapshot));

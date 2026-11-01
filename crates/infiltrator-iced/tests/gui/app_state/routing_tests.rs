@@ -1,4 +1,5 @@
 use super::*;
+use infiltrator_contract::tray_status::{TrayEventContext, resolve_tray_event_in};
 use infiltrator_presentation::dns_page_model::DnsPageTab;
 
 #[test]
@@ -9,13 +10,17 @@ fn test_tray_and_exit() {
     // old muda menu ids: icon click shows the window, quit requests exit.
     let _ = state.update(Message::TrayEvent(TrayEvent::IconActivated));
     assert_eq!(
-        resolve_tray_event(
+        resolve_tray_event_in(
             &TrayEvent::MenuActivated {
                 id: TRAY_ACTION_QUIT,
                 payload: None,
             },
-            false,
-            false,
+            &TrayEventContext {
+                system_proxy: false,
+                tun: false,
+                autostart: false,
+                profiles: &[],
+            },
         ),
         Some(TrayIntent::Exit)
     );

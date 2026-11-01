@@ -111,6 +111,7 @@ pub(super) fn translate_en_legacy(key: &str) -> Cow<'static, str> {
         "tray_show_window" => "Show Main Window".into(),
         "tray_quit" => "Quit".into(),
         "tray_toggle_theme" => "Toggle Light/Dark".into(),
+        "tray_toggle_color_mode" => "Monochrome Tray Icon".into(),
         "tray_proxies" => "Nodes".into(),
         "tray_no_proxies" => "No nodes (start the core first)".into(),
         "tray_profiles" => "Profiles".into(),

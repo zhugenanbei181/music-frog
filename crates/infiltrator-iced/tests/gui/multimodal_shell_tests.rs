@@ -5,7 +5,6 @@
 use crate::mini_hud_window::IcedMiniHudWindowHandle;
 use crate::state::AppState;
 use crate::tray::TRAY_RATE_REFRESH_INTERVAL;
-use crate::tray::spec::{TrayController, TraySpec};
 use crate::types::app::{Route, ToastStatus};
 use crate::types::message::Message;
 use crate::view::chrome::strip_height_px;
@@ -25,6 +24,8 @@ use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot};
 use infiltrator_contract::theme::{AppearanceMode, SystemAppearance, ThemePreference, ThemeSkin};
 use infiltrator_contract::theme_palette::{ResolvedThemePalette, SystemDynamicColor};
 use infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot;
+use infiltrator_contract::tray_menu::TraySpec;
+use infiltrator_desktop::tray::TrayController;
 use infiltrator_domain::runtime::TrafficData;
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_presentation::system_toggle_projection::compact_status_line;
@@ -658,7 +659,7 @@ fn live_waveform(up: f64, down: f64) -> TrafficWaveformSnapshot {
 }
 
 fn info_rate_label(spec: &TraySpec) -> Option<String> {
-    use crate::tray::spec::{TRAY_ACTION_INFO_RATE, TrayMenuItem};
+    use infiltrator_contract::tray_menu::{TRAY_ACTION_INFO_RATE, TrayMenuItem};
     fn scan(items: &[TrayMenuItem]) -> Option<String> {
         for item in items {
             match item {

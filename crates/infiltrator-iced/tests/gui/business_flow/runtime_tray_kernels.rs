@@ -6,18 +6,20 @@
 
 use super::support::{FakeTray, TempHome, block_on, feed, fresh_state, subscribed_profile};
 use crate::state::core_operations::{CoreDownloadRunId, CoreDownloadStart};
-use crate::tray::spec::{
-    TRAY_ACTION_ACTIVATE_PROFILE, TRAY_ACTION_ROUTING_ALL_THROUGH_PROXY, TRAY_ACTION_SELECT_PROXY,
-    TRAY_ACTION_SET_DEFAULT_KERNEL, TRAY_ACTION_SET_PROFILE_AUTO_UPDATE,
-    TRAY_ACTION_UPDATE_ALL_PROFILES, TrayEvent, TrayEventContext, TrayIntent, TrayMenuItem,
-    encode_pair_payload, resolve_tray_event_in,
-};
 use crate::types::app::CoreDownloadProgress;
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStreamState;
 use crate::version_application::application;
 use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::port_conflict::{PortBinding, PortConflict, PortConflictSnapshot};
+use infiltrator_contract::tray_menu::{
+    TRAY_ACTION_ACTIVATE_PROFILE, TRAY_ACTION_ROUTING_ALL_THROUGH_PROXY, TRAY_ACTION_SELECT_PROXY,
+    TRAY_ACTION_SET_DEFAULT_KERNEL, TRAY_ACTION_SET_PROFILE_AUTO_UPDATE,
+    TRAY_ACTION_UPDATE_ALL_PROFILES, TrayMenuItem, TrayProfileEntry, encode_pair_payload,
+};
+use infiltrator_contract::tray_status::{
+    TrayEvent, TrayEventContext, TrayIntent, resolve_tray_event_in,
+};
 use infiltrator_contract::version::{CoreRollbackSnapshot, InstalledCoreVersion};
 use infiltrator_core::version_port::MihomoVersionPort;
 use infiltrator_domain::runtime::TrafficData;
@@ -355,7 +357,16 @@ fn tray_event_chains_resolve_intents_and_drive_state_domains() {
         payload: Some(encode_pair_payload("PROXY", "HK-1")),
     };
     // Snapshot for the pure resolver so state can keep mutating below.
-    let profile_snapshot = state.profile.profiles.clone();
+    let profile_snapshot = state
+        .profile
+        .profiles
+        .iter()
+        .map(|profile| TrayProfileEntry {
+            name: profile.name.clone(),
+            active: profile.active,
+            auto_update_enabled: profile.auto_update_enabled,
+        })
+        .collect::<Vec<_>>();
     let ctx = TrayEventContext {
         system_proxy: false,
         tun: false,

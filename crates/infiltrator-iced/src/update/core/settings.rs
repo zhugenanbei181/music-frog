@@ -7,6 +7,7 @@ use crate::version_application::normalized_release_channel;
 use iced::Task;
 use infiltrator_contract::shortcuts::ShortcutRegistry;
 use infiltrator_contract::theme::ThemePreference;
+use infiltrator_contract::tray_status::TrayIconColorMode;
 use infiltrator_domain::connection_view::ConnectionSortKey;
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_presentation::language_choice::project_language;
@@ -59,6 +60,11 @@ impl AppState {
         // 0.20 OS 系统通知开关镜像（notify.rs 的 system_notify 读它短路）。
         self.shell.notifications_enabled = settings.notifications_enabled;
         self.shell.close_to_tray = settings.close_to_tray;
+        self.shell.tray_icon_color_mode = if settings.tray_icon_color_mode == "monochrome" {
+            TrayIconColorMode::Monochrome
+        } else {
+            TrayIconColorMode::Colored
+        };
         self.shell.system_proxy_bypass = settings.system_proxy_bypass.unwrap_or_default();
         // DUAL-15-04: restore the persisted Mini HUD placement through the
         // shared contract geometry; the window itself is moved when the host

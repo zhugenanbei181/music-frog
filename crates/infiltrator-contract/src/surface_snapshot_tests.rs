@@ -10,6 +10,7 @@ use crate::rule_trace_run::{
     RuleTraceOutboundFacts, RuleTraceOwnerBinding, RuleTraceOwnerObservation,
 };
 use crate::runtime_status::{CoreProcessObservation, ProxyEffectivenessObservation};
+use crate::tray_status::TrayIconColorMode;
 use crate::vpn::VpnGeneration;
 use lurker_core_contract::error::FailureReason;
 #[cfg(test)]
@@ -644,6 +645,7 @@ fn the_settings_page_publishes_the_lan_sharing_readback_and_the_pac_request_fact
         mini_hud: MiniHudPlacement::default(),
         refresh_current_profile_on_start: false,
         custom_accent_color: None,
+        tray_icon_color_mode: TrayIconColorMode::default(),
     };
 
     // The LAN sharing readback is published as one fact, so an off sharing

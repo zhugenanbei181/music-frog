@@ -15,10 +15,11 @@
 
 use crate::configs_dir::config_manager;
 use crate::state::AppState;
-use crate::tray::spec::{TrayController, TraySpec};
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use infiltrator_composition::mihomo_configuration::profiles_for_mihomo;
+use infiltrator_contract::tray_menu::TraySpec;
+use infiltrator_desktop::tray::TrayController;
 use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_platform::credentials::{
     clear_credential_store_override, set_credential_store_override,

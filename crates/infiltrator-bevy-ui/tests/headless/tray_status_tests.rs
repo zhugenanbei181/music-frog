@@ -63,9 +63,7 @@ fn the_report_carries_the_shared_refresh_cadence() {
     // Flip the capability exactly the way a host would, and the shared badge
     // projection becomes available without touching the format.
     let hosted = TrayStatusReport {
-        support: TraySupport::Hosted {
-            live_rate_badge: true,
-        },
+        support: TraySupport::hosted(true),
         refresh_interval_ms: TRAY_RATE_REFRESH_INTERVAL_MS,
     };
     let badge = hosted.live_badge(&live_waveform()).expect("real sample");

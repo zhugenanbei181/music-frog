@@ -23,18 +23,29 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-01 第一百批次）
+## 当前状态（2026-11-01 第一百零一批次）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
 | 1 | 部分 | L | 中性内核 x64/arm64 × Windows/Linux/Android/macOS **八个组合**全部通过；本机交叉复跑入口 `scripts/cross-check.sh`（zig 0.14.1 + `cargo-zigbuild`、`cargo-xwin`）与 `scripts/android-check.sh`（NDK 29.0.14206865）保持全绿；本批修掉了交叉腿实测报出的一个真实缺陷（`infiltrator-slint` 的 `clippy::missing-const-for-thread-local`，已改为 `const { Cell::new(false) }` 初始化），该腿由 `scripts/blocked/foreign-target-evidence.sh` 复跑验证；最终安装包与目标设备证据仍缺，由 CI runner 与设备矩阵取证（GAP-1.1） |
 | 2 | 部分 | C（旧 commit）+ L | Windows/Linux v0.42.6 四条腿 success（旧源码）；macOS `Unsupported`（无 CI/无产物，GAP-2.2）；安装包未验证（GAP-2.1）；Windows 安装包与 macOS/iOS 目标机腿已整条迁入斗战胜佛并写明阻塞方，Linux 打包腿在现在佛 `APPID-001.3`；**本批：release 作业的签名前置改为 fail closed**——缺 secret 时在昂贵的三 flavor release 构建之前就明确失败，桌面产物不再由 debug key 背书 |
 | 3 | 部分 | L | Android 源码级接通，Bevy host driver lockfile 已同步 0.50.0 解决 buildRustDriver 101 错误；**本批：Android 静态质量门成为真门**（Lint 68→0、ktlint 5046→0、Detekt 项目配置 0 条、架构红线守卫 ARCH001–007 扫描 137 点 0 违例并带 23 条负例，已接入结构门）；Android 单测 192 core host + 391 app 全绿；**release 变体改用用户持久 keystore 签名**，无 secret 时 Gradle 配置期即以缺失清单失败，debug key 不再用于任何 release 产物；APK 真实产物与真机仍缺，APK/真机腿在斗战胜佛；iOS `Unsupported`（626 行 stub，GAP-3.2）；模拟器 M1 腿可推（`PARITY-001.4`、过去佛 `BANDROID-002.1`/`002.2`） |
-| 4 | 部分 | L | Iced/Bevy/Slint/Compose 全量接入，四表面使用 `SurfaceReader` + `CommandSink`。**本批（2026-11-01 第一百批次）：`GAP-7.6`（5 pt）三端信息架构与交互模型对齐交付（统一词表/页面命名/延迟与危险语义色阶）；Slint 消除私有硬编码，严格消费 contract 延迟分类与短页名字典；Iced view/theme.rs 接入 canonical LatencyBand 分类；严格落实 rem 尺寸标尺（bevy_rem_guard 0 违规 0 debt，Slint 统一 * LumenUiScale.unit 0 裸 px）。现在佛 36 → 31 pt（8 → 7 条），过去佛 43 → 48 pt（17 → 18 条），联合分母 161 pt（58 条）保持，严格归档率 87.7%（1,152/1,313 pt）保持。** |
+| 4 | 部分 | L | Iced/Bevy/Slint/Compose 全量接入，四表面使用 `SurfaceReader` + `CommandSink`。**本批（2026-11-01 第一百零一批次）：`FLPARITY-006`（5 pt）桌面托盘宿主与彩色状态图标交付（中立托盘菜单树、capabilities 动态裁切、动态 32x32 RGBA 状态图标与 macOS 单色模式、Linux ksni/SNI 与 Windows/macOS native muda 统一桌面宿主、Bevy 与 Slint 宿主接入托盘推拉刷新与意图分发、Iced 表面收敛）。严格落实 rem 尺寸标尺（bevy_rem_guard 0 违规 0 debt，Slint 统一 * LumenUiScale.unit 0 裸 px）。现在佛 31 → 26 pt（7 → 6 条），过去佛 48 → 53 pt（18 → 19 条），联合分母 161 pt（58 条）保持，严格归档率 87.7%（1,152/1,313 pt）保持。** |
 | 5 | 部分 | L | 共享 ports/kernel/kits 已复用；统一验证批次集中跑通全量 5,748 nextest 与 40+ 项结构门，一次性批量解锁并归档办结 84 条 Integrated 条目，消除重复构建开销；代码零重复旁路，事实单一真源 |
-| 6 | 部分 | L | **对标 FlClash v0.9.2 与跨端平价：`GAP-7.6`（5 pt）三端信息架构与交互模型对齐交付，从现在佛迁入过去佛 §12.63（Integrated）；现在佛余 7 项 / 31 pt（全量 FlClash 对标），过去佛 18 项 / 48 pt。** 平价覆盖矩阵 360/360 单元格保持 100% anchored（0 pending，0 missing）。三桌面 192 张四主题实图在库；Android 36 张实机截图仍待外部设备腿。 |
+| 6 | 部分 | L | **对标 FlClash v0.9.2 与跨端平价：`FLPARITY-006`（5 pt）桌面托盘宿主与彩色状态图标交付，从现在佛迁入过去佛 §12.64（Integrated）；现在佛余 6 项 / 26 pt（全量 FlClash 对标），过去佛 19 项 / 53 pt。** 平价覆盖矩阵 360/360 单元格保持 100% anchored（0 pending，0 missing）。三桌面 192 张四主题实图在库；Android 36 张实机截图仍待外部设备腿。 |
 | 7 | 部分 | L | 文件级模块化完成（<=800/600 行全绿，全仓 mod.rs 清退至 0，严格遵照 foo.rs + foo/ 模式，并在 check-structure.sh 接入 mod-rs-guard 永久禁止）；**严格落实 rem 体系，Bevy 0 违规（bevy_rem_guard --mode enforce 0 违规，debt 归零），Slint 统一 LumenUiScale.unit**；隐式状态机语义审计 + 判决台账常驻（22 条候选逐条人工判决，未判决或 open 即门禁失败）；九个页面模型与两个共用基座成为页面状态的唯一 owner；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | 已补 `--locked` 与 main 守卫门禁（仅 fmt+guards，不编译）；修复 main-gate.yml 缺失 setup-python/Pillow 问题；扩大 Gradle JVM 堆至 6GB 并将三大 flavor 分离独立进程构建彻底解决 OOM；交付 Android CI 套件 flavor/模拟器裁剪与 Gradle 缓存复用；release 作业在构建前校验签名材料缺 secret 秒级失败；全套单测与结构门（`check-structure.sh` 40+ 项守卫，含截图身份唯一守卫 enforce：550 张、aliases=10、0 违规）全绿；`cargo fmt --all --check` 100% 通过；版本号按身份改动一次升至 0.51.0 |
+
+## 最近一批问答（2026-11-01 第一百零一交付批次：FLPARITY-006 桌面托盘宿主与彩色状态图标交付与 rem 体系严格落实）
+
+1. x86_64/aarch64：中性 pure-Rust 领域、契约、托盘菜单树构建器与平台宿主接口，全量 workspace nextest 5,748/5,748 全绿，无目标架构专有缺陷 → 部分（L）。
+2. Windows/Linux/macOS：桌面三端（Iced、Bevy、Slint）托盘宿主全部具备真实平台后端接线（Linux StatusNotifierItem/ksni，Windows/macOS muda+tray-icon）；无托盘环境诚实降级 TrayStartup::Unavailable 并报告 Unsupported 不崩溃；安装包与目标真机仍待外部环境腿 → 部分（L）。
+3. Android/iOS：Android 明确无系统托盘并诚实报告 `android-host-has-no-system-tray` 不启动托盘；iOS 保持 Unsupported → 部分（L）。
+4. 各 UI：Iced、Bevy、Slint 三大桌面表面全面接入统一托盘宿主与共享 presentation 菜单投影；Bevy 接入 TrayHostPlugin 与 TrayHostResource，Slint 接入 SlintTrayHost 并驱动事件分发循环，Iced 消除私有冗余 spec/menu 实现并委托共享中立契约；彻底落实 rem 唯一标尺（bevy_rem_guard 0 px 违例 0 debt，Slint 统一 * LumenUiScale.unit）；全量 360/360 parity 单元格 100% anchored → 部分（L）。
+5. 复用：遵循底层先决与单一真源铁律：托盘数据结构、能力集与稳定 action id 统一定义于 contract/tray_menu.rs，菜单树构建与 32x32 RGBA 状态图标光栅化统一定义于 presentation/tray_projection.rs，平台进程与 D-Bus 连接统一定义于 desktop/tray.rs，三大桌面 UI 表面仅消费并分发意图，零第二套菜单树与伪托盘逻辑；FLPARITY-006（5 pt）全量闭环交付迁入过去佛 §12.64 → 部分（L）。
+6. 功能接入：FLPARITY-006（5 pt）桌面托盘宿主与彩色状态图标交付，从现在佛销账并在过去佛 §12.64 登记为 Integrated；现在佛 7 → 6 条 / 31 → 26 pt；过去佛 18 → 19 条 / 48 → 53 pt；全仓未办结 58 条 / 161 pt 保持不变，严格归档率 87.7%（1,152/1,313 pt）保持不变 → 部分（L）。
+7. 模块化：全仓文件行预算严格守卫（所有 Rust 文件 ≤800 行，Slint ≤600 行，Kotlin ≤800 行）；无隐式布尔状态机；import-guard 扫描 2882 文件 0 违规；bevy_rem_guard 0 违规 0 debt；Slint 尺寸统一 * LumenUiScale.unit 0 裸 px；mod-rs-guard 0 违规 → 部分（L）。
+8. CI：全量结构门 check-structure.sh 40+ 项门禁全部 PASS；cargo fmt --all --check 0 偏差；cargo clippy --workspace --all-targets -- -D warnings 0 警告；全仓 nextest 5,748/5,748 全绿；同批提交并推送 main → 部分（L）。
 
 ## 最近一批问答（2026-11-01 第一百交付批次：GAP-7.6 三端信息架构与交互模型对齐交付与 rem 体系严格落实）
 

@@ -25,6 +25,7 @@ use infiltrator_contract::system_proxy::{SystemProxyObservation, SystemProxySnap
 use infiltrator_contract::theme::{SystemAppearance, ThemePreference};
 use infiltrator_contract::theme_palette::{ResolvedThemePalette, SystemDynamicColor};
 use infiltrator_contract::traffic_waveform::{TrafficSample, TrafficWaveformSnapshot};
+use infiltrator_contract::tray_status::TrayIconColorMode;
 use lurker_core_contract::error::Failure;
 use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
@@ -428,6 +429,7 @@ fn build_demo_snapshot(settings: &DemoSettings) -> SurfaceSnapshot {
         mini_hud: Default::default(),
         refresh_current_profile_on_start: false,
         custom_accent_color: None,
+        tray_icon_color_mode: TrayIconColorMode::default(),
     });
 
     snapshot.pages.profiles = PageData::ready(ProfilesPageSnapshot {

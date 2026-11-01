@@ -65,14 +65,15 @@ use std::time::Instant;
 // in unit tests), so the import is test-gated.
 #[cfg(not(test))]
 use crate::tray;
-#[cfg(not(test))]
-use crate::tray::spec::TrayStartup;
 use crate::types::app::Route;
 use crate::types::dns::{FakeIpFormDraft, TunFormDraft};
 use crate::types::editor::EditorLazyState;
 use crate::types::message::Message;
 use crate::types::runtime::{ConfigurationSaveState, RuntimeStatus};
 use iced::Task;
+use infiltrator_contract::tray_status::TrayIconColorMode;
+#[cfg(not(test))]
+use infiltrator_desktop::tray::TrayStartup;
 use infiltrator_presentation::dns_page_model::DnsPageModel;
 use infiltrator_presentation::profiles_page_model::ProfilesPageModel;
 use infiltrator_presentation::rules_page_model::RulesPageModel;
@@ -478,6 +479,7 @@ impl AppState {
                 theme: iced::Theme::Dark,
                 tray_controller: None,
                 tray_events: None,
+                tray_icon_color_mode: TrayIconColorMode::default(),
                 // Admin defaults: embedded server on at port 25210 (API-only
                 // since the 0.20 WebUI retirement); the
                 // real values are applied from settings in `SettingsLoaded`.

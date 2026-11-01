@@ -1,72 +1,56 @@
-//! System tray, platform-split behind one neutral abstraction:
+//! System tray wiring for the Iced surface (FLPARITY-006).
 //!
-//! * [`spec`] — the headlessly-testable seam: [`TraySpec`] (menu with stable
-//!   action ids), [`TrayEvent`], [`TrayController`], [`TrayStartup`].
-//! * [`menu`] — the pure localized spec builder over a [`TraySpecContext`]
-//!   snapshot (0.20 full-feature menu).
-//! * ksni backend (Linux default) — pure StatusNotifierItem/D-Bus, no GTK.
-//! * native backend (Windows/macOS) — the existing muda/tray-icon implementation
-//!   wrapped behind the same seam.
+//! The vocabulary (action ids, menu tree, events, intents) is owned by
+//! `infiltrator_contract`, the localized rendering by
+//! `infiltrator_presentation::tray_projection` and the platform backend by
+//! `infiltrator_desktop::tray`. This module only adapts the neutral seam to
+//! iced: the subscription that drains the backend channel, the
+//! `AppState → TrayMenuContext` assembly and the intent → `Message` routing.
 //!
 //! The tray is a pure enhancement: any startup failure degrades to a
 //! window-only app with a warning and never fails or panics the process.
 
-use iced::futures::channel::mpsc;
-use infiltrator_presentation::profiles_page_model::ProfilesOperation;
-use std::time::Instant;
-use tokio::time::sleep;
-pub mod spec;
-
-mod menu;
-
-#[cfg(all(unix, not(target_os = "macos")))]
-#[cfg_attr(test, allow(dead_code))] // spawn path never runs under test
-mod ksni_backend;
-#[cfg(any(windows, target_os = "macos"))]
-#[cfg_attr(test, allow(dead_code))] // spawn path never runs under test
-mod native;
-
-#[cfg(test)]
-#[path = "../tests/gui/tray_tests.rs"]
-mod tests;
-
-use self::menu::build_tray_spec;
-use self::spec::{
-    TRAY_MAX_GROUPS, TrayCoreStatus, TrayEvent, TrayEventReceiver, TrayIntent, TrayProxyGroup,
-    TrayProxyNode, TraySpec, TraySpecContext, TrayStartup, resolve_tray_event_in,
-};
 use crate::state::AppState;
 use crate::types::app::{ConfirmAction, Route, ToastStatus};
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
 use iced::advanced::subscription::{EventStream, Hasher, Recipe, from_recipe};
+use iced::futures::channel::mpsc;
 use iced::futures::stream::BoxStream;
 use iced::{Subscription, Task, stream};
-use infiltrator_contract::tray_status;
+use infiltrator_contract::tray_menu::{
+    TRAY_MAX_GROUPS, TrayCoreStatus, TrayKernelEntry, TrayMenuCapabilities, TrayMenuContext,
+    TrayOutboundGroup, TrayOutboundNode, TrayProfileEntry, TraySpec,
+};
+use infiltrator_contract::tray_status::{
+    TRAY_RATE_REFRESH_INTERVAL_MS, TrayEvent, TrayEventContext, TrayIntent, TrayRateBadge,
+    resolve_tray_event_in,
+};
+use infiltrator_desktop::tray::{TrayStartup, spawn_tray};
+use infiltrator_presentation::profiles_page_model::ProfilesOperation;
+use infiltrator_presentation::tray_projection::build_tray_spec;
 use lurker_core_contract::outbound::inventory::{
     OutboundInventoryState, OutboundSelectionState, SelectionAvailability,
 };
+use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
+use tokio::time::sleep;
 
 /// The shared rate-badge push cadence (DUAL-15-02), in the host's time type.
 pub(crate) const TRAY_RATE_REFRESH_INTERVAL: Duration =
-    Duration::from_millis(tray_status::TRAY_RATE_REFRESH_INTERVAL_MS);
+    Duration::from_millis(TRAY_RATE_REFRESH_INTERVAL_MS);
 
 /// Spawn the platform tray with the given spec. Returns the typed startup
 /// result; never panics and never fails the app.
 #[cfg_attr(test, allow(dead_code))] // never called under test by design
 pub(crate) fn spawn(spec: TraySpec) -> TrayStartup {
-    #[cfg(all(unix, not(target_os = "macos")))]
-    return ksni_backend::spawn_ksni(spec);
-
-    #[cfg(any(windows, target_os = "macos"))]
-    return native::spawn_native(spec);
+    spawn_tray(spec)
 }
 
 /// Shared receiver side of the tray event channel. The iced subscription
 /// drains it; tests inject their own instance into the app state.
-pub type SharedTrayEventReceiver = Arc<Mutex<TrayEventReceiver>>;
+pub type SharedTrayEventReceiver = Arc<Mutex<Receiver<TrayEvent>>>;
 
 /// Drain every pending tray event without blocking.
 pub(crate) fn drain_tray_events(rx: &SharedTrayEventReceiver) -> Vec<TrayEvent> {
@@ -117,14 +101,20 @@ pub(crate) fn tray_events_subscription(
 
 impl AppState {
     /// Map a tray activation onto the intent-driven action set: window,
-    /// theme, routing intent, system proxy/TUN/autostart toggles,
-    /// per-group node switching, profile activation/auto-update, kernel
-    /// version management, core update, WebDAV sync and the destructive
-    /// confirmations. Optimistic state changes are applied here so the
-    /// tray/UI reflect the user's click immediately; the emitted follow-up
-    /// messages run the same handlers as the in-app controls.
+    /// theme, tray icon style, routing intent, system proxy/TUN/autostart
+    /// toggles, per-group node switching, profile activation/auto-update,
+    /// kernel version management, core update, WebDAV sync and the
+    /// destructive confirmations. Optimistic state changes are applied here
+    /// so the tray/UI reflect the user's click immediately; the emitted
+    /// follow-up messages run the same handlers as the in-app controls.
     pub fn handle_tray_event(&mut self, event: TrayEvent) -> Task<Message> {
-        let ctx = self.tray_event_context();
+        let profiles = self.tray_profile_entries();
+        let ctx = TrayEventContext {
+            system_proxy: self.runtime.system_proxy_stage.is_enabled(),
+            tun: self.runtime.tun_enabled.unwrap_or(false),
+            autostart: self.runtime.autostart_enabled,
+            profiles: &profiles,
+        };
         let Some(intent) = resolve_tray_event_in(&event, &ctx) else {
             return Task::none();
         };
@@ -132,6 +122,11 @@ impl AppState {
             TrayIntent::ShowWindow => Task::done(Message::ShowWindow),
             TrayIntent::Exit => Task::done(Message::Exit),
             TrayIntent::ToggleTheme => Task::done(Message::ToggleTheme),
+            TrayIntent::ToggleIconColorMode => {
+                self.shell.tray_icon_color_mode = self.shell.tray_icon_color_mode.toggle();
+                self.refresh_tray();
+                Task::done(Message::SaveAppSettings)
+            }
             TrayIntent::SetRoutingIntent(intent) => Task::done(Message::SetRoutingIntent(intent)),
             TrayIntent::SetSystemProxy(enabled) => {
                 // The toggle stage is typed: the pending stage it publishes
@@ -222,8 +217,7 @@ impl AppState {
     /// [`TRAY_RATE_REFRESH_INTERVAL_MS`] cadence and the text dedup keep an
     /// idle shell from pushing anything at all.
     pub fn refresh_tray_rates(&mut self) {
-        let Some(badge) = tray_status::TrayRateBadge::from_waveform(&self.runtime.traffic_waveform)
-        else {
+        let Some(badge) = TrayRateBadge::from_waveform(&self.runtime.traffic_waveform) else {
             return;
         };
         let text = badge.badge_text();
@@ -254,14 +248,22 @@ impl AppState {
             .runtime
             .as_ref()
             .map(|runtime| runtime.controller_url());
-        let ctx = TraySpecContext {
-            lang: &self.shell.lang,
-            routing_intent: self.runtime.routing_intent.as_ref(),
+        let ctx = TrayMenuContext {
+            lang: self.shell.lang.clone(),
+            routing_intent: self.runtime.routing_intent.clone(),
             system_proxy: self.runtime.system_proxy_stage.is_enabled(),
             tun: self.runtime.tun_enabled.unwrap_or(false),
-            groups: &groups,
-            profiles: &self.profile.profiles,
-            kernels: &self.runtime.installed_kernels,
+            groups,
+            profiles: self.tray_profile_entries(),
+            kernels: self
+                .runtime
+                .installed_kernels
+                .iter()
+                .map(|kernel| TrayKernelEntry {
+                    version: kernel.version.clone(),
+                    is_default: kernel.is_default,
+                })
+                .collect(),
             status: self.tray_core_status(),
             core_checking: self.runtime.core_update_check.is_checking(),
             core_downloading: self.runtime.core_download.is_downloading(),
@@ -272,22 +274,26 @@ impl AppState {
                 .operation_running(ProfilesOperation::SyncWebDav),
             sync_step,
             autostart: self.runtime.autostart_enabled,
-            controller: controller.as_deref(),
+            controller: controller.clone(),
             admin_enabled: self.shell.admin_enabled,
             admin_port: self.shell.admin_port,
-            rate_badge: tray_status::TrayRateBadge::from_waveform(&self.runtime.traffic_waveform),
+            rate_badge: TrayRateBadge::from_waveform(&self.runtime.traffic_waveform),
+            capabilities: TrayMenuCapabilities::full(),
         };
-        build_tray_spec(&ctx)
+        build_tray_spec(&ctx, self.shell.tray_icon_color_mode)
     }
 
-    /// App-side states the event resolver needs for its toggles.
-    fn tray_event_context(&self) -> spec::TrayEventContext<'_> {
-        spec::TrayEventContext {
-            system_proxy: self.runtime.system_proxy_stage.is_enabled(),
-            tun: self.runtime.tun_enabled.unwrap_or(false),
-            autostart: self.runtime.autostart_enabled,
-            profiles: &self.profile.profiles,
-        }
+    /// The tray profile vocabulary projected from the domain profile store.
+    fn tray_profile_entries(&self) -> Vec<TrayProfileEntry> {
+        self.profile
+            .profiles
+            .iter()
+            .map(|profile| TrayProfileEntry {
+                name: profile.name.clone(),
+                active: profile.active,
+                auto_update_enabled: profile.auto_update_enabled,
+            })
+            .collect()
     }
 
     fn tray_core_status(&self) -> TrayCoreStatus {
@@ -301,7 +307,7 @@ impl AppState {
 
     /// Typed outbound collections for the node-selection submenu. Only
     /// collections explicitly observed as selectable become tray actions.
-    fn tray_proxy_groups(&self) -> Vec<TrayProxyGroup> {
+    fn tray_proxy_groups(&self) -> Vec<TrayOutboundGroup> {
         let Some(snapshot) = self.runtime.outbound_inventory.data.as_ref() else {
             return Vec::new();
         };
@@ -316,7 +322,7 @@ impl AppState {
             .iter()
             .filter(|collection| collection.availability == SelectionAvailability::Selectable)
             .take(TRAY_MAX_GROUPS)
-            .map(|collection| TrayProxyGroup {
+            .map(|collection| TrayOutboundGroup {
                 name: collection.id.value().to_owned(),
                 current: match &collection.selection {
                     OutboundSelectionState::Ready { selected } => selected.value().to_owned(),
@@ -329,7 +335,7 @@ impl AppState {
                     .member_ids
                     .iter()
                     .filter(|member_id| entries.iter().any(|entry| &entry.id == *member_id))
-                    .map(|member_id| TrayProxyNode {
+                    .map(|member_id| TrayOutboundNode {
                         name: member_id.value().to_owned(),
                         delay_ms: None,
                     })
@@ -338,3 +344,7 @@ impl AppState {
             .collect()
     }
 }
+
+#[cfg(test)]
+#[path = "../tests/gui/tray_tests.rs"]
+mod tests;

@@ -111,6 +111,7 @@ pub(super) fn translate_zh_cn_legacy(key: &str) -> Cow<'static, str> {
         "tray_show_window" => "显示主界面".into(),
         "tray_quit" => "退出应用".into(),
         "tray_toggle_theme" => "切换深/浅色模式".into(),
+        "tray_toggle_color_mode" => "单色托盘图标".into(),
         "tray_proxies" => "节点切换".into(),
         "tray_no_proxies" => "暂无节点 (请先启动)".into(),
         "tray_profiles" => "配置".into(),

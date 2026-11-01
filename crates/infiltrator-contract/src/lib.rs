@@ -180,6 +180,7 @@ pub mod traffic_history;
 pub mod traffic_scale;
 pub mod traffic_topology;
 pub mod traffic_waveform;
+pub mod tray_menu;
 pub mod tray_status;
 pub mod tun;
 pub mod uwp;

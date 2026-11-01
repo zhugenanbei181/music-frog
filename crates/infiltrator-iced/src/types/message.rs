@@ -6,6 +6,7 @@ use super::app::{
 };
 use super::dns::AdvancedConfigsBundle;
 use super::runtime::{IpProbeResult, RuntimeStreamKind, RuntimeStreamState};
+use crate::admin_server::AdminHostCommand;
 use crate::state::core_operations::{CoreDownloadRunId, CoreUpdateCheckId};
 use crate::types::{
     app::SnapshotDiffMode,
@@ -17,7 +18,6 @@ use crate::types::{
     script::ScriptAction,
     snapshot_restore::RestoreAction,
 };
-use crate::{admin_server::AdminHostCommand, tray::spec::TrayEvent};
 use iced::Rectangle;
 use iced::widget::text_editor;
 use iced::window::{self, Screenshot};
@@ -30,6 +30,7 @@ use infiltrator_contract::logs::LogLevel;
 use infiltrator_contract::profile_mixin_studio::ProfileMixinToggleId;
 use infiltrator_contract::rule_provider_snapshot::RuleProviderControllerReference;
 use infiltrator_contract::theme::AppearanceMode;
+use infiltrator_contract::tray_status::TrayEvent;
 use infiltrator_contract::{
     aggregator, command_catalogue, command_output, core_control, dialer_chain, dns, dns_latency,
     dns_leak, doctor, ime, lan, mini_hud, network_roaming, overview_layout, pac, port_conflict,

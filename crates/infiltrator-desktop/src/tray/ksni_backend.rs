@@ -6,11 +6,11 @@
 //!
 //! When no session bus or no StatusNotifierWatcher exists (e.g. GNOME without
 //! the AppIndicator extension, headless sessions), [`spawn_ksni`] returns
-//! [`TrayStartup::Unavailable`] and the app degrades to window-only.
+//! [`TrayStartup::Unavailable`] and the host degrades to window-only.
 
-use super::spec::{
-    TrayActionId, TrayController, TrayEvent, TrayIconData, TrayMenuItem, TraySpec, TrayStartup,
-};
+use super::{TrayController, TrayStartup};
+use infiltrator_contract::tray_menu::{TrayActionId, TrayIconData, TrayMenuItem, TraySpec};
+use infiltrator_contract::tray_status::TrayEvent;
 use ksni::blocking::Handle;
 use ksni::menu::{CheckmarkItem, StandardItem, SubMenu};
 use ksni::{Icon, MenuItem, ToolTip};
@@ -23,18 +23,18 @@ const TRAY_TITLE: &str = "MusicFrog Infiltrator";
 
 /// The ksni tray service. `menu()` re-derives the ksni menu from the pushed
 /// spec on every read, so the app-side state stays the single source of truth.
-pub(super) struct KsniTray {
-    pub(super) spec: TraySpec,
+pub struct KsniTray {
+    pub spec: TraySpec,
     /// Checkmark overrides applied at click time (some shells toggle their
     /// own checkbox and the new spec only arrives one event-loop round
     /// later). Keyed by action id *and* payload, so per-item checkmarks that
     /// share one id (e.g. one auto-update toggle per profile) never crosstalk.
-    pub(super) checked_overrides: HashMap<CheckedOverrideKey, bool>,
-    pub(super) events: Sender<TrayEvent>,
+    pub checked_overrides: HashMap<CheckedOverrideKey, bool>,
+    pub events: Sender<TrayEvent>,
 }
 
 /// Composite checkmark-override key: (action id, payload echo).
-pub(super) type CheckedOverrideKey = (TrayActionId, Option<String>);
+pub type CheckedOverrideKey = (TrayActionId, Option<String>);
 
 impl KsniTray {
     fn send(&self, event: TrayEvent) {
@@ -80,7 +80,7 @@ impl ksni::Tray for KsniTray {
 
 /// Map the neutral menu tree onto ksni menu items. Pure apart from the
 /// cloned channel sender; unit-tested headlessly.
-pub(super) fn map_items(
+pub fn map_items(
     items: &[TrayMenuItem],
     overrides: &HashMap<CheckedOverrideKey, bool>,
     events: &Sender<TrayEvent>,
@@ -163,7 +163,7 @@ pub(super) fn map_items(
 
 /// RGBA8 to ksni ARGB32 network byte order (rotate each `[r, g, b, a]`
 /// pixel right by one byte to get `[a, r, g, b]`).
-pub(super) fn to_ksni_icon(icon: &TrayIconData) -> Icon {
+pub fn to_ksni_icon(icon: &TrayIconData) -> Icon {
     let mut data = icon.rgba.clone();
     for pixel in data.as_chunks_mut::<4>().0 {
         pixel.rotate_right(1);
@@ -176,9 +176,9 @@ pub(super) fn to_ksni_icon(icon: &TrayIconData) -> Icon {
 }
 
 /// The [`TrayController`] for Linux; every mutation routes through the ksni
-/// blocking handle to the service thread. Called from iced's main-thread
-/// update paths only, never from inside a tokio worker, so the handle's
-/// dedicated runtime never nests.
+/// blocking handle to the service thread. Called from the host main thread
+/// only, never from inside a tokio worker, so the handle's dedicated runtime
+/// never nests.
 struct KsniController {
     handle: Handle<KsniTray>,
 }
@@ -200,8 +200,8 @@ impl TrayController for KsniController {
 
 /// Spawn the ksni tray. Blocks briefly on D-Bus setup (fast-fail when no
 /// session bus or no StatusNotifierWatcher exists). Never panics; a typed
-/// [`TrayStartup::Unavailable`] lets the app continue window-only.
-pub(super) fn spawn_ksni(spec: TraySpec) -> TrayStartup {
+/// [`TrayStartup::Unavailable`] lets the host continue window-only.
+pub fn spawn_ksni(spec: TraySpec) -> TrayStartup {
     use ksni::blocking::TrayMethods;
 
     let (events, receiver) = channel();
@@ -220,3 +220,7 @@ pub(super) fn spawn_ksni(spec: TraySpec) -> TrayStartup {
         },
     }
 }
+
+#[cfg(test)]
+#[path = "ksni_tests.rs"]
+mod ksni_tests;

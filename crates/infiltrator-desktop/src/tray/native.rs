@@ -1,8 +1,8 @@
 //! Windows/macOS tray backend: the existing muda + tray-icon implementation,
-//! wrapped behind the neutral [`TrayController`]/[`TraySpec`] seam. Since 0.20
-//! the menu is fully generic: every [`update_spec`] push clears the root menu
-//! and re-renders the whole [`TrayMenuItem`] tree from the spec (same source
-//! of truth as the ksni backend), and the tooltip is refreshed too.
+//! wrapped behind the neutral [`TrayController`]/[`TraySpec`] seam. The menu
+//! is fully generic: every [`update_spec`] push clears the root menu and
+//! re-renders the whole [`TrayMenuItem`] tree from the spec (same source of
+//! truth as the ksni backend), and the tooltip is refreshed too.
 //!
 //! Compiled only for Windows/macOS; Linux uses the GTK-free ksni backend.
 //!
@@ -19,10 +19,11 @@
 //! [`TrayController::shutdown`] detaches it (generation-checked) and drops
 //! the [`TrayIcon`], whose `Drop` unregisters the OS icon on all platforms.
 
-use super::spec::{
-    TRAY_ACTION_NO_PROXIES, TrayActionId, TrayController, TrayEvent, TrayIconData, TrayMenuItem,
-    TraySpec, TrayStartup,
+use super::{TrayController, TrayStartup};
+use infiltrator_contract::tray_menu::{
+    TRAY_ACTION_NO_PROXIES, TrayActionId, TrayIconData, TrayMenuItem, TraySpec,
 };
+use infiltrator_contract::tray_status::TrayEvent;
 use muda::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -31,7 +32,7 @@ use std::sync::mpsc::{Sender, channel};
 use std::sync::{LazyLock, Mutex, MutexGuard, Once};
 use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
 
-pub(super) struct TrayManager {
+struct TrayManager {
     tray_icon: Option<TrayIcon>,
     menu: Menu,
 }
@@ -129,8 +130,8 @@ static CHECK_OVERRIDES: LazyLock<Mutex<HashMap<CheckedOverrideKey, bool>>> =
 
 thread_local! {
     /// Live [`CheckMenuItem`] clones keyed by muda wire id, recorded while
-    /// `apply_spec` renders on the main thread. The install-once muda
-    /// handler also fires on the main UI thread on every supported platform
+    /// `apply_spec` renders on the main thread. The install-once muda handler
+    /// also fires on the main UI thread on every supported platform
     /// (Windows message pump, macOS main queue), so the click-time
     /// `set_checked` below flips the visible checkmark immediately. On any
     /// backend that ever dispatches menu events off-thread the lookup simply
@@ -338,7 +339,7 @@ fn forward_event(event: TrayEvent) {
 
 /// muda menu click: flip the checkmark display first (contract §2.1, same
 /// semantics as the ksni `checked_overrides`), then forward the neutral
-/// event so the app applies the intent and pushes the authoritative spec.
+/// event so the host applies the intent and pushes the authoritative spec.
 fn handle_menu_event(event: muda::MenuEvent) {
     let muda_id = event.id.as_ref();
     let flipped = {
@@ -401,7 +402,7 @@ impl TrayController for NativeTrayController {
 /// Spawn the muda/tray-icon tray and forward its native event streams into
 /// the neutral channel. `builder.build()` failure (unsupported system,
 /// resource conflict) degrades to a typed [`TrayStartup::Unavailable`].
-pub(super) fn spawn_native(spec: TraySpec) -> TrayStartup {
+pub fn spawn_native(spec: TraySpec) -> TrayStartup {
     let (events, receiver) = channel();
     let manager = TrayManager::new(spec.icon.as_ref());
 
@@ -432,5 +433,5 @@ pub(super) fn spawn_native(spec: TraySpec) -> TrayStartup {
 }
 
 #[cfg(test)]
-#[path = "../../tests/gui/tray_native_tests.rs"]
-mod tray_native_tests;
+#[path = "native_tests.rs"]
+mod native_tests;

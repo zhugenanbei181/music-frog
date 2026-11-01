@@ -744,6 +744,7 @@ pub(super) fn settings_projection(
             offline_startup: snapshot.offline_startup.clone(),
             mtu: snapshot.mtu.clone(),
             mini_hud: value.mini_hud,
+            tray_icon_color_mode: value.tray_icon_color_mode,
         })
         .unwrap_or_else(|| {
             let mut projection = empty_settings();

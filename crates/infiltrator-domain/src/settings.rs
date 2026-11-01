@@ -117,6 +117,10 @@ pub struct AppSettings {
     /// Custom accent color hex code (e.g. "#016888").
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub custom_accent_color: Option<String>,
+    /// Tray icon style: `colored` (status-coloured disc) or `monochrome`
+    /// (macOS menu bar / dark taskbar template glyph).
+    #[serde(default = "default_tray_icon_color_mode")]
+    pub tray_icon_color_mode: String,
 }
 
 fn default_notifications_enabled() -> bool {
@@ -125,6 +129,10 @@ fn default_notifications_enabled() -> bool {
 
 fn default_close_to_tray() -> bool {
     true
+}
+
+fn default_tray_icon_color_mode() -> String {
+    "colored".to_string()
 }
 
 impl Default for AppSettings {
@@ -150,6 +158,7 @@ impl Default for AppSettings {
             mini_hud: MiniHudPlacement::default(),
             refresh_current_profile_on_start: false,
             custom_accent_color: None,
+            tray_icon_color_mode: default_tray_icon_color_mode(),
         }
     }
 }

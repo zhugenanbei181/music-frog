@@ -62,6 +62,7 @@ pub mod shell_waveform;
 pub mod shortcuts;
 pub mod surface;
 pub mod toast;
+pub mod tray_host;
 pub mod tray_status;
 
 use crate::command::UiCommandSink;
@@ -76,6 +77,7 @@ use bevy::render::RenderPlugin;
 use bevy::text::RemSize;
 use bevy::window::{ExitCondition, Window, WindowPlugin, WindowResolution};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
+use infiltrator_contract::tray_status::TRAY_RATE_REFRESH_INTERVAL_MS;
 use lurker_core_contract::error::Failure;
 use std::sync::Arc;
 use std::time::Duration;
@@ -147,12 +149,24 @@ pub fn run_with_host_surface_and_command_sink(
     insets: WindowInsetsInputReceiver,
     refresh_interval: Duration,
 ) {
+    run_with_host_surface_and_command_sink_and_tray(source, sink, insets, refresh_interval, None);
+}
+
+/// Product entry injecting a host-owned tray along with the surface source and sink.
+pub fn run_with_host_surface_and_command_sink_and_tray(
+    source: Arc<dyn surface::SurfaceSource>,
+    sink: Arc<dyn UiCommandSink>,
+    insets: WindowInsetsInputReceiver,
+    refresh_interval: Duration,
+    tray: Option<Box<dyn tray_host::TrayHost>>,
+) {
     run_with_command_sink_and_composition(
         sink,
         SurfaceComposition::Host {
             source,
             insets,
             refresh_interval,
+            tray,
         },
     );
 }
@@ -163,6 +177,7 @@ enum SurfaceComposition {
         source: Arc<dyn surface::SurfaceSource>,
         insets: WindowInsetsInputReceiver,
         refresh_interval: Duration,
+        tray: Option<Box<dyn tray_host::TrayHost>>,
     },
     #[cfg(feature = "capture-tools")]
     Demo,
@@ -288,10 +303,19 @@ fn run_with_command_sink_and_composition(
             source,
             insets,
             refresh_interval,
+            tray,
         } => {
             app.insert_resource(insets);
             app.add_plugins(route::PagesPlugin::new_surface_arc(source));
             app.add_plugins(surface::SurfaceSourceRefreshPlugin::new(refresh_interval));
+            if let Some(tray) = tray {
+                app.insert_resource(tray_status::TrayStatusReport {
+                    support: tray.support(),
+                    refresh_interval_ms: TRAY_RATE_REFRESH_INTERVAL_MS,
+                });
+                app.insert_non_send(tray_host::TrayHostResource(tray));
+                app.add_plugins(tray_host::TrayHostPlugin);
+            }
         }
         #[cfg(feature = "capture-tools")]
         SurfaceComposition::Demo => {
