@@ -144,5 +144,8 @@ pub(super) fn command_name(intent: &CommandIntent) -> &'static str {
         CommandIntent::SaveAggregationTemplate { .. } => "save_aggregation_template",
         CommandIntent::DeleteAggregationTemplate { .. } => "delete_aggregation_template",
         CommandIntent::ReAggregateProfile { .. } => "reaggregate_profile",
+        CommandIntent::UpdatePalettePreferenceDraft { .. } => "update_palette_preference_draft",
+        CommandIntent::SavePalettePreference { .. } => "save_palette_preference",
+        CommandIntent::CancelPalettePreferenceDraft => "cancel_palette_preference_draft",
     }
 }

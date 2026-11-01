@@ -1,5 +1,6 @@
 //! Desktop composition helpers for application storage ports.
 
+use crate::palette_preference_store::FilePalettePreferenceStore;
 use crate::port_conflict::DesktopPortConflict;
 use crate::speedtest_history_store::FileSpeedtestHistoryStore;
 use infiltrator_application::version_application::VersionApplication;
@@ -30,6 +31,7 @@ use infiltrator_ports::doctor::DoctorPort;
 use infiltrator_ports::endpoint::EndpointSource;
 use infiltrator_ports::engine_version_backend_factory::EngineVersionBackendFactory;
 use infiltrator_ports::fake_ip_cache::FakeIpCachePort;
+use infiltrator_ports::palette_preference::PalettePreferenceStorePort;
 use infiltrator_ports::port_conflict::PortConflictPort;
 use infiltrator_ports::profile_reset::ProfileResetPort;
 use infiltrator_ports::profile_store::ProfileStore;
@@ -208,6 +210,10 @@ pub fn fake_ip_cache() -> impl FakeIpCachePort {
 
 pub fn speedtest_history_store() -> anyhow::Result<impl SpeedtestHistoryStore> {
     FileSpeedtestHistoryStore::current()
+}
+
+pub fn palette_preference_store() -> anyhow::Result<impl PalettePreferenceStorePort> {
+    FilePalettePreferenceStore::current()
 }
 
 pub fn app_routing_store() -> anyhow::Result<impl AppRoutingStore> {

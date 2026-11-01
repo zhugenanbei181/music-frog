@@ -245,3 +245,39 @@ async fn the_typed_outputs_match_their_intents() {
             .is_err()
     );
 }
+
+#[tokio::test]
+async fn palette_preference_commands_mutate_and_validate_output() {
+    use crate::palette_preference_application::PalettePreferenceApplication;
+    use infiltrator_contract::palette_preference::{
+        PalettePreferenceMutationReceipt, PaletteStylePreference, SavePalettePreferenceCommand,
+        SeedColorSource, UpdatePalettePreferenceDraftCommand,
+    };
+
+    let palette_app = PalettePreferenceApplication::new(None);
+    let app = CommandApplication::new().with_palette_preference(palette_app);
+
+    let update = CommandIntent::UpdatePalettePreferenceDraft {
+        command: UpdatePalettePreferenceDraftCommand {
+            revision: 0,
+            seed: SeedColorSource::Custom { rgb: 0x33691E },
+            style: PaletteStylePreference::Vibrant,
+        },
+    };
+    let output = app.execute_output(update.clone()).await.expect("execute");
+    assert!(output.validate_for(&update).is_ok());
+    assert!(matches!(
+        output,
+        CommandOutput::PalettePreferenceMutated(PalettePreferenceMutationReceipt::Applied { .. })
+    ));
+
+    let save = CommandIntent::SavePalettePreference {
+        command: SavePalettePreferenceCommand { revision: 0 },
+    };
+    let save_output = app.execute_output(save.clone()).await.expect("save");
+    assert!(save_output.validate_for(&save).is_ok());
+
+    let cancel = CommandIntent::CancelPalettePreferenceDraft;
+    let cancel_output = app.execute_output(cancel.clone()).await.expect("cancel");
+    assert!(cancel_output.validate_for(&cancel).is_ok());
+}

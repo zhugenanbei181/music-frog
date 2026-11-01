@@ -79,7 +79,10 @@ impl CommandApplication {
             | CommandIntent::SelectOutbound { .. }
             | CommandIntent::ProbeOutbound { .. }
             | CommandIntent::ProbeOutboundBatch { .. }
-            | CommandIntent::ApplyOutboundUiPreference { .. } => Err(Failure::unsupported(
+            | CommandIntent::ApplyOutboundUiPreference { .. }
+            | CommandIntent::UpdatePalettePreferenceDraft { .. }
+            | CommandIntent::SavePalettePreference { .. }
+            | CommandIntent::CancelPalettePreferenceDraft => Err(Failure::unsupported(
                 "outbound commands require their typed output route",
             )),
             CommandIntent::SetRuntimeProbeSettings { settings } => {

@@ -8,6 +8,7 @@ use crate::core_capability_application::CoreCapabilityGateFailure;
 use crate::routing_intent_application::RoutingIntentApplication;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
+use infiltrator_contract::palette_preference::PalettePreferenceMutationReceipt;
 use infiltrator_contract::profile_document::DocumentInspection;
 use infiltrator_contract::profile_document::ProfileDocumentSaved;
 use infiltrator_contract::profile_mixin_studio::{
@@ -316,6 +317,30 @@ impl CommandApplication {
                 .resolve_sync_conflict(SyncConflictResolution::TakeRemote)
                 .await
                 .map(CommandOutput::SyncConflictResolved),
+            CommandIntent::UpdatePalettePreferenceDraft { command } => {
+                let app = self.palette_preference.as_ref().ok_or_else(|| {
+                    Failure::unsupported("palette preference application is not composed")
+                })?;
+                let receipt = app.update_draft(command);
+                Ok(CommandOutput::PalettePreferenceMutated(receipt))
+            }
+            CommandIntent::SavePalettePreference { command } => {
+                let app = self.palette_preference.as_ref().ok_or_else(|| {
+                    Failure::unsupported("palette preference application is not composed")
+                })?;
+                let receipt = app.save(command);
+                if matches!(receipt, PalettePreferenceMutationReceipt::Applied { .. }) {
+                    let _ = app.persist().await;
+                }
+                Ok(CommandOutput::PalettePreferenceMutated(receipt))
+            }
+            CommandIntent::CancelPalettePreferenceDraft => {
+                let app = self.palette_preference.as_ref().ok_or_else(|| {
+                    Failure::unsupported("palette preference application is not composed")
+                })?;
+                let receipt = app.cancel_draft();
+                Ok(CommandOutput::PalettePreferenceMutated(receipt))
+            }
             intent => self
                 .execute_dispatch(scope, intent)
                 .await

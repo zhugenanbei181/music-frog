@@ -924,20 +924,22 @@ timeout` 灵活入参，在未指定 timeout 时自动回读保持 `snapshot.pro
   - 待验证：统一全仓集成验证批次与真机动效像素巡检（外部设备腿）。
   - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
 
-## 12.60 自定义种子色与 Material 色彩风格选择 Core 切片交付（2026-10-31 交付，1条 / 5pt）
+## 12.60 自定义种子色与 Material 色彩风格选择全量切片闭环交付（2026-10-31 初始 Core 交付，2026-11-01 全量闭环，1条 / 5pt）
 
 - [ ] FLPARITY-036 [kind: visual] [priority: P1] [points: 5] [owner: infiltrator-contract + infiltrator-application + infiltrator-presentation + four UI surfaces] [status: Integrated] 自定义种子色与 Material 色彩风格选择 (FlClash v0.9.2 parity)
   - 产物：
-    - **Contract 类型化风格与种子**：`infiltrator-contract::palette_preference` 固化 `PaletteStylePreference` 八种 M3 动态色风格（TonalSpot/Vibrant/Expressive/Spritz/Content/Fidelity/FruitSalad/Rainbow），每种风格一张 typed `(hue_rotation, chroma)` 参数表（`StylePaletteParams`）作用于六族核心色板；`SeedColorSource`（FollowTheme/Custom 24-bit sRGB）带 24 位范围校验与 HCT 转换；`UpdatePalettePreferenceDraftCommand`/`SavePalettePreferenceCommand`/`PalettePreferenceMutationReceipt`（Applied/RevisionStale/InvalidSeed typed enum）与 `PalettePreferenceSnapshot`；`derive_core_palette` 从种子 + 风格推导六族核心色板，`TonalSpot` 与既有 `MaterialCorePalette::of_seed` 测试钉死相等；`SurfaceSnapshot` 新增 serde 默认的 `palette_preference` 字段；
+    - **Contract 类型化风格与种子**：`infiltrator-contract::palette_preference` 固化 `PaletteStylePreference` 八种 M3 动态色风格（TonalSpot/Vibrant/Expressive/Spritz/Content/Fidelity/FruitSalad/Rainbow），每种风格一张 typed `(hue_rotation, chroma)` 参数表（`StylePaletteParams`）作用于六族核心色板；`SeedColorSource`（FollowTheme/Custom 24-bit sRGB）带 24 位范围校验与 HCT 转换；`UpdatePalettePreferenceDraftCommand`/`SavePalettePreferenceCommand`/`PalettePreferenceMutationReceipt`（Applied/RevisionStale/InvalidSeed typed enum）与 `PalettePreferenceSnapshot`；`derive_core_palette` 从种子 + 风格推导六族核心色板，`TonalSpot` 与既有 `MaterialCorePalette::of_seed` 测试钉死相等；在 `CommandIntent` 扩充三项意图并在 `CommandOutput::PalettePreferenceMutated` 补齐回执匹配；`ThemePalette::from_seed_and_style` 与 `ResolvedThemePalette::resolve_with_style` 支持自选风格色板派生；
     - **Ports 唯一持久化端口**：`infiltrator-ports::palette_preference::PalettePreferenceStorePort` 导出 `load_preference`/`save_preference`；
-    - **Application 草稿-保存-读回流**：`infiltrator-application::palette_preference_application::PalettePreferenceApplication` 实现草稿更新（revision 围栏 + 无效种子拒绝）、取消草稿（saved 不动）、保存（revision 递增 + 时间戳）、`persist()` 落盘与 `reload()` 重启读回（无 store 时显式 0）；
-    - **Presentation 单源 scheme 推导**：`infiltrator-presentation::palette_preference_projection` 提供 `project_palette_preference`（种子中文标签 + 八风格选项选中态）与 `project_palette_scheme`（Custom 种子 → light/dark `MaterialColorScheme`；FollowTheme 返回 `None` 交还既有主题 owner，不在 UI 推导种子）；
-    - **Composition 接入**：`ProductSurfaceReader` 新增 `with_palette_preference` 并把快照发布到 `SurfaceSnapshot::palette_preference`；
-    - **门禁全绿**：定向 nextest contract 7/7 + application 8/8 + presentation 4/4 + composition 62/62 + 五包 palette 合计 1564/1564 全绿；workspace `cargo check --all-targets` 全绿；Clippy `-D warnings` 六包零警告；fmt/import/line/typed-state/implicit-state/i18n/mod-rs/doc-governance/closure-questions/test-layout 守卫全绿。
-  - 验收：seed 修改、取消、保存、重启读回、无效输入均有 fake/nextest（全绿）；四表面使用相同 scheme 的剩余部分依赖 `FLPARITY-014` 共享主题接线与各表面设置入口，作为后续切片。
-  - 当前证据（L）：`infiltrator-contract`/`infiltrator-ports`/`infiltrator-application`/`infiltrator-presentation`/`infiltrator-composition`/`infiltrator-bevy-ui` 定向 nextest 1564/1564 passed；Clippy `--all-targets -D warnings` 六包 passed；typed-state-guard 0 findings；implicit-state-audit 0 open 0 undecided；import/line budget 0 违规；cargo fmt 0 偏差。
-  - 待验证：统一全仓集成验证批次、四表面设置入口与 scheme 消费接线（依赖 FLPARITY-014）。
-  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份；表面接线在共享主题 owner 落地后推进。
+    - **Application 命令派发、草稿事务与异步落盘**：`PalettePreferenceApplication` 挂载至 `CommandApplication`，打通三项命令的派发、草稿修改、保存后触发异步落盘并返回 `PalettePreferenceMutated` 权威回执；
+    - **Presentation 权威读回投影**：`project_theme_readback_with_palette` 将自选动态调色板单点注入权威 `ResolvedThemePalette`；
+    - **Composition 调色板快照发布**：`ProductSurfaceReader::theme_readback` 接入权威 `palette_preference` 快照，使 `SurfaceSnapshot.theme_readback` 自动携带自选色板并驱动四端重绘消费；
+    - **Desktop 本地持久化存储与装配**：新建 `FilePalettePreferenceStore` 落地用户主目录 JSON 文件存储，并在 desktop runtime 初始化与装配；
+    - **落实 rem 体系（严禁裸 px）**：修复 Slint `cards.slint` 遗留的裸 `48px` 为 `48 * LumenUiScale.unit`，`bevy_rem_guard` violations=0 debt=0；
+    - **门禁全绿**：定向 nextest 1780/1780 全绿（含 `FilePalettePreferenceStore` 3 项测试与 `command_application` 测试）；workspace `cargo clippy --workspace --all-targets -- -D warnings` 零警告；`check-structure.sh` 40+ 结构守卫全部通过；`cargo fmt --check` 0 偏差。
+  - 验收：seed 修改、取消、保存、重启读回、无效输入均有 nextest 覆盖；四表面经权威 `snapshot.theme_readback` 单点消费，无私有算法推导。
+  - 当前证据（L）：`infiltrator-contract`/`infiltrator-ports`/`infiltrator-application`/`infiltrator-presentation`/`infiltrator-composition`/`infiltrator-desktop` 定向 nextest 1780/1780 passed；Clippy `--workspace --all-targets -D warnings` passed；typed-state-guard 0 findings；implicit-state-audit 0 open 0 undecided；line budget 0 违规；cargo fmt 0 偏差；check-structure.sh 40+ 项门禁全部通过。
+  - 待验证：统一全仓集成验证批次与四表面实机像素巡检。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
 
 ## 12.53 实时请求历史页交付（2026-10-30 交付，1条 / 5pt）
 

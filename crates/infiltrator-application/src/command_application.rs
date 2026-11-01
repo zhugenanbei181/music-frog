@@ -26,6 +26,7 @@ use crate::outbound_application::OutboundApplication;
 use crate::outbound_application::preferences::OutboundUiPreferencesApplication;
 use crate::overview_layout_application::OverviewLayoutApplication;
 use crate::pac_application::PacApplication;
+use crate::palette_preference_application::PalettePreferenceApplication;
 use crate::port_conflict_application::PortConflictApplication;
 use crate::privileged_network_application::PrivilegedNetworkApplication;
 use crate::profile_application::ProfileApplication;
@@ -147,6 +148,7 @@ pub struct CommandApplication {
     rule_provider: Option<RuleProviderApplication>,
     rule_provider_runtime: Option<RuleProviderRuntimeApplication>,
     geo_database: Option<GeoDatabaseApplication>,
+    palette_preference: Option<PalettePreferenceApplication>,
 }
 
 impl CommandApplication {

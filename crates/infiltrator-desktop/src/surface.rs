@@ -28,6 +28,7 @@ use infiltrator_application::offline_startup_application::OfflineStartupApplicat
 use infiltrator_application::outbound_application::OutboundApplication;
 use infiltrator_application::overview_layout_application::OverviewLayoutApplication;
 use infiltrator_application::pac_application::PacApplication;
+use infiltrator_application::palette_preference_application::PalettePreferenceApplication;
 use infiltrator_application::port_conflict_application::PortConflictApplication;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::resource_application::ResourceApplication;
@@ -125,6 +126,7 @@ pub struct SurfaceEngines {
     /// DUAL-14-09 (re-scoped): the shared STUN UDP-egress prober whose last
     /// report the DNS privacy area publishes.
     pub stun_probe: StunProbeApplication,
+    pub palette_preference: PalettePreferenceApplication,
 }
 
 /// Inputs for assembling the desktop application's runtime-neutral surface.
@@ -219,6 +221,7 @@ pub async fn product_surface_reader(
         .with_dns_latency(engines.dns_latency)
         .with_dns_leak(engines.dns_leak)
         .with_stun_probe(engines.stun_probe)
+        .with_palette_preference(engines.palette_preference)
         .with_scripts(engines.scripts, engines.script_exports)
         .with_rule_provider_cache(rule_provider_cache)
         .with_overview_layout(OverviewLayoutApplication::new())

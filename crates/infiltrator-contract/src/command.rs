@@ -8,6 +8,9 @@ use crate::lan::LanCredentials;
 use crate::language::LanguagePreference;
 use crate::log_export::LogExportIdentity;
 use crate::overview_layout::{OverviewCardKind, OverviewCardMoveDirection};
+use crate::palette_preference::{
+    SavePalettePreferenceCommand, UpdatePalettePreferenceDraftCommand,
+};
 use crate::profile_configuration::ProfileConfigurationRequest;
 use crate::protocol_fidelity::ProtocolDraft;
 use crate::protocol_trust::TlsTrustParams;
@@ -544,6 +547,13 @@ pub enum CommandIntent {
         key: String,
         value: String,
     },
+    UpdatePalettePreferenceDraft {
+        command: UpdatePalettePreferenceDraftCommand,
+    },
+    SavePalettePreference {
+        command: SavePalettePreferenceCommand,
+    },
+    CancelPalettePreferenceDraft,
     CheckUpdates,
 }
 
@@ -713,6 +723,9 @@ impl CommandIntent {
             Self::RollbackCore
             | Self::SetLanguage { .. }
             | Self::UpdateSetting { .. }
+            | Self::UpdatePalettePreferenceDraft { .. }
+            | Self::SavePalettePreference { .. }
+            | Self::CancelPalettePreferenceDraft
             | Self::CheckUpdates => CommandKind::Update,
         }
     }

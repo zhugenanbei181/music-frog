@@ -74,13 +74,14 @@
 
 | 看板 | task | points |
 | --- | ---: | ---: |
-| 现在佛 | 12 | 54 |
+| 现在佛 | 11 | 49 |
 | 过去佛 | 99 | 309 |
 | 斗战胜佛 | 17 | 51 |
 | 未来佛 | 15 | 26 |
-| **未办结联合分母** | **143** | **440** |
+| **未办结联合分母** | **142** | **435** |
 
-- **严格交付率：878 / 1318 = 66.6%**（archived 878pt / archived 878 + 未办结 440pt）。
+- **严格交付率：878 / 1313 = 66.9%**（archived 878pt / archived 878 + 未办结 435pt）。
+- 2026-11-01 第九十六交付批次：`FLPARITY-036`（5 pt）自定义种子色与 Material 色彩风格选择全量闭环交付：在 contract 层扩展 `CommandIntent` 三项意图（草稿更新/保存/取消）与 `CommandOutput::PalettePreferenceMutated` 回执匹配与校验，`ThemePalette::from_seed_and_style` 与 `ResolvedThemePalette::resolve_with_style` 动态派生 M3 风格调色板；application 层挂载 `PalettePreferenceApplication` 并打通命令派发、草稿事务与异步持久化；presentation 层 `project_theme_readback_with_palette` 将自选动态色注入读回；composition 层 `surface_reader` 接入调色板快照发布并驱动四端重绘渲染；桌面端新增 `FilePalettePreferenceStore` 实现标准路径 JSON 持久化存储与 `MihomoRuntime` 装配；彻底落实 rem 唯一尺寸体系，修复 Slint `cards.slint` 裸 48px 为 `48 * LumenUiScale.unit`；定向 nextest 1780/1780 全绿，`check-structure.sh` 40+ 结构守卫全绿，全仓 cargo fmt/clippy 零警告。`FLPARITY-036` 从现在佛销账并在过去佛 §12.60 更新为全量 Integrated；现在佛 54 → 49 pt（12 → 11 条），过去佛 309 pt（99 条）保持，联合未办结分母 440 → 435 pt（143 → 142 条），严格归档率 66.6% → 66.9%（878/1313）。
 - 2026-11-01 第九十五交付批次：`FLPARITY-017`（5 pt）跨端微动效与页面过渡系统 Compose 切片闭环交付：在 `android/app/src/main/java/com/musicfrog/infiltrator/ui/App.kt` 接入 Material 3 `AnimatedContent` 路由转场动效（`fadeIn(200ms) + scaleIn(0.96f)` 组合 `fadeOut(150ms)`），并保留 `SaveableStateProvider` 状态隔离；修复 `OwnerSurfaceSnapshotReader.kt` when 穷尽性分支与 ktlint 换行；在 Compose AndroidManifest.xml 补齐 Leanback TV 所需的 `android.hardware.touchscreen` 与 banner 属性，通过 Android Lint Gate；本地 JVM 单测 404/404 全绿，ktlintCheck/detekt 0 违规，androidLintGate 0 error 0 warning，结构门与全量守卫通过。`FLPARITY-017` 从现在佛销账；现在佛 59 → 54 pt（13 → 12 条），过去佛 309 pt（99 条）保持，联合未办结分母 445 → 440 pt（144 → 143 条），严格归档率 66.4% → 66.6%（878/1318）。
 - 2026-11-01 第九十四交付批次：残余升级与质量问题彻底收敛，`FLPARITY-014`（5 pt）全量切片（Core、发布、写通、四端消费、桌面宿主动态色适配器与桌面 192 张四主题截图）交付迁入过去佛 §12.45（`Integrated`）：修复 `infiltrator-slint/src/demo.rs` 多余引用借用（clippy::needless_borrow）；修复 `infiltrator-bevy-ui/src/capture.rs` 参数超限，收敛为派生 `SystemParam` 的 `CaptureSectionControls` 彻底遵循 `BEVY-ECS-009` 架构红线；清理 `profiles_business.rs`、`rule_list.rs`、`panel.rs`、`lib.rs` 等残余警告；落实 rem 体系（`bevy_rem_guard` violations=0, debt=0；Slint `LumenUiScale.unit` 统一）；全量结构门 40+ 项守卫全绿（`check-structure.sh` exit 0）；定向 nextest 553/553 全绿，clippy `-D warnings`（含 `--all-features`）全绿，fmt 0 偏差。现在佛 64 → 59 pt（14 → 13 条），过去佛 304 → 309 pt（98 → 99 条），联合分母 445 pt（144 条）保持不变，严格归档率 66.4% 保持不变。
 - 2026-11-01 第八十三交付批次：`PARITY-001.5`（5 pt）桌面剩余业务的真实捕获与像素回执办结：定位并修复 Bevy compact 规则草稿编辑器卡片与行 union 超过 480 视口导致无限等待 reveal 的几何裁切根因（`both_fit` 谓词 + 卡片主体优先滚动 + 行 unclipped 容差）；修复 Slint compact 视口三业务面板（`proxies-node-detail-drawer`、`speedtest-history-comparison`、`sync-restore-confirm`）在折叠线下的 0 像素差假阴性（为 3 场景提供精准 compact 滚动锚点 `(0, 300)` / `(0, 380)` 使面板真实居中渲染）；修复 `resolve_surface_evidence.py` 对未承载页面的 UI（`shell-keyboard-focus/slint`）强求 L1/L2/L3 闭合的契约判定漏洞；更正 `sync-restore-confirm/iced` 场景锚点并诚实对接 `snapshot_restore_tests`；彻底落实 Slint 组件层 rem 体系（`LumenUiScale.unit` 彻底替换裸 px）；聚焦验收 28/28 单元格（14/14 业务-表面对）100% 认证通过；全量 358 份进程绑定回执全部通过严格逐份验签入库 `.evidence/visual_receipts.json`；全量结构门、rem 守卫、截图身份守卫（550 张 0 违规）、typed-state/implicit-state 守卫全绿；解析器 `status: pass`、`invalid: 0`、`aligned: 179`。现在佛 69 → 64 pt（15 → 14 条），联合分母 569 → 564 pt（188 → 187 条），archived 754 → 759 pt（302 → 303 条），严格归档率 57.0% → 57.4%。

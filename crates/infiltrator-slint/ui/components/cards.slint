@@ -198,8 +198,8 @@ export component HomeRoundActionButton inherits Rectangle {
     in property <image> icon;
     in property <string> accessible-name;
     callback clicked();
-    width: max(48 * LumenUiScale.unit, 48px);
-    height: max(48 * LumenUiScale.unit, 48px);
+    width: 48 * LumenUiScale.unit;
+    height: 48 * LumenUiScale.unit;
     background: transparent;
     action := TouchArea {
         width: parent.width;

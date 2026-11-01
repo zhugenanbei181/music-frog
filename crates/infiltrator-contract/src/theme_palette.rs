@@ -4,14 +4,13 @@
 //! component palette functions remain implementation details of this owner;
 //! renderers must not combine them into a second color source.
 
-use crate::color_science::{
-    HctColor, MaterialColorScheme, MaterialCorePalette, wcag_contrast_ratio,
-};
+use crate::color_science::{HctColor, MaterialColorScheme, wcag_contrast_ratio};
 use crate::design_tokens::palette::{SurfaceStep, surface_ladder};
 use crate::design_tokens::{
     MobileThemeTokens, RgbaToken, SkinCorePalette, SkinInteractionPalette, mobile_theme_tokens,
     skin_core, skin_interaction,
 };
+use crate::palette_preference::{PaletteStylePreference, derive_core_palette};
 use crate::surface_hierarchy::{MaterialSurfaceTokens, SemanticContainerPair};
 use crate::theme::{AppearanceMode, SystemAppearance, ThemePreference, ThemeSkin};
 use serde::{Deserialize, Serialize};
@@ -67,6 +66,13 @@ impl DynamicColorSeed {
         Ok(Self(RgbaToken::rgb(r, g, b)))
     }
 
+    pub fn from_u32_srgb(rgb: u32) -> Self {
+        let r = ((rgb >> 16) & 0xFF) as f32 / 255.0;
+        let g = ((rgb >> 8) & 0xFF) as f32 / 255.0;
+        let b = (rgb & 0xFF) as f32 / 255.0;
+        Self(RgbaToken::rgb(r, g, b))
+    }
+
     pub const fn color(self) -> RgbaToken {
         self.0
     }
@@ -99,9 +105,13 @@ impl ThemePalette {
         }
     }
 
-    /// Derive a Monet-style palette for a seed and an explicit light/dark mode.
-    pub fn from_seed(seed: DynamicColorSeed, appearance: AppearanceMode) -> Self {
-        let core_palette = MaterialCorePalette::of_seed(seed.hct());
+    /// Derive a Monet-style palette for a seed, style, and an explicit light/dark mode.
+    pub fn from_seed_and_style(
+        seed: DynamicColorSeed,
+        style: PaletteStylePreference,
+        appearance: AppearanceMode,
+    ) -> Self {
+        let core_palette = derive_core_palette(seed.hct(), style);
         let scheme = match appearance {
             AppearanceMode::Light => MaterialColorScheme::light_from_core(&core_palette),
             AppearanceMode::Dark => {
@@ -170,6 +180,11 @@ impl ThemePalette {
         }
     }
 
+    /// Assemble the full runtime palette for a seed and an explicit light/dark mode.
+    pub fn from_seed(seed: DynamicColorSeed, appearance: AppearanceMode) -> Self {
+        Self::from_seed_and_style(seed, PaletteStylePreference::TonalSpot, appearance)
+    }
+
     pub fn meets_text_contrast(&self) -> bool {
         wcag_contrast_ratio(self.surfaces.text_primary, self.surfaces.container_card) >= 4.5
             && wcag_contrast_ratio(self.surfaces.text_secondary, self.surfaces.container_card)
@@ -203,15 +218,16 @@ pub struct ResolvedThemePalette {
 }
 
 impl ResolvedThemePalette {
-    pub fn resolve(
+    pub fn resolve_with_style(
         preference: ThemePreference,
         system_appearance: SystemAppearance,
         system_dynamic_color: SystemDynamicColor,
+        style: PaletteStylePreference,
     ) -> Self {
         let skin = preference.resolve(system_appearance);
         let palette = match (preference, system_dynamic_color) {
             (ThemePreference::System, SystemDynamicColor::Seed(seed)) => {
-                ThemePalette::from_seed(seed, system_appearance.mode())
+                ThemePalette::from_seed_and_style(seed, style, system_appearance.mode())
             }
             _ => ThemePalette::of_skin(skin),
         };
@@ -222,6 +238,19 @@ impl ResolvedThemePalette {
             skin,
             palette,
         }
+    }
+
+    pub fn resolve(
+        preference: ThemePreference,
+        system_appearance: SystemAppearance,
+        system_dynamic_color: SystemDynamicColor,
+    ) -> Self {
+        Self::resolve_with_style(
+            preference,
+            system_appearance,
+            system_dynamic_color,
+            PaletteStylePreference::TonalSpot,
+        )
     }
 }
 

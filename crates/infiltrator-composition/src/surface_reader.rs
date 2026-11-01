@@ -96,7 +96,7 @@ use infiltrator_presentation::log_projection::project_log_facts;
 use infiltrator_presentation::routing_intent_projection;
 use infiltrator_presentation::runtime_probe_settings::project_settings;
 use infiltrator_presentation::shell_readout_fold::ShellReadoutProjection;
-use infiltrator_presentation::theme_readback_projection::project_theme_readback;
+use infiltrator_presentation::theme_readback_projection::project_theme_readback_with_palette;
 use lurker_core_contract::error::{ErrorCode, Failure, FailureReason};
 use lurker_core_contract::identity::{CoreGeneration, CoreIdentity, CoreScope};
 use lurker_core_contract::outbound::inventory::{
@@ -838,6 +838,11 @@ impl ProductSurfaceReader {
             .as_ref()
             .map(|port| port.observe())
             .unwrap_or_default();
-        project_theme_readback(preference, observation)
+        let palette = self
+            .palette_preference
+            .as_ref()
+            .map(PalettePreferenceApplication::snapshot)
+            .unwrap_or_default();
+        project_theme_readback_with_palette(preference, observation, palette)
     }
 }

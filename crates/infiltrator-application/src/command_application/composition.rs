@@ -14,6 +14,7 @@ use super::{
     SubscriptionImportPort, SubscriptionNotificationPort, SubscriptionSource, SyncApplication,
     SystemProxyApplication, UwpLoopbackApplication, VersionApplication, VpnServiceApplication,
 };
+use crate::palette_preference_application::PalettePreferenceApplication;
 use infiltrator_ports::runtime_configuration::RuntimeConfigurationPorts;
 use std::sync::Arc;
 
@@ -24,6 +25,11 @@ impl CommandApplication {
 
     pub fn with_profile(mut self, application: ProfileApplication) -> Self {
         self.profile = Some(application);
+        self
+    }
+
+    pub fn with_palette_preference(mut self, application: PalettePreferenceApplication) -> Self {
+        self.palette_preference = Some(application);
         self
     }
 

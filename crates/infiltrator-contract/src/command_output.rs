@@ -2,6 +2,7 @@
 use crate::command::CommandIntent;
 use crate::log_export::{LogExportReceipt, LogExportSummary};
 use crate::overview_layout::{OverviewCardKind, OverviewLayoutSnapshot};
+use crate::palette_preference::PalettePreferenceMutationReceipt;
 use crate::profile_document::{
     ProfileDocumentSaved, ProfileDocumentSnapshot, ProfileWorkspaceReceipt,
 };
@@ -68,6 +69,8 @@ pub enum CommandOutput {
     OverviewLayoutApplied(OverviewLayoutSnapshot),
     /// The sync owner answered with the conflict resolution it applied.
     SyncConflictResolved(SyncConflictResolutionReceipt),
+    /// The user-owned palette preference mutation receipt.
+    PalettePreferenceMutated(PalettePreferenceMutationReceipt),
 }
 
 impl CommandOutput {
@@ -258,6 +261,12 @@ impl CommandOutput {
                 receipt.resolution == SyncConflictResolution::TakeRemote
             }
             (
+                CommandIntent::UpdatePalettePreferenceDraft { .. }
+                | CommandIntent::SavePalettePreference { .. }
+                | CommandIntent::CancelPalettePreferenceDraft,
+                Self::PalettePreferenceMutated(_),
+            ) => true,
+            (
                 CommandIntent::PrepareSnapshotRestore { .. }
                 | CommandIntent::ConfirmSnapshotRestore { .. }
                 | CommandIntent::CancelSnapshotRestore { .. }
@@ -290,7 +299,10 @@ impl CommandOutput {
                 | CommandIntent::MoveOverviewCard { .. }
                 | CommandIntent::ResetOverviewCardOrder
                 | CommandIntent::ResolveConflictKeepLocal
-                | CommandIntent::ResolveConflictTakeRemote,
+                | CommandIntent::ResolveConflictTakeRemote
+                | CommandIntent::UpdatePalettePreferenceDraft { .. }
+                | CommandIntent::SavePalettePreference { .. }
+                | CommandIntent::CancelPalettePreferenceDraft,
                 _,
             ) => false,
             (_, Self::Unit) => true,

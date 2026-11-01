@@ -19,6 +19,7 @@ pub mod network_roaming;
 pub mod notify;
 pub mod offline_startup;
 pub mod pac_service;
+pub mod palette_preference_store;
 pub mod port_conflict;
 pub mod process_enumerator;
 pub mod product;

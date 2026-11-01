@@ -7,7 +7,9 @@ use crate::script_export::DesktopScriptExportPort;
 use crate::service::ServiceManager;
 use crate::service_mode::DesktopServiceMode;
 use crate::storage::doctor;
-use crate::storage::{settings_store, speedtest_history_store, subscription_source};
+use crate::storage::{
+    palette_preference_store, settings_store, speedtest_history_store, subscription_source,
+};
 use crate::surface::{SurfaceEngines, SurfacePumpParams, surface_pump};
 use crate::system_dns_cache::DesktopSystemDnsCache;
 use crate::system_proxy::DesktopSystemProxy;
@@ -19,6 +21,7 @@ use infiltrator_application::dns_latency_application::DnsLatencyApplication;
 use infiltrator_application::dns_leak_application::{DnsLeakApplication, default_echo_sources};
 use infiltrator_application::dns_query_application::DnsQueryApplication;
 use infiltrator_application::doctor_application::DoctorApplication;
+use infiltrator_application::palette_preference_application::PalettePreferenceApplication;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::rule_list_application::RuleListApplication;
 use infiltrator_application::rule_tracer_application::RuleTracerApplication;
@@ -49,6 +52,7 @@ use infiltrator_ports::core_binary_selection::CoreBinarySelection;
 use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
 use infiltrator_ports::endpoint::EndpointSource;
 use infiltrator_ports::engine_backend::ProductEngineBackendPorts;
+use infiltrator_ports::palette_preference::PalettePreferenceStorePort;
 use infiltrator_ports::profile_configuration_transaction::ProfileConfigurationTransactionPort;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::runtime_http_proxy_endpoint::RuntimeHttpProxyEndpoint;
@@ -130,6 +134,7 @@ pub(crate) struct MihomoRuntime {
     /// injects the real UDP adapter; the observed mapping is this host's own
     /// egress as seen by a STUN server, never a browser WebRTC result.
     stun_probe: StunProbeApplication,
+    palette_preference: PalettePreferenceApplication,
 }
 
 struct PreparedMihomoRuntime {
@@ -152,6 +157,7 @@ struct PreparedMihomoRuntime {
     snapshots: SnapshotApplication,
     scripts: ScriptApplication,
     script_exports: ScriptExportApplication,
+    palette_preference: PalettePreferenceApplication,
 }
 
 impl MihomoRuntime {
@@ -290,6 +296,7 @@ impl MihomoRuntime {
             snapshots,
             scripts,
             script_exports,
+            palette_preference,
         } = prepared;
         let application = Arc::new(
             core_application(CoreApplicationInputs {
@@ -315,6 +322,7 @@ impl MihomoRuntime {
                     dns_latency: dns_latency.clone(),
                     dns_leak: dns_leak.clone(),
                     stun_probe: stun_probe.clone(),
+                    palette_preference: palette_preference.clone(),
                 },
                 speedtest: speedtest.clone(),
                 profile_store: cm.shared_engine_profile_store(),
@@ -387,6 +395,7 @@ impl MihomoRuntime {
             dns_leak,
             stun_probe,
             network_roaming_port,
+            palette_preference,
         })
     }
 
@@ -462,6 +471,7 @@ impl MihomoRuntime {
             dns_latency: self.dns_latency.clone(),
             dns_leak: self.dns_leak.clone(),
             stun_probe: self.stun_probe.clone(),
+            palette_preference: self.palette_preference.clone(),
         }
     }
 
@@ -516,6 +526,10 @@ async fn prepare_mihomo_runtime(
     let script_exports = ScriptExportApplication::new(Some(Arc::new(
         DesktopScriptExportPort::new(cm.config_dir()),
     )));
+    let palette_store = Arc::new(palette_preference_store()?);
+    let initial_pref = palette_store.load_preference().await.unwrap_or_default();
+    let palette_preference =
+        PalettePreferenceApplication::with_initial_preference(Some(palette_store), initial_pref);
     Ok(PreparedMihomoRuntime {
         backend_ports,
         client,
@@ -536,6 +550,7 @@ async fn prepare_mihomo_runtime(
         snapshots,
         scripts,
         script_exports,
+        palette_preference,
     })
 }
 

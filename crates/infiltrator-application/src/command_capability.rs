@@ -169,6 +169,9 @@ pub fn terminal_scope_policy(intent: &CommandIntent) -> CoreTerminalScopePolicy 
         | CommandIntent::ResolveCertificateAuthority { .. }
         | CommandIntent::SetLanguage { .. }
         | CommandIntent::UpdateSetting { .. }
+        | CommandIntent::UpdatePalettePreferenceDraft { .. }
+        | CommandIntent::SavePalettePreference { .. }
+        | CommandIntent::CancelPalettePreferenceDraft
         | CommandIntent::CheckUpdates => Stable,
     }
 }
@@ -477,7 +480,10 @@ pub fn classify_command(intent: &CommandIntent) -> CommandCapabilityRoute {
         | CommandIntent::PruneSnapshots { .. }
         | CommandIntent::PrepareCustomNodeDraft { .. }
         | CommandIntent::ImportCustomNodeUri { .. }
-        | CommandIntent::UpdateCustomNodeDraftField { .. } => LocalOnly,
+        | CommandIntent::UpdateCustomNodeDraftField { .. }
+        | CommandIntent::UpdatePalettePreferenceDraft { .. }
+        | CommandIntent::SavePalettePreference { .. }
+        | CommandIntent::CancelPalettePreferenceDraft => LocalOnly,
     }
 }
 

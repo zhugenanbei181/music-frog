@@ -23,18 +23,29 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-01 第九十五批次）
+## 当前状态（2026-11-01 第九十六批次）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
 | 1 | 部分 | L | 中性内核 x64/arm64 × Windows/Linux/Android/macOS **八个组合**全部通过；本机交叉复跑入口 `scripts/cross-check.sh`（zig 0.14.1 + `cargo-zigbuild`、`cargo-xwin`）与 `scripts/android-check.sh`（NDK 29.0.14206865）保持全绿；本批修掉了交叉腿实测报出的一个真实缺陷（`infiltrator-slint` 的 `clippy::missing-const-for-thread-local`，已改为 `const { Cell::new(false) }` 初始化），该腿由 `scripts/blocked/foreign-target-evidence.sh` 复跑验证；最终安装包与目标设备证据仍缺，由 CI runner 与设备矩阵取证（GAP-1.1） |
 | 2 | 部分 | C（旧 commit）+ L | Windows/Linux v0.42.6 四条腿 success（旧源码）；macOS `Unsupported`（无 CI/无产物，GAP-2.2）；安装包未验证（GAP-2.1）；Windows 安装包与 macOS/iOS 目标机腿已整条迁入斗战胜佛并写明阻塞方，Linux 打包腿在现在佛 `APPID-001.3`；**本批：release 作业的签名前置改为 fail closed**——缺 secret 时在昂贵的三 flavor release 构建之前就明确失败，桌面产物不再由 debug key 背书 |
 | 3 | 部分 | L | Android 源码级接通，Bevy host driver lockfile 已同步 0.50.0 解决 buildRustDriver 101 错误；**本批：Android 静态质量门成为真门**（Lint 68→0、ktlint 5046→0、Detekt 项目配置 0 条、架构红线守卫 ARCH001–007 扫描 137 点 0 违例并带 23 条负例，已接入结构门）；Android 单测 192 core host + 391 app 全绿；**release 变体改用用户持久 keystore 签名**，无 secret 时 Gradle 配置期即以缺失清单失败，debug key 不再用于任何 release 产物；APK 真实产物与真机仍缺，APK/真机腿在斗战胜佛；iOS `Unsupported`（626 行 stub，GAP-3.2）；模拟器 M1 腿可推（`PARITY-001.4`、过去佛 `BANDROID-002.1`/`002.2`） |
-| 4 | 部分 | L | Iced/Bevy/Slint 深入接入，四表面使用 `SurfaceReader` + `CommandSink`；Forest 可以且已经作为 118 个桌面业务 capture 与 Android debug capture 的默认取证 skin，但不是产品运行时默认主题，不改变用户设置。**本批（2026-11-01 第九十四批次）：Bevy UI capture.rs 8 个参数成功收敛为派生 `SystemParam` 的 `CaptureSectionControls`，彻底根除 ECS 系统参数超限技术债务，严格遵循 `BEVY-ECS-009` 红线；修复 Slint demo.rs 多余引用借用；全仓 clippy（包含 --all-features）实现 0 warnings。**桌面三端（Iced/Bevy/Slint）16 页 × 4 主题共 192 张主题截图在当前构建下全部完成实跑重采与入库对齐，四端主题消费腿与桌面宿主动态色适配器已闭环；Android 36 张真实交互主题截图仍为外部设备/受控 CI 腿（PARITY-001.6 后半部分）。 |
-| 5 | 部分 | L | 共享 ports/kernel/kits 已复用；Slint 无 kit；PUB-001.3 part 3 租约切换下沉；GAP-5.1/5.1.1、GAP-5.2、GAP-5.2.1 已完成；0.44 UI 管道与 0.5x 四大 UI 脚手架模板全部办结归档；presentation 纯净化与开源合规审计全绿；六个 owner 明确收敛（release 签名决策、圆角阶梯、中性 API 基线、页面状态推导、契约层页面事实、命令由真实 owner 回答带令牌与 stale 拒绝）；三端删除各自的私有推导，共享层事实唯一；**`FLPARITY-014`（5 pt）全量切片交付迁入过去佛 §12.45** |
-| 6 | 部分 | L | **对标 FlClash v0.9.2 共 47 IDs / 180 pt：过去佛 35 项 / 126 pt（新增 `FLPARITY-014` 5 pt 待集中验证），现在佛 11 项 / 49 pt。** `PARITY-001.6` 桌面切片 192/192 张四主题实图验收闭环入库（Iced 64 + Bevy 64 + Slint 64）；修复两处截图阻断缺陷；Android 36 张实机截图仍待外部设备腿。官方 release feature/fix/performance 已逐项映射；Forest 仅是 capture skin，不是运行时默认主题。 |
+| 4 | 部分 | L | Iced/Bevy/Slint 深入接入，四表面使用 `SurfaceReader` + `CommandSink`；Forest 可以且已经作为 118 个桌面业务 capture 与 Android debug capture 的默认取证 skin，但不是产品运行时默认主题，不改变用户设置。**本批（2026-11-01 第九十六批次）：`FLPARITY-036` 自定义种子色与 Material 色彩风格选择全量闭环交付，Contract/Application/Presentation/Composition/Desktop 存储完整贯通，三项意图与 `PalettePreferenceMutated` 读回闭环，自选动态调色板经权威 `SurfaceSnapshot.theme_readback` 自动驱动四端消费；彻底落实 rem 体系，修复 Slint cards.slint 遗留裸 48px 为 `48 * LumenUiScale.unit`，`bevy_rem_guard` 0 违规 0 debt。**桌面三端 192 张主题实图在库，Android 36 张实机截图仍待外部设备腿。 |
+| 5 | 部分 | L | 共享 ports/kernel/kits 已复用；Slint 无 kit；PUB-001.3 part 3 租约切换下沉；GAP-5.1/5.1.1、GAP-5.2、GAP-5.2.1 已完成；presentation 纯净化与开源合规审计全绿；六个 owner 明确收敛；调色板计算与风格派生收敛于 `theme_palette` 与 `derive_core_palette`，意图分发与落盘收敛于 `PalettePreferenceApplication` 与 `FilePalettePreferenceStore`，读回投影收敛于 `project_theme_readback_with_palette`，各 UI 无私有派生；**`FLPARITY-036`（5 pt）全量切片闭环交付迁入过去佛 §12.60** |
+| 6 | 部分 | L | **对标 FlClash v0.9.2 共 47 IDs / 180 pt：过去佛 36 项 / 131 pt（含 `FLPARITY-036` 5 pt 待集中验证），现在佛 11 项 / 49 pt。** `PARITY-001.6` 桌面切片 192/192 张四主题实图验收闭环入库（Iced 64 + Bevy 64 + Slint 64）；修复两处截图阻断缺陷；Android 36 张实机截图仍待外部设备腿。官方 release feature/fix/performance 已逐项映射；Forest 仅是 capture skin，不是运行时默认主题。 |
 | 7 | 部分 | L | 文件级模块化完成（<=800/600 行全绿，全仓 mod.rs 清退至 0，严格遵照 foo.rs + foo/ 模式，并在 check-structure.sh 接入 mod-rs-guard 永久禁止）；**严格落实 rem 体系，Bevy 0 违规（bevy_rem_guard --mode enforce 0 违规，debt 归零），Slint 统一 LumenUiScale.unit**；隐式状态机语义审计 + 判决台账常驻（22 条候选逐条人工判决，未判决或 open 即门禁失败）；九个页面模型与两个共用基座成为页面状态的唯一 owner；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | 已补 `--locked` 与 main 守卫门禁（仅 fmt+guards，不编译）；修复 main-gate.yml 缺失 setup-python/Pillow 问题；扩大 Gradle JVM 堆至 6GB 并将三大 flavor 分离独立进程构建彻底解决 OOM；交付 Android CI 套件 flavor/模拟器裁剪与 Gradle 缓存复用；release 作业在构建前校验签名材料缺 secret 秒级失败；全套单测与结构门（`check-structure.sh` 40+ 项守卫，含截图身份唯一守卫 enforce：550 张、aliases=10、0 违规）全绿；`cargo fmt --all --check` 100% 通过；版本号按身份改动一次升至 0.51.0 |
+
+## 最近一批问答（2026-11-01 第九十六交付批次：FLPARITY-036 自定义种子色与色彩风格全量闭环交付与 rem 体系落实）
+
+1. x86_64/aarch64：中性 pure-Rust 领域、契约、存储与应用逻辑，不涉及平台专有汇编；定向 nextest 1780/1780 全绿，无目标架构依赖缺陷 → 部分（L）。
+2. Windows/Linux/macOS：桌面端配置持久化由统一 `FilePalettePreferenceStore` 支持（标准配置目录存储 JSON），全平台通用；安装包与真机仍待统一验证与外部环境腿 → 部分（L）。
+3. Android/iOS：Android 端经 `SurfaceSnapshot.theme_readback` 直接读取调色板并映射 MaterialTheme 颜色，iOS 保持 Unsupported → 部分（L）。
+4. 各 UI：Iced、Bevy、Slint、Android 四端均消费权威 `snapshot.theme_readback`，用户自选种子色与 M3 风格单点注入调色板后自动驱动四端重绘渲染；修复 Slint cards.slint 裸 48px，落实 rem 唯一标尺 → 部分（L）。
+5. 复用：M3 风格派生与六族核心色板生成唯一由 Contract 层 `derive_core_palette` 与 `ThemePalette::from_seed_and_style` 负责，UI 层零重复算法；读回唯一由 `theme_readback_projection` 生成；意图调度与持久化由 `PalettePreferenceApplication` 单点负责 → 部分（L）。
+6. 功能接入：`FLPARITY-036`（5 pt）自定义种子色与 Material 色彩风格选择全量闭环交付，从现在佛销账并在过去佛 §12.60 更新为全量 Integrated；现在佛 12 → 11 条 / 54 → 49 pt；全仓未办结 143 → 142 条 / 440 → 435 pt → 部分（L）。
+7. 模块化：严格遵守 ≤800 行文件预算（`dispatch.rs` 791 行，`composition.rs` 782 行，`surface_reader.rs` 782 行，`line-guard.py` 2876 文件 0 违规）；`import-guard.py` 0 违规；`bevy_rem_guard` 0 违例 0 debt；`typed-state-guard` 0 findings；`implicit-state-audit` 0 open 0 undecided → 部分（L）。
+8. CI：统一执行 `check-structure.sh` 40+ 项门禁全部 PASS；`cargo fmt --check` 0 偏差；`cargo clippy --workspace --all-targets -- -D warnings` 0 警告；定向 nextest 1780/1780 全绿；同批提交并推送 `main` → 部分（L）。
 
 ## 最近一批问答（2026-11-01 第九十五交付批次：FLPARITY-017 Android Compose 路由微动效与转场动效闭环交付）
 

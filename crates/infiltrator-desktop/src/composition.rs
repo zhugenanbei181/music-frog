@@ -654,6 +654,7 @@ pub fn desktop_command_application(
         dns_latency,
         dns_leak,
         stun_probe,
+        palette_preference,
     } = engines;
     let profiles = profiles.with_document_codec(backend_ports.configuration());
     let configuration = ConfigurationApplication::from_profile_application(profiles.clone());
@@ -721,6 +722,7 @@ pub fn desktop_command_application(
         .with_host_capabilities(Arc::new(DesktopHostCapabilities))
         .with_scripts(scripts, script_exports)
         .with_doctor(doctor)
+        .with_palette_preference(palette_preference)
         .with_runtime_configuration_ports(runtime_configuration_ports)
         .with_application_runtime(runtime)
         .with_profile(profiles)
