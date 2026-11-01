@@ -16,6 +16,10 @@
 
 #[cfg(not(target_os = "android"))]
 use crate::a11y::semantic_node;
+#[cfg(not(target_os = "android"))]
+use crate::command_palette::ToggleCommandPalette;
+#[cfg(not(target_os = "android"))]
+use crate::shell_readout::ShellReadoutText;
 use bevy::app::{App, Plugin};
 #[cfg(not(target_os = "android"))]
 use bevy::app::{AppExit, Startup};
@@ -32,7 +36,7 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 #[cfg(not(target_os = "android"))]
-use bevy::ecs::system::{Query, Res, ResMut};
+use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::feathers::theme::ThemeBackgroundColor;
 #[cfg(not(target_os = "android"))]
 use bevy::feathers::theme::ThemeTextColor;
@@ -45,7 +49,7 @@ use bevy::ui::prelude::Node;
 #[cfg(not(target_os = "android"))]
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderColor, BorderRadius, FlexDirection, JustifyContent, UiRect,
-    Val, percent, px,
+    Val, percent,
 };
 #[cfg(not(target_os = "android"))]
 use bevy::ui::widget::Text;
@@ -101,6 +105,14 @@ pub struct ChromeMaximizeButton;
 /// Marker on the close control.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ChromeCloseButton;
+
+/// Marker on the live traffic capsule in the title bar.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ChromeTrafficCapsule;
+
+/// Marker on the search / command palette trigger button in the title bar.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ChromeSearchButton;
 
 /// The shared chrome shape this surface runs.
 pub const fn chrome_shape() -> WindowChrome {
@@ -169,7 +181,8 @@ impl Plugin for WindowChromePlugin {
                     .add_observer(on_drag_bar_clicked)
                     .add_observer(on_minimize_activated)
                     .add_observer(on_maximize_activated)
-                    .add_observer(on_close_activated);
+                    .add_observer(on_close_activated)
+                    .add_observer(on_search_button_activated);
             }
         }
     }
@@ -267,6 +280,17 @@ fn on_close_activated(
     }
 }
 
+#[cfg(not(target_os = "android"))]
+fn on_search_button_activated(
+    activate: On<Activate>,
+    buttons: Query<(), With<ChromeSearchButton>>,
+    mut commands: Commands,
+) {
+    if buttons.contains(activate.entity) {
+        commands.trigger(ToggleCommandPalette);
+    }
+}
+
 /// The chrome bar mounted above the shell: a draggable title strip plus the
 /// three window controls.
 pub fn chrome_bar_scene(palette: &UiPalette) -> impl Scene + use<> {
@@ -284,7 +308,7 @@ pub fn chrome_bar_scene(palette: &UiPalette) -> impl Scene + use<> {
         bsn! {
             Node {
                 width: percent(100),
-                height: px(CHROME_DRAG_STRIP_HEIGHT_PX as f32),
+                height: rem(CHROME_DRAG_STRIP_HEIGHT_PX as f32),
                 flex_shrink: 0.0,
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
@@ -306,6 +330,10 @@ pub fn chrome_bar_scene(palette: &UiPalette) -> impl Scene + use<> {
                 ThemeTextColor({ Token::InkDim })
                 --
                 Node { flex_grow: 1.0 }
+                --
+                @{ chrome_traffic_capsule_scene(palette) }
+                --
+                @{ chrome_search_trigger_scene(palette) }
                 --
                 @{ chrome_controls_scene(palette) }
             ]
@@ -371,5 +399,57 @@ fn chrome_control_button_scene(icon: IconId, palette: &UiPalette) -> impl Scene 
             Children [
                 @{ icon_scene_val(icon, rem(CHROME_CONTROL_ICON_PX), palette.ink_dim) }
             ]
+    }
+}
+
+#[cfg(not(target_os = "android"))]
+fn chrome_traffic_capsule_scene(palette: &UiPalette) -> impl Scene + use<> {
+    let edge = palette.border;
+    bsn! {
+        Node {
+            flex_direction: FlexDirection::Row,
+            align_items: AlignItems::Center,
+            column_gap: rem(space::S4),
+            padding: UiRect::axes(rem(space::S8), rem(space::S2)),
+            border: UiRect::all(Val::Px(palette.hairline_px)),
+            border_radius: BorderRadius::all(rem(palette.control_radius_px)),
+        }
+        BackgroundColor({ palette.surface_elevated })
+        BorderColor { top: edge, right: edge, bottom: edge, left: edge }
+        ChromeTrafficCapsule
+        semantic_node(ShellA11yNode::TrafficReadout)
+        Children [
+            Text({ "↑ 0 B/s  ↓ 0 B/s".to_owned() })
+            TextRole(Role::Caption)
+            ThemeTextColor({ Token::InkDim })
+            ShellReadoutText::TrafficCapsule
+        ]
+    }
+}
+
+#[cfg(not(target_os = "android"))]
+fn chrome_search_trigger_scene(palette: &UiPalette) -> impl Scene + use<> {
+    let edge = palette.border;
+    bsn! {
+        Node {
+            flex_direction: FlexDirection::Row,
+            align_items: AlignItems::Center,
+            column_gap: rem(space::S4),
+            padding: UiRect::axes(rem(space::S8), rem(space::S2)),
+            border: UiRect::all(Val::Px(palette.hairline_px)),
+            border_radius: BorderRadius::all(rem(palette.control_radius_px)),
+        }
+        BackgroundColor({ Color::NONE })
+        BorderColor { top: edge, right: edge, bottom: edge, left: edge }
+        Button
+        ButtonVariantStyle(ButtonVariant::Ghost)
+        ControlVisual(false)
+        ChromeSearchButton
+        semantic_node(ShellA11yNode::CommandPaletteDialog)
+        Children [
+            Text({ "Ctrl+K".to_owned() })
+            TextRole(Role::Caption)
+            ThemeTextColor({ Token::InkDim })
+        ]
     }
 }

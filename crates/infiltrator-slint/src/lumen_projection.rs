@@ -55,6 +55,8 @@ pub(super) fn project_initial(window: &AppWindow, language: &str, autostart: Opt
     window.set_license_rows(slint_model(collections::license_rows("", language)));
     window.set_stat_total_down("—".into());
     window.set_stat_total_up("—".into());
+    window.set_title_bar_upload("0 B/s".into());
+    window.set_title_bar_download("0 B/s".into());
 }
 
 pub(super) fn snapshot_language(snapshot: &SurfaceSnapshot) -> String {
@@ -130,6 +132,8 @@ pub(super) fn project_snapshot(
     };
     let traffic =
         project_traffic_readout(&snapshot.shell_readout, &snapshot.traffic_waveform, &lang);
+    window.set_title_bar_upload(traffic.upload.clone().into());
+    window.set_title_bar_download(traffic.download.clone().into());
 
     window.set_runtime_status(widget_vocabulary::runtime_status(
         snapshot.core.lifecycle.clone(),

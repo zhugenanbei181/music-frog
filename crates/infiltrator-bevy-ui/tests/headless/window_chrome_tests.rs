@@ -18,7 +18,8 @@ use bevy::window::{PrimaryWindow, Window, WindowRef};
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::chrome::{
     ChromeCloseButton, ChromeDragBar, ChromeMaximizeButton, ChromeMaximizeLatch,
-    ChromeMinimizeButton, WindowChromePlugin, WindowChromeReport, chrome_shape, support,
+    ChromeMinimizeButton, ChromeSearchButton, ChromeTrafficCapsule, WindowChromePlugin,
+    WindowChromeReport, chrome_shape, support,
 };
 use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
 use std::time;
@@ -215,6 +216,12 @@ fn the_mounted_shell_carries_the_chrome_bar_and_its_controls() {
         .iter(world)
         .count();
     assert_eq!(buttons, 3, "minimize/maximize/close are all mounted");
+    let world = app.world_mut();
+    let traffic = world.query::<&ChromeTrafficCapsule>().iter(world).count();
+    assert_eq!(traffic, 1, "traffic capsule is mounted");
+    let world = app.world_mut();
+    let search = world.query::<&ChromeSearchButton>().iter(world).count();
+    assert_eq!(search, 1, "search button is mounted");
 }
 
 #[test]

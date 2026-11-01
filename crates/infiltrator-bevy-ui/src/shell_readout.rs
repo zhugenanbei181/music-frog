@@ -35,6 +35,7 @@ pub enum ShellReadoutText {
     ProfilePercent,
     Upload,
     Download,
+    TrafficCapsule,
     RateStatus,
 }
 #[derive(Component, Clone, Default)]
@@ -103,6 +104,11 @@ pub fn sync_text(
             ShellReadoutText::ProfileKind => profile_kind(readout, &Lang(lang)),
             ShellReadoutText::Upload => rate_copy(&readout.upload_bps, &Lang(lang)),
             ShellReadoutText::Download => rate_copy(&readout.download_bps, &Lang(lang)),
+            ShellReadoutText::TrafficCapsule => {
+                let up = rate_copy(&readout.upload_bps, &Lang(lang));
+                let down = rate_copy(&readout.download_bps, &Lang(lang));
+                format!("↑ {}  ↓ {}", up, down)
+            }
             ShellReadoutText::RateStatus => rate_status(readout, &Lang(lang)),
         };
         if text.0 != value {

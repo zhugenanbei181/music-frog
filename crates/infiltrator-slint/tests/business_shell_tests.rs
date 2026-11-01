@@ -19,6 +19,19 @@ use infiltrator_slint::surface::harness::SurfaceHarness;
 const PAGE: &str = "ShellWorkbench";
 
 #[test]
+fn the_title_bar_search_opens_the_shell_workbench_palette_page() {
+    let surface = SurfaceHarness::new(None).expect("headless surface");
+
+    surface.title_bar_search();
+
+    assert_eq!(
+        surface.window().get_page().as_str(),
+        PAGE,
+        "the title-bar search must open the page that hosts the shared command palette"
+    );
+}
+
+#[test]
 fn the_shell_command_palette_success_path() {
     let surface = business_surface(PAGE);
     assert_accepted(&surface, BusinessId::ShellCommandPalette);

@@ -25,6 +25,16 @@ pub(super) fn register(window: &AppWindow, latest: Arc<Mutex<Option<SurfaceSnaps
                 window.set_snapshot_window_warning(warning.into());
             });
     });
+    let weak_for_search = weak.clone();
+    window.on_title_bar_search_clicked(move || {
+        if let Some(window) = weak_for_search.upgrade() {
+            // The shell workbench page hosts the shared command palette, so
+            // the title-bar search opens that page instead of guessing a
+            // destination in the markup.
+            window.set_page("ShellWorkbench".into());
+            window.invoke_navigate("ShellWorkbench".into());
+        }
+    });
     let weak_for_scheme = weak.clone();
     window.on_color_scheme_changed(move |dark| {
         let _ = weak_for_scheme

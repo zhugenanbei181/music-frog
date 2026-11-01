@@ -23,18 +23,29 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-01 第一百零一批次）
+## 当前状态（2026-11-01 第一百零二批次）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
 | 1 | 部分 | L | 中性内核 x64/arm64 × Windows/Linux/Android/macOS **八个组合**全部通过；本机交叉复跑入口 `scripts/cross-check.sh`（zig 0.14.1 + `cargo-zigbuild`、`cargo-xwin`）与 `scripts/android-check.sh`（NDK 29.0.14206865）保持全绿；本批修掉了交叉腿实测报出的一个真实缺陷（`infiltrator-slint` 的 `clippy::missing-const-for-thread-local`，已改为 `const { Cell::new(false) }` 初始化），该腿由 `scripts/blocked/foreign-target-evidence.sh` 复跑验证；最终安装包与目标设备证据仍缺，由 CI runner 与设备矩阵取证（GAP-1.1） |
 | 2 | 部分 | C（旧 commit）+ L | Windows/Linux v0.42.6 四条腿 success（旧源码）；macOS `Unsupported`（无 CI/无产物，GAP-2.2）；安装包未验证（GAP-2.1）；Windows 安装包与 macOS/iOS 目标机腿已整条迁入斗战胜佛并写明阻塞方，Linux 打包腿在现在佛 `APPID-001.3`；**本批：release 作业的签名前置改为 fail closed**——缺 secret 时在昂贵的三 flavor release 构建之前就明确失败，桌面产物不再由 debug key 背书 |
 | 3 | 部分 | L | Android 源码级接通，Bevy host driver lockfile 已同步 0.50.0 解决 buildRustDriver 101 错误；**本批：Android 静态质量门成为真门**（Lint 68→0、ktlint 5046→0、Detekt 项目配置 0 条、架构红线守卫 ARCH001–007 扫描 137 点 0 违例并带 23 条负例，已接入结构门）；Android 单测 192 core host + 391 app 全绿；**release 变体改用用户持久 keystore 签名**，无 secret 时 Gradle 配置期即以缺失清单失败，debug key 不再用于任何 release 产物；APK 真实产物与真机仍缺，APK/真机腿在斗战胜佛；iOS `Unsupported`（626 行 stub，GAP-3.2）；模拟器 M1 腿可推（`PARITY-001.4`、过去佛 `BANDROID-002.1`/`002.2`） |
-| 4 | 部分 | L | Iced/Bevy/Slint/Compose 全量接入，四表面使用 `SurfaceReader` + `CommandSink`。**本批（2026-11-01 第一百零一批次）：`FLPARITY-006`（5 pt）桌面托盘宿主与彩色状态图标交付（中立托盘菜单树、capabilities 动态裁切、动态 32x32 RGBA 状态图标与 macOS 单色模式、Linux ksni/SNI 与 Windows/macOS native muda 统一桌面宿主、Bevy 与 Slint 宿主接入托盘推拉刷新与意图分发、Iced 表面收敛）。严格落实 rem 尺寸标尺（bevy_rem_guard 0 违规 0 debt，Slint 统一 * LumenUiScale.unit 0 裸 px）。现在佛 31 → 26 pt（7 → 6 条），过去佛 48 → 53 pt（18 → 19 条），联合分母 161 pt（58 条）保持，严格归档率 87.7%（1,152/1,313 pt）保持。** |
+| 4 | 部分 | L | Iced/Bevy/Slint/Compose 全量接入，四表面使用 `SurfaceReader` + `CommandSink`。**本批（2026-11-01 第一百零二批次）：`FLPARITY-018`（5 pt）自定义无框窗口标题栏（CSD）、实时流量胶囊与多端统一系统窗管交付（契约层 `TitleBarTrafficCapsule`/`DesktopTitleBarSpec`/`TitleBarInsets::for_platform`/`SnapLayoutSupport`、presentation 标题栏投影、Windows Snap Layout 按构建号判定与 `WM_NCHITTEST` `HTMAXBUTTON` 几何、Iced/Bevy/Slint 三端标题栏实时流量胶囊与搜索触发、Slint 搜索回调收敛到宿主侧命令面板页并附 harness 行为测试）。严格落实 rem 尺寸标尺（bevy_rem_guard 0 违规 0 debt，Slint 统一 * LumenUiScale.unit 0 裸 px）。现在佛 26 → 21 pt（6 → 5 条），过去佛 53 → 58 pt（19 → 20 条），联合分母 161 pt（58 条）保持，严格归档率 87.7%（1,152/1,313 pt）保持。** |
 | 5 | 部分 | L | 共享 ports/kernel/kits 已复用；统一验证批次集中跑通全量 5,748 nextest 与 40+ 项结构门，一次性批量解锁并归档办结 84 条 Integrated 条目，消除重复构建开销；代码零重复旁路，事实单一真源 |
-| 6 | 部分 | L | **对标 FlClash v0.9.2 与跨端平价：`FLPARITY-006`（5 pt）桌面托盘宿主与彩色状态图标交付，从现在佛迁入过去佛 §12.64（Integrated）；现在佛余 6 项 / 26 pt（全量 FlClash 对标），过去佛 19 项 / 53 pt。** 平价覆盖矩阵 360/360 单元格保持 100% anchored（0 pending，0 missing）。三桌面 192 张四主题实图在库；Android 36 张实机截图仍待外部设备腿。 |
+| 6 | 部分 | L | **对标 FlClash v0.9.2 与跨端平价：`FLPARITY-018`（5 pt）自定义无框窗口标题栏（CSD）、实时流量胶囊与多端统一系统窗管交付，从现在佛迁入过去佛 §12.65（Integrated）；现在佛余 5 项 / 21 pt（全量 FlClash 对标），过去佛 20 项 / 58 pt。** 平价覆盖矩阵 360/360 单元格保持 100% anchored（0 pending，0 missing）。三桌面 192 张四主题实图在库；Android 36 张实机截图仍待外部设备腿。 |
 | 7 | 部分 | L | 文件级模块化完成（<=800/600 行全绿，全仓 mod.rs 清退至 0，严格遵照 foo.rs + foo/ 模式，并在 check-structure.sh 接入 mod-rs-guard 永久禁止）；**严格落实 rem 体系，Bevy 0 违规（bevy_rem_guard --mode enforce 0 违规，debt 归零），Slint 统一 LumenUiScale.unit**；隐式状态机语义审计 + 判决台账常驻（22 条候选逐条人工判决，未判决或 open 即门禁失败）；九个页面模型与两个共用基座成为页面状态的唯一 owner；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | 已补 `--locked` 与 main 守卫门禁（仅 fmt+guards，不编译）；修复 main-gate.yml 缺失 setup-python/Pillow 问题；扩大 Gradle JVM 堆至 6GB 并将三大 flavor 分离独立进程构建彻底解决 OOM；交付 Android CI 套件 flavor/模拟器裁剪与 Gradle 缓存复用；release 作业在构建前校验签名材料缺 secret 秒级失败；全套单测与结构门（`check-structure.sh` 40+ 项守卫，含截图身份唯一守卫 enforce：550 张、aliases=10、0 违规）全绿；`cargo fmt --all --check` 100% 通过；版本号按身份改动一次升至 0.51.0 |
+
+## 最近一批问答（2026-11-01 第一百零二交付批次：FLPARITY-018 自定义无框窗口标题栏（CSD）、实时流量胶囊与多端统一系统窗管交付与 rem 体系严格落实）
+
+1. x86_64/aarch64：中性 pure-Rust 契约（`TitleBarTrafficCapsule`、`TitleBarControlsPlacement`、`DesktopPlatformKind`、`TitleBarInsets`、`SnapLayoutSupport`、`DesktopTitleBarSpec`）与 presentation 标题栏投影均为平台无关纯 Rust；受影响六包定向 nextest 2,230/2,230 全绿（首轮仅 `editor_viewport` 50k 性能预算条在并行重载下抖动，`--no-fail-fast` 复跑确认归属为负载噪声），无目标架构专有缺陷 → 部分（L）。
+2. Windows/Linux/macOS：Windows Snap Layout API 按 HKLM CurrentBuildNumber ≥ 22000 判定支持并给出显式 `Unsupported { reason }`，最大化按钮 `WM_NCHITTEST` `HTMAXBUTTON` 几何（右起 46/46/46 三键）由 `SnapLayoutButtonGeometry::STANDARD_WIN11` 唯一持有并带命中测试单测；macOS 控件左置 insets、Windows/Linux 右置 insets 由 `TitleBarInsets::for_platform` 裁决；非 Windows 平台诚实回 `non-windows-platform`；安装包与目标真机仍待外部环境腿 → 部分（L）。
+3. Android/iOS：标题栏 CSD 仅挂载在桌面表面（`!android-platform`），Android 不受影响且不新增托盘类能力；iOS 保持 Unsupported → 部分（L）。
+4. 各 UI：Iced 标题栏新增实时流量胶囊与搜索按钮（token 全走 `theme::tokens`/`R_CONTROL`/`HAIRLINE`）；Bevy 新增 `ChromeTrafficCapsule`/`ChromeSearchButton`、`ShellReadoutText::TrafficCapsule` 与拖拽条 `rem()` 化，搜索经 `ToggleCommandPalette` 打开命令面板；Slint `DesktopTitleBar` 承载胶囊与搜索触发（全尺寸 `* LumenUiScale.unit`），并修复了在制缺陷——搜索原在 .slint 标记里私带「跳转 Proxy 页」的 UI 侧业务推导，现收敛为纯透传回调，由宿主导航到承载共享命令面板的 `ShellWorkbench` 页并附 harness 行为测试；彻底落实 rem 唯一标尺 → 部分（L）。
+5. 复用：遵循底层先决与单一真源铁律：标题栏形状、流量胶囊格式化、平台 insets 与 Snap Layout 能力唯一在 contract/window_chrome.rs 定义，格式化文本与统一 spec 投影唯一在 presentation/title_bar_projection.rs 定义，平台检测与命中几何唯一在 desktop/window_chrome 定义，三端 UI 仅消费投影与派发 typed 意图，零第二套胶囊文案与私有跳转逻辑；FLPARITY-018（5 pt）全量闭环交付迁入过去佛 §12.65 → 部分（L）。
+6. 功能接入：FLPARITY-018（5 pt）自定义无框窗口标题栏（CSD）、实时流量胶囊与多端统一系统窗管交付，从现在佛销账并在过去佛 §12.65 登记为 Integrated；现在佛 6 → 5 条 / 26 → 21 pt；过去佛 19 → 20 条 / 53 → 58 pt；全仓未办结 58 条 / 161 pt 保持不变，严格归档率 87.7%（1,152/1,313 pt）保持不变 → 部分（L）。
+7. 模块化：全仓文件行预算严格守卫（所有 Rust 文件 ≤800 行，Slint ≤600 行，Kotlin ≤800 行）；无隐式布尔状态机（typed-state-guard 0 findings）；bevy_rem_guard 0 违规 0 debt；Slint 尺寸统一 * LumenUiScale.unit 0 裸 px；slint-syntax-guard 100% PASS → 部分（L）。
+8. CI：受影响六包（contract/presentation/desktop/iced/bevy-ui/slint）定向 nextest 2,230/2,230 全绿；六包 clippy `--all-targets -- -D warnings` 0 警告；`cargo fmt --all --check` 0 偏差；bevy_rem_guard、slint-syntax-guard、typed-state-guard 全绿；同批提交并推送 main → 部分（L）。
 
 ## 最近一批问答（2026-11-01 第一百零一交付批次：FLPARITY-006 桌面托盘宿主与彩色状态图标交付与 rem 体系严格落实）
 

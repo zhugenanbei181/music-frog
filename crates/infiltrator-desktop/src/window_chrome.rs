@@ -30,12 +30,9 @@ use infiltrator_contract::window_chrome::{
 };
 use std::env;
 
-#[cfg(target_os = "macos")]
-mod macos;
-#[cfg(target_os = "linux")]
-mod wayland;
-#[cfg(target_os = "windows")]
-mod windows;
+pub mod macos;
+pub mod wayland;
+pub mod windows;
 
 /// 无边框一体化时，窗口自绘标题栏预留的高度（逻辑像素）。
 ///

@@ -13,10 +13,13 @@ use crate::types::message::Message;
 use crate::view::components::icon_button;
 use crate::view::svg_icons::Icon;
 use crate::view::theme;
+use iced::border;
 use iced::widget::{Space, column, container, mouse_area, row, text};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_contract::a11y::ShellA11yNode;
 use infiltrator_contract::window_chrome::WindowChrome;
+use infiltrator_presentation::shell_readout::rate_copy;
+use infiltrator_shared::locales::Lang;
 
 /// The mounted strip's height in logical pixels; the contract owns the number.
 pub(crate) fn strip_height_px() -> f32 {
@@ -46,6 +49,28 @@ pub fn chrome_strip(state: &AppState) -> Element<'_, Message> {
     .on_press(Message::WindowChromeDragRequested)
     .on_double_click(Message::WindowChromeToggleMaximize);
 
+    let up_str = rate_copy(&state.shell.readout.upload_bps, &Lang(&state.shell.lang));
+    let down_str = rate_copy(&state.shell.readout.download_bps, &Lang(&state.shell.lang));
+    let traffic_capsule = container(
+        text(format!("↑ {}  ↓ {}", up_str, down_str))
+            .size(11)
+            .color(theme::tokens(&state.shell.theme).text_secondary),
+    )
+    .padding([2.0, 8.0])
+    .style(|theme: &Theme| container::Style {
+        background: Some(theme::tokens(theme).card_bg.into()),
+        border: border::rounded(theme::R_CONTROL)
+            .width(theme::HAIRLINE)
+            .color(theme::tokens(theme).card_border),
+        ..Default::default()
+    });
+
+    let search_button = labelled(
+        ShellA11yNode::CommandPaletteDialog,
+        &state.shell.lang,
+        icon_button(Icon::Search, 12.0, Message::OpenCommandPalette),
+    );
+
     let controls = row![
         // DUAL-15-10: text-free window controls carry the shared semantic
         // labels (the same rows Bevy mounts as AccessKit nodes).
@@ -69,9 +94,19 @@ pub fn chrome_strip(state: &AppState) -> Element<'_, Message> {
     .align_y(Alignment::Center);
 
     let bar = container(
-        row![drag_surface, controls]
-            .width(Length::Fill)
-            .align_y(Alignment::Center),
+        row![
+            drag_surface,
+            labelled(
+                ShellA11yNode::TrafficReadout,
+                &state.shell.lang,
+                traffic_capsule.into(),
+            ),
+            search_button,
+            controls
+        ]
+        .spacing(theme::SP_SM)
+        .width(Length::Fill)
+        .align_y(Alignment::Center),
     )
     .width(Length::Fill)
     .height(strip_height_px())

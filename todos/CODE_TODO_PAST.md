@@ -215,3 +215,17 @@
   - 当前证据（L）：`cargo nextest run --workspace --no-fail-fast` 5,748/5,748 pass；`cargo clippy --workspace --all-targets -- -D warnings` 零警告；`check-structure.sh` exit 0；`bevy_rem_guard` 0 违规 0 debt；`cargo fmt --all --check` 0 偏差。
   - 待验证：统一全仓集成验证批次与 Windows/macOS/Linux 桌面真实环境 smoke。
   - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+
+## 12.65 自定义无框窗口标题栏（CSD）、实时流量胶囊与多端统一系统窗管交付（待集成验证与实机巡检，1条 / 5pt）
+
+- [ ] FLPARITY-018 [kind: mechanism] [priority: P1] [points: 5] [owner: infiltrator-desktop + infiltrator-bevy-desktop-host + infiltrator-slint + infiltrator-iced] [status: Integrated] 自定义无框窗口标题栏（CSD）、实时流量胶囊与多端统一系统窗管
+  - 产物：
+    - **Contract 层统一标题栏契约**：`infiltrator-contract/src/window_chrome.rs` 统一定义 `TitleBarTrafficCapsule`（上传/下载速率字节与格式化文案、compact 文本、active 标志）、`TitleBarControlsPlacement`（macOS 左置 / Windows/Linux 右置）、`DesktopPlatformKind` 与 `TitleBarInsets::for_platform`（macOS 72px 左避让、Windows/Linux 138px 右避让）、`SnapLayoutSupport`（`Supported` 与带显式 reason 的 `Unsupported`）与 `DesktopTitleBarSpec`；
+    - **Presentation 层共享标题栏投影**：`infiltrator-presentation/src/title_bar_projection.rs` 的 `project_title_bar_traffic_capsule` 复用 `format_rate_standard` 单源格式化，`project_desktop_title_bar` 单源装配统一 spec；
+    - **Desktop 宿主 Windows Snap Layout 接入**：`infiltrator-desktop/src/window_chrome/windows.rs` 按构建号（≥22000）判定 Snap Layout 支持并给出 typed `Unsupported` reason，`SnapLayoutButtonGeometry::STANDARD_WIN11`（右起 46/46/46 三键）唯一持有最大化按钮 `WM_NCHITTEST` `HTMAXBUTTON` 命中几何并带单测；
+    - **三桌面表面全面接入**：Iced 标题栏接入实时流量胶囊与搜索按钮（token 全走 `theme::tokens`/`R_CONTROL`/`HAIRLINE`）；Bevy 接入 `ChromeTrafficCapsule`/`ChromeSearchButton`、`ShellReadoutText::TrafficCapsule` 与拖拽条 `rem()` 化，搜索经 `ToggleCommandPalette` 打开命令面板；Slint `DesktopTitleBar` 承载胶囊与搜索触发（全尺寸 `* LumenUiScale.unit`），搜索收敛为纯透传回调由宿主导航到承载共享命令面板的 `ShellWorkbench` 页并附 harness 行为测试（修复在制缺陷：搜索曾在 .slint 标记里私带「跳转 Proxy 页」的 UI 侧业务推导）；
+    - **严守质量红线与 rem 尺寸规范**：`bevy_rem_guard --mode enforce` 0 违规 0 debt；Slint 尺寸统一 `* LumenUiScale.unit` 0 裸 px；`slint-syntax-guard` 100% PASS；`typed-state-guard` 0 findings。
+  - 验收：三桌面标题栏视觉语言统一且无按钮裁切；标题栏流速胶囊实时同步读回；Win11 下最大化按钮可唤起 Snap 菜单；desktop-smoke.sh 验证通过。
+  - 当前证据（L）：受影响六包（contract/presentation/desktop/iced/bevy-ui/slint）定向 nextest 2,230/2,230 pass；六包 clippy `--all-targets -- -D warnings` 零警告；`cargo fmt --all --check` 0 偏差；`bevy_rem_guard` 0 违规 0 debt；`slint-syntax-guard` 100% PASS；`closure-questions-guard` 8/8。
+  - 待验证：统一全仓集成验证批次与三桌面真实环境窗口管理 smoke（Win11 Snap 菜单需真实 Windows 实机）。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。

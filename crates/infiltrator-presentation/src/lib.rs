@@ -119,6 +119,7 @@ pub mod sync_page_model;
 pub mod sync_projection;
 pub mod system_toggle_projection;
 pub mod theme_readback_projection;
+pub mod title_bar_projection;
 pub mod top_talkers_projection;
 pub mod traffic_readout;
 pub mod traffic_topology_projection;

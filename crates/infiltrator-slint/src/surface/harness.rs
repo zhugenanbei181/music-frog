@@ -199,6 +199,12 @@ impl SurfaceHarness {
         self.drive(|| window.invoke_navigate(page.into()))
     }
 
+    /// Drives the real title-bar search callback.
+    pub fn title_bar_search(&self) -> SurfaceOutcome {
+        let window = &self.window;
+        self.drive(|| window.invoke_title_bar_search_clicked())
+    }
+
     /// Drives the real `set-route-mode` callback.
     pub fn set_route_mode(&self, mode: &str) -> SurfaceOutcome {
         let window = &self.window;
