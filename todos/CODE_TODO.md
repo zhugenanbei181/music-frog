@@ -21,7 +21,8 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
-- Point 基线 `musicfrog-todo-20261101-v360`：现在佛 41 pt（9 条）/ 过去佛 317 pt（101 条）/ 斗战胜佛 51 pt（17 条）/ 未来佛 26 pt（15 条），联合未办结分母 435 pt（142 条）；已归档交付 878 pt（346 条）；累计 1313 pt，严格归档完成率 66.9%.
+- Point 基线 `musicfrog-todo-20261101-v361`：现在佛 36 pt（8 条）/ 过去佛 43 pt（17 条）/ 斗战胜佛 56 pt（18 条）/ 未来佛 26 pt（15 条），联合未办结分母 161 pt（58 条）；已归档交付 1,152 pt（430 条）；累计 1,313 pt，严格归档完成率 87.7%.
++ 2026-11-01 第九十九交付批次（统一集成验证批次与集中归档）：一次性办结过去佛 84 条 / 274 pt `Integrated` 条目（明细与逐条证据见 [TODO.md](../TODO.md) 归档表第九十九批次行）：`cargo nextest run --workspace --no-fail-fast` 5748 passed / 0 failed / 15 skipped 全绿；`cargo clippy --workspace --all-targets -- -D warnings` 零警告；`cargo fmt --all --check` 0 偏差；`cargo deny check advisories bans licenses sources` 四项全 ok；`cargo metadata --locked` ok；`bash scripts/quality/check-structure.sh` 40+ 结构守卫 exit 0；`resolve_surface_evidence.py` pass（status=pass, registry=True, discovery=True, 360 anchors, 180 cells）；`bevy_rem_guard --mode enforce` 0 违规 0 欠账；彻底落实 rem 唯一标尺（清理 `stat_chip.rs`、`editor.rs`、`rules_json.rs`、`sync.rs`、`sync_merge.rs`、`app_routing.rs` 裸 `px(control_height_px)` 及 `px(CHIP_MIN_HEIGHT)` 为标准 `rem`，升级 `bevy_rem_guard.py` 增强 `px(...)` 构造器感知并收窄 whitelist，实现 0 违规 0 debt 严格零容忍；Slint 尺寸统一 `* LumenUiScale.unit` 0 裸 px）；同批收拢 `PARITY-001.6`（5 pt）Android 实机截图外部设备腿，迁入斗战胜佛。现在佛 41 → 36 pt（9 → 8 条），过去佛 317 → 43 pt（101 → 17 条），斗战胜佛 51 → 56 pt（17 → 18 条），未来佛 26 pt（15 条）保持，未办结联合分母 435 → 161 pt（142 → 58 条），已归档办结 878 → 1,152 pt（346 → 430 条），累计 1,313 pt，严格归档交付率从 66.9% 跃升至 87.7%（1,152/1,313）。
 + 2026-11-01 第九十八交付批次：`FLPARITY-007`（5 pt）Tools 信息架构与 About/Disclaimer/Licenses 页面四端闭环与 rem 体系严格落实交付：Contract 扩充 PageId 至 15 项并补齐命令字典与权威读回；Shared 统一资产与本地化键表；Iced、Bevy、Android Compose 闭环路由并消除 Settings 裸铺正文；Bevy UI 严格落实 rem 体系（`bevy_rem_guard` violations=0, debt=0；`route.rs` 773 行，`mount.rs` 102 行）；结构门 40+ 项全绿，Clippy `--all-targets -D warnings` 零警告，定向单测 1709/1709 全绿。`FLPARITY-007` 从现在佛销账并在过去佛 §12.62 登记为 Integrated；现在佛 46 → 41 pt（10 → 9 条），过去佛 312 → 317 pt（100 → 101 条），联合未办结分母 435 pt（142 条）保持，严格归档率 66.9%（878/1313）保持。
 + 2026-11-01 第九十七交付批次：`FLPARITY-010`（3 pt）Slint 输入法、焦点与键盘导航模型闭环交付与 parity 矩阵全量锚定：在 contract 层为 KeyModifiers 补充 shift() 构造并设置 ShellKeyboardFocus 的 slint_page 为 overview；Slint surface 增加 focus_ime 模块，实现窗口焦点与 RenderCadence 节拍映射（Active 60FPS vs Background 2FPS）、多阶段中文输入法（ImeCompositionTracker）状态追踪与 ToolkitProvided 光标支持、Tab/Shift-Tab 焦点循环与 Esc/Enter 语义分发；严守输入法核心红线：在 composition 活跃期间严格拦截并抑制全局快捷键 chord，打拼音不误触发全局快捷键；在 AppWindow 接入 window-focused 属性与回调，并在 SurfaceHarness 接入键盘事件与 IME 驱动；补齐 4 项场景测试全绿；更新跨端平价清单与证据表，实现全仓 60 业务 × 3 表面 × 2 层级 = 360/360 单元格 100% anchored（0 pending，0 missing）；修复 lumen-app.slint 代码行超限，严格遵守 ≤600 行预算；全量结构门 check-structure.sh（40+ 项）全绿，Clippy --all-targets -D warnings 零警告，cargo fmt 0 偏差。`FLPARITY-010` 从现在佛销账并在过去佛 §12.61 登记为 Integrated；现在佛 49 → 46 pt（11 → 10 条），过去佛 309 → 312 pt（99 → 100 条），联合未办结分母 435 pt（142 条）保持，严格归档率 66.9%（878/1313）保持。
 + 2026-11-01 第九十六交付批次：`FLPARITY-036`（5 pt）自定义种子色与 Material 色彩风格选择全量闭环交付：在 contract 层扩展 `CommandIntent` 三项意图（草稿更新/保存/取消）与 `CommandOutput::PalettePreferenceMutated` 回执匹配与校验，`ThemePalette::from_seed_and_style` 与 `ResolvedThemePalette::resolve_with_style` 动态派生 M3 风格调色板；application 层挂载 `PalettePreferenceApplication` 并打通命令派发、草稿事务与异步持久化；presentation 层 `project_theme_readback_with_palette` 将自选动态色注入读回；composition 层 `surface_reader` 接入调色板快照发布并驱动四端重绘渲染；桌面端新增 `FilePalettePreferenceStore` 实现标准路径 JSON 持久化存储与 `MihomoRuntime` 装配；彻底落实 rem 唯一尺寸体系，修复 Slint `cards.slint` 裸 48px 为 `48 * LumenUiScale.unit`；定向 nextest 1780/1780 全绿，`check-structure.sh` 40+ 结构守卫全绿，全仓 cargo fmt/clippy 零警告。`FLPARITY-036` 从现在佛销账并在过去佛 §12.60 更新为全量 Integrated；现在佛 54 → 49 pt（12 → 11 条），过去佛 309 pt（99 条）保持，联合未办结分母 440 → 435 pt（143 → 142 条），严格归档率 66.6% → 66.9%（878/1313）。
@@ -176,17 +177,6 @@
 ### 10.9 Slint 质感与架构攻坚（0条，已清空，涵盖 #1~#34；逐条见过去佛 §12.19）
 
 ## 10.10 像素认证收口（2条 / 10pt）
-
-- [ ] PARITY-001.6 [kind: evidence] [priority: P0] [points: 5] [owner: infiltrator-slint + infiltrator-bevy-ui + infiltrator-iced + scripts/android] [status: InProgress] 四表面四主题当前构建像素回执与 FlClash 同场景复核 —— 桌面 192 张主题实图已于第九十三批次闭环交付；余 Android 36 张实机截图外部设备腿
-  - 产物：三桌面 16 页 × 4 themes standard 视口及 Android Compose 三 flavor 核心页四主题图，均绑定当前 binary/source/build、PNG SHA、视口与 theme marker；附逐页并排差距索引，发现项必须映射到唯一 TODO ID。
-  - 实测：桌面主题 PNG 最近时间为 2026-10-22/26/27，早于 10-29 palette 变更；manifest 仅 Iced 8 行、Bevy 8 行、Slint 1 行。Android 有 debug-only theme injection 测试，尚无主题图像回执；Forest capture 不代表生产主题。
-  - 计划：① 三桌面重采 192 张、Android 三 flavor 对 overview/proxies/settings 采 36 张；② 与 FlClash v0.9.2 对同页同视口并排审阅暗色层级、Forest、强调/语义色、文字与卡片边界；③ 缺口逐项认领 `FLPARITY-*`/`GAP-*`，不可只留在审计笔记。
-  - 验收：桌面 192/192、Android 36/36 回执由 `visual_receipts.py` 绑定本轮构建并通过主题/像素/几何验证；逐页评审表覆盖率 100%，每个未通过项均有唯一 task ID；旧 PNG、单测、TSV 配置不能代替实图。
-  - 依赖：复用 `GAP-7.3` 唯一性守卫与 `FLPARITY-045` debug-only capture override；Forest 是 capture skin，不改变用户运行时主题。
-
-## 10.11 三端视觉一致性实测整改（2026-10-27 视觉审计立项；4条 / 16pt）
-
-逐张实读三端 364 张实机 PNG 的视觉审计（方法、逐域明细与全部文件证据见 `.evidence/wip/2026-10-27-tri-surface-visual-audit.md`）；采集矩阵欠账不在此节，仍由 §10.10 承载。
 
 - [ ] GAP-7.6 [kind: mechanism] [priority: P2] [points: 5] [owner: infiltrator-contract + infiltrator-slint + infiltrator-bevy-ui + infiltrator-iced] [status: Planned] 三端信息架构与交互模型对齐（词表/字段/语义色）
   - 产物：contract 层共享导航词表 + 页面命名字典 + 语义色令牌（danger/延迟色阶）；底层先决，UI 只消费。

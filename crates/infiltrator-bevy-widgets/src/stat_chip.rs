@@ -21,9 +21,7 @@ use bevy::ecs::hierarchy::Children;
 use bevy::ecs::query::With;
 use bevy::ecs::system::{Query, Res};
 use bevy::scene::{Scene, bsn};
-use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, Node, UiRect, px,
-};
+use bevy::ui::prelude::{AlignItems, BackgroundColor, BorderRadius, FlexDirection, Node, UiRect};
 use bevy::ui::widget::Text;
 
 /// Minimum chip height (px) — one card row of the metrics band.
@@ -69,7 +67,7 @@ pub fn stat_chip_scene(
                 flex_shrink: 1.0,
                 flex_basis: rem(STAT_CHIP_FLEX_BASIS_PX),
                 min_width: rem(STAT_CHIP_MIN_WIDTH_PX),
-                min_height: px(CHIP_MIN_HEIGHT),
+                min_height: rem(CHIP_MIN_HEIGHT),
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
                 column_gap: rem(space::S12),

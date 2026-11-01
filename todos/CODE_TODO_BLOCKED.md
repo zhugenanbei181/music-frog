@@ -14,8 +14,15 @@
 - 本板不重复记录已经在过去佛/未来佛登记的条目正文；迁入时必须整条迁入（含 ID、owner、points、依赖、验收、当前证据），不得只留摘要。
 - **并行工流与验证纪律（2026-10-20 起强制）：** 并行开发按文件所有权切分，编译不通过的半成品不得放进会被 `cargo nextest --workspace`、结构门或 capture 构建扫到的路径（WIP 先放草稿或 `.evidence/wip/`）；开发期只跑受影响包，全仓 `cargo nextest --workspace` 与全量结构门统一放到收尾批次只跑一次；共享 `/tmp` 配额、cargo lane 争用与合成器起栈失败等外部故障先判定归属，只修本切片能修的那一类。
 
-## 一、ARM64 真机取证（无物理设备，11 条 / 33 pt）
+## 一、ARM64 真机取证（无物理设备，12 条 / 38 pt）
 
+- [ ] PARITY-001.6 [kind: evidence] [priority: P0] [points: 5] [owner: infiltrator-slint + infiltrator-bevy-ui + infiltrator-iced + scripts/android] [status: Blocked] 四表面四主题当前构建像素回执与 FlClash 同场景复核 —— 桌面 192 张主题实图已于第九十三批次闭环交付；余 Android 36 张实机截图外部设备腿
+  - 产物：三桌面 16 页 × 4 themes standard 视口及 Android Compose 三 flavor 核心页四主题图，均绑定当前 binary/source/build、PNG SHA、视口与 theme marker；附逐页并排差距索引。
+  - 验收：桌面 192/192、Android 36/36 回执由 `visual_receipts.py` 绑定本轮构建并通过主题/像素/几何验证；逐页评审表覆盖率 100%。
+  - 当前证据（L）：第九十三批次桌面三端（Iced / Bevy / Slint）192 张主题实图已完成真机重采入库并刷新 manifests；`screenshot-identity-guard --mode enforce` 扫描 550 张截图 10 处白名单别名 0 违规；`bevy_rem_guard` 与 `bevy_scene_gate` 0 违规；`check-structure.sh` 全量结构门 exit 0；nextest 553/553 全绿。
+  - 阻塞方：ARM64 Android 物理设备 / 模拟器（当前无可用环境提取 Android 36 张实机截图）。
+  - 解锁条件：真机或受控 CI 上运行 `scripts/android-device-evidence.sh` 产出 36 张真实交互回执并验签入库；取得后同次迁回过去佛走统一批次办结。
+  - 本板停留期间：桌面端 192 张截图与契约/消费腿已闭环，无剩余本机可执行动作。
 - [ ] BANDROID-041.3.2R.15 [kind: mechanism] [priority: P1] [points: 5] [owner: protocol contract + presentation + Application] [status: Blocked] Protocol editor model split from persistence use case
   - 产物：Protocol form/draft/preview projection 归 presentation；Profile 写入继续由 Application use case 接收 typed intent，UI 不直接调用持久化方法。
   - 依赖：BANDROID-041.3.2R.13、.14.1～.14.7；ProfileDocument codec contract；Core-first 阶段门。

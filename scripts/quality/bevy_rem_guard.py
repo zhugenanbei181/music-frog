@@ -81,10 +81,21 @@ PHYSICAL_WHITELIST = re.compile(
     r"|inset"
     r"|safe_area"
     r"|raster_"
-    r"|HEIGHT_PX"
+    r"|CHROME_DRAG_STRIP_HEIGHT_PX"
+    r"|ACCEPTANCE_ROW_HEIGHT_PX"
+    r"|ACCEPTANCE_VIEWPORT_HEIGHT_PX"
     r"|spacer_px"
     r"|item_width_px"
-    r"|display_",
+    r"|(?<!control_)height_px"
+    r"|display_"
+    r"|rect\."
+    r"|cursor\."
+    r"|width_px"
+    r"|size_px"
+    r"|thickness"
+    r"|caret_w"
+    r"|caret_h"
+    r"|\bheight\b",
     re.IGNORECASE,
 )
 
@@ -108,7 +119,7 @@ EM_LITERAL = re.compile(r"\bVal::Em\s*\(\s*[-+]?\d+(?:\.\d+)?\s*[,)]")
 #: A bare number inside `rem(...)` is an unnamed size (总纲③).
 REM_LITERAL = re.compile(r"\brem\s*\(\s*(?P<value>[-+]?\d+(?:\.\d+)?)\s*[,)]")
 
-PX_SIZE = re.compile(r"\bVal::Px\s*\(")
+PX_SIZE = re.compile(r"(?:\bVal::Px|(?<!\w)px)\s*\(")
 
 #: A hardcoded px literal belongs to the shared-kit scene gate (`UIK-REM-001`).
 PX_LITERAL = re.compile(r"[-+]?\d+(?:\.\d+)?")

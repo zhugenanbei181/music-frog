@@ -128,7 +128,7 @@ pub fn sync_three_way_merge_scene(
                             }
                             Children [
                                 Node {
-                                    min_height: px(palette.control_height_px * 0.85),
+                                    min_height: rem(palette.control_height_px * 0.85),
                                     padding: UiRect::horizontal(rem(space::S12)),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::Center,
@@ -142,7 +142,7 @@ pub fn sync_three_way_merge_scene(
                                 ]
                                 --
                                 Node {
-                                    min_height: px(palette.control_height_px * 0.85),
+                                    min_height: rem(palette.control_height_px * 0.85),
                                     padding: UiRect::horizontal(rem(space::S12)),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::Center,
@@ -156,7 +156,7 @@ pub fn sync_three_way_merge_scene(
                                 ]
                                 --
                                 Node {
-                                    min_height: px(palette.control_height_px * 0.85),
+                                    min_height: rem(palette.control_height_px * 0.85),
                                     padding: UiRect::horizontal(rem(space::S12)),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::Center,

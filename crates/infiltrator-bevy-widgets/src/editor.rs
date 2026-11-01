@@ -171,7 +171,6 @@ use bevy::scene::{Scene, bsn};
 use bevy::ui::BorderColor;
 use bevy::ui::prelude::{
     AlignItems, BorderRadius, FlexDirection, JustifyContent, Node, Overflow, UiRect, Val, percent,
-    px,
 };
 use bevy::ui::widget::Text;
 
@@ -218,7 +217,7 @@ pub fn code_editor_scene(state: &CodeEditorState, palette: &UiPalette) -> Box<dy
         .map(|num| {
             Box::new(bsn! {
                             Node {
-                                height: px(palette.control_height_px * 0.6),
+                                height: rem(palette.control_height_px * 0.6),
                                 justify_content: JustifyContent::FlexEnd,
                                 padding: UiRect::horizontal(rem(space::S4)),
                             }
@@ -250,7 +249,7 @@ pub fn code_editor_scene(state: &CodeEditorState, palette: &UiPalette) -> Box<dy
 
             Box::new(bsn! {
                             Node {
-                                height: px(palette.control_height_px * 0.6),
+                                height: rem(palette.control_height_px * 0.6),
                                 flex_direction: FlexDirection::Row,
                                 align_items: AlignItems::Center,
                             }

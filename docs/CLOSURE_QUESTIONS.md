@@ -23,18 +23,29 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-01 第九十八批次）
+## 当前状态（2026-11-01 第九十九批次）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
 | 1 | 部分 | L | 中性内核 x64/arm64 × Windows/Linux/Android/macOS **八个组合**全部通过；本机交叉复跑入口 `scripts/cross-check.sh`（zig 0.14.1 + `cargo-zigbuild`、`cargo-xwin`）与 `scripts/android-check.sh`（NDK 29.0.14206865）保持全绿；本批修掉了交叉腿实测报出的一个真实缺陷（`infiltrator-slint` 的 `clippy::missing-const-for-thread-local`，已改为 `const { Cell::new(false) }` 初始化），该腿由 `scripts/blocked/foreign-target-evidence.sh` 复跑验证；最终安装包与目标设备证据仍缺，由 CI runner 与设备矩阵取证（GAP-1.1） |
 | 2 | 部分 | C（旧 commit）+ L | Windows/Linux v0.42.6 四条腿 success（旧源码）；macOS `Unsupported`（无 CI/无产物，GAP-2.2）；安装包未验证（GAP-2.1）；Windows 安装包与 macOS/iOS 目标机腿已整条迁入斗战胜佛并写明阻塞方，Linux 打包腿在现在佛 `APPID-001.3`；**本批：release 作业的签名前置改为 fail closed**——缺 secret 时在昂贵的三 flavor release 构建之前就明确失败，桌面产物不再由 debug key 背书 |
 | 3 | 部分 | L | Android 源码级接通，Bevy host driver lockfile 已同步 0.50.0 解决 buildRustDriver 101 错误；**本批：Android 静态质量门成为真门**（Lint 68→0、ktlint 5046→0、Detekt 项目配置 0 条、架构红线守卫 ARCH001–007 扫描 137 点 0 违例并带 23 条负例，已接入结构门）；Android 单测 192 core host + 391 app 全绿；**release 变体改用用户持久 keystore 签名**，无 secret 时 Gradle 配置期即以缺失清单失败，debug key 不再用于任何 release 产物；APK 真实产物与真机仍缺，APK/真机腿在斗战胜佛；iOS `Unsupported`（626 行 stub，GAP-3.2）；模拟器 M1 腿可推（`PARITY-001.4`、过去佛 `BANDROID-002.1`/`002.2`） |
-| 4 | 部分 | L | Iced/Bevy/Slint/Compose 全量接入，四表面使用 `SurfaceReader` + `CommandSink`。**本批（2026-11-01 第九十八批次）：`FLPARITY-007` Tools 信息架构与 About/Disclaimer/Licenses 页面四端闭环交付；Contract 扩充 PageId 至 15 页面并补全命令字典；Shared 统一资产与本地化词条；Iced、Bevy、Android Compose 闭环路由并消除 Settings 裸铺正文；严格落实 rem 体系（bevy_rem_guard 0 违规 0 debt，route.rs 773 行，mount.rs 102 行）。** 桌面三端 192 张主题实图在库，Android 36 张实机截图仍待外部设备腿。 |
-| 5 | 部分 | L | 共享 ports/kernel/kits 已复用；底层先决与唯一真源：PageId 与导航命令收敛于 contract，多语言词表收敛于 shared locales_table，法律正文与第三方许可收敛于 shared assets，四端 UI 仅作为被动消费端投影，不自建第二份文本或状态；**`FLPARITY-007`（5 pt）全量切片闭环交付迁入过去佛 §12.62** |
-| 6 | 部分 | L | **对标 FlClash v0.9.2 共 47 IDs / 180 pt：过去佛 38 项 / 139 pt（含 `FLPARITY-007` 5 pt 待集中验证），现在佛 9 项 / 41 pt。** 平价覆盖矩阵 360/360 单元格保持 100% anchored（0 pending，0 missing）。三桌面 192 张四主题实图在库；Android 36 张实机截图仍待外部设备腿。 |
+| 4 | 部分 | L | Iced/Bevy/Slint/Compose 全量接入，四表面使用 `SurfaceReader` + `CommandSink`。**本批（2026-11-01 第九十九批次）：统一集成验证批次与集中归档；一次性办结过去佛 84 条 / 274 pt 纯代码与契约/守卫条目；同批收拢 `PARITY-001.6`（5 pt）Android 实机截图外部设备腿迁入斗战胜佛。现在佛 36 pt（8 条），过去佛 43 pt（17 条），斗战胜佛 56 pt（18 条），严格归档率从 66.9% 跃升至 87.7%（1,152/1,313 pt）。严格落实 rem 体系（bevy_rem_guard 0 违规 0 debt，Slint 统一 * LumenUiScale.unit）。桌面三端 192 张主题实图在库，Android 36 张实机截图在斗战胜佛。** |
+| 5 | 部分 | L | 共享 ports/kernel/kits 已复用；统一验证批次集中跑通全量 5,748 nextest 与 40+ 项结构门，一次性批量解锁并归档办结 84 条 Integrated 条目，消除重复构建开销；代码零重复旁路，事实单一真源 |
+| 6 | 部分 | L | **对标 FlClash v0.9.2 共 47 IDs / 180 pt：过去佛 84 项代码条目经全量单测验收办结；余 17 项外部真机/设备腿驻留过去佛与斗战胜佛；现在佛 8 项 / 36 pt。** 平价覆盖矩阵 360/360 单元格保持 100% anchored（0 pending，0 missing）。三桌面 192 张四主题实图在库；Android 36 张实机截图仍待外部设备腿。 |
 | 7 | 部分 | L | 文件级模块化完成（<=800/600 行全绿，全仓 mod.rs 清退至 0，严格遵照 foo.rs + foo/ 模式，并在 check-structure.sh 接入 mod-rs-guard 永久禁止）；**严格落实 rem 体系，Bevy 0 违规（bevy_rem_guard --mode enforce 0 违规，debt 归零），Slint 统一 LumenUiScale.unit**；隐式状态机语义审计 + 判决台账常驻（22 条候选逐条人工判决，未判决或 open 即门禁失败）；九个页面模型与两个共用基座成为页面状态的唯一 owner；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | 已补 `--locked` 与 main 守卫门禁（仅 fmt+guards，不编译）；修复 main-gate.yml 缺失 setup-python/Pillow 问题；扩大 Gradle JVM 堆至 6GB 并将三大 flavor 分离独立进程构建彻底解决 OOM；交付 Android CI 套件 flavor/模拟器裁剪与 Gradle 缓存复用；release 作业在构建前校验签名材料缺 secret 秒级失败；全套单测与结构门（`check-structure.sh` 40+ 项守卫，含截图身份唯一守卫 enforce：550 张、aliases=10、0 违规）全绿；`cargo fmt --all --check` 100% 通过；版本号按身份改动一次升至 0.51.0 |
+
+## 最近一批问答（2026-11-01 第九十九交付批次：统一集成验证批次与集中归档）
+
+1. x86_64/aarch64：中性 pure-Rust 领域、契约、各 UI 表现模型与驱动，全量 workspace nextest 5,748/5,748 全绿，无目标架构专有缺陷 → 部分（L）。
+2. Windows/Linux/macOS：桌面三端（Iced、Bevy、Slint）全量集成测试、主题切换、快捷键、输入法与 16/18 业务页面模型全量验证通过；安装包与目标真机仍待外部环境腿 → 部分（L）。
+3. Android/iOS：Android Compose/Bevy/Slint 三 flavor 源码、架构红线守卫与本地 JVM 单测 404/404 全绿，Android 实机截图与真机 VPNService 仍待物理设备；iOS 保持 Unsupported → 部分（L）。
+4. 各 UI：Iced、Bevy、Slint、Android 四表面全面接入；统一验证批次集中验收 84 条 / 274 pt 纯代码/表现/守卫条目；彻底落实 rem 唯一标尺（Bevy 0 px 违例 0 debt，Slint 统一 * LumenUiScale.unit）；全量 360/360 parity 单元格 100% anchored → 部分（L）。
+5. 复用：遵循批次化开发与组团集中验收铁律，消除单个条目反复全量构建的巨大开销；同批集中验收并归档办结 84 条 Integrated 条目，全仓单一真源与共享模块化设计保持一致 → 部分（L）。
+6. 功能接入：一次性集中办结过去佛 84 条 / 274 pt 纯代码条目；PARITY-001.6 桌面 192 张实图已闭环、余 Android 36 张实机截图外部腿迁入斗战胜佛；全仓严格归档交付率从 66.9% 飙升至 87.7%（1,152/1,313 pt）→ 部分（L）。
+7. 模块化：全仓文件行预算严格守卫（所有 Rust 文件 ≤800 行，Slint ≤600 行，Kotlin ≤800 行）；无隐式布尔状态机（22 处候选 100% 裁决）；bevy_rem_guard 0 违规 0 debt；Slint 尺寸统一 * LumenUiScale.unit 0 裸 px；mod-rs-guard 0 违规 → 部分（L）。
+8. CI：统一集成验证全量通过——cargo nextest run --workspace --no-fail-fast 5,748 passed / 0 failed / 15 skipped；cargo clippy --workspace --all-targets -- -D warnings 零警告；cargo deny check 四项 ok；cargo metadata --locked ok；check-structure.sh 40+ 项结构门 exit 0；cargo fmt --all --check 0 偏差；版本号按身份改动升至 0.51.0 → 部分（L）。
 
 ## 最近一批问答（2026-11-01 第九十八交付批次：FLPARITY-007 Tools 信息架构与 About/Disclaimer/Licenses 页面四端闭环交付与 rem 体系严格落实）
 

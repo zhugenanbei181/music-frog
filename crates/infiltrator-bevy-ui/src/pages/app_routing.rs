@@ -377,7 +377,7 @@ fn app_row_scene(idx: usize, app: &AppItem, palette: &UiPalette) -> impl Scene +
                     TextColor(rule_col)
                     --
                     Node {
-                        min_height: px(palette.control_height_px * 0.8),
+                        min_height: rem(palette.control_height_px * 0.8),
                         padding: UiRect::horizontal(rem(space::S8)),
                         align_items: AlignItems::Center,
                         justify_content: JustifyContent::Center,

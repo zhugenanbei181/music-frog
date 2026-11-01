@@ -410,7 +410,7 @@ fn conflict_panel_scene(
                         }
                         Children [
                             Node {
-                                min_height: px(palette.control_height_px * 0.85),
+                                min_height: rem(palette.control_height_px * 0.85),
                                 padding: UiRect::horizontal(rem(space::S12)),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::Center,
@@ -424,7 +424,7 @@ fn conflict_panel_scene(
                             ]
                             --
                             Node {
-                                min_height: px(palette.control_height_px * 0.85),
+                                min_height: rem(palette.control_height_px * 0.85),
                                 padding: UiRect::horizontal(rem(space::S12)),
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::Center,
@@ -558,7 +558,7 @@ fn snapshot_row_scene(
                 ]
                 --
                 Node {
-                    min_height: px(palette.control_height_px * 0.8),
+                    min_height: rem(palette.control_height_px * 0.8),
                     padding: UiRect::horizontal(rem(space::S8)),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,

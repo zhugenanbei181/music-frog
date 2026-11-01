@@ -37,7 +37,7 @@ use bevy::text::TextColor;
 use bevy::time::Time;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, Overflow,
-    UiRect, percent, px,
+    UiRect, percent,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button, ScrollArea};
@@ -386,7 +386,7 @@ fn section_chip_scene(section: RulesJsonSection, palette: &UiPalette) -> Box<dyn
     let selected = index == 0;
     Box::new(bsn! {
             Node {
-                min_height: px(palette.control_height_px * 0.85),
+                min_height: rem(palette.control_height_px * 0.85),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
                 padding: UiRect::horizontal(rem(space::S12)),
