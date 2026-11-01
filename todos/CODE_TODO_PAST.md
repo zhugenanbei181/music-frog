@@ -917,11 +917,12 @@ timeout` 灵活入参，在未指定 timeout 时自动回读保持 `snapshot.pro
     - **Iced 接入**：`AnimationCoordinator` 记录 `route_started_at` 并新增 `route_transition(at)` 返回完整投影（不透明度/缩放/垂直沉降），路由淡入时长从 300ms 收敛至 M3 Deliberate 250ms，抽屉 200ms 与 M3 Standard 对齐；
     - **Bevy 接入**：`ShellPlugin` 注册 `SpringAnimationPlugin`（按钮回弹、开关阻尼、路由弹簧沉降、列表级联入场、卡片悬停抬升五套弹簧系统）；路由挂载 `sync_route` 为每个新页面根注入 `SpringRouteTransition` 入场弹簧（8px 上浮沉降），capture 模式下注入静止弹簧保证像素确定性；
     - **Slint 接入**：`theme_util` 导出 `DURATION_FAST_MS`/`DURATION_STANDARD_MS`/`DURATION_DELIBERATE_MS` 三个 M3 时长常量与 `effective_motion_duration_ms` capture 归零入口，供 .slint 属性动画统一引用；
-    - **门禁全绿**：contract 11/11、presentation 3/3、Iced 1/1、Bevy route 5/5、Slint 1/1 定向 nextest 全绿；五包 Clippy `-D warnings` 零警告；cargo fmt 0 偏差；import/line/typed-state/implicit-state/i18n/mod-rs/doc-governance/closure-questions 八守卫全绿。
+    - **Android Compose 接入**：在 `android/app/src/main/java/com/musicfrog/infiltrator/ui/App.kt` 接入 Material 3 `AnimatedContent` 包装路由切换（`(fadeIn(200ms) + scaleIn(0.96f))` 组合 `fadeOut(150ms)`），平滑过渡并完整保留 `routeStateHolder.SaveableStateProvider(targetRoute.saveableStateKey)` 的路由状态隔离；
+    - **门禁全绿**：contract 11/11、presentation 3/3、Iced 1/1、Bevy route 5/5、Slint 1/1 定向 nextest 全绿；`infiltrator-android` nextest 221/221 全绿；Android `:app:testComposeDebugUnitTest` 34 任务 404 测试全绿；`:app:androidLintGate` 0 error 0 warning；ktlintCheck / detekt 0 违规；五包 Clippy `-D warnings` 零警告；cargo fmt 0 偏差；import/line/kt-line/typed-state/implicit-state/i18n/mod-rs/doc-governance/closure-questions/android-redline 守卫全绿。
   - 验收：路由切换连续感知（淡入 + 缩放 + 垂直沉降弹性）；模态弹窗 typed 进入/退出插值；Reduced Motion 与 headless capture 降级路径有测试覆盖；无头捕获自动跳至终态。
-  - 当前证据（L）：`infiltrator-contract`/`infiltrator-presentation`/`infiltrator-iced`/`infiltrator-bevy-ui`/`infiltrator-slint` 定向 nextest 21/21 passed（motion/route 相关）；Clippy `--all-targets -D warnings` 五包 passed；typed-state-guard 0 findings；implicit-state-audit 0 open 0 undecided；line budget 2864 文件 0 违规；cargo fmt 0 偏差。
-  - 待验证：统一全仓集成验证批次、Compose `AnimatedContent` 页面转场接线与四表面动效像素巡检。
-  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份；Compose 转场接线作为后续切片。
+  - 当前证据（L）：`infiltrator-contract`/`infiltrator-presentation`/`infiltrator-iced`/`infiltrator-bevy-ui`/`infiltrator-slint` 定向 nextest 21/21 passed（motion/route 相关）；`infiltrator-android` 221/221 passed；Gradle JVM testComposeDebugUnitTest 404/404 passed；androidLintGate passed；ktlintCheck / detekt passed；Clippy `--all-targets -D warnings` passed；typed-state-guard 0 findings；implicit-state-audit 0 open 0 undecided；line budget 0 违规；cargo fmt 0 偏差。
+  - 待验证：统一全仓集成验证批次与真机动效像素巡检（外部设备腿）。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
 
 ## 12.60 自定义种子色与 Material 色彩风格选择 Core 切片交付（2026-10-31 交付，1条 / 5pt）
 

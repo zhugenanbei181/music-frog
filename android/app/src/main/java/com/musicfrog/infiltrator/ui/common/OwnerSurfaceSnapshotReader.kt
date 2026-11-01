@@ -119,17 +119,15 @@ internal fun parsePublishedThemeOverride(json: String): ThemeOverride? = try {
 private fun themeOverrideFromReadback(readback: JSONObject?): ThemeOverride? {
     if (readback == null) return null
     return when (val preference = readback.opt("preference")) {
+        null -> null
+
         "system" -> ThemeOverride.None
 
         is JSONObject -> when (preference.optString("fixed")) {
             "dark" -> ThemeOverride.Dark
-
             "light" -> ThemeOverride.Light
-
             "forest" -> ThemeOverride.Forest
-
             "amoled" -> ThemeOverride.Amoled
-
             else -> null
         }
 

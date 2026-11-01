@@ -23,7 +23,7 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-01 第九十四批次）
+## 当前状态（2026-11-01 第九十五批次）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
@@ -35,6 +35,17 @@
 | 6 | 部分 | L | **对标 FlClash v0.9.2 共 47 IDs / 180 pt：过去佛 35 项 / 126 pt（新增 `FLPARITY-014` 5 pt 待集中验证），现在佛 11 项 / 49 pt。** `PARITY-001.6` 桌面切片 192/192 张四主题实图验收闭环入库（Iced 64 + Bevy 64 + Slint 64）；修复两处截图阻断缺陷；Android 36 张实机截图仍待外部设备腿。官方 release feature/fix/performance 已逐项映射；Forest 仅是 capture skin，不是运行时默认主题。 |
 | 7 | 部分 | L | 文件级模块化完成（<=800/600 行全绿，全仓 mod.rs 清退至 0，严格遵照 foo.rs + foo/ 模式，并在 check-structure.sh 接入 mod-rs-guard 永久禁止）；**严格落实 rem 体系，Bevy 0 违规（bevy_rem_guard --mode enforce 0 违规，debt 归零），Slint 统一 LumenUiScale.unit**；隐式状态机语义审计 + 判决台账常驻（22 条候选逐条人工判决，未判决或 open 即门禁失败）；九个页面模型与两个共用基座成为页面状态的唯一 owner；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | 已补 `--locked` 与 main 守卫门禁（仅 fmt+guards，不编译）；修复 main-gate.yml 缺失 setup-python/Pillow 问题；扩大 Gradle JVM 堆至 6GB 并将三大 flavor 分离独立进程构建彻底解决 OOM；交付 Android CI 套件 flavor/模拟器裁剪与 Gradle 缓存复用；release 作业在构建前校验签名材料缺 secret 秒级失败；全套单测与结构门（`check-structure.sh` 40+ 项守卫，含截图身份唯一守卫 enforce：550 张、aliases=10、0 违规）全绿；`cargo fmt --all --check` 100% 通过；版本号按身份改动一次升至 0.51.0 |
+
+## 最近一批问答（2026-11-01 第九十五交付批次：FLPARITY-017 Android Compose 路由微动效与转场动效闭环交付）
+
+1. x86_64/aarch64：本批为 Android Compose 界面层转场动效接入与 AndroidManifest 清理，底层 Rust 交叉目标编译（`cargo build --release --locked --target aarch64-linux-android` 与 `x86_64-linux-android`）全绿；定向 JVM 单测与 Rust 单测全绿 → 部分（L）。
+2. Windows/Linux/macOS：桌面端动效此前已在批次 78 完成，本批仅完善 Android Compose 对应实现；Linux 结构门与守卫全绿；受控平台环境在斗战胜佛 → 部分（L）。
+3. Android/iOS：Android Compose 路由切换完整接入 Material 3 `AnimatedContent`（`fadeIn(200ms) + scaleIn(0.96f)` 组合 `fadeOut(150ms)` 平滑转场），保留 `SaveableStateProvider` 状态隔离；修复 `OwnerSurfaceSnapshotReader.kt` 的 when 穷尽性分支与 ktlint 排版；在 Compose AndroidManifest.xml 补齐 Leanback TV 所需的 `touchscreen` 与 `banner` 属性；`:app:androidLintGate` 0 error 0 warning，JVM 单测 404/404 全绿；iOS 仍为 stub 显式 Unsupported → 部分（L）。
+4. 各 UI：四表面动效全部就绪：Iced（M3 Deliberate 250ms 淡入缩放）、Bevy（SpringRouteTransition 五套弹簧）、Slint（M3 时长常量与属性动画）、Android Compose（Material 3 AnimatedContent 路由转场）；四表面均支持截图模式自动归零/跳至终态；Android 实机交互截图仍在 PARITY-001.6 外部设备腿 → 部分（L）。
+5. 复用：路由状态管理复用既有 `routeStateHolder.SaveableStateProvider(targetRoute.saveableStateKey)`，路由动效参数与曲率严格对齐 Material 3 统一规范（FastOutSlowInEasing 与 FastOutLinearInEasing），无各端私有魔数；`FLPARITY-017`（5 pt）实现闭环，从现在佛销账并在过去佛 §12.59 保持 Integrated → 部分（L）。
+6. 功能接入：`FLPARITY-017` 跨端微动效与页面过渡系统四表面代码全部闭环；现在佛 13 → 12 条 / 59 → 54 pt；对标 FlClash v0.9.2 现在佛剩余 10 条 / 44 pt；PARITY-001.6 余 Android 36 张实机截图外部设备腿 → 部分（L）。
+7. 模块化：文件行数严格控制（所有文件 ≤800 行，`kt-line-guard.py` 227 文件扫描 0 违规）；无隐式布尔状态机；严格落实 rem 体系（`bevy_rem_guard` 0 违规 0 debt，Slint 统一 `* LumenUiScale.unit`）；Android 架构红线 141 点 0 违例；`ktlintCheck` 与 `detekt` 全绿；`cargo fmt --all --check` 0 偏差 → 部分（L）。
+8. CI：本地 Gradle 开启 configuration cache 与 build cache，`:app:androidLintGate` 校验三大 flavor Debug Lint，本地单测、全量结构门（40+ 项）与 Rust/Kotlin 静态分析全绿；同次闭环提交并推送至 `origin/main` → 部分（L）。
 
 ## 最近一批问答（2026-11-01 第九十四交付批次：残余 Clippy 与 Bevy ECS 系统参数复杂度收敛，FLPARITY-014 迁入过去佛）
 

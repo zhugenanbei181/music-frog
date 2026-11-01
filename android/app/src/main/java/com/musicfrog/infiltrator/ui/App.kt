@@ -1,6 +1,14 @@
 package com.musicfrog.infiltrator.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -154,58 +162,72 @@ fun InfiltratorApp(
                 modifier = Modifier
                     .fillMaxSize(),
             ) {
-                routeStateHolder.SaveableStateProvider(route.saveableStateKey) {
-                    when (val activeRoute = route) {
-                        is AppRoute.Main -> when (activeRoute.section) {
-                            AppSection.Overview -> OverviewScreen(
-                                vpnAuthorization = vpnAuthorization,
-                                onRequestVpnPermission = onRequestVpnPermission,
-                                onControlIntent = onControlIntent,
-                                isExpanded = overviewExpanded,
+                AnimatedContent(
+                    targetState = route,
+                    transitionSpec = {
+                        (
+                            fadeIn(animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)) +
+                                scaleIn(initialScale = 0.96f, animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing))
                             )
-
-                            AppSection.Profiles -> ProfilesScreen(
-                                initialImportUrl = pendingImportUrl,
-                                onImportHandled = onImportHandled,
+                            .togetherWith(
+                                fadeOut(animationSpec = tween(durationMillis = 150, easing = FastOutLinearInEasing)),
                             )
+                    },
+                    label = "RouteTransition",
+                ) { targetRoute ->
+                    routeStateHolder.SaveableStateProvider(targetRoute.saveableStateKey) {
+                        when (targetRoute) {
+                            is AppRoute.Main -> when (targetRoute.section) {
+                                AppSection.Overview -> OverviewScreen(
+                                    vpnAuthorization = vpnAuthorization,
+                                    onRequestVpnPermission = onRequestVpnPermission,
+                                    onControlIntent = onControlIntent,
+                                    isExpanded = overviewExpanded,
+                                )
 
-                            AppSection.Proxies -> ProxiesScreen()
+                                AppSection.Profiles -> ProfilesScreen(
+                                    initialImportUrl = pendingImportUrl,
+                                    onImportHandled = onImportHandled,
+                                )
 
-                            AppSection.AppRouting -> SettingsScreen(
-                                onNavigateToRouting = {
-                                    route = AppRoute.SettingsDetail(SettingsDestination.Routing)
-                                },
-                                onNavigateToTun = {
-                                    route = AppRoute.SettingsDetail(SettingsDestination.Tun)
-                                },
-                                onNavigateToDns = {
-                                    route = AppRoute.SettingsDetail(SettingsDestination.Dns)
-                                },
-                                onNavigateToFakeIp = {
-                                    route = AppRoute.SettingsDetail(SettingsDestination.FakeIp)
-                                },
-                                onNavigateToRules = {
-                                    route = AppRoute.SettingsDetail(SettingsDestination.Rules)
-                                },
-                                onNavigateToConnections = {
-                                    route = AppRoute.SettingsDetail(SettingsDestination.Connections)
-                                },
-                                onNavigateToLogs = {
-                                    route = AppRoute.SettingsDetail(SettingsDestination.Logs)
-                                },
-                            )
+                                AppSection.Proxies -> ProxiesScreen()
 
-                            AppSection.Sync -> SyncScreen()
-                        }
+                                AppSection.AppRouting -> SettingsScreen(
+                                    onNavigateToRouting = {
+                                        route = AppRoute.SettingsDetail(SettingsDestination.Routing)
+                                    },
+                                    onNavigateToTun = {
+                                        route = AppRoute.SettingsDetail(SettingsDestination.Tun)
+                                    },
+                                    onNavigateToDns = {
+                                        route = AppRoute.SettingsDetail(SettingsDestination.Dns)
+                                    },
+                                    onNavigateToFakeIp = {
+                                        route = AppRoute.SettingsDetail(SettingsDestination.FakeIp)
+                                    },
+                                    onNavigateToRules = {
+                                        route = AppRoute.SettingsDetail(SettingsDestination.Rules)
+                                    },
+                                    onNavigateToConnections = {
+                                        route = AppRoute.SettingsDetail(SettingsDestination.Connections)
+                                    },
+                                    onNavigateToLogs = {
+                                        route = AppRoute.SettingsDetail(SettingsDestination.Logs)
+                                    },
+                                )
 
-                        is AppRoute.SettingsDetail -> when (activeRoute.destination) {
-                            SettingsDestination.Routing -> AppRoutingScreen()
-                            SettingsDestination.Tun -> TunScreen()
-                            SettingsDestination.Dns -> DnsScreen()
-                            SettingsDestination.FakeIp -> FakeIpScreen()
-                            SettingsDestination.Rules -> RulesScreen()
-                            SettingsDestination.Connections -> ConnectionsScreen()
-                            SettingsDestination.Logs -> LogsScreen()
+                                AppSection.Sync -> SyncScreen()
+                            }
+
+                            is AppRoute.SettingsDetail -> when (targetRoute.destination) {
+                                SettingsDestination.Routing -> AppRoutingScreen()
+                                SettingsDestination.Tun -> TunScreen()
+                                SettingsDestination.Dns -> DnsScreen()
+                                SettingsDestination.FakeIp -> FakeIpScreen()
+                                SettingsDestination.Rules -> RulesScreen()
+                                SettingsDestination.Connections -> ConnectionsScreen()
+                                SettingsDestination.Logs -> LogsScreen()
+                            }
                         }
                     }
                 }
