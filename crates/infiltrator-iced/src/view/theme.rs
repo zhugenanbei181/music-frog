@@ -23,6 +23,7 @@ use iced::theme::Palette;
 use iced::{Color, Gradient, Radians, Shadow, Theme};
 
 use infiltrator_contract::design_tokens::{metrics, radius, space};
+use infiltrator_contract::latency_display::LatencyBand;
 use infiltrator_contract::theme::ThemeSkin;
 
 /// Spacing scale (logical pixels), from the shared contract ladder. Use these
@@ -467,13 +468,13 @@ pub enum LatencyTier {
     Bad,
 }
 
-/// Classify a delay measurement in milliseconds.
+/// Classify a delay measurement in milliseconds (delegating to canonical LatencyBand).
 pub fn latency_tier(ms: Option<u32>) -> LatencyTier {
-    match ms {
-        None => LatencyTier::Untested,
-        Some(ms) if ms <= 200 => LatencyTier::Good,
-        Some(ms) if ms <= 500 => LatencyTier::Mid,
-        Some(_) => LatencyTier::Bad,
+    match LatencyBand::classify(ms) {
+        LatencyBand::NotObserved => LatencyTier::Untested,
+        LatencyBand::Fast => LatencyTier::Good,
+        LatencyBand::Medium => LatencyTier::Mid,
+        LatencyBand::Slow | LatencyBand::UnconfirmedZero => LatencyTier::Bad,
     }
 }
 

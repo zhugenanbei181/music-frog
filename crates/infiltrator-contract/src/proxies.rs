@@ -3,6 +3,7 @@
 //!
 //! Track 2 / Group 04: Proxies & Sorting specifications.
 
+use crate::latency_display::LatencyBand;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::fmt::{Display, Formatter};
@@ -135,6 +136,16 @@ impl LatencyTier {
             Some(ms) if ms < 300 => Self::Medium,
             Some(_) => Self::Slow,
             None => Self::Timeout,
+        }
+    }
+
+    /// Convert to the canonical latency band (GAP-7.6).
+    pub const fn to_band(self) -> LatencyBand {
+        match self {
+            Self::Fast => LatencyBand::Fast,
+            Self::Normal | Self::Medium => LatencyBand::Medium,
+            Self::Slow => LatencyBand::Slow,
+            Self::Timeout => LatencyBand::UnconfirmedZero,
         }
     }
 }

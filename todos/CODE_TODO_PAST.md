@@ -188,3 +188,16 @@
   - 当前证据（L）：`android-product-identity-guard.py` 全绿；守卫自测 32/32 全绿；`infiltrator-shared` nextest 77/77 passed；Clippy `--all-targets -D warnings` passed；cargo fmt 0 偏差；Gradle 三 flavor 图标生成任务全绿并抽查五档尺寸精确。
   - 待验证：统一全仓集成验证批次；APK 安装包与真机取证归属斗战胜佛既有条目。
   - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。
+
+## 12.63 三端信息架构与交互模型对齐（词表/字段/语义色）交付（待集成验证与实机巡检，1条 / 5pt）
+
+- [ ] GAP-7.6 [kind: mechanism] [priority: P2] [points: 5] [owner: infiltrator-contract + infiltrator-slint + infiltrator-bevy-ui + infiltrator-iced] [status: Integrated] 三端信息架构与交互模型对齐（词表/字段/语义色）
+  - 产物：
+    - **Contract 层共享导航词表与短页名字典**：`ShellPage::canonical_title_zh` 与 `ShellPage::sidebar_key` 统一定义 15 个页面的权威中文短名与导航键；`PageId::nav_target`、`PageId::nav_key` 与 `PageId::canonical_title_zh` 权威读回；
+    - **统一延迟等级分类与语义色令牌**：`LatencyBand` 明确阈值分区（`<100ms` Fast / `100~250ms` Medium / `≥250ms` Slow / `0ms` UnconfirmedZero / `None` NotObserved）；`ActionRole` 语义色令牌（Primary/Secondary/Subtle/Danger）与 `container_pair` 映射；`LatencyTier::to_band` 映射；
+    - **跨表面消费收敛**：`infiltrator-presentation` 的 `project_latency` 统一消费 `LatencyBand`；Iced `view/theme.rs` 的 `latency_tier` 委托至 `LatencyBand::classify`；Slint `base_widgets.slint` 消除 158ms 色阶分歧，严格对齐 `<100` / `<250` / `≥250`；Slint `page_titles.slint` 与 `sidebar.slint` 彻底同步统一权威导航中文名（核心概览、代理策略、配置订阅、分流规则、连接审计、运行日志、域名解析、自愈诊断、数据同步、系统设置等），消除页面命名分歧；
+    - **严格落实 rem 唯一标尺**：`bevy_rem_guard --mode enforce` 扫描 402 文件 0 违例 0 debt；Slint 尺寸与间距统一 `* LumenUiScale.unit` 0 裸 px。
+  - 验收：词表/令牌进 contract 且三端消费（无第二副本）；Slint/Iced/Bevy 延迟色阶与页面命名对齐；全量结构门 40+ 项全绿；定向 nextest 1,736/1,736 全绿。
+  - 当前证据（L）：`infiltrator-contract` 485/485 pass、`infiltrator-presentation` 340/340 pass、`infiltrator-iced` 548/548 pass、`infiltrator-slint` 363/363 pass；`import-guard.py` 0 违规；`bevy_rem_guard` 0 违规 0 debt；`check-structure.sh` exit 0；`resolve_surface_evidence.py --structure-only` pass。
+  - 待验证：统一全仓集成验证批次与三端实机截图巡检。
+  - 本机可执行动作：统一验证批次复跑并回填全局门禁身份。

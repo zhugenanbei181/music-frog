@@ -156,3 +156,16 @@ fn test_accent_presets() {
     assert_eq!(custom_tokens.accent, custom_color);
     assert_eq!(custom_tokens.badge_accent, custom_color);
 }
+
+#[test]
+fn latency_tier_classification_mirrors_shared_contract() {
+    assert_eq!(latency_tier(None), LatencyTier::Untested);
+    assert_eq!(latency_tier(Some(0)), LatencyTier::Bad);
+    assert_eq!(latency_tier(Some(45)), LatencyTier::Good);
+    assert_eq!(latency_tier(Some(99)), LatencyTier::Good);
+    assert_eq!(latency_tier(Some(100)), LatencyTier::Mid);
+    assert_eq!(latency_tier(Some(158)), LatencyTier::Mid);
+    assert_eq!(latency_tier(Some(249)), LatencyTier::Mid);
+    assert_eq!(latency_tier(Some(250)), LatencyTier::Bad);
+    assert_eq!(latency_tier(Some(600)), LatencyTier::Bad);
+}

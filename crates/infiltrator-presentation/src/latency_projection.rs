@@ -19,7 +19,7 @@ impl LatencyPresentation {
 }
 
 pub fn project_latency(reading: LatencyReading) -> LatencyPresentation {
-    let value = match reading {
+    let (value, is_measured) = match reading {
         LatencyReading::NotObserved => {
             return LatencyPresentation {
                 key: "proxy_inspection_unmeasured",
@@ -34,18 +34,18 @@ pub fn project_latency(reading: LatencyReading) -> LatencyPresentation {
                 band: LatencyBand::UnconfirmedZero,
             };
         }
-        LatencyReading::Measured(value) | LatencyReading::ControllerHistory(value) => value,
+        LatencyReading::Measured(value) => (value, true),
+        LatencyReading::ControllerHistory(value) => (value, false),
+    };
+    let band = if is_measured {
+        LatencyBand::classify_measured(Some(value))
+    } else {
+        LatencyBand::classify(Some(value))
     };
     LatencyPresentation {
         key: "latency_value_ms",
         params: vec![("value", value.to_string())],
-        band: if value < 100 {
-            LatencyBand::Fast
-        } else if value < 250 {
-            LatencyBand::Medium
-        } else {
-            LatencyBand::Slow
-        },
+        band,
     }
 }
 

@@ -11,6 +11,7 @@ use crate::app_routing::{AppRoutingMode, AppRoutingRule};
 use crate::apply_transaction::ApplyTransactionSnapshot;
 use crate::backup_restore::BackupRestoreSnapshot;
 use crate::capability::CapabilitySnapshot;
+use crate::command_catalogue::ShellPage;
 use crate::connection::ConnectionRateObservation;
 use crate::controller::ControllerAuthSnapshot;
 use crate::core_capabilities::CoreCapabilitySnapshot;
@@ -155,6 +156,37 @@ impl PageId {
             Self::Disclaimer => "disclaimer",
             Self::Licenses => "licenses",
         }
+    }
+
+    /// Map to the shared navigation target catalogue item (GAP-7.6).
+    pub const fn nav_target(self) -> ShellPage {
+        match self {
+            Self::Overview => ShellPage::Overview,
+            Self::Proxies => ShellPage::Proxies,
+            Self::Profiles => ShellPage::Profiles,
+            Self::Rules => ShellPage::Rules,
+            Self::Connections => ShellPage::Connections,
+            Self::Logs => ShellPage::Logs,
+            Self::Dns => ShellPage::Dns,
+            Self::Doctor => ShellPage::Doctor,
+            Self::AppRouting => ShellPage::AppRouting,
+            Self::Sync => ShellPage::Sync,
+            Self::Settings => ShellPage::Settings,
+            Self::Tools => ShellPage::Tools,
+            Self::About => ShellPage::About,
+            Self::Disclaimer => ShellPage::Disclaimer,
+            Self::Licenses => ShellPage::Licenses,
+        }
+    }
+
+    /// Canonical shared sidebar key (GAP-7.6).
+    pub const fn nav_key(self) -> &'static str {
+        self.nav_target().sidebar_key()
+    }
+
+    /// Canonical short Chinese display title (GAP-7.6).
+    pub const fn canonical_title_zh(self) -> &'static str {
+        self.nav_target().canonical_title_zh()
     }
 }
 

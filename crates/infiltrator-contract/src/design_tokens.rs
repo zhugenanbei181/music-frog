@@ -28,6 +28,7 @@
 //! * [`elevation`] — the elevation levels, the ladder and the two-layer
 //!   shadow specification (EFFECTS-002 #9).
 
+use crate::surface_hierarchy::{MaterialSurfaceTokens, SemanticContainerPair};
 use crate::theme::ThemeSkin;
 use serde::{Deserialize, Serialize};
 
@@ -218,6 +219,34 @@ pub mod radius;
 /// The elevation ladder and the two-layer shadow specification (EFFECTS-002).
 #[path = "elevation.rs"]
 pub mod elevation;
+
+/// Semantic action role for buttons, dialog triggers and interactive badges (GAP-7.6).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ActionRole {
+    /// Default primary action (accent fill, high-contrast ink).
+    Primary,
+    /// Standard secondary action (neutral control surface, readable ink).
+    Secondary,
+    /// Subtle/ghost action (transparent resting state, hover wash).
+    Subtle,
+    /// Destructive/danger action (danger fill/stroke, red ink).
+    Danger,
+}
+
+impl ActionRole {
+    /// Returns the semantic container pair for this action role under the given skin.
+    pub fn container_pair(self, skin: ThemeSkin) -> SemanticContainerPair {
+        let tokens = MaterialSurfaceTokens::of(skin);
+        match self {
+            Self::Primary => tokens.primary_pair,
+            Self::Secondary | Self::Subtle => {
+                SemanticContainerPair::new(tokens.container_low, tokens.text_primary)
+            }
+            Self::Danger => tokens.danger_pair,
+        }
+    }
+}
 
 /// Continuous curvature / superellipse specification (Squircle / G2 continuity).
 #[derive(Clone, Copy, Debug, PartialEq)]

@@ -70,17 +70,18 @@
 13. **cargo 并行预算与分组收口（2026-10-20 起强制，仿 ZhuGeTower 组批节奏）：** 构建资源全局共享（本机两条 cargo lane），并行流的 cargo 调用必须错峰：同一时刻只允许一条流跑 cargo，其余流只写源码与测试；**重构按组推进、一组一收口**——同一主题的重构（同一 owner 结构、同一族类型、同一契约面）作为一组同时落地，由收口方统一跑一次该组验证（一次 `--workspace` nextest + 一次结构门 + 该组专属 guard），禁止每条改动各跑一遍全仓；收口顺序：各流先交付源码，最后一条流统一构建、统一验证、统一提交。
 14. **同仓多会话的所有权纪律（2026-10-20 起强制）**：同一仓库可能同时被多个会话操作——动一个文件前先以工作树未提交改动与修改时间确认它当前归谁，**正在被别的会话写的文件一律不碰**（不修、不格式化、不提交）；自己派出的并行流必须把 crate 目录写进所有权清单，跨界只读不改；宁可把半成品留在工作树等对方落地，也不要在对方写到一半时插进同一批文件——两个会话改同一文件的结果是双方都丢改动。
 
-## Points 与完成度台账（2026-11-01，基线 `musicfrog-todo-20261101-v361`）
+## Points 与完成度台账（2026-11-01，基线 `musicfrog-todo-20261101-v362`）
 
 | 看板 | task | points |
 | --- | ---: | ---: |
-| 现在佛 | 8 | 36 |
-| 过去佛 | 17 | 43 |
+| 现在佛 | 7 | 31 |
+| 过去佛 | 18 | 48 |
 | 斗战胜佛 | 18 | 56 |
 | 未来佛 | 15 | 26 |
 | **未办结联合分母** | **58** | **161** |
 
 - **严格交付率：1152 / 1313 = 87.7%**（archived 1152pt / archived 1152 + 未办结 161pt）。
+- 2026-11-01 第一百交付批次：`GAP-7.6`（5 pt）三端信息架构与交互模型对齐（词表/字段/语义色）交付迁入过去佛 §12.63（`Integrated`）：contract 层在 `latency_display.rs` 明确定义统一的 `LatencyBand`（Fast <100ms / Medium 100~250ms / Slow >=250ms / UnconfirmedZero 0ms / NotObserved None），在 `design_tokens.rs` 明确定义 `ActionRole` 语义色令牌（Primary/Secondary/Subtle/Danger）与 `container_pair`；`command_catalogue.rs` 与 `surface_snapshot.rs` 统一 15 个页面短标题字典与侧边栏导航词表；Iced `view/theme.rs` 消除私有硬编码，严格代理至 canonical `LatencyBand`；Slint `base_widgets.slint`、`page_titles.slint` 与 `sidebar.slint` 彻底同步统一阈值与导航中文名，消除 158ms 色阶及页面命名分歧；严格落实 rem 唯一尺寸标尺（`bevy_rem_guard --mode enforce` 0 违规 0 debt，Slint 统一 `* LumenUiScale.unit` 0 裸 px）；全量结构门 40+ 项全绿（`check-structure.sh` exit 0），import hygiene guard 0 违规，cargo clippy 0 警告，cargo fmt 0 偏差，定向 nextest 1,736/1,736 全绿。现在佛 36 → 31 pt（8 → 7 条），过去佛 43 → 48 pt（17 → 18 条），联合未办结分母 161 pt（58 条）保持，严格归档交付率 87.7%（1,152/1,313）保持。
 - 2026-11-01 第九十九交付批次（统一集成验证批次与集中归档）：一次性办结过去佛 84 条 / 274 pt `Integrated` 条目（明细与逐条证据见下表第九十九批次行）：`cargo nextest run --workspace --no-fail-fast` 5748 passed / 0 failed / 15 skipped 全绿；`cargo clippy --workspace --all-targets -- -D warnings` 零警告；`cargo fmt --all --check` 0 偏差；`cargo deny check advisories bans licenses sources` 四项全 ok；`cargo metadata --locked` ok；`bash scripts/quality/check-structure.sh` 40+ 结构守卫 exit 0；`resolve_surface_evidence.py` pass（status=pass, registry=True, discovery=True, 360 anchors, 180 cells）；`bevy_rem_guard --mode enforce` 0 违规 0 欠账；彻底落实 rem 唯一标尺（清理 `stat_chip.rs`、`editor.rs`、`rules_json.rs`、`sync.rs`、`sync_merge.rs`、`app_routing.rs` 裸 `px(control_height_px)` 及 `px(CHIP_MIN_HEIGHT)` 为标准 `rem`，升级 `bevy_rem_guard.py` 增强 `px(...)` 构造器感知并收窄 whitelist，实现 0 违规 0 debt 严格零容忍；Slint 尺寸统一 `* LumenUiScale.unit` 0 裸 px）；同批收拢 `PARITY-001.6`（5 pt）Android 实机截图外部设备腿，迁入斗战胜佛。现在佛 41 → 36 pt（9 → 8 条），过去佛 317 → 43 pt（101 → 17 条），斗战胜佛 51 → 56 pt（17 → 18 条），未来佛 26 pt（15 条）保持，未办结联合分母 435 → 161 pt（142 → 58 条），已归档办结 878 → 1,152 pt（346 → 430 条），累计 1,313 pt，严格归档交付率从 66.9% 跃升至 87.7%（1,152/1,313）。
 - 2026-11-01 第九十八交付批次：`FLPARITY-007`（5 pt）Tools 信息架构与 About/Disclaimer/Licenses 页面四端闭环与 rem 体系严格落实交付：Contract 扩充 PageId 至 15 项并补齐命令字典与权威读回；Shared 统一资产与本地化键表；Iced、Bevy、Android Compose 闭环路由并消除 Settings 裸铺正文；Bevy UI 严格落实 rem 体系（`bevy_rem_guard` violations=0, debt=0；`route.rs` 773 行，`mount.rs` 102 行）；结构门 40+ 项全绿，Clippy `--all-targets -D warnings` 零警告，定向单测 1709/1709 全绿。`FLPARITY-007` 从现在佛销账并在过去佛 §12.62 登记为 Integrated；现在佛 46 → 41 pt（10 → 9 条），过去佛 312 → 317 pt（100 → 101 条），联合未办结分母 435 pt（142 条）保持，严格归档率 66.9%（878/1313）保持。
 - 2026-11-01 第九十七交付批次：`FLPARITY-010`（3 pt）Slint 输入法、焦点与键盘导航模型闭环交付与 parity 矩阵全量锚定：在 contract 层为 KeyModifiers 补充 shift() 构造并设置 ShellKeyboardFocus 的 slint_page 为 overview；Slint surface 增加 focus_ime 模块，实现窗口焦点与 RenderCadence 节拍映射（Active 60FPS vs Background 2FPS）、多阶段中文输入法（ImeCompositionTracker）状态追踪与 ToolkitProvided 光标支持、Tab/Shift-Tab 焦点循环与 Esc/Enter 语义分发；严守输入法核心红线：在 composition 活跃期间严格拦截并抑制全局快捷键 chord，打拼音不误触发全局快捷键；在 AppWindow 接入 window-focused 属性与回调，并在 SurfaceHarness 接入键盘事件与 IME 驱动；补齐 4 项场景测试全绿；更新跨端平价清单与证据表，实现全仓 60 业务 × 3 表面 × 2 层级 = 360/360 单元格 100% anchored（0 pending，0 missing）；修复 lumen-app.slint 代码行超限，严格遵守 ≤600 行预算；全量结构门 check-structure.sh（40+ 项）全绿，Clippy --all-targets -D warnings 零警告，cargo fmt 0 偏差。`FLPARITY-010` 从现在佛销账并在过去佛 §12.61 登记为 Integrated；现在佛 49 → 46 pt（11 → 10 条），过去佛 309 → 312 pt（99 → 100 条），联合未办结分母 435 pt（142 条）保持，严格归档率 66.9%（878/1313）保持。

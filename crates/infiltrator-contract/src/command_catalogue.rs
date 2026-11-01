@@ -120,6 +120,48 @@ impl ShellPage {
             Self::Licenses => "前往 开源许可",
         }
     }
+
+    /// Canonical short title for page headings and navigation labels (GAP-7.6).
+    pub const fn canonical_title_zh(self) -> &'static str {
+        match self {
+            Self::Overview => "核心概览",
+            Self::Proxies => "代理策略",
+            Self::Profiles => "配置订阅",
+            Self::Rules => "分流规则",
+            Self::Connections => "连接审计",
+            Self::Logs => "运行日志",
+            Self::Dns => "域名解析",
+            Self::Doctor => "自愈诊断",
+            Self::AppRouting => "应用分流",
+            Self::Sync => "数据同步",
+            Self::Settings => "系统设置",
+            Self::Tools => "工具箱",
+            Self::About => "关于软件",
+            Self::Disclaimer => "免责声明",
+            Self::Licenses => "开源许可",
+        }
+    }
+
+    /// Shared locale key for the page's sidebar navigation item (GAP-7.6).
+    pub const fn sidebar_key(self) -> &'static str {
+        match self {
+            Self::Overview => "nav_overview",
+            Self::Proxies => "nav_proxies",
+            Self::Profiles => "nav_profiles",
+            Self::Rules => "nav_rules",
+            Self::Connections => "nav_connections",
+            Self::Logs => "nav_logs",
+            Self::Dns => "nav_dns",
+            Self::Doctor => "nav_doctor",
+            Self::AppRouting => "nav_app_routing",
+            Self::Sync => "nav_sync",
+            Self::Settings => "nav_settings",
+            Self::Tools => "nav_tools",
+            Self::About => "nav_about",
+            Self::Disclaimer => "nav_disclaimer",
+            Self::Licenses => "nav_licenses",
+        }
+    }
 }
 
 /// The palette group a command row belongs to.

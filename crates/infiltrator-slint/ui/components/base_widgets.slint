@@ -53,16 +53,16 @@ export component PingBadge inherits Rectangle {
 
     property <color> state-color: root.spinning || root.delay-ms < 0
         ? LumenTheme.text-secondary
-        : root.delay-ms == 0 || root.delay-ms > 500
+        : root.delay-ms == 0 || root.delay-ms >= 250
             ? LumenTheme.ping-bad
-            : root.delay-ms <= 200
+            : root.delay-ms < 100
                 ? LumenTheme.ping-good
                 : LumenTheme.ping-warning;
     property <color> state-background: root.spinning || root.delay-ms < 0
         ? LumenTheme.surface-muted
-        : root.delay-ms == 0 || root.delay-ms > 500
+        : root.delay-ms == 0 || root.delay-ms >= 250
             ? LumenTheme.ping-bad-soft
-            : root.delay-ms <= 200
+            : root.delay-ms < 100
                 ? LumenTheme.ping-good-soft
                 : LumenTheme.ping-warning-soft;
 
