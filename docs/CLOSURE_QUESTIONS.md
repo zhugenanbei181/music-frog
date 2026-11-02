@@ -23,18 +23,29 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-02 第一百零四批次）
+## 当前状态（2026-11-03 第一百零五批次）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
 | 1 | 部分 | L | 中性内核 x64/arm64 × Windows/Linux/Android/macOS **八个组合**全部通过；本机交叉复跑入口 `scripts/cross-check.sh`（zig 0.14.1 + `cargo-zigbuild`、`cargo-xwin`）与 `scripts/android-check.sh`（NDK 29.0.14206865）保持全绿；本批修掉了交叉腿实测报出的一个真实缺陷（`infiltrator-slint` 的 `clippy::missing-const-for-thread-local`，已改为 `const { Cell::new(false) }` 初始化），该腿由 `scripts/blocked/foreign-target-evidence.sh` 复跑验证；最终安装包与目标设备证据仍缺，由 CI runner 与设备矩阵取证（GAP-1.1） |
 | 2 | 部分 | C（旧 commit）+ L | Windows/Linux v0.42.6 四条腿 success（旧源码）；macOS `Unsupported`（无 CI/无产物，GAP-2.2）；安装包未验证（GAP-2.1）；Windows 安装包与 macOS/iOS 目标机腿已整条迁入斗战胜佛并写明阻塞方，Linux 打包腿在现在佛 `APPID-001.3`；**本批：release 作业的签名前置改为 fail closed**——缺 secret 时在昂贵的三 flavor release 构建之前就明确失败，桌面产物不再由 debug key 背书 |
 | 3 | 部分 | L | Android 源码级接通，Bevy host driver lockfile 已同步 0.50.0 解决 buildRustDriver 101 错误；**本批：Android 静态质量门成为真门**（Lint 68→0、ktlint 5046→0、Detekt 项目配置 0 条、架构红线守卫 ARCH001–007 扫描 137 点 0 违例并带 23 条负例，已接入结构门）；Android 单测 192 core host + 391 app 全绿；**release 变体改用用户持久 keystore 签名**，无 secret 时 Gradle 配置期即以缺失清单失败，debug key 不再用于任何 release 产物；APK 真实产物与真机仍缺，APK/真机腿在斗战胜佛；iOS `Unsupported`（626 行 stub，GAP-3.2）；模拟器 M1 腿可推（`PARITY-001.4`、过去佛 `BANDROID-002.1`/`002.2`） |
-| 4 | 部分 | L | Iced/Bevy/Slint/Compose 全量接入，四表面使用 `SurfaceReader` + `CommandSink`。**本批（2026-11-02 第一百零四批次）：统一验证批次一次性办结过去佛 13 条 / 38 pt `Integrated` 条目（BANDROID-043.3/043.7/009.1、PUB-006.1/006.13、EFFECTS-028/041、FLPARITY-035/041/006/018/039、GAP-7.6）；严格落实 rem 尺寸标尺（`bevy_rem_guard --mode enforce` 0 违规 0 debt，Slint 统一 `* LumenUiScale.unit` 0 裸 px，`slint-syntax-guard` 100% PASS）。现在佛 4 条 / 18 pt，过去佛 8 条 / 23 pt，联合分母 45 条 / 123 pt，严格归档率 90.6%（1,190/1,313 pt）。** |
+| 4 | 部分 | L | Iced/Bevy/Slint/Compose 全量接入，四表面使用 `SurfaceReader` + `CommandSink`。**本批（2026-11-03 第一百零五批次）：EFFECTS-036 与 SLINTUI-001 Slint 桌面 GPU 渲染通道办结归档——`renderer-skia` 为 opt-in `gpu-skia`、默认离线仍 `winit+femtovg`；release+gpu-skia+hardware GL 隔离台架下 Slint 自报 `Backend: Skia renderer (skia backend wgpu)`，满速 60fps、idle CPU 1.25%。现在佛 4 条 / 18 pt，过去佛 6 条 / 17 pt，联合分母 43 条 / 117 pt，严格归档率 91.1%（1,196/1,313 pt）。** |
 | 5 | 部分 | L | 共享 ports/kernel/kits 已复用；统一验证批次集中跑通全量 5,748 nextest 与 40+ 项结构门，一次性批量解锁并归档办结 84 条 Integrated 条目，消除重复构建开销；代码零重复旁路，事实单一真源 |
-| 6 | 部分 | L | **对标 FlClash v0.9.2 与跨端平价：第一百零四统一验证批次办结 FLPARITY-035/041/006/018/039 与 GAP-7.6 等 13 条 / 38 pt；现在佛余 4 项 / 18 pt（全量 FlClash 对标），过去佛余 8 项 / 23 pt（M1 模拟器腿与桌面运行时/读屏/niri 台架腿）。** 平价覆盖矩阵 360/360 单元格保持 100% anchored（0 pending，0 missing）。三桌面 192 张四主题实图在库；Android 36 张实机截图仍待外部设备腿。 |
+| 6 | 部分 | L | **对标 FlClash v0.9.2 与跨端平价：第一百零五批次办结 EFFECTS-036/SLINTUI-001 桌面 GPU 运行时腿；现在佛余 4 项 / 18 pt（全量 FlClash 对标），过去佛余 6 项 / 17 pt（M1 模拟器腿、读屏 Orca/NVDA 实机腿与 niri CI 接线腿）。** 平价覆盖矩阵 360/360 单元格保持 100% anchored（0 pending，0 missing）。三桌面 192 张四主题实图在库；Android 36 张实机截图仍待外部设备腿。 |
 | 7 | 部分 | L | 文件级模块化完成（<=800/600 行全绿，全仓 mod.rs 清退至 0，严格遵照 foo.rs + foo/ 模式，并在 check-structure.sh 接入 mod-rs-guard 永久禁止）；**严格落实 rem 体系，Bevy 0 违规（bevy_rem_guard --mode enforce 0 违规，debt 归零），Slint 统一 LumenUiScale.unit**；隐式状态机语义审计 + 判决台账常驻（22 条候选逐条人工判决，未判决或 open 即门禁失败）；九个页面模型与两个共用基座成为页面状态的唯一 owner；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | 已补 `--locked` 与 main 守卫门禁（仅 fmt+guards，不编译）；修复 main-gate.yml 缺失 setup-python/Pillow 问题；扩大 Gradle JVM 堆至 6GB 并将三大 flavor 分离独立进程构建彻底解决 OOM；交付 Android CI 套件 flavor/模拟器裁剪与 Gradle 缓存复用；release 作业在构建前校验签名材料缺 secret 秒级失败；全套单测与结构门（`check-structure.sh` 40+ 项守卫，含截图身份唯一守卫 enforce：550 张、aliases=10、0 违规）全绿；`cargo fmt --all --check` 100% 通过；版本号按身份改动一次升至 0.51.0 |
+
+## 最近一批问答（2026-11-03 第一百零五交付批次：Slint 桌面 GPU 渲染通道办结归档）
+
+1. x86_64/aarch64：`gpu-skia` 特性与选择器为平台无关代码；定向 `cargo nextest run -p infiltrator-slint` 364/364 全绿，clippy `-p infiltrator-slint --all-targets -D warnings` 零警告 → 部分（L）。
+2. Windows/Linux/macOS：`select_desktop_gpu_backend` 保持平台统一路径，`SLINT_BACKEND` 逃生口与 winit present 模式不变；Linux Wayland 离线台架取得 Skia/wgpu 运行时回执；Windows/macOS 原生安装包与实机腿仍在斗战胜佛/未来佛 → 部分（L）。
+3. Android/iOS：Android 依赖表保持 `backend-android-activity-06`，不启用 gpu-skia；iOS 保持 Unsupported → 部分（L）。
+4. 各 UI：Slint 表面在 release+hardware GL 台架自报 `Backend: Skia renderer (skia backend wgpu)`，满速 60fps、idle CPU 1.25%（满速 19.75%）；离线默认 `winit+femtovg` 保持可构建；严格落实 rem 标尺（Slint 0 裸 px）→ 部分（L）。
+5. 复用：Skia 通道由唯一 `gpu-skia` 特性承载，选择器唯一在 `infiltrator-slint/src/lib.rs`，采集证据复用 `capture-slint-matrix.sh` 单一台架并新增 profile/GL/perf/soak 旋钮；零第二渲染真源 → 部分（L）。
+6. 功能接入：EFFECTS-036 与 SLINTUI-001 从过去佛销账并在 TODO.md 归档表登记；过去佛 8 → 6 条 / 23 → 17 pt，联合分母 45 → 43 条 / 123 → 117 pt，严格归档率 90.6% → 91.1%（1,196/1,313 pt）→ 部分（L）。
+7. 模块化：`gpu-skia` 登记进 `feature_matrix.json`（kind=platform）并经 feature-matrix-guard enforce；typed-state 0 findings、implicit-state 23 候选 0 undecided 0 open、slint-syntax-guard 100% PASS、check-structure.sh exit 0 → 部分（L）。
+8. CI：`cargo fmt --all --check` 0 偏差；随批升级 `pulldown-cmark` 0.13.6 修复 RUSTSEC-2026-0433，`cargo deny check advisories bans licenses sources` 四项 ok、`cargo metadata --locked` ok；采集台架新增 `SLINT_CAPTURE_PROFILE/GL/PERF/SOAK_SECONDS` 可复跑旋钮，性能回执绑定 run id 与 binary sha256；同批提交并推送 main → 部分（L）。
 
 ## 最近一批问答（2026-11-02 第一百零四交付批次：统一验证批次与集中归档，过去佛 13 条 / 38 pt 一次性办结）
 

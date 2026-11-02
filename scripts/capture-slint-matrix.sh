@@ -34,7 +34,16 @@ fi
 
 APP_ID="infiltrator-slint"
 APP_TITLE="MusicFrog Infiltrator"
-APP="${CARGO_TARGET_DIR:-$REPO/target}/debug/infiltrator-slint"
+SLINT_CAPTURE_PROFILE="${SLINT_CAPTURE_PROFILE:-debug}"
+case "$SLINT_CAPTURE_PROFILE" in
+  debug|release) ;;
+  *)
+    printf 'usage: SLINT_CAPTURE_PROFILE must be debug or release (got %s)\n' \
+      "$SLINT_CAPTURE_PROFILE" >&2
+    exit 2
+    ;;
+esac
+APP="${CARGO_TARGET_DIR:-$REPO/target}/$SLINT_CAPTURE_PROFILE/infiltrator-slint"
 MATRIX_SRC="${INFILTRATOR_CAPTURE_MATRIX:-$REPO/scripts/capture_slint_scenarios.tsv}"
 OUT_DIR="${INFILTRATOR_CAPTURE_OUT_DIR:-$REPO/crates/infiltrator-slint/docs/screenshots}"
 MANIFEST_PUBLISHED="$OUT_DIR/manifest.tsv"
@@ -48,6 +57,33 @@ else
 fi
 RUN_ID="${RUN_STAMP}_${GIT_HEAD}_${WORKTREE_STATE}_$$"
 RUN_DIR="$EVIDENCE_ROOT/$RUN_ID"
+# The capture build defaults to the offline-safe feature set; a receipt run
+# that must prove the Skia channel passes SLINT_CAPTURE_FEATURES=gpu-skia,capture-tools.
+SLINT_CAPTURE_FEATURES="${SLINT_CAPTURE_FEATURES:-capture-tools}"
+# Optional SLINT_DEBUG_PERFORMANCE payload (e.g. refresh_lazy,console) recorded
+# into each scenario's app.log for frame-rate receipts.
+SLINT_CAPTURE_PERF="${SLINT_CAPTURE_PERF:-}"
+# Pixel receipts stay deterministic on software GL. A performance receipt can
+# select hardware GL and keep each scenario alive for a bounded soak period.
+SLINT_CAPTURE_GL="${SLINT_CAPTURE_GL:-software}"
+SLINT_CAPTURE_SOAK_SECONDS="${SLINT_CAPTURE_SOAK_SECONDS:-0}"
+case "$SLINT_CAPTURE_GL" in
+  software) export LIBGL_ALWAYS_SOFTWARE=1 ;;
+  hardware) unset LIBGL_ALWAYS_SOFTWARE ;;
+  *)
+    printf 'usage: SLINT_CAPTURE_GL must be software or hardware (got %s)\n' \
+      "$SLINT_CAPTURE_GL" >&2
+    exit 2
+    ;;
+esac
+case "$SLINT_CAPTURE_SOAK_SECONDS" in
+  0|[1-9]|[1-9][0-9]) ;;
+  *)
+    printf 'usage: SLINT_CAPTURE_SOAK_SECONDS must be 0..99 (got %s)\n' \
+      "$SLINT_CAPTURE_SOAK_SECONDS" >&2
+    exit 2
+    ;;
+esac
 # The linker writes large temporary objects; keep them beside the build output
 # so a busy shared /tmp cannot fail the capture build with a quota error.
 BUILD_TMP="${CAPTURE_BUILD_TMP:-${CARGO_TARGET_DIR:-$REPO/target}/capture-tmp}"
@@ -109,6 +145,32 @@ niri_ipc() {
 fail_hard() {
   printf '%s\n' "$1" >&2
   exit "${2:-1}"
+}
+
+process_cpu_ticks() {
+  awk '{print $14 + $15}' "/proc/$1/stat" 2>/dev/null
+}
+
+write_soak_receipt() {
+  local pid="$1" output="$2" duration="$3"
+  local hz start end status
+  hz="$(getconf CLK_TCK)"
+  start="$(process_cpu_ticks "$pid")"
+  sleep "$duration"
+  end="$(process_cpu_ticks "$pid")"
+  status=ok
+  if [ -z "$start" ] || [ -z "$end" ]; then
+    status=failed-process-ended
+    end="${end:-$start}"
+  fi
+  awk -v hz="$hz" -v start="${start:-0}" -v end="${end:-0}" \
+    -v duration="$duration" -v status="$status" 'BEGIN {
+      cpu = (end - start) / hz
+      printf "soak_seconds=%d\n", duration
+      printf "cpu_seconds=%.3f\n", cpu
+      printf "cpu_percent=%.2f\n", 100 * cpu / duration
+      printf "status=%s\n", status
+    }' >"$output"
 }
 
 cleanup() {
@@ -196,8 +258,15 @@ done
 
 # Build
 SOURCE_FINGERPRINT="$(python3 scripts/parity/visual_receipts.py --fingerprint)"
-printf 'build: cargo build --quiet -p infiltrator-slint --features capture-tools --bin infiltrator-slint\n'
-timeout --kill-after=10s 20m env TMPDIR="$BUILD_TMP" cargo build --quiet -p infiltrator-slint --features capture-tools --bin infiltrator-slint
+printf 'build: cargo build --quiet -p infiltrator-slint --profile %s (features: %s) --bin infiltrator-slint\n' \
+  "$SLINT_CAPTURE_PROFILE" "$SLINT_CAPTURE_FEATURES"
+if [ "$SLINT_CAPTURE_PROFILE" = release ]; then
+  timeout --kill-after=10s 20m env TMPDIR="$BUILD_TMP" \
+    cargo build --release --quiet -p infiltrator-slint --features "$SLINT_CAPTURE_FEATURES" --bin infiltrator-slint
+else
+  timeout --kill-after=10s 20m env TMPDIR="$BUILD_TMP" \
+    cargo build --quiet -p infiltrator-slint --features "$SLINT_CAPTURE_FEATURES" --bin infiltrator-slint
+fi
 [ -x "$APP" ] || fail_hard "slint binary was not produced: $APP"
 APP="$(python3 scripts/parity/product_build.py --surface slint --binary "$APP" --output "$RUN_DIR/product-build.json")"
 BINARY_SHA256="$(sha256sum "$APP" | cut -d' ' -f1)"
@@ -215,6 +284,11 @@ CAPTURED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   printf 'build_manifest=%s\n' "$(dirname "${APP#$REPO/}")/build.json"
   printf 'binary_sha256=%s\n' "$BINARY_SHA256"
   printf 'source_fingerprint=%s\n' "$SOURCE_FINGERPRINT"
+  printf 'build_profile=%s\n' "$SLINT_CAPTURE_PROFILE"
+  printf 'build_features=%s\n' "$SLINT_CAPTURE_FEATURES"
+  printf 'capture_gl=%s\n' "$SLINT_CAPTURE_GL"
+  printf 'soak_seconds=%s\n' "$SLINT_CAPTURE_SOAK_SECONDS"
+  printf 'slint_debug_performance=%s\n' "${SLINT_CAPTURE_PERF:-off}"
   printf 'app_id=%s\n' "$APP_ID"
   printf 'matrix=%s\n' "$MATRIX_SRC"
   printf 'scenario_count=%s\n' "$SCENARIO_COUNT"
@@ -291,7 +365,7 @@ start_capture_host() {
 start_capture_host || exit 3
 
 XDG_RUNTIME_DIR="$RUNTIME_DIR" WAYLAND_DISPLAY="$KWIN_DISPLAY" DISPLAY= \
-  LIBGL_ALWAYS_SOFTWARE=1 RUST_LOG=niri=info \
+  RUST_LOG=niri=info \
   setsid timeout --foreground --kill-after=10s 50m niri --config "$CONF" \
   >"$RUN_DIR/niri.log" 2>&1 &
 NIRI_PID=$!
@@ -397,7 +471,7 @@ capture_one() {
     printf '  start %-22s page=%-8s skin=%-5s window=%s\n' \
       "$name" "$page" "$skin" "$window_size"
     XDG_RUNTIME_DIR="$RUNTIME_DIR" WAYLAND_DISPLAY="$NIRI_SOCK" DISPLAY= \
-      LIBGL_ALWAYS_SOFTWARE=1 \
+      SLINT_DEBUG_PERFORMANCE="$SLINT_CAPTURE_PERF" \
       INFILTRATOR_DEMO=1 \
       INFILTRATOR_LANG="${INFILTRATOR_LANG:-zh-CN}" \
       INFILTRATOR_PAGE="$page" \
@@ -434,6 +508,10 @@ capture_one() {
         kill -0 "$APP_PID" 2>/dev/null || break
         sleep 0.25
       done
+    fi
+
+    if [ "$marker_ready" -eq 1 ] && [ "$SLINT_CAPTURE_SOAK_SECONDS" -gt 0 ]; then
+      write_soak_receipt "$APP_PID" "$scenario_dir/performance.txt" "$SLINT_CAPTURE_SOAK_SECONDS"
     fi
 
     {

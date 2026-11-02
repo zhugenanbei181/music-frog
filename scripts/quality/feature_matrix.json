@@ -134,6 +134,11 @@
           ]
         },
         {
+          "name": "gpu-skia",
+          "kind": "platform",
+          "members": ["slint/renderer-skia"]
+        },
+        {
           "name": "static-openssl",
           "kind": "platform",
           "members": ["dep:openssl", "openssl/vendored"]

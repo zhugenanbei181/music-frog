@@ -321,20 +321,29 @@ pub fn run_with_host_prepared_and_tray(
 
 /// Select the desktop GPU backend (EFFECTS-036 #146~#149, = SLINTUI-001 #1~#4).
 ///
-/// Skia is the primary renderer; femtovg stays compiled as the lightweight
-/// fallback channel and the software renderer remains the last resort. An
-/// explicit `SLINT_BACKEND` from the environment wins, so the femtovg channel
-/// and the software fallback stay operator-selectable without a rebuild.
-/// VSync rides the winit present mode of the selected GPU backend. The
-/// backend-qt bridge stays a reserved seam (nothing in this tree links Qt).
+/// The offline-build default channel is `winit` + `femtovg`; `renderer-skia`
+/// is opt-in through `--features gpu-skia` because the Skia bindings fetch a
+/// prebuilt binary at build time, which network-isolated builds must not
+/// require. When `gpu-skia` is compiled in, the selector requests `winit` +
+/// `skia`, so a Skia that fails to load surfaces as a startup error instead
+/// of a silent fallback. An explicit `SLINT_BACKEND` from the environment
+/// wins either way, keeping the femtovg channel and the software fallback
+/// operator-selectable without a rebuild. VSync rides the winit present mode
+/// of the selected GPU backend. The backend-qt bridge stays a reserved seam
+/// (nothing in this tree links Qt).
 #[cfg(not(target_os = "android"))]
 fn select_desktop_gpu_backend() -> Result<(), slint::PlatformError> {
     if env::var_os("SLINT_BACKEND").is_some() {
         return Ok(());
     }
+    let renderer = if cfg!(feature = "gpu-skia") {
+        "skia"
+    } else {
+        "femtovg"
+    };
     slint::BackendSelector::new()
         .backend_name("winit".into())
-        .renderer_name("femtovg".into())
+        .renderer_name(renderer.into())
         .select()
 }
 

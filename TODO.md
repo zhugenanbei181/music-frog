@@ -75,12 +75,13 @@
 | 看板 | task | points |
 | --- | ---: | ---: |
 | 现在佛 | 4 | 18 |
-| 过去佛 | 8 | 23 |
+| 过去佛 | 6 | 17 |
 | 斗战胜佛 | 18 | 56 |
 | 未来佛 | 15 | 26 |
-| **未办结联合分母** | **45** | **123** |
+| **未办结联合分母** | **43** | **117** |
 
-- **严格交付率：1190 / 1313 = 90.6%**（archived 1190pt / archived 1190 + 未办结 123pt）。
+- **严格交付率：1196 / 1313 = 91.1%**（archived 1196pt / archived 1196 + 未办结 117pt）。
+- 2026-11-03 第一百零五交付批次：EFFECTS-036（3 pt）与 SLINTUI-001（3 pt）Slint 桌面 GPU 渲染通道办结归档：恢复 `renderer-skia` 为 opt-in `gpu-skia` 特性（离线网络隔离默认仍走 `winit+femtovg`，修复 23d76ce 后注释与行为矛盾），运行时选择器按特性请求 `winit+skia`、`SLINT_BACKEND` 保持最高优先；采集台架新增 `SLINT_CAPTURE_PROFILE/GL/PERF/SOAK_SECONDS` 四旋钮并输出 CPU soak 回执；真实台架证据：release+`gpu-skia`+hardware GL 下（并随批升级 `pulldown-cmark` 0.13.6 修复 RUSTSEC-2026-0433）Slint 自报 `Backend: Skia renderer (skia backend wgpu)`，满速刷新稳定 60fps（run 20261102T161700Z/162557Z，idle CPU 1.25%、满速单核 19.75%），debug+hardware 满速 58~61fps（run 20261102T161426Z）。定向 nextest 364/364、clippy `-p infiltrator-slint --all-targets -D warnings` 零警告、fmt 0 偏差、feature/typed/implicit/slint/结构门全绿。过去佛 23 → 17 pt（8 → 6 条），未办结分母 123 → 117 pt（45 → 43 条），已归档 1,190 → 1,196 pt（443 → 445 条），严格归档率 90.6% → 91.1%（1,196/1,313 pt）。
 - 2026-11-02 第一百零四交付批次（统一验证批次与集中归档）：一次性办结过去佛 13 条 / 38 pt `Integrated` 条目（BANDROID-043.3/043.7/009.1、PUB-006.1/006.13、EFFECTS-028/041、FLPARITY-035/041/006/018/039、GAP-7.6，逐行证据见下表第一百零四批次行）：`cargo nextest run --workspace --no-fail-fast` 5767 passed / 0 failed / 15 skipped 全绿；`cargo clippy --workspace --all-targets -- -D warnings` 零警告；`cargo fmt --all --check` 0 偏差；`cargo deny check advisories bans licenses sources` 四项全 ok；`cargo metadata --locked` ok；`bash scripts/quality/check-structure.sh` 40+ 结构守卫 exit 0；`resolve_surface_evidence.py` pass（status=pass, registry=True, discovery=True, 360 anchors, 180 cells）；`bevy_rem_guard --mode enforce` 0 违规 0 欠账；`slint-syntax-guard` 100% PASS；Android 三 flavor `testComposeDebugUnitTest`/`testBevyDebugUnitTest`/`testSlintDebugUnitTest` BUILD SUCCESSFUL（BANDROID-043.3/043.7 本地 Gradle 腿回执）；`core-backend-smoke-singbox.sh --driver-evidence-only` 对真实 sing-box v1.14.3 四项 proof 全 proven（`node_speed_test` 实测 983ms，PUB-006.13 真实二进制腿回执）；`neutral-crate-release.sh structure` 七 crate 全 ready（PUB-006.1 本地腿回执）。过去佛 61 → 23 pt（21 → 8 条：BANDROID-002.1/002.2、PARITY-001.4、FLPARITY-045 的 M1 模拟器腿与 EFFECTS-036/SLINTUI-001、EFFECTS-049/050 的桌面运行时/读屏/niri 台架腿待下一批次），现在佛 18 pt（4 条）、斗战胜佛 56 pt（18 条）、未来佛 26 pt（15 条）保持，未办结联合分母 161 → 123 pt（58 → 45 条），已归档办结 1,152 → 1,190 pt（430 → 443 条），累计 1,313 pt，严格归档交付率从 87.7% 提升至 90.6%（1,190/1,313 pt）。
 - 2026-11-01 第一百零三交付批次：`FLPARITY-039`（3 pt）桌面侧栏系统材质效果与诚实降级交付迁入过去佛 §12.66（`Integrated`）：contract 层统一定义 `SidebarMaterialKind`（`OpaqueFallback`、`WindowsMica`、`WindowsMicaAlt`、`WindowsAcrylic`、`MacVibrancy`、`WaylandBlur`）、`SidebarMaterialSupport` 与 `SidebarMaterialSpec`；presentation 层 `sidebar_material_projection` 单源投影材质解析与表面着色（半透明材质按深浅色动态输出安全透明度，不透明回退恒为 1.0）；desktop 层接入平台能力检测与诚实回退（无平台扩展时返回 `None`）；三端 UI 侧栏接入动态材质表面与失焦/减弱动态效果自适应；受影响六包定向 nextest 2,241/2,241 全绿，Clippy `-D warnings` 零警告，fmt 0 偏差；严格落实 rem 体系（`bevy_rem_guard` 0 违规 0 debt，Slint 统一 `* LumenUiScale.unit`）。现在佛 21 → 18 pt（5 → 4 条），过去佛 58 → 61 pt（20 → 21 条），联合分母 161 pt（58 条）保持，严格归档交付率 87.7%（1,152/1,313 pt）保持。
 - 2026-11-01 第一百零二交付批次：`FLPARITY-018`（5 pt）自定义无框窗口标题栏（CSD）、实时流量胶囊与多端统一系统窗管交付迁入过去佛 §12.65（`Integrated`）：contract 层统一定义 `TitleBarTrafficCapsule`、`TitleBarControlsPlacement`、`DesktopPlatformKind`、`TitleBarInsets::for_platform`、`SnapLayoutSupport` 与 `DesktopTitleBarSpec`；presentation 层 `title_bar_projection` 单源投影胶囊文本与统一 spec；desktop 层按 Windows 构建号判定 Snap Layout 支持并以 `SnapLayoutButtonGeometry::STANDARD_WIN11` 唯一持有 `WM_NCHITTEST` `HTMAXBUTTON` 命中几何；Iced/Bevy/Slint 三端标题栏接入实时流量胶囊与搜索触发（Iced 走 `Message::OpenCommandPalette`，Bevy 走 `ToggleCommandPalette`，Slint 收敛为宿主侧导航到 `ShellWorkbench` 命令面板页并附 harness 行为测试，修复搜索在 .slint 私带「跳转 Proxy 页」UI 侧业务推导的在制缺陷）；受影响六包定向 nextest 2,230/2,230 全绿，Clippy `-D warnings` 零警告，fmt 0 偏差；严格落实 rem 体系（`bevy_rem_guard` 0 违规 0 debt，Slint 统一 `* LumenUiScale.unit`）。现在佛 26 → 21 pt（6 → 5 条），过去佛 53 → 58 pt（19 → 20 条），联合分母 161 pt（58 条）保持，严格归档交付率 87.7%（1,152/1,313 pt）保持。
@@ -263,7 +264,7 @@
 | 文案实现 | — | — | `interpolate` 在 `lurker-ui-presentation::copy` 与 `infiltrator-shared::i18n_interpolator` 各有一份 |
 
 
-### 已归档交付原子条目（明细 428 条 / 1,169 pt；累计 443 条 / 1,190 pt）
+### 已归档交付原子条目（明细 430 条 / 1,175 pt；累计 445 条 / 1,196 pt）
 
 > 证据等级：下表除显式标注 `C` 外均为本地 `L`（命令/run 见各行）；`cargo publish --dry-run` 目前只有 `lurker-core-contract` 取得。
 >
@@ -698,6 +699,8 @@
 | `FLPARITY-006` 桌面托盘宿主与彩色状态图标 | 5 | 2026-11-02 第一百零四交付批次（统一验证批次）：workspace nextest 5767/0、clippy `--all-targets -D warnings` 零警告、cargo deny 四项 ok、`resolve_surface_evidence.py` pass、结构门 40+ 项 exit 0、`bevy_rem_guard` 0 违规 0 debt、Slint LumenUiScale.unit 0 裸 px；Linux SNI 与 Windows/macOS 原生后端接线随 workspace 编译全量验证；桌面真实环境托盘 smoke 随未来佛安装包腿。 |
 | `FLPARITY-018` 自定义无框窗口标题栏（CSD）、实时流量胶囊与多端统一系统窗管 | 5 | 2026-11-02 第一百零四交付批次（统一验证批次）：workspace nextest 5767/0、clippy `--all-targets -D warnings` 零警告、cargo deny 四项 ok、`resolve_surface_evidence.py` pass、结构门 40+ 项 exit 0、`bevy_rem_guard` 0 违规 0 debt、Slint LumenUiScale.unit 0 裸 px；标题栏胶囊与搜索触发随统一批次验证；Win11 Snap 菜单实机随 Windows 平台腿。 |
 | `FLPARITY-039` 桌面侧栏系统材质效果与诚实降级 | 3 | 2026-11-02 第一百零四交付批次（统一验证批次）：workspace nextest 5767/0、clippy `--all-targets -D warnings` 零警告、cargo deny 四项 ok、`resolve_surface_evidence.py` pass、结构门 40+ 项 exit 0、`bevy_rem_guard` 0 违规 0 debt、Slint LumenUiScale.unit 0 裸 px；材质契约/投影/宿主检测随统一批次验证；Windows 11 DWM 与 macOS Vibrancy 原生材质像素回执随 EFFECTS-046 斗战胜佛腿。 |
+| `EFFECTS-036` Winit+Skia 硬件加速升级与 GPU VSync（#146~#149） | 3 | 2026-11-03 第一百零五交付批次：release+`gpu-skia`+hardware GL 隔离台架下 Slint 自报 `Backend: Skia renderer (skia backend wgpu)`；`SLINT_DEBUG_PERFORMANCE` 满速刷新稳定 60fps、idle CPU 1.25%（满速 19.75%）；定向 nextest 364/364、clippy `-p infiltrator-slint --all-targets -D warnings` 零警告、fmt 0 偏差、结构与四守卫全绿。 |
+| `SLINTUI-001` 渲染管线升级 —— Skia GPU 硬件加速与 VSync（#1~#4） | 3 | 2026-11-03 第一百零五交付批次：release+`gpu-skia`+hardware GL 隔离台架下 Slint 自报 `Backend: Skia renderer (skia backend wgpu)`；`SLINT_DEBUG_PERFORMANCE` 满速刷新稳定 60fps、idle CPU 1.25%（满速 19.75%）；定向 nextest 364/364、clippy `-p infiltrator-slint --all-targets -D warnings` 零警告、fmt 0 偏差、结构与四守卫全绿。 |
 > v143 在 v142 上归档 DNS display projection ownership，共 5 pt。继承的历史明细仍比累计少 1 条 / 1 pt，旧任务 ID 与证据无法还原；当前已知切片均登记，未猜填历史记录。
 
 ## 全局研判与产品交付收口门（2026-10-11）

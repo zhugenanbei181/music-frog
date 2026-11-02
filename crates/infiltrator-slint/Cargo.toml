@@ -25,6 +25,7 @@ capture-tools = [
     "infiltrator-composition/capture-fixtures",
     "dep:infiltrator-test-support",
 ]
+gpu-skia = ["slint/renderer-skia"]
 static-openssl = ["dep:openssl", "openssl/vendored"]
 
 [dependencies]
@@ -48,9 +49,11 @@ tokio = { workspace = true, features = ["rt", "macros"] }
 [build-dependencies]
 slint-build.workspace = true
 
-# EFFECTS-036 #146~#149（= SLINTUI-001 #1~#4）：桌面端 Skia GPU 主渲染器，
-# femtovg 保留为轻量回退通道（`SLINT_BACKEND=winit-femtovg` 切换），软件
-# 渲染仍是最后兜底；backend-qt 仅预留桥接位（树内无 Qt 依赖，不启用）。
+# EFFECTS-036 #146~#149（= SLINTUI-001 #1~#4）：桌面 GPU 渲染通道。
+# 离线网络隔离构建的默认通道是 winit+femtovg；renderer-skia 依赖构建期
+# 拉取 Skia 预编译二进制，只能作为 opt-in 特性（`--features gpu-skia`）
+# 提供给有网络的构建（23d76ce 的离线构建约束）。`SLINT_BACKEND` 环境变量
+# 始终优先，软件渲染仍是最后兜底；backend-qt 仅预留桥接位（树内无 Qt）。
 [target.'cfg(not(target_os = "android"))'.dependencies]
 slint = { workspace = true, features = ["backend-winit", "renderer-femtovg"] }
 rfd = "0.17"
