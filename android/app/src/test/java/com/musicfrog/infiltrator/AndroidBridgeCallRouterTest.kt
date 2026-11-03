@@ -60,7 +60,7 @@ class AndroidBridgeCallRouterTest {
         override fun coreStop(): Int = record("core-stop", 2)
         override fun coreProcessObservationJson(): String = record("process-observation", "observation")
         override fun coreProcessExitRecovered(contextJson: String): Int = record("recovered:$contextJson", 3)
-        override fun coreLifecycleSnapshot(deadline: VpnOwnerRequestDeadline): String? =
+        override fun coreLifecycleSnapshot(deadline: VpnOwnerRequestDeadline): String =
             recordDeadline(deadline, "core-snapshot", "core-snapshot")
         override fun executeProductCommandJson(commandJson: String, deadline: VpnOwnerRequestDeadline): String? =
             recordDeadline(deadline, "product:$commandJson", "product-result")

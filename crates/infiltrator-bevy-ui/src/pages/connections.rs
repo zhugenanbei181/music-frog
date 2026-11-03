@@ -44,7 +44,6 @@ use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Query, Res, ResMut, SystemParam};
-use bevy::picking::Pickable;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, Display, FlexDirection, FlexWrap, JustifyContent,
@@ -62,6 +61,7 @@ use infiltrator_bevy_widgets::localization::{
 };
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
+use infiltrator_bevy_widgets::picking;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
@@ -305,7 +305,7 @@ fn scroll_fade_scene(palette: &UiPalette) -> impl Scene + use<> {
                 justify_content: JustifyContent::FlexEnd,
                 overflow: Overflow::clip(),
             }
-            Pickable { should_block_lower: false, is_hoverable: true }
+            picking::HOVER_PASSTHROUGH
             Children [
                 { strips }
             ]

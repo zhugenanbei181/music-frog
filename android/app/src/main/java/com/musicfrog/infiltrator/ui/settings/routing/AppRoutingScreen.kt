@@ -58,6 +58,7 @@ private enum class RoutingModeMenuState {
 internal fun AppRoutingScreen(viewModel: AppRoutingViewModel = viewModel()) {
     val apps by viewModel.uiState.collectAsStateWithLifecycle()
     val routingMode by viewModel.routingMode.collectAsStateWithLifecycle()
+    val selectedCount by viewModel.selectedCount.collectAsStateWithLifecycle()
     val operation by viewModel.operation.collectAsStateWithLifecycle()
     val canEditSelection = when (val mode = routingMode) {
         AppRoutingModeState.Unavailable -> false
@@ -78,7 +79,56 @@ internal fun AppRoutingScreen(viewModel: AppRoutingViewModel = viewModel()) {
     var selectedTab by remember { mutableStateOf(AppGroup.User) }
     var modeMenuState by remember { mutableStateOf(RoutingModeMenuState.Collapsed) }
 
-    Scaffold { padding ->
+    Scaffold(
+        bottomBar = {
+            androidx.compose.material3.Surface(
+                tonalElevation = 3.dp,
+                shadowElevation = 4.dp,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column {
+                        Text(
+                            text = when (val mode = routingMode) {
+                                AppRoutingModeState.Unavailable -> stringResource(R.string.routing_mode_unavailable)
+                                is AppRoutingModeState.Available -> getModeLabel(mode.mode)
+                            },
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                        )
+                        Text(
+                            text = stringResource(R.string.label_selected_apps_count, selectedCount),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(
+                        checked = when (val mode = routingMode) {
+                            is AppRoutingModeState.Available -> mode.mode != AndroidAppRoutingMode.PROXY_ALL
+                            else -> false
+                        },
+                        onCheckedChange = { checked ->
+                            if (canChangeMode) {
+                                val nextMode = if (checked) {
+                                    AndroidAppRoutingMode.BYPASS_SELECTED
+                                } else {
+                                    AndroidAppRoutingMode.PROXY_ALL
+                                }
+                                viewModel.setRoutingMode(nextMode)
+                            }
+                        },
+                        enabled = canChangeMode,
+                    )
+                }
+            }
+        },
+    ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()

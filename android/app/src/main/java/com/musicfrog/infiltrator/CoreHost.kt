@@ -6,6 +6,7 @@ import android.util.Log
 import infiltrator_android.AndroidHostReply
 import java.io.File
 import java.io.IOException
+import org.json.JSONObject
 
 private const val TAG = "CoreHost"
 
@@ -23,6 +24,8 @@ internal class CoreHost(private val context: Context) :
 
     override fun dispatchAndroidBridgeCall(requestId: Long, requestJson: String, timeoutMillis: Long): Int {
         if (requestId <= 0L || timeoutMillis <= 0L) return AndroidBridgeDispatchState.InvalidRequest.wireCode
+        val operation = runCatching { JSONObject(requestJson).optString("operation") }.getOrDefault("unknown")
+        Log.i(TAG, "Rust host call received: id=$requestId operation=$operation")
         val call = when (val decoded = AndroidBridgeCallWire.decode(requestJson)) {
             is AndroidBridgeCallDecode.Accepted -> decoded.call
 
@@ -71,12 +74,14 @@ internal class CoreHost(private val context: Context) :
                 bridgeCallRouter.execute(admittedCall, deadline)
             },
             complete = { completedId, reply ->
+                Log.i(TAG, "Rust host call completed: id=$completedId")
                 RustBridge.completeAndroidBridgeCall(
                     completedId,
                     AndroidBridgeCallWire.encodeReply(reply),
                 )
             },
             fail = { failedId, reason ->
+                Log.i(TAG, "Rust host call failed: id=$failedId reason=$reason")
                 RustBridge.completeAndroidBridgeCall(
                     failedId,
                     AndroidBridgeCallWire.encodeFailure(reason),
@@ -186,12 +191,13 @@ internal class CoreHost(private val context: Context) :
             AndroidCoreProcessRecoveryReceiptWire.NotVpnOwner.wireCode
     }
 
-    override fun coreLifecycleSnapshot(deadline: VpnOwnerRequestDeadline): String? = when (processRole) {
+    override fun coreLifecycleSnapshot(deadline: VpnOwnerRequestDeadline): String = when (processRole) {
         AndroidProcessRole.Ui -> controlClient.readCoreLifecycleSnapshotJson(deadline)
+            ?: VpnOwnerSnapshotWire.defaultStoppedCoreLifecycleJson()
 
         AndroidProcessRole.VpnOwner,
         is AndroidProcessRole.Unsupported,
-        -> null
+        -> VpnOwnerSnapshotWire.defaultStoppedCoreLifecycleJson()
     }
 
     override fun executeProductCommandJson(commandJson: String, deadline: VpnOwnerRequestDeadline): String? = when (processRole) {

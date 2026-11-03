@@ -175,23 +175,41 @@
   - 解锁条件：`aarch64-apple-ios` 真实构建与包结构检查回执；取得后同次迁回未来佛办结。
   - 本板停留期间：被 deferral guard 显式禁止，本条无本机动作。
 
-## 六、跨板交叉索引（阻塞腿随条目本体推进）
+## 六、桌面离屏台架与宿主读屏环境（外部环境阻塞，2 条 / 6 pt）
+
+- [ ] EFFECTS-049 [kind: a11y] [priority: P1] [points: 3] [owner: 三大 UI owner] [status: Blocked] 辅助功能读屏树（AccessKit）标准角色注册（#196）
+  - 产物：实现 #196 为 Iced、Bevy、Slint 常用控件注册 AccessibleRole、AccessibleName 与操作动作。
+  - 依赖：无。
+  - 验收：系统读屏软件（如 Orca / NVDA）能正确读出核心按钮角色、标签与状态。
+  - 当前证据：三端注册面已在树：Bevy 挂真实 accesskit::Node，Slint 内建 accessible-role/label，Iced 共享语法标签 + hover tooltip；单测全绿。
+  - 阻塞方：系统读屏软件实机运行环境（Orca / NVDA）。
+  - 解锁条件：真实读屏环境下的读屏事件与回执；取得后同次迁回未来佛办结。
+  - 本板停留期间：代码级语义树与语法注册已闭环，无独立本机动作。
+
+- [ ] EFFECTS-050 [kind: evidence] [priority: P1] [points: 3] [owner: scripts/parity] [status: Blocked] 虚拟 Wayland 离屏取证与双视口像素级回归矩阵（#197~#200）
+  - 产物：实现 #197 虚拟 Wayland（Niri IPC）离屏截屏管线、#198 双视口全业务黑盒像素差自动化回归、#199 Android 三 Flavor 交互截图自动化、#200 全平台矩阵验收报告生成器。
+  - 依赖：三大 UI 实施完成。
+  - 验收：CI 流水线一键复跑所有 UI 双视口像素差比对，无感知视觉退化被拒。
+  - 当前证据：#198 interaction_delta、#200 parity 注册表已闭环；#199 由 PARITY-001.4 办结；scripts/parity/wayland_offscreen_capture.sh 已交付。
+  - 阻塞方：CI Wayland/Niri 离线台架运行环境。
+  - 解锁条件：带 niri 的离线台架实跑与 CI 接线回执；取得后同次迁回未来佛办结。
+  - 本板停留期间：脚本与离线管线已闭环，无独立本机动作。
+
+## 七、跨板交叉索引（阻塞腿随条目本体推进）
 
 | 条目 | 所在看板 | 阻塞腿 | 阻塞方 | 本板状态 |
 | --- | --- | --- | --- | --- |
 | EFFECTS-046 | [过去佛](CODE_TODO_PAST.md) | Windows 11 DWM 亚克力/云母与 macOS NSVisualEffectView 混成的**原生材质像素回执** | Windows 11 / macOS 实机或对应 CI 渲染环境 | 随条目本体推进，条目本体不因该腿阻塞 |
 | EFFECTS-047 | [过去佛](CODE_TODO_PAST.md) | Android 真机的 Activity 挂起恢复无黑屏与列表滑动不误触发子项点击的**实机截图回执** | ARM64 物理设备（Android flavor） | 随条目本体推进，条目本体不因该腿阻塞 |
-| BANDROID-002.1 | [过去佛](CODE_TODO_PAST.md) | `[ARM64真机 D]` always-on 恢复与真实连通性 | ARM64 物理设备 | 随条目本体推进，条目本体不因该腿阻塞 |
-| BANDROID-002.2 | [过去佛](CODE_TODO_PAST.md) | `[ARM64真机 D]` 真实流量、Wi-Fi/蜂窝切换、WakeLock 释放 | ARM64 物理设备 | 随条目本体推进，条目本体不因该腿阻塞 |
 | BANDROID-039.2 | 本板 §三 | 设备升级腿 | ARM64 物理设备 | 随条目本体推进 |
 
-## 七、迁出记录
+## 八、迁出记录
 
 | 迁出日期 | 条目 | 原阻塞方 | 迁回看板 | 证据身份 |
 | --- | --- | --- | --- | --- |
 | — | 暂无 | — | — | — |
 
-## 八、登记说明
+## 九、登记说明
 
 - 本板是三佛体系的环境阻塞层，与[现在佛](CODE_TODO.md)、[过去佛](CODE_TODO_PAST.md)互斥：同一条目只能在一块板上登记正文。
 - 阻塞原因消失后必须同次迁出并登记，不得在本板长期停放可推条目。

@@ -5,7 +5,7 @@
 //! the OS lock; products and tests can substitute their own through
 //! [`crate::platform::StorePlatform::lock_profile_writes`].
 
-use crate::instance_lock::{ThreadedInstanceLockGuard, try_acquire_threaded_instance_lock};
+use crate::instance_lock::{ThreadedInstanceLockGuard, acquire_threaded_instance_lock};
 use crate::layout::ProfileStoreLayout;
 use crate::platform::{NativeStorePlatform, StorePlatform, map_io_error};
 use lurker_core_ports::error::PortError;
@@ -15,10 +15,8 @@ use std::fs::canonicalize;
 use std::io::{self, ErrorKind};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock, Weak};
-use std::time::Duration;
 use tokio::sync::{self, OwnedMutexGuard};
 use tokio::task::spawn_blocking;
-use tokio::time::sleep;
 
 /// The platform-owned half of a held profile-write fence.
 pub trait ProfileWriteFence: Send + Sync {
@@ -85,17 +83,11 @@ pub(crate) async fn lock_profile_writes_native(
 ) -> Result<Box<dyn ProfileWriteFence>, PortError> {
     let boundary = shared_boundary(config_dir).map_err(map_io_error)?;
     let lock_path = profile_write_lock_path(layout, config_dir).await?;
-    let cross_process = loop {
-        let attempt_path = lock_path.clone();
-        let attempt = spawn_blocking(move || try_acquire_threaded_instance_lock(&attempt_path))
-            .await
-            .map_err(|error| PortError::Failed(format!("profile write lock worker: {error}")))?
-            .map_err(|error| PortError::Io(error.to_string()))?;
-        if let Some(guard) = attempt {
-            break guard;
-        }
-        sleep(Duration::from_millis(10)).await;
-    };
+    let attempt_path = lock_path.clone();
+    let cross_process = spawn_blocking(move || acquire_threaded_instance_lock(&attempt_path))
+        .await
+        .map_err(|error| PortError::Failed(format!("profile write lock worker: {error}")))?
+        .map_err(|error| PortError::Io(error.to_string()))?;
     let local = boundary.lock_owned().await;
     Ok(Box::new(NativeProfileWriteFence {
         _local: local,

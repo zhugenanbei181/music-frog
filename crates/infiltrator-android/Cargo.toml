@@ -34,6 +34,7 @@ infiltrator-shared = { path = "../infiltrator-shared" }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 log = { workspace = true }
+android_logger = { workspace = true }
 mihomo-api = { path = "../mihomo-api" }
 mihomo-driver = { version = "0.68.2", path = "../mihomo-driver", default-features = false, features = [
   "http",

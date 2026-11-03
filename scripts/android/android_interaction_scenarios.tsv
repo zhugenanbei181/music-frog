@@ -8,12 +8,12 @@ navigation	shell-routing-intent-control	slint	tap_nav:nav-1				pixel-delta	none
 list-scroll	logs-scroll-lock	compose	tap_text:Overview;swipe_up				pixel-delta	none	navigation
 list-scroll	logs-scroll-lock	bevy	tap_nav:nav-0;swipe_up				pixel-delta	none	navigation
 list-scroll	logs-scroll-lock	slint	tap_nav:nav-0;swipe_up				pixel-delta	none	navigation
-vpn-consent	settings-tun-permission	compose	tap_text:Start;wait_text:OK|Allow;tap_dialog:OK|Allow			vpndialogs|ConfirmDialog	pixel-delta,logcat-marker	none	list-scroll
-vpn-consent	settings-tun-permission	bevy	tap_anchor:vpn-start			vpndialogs|ConfirmDialog	pixel-delta,logcat-marker	none	list-scroll
-vpn-consent	settings-tun-permission	slint	tap_anchor:vpn-start			vpndialogs|ConfirmDialog	pixel-delta,logcat-marker	none	list-scroll
-permission-prompt	settings-permission-panel	compose	wait_text:Allow;tap_dialog:Allow			PermissionController|GrantPermissionsActivity	pixel-delta,logcat-marker	notification-permission	vpn-consent
-permission-prompt	settings-permission-panel	bevy	wait_text:Allow;tap_dialog:Allow			PermissionController|GrantPermissionsActivity	pixel-delta,logcat-marker	notification-permission	vpn-consent
-permission-prompt	settings-permission-panel	slint	wait_text:Allow;tap_dialog:Allow			PermissionController|GrantPermissionsActivity	pixel-delta,logcat-marker	notification-permission	vpn-consent
+vpn-consent	settings-tun-permission	compose	swipe_down;tap_anchor:vpn-start;wait_text:OK|Allow;tap_dialog:OK|Allow|ALLOW			vpndialogs|ConfirmDialog|MihomoControlService|MihomoVpnService	pixel-delta,logcat-marker	none	list-scroll
+vpn-consent	settings-tun-permission	bevy	swipe_down;tap_anchor:vpn-start;wait_text:OK|Allow;tap_dialog:OK|Allow			vpndialogs|ConfirmDialog|MihomoControlService|MihomoVpnService	pixel-delta,logcat-marker	none	list-scroll
+vpn-consent	settings-tun-permission	slint	swipe_down;tap_anchor:vpn-start;wait_text:OK|Allow;tap_dialog:OK|Allow			vpndialogs|ConfirmDialog|MihomoControlService|MihomoVpnService	pixel-delta,logcat-marker	none	list-scroll
+permission-prompt	settings-permission-panel	compose	wait_text:Allow|ALLOW;tap_dialog:Allow|ALLOW			PermissionController|GrantPermissionsActivity|MihomoApp|MihomoControlService	pixel-delta,logcat-marker	notification-permission	vpn-consent
+permission-prompt	settings-permission-panel	bevy	wait_text:Allow|ALLOW;tap_dialog:Allow|ALLOW			PermissionController|GrantPermissionsActivity|MihomoApp|MihomoControlService	pixel-delta,logcat-marker	notification-permission	vpn-consent
+permission-prompt	settings-permission-panel	slint	wait_text:Allow|ALLOW;tap_dialog:Allow|ALLOW			PermissionController|GrantPermissionsActivity|MihomoApp|MihomoControlService	pixel-delta,logcat-marker	notification-permission	vpn-consent
 vpn-terminal-state	settings-tun-permission	compose				Mihomo|MihomoControlService|MihomoVpnService	state-readback,logcat-marker	vpn-session	permission-prompt
 vpn-terminal-state	settings-tun-permission	bevy				Mihomo|MihomoControlService|MihomoVpnService	state-readback,logcat-marker	vpn-session	permission-prompt
 vpn-terminal-state	settings-tun-permission	slint				Mihomo|MihomoControlService|MihomoVpnService	state-readback,logcat-marker	vpn-session	permission-prompt

@@ -10,7 +10,11 @@ class AndroidBridgeCallWireTest {
     fun decodesTypedRequestsAndRejectsUnknownVariantsAndFields() {
         assertEquals(
             AndroidBridgeCallDecode.Accepted(AndroidBridgeCall.CoreStop),
-            AndroidBridgeCallWire.decode("""{"operation":"core_stop","payload":null}"""),
+            AndroidBridgeCallWire.decode("""{"operation":"core_stop"}"""),
+        )
+        assertTrue(
+            AndroidBridgeCallWire.decode("""{"operation":"core_stop","payload":null}""")
+                is AndroidBridgeCallDecode.Rejected,
         )
         val decoded = AndroidBridgeCallWire.decode(
             """{"operation":"execute_product_command","payload":{"command_json":"{\"kind\":\"pause_kernel\"}"}}""",
@@ -40,6 +44,12 @@ class AndroidBridgeCallWireTest {
             AndroidBridgeCallDecode.Accepted(AndroidBridgeCall.VpnStop(targetCode = 1, generation = 7L)),
             AndroidBridgeCallWire.decode(
                 """{"operation":"vpn_stop","payload":{"target":{"Generation":7}}}""",
+            ),
+        )
+        assertEquals(
+            AndroidBridgeCallDecode.Accepted(AndroidBridgeCall.VpnStop(targetCode = 0, generation = 0L)),
+            AndroidBridgeCallWire.decode(
+                """{"operation":"vpn_stop","payload":{"target":"Current"}}""",
             ),
         )
     }

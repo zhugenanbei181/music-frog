@@ -19,7 +19,6 @@ use bevy::color::Alpha;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::feathers::theme::ThemeBackgroundColor;
-use bevy::picking::Pickable;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::FixedNode;
 use bevy::ui::prelude::{
@@ -33,6 +32,7 @@ use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText};
 use infiltrator_bevy_widgets::motion::Spring;
 use infiltrator_bevy_widgets::nav::{NavActive, NavItem, NavLabel, nav_fill_token};
 use infiltrator_bevy_widgets::palette::{UiPalette, rem};
+use infiltrator_bevy_widgets::picking;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::{radius, space};
 use infiltrator_bevy_widgets::tooltip::TooltipBubble;
@@ -87,6 +87,11 @@ pub fn hover_spring() -> Spring {
 pub struct ShellTooltipOverlay;
 
 /// The viewport-level overlay the shell's tooltips are mounted into.
+///
+/// The overlay spans the whole surface, so it must not take part in
+/// picking: without an explicit policy Bevy lets every node that carries no
+/// picking policy block the hits underneath it, and a full-screen container
+/// would then swallow every touch on the surface below it.
 pub fn tooltip_overlay_scene() -> impl Scene + use<> {
     bsn! {
             Node {
@@ -98,6 +103,7 @@ pub fn tooltip_overlay_scene() -> impl Scene + use<> {
                 overflow: Overflow::visible(),
             }
             FixedNode
+            picking::NON_INTERACTIVE
             ShellTooltipOverlay
     }
 }
@@ -277,7 +283,7 @@ fn nav_scroll_feather_scene(palette: &UiPalette) -> impl Scene + use<> {
                 justify_content: JustifyContent::FlexEnd,
                 overflow: Overflow::clip(),
             }
-            Pickable { should_block_lower: false, is_hoverable: true }
+            picking::HOVER_PASSTHROUGH
             Children [
                 { strips }
             ]

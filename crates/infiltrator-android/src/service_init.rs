@@ -16,6 +16,15 @@ use crate::tls::ensure_rustls_provider;
 use infiltrator_platform::paths::set_home_dir_override;
 use std::path::PathBuf;
 
+#[cfg(target_os = "android")]
+fn install_android_logger() {
+    android_logger::init_once(
+        android_logger::Config::default()
+            .with_max_level(log::LevelFilter::Info)
+            .with_tag("MusicFrogRust"),
+    );
+}
+
 /// Directories the Android host hands to the native process.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AndroidProcessDirs {
@@ -79,6 +88,8 @@ pub fn init_android_process(
     if dirs.cache_dir.as_os_str().is_empty() {
         return Err(AndroidProcessInitError::EmptyDirectory("cache"));
     }
+    #[cfg(target_os = "android")]
+    install_android_logger();
     ensure_rustls_provider();
     let _ = set_home_dir_override(dirs.data_dir.clone());
     Ok(AndroidProcessInit { dirs })

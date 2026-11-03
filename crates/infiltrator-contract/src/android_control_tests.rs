@@ -404,6 +404,25 @@ fn stop_terminal_requires_typed_terminal_readiness_and_every_resource_absent() {
     };
     snapshot.readiness = VpnOwnerReadiness::CleanupPending;
     assert!(!snapshot.is_stopped());
+
+    snapshot.vpn_state = VpnOwnerLifecycle::PermissionRequired;
+    snapshot.readiness = VpnOwnerReadiness::PermissionRequired;
+    snapshot.resources = [
+        VpnOwnerResourceKind::PreparedConfiguration,
+        VpnOwnerResourceKind::Worker,
+        VpnOwnerResourceKind::TunnelDescriptor,
+        VpnOwnerResourceKind::RoutingLease,
+    ]
+    .into_iter()
+    .map(|kind| VpnOwnerResourceFact {
+        kind,
+        state: VpnOwnerResourceState::Absent,
+    })
+    .collect();
+    assert!(
+        snapshot.is_stopped(),
+        "a consent gate over released resources stays terminal for stop readbacks"
+    );
 }
 
 #[test]

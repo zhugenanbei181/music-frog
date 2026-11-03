@@ -199,6 +199,10 @@ internal suspend fun MihomoControlService.execute(
                     ),
                 ).withCurrentCoreSnapshot()
             } else {
+                Log.w(
+                    MihomoControlService.TAG,
+                    "surface snapshot read failed: code=${result.status.code} message=${result.status.message}",
+                )
                 ControlServiceResponse(
                     AndroidHostReply.FAILED,
                     result.status.code,

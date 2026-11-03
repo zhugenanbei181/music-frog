@@ -156,6 +156,12 @@ impl<S: SecureStore> ConfigManager<S> {
         )
         .await?;
         let mut record = self.read_active_profile_record_unlocked().await?;
+        if !matches!(
+            record.legacy_migration,
+            LegacySelectionMigration::PendingDesktopMihomoV0
+        ) {
+            return Ok(record.selection);
+        }
         let (owner_state, owner_state_guard) =
             ActiveProfileOwnerCoordinator::new(_config_root.clone())
                 .normalize_owner_state_unlocked(&mut record)
@@ -166,12 +172,6 @@ impl<S: SecureStore> ConfigManager<S> {
             ));
         }
         drop(owner_state_guard);
-        if !matches!(
-            record.legacy_migration,
-            LegacySelectionMigration::PendingDesktopMihomoV0
-        ) {
-            return Ok(record.selection);
-        }
 
         let migrated = self.legacy_mihomo_reference().await;
         match migrated {

@@ -302,3 +302,6 @@ pub mod rule_hit_audit;
 pub mod rule_json_feedback;
 
 pub mod profile_editor_read;
+
+pub mod profile_share;
+pub mod shell_interaction;

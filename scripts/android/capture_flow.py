@@ -132,6 +132,8 @@ class CaptureFlow:
     def _component(self) -> str:
         """The launcher component of the flavor, from the identity registry."""
         activity = self._identity(f"{self.options.flavor}.launcher_activity")
+        if activity.startswith("."):
+            activity = f"{self._identity('android.namespace')}{activity}"
         return f"{self.package}/{activity}"
 
     # -- setup ---------------------------------------------------------------
@@ -164,7 +166,7 @@ class CaptureFlow:
         # capture without a VPN consent and without the notification
         # permission, so both dialogs really have to be answered.
         self.adb.shell("pm", "revoke", self.package, NOTIFICATION_PERMISSION)
-        self.adb.shell("appops", "set", self.package, "ACTIVATE_VPN", "ignore")
+        self.adb.shell("appops", "set", self.package, "ACTIVATE_VPN", "default")
         # The guest stays offline: the captured product must not reach the
         # network while the evidence is collected.
         if not self.adb.airplane_mode():
@@ -172,6 +174,7 @@ class CaptureFlow:
             time.sleep(2.0)
         if not self.adb.airplane_mode():
             raise FlowError("the emulator guest could not be put into airplane mode")
+        time.sleep(self.options.settle_seconds)
 
     # -- frames --------------------------------------------------------------
 
@@ -192,9 +195,11 @@ class CaptureFlow:
         )
 
     def _content_bounds(self) -> tuple[float, float, float, float]:
-        """The region above the navigation strip."""
+        """The content region between the status bar and the navigation strip."""
         width, height = self.screen
-        return (0.0, 0.0, float(width), float(height - round(height * NAVIGATION_BAND)))
+        top = round(height * 0.05)
+        bottom = height - round(height * NAVIGATION_BAND)
+        return (0.0, float(top), float(width), float(bottom - top))
 
     # -- actions -------------------------------------------------------------
 
@@ -202,17 +207,25 @@ class CaptureFlow:
         assert self.adb is not None
         return parse_hierarchy(self.adb.ui_hierarchy())
 
-    def _wait_for_node(self, labels: tuple[str, ...]) -> HierarchyNode | None:
+    def _wait_for_node(self, labels: tuple[str, ...], directory: pathlib.Path | None = None) -> HierarchyNode | None:
         assert self.adb is not None
         deadline = time.monotonic() + self.options.dialog_timeout_seconds
+        last_nodes: list[HierarchyNode] = []
         while True:
             try:
-                node = select_node(self._hierarchy(), labels, Region.ANY, self.screen)
+                raw_xml = self.adb.ui_hierarchy()
+                last_nodes = parse_hierarchy(raw_xml)
+                node = select_node(last_nodes, labels, Region.ANY, self.screen)
             except (AdbError, ValueError):
                 node = None
             if node is not None:
                 return node
             if time.monotonic() >= deadline:
+                if directory is not None:
+                    (directory / "failed_hierarchy.txt").write_text(
+                        f"Wanted: {labels}\nNodes:\n" + "\n".join(str(n) for n in last_nodes),
+                        encoding="utf-8",
+                    )
                 return None
             time.sleep(0.6)
 
@@ -231,6 +244,7 @@ class CaptureFlow:
         }
         if action.kind is ActionKind.LAUNCH:
             output = self.adb.launch(self.component, extras={"test_theme": self.options.theme})
+            time.sleep(3.0)
             record["resolved_by"] = "activity"
             record["detail"] = {"output": output.strip(), "theme": self.options.theme}
             return record
@@ -247,12 +261,13 @@ class CaptureFlow:
                 record["detail"] = {"reason": "no node carries the requested label"}
                 return record
             self.adb.tap(*node.center)
+            time.sleep(self.options.settle_seconds)
             record["resolved_by"] = "accessibility"
             record["detail"] = node.as_record()
             return record
 
         if action.kind is ActionKind.WAIT_TEXT:
-            node = self._wait_for_node(action.labels())
+            node = self._wait_for_node(action.labels(), directory)
             if node is None:
                 record["resolved_by"] = "unresolved"
                 record["detail"] = {"reason": "the requested label never appeared"}
@@ -262,12 +277,13 @@ class CaptureFlow:
             return record
 
         if action.kind is ActionKind.TAP_DIALOG:
-            node = self._wait_for_node(action.labels())
+            node = self._wait_for_node(action.labels(), directory)
             if node is None:
                 record["resolved_by"] = "unresolved"
                 record["detail"] = {"reason": "the dialog never appeared"}
                 return record
             self.adb.tap(*node.center)
+            time.sleep(self.options.settle_seconds)
             record["resolved_by"] = "accessibility"
             record["detail"] = node.as_record()
             return record
@@ -285,6 +301,7 @@ class CaptureFlow:
             else:
                 start, end = round(height * 0.30), round(height * 0.75)
             self.adb.swipe(width // 2, start, width // 2, end, 400)
+            time.sleep(self.options.settle_seconds)
             record["resolved_by"] = "input"
             record["detail"] = {"from": [width // 2, start], "to": [width // 2, end]}
             return record
@@ -377,13 +394,19 @@ class CaptureFlow:
         directory = self.run_directory / "steps" / scenario.step_id
         directory.mkdir(parents=True, exist_ok=True)
 
+        time.sleep(self.options.settle_seconds)
         before = self._capture(directory, "before")
+        time.sleep(1.0)
         replicate = self._capture(directory, "before-replicate")
         self.logcat.read()
 
-        actions = [
-            self._perform(action, directory, before) for action in scenario.actions
-        ]
+        current_frame = before
+        actions: list[dict[str, object]] = []
+        for index, action in enumerate(scenario.actions):
+            rec = self._perform(action, directory, current_frame)
+            actions.append(rec)
+            if index < len(scenario.actions) - 1:
+                current_frame = self._capture(directory, f"action-{index}")
         time.sleep(self.options.settle_seconds)
         after = self._capture(directory, "after")
         window, window_source = self._logcat_window()
@@ -422,6 +445,9 @@ class CaptureFlow:
 
         outcome = StepOutcome.PROVEN
         reason = ""
+        unresolved_actions = [
+            a for a in actions if a.get("resolved_by") == "unresolved"
+        ]
         if not window:
             outcome = StepOutcome.UNPROVEN
             reason = "the step produced no logcat evidence"
@@ -438,6 +464,9 @@ class CaptureFlow:
             else:
                 outcome = StepOutcome.UNPROVEN
                 reason = f"the evidence {', '.join(missing)} was not observed"
+        elif unresolved_actions:
+            outcome = StepOutcome.UNPROVEN
+            reason = f"the action {unresolved_actions[0].get('kind')} could not be resolved"
 
         record = {
             "step_id": scenario.step_id,
@@ -592,7 +621,7 @@ class CaptureFlow:
             device=self.device.as_record() if self.device else {},
             guest={
                 "airplane_mode": True,
-                "vpn_consent": "ignore",
+                "vpn_consent": "default",
                 "notification_permission": "revoked",
             },
             steps=tuple(receipts),

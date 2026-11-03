@@ -6,11 +6,15 @@
 //! terminal lifecycle state.
 
 #[cfg(target_os = "android")]
+use crate::host_session;
+#[cfg(target_os = "android")]
 use crate::host_support::get_runtime;
 use async_trait::async_trait;
 #[cfg(any(target_os = "android", test))]
 use infiltrator_contract::android_control::AndroidHostProcessRole;
 use infiltrator_contract::android_control::VpnAuthorizationState;
+#[cfg(target_os = "android")]
+use infiltrator_contract::android_control::VpnOwnerCoreReadback;
 #[cfg(any(target_os = "android", test))]
 use infiltrator_contract::android_control::{
     VpnOwnerLifecycle, VpnOwnerReadiness, VpnOwnerResourceState, VpnOwnerSnapshot,
@@ -372,12 +376,32 @@ impl VpnServicePort for AndroidVpnServicePort {
         #[cfg(target_os = "android")]
         {
             return match Self::bridge() {
-                Ok(bridge) => match bridge.vpn_owner_snapshot().await {
-                    Ok(snapshot) => VpnSurfaceObservation::from_android_owner(snapshot),
-                    Err(error) => VpnSurfaceObservation::Unavailable {
-                        failure: Failure::new(ErrorCode::NotReady, error.to_string(), true),
-                    },
-                },
+                Ok(bridge) => {
+                    let mut snapshot = match bridge.vpn_owner_snapshot().await {
+                        Ok(snapshot) => snapshot,
+                        Err(error) => {
+                            return VpnSurfaceObservation::Unavailable {
+                                failure: Failure::new(ErrorCode::NotReady, error.to_string(), true),
+                            };
+                        }
+                    };
+                    if bridge.process_role() == AndroidHostProcessRole::CoreOwner {
+                        // The owner process must bind the surface read to the
+                        // live shared core actor; its published readback cache
+                        // may trail the actor between domain events.
+                        snapshot.core = match host_session::shared_core().await {
+                            Ok(core) => VpnOwnerCoreReadback::Available(
+                                core.application.snapshot().lifecycle_snapshot(),
+                            ),
+                            Err(status) => VpnOwnerCoreReadback::Unavailable {
+                                failure_message: status
+                                    .message
+                                    .unwrap_or_else(|| "shared core is unavailable".to_owned()),
+                            },
+                        };
+                    }
+                    VpnSurfaceObservation::from_android_owner(snapshot)
+                }
                 Err(error) => VpnSurfaceObservation::Unavailable {
                     failure: Failure::from(error),
                 },

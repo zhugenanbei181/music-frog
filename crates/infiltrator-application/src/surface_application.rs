@@ -4,7 +4,9 @@
 //! [`SurfaceReader`] and one [`ApplicationRuntime`]; Iced and Bevy only drain
 //! owned `SurfaceSnapshot` values and project them into their native widgets.
 
+use infiltrator_contract::android_control::VpnOwnerCoreReadback;
 use infiltrator_contract::surface_snapshot::{SurfaceEvent, SurfaceSnapshot};
+use infiltrator_contract::vpn::VpnSurfaceObservation;
 use infiltrator_ports::application_runtime::ApplicationRuntime;
 use infiltrator_ports::surface::SurfaceReader;
 use lurker_core_contract::error::{ErrorCode, Failure};
@@ -274,6 +276,13 @@ fn pump_loop(
             snapshot.revision = previous_revision.saturating_add(1);
         }
         snapshot.core.revision = snapshot.revision;
+        if let VpnSurfaceObservation::AndroidOwner(owner) = &mut snapshot.vpn
+            && let VpnOwnerCoreReadback::Available(readback) = &mut owner.core
+        {
+            // The pump owns the read revision; the Android owner readback must
+            // carry the same revision so the surface stays one exact read.
+            readback.revision = snapshot.revision;
+        }
         snapshot.generation = snapshot.core.generation;
 
         if !publish_snapshot(

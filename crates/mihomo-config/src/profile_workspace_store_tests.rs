@@ -580,5 +580,5 @@ async fn protected_document_requires_explicit_direct_edit_unlock() {
 #[path = "profile_workspace_store_tests/workspace_validation_tests.rs"]
 mod workspace_validation_tests;
 
-#[path = "profile_workspace_store_tests/part2.rs"]
-mod part2;
+#[path = "profile_workspace_store_tests/workspace_recovery_and_reset_tests.rs"]
+mod workspace_recovery_and_reset_tests;

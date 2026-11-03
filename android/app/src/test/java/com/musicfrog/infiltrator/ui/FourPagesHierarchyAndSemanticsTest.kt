@@ -17,8 +17,12 @@ import com.musicfrog.infiltrator.VpnOwnerSnapshotWire
 import com.musicfrog.infiltrator.ui.common.ObservationRevision
 import com.musicfrog.infiltrator.ui.common.OwnerVpnObservation
 import com.musicfrog.infiltrator.ui.overview.ObservationState
+import com.musicfrog.infiltrator.ui.overview.RoutingIntentUiState
 import com.musicfrog.infiltrator.ui.overview.canStartVpnSession
+import com.musicfrog.infiltrator.ui.overview.overviewCards
 import com.musicfrog.infiltrator.ui.overview.vpnSessionIsRunning
+import infiltrator_android.AndroidCoreLifecycle
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -132,6 +136,53 @@ class FourPagesHierarchyAndSemanticsTest {
         assertTrue("Rules subpage present", destinations.contains("Rules"))
         assertTrue("Connections subpage present", destinations.contains("Connections"))
         assertTrue("Logs subpage present", destinations.contains("Logs"))
+        assertTrue("About subpage present", destinations.contains("About"))
+    }
+
+    @Test
+    fun overviewCardsHierarchyPrioritizesHeroAndTrafficWhileConditionallyShowingCoreAlerts() {
+        val dummyRevision = ObservationRevision.Owner(1uL, 1uL)
+        val loadingVpn = ObservationState.Loading<OwnerVpnObservation>()
+
+        // 1. When core is RUNNING normally, redundant "Core Running" card is omitted to maximize density
+        val runningCore = ObservationState.Observed(AndroidCoreLifecycle.RUNNING, dummyRevision)
+        val cardsWhenRunning = overviewCards(
+            coreLifecycle = runningCore,
+            vpnOwnerObservation = loadingVpn,
+            vpnAuthorization = AndroidVpnAuthorizationUiState.Granted,
+            routingIntent = RoutingIntentUiState.Loading,
+            traffic = ObservationState.Loading(),
+            logs = ObservationState.Loading(),
+            egressIp = ObservationState.Loading(),
+            onRequestVpnPermission = {},
+            onToggleVpn = {},
+            onResumeCore = {},
+            onRestartCore = {},
+            onRoutingIntentChange = {},
+            onRefreshIp = {},
+            onNavigateToLogs = {},
+        )
+        assertEquals(5, cardsWhenRunning.size)
+
+        // 2. When core is STOPPED or FAILED, prominent alert card is displayed immediately after Hero
+        val stoppedCore = ObservationState.Observed(AndroidCoreLifecycle.STOPPED, dummyRevision)
+        val cardsWhenStopped = overviewCards(
+            coreLifecycle = stoppedCore,
+            vpnOwnerObservation = loadingVpn,
+            vpnAuthorization = AndroidVpnAuthorizationUiState.Granted,
+            routingIntent = RoutingIntentUiState.Loading,
+            traffic = ObservationState.Loading(),
+            logs = ObservationState.Loading(),
+            egressIp = ObservationState.Loading(),
+            onRequestVpnPermission = {},
+            onToggleVpn = {},
+            onResumeCore = {},
+            onRestartCore = {},
+            onRoutingIntentChange = {},
+            onRefreshIp = {},
+            onNavigateToLogs = {},
+        )
+        assertEquals(6, cardsWhenStopped.size)
     }
 
     @Test
@@ -156,7 +207,9 @@ class FourPagesHierarchyAndSemanticsTest {
         val coreNavKeys = listOf(
             "nav_overview", "nav_profiles", "nav_proxies", "nav_settings",
             "setting_routing_title", "setting_tun_title", "setting_dns_title",
-            "setting_rules_title", "status_running", "status_stopped",
+            "setting_rules_title", "setting_about_title", "action_view_all_logs",
+            "label_selected_apps_count", "access_control_status_title",
+            "status_running", "status_stopped",
         )
 
         for (key in coreNavKeys) {

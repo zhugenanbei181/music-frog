@@ -184,6 +184,9 @@ fun InfiltratorApp(
                                     onRequestVpnPermission = onRequestVpnPermission,
                                     onControlIntent = onControlIntent,
                                     isExpanded = overviewExpanded,
+                                    onNavigateToLogs = {
+                                        route = AppRoute.SettingsDetail(SettingsDestination.Logs)
+                                    },
                                 )
 
                                 AppSection.Profiles -> ProfilesScreen(

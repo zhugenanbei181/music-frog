@@ -144,6 +144,16 @@ class VpnStopOwnerContractTest {
             VpnStopResult.Stopped.toOwnerStopReceipt(VpnStopReadbackEvidence.Missing) is
                 VpnOwnerStopReceiptWire.Failed,
         )
+        val permissionGated = snapshot(
+            VpnOwnerLifecycleWire.PermissionRequired,
+            VpnOwnerReadinessWire.PermissionRequired,
+        )
+        assertEquals(
+            VpnOwnerStopReceiptWire.Stopped(permissionGated),
+            VpnStopResult.Stopped.toOwnerStopReceipt(
+                VpnStopReadbackEvidence.OwnerSnapshot(permissionGated),
+            ),
+        )
         assertEquals(
             VpnOwnerStopReceiptWire.TimedOut(
                 VpnStopFailureWire(

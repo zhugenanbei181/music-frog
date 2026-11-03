@@ -7,7 +7,7 @@ internal interface AndroidBridgeCallHost {
     fun coreStop(): Int
     fun coreProcessObservationJson(): String
     fun coreProcessExitRecovered(contextJson: String): Int
-    fun coreLifecycleSnapshot(deadline: VpnOwnerRequestDeadline): String?
+    fun coreLifecycleSnapshot(deadline: VpnOwnerRequestDeadline): String
     fun executeProductCommandJson(commandJson: String, deadline: VpnOwnerRequestDeadline): String?
     fun surfaceSnapshotJson(deadline: VpnOwnerRequestDeadline): String?
     fun executeOwnerOperationJson(operationJson: String, deadline: VpnOwnerRequestDeadline): String?
@@ -48,7 +48,7 @@ internal class AndroidBridgeCallRouter(private val host: AndroidBridgeCallHost) 
             )
 
         AndroidBridgeCall.CoreLifecycleSnapshot -> AndroidBridgeCallReply.CoreLifecycleSnapshot(
-            host.coreLifecycleSnapshot(deadline).required("Core lifecycle snapshot"),
+            host.coreLifecycleSnapshot(deadline),
         )
 
         is AndroidBridgeCall.ExecuteProductCommand -> AndroidBridgeCallReply.ExecuteProductCommand(

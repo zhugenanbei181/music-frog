@@ -402,6 +402,8 @@ internal data class VpnOwnerSnapshotWire(
         val terminalReadiness = when (vpnState) {
             VpnOwnerLifecycleWire.Stopped -> readiness == VpnOwnerReadinessWire.Stopped
             VpnOwnerLifecycleWire.Revoked -> readiness == VpnOwnerReadinessWire.Revoked
+            VpnOwnerLifecycleWire.PermissionRequired ->
+                readiness == VpnOwnerReadinessWire.PermissionRequired
             else -> false
         }
         return terminalReadiness && resourcesReleased()
@@ -411,12 +413,21 @@ internal data class VpnOwnerSnapshotWire(
         resources.map { it.kind }.toSet() == VpnOwnerResourceKindWire.entries.toSet() &&
         resources.all { it.state == VpnOwnerResourceStateWire.Absent }
 
-    fun coreLifecycleJson(): String? = when (val readback = core) {
-        is VpnOwnerCoreReadbackWire.Unavailable -> null
+    fun coreLifecycleJson(): String = when (val readback = core) {
+        is VpnOwnerCoreReadbackWire.Unavailable -> defaultStoppedCoreLifecycleJson()
         is VpnOwnerCoreReadbackWire.Available -> readback.snapshot.toJson().toString()
     }
 
     companion object {
+        fun defaultStoppedCoreLifecycleJson(): String = JSONObject()
+            .put("identity", JSONObject.NULL)
+            .put("lifecycle", "Stopped")
+            .put("generation", 0L)
+            .put("session_token", JSONObject.NULL)
+            .put("revision", 0L)
+            .put("failure", JSONObject.NULL)
+            .toString()
+
         fun parse(raw: String): VpnOwnerSnapshotWire? = runCatching {
             val json = JSONObject(raw)
             require(

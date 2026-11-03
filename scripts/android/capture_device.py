@@ -16,6 +16,7 @@ import dataclasses
 import pathlib
 import re
 import subprocess
+import time
 
 # The emulator console port is the only serial shape this flow accepts.
 EMULATOR_SERIAL = re.compile(r"^emulator-\d+$")
@@ -138,6 +139,9 @@ class Adb:
     def exec_out(self, *arguments: str, timeout: float | None = None) -> bytes:
         return self._run(["exec-out", *arguments], timeout=timeout).stdout
 
+    def push(self, source: pathlib.Path, destination: str) -> None:
+        self._run(["push", str(source), destination], timeout=900.0)
+
     # -- device discovery ----------------------------------------------------
 
     def list_devices(self) -> list[DeviceIdentity]:
@@ -174,13 +178,18 @@ class Adb:
         return self.exec_out("screencap", "-p")
 
     def ui_hierarchy(self) -> str:
-        raw = self.exec_out("uiautomator", "dump", "/dev/tty", timeout=180.0)
-        text = raw.decode("utf-8", "replace")
-        start = text.find("<?xml")
-        end = text.rfind("</hierarchy>")
-        if start < 0 or end < 0:
-            raise AdbError("the UI hierarchy dump did not contain an XML document")
-        return text[start : end + len("</hierarchy>")]
+        for _ in range(3):
+            try:
+                raw = self.exec_out("uiautomator", "dump", "/dev/tty", timeout=180.0)
+                text = raw.decode("utf-8", "replace")
+                start = text.find("<?xml")
+                end = text.rfind("</hierarchy>")
+                if start >= 0 and end >= 0:
+                    return text[start : end + len("</hierarchy>")]
+            except Exception:
+                pass
+            time.sleep(0.5)
+        raise AdbError("the UI hierarchy dump did not contain an XML document")
 
     # -- logcat --------------------------------------------------------------
 
@@ -249,7 +258,14 @@ class Adb:
         self.shell("cmd", "connectivity", "airplane-mode", "enable" if enabled else "disable")
 
     def install(self, apk: pathlib.Path) -> str:
-        return self.shell("pm", "install", "-r", "-t", str(apk), timeout=900.0)
+        # adb install reads the APK from the emulator's own filesystem view;
+        # a workspace on a removable mount is not accessible there, so stage
+        # the candidate under /data/local/tmp first.
+        remote = pathlib.Path("/data/local/tmp") / f"infiltrator-capture-{apk.name}"
+        self.push(apk, str(remote))
+        report = self.shell("pm", "install", "-r", "-t", str(remote), timeout=900.0)
+        self.shell("rm", "-f", str(remote))
+        return report
 
     def force_stop(self, package: str) -> None:
         self.shell("am", "force-stop", package)

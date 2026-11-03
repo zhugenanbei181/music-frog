@@ -236,6 +236,15 @@ impl<C: OwnerSwitchCodec> OwnerSwitchCoordinator<C> {
                     ));
                 }
             }
+            (
+                OwnerRecoveryLaunchRequirement::NeverStarted,
+                ActiveCoreOwnerLaunchProof::Managed(_),
+            ) if terminal_generation == CoreGeneration::new(0) => {
+                // If a managed start context was recorded on disk but the host process
+                // observation confirms the child process was never started (e.g. process
+                // spawn failed before execution or host restarted before launch),
+                // owner recovery accepts NeverStarted and resets the unstarted launch proof.
+            }
             _ => {
                 return Err(transition_rejected(
                     "owner recovery evidence differs from its persisted launch proof",
@@ -277,6 +286,7 @@ impl<C: OwnerSwitchCodec> OwnerSwitchCoordinator<C> {
                 terminal_generation,
                 token: token.clone(),
             };
+            proof.launch = ActiveCoreOwnerLaunchProof::Unstarted;
             file.publish_owner_proof_sync_reconciled(&proof)?;
         }
         if matches!(record_position, OwnerRecoveryRecordPosition::Bound) {

@@ -21,13 +21,13 @@ use crate::list::ListScrollContainer;
 use crate::list::scrollbar::list_scroll_frame_with_overlays;
 use crate::palette::UiPalette;
 use crate::palette::rem;
+use crate::picking;
 use bevy::color::{Alpha, Color};
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::ChildOf;
 use bevy::ecs::query::With;
 use bevy::ecs::system::{Query, Res};
-use bevy::picking::Pickable;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
     AlignSelf, BackgroundGradient, ColorStop, ComputedNode, Gradient, GridPlacement,
@@ -122,7 +122,7 @@ pub fn list_feather_mask_scene(edge: ListFeatherEdge, palette: &UiPalette) -> Bo
             height: rem(FEATHER_HEIGHT_PX),
         }
         BackgroundGradient({ gradient })
-        Pickable { should_block_lower: false, is_hoverable: false }
+        picking::NON_INTERACTIVE
         ListFeatherMask { edge: { edge } }
     })
 }

@@ -38,6 +38,13 @@ import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 
 /**
+ * Reply channel captured while the request Message is still alive. The platform
+ * recycles a delivered Messenger message after handleMessage returns, so async
+ * reply paths must retain the extracted replyTo messenger, never the Message.
+ */
+internal data class OwnerIpcReplyTarget(val messenger: Messenger?)
+
+/**
  * Process owner for the Mihomo child process and the VPN service.
  * Starting/binding this service only makes the host available; it does not
  * start Mihomo or establish a VPN interface.
@@ -63,10 +70,10 @@ class MihomoControlService : Service() {
     internal val vpnStartTasks = ConcurrentHashMap<VpnOwnerRequestKey, FutureTask<Unit>>()
     internal val vpnStartTerminalCache = VpnOwnerStartTerminalCache<ControlServiceResponse>()
     internal val vpnStartRepliesLock = Any()
-    internal val vpnStartReplies = mutableMapOf<VpnOwnerRequestKey, MutableList<Message>>()
+    internal val vpnStartReplies = mutableMapOf<VpnOwnerRequestKey, MutableList<OwnerIpcReplyTarget>>()
     private val ownerRequestAdmission = OwnerIpcRequestAdmission<ControlServiceResponse>()
     private val ownerRequestLock = Any()
-    private val ownerRequestReplies = mutableMapOf<OwnerIpcRequestKey, MutableList<Message>>()
+    private val ownerRequestReplies = mutableMapOf<OwnerIpcRequestKey, MutableList<OwnerIpcReplyTarget>>()
     private val ownerRequestJobs = mutableMapOf<OwnerIpcRequestKey, Job>()
     internal val ownerRequestSensitivePayloads = OwnerIpcSensitivePayloadStore()
 
@@ -84,6 +91,7 @@ class MihomoControlService : Service() {
             app.prepareVpnOwnerSession(ownerSessionId)
             app.ownerIpcScope.launch {
                 val status = androidBeginCoreOwnerSession()
+                Log.i(TAG, "Core owner session begin returned code=${status.code} message=${status.message}")
                 if (ownerServicePhase != OwnerServicePhase.Initializing) return@launch
                 if (status.code != FfiErrorCode.OK) {
                     ownerServicePhase = OwnerServicePhase.Unavailable
@@ -165,9 +173,9 @@ class MihomoControlService : Service() {
                     }
                     wipeOwnerRequestSensitivePayload(key)
                     job?.cancel()
-                    waiters.forEach { requestMessage ->
+                    waiters.forEach { replyTarget ->
                         sendResponse(
-                            requestMessage,
+                            replyTarget.messenger,
                             key.requestId,
                             key.clientSessionId,
                             ControlServiceResponse(
@@ -233,6 +241,7 @@ class MihomoControlService : Service() {
         val clientSessionId = runCatching { arguments.getString(CLIENT_SESSION_ID) }
             .getOrNull()
         if (ownerServicePhase != OwnerServicePhase.Accepting) {
+            Log.w(TAG, "owner request rejected before activation: phase=$ownerServicePhase requestId=$requestId")
             wipeSensitiveRequest(message, arguments)
             sendResponse(
                 message,
@@ -252,6 +261,7 @@ class MihomoControlService : Service() {
         val request = runCatching { readRequest(arguments) }.getOrNull()
         val result = when {
             protocolVersion != AndroidHostProtocolVersion.V10 || clientSessionId.isNullOrBlank() || requestId <= 0L -> {
+                Log.w(TAG, "owner request rejected: protocol=$protocolVersion sessionBlank=${clientSessionId.isNullOrBlank()} requestId=$requestId")
                 wipeSensitiveRequest(message, arguments)
                 ControlServiceResponse(AndroidHostReply.SERVICE_UNAVAILABLE, FfiErrorCode.NOT_READY)
             }
@@ -359,7 +369,7 @@ class MihomoControlService : Service() {
 
             VpnOwnerStartAdmission.Admitted -> {
                 synchronized(vpnStartRepliesLock) {
-                    vpnStartReplies[key] = mutableListOf(message)
+                    vpnStartReplies[key] = mutableListOf(OwnerIpcReplyTarget(message.replyTo))
                 }
                 val task = FutureTask {
                     executeVpnStart(key, deadline)
@@ -434,7 +444,7 @@ class MihomoControlService : Service() {
             OwnerIpcAdmission.Admitted -> {
                 retainOwnerRequestSensitivePayload(key, request, message, arguments)
                 synchronized(ownerRequestLock) {
-                    ownerRequestReplies[key] = mutableListOf(message)
+                    ownerRequestReplies[key] = mutableListOf(OwnerIpcReplyTarget(message.replyTo))
                 }
                 val job = (application as MihomoApplication).ownerIpcScope.launch(
                     start = CoroutineStart.LAZY,
@@ -482,6 +492,7 @@ class MihomoControlService : Service() {
                         )
                     ) {
                         OwnerIpcCompletion.TerminalCached -> publishOwnerRequest(key, response)
+                            .also { Log.i(TAG, "owner request publish: id=${key.requestId}") }
 
                         OwnerIpcCompletion.SuppressCanceledCompletion,
                         OwnerIpcCompletion.Unknown,
@@ -585,9 +596,9 @@ class MihomoControlService : Service() {
             ownerRequestJobs.remove(key)
             ownerRequestReplies.remove(key).orEmpty().toList()
         }
-        waiters.forEach { requestMessage ->
+        waiters.forEach { replyTarget ->
             sendResponse(
-                requestMessage,
+                replyTarget.messenger,
                 key.requestId,
                 key.clientSessionId,
                 response,
@@ -601,7 +612,7 @@ class MihomoControlService : Service() {
             if (waiters.size >= MAX_OWNER_REQUEST_WAITERS) {
                 OwnerIpcWaiterAdmission.CapacityExceeded
             } else {
-                waiters += message
+                waiters += OwnerIpcReplyTarget(message.replyTo)
                 OwnerIpcWaiterAdmission.Attached
             }
         }
@@ -674,9 +685,9 @@ class MihomoControlService : Service() {
                 }
                 wipeOwnerRequestSensitivePayload(key)
                 job?.cancel()
-                waiters.forEach { requestMessage ->
+                waiters.forEach { replyTarget ->
                     sendResponse(
-                        requestMessage,
+                        replyTarget.messenger,
                         key.requestId,
                         key.clientSessionId,
                         ControlServiceResponse(
@@ -697,6 +708,10 @@ class MihomoControlService : Service() {
     }
 
     internal fun sendResponse(requestMessage: Message, requestId: Long, clientSessionId: String?, result: ControlServiceResponse) {
+        sendResponse(requestMessage.replyTo, requestId, clientSessionId, result)
+    }
+
+    internal fun sendResponse(replyTo: Messenger?, requestId: Long, clientSessionId: String?, result: ControlServiceResponse) {
         val response = Message.obtain(null, RESPONSE).apply {
             data = Bundle().apply {
                 putSerializable(PROTOCOL_VERSION, AndroidHostProtocolVersion.V10)
@@ -710,7 +725,7 @@ class MihomoControlService : Service() {
             }
         }
         try {
-            requestMessage.replyTo?.send(response)
+            replyTo?.send(response)
         } catch (error: RemoteException) {
             Log.w(TAG, "host IPC reply was lost: ${error.message}")
         }

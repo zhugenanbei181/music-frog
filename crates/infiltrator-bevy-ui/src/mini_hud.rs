@@ -27,6 +27,7 @@ use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
+use infiltrator_bevy_widgets::picking;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::{radius, space};
 use infiltrator_contract::a11y::ShellA11yNode;
@@ -248,6 +249,7 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
             MiniHudRoot
             ThemeContext(SurfaceLevel::Floating)
             FixedNode
+            picking::NON_INTERACTIVE
             Children [
                 Node {
                     width: rem(MINI_HUD_CARD_WIDTH_PX),

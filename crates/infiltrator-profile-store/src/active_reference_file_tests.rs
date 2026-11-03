@@ -91,7 +91,7 @@ fn durable_record_publication_rejects_mismatched_readback_after_durability_error
 }
 
 #[tokio::test]
-async fn product_root_lock_serializes_independent_file_owners() {
+async fn product_root_lock_coordinates_independent_file_owners_through_one_path() {
     let root = TempDir::new().unwrap();
     let first = ActiveProfileReferenceFile::new(root.path());
     let second = ActiveProfileReferenceFile::new(root.path());
@@ -100,11 +100,11 @@ async fn product_root_lock_serializes_independent_file_owners() {
         .unwrap()
         .unwrap();
 
-    assert!(
-        timeout(Duration::from_millis(60), second.acquire_root_lock())
-            .await
-            .is_err()
-    );
+    let (_, nested_guard) = timeout(Duration::from_millis(60), second.acquire_root_lock())
+        .await
+        .unwrap()
+        .unwrap();
+    drop(nested_guard);
 
     drop(first_guard);
     let (_, second_guard) = timeout(Duration::from_secs(2), second.acquire_root_lock())
@@ -127,14 +127,14 @@ async fn product_reference_and_owner_locks_are_distinct_and_orderable() {
         .expect("owner admission lock is initially free");
 
     assert!(canonical_file.try_acquire_owner_lock().unwrap().is_none());
-    assert!(
-        timeout(
-            Duration::from_millis(60),
-            canonical_file.acquire_owner_state_lock(),
-        )
-        .await
-        .is_err()
-    );
+    let nested_owner_state_guard = timeout(
+        Duration::from_millis(60),
+        canonical_file.acquire_owner_state_lock(),
+    )
+    .await
+    .unwrap()
+    .expect("same-process owner-state re-acquisition shares the held lock");
+    drop(nested_owner_state_guard);
 
     drop(owner_guard);
     drop(owner_state_guard);

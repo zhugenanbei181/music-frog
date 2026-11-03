@@ -32,6 +32,21 @@ internal class AppRoutingViewModel internal constructor(
     val routingMode: StateFlow<AppRoutingModeState> = snapshot
         .map(::appRoutingModeState)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppRoutingModeState.Unavailable)
+    val selectedCount: StateFlow<Int> = snapshot
+        .map { snap ->
+            when (snap) {
+                is AppRoutingSnapshotState.Observed -> snap.observation.selectedPackages.size
+                is AppRoutingSnapshotState.Loading -> when (val last = snap.lastAccepted) {
+                    is AcceptedAppRoutingSnapshot.Present -> last.observation.selectedPackages.size
+                    AcceptedAppRoutingSnapshot.Missing -> 0
+                }
+                is AppRoutingSnapshotState.Unavailable -> when (val last = snap.lastAccepted) {
+                    is AcceptedAppRoutingSnapshot.Present -> last.observation.selectedPackages.size
+                    AcceptedAppRoutingSnapshot.Missing -> 0
+                }
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
     val uiState: StateFlow<List<AppItem>> = combine(session.installedApps, searchQuery, snapshot) {
             installedApps,
             query,

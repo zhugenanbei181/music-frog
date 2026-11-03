@@ -111,7 +111,13 @@ def _match_rank(node: HierarchyNode, wanted: tuple[str, ...]) -> int | None:
     labels = node.labels()
     if any(label in labels for label in wanted):
         return 0
+    wanted_lower = tuple(label.lower() for label in wanted)
+    labels_lower = tuple(label.lower() for label in labels)
+    if any(label in labels_lower for label in wanted_lower):
+        return 0
     if any(label in text for text in labels for label in wanted):
+        return 1
+    if any(label in text for text in labels_lower for label in wanted_lower):
         return 1
     return None
 

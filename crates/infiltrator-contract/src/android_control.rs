@@ -299,6 +299,10 @@ impl VpnOwnerSnapshot {
             (&self.vpn_state, self.readiness),
             (VpnOwnerLifecycle::Stopped, VpnOwnerReadiness::Stopped)
                 | (VpnOwnerLifecycle::Revoked, VpnOwnerReadiness::Revoked)
+                | (
+                    VpnOwnerLifecycle::PermissionRequired,
+                    VpnOwnerReadiness::PermissionRequired,
+                )
         );
         let expected_resources = [
             VpnOwnerResourceKind::PreparedConfiguration,

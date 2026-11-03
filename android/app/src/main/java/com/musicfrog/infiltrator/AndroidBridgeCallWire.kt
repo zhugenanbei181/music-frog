@@ -87,24 +87,27 @@ internal sealed interface AndroidBridgeCallReply {
 internal object AndroidBridgeCallWire {
     fun decode(raw: String): AndroidBridgeCallDecode = try {
         val root = JSONObject(raw)
-        requireKeys(root, setOf("operation", "payload"))
+        val rootKeys = root.keys().asSequence().toSet()
+        require(
+            "operation" in rootKeys && rootKeys.all { it == "operation" || it == "payload" },
+        ) { "Android bridge call has missing or unknown fields" }
         val operation = root.getString("operation")
-        val payload = root.get("payload")
         when (operation) {
             "core_start" -> {
-                val body = payloadObject(payload)
+                val body = payloadObject(root.get("payload"))
                 requireKeys(body, setOf("start_request_json"))
                 AndroidBridgeCallDecode.Accepted(
                     AndroidBridgeCall.CoreStart(body.getString("start_request_json")),
                 )
             }
 
-            "core_stop" -> unit(payload, AndroidBridgeCall.CoreStop)
+            "core_stop" -> unit(root, AndroidBridgeCall.CoreStop)
 
-            "core_process_observation" -> unit(payload, AndroidBridgeCall.CoreProcessObservation)
+            "core_process_observation" ->
+                unit(root, AndroidBridgeCall.CoreProcessObservation)
 
             "core_process_recovery_completed" -> {
-                val body = payloadObject(payload)
+                val body = payloadObject(root.get("payload"))
                 requireKeys(body, setOf("context_json"))
                 AndroidBridgeCallDecode.Accepted(
                     AndroidBridgeCall.CoreProcessRecoveryCompleted(body.getString("context_json")),
@@ -112,27 +115,28 @@ internal object AndroidBridgeCallWire {
             }
 
             "core_validate_configuration" -> {
-                val body = payloadObject(payload)
+                val body = payloadObject(root.get("payload"))
                 requireKeys(body, setOf("request_json"))
                 AndroidBridgeCallDecode.Accepted(
                     AndroidBridgeCall.CoreValidateConfiguration(body.getString("request_json")),
                 )
             }
 
-            "core_lifecycle_snapshot" -> unit(payload, AndroidBridgeCall.CoreLifecycleSnapshot)
+            "core_lifecycle_snapshot" ->
+                unit(root, AndroidBridgeCall.CoreLifecycleSnapshot)
 
             "execute_product_command" -> {
-                val body = payloadObject(payload)
+                val body = payloadObject(root.get("payload"))
                 requireKeys(body, setOf("command_json"))
                 AndroidBridgeCallDecode.Accepted(
                     AndroidBridgeCall.ExecuteProductCommand(body.getString("command_json")),
                 )
             }
 
-            "surface_snapshot" -> unit(payload, AndroidBridgeCall.SurfaceSnapshot)
+            "surface_snapshot" -> unit(root, AndroidBridgeCall.SurfaceSnapshot)
 
             "execute_owner_operation" -> {
-                val body = payloadObject(payload)
+                val body = payloadObject(root.get("payload"))
                 requireKeys(body, setOf("operation_json"))
                 AndroidBridgeCallDecode.Accepted(
                     AndroidBridgeCall.ExecuteOwnerOperation(body.getString("operation_json")),
@@ -140,7 +144,7 @@ internal object AndroidBridgeCallWire {
             }
 
             "credential_get" -> {
-                val body = payloadObject(payload)
+                val body = payloadObject(root.get("payload"))
                 requireKeys(body, setOf("service", "key"))
                 AndroidBridgeCallDecode.Accepted(
                     AndroidBridgeCall.CredentialGet(
@@ -151,7 +155,7 @@ internal object AndroidBridgeCallWire {
             }
 
             "credential_set" -> {
-                val body = payloadObject(payload)
+                val body = payloadObject(root.get("payload"))
                 requireKeys(body, setOf("service", "key", "value"))
                 AndroidBridgeCallDecode.Accepted(
                     AndroidBridgeCall.CredentialSet(
@@ -163,7 +167,7 @@ internal object AndroidBridgeCallWire {
             }
 
             "credential_delete" -> {
-                val body = payloadObject(payload)
+                val body = payloadObject(root.get("payload"))
                 requireKeys(body, setOf("service", "key"))
                 AndroidBridgeCallDecode.Accepted(
                     AndroidBridgeCall.CredentialDelete(
@@ -173,12 +177,12 @@ internal object AndroidBridgeCallWire {
                 )
             }
 
-            "vpn_start" -> unit(payload, AndroidBridgeCall.VpnStart)
+            "vpn_start" -> unit(root, AndroidBridgeCall.VpnStart)
 
-            "vpn_authorization_state" -> unit(payload, AndroidBridgeCall.VpnAuthorizationState)
+            "vpn_authorization_state" -> unit(root, AndroidBridgeCall.VpnAuthorizationState)
 
             "vpn_apply_configuration" -> {
-                val body = payloadObject(payload)
+                val body = payloadObject(root.get("payload"))
                 requireKeys(body, setOf("prepared_json"))
                 AndroidBridgeCallDecode.Accepted(
                     AndroidBridgeCall.VpnApplyConfiguration(body.getString("prepared_json")),
@@ -186,15 +190,16 @@ internal object AndroidBridgeCallWire {
             }
 
             "vpn_stop" -> {
-                val body = payloadObject(payload)
+                val body = payloadObject(root.get("payload"))
                 requireKeys(body, setOf("target"))
-                val target = body.getJSONObject("target")
-                val targetKeys = target.keys().asSequence().toSet()
-                val stopTarget = when {
-                    targetKeys == setOf("Current") && target.isNull("Current") ->
-                        AndroidBridgeCall.VpnStop(targetCode = 0, generation = 0L)
+                val stopTarget = when (val target = body.get("target")) {
+                    "Current" -> AndroidBridgeCall.VpnStop(targetCode = 0, generation = 0L)
 
-                    targetKeys == setOf("Generation") -> {
+                    is JSONObject -> {
+                        val targetKeys = target.keys().asSequence().toSet()
+                        require(targetKeys == setOf("Generation")) {
+                            "VPN stop target variant is invalid"
+                        }
                         val generation = target.get("Generation")
                             .toString()
                             .toLongOrNull()
@@ -208,12 +213,14 @@ internal object AndroidBridgeCallWire {
                 AndroidBridgeCallDecode.Accepted(stopTarget)
             }
 
-            "vpn_owner_snapshot" -> unit(payload, AndroidBridgeCall.VpnOwnerSnapshot)
+            "vpn_owner_snapshot" -> unit(root, AndroidBridgeCall.VpnOwnerSnapshot)
 
             else -> AndroidBridgeCallDecode.Rejected("unknown Android bridge operation variant")
         }
     } catch (error: Exception) {
-        AndroidBridgeCallDecode.Rejected(error.message ?: "Android bridge call is malformed")
+        val operation = runCatching { JSONObject(raw).optString("operation") }.getOrDefault("unknown")
+        val reason = error.message ?: "Android bridge call is malformed"
+        AndroidBridgeCallDecode.Rejected("$operation: $reason")
     }
 
     fun encodeReply(reply: AndroidBridgeCallReply): String {
@@ -294,8 +301,8 @@ internal object AndroidBridgeCallWire {
         require(actual == expected) { "Android bridge call has missing or unknown fields" }
     }
 
-    private fun unit(payload: Any, call: AndroidBridgeCall): AndroidBridgeCallDecode {
-        require(payload == JSONObject.NULL) { "unit Android bridge call must have a null payload" }
+    private fun unit(root: JSONObject, call: AndroidBridgeCall): AndroidBridgeCallDecode {
+        require(!root.has("payload")) { "unit Android bridge call must have no payload" }
         return AndroidBridgeCallDecode.Accepted(call)
     }
 }

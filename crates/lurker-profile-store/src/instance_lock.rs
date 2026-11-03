@@ -19,10 +19,11 @@
 //! and could deadlock the user out of the app after a crash.
 
 use crate::platform::{NativeStorePlatform, StorePlatform};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::result;
 use std::sync::mpsc::{SyncSender, sync_channel};
-use std::sync::{Mutex, PoisonError};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
@@ -49,9 +50,85 @@ pub type InstanceLockGuard = Box<dyn InstanceLockFence>;
 /// guard on the thread that acquired it, which is required by Windows mutexes;
 /// dropping this value asks that thread to release the guard. Process death
 /// still releases the underlying kernel handle.
+///
+/// Blocking acquisitions for the same path are re-entrant inside one process:
+/// nested acquisitions share the kernel lock through a counted registry entry,
+/// and the kernel lock is released only when the last guard drops. Without
+/// this, a lease that holds the root lock while nested store operations
+/// re-acquire the same lock would deadlock against itself. The non-blocking
+/// [`try_acquire_threaded_instance_lock`] deliberately never shares a registry
+/// entry: it is a cross-process liveness probe, so a lock held anywhere in
+/// this process must also report busy.
 pub struct ThreadedInstanceLockGuard {
+    entry: Option<Arc<LockEntry>>,
+}
+
+struct LockEntry {
+    path: PathBuf,
     release: Mutex<Option<SyncSender<()>>>,
     worker: Mutex<Option<JoinHandle<()>>>,
+    holders: Mutex<usize>,
+}
+
+fn lock_registry() -> &'static Mutex<HashMap<PathBuf, Arc<LockEntry>>> {
+    static REGISTRY: OnceLock<Mutex<HashMap<PathBuf, Arc<LockEntry>>>> = OnceLock::new();
+    REGISTRY.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn registry_key(lock_path: &Path) -> PathBuf {
+    lock_path
+        .canonicalize()
+        .unwrap_or_else(|_| lock_path.to_path_buf())
+}
+
+fn reentrant_guard(lock_path: &Path) -> Option<ThreadedInstanceLockGuard> {
+    let key = registry_key(lock_path);
+    let mut registry = lock_registry().lock().ok()?;
+    let entry = registry.get_mut(&key)?;
+    if let Ok(mut holders) = entry.holders.lock() {
+        *holders += 1;
+    }
+    Some(ThreadedInstanceLockGuard {
+        entry: Some(Arc::clone(entry)),
+    })
+}
+
+fn registered_guard(
+    lock_path: PathBuf,
+    release: SyncSender<()>,
+    worker: JoinHandle<()>,
+) -> ThreadedInstanceLockGuard {
+    let key = registry_key(&lock_path);
+    let entry = {
+        let mut registry = lock_registry()
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        match registry.get(&key) {
+            // Lost the registry race: another thread registered the same path
+            // while this worker was acquiring. Release this worker's kernel
+            // guard and share the registered one instead.
+            Some(existing) => {
+                let _ = release.send(());
+                let _ = worker.join();
+                Arc::clone(existing)
+            }
+
+            None => {
+                let entry = Arc::new(LockEntry {
+                    path: lock_path,
+                    release: Mutex::new(Some(release)),
+                    worker: Mutex::new(Some(worker)),
+                    holders: Mutex::new(0),
+                });
+                registry.insert(key, Arc::clone(&entry));
+                entry
+            }
+        }
+    };
+    if let Ok(mut holders) = entry.holders.lock() {
+        *holders += 1;
+    }
+    ThreadedInstanceLockGuard { entry: Some(entry) }
 }
 
 enum WorkerAcquisition {
@@ -63,7 +140,10 @@ enum WorkerAcquisition {
 /// Acquire a path-scoped OS lock, waiting until another holder releases it.
 /// The returned guard is Send + Sync and can span async work.
 pub fn acquire_threaded_instance_lock(lock_path: &Path) -> Result<ThreadedInstanceLockGuard> {
-    match spawn_threaded_lock(lock_path.to_path_buf(), true)? {
+    if let Some(shared) = reentrant_guard(lock_path) {
+        return Ok(shared);
+    }
+    match spawn_lock_worker(lock_path.to_path_buf(), true)? {
         Some(guard) => Ok(guard),
         None => Err(PortError::Failed(
             "blocking instance lock worker returned without acquiring".to_string(),
@@ -72,23 +152,29 @@ pub fn acquire_threaded_instance_lock(lock_path: &Path) -> Result<ThreadedInstan
 }
 
 /// Attempt to acquire a path-scoped OS lock without waiting.
+///
+/// This is a cross-process liveness probe: it never shares a re-entrant
+/// registry entry, so a lock held anywhere in this process — through another
+/// acquisition — also reports `None`, exactly like a lock held by a different
+/// process.
 pub fn try_acquire_threaded_instance_lock(
     lock_path: &Path,
 ) -> Result<Option<ThreadedInstanceLockGuard>> {
-    spawn_threaded_lock(lock_path.to_path_buf(), false)
+    spawn_lock_worker(lock_path.to_path_buf(), false)
 }
 
-fn spawn_threaded_lock(
+fn spawn_lock_worker(
     lock_path: PathBuf,
     wait_until_available: bool,
 ) -> Result<Option<ThreadedInstanceLockGuard>> {
     let (ready_sender, ready_receiver) = sync_channel(1);
     let (release_sender, release_receiver) = sync_channel(1);
+    let worker_lock_path = lock_path.clone();
     let worker = thread::Builder::new()
         .name("music-frog-instance-lock".to_string())
         .spawn(move || {
             loop {
-                match try_acquire_instance_lock(&lock_path) {
+                match try_acquire_instance_lock(&worker_lock_path) {
                     Ok(Some(guard)) => {
                         let _ = ready_sender.send(WorkerAcquisition::Acquired);
                         let _ = release_receiver.recv();
@@ -110,10 +196,9 @@ fn spawn_threaded_lock(
         .map_err(|error| PortError::Failed(format!("instance lock worker: {error}")))?;
 
     match ready_receiver.recv() {
-        Ok(WorkerAcquisition::Acquired) => Ok(Some(ThreadedInstanceLockGuard {
-            release: Mutex::new(Some(release_sender)),
-            worker: Mutex::new(Some(worker)),
-        })),
+        Ok(WorkerAcquisition::Acquired) => {
+            Ok(Some(registered_guard(lock_path, release_sender, worker)))
+        }
         Ok(WorkerAcquisition::Busy) => {
             let _ = worker.join();
             Ok(None)
@@ -133,17 +218,37 @@ fn spawn_threaded_lock(
 
 impl Drop for ThreadedInstanceLockGuard {
     fn drop(&mut self) {
-        let release = self
+        let Some(entry) = self.entry.take() else {
+            return;
+        };
+        let release_worker = {
+            let mut registry = lock_registry()
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            let last_holder = {
+                let mut holders = entry.holders.lock().unwrap_or_else(PoisonError::into_inner);
+                *holders -= 1;
+                *holders == 0
+            };
+            if last_holder {
+                registry.remove(&entry.path);
+            }
+            last_holder
+        };
+        if !release_worker {
+            return;
+        }
+        let release = entry
             .release
-            .get_mut()
+            .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .take();
         if let Some(release) = release {
             let _ = release.send(());
         }
-        let worker = self
+        let worker = entry
             .worker
-            .get_mut()
+            .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .take();
         if let Some(worker) = worker {
@@ -214,5 +319,48 @@ mod tests {
             .unwrap();
         // Keep both alive to prove they coexist.
         let _ = (&a, &b);
+    }
+
+    #[test]
+    fn threaded_locks_for_one_path_are_reentrant() {
+        let dir = tempfile::tempdir().unwrap();
+        let lock_path = dir.path().join("threaded.lock");
+        let outer = acquire_threaded_instance_lock(&lock_path).expect("first acquisition");
+
+        // A lease may hold the root lock while nested store operations
+        // re-acquire the same path; the process-local registry shares the
+        // kernel lock instead of rejecting the nested holder.
+        let nested = acquire_threaded_instance_lock(&lock_path)
+            .expect("nested acquisition shares the held kernel lock");
+        drop(nested);
+        assert!(
+            acquire_threaded_instance_lock(&lock_path).is_ok(),
+            "the kernel lock must stay held until the outer guard drops"
+        );
+        drop(outer);
+        let again = acquire_threaded_instance_lock(&lock_path);
+        assert!(
+            again.is_ok(),
+            "lock must be reacquirable after the last drop"
+        );
+    }
+
+    #[test]
+    fn threaded_try_probe_reports_busy_while_this_process_holds_the_lock() {
+        let dir = tempfile::tempdir().unwrap();
+        let lock_path = dir.path().join("probe.lock");
+        let _holder = acquire_threaded_instance_lock(&lock_path).unwrap();
+
+        // The owner-fence probe must not mistake a lock held by this very
+        // process for a free fence: its contract is cross-process liveness.
+        let probe = try_acquire_threaded_instance_lock(&lock_path).unwrap();
+        assert!(
+            probe.is_none(),
+            "probe must report busy for a lock held by this process"
+        );
+
+        drop(_holder);
+        let probe = try_acquire_threaded_instance_lock(&lock_path).unwrap();
+        assert!(probe.is_some(), "probe must acquire a free fence");
     }
 }

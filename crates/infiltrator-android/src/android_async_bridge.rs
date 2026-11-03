@@ -291,6 +291,7 @@ impl AndroidBridgePendingCalls {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use infiltrator_contract::vpn::VpnGeneration;
 
     fn request_id(value: u64) -> AndroidBridgeRequestId {
         AndroidBridgeRequestId::new(value)
@@ -308,6 +309,13 @@ mod tests {
         let decoded: AndroidBridgeCall =
             serde_json::from_str(&encoded).expect("request decodes exhaustively");
         assert_eq!(decoded, call);
+
+        let unit_encoded =
+            serde_json::to_string(&AndroidBridgeCall::CoreStop).expect("unit request serializes");
+        assert!(
+            !unit_encoded.contains("\"payload\""),
+            "unit request must omit the adjacent-tag payload: {unit_encoded}"
+        );
 
         let reply =
             AndroidBridgeCallCompletion::Reply(AndroidBridgeCallReply::VpnStart { wire_code: 0 });
@@ -333,13 +341,29 @@ mod tests {
         let unit_request = serde_json::to_value(AndroidBridgeCall::CoreStop)
             .expect("unit request serializes with an explicit payload");
         assert_eq!(unit_request["operation"], "core_stop");
-        assert!(unit_request["payload"].is_null());
+        assert!(
+            unit_request.get("payload").is_none(),
+            "unit request must omit the adjacent-tag payload key"
+        );
 
         let stop_request = serde_json::to_value(AndroidBridgeCall::VpnStop {
             target: VpnStopTarget::Current,
         })
         .expect("VPN stop target serializes as its typed variant");
-        assert!(stop_request["payload"]["target"]["Current"].is_null());
+        assert_eq!(
+            stop_request["payload"]["target"],
+            serde_json::json!("Current"),
+            "externally tagged unit variants serialize as a bare string"
+        );
+
+        let generation_stop_request = serde_json::to_value(AndroidBridgeCall::VpnStop {
+            target: VpnStopTarget::Generation(VpnGeneration::new(7)),
+        })
+        .expect("VPN stop generation serializes as its typed variant");
+        assert_eq!(
+            generation_stop_request["payload"]["target"],
+            serde_json::json!({ "Generation": 7 }),
+        );
     }
 
     #[tokio::test]

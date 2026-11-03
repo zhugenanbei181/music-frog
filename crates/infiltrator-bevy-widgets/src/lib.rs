@@ -73,6 +73,7 @@ pub mod multiline_editor;
 pub mod nav;
 pub mod palette;
 pub mod particle;
+pub mod picking;
 pub mod popover;
 pub mod radio;
 pub mod reactive;

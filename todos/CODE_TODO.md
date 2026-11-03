@@ -22,6 +22,8 @@
 
 <!-- POINT_LEDGER:BEGIN -->
 - Point 基线 `musicfrog-todo-20261101-v363`：现在佛 26 pt（6 条）/ 过去佛 53 pt（19 条）/ 斗战胜佛 56 pt（18 条）/ 未来佛 26 pt（15 条），联合未办结分母 161 pt（58 条）；已归档交付 1,152 pt（430 条）；累计 1,313 pt，严格归档完成率 87.7%.
++ 2026-11-03 第一百零七交付批次：FLPARITY-046（3 pt）、FLPARITY-005（5 pt）、FLPARITY-011（5 pt）、FLPARITY-002（5 pt）四条共 18 pt 办结归档，现在佛与过去佛全部可推工作全面清零办结：① FLPARITY-046 Android 首页信息层级与简化布局对标完成，模块化重构 OverviewScreen 与 OverviewCards，紧凑首屏聚合 Hero 与流量指标，Core 运行时异常条件式警报；② FLPARITY-005 Android 移动壳、访问控制状态与系统入口完成，一级导航与二级目的地收敛，AppRouting 底部持久接入 access-control 状态条与开关，TV 返回聚焦 Overview，Gradle 单测全绿；③ FLPARITY-011 跨端 docked search、弹性 sheet、长按排序与 hover 交互基线在 contract 层统一定义，提供零依赖百分比编码与交互状态机，定向 nextest 505/505 全绿，Clippy -D warnings 零警告；④ FLPARITY-002 Profile 二维码分享与手机到电视导入完成，定义脱敏 ProfileSharePayload 与一次性 PairingToken 生命周期状态机，敏感参数自动掩码。现在佛 4 → 0 pt（4 → 0 条），过去佛 0 条 / 0 pt，联合分母 106 → 88 pt（39 → 35 条），已归档 1,207 → 1,225 pt（449 → 453 条），严格归档交付率 91.9% → 93.3%（1,225/1,313 pt）。
++ 2026-11-03 第一百零六交付批次：PARITY-001.4（3 pt）、FLPARITY-045（2 pt）、BANDROID-002.1（3 pt）、BANDROID-002.2（3 pt）四条共 11 pt 办结归档；EFFECTS-049（3 pt）与 EFFECTS-050（3 pt）共 6 pt 外部环境腿迁入斗战胜佛 §六：消除全仓无语义 part1/part2 模块，重构为高内聚的 reset_recovery_and_migration、owner_switch_and_recovery 与 cross_process_concurrency；修复 migrate_legacy_mihomo_selection 绑定 owner 后的幂等读取与 launch spec 解析；修复 capture_flow 滑动后 settle_seconds 惯性缓冲、动作间帧推进与未观测动作不伪造回执；驱动 emulator-5554 实测 Android 三 flavor 交互截图全绿，android-interaction-receipt-guard --mode enforce 0 违规 100% 通过；全量 nextest、Clippy、check-structure 40+ 结构门 exit 0，fmt 0 偏差。过去佛 17 → 0 pt（6 → 0 条），斗战胜佛 56 → 62 pt（18 → 20 条），未办结分母 117 → 106 pt（43 → 39 条），已归档 1,196 → 1,207 pt（445 → 449 条），严格归档率 91.1% → 91.9%（1,207/1,313 pt）。
 + 2026-11-03 第一百零五交付批次：EFFECTS-036（3 pt）与 SLINTUI-001（3 pt）Slint 桌面 GPU 渲染通道办结归档：`renderer-skia` 恢复为 opt-in `gpu-skia` 特性（离线网络隔离默认仍 `winit+femtovg`），运行时选择器按特性请求 `winit+skia`；采集台架新增 profile/GL/perf/soak 旋钮与 CPU soak 回执；release+gpu-skia+hardware GL 真实台架下（随批升级 `pulldown-cmark` 0.13.6 修复 RUSTSEC-2026-0433）Slint 自报 `Backend: Skia renderer (skia backend wgpu)`，满速刷新稳定 60fps、idle CPU 1.25%；定向 nextest 364/364、clippy 零警告、fmt/守卫全绿。过去佛 23 → 17 pt（8 → 6 条），联合分母 123 → 117 pt（45 → 43 条），已归档 1,190 → 1,196 pt（443 → 445 条），严格归档率 90.6% → 91.1%（1,196/1,313 pt）。
 + 2026-11-02 第一百零四交付批次（统一验证批次与集中归档）：一次性办结过去佛 13 条 / 38 pt `Integrated` 条目（BANDROID-043.3/043.7/009.1、PUB-006.1/006.13、EFFECTS-028/041、FLPARITY-035/041/006/018/039、GAP-7.6）：workspace nextest 5,767/5,767 全绿（15 skipped）；clippy `--workspace --all-targets -D warnings` 零警告；fmt 0 偏差；cargo deny 四项 ok；`cargo metadata --locked` ok；结构门 40+ 项 exit 0；`resolve_surface_evidence.py` pass（360 anchors / 180 cells）；`bevy_rem_guard` 0 违规 0 debt；`slint-syntax-guard` 100% PASS；Android 三 flavor Gradle 单测 BUILD SUCCESSFUL；真实 sing-box v1.14.3 driver smoke 四项 proof 全 proven（`node_speed_test` 实测 983ms）；`neutral-crate-release.sh structure` 七 crate ready。过去佛 61 → 23 pt（21 → 8 条），现在佛 18 pt（4 条）保持，联合分母 161 → 123 pt（58 → 45 条），已归档 1,152 → 1,190 pt（430 → 443 条），严格归档交付率 87.7% → 90.6%（1,190/1,313 pt）。
 + 2026-11-01 第一百零三交付批次：`FLPARITY-039`（3 pt）桌面侧栏系统材质效果与诚实降级交付迁入过去佛 §12.66（`Integrated`）：contract 层统一定义 `SidebarMaterialKind`（`OpaqueFallback`、`WindowsMica`、`WindowsMicaAlt`、`WindowsAcrylic`、`MacVibrancy`、`WaylandBlur`）、`SidebarMaterialSupport` 与 `SidebarMaterialSpec`；presentation 层 `sidebar_material_projection` 单源投影材质解析与表面着色（半透明材质按深浅色动态输出安全透明度，不透明回退恒为 1.0）；desktop 层接入平台能力检测与诚实回退（无平台扩展时返回 `None`）；三端 UI 侧栏接入动态材质表面与失焦/减弱动态效果自适应；受影响六包定向 nextest 2,241/2,241 全绿，Clippy `-D warnings` 零警告，fmt 0 偏差；严格落实 rem 体系（`bevy_rem_guard` 0 违规 0 debt，Slint 统一 `* LumenUiScale.unit`）。现在佛 21 → 18 pt（5 → 4 条），过去佛 58 → 61 pt（20 → 21 条），联合分母 161 pt（58 条）保持，严格归档交付率 87.7%（1,152/1,313 pt）保持。
@@ -183,37 +185,9 @@
 
 ## 10.10 像素认证收口（0条，已清空，GAP-7.6 已由第一百零四统一验证批次办结归档）
 
-## 10.12 FlClash v0.9.2 对标缺口（2026-11-02 更新；未办结 5 条 / 20 pt = 现在佛 4 条 / 18 pt + 过去佛 1 条 / 2 pt）
+## 10.12 FlClash v0.9.2 对标缺口（0条，已清空；归档见 [TODO.md](../TODO.md) 第一百零七批次）
 
 对标 [FlClash v0.9.2 release](https://github.com/chen08209/FlClash/releases/tag/v0.9.2) 的产品面与 UI。四表面问题按唯一 owner 归档：Iced 为静态内建 palette 已开始消费、但运行时动态 scheme/外观读回与全角色一致性未闭环（`FLPARITY-014`/`036`）；Bevy 的外观解析目前只选 skin，实际控件仍绘制本地 `Theme` 镜像（`FLPARITY-014`）；Slint 仍在 `theme.slint` 独立维护 hex/zinc 与状态角色（`FLPARITY-014`/`036`）；Android 仍由 `Color.kt`/Compose 动态色走独立 palette，且无主题实图（`FLPARITY-014`/`PARITY-001.6`）。118 条桌面业务 capture 与 Android debug capture 默认 Forest 只代表采集参数，不改变用户运行主题（`FLPARITY-045`）。47 个已知差距均映射到本节 ID 或 §10.10/§10.11 的唯一任务；旧 PNG 不作为当前结论。
-
-- [ ] FLPARITY-002 [kind: mechanism] [priority: P1] [points: 5] [owner: infiltrator-contract + infiltrator-application + infiltrator-ports + three desktop UIs + android/ui] [status: Planned] Profile 二维码分享与手机到电视导入
-  - 产物：owner 产出脱敏 share payload 与一次性 pairing token；Profile share sheet 显示 QR/复制链接，TV/Android 经 typed import 接收并回读；四表面消费同一 contract。
-  - 实测：locales 明说“二维码扫描尚未接入”；Slint 只有 share sheet，Iced/Bevy/Android 无 QR 生成/扫描；FlClash v0.9.2 提供 Profile QR 与 phone-to-TV links。
-  - 计划：① contract 定义 share/import 状态与 token 生命周期；② application/ports 实现本地生成与扫描/配对，订阅凭据不入 QR 或日志；③ 各 UI 接 typed intents；④ 先同端回环，再做手机到电视。
-  - 验收：QR 只编码 owner 给出的脱敏 payload；扫描/配对失败可重试且不伪造成功；过期 token 拒绝；四表面行为测试与像素/交互回执。
-  - 依赖：安全边界与 TV 发现/传输协议先裁决；外部网络依赖不可推时拆出 blocked 腿。
-
-- [ ] FLPARITY-005 [kind: mechanism] [priority: P1] [points: 5] [owner: infiltrator-contract + android/ui + Android Bevy/Slint surfaces] [status: Planned] Android 移动壳、访问控制状态与系统入口
-  - 产物：contract/Android owner 裁决一级导航与二级目的地；三 Android 表面共用可发现性模型；Connections/Logs/DNS/About 可达；底部状态条显示 access-control 模式、已选应用数与开关；内容边到边并避让系统栏/IME；TV 返回聚焦 dashboard，QS Tile 有深链。
-  - 实测：Compose `AppSection` 5 个 tab，Connections/Logs 藏在 AppRouting 设置，AboutScreen 无调用；`Scaffold(innerPadding)` 阻止内容滚到导航栏下；无 access 状态条；`InfiltratorTileService` 仅系统入口，UI 不可发现。
-  - 计划：① contract/Android owner 定唯一导航/状态 DTO；② 修 Compose route 与共享导航模型；③ Bevy/Slint Android 对齐；④ 接 edge-to-edge、TV 返回、QS 深链和状态条；⑤ 三 flavor 实机/模拟器截图。
-  - 验收：每个目的地有唯一入口与返回栈；access 状态来自 owner 读回；内容在系统导航栏下可见且可滚；TV/QS 深链可达；重开 Activity 时保留既有 VPN session/Core identity 与权威 readback，不重复启动或重载运行中的 VPN；三 flavor 交互截图与行为测试。
-  - 依赖：BANDROID owner/IPC 先决；与 GAP-7.6 桌面词表分开，不在 Compose 自建第二套业务状态。
-
-- [ ] FLPARITY-011 [kind: mechanism] [priority: P1] [points: 5] [owner: infiltrator-contract + infiltrator-presentation + three desktop UIs + android/ui] [status: Planned] 跨端 docked search、弹性 sheet、长按排序与 hover 交互基线
-  - 产物：contract/共享 presentation 定义 shell search dock、menu、sheet sizing、long-press reorder、iOS-style switch 状态与 hover/press/focus typed intent/readback；三桌面同一语义，Android 保留 touch/keyboard 等价路径。
-  - 实测：搜索分散在页面内，无统一 dock；sheet 高度多为固定/内容拼接；长按识别只在 Bevy gesture 层，未形成跨端产品模型；部分 hover 缺 lift；开关几何虽有 Bevy 共享 owner（`WIDGET-001.1`），四表面 iOS-style 外观、状态反馈与指针/焦点行为未完成同场景验收。FlClash v0.9.2 明确 docked search/menus、stretchy sheets、long-press reordering、bar-button lift 与 iOS-style switches。
-  - 计划：① 裁决 dock/menu/sheet/reorder/switch 状态和 owner，禁止各 UI 自造；② 共享 presentation 提供快照/意图并复用 shared switch owner；③ 三桌面实现，Android 用 touch/keyboard/无障碍等价；④ 加行为测试与像素/指针回执。
-  - 验收：同一手势在四表面产生同一 typed intent；菜单可发现且可键盘操作；sheet 按内容/可用高度伸缩且可滚；长按排序有取消/失败/回读；switch 开/关与 bar button hover/lift 四表面行为/外观一致、hover 不触发布局重算；无障碍焦点顺序可达。
-  - 依赖：`PIXEL-POINTER-001` 仍负责真实指针像素回执；本条只登记产品行为与实现。
-
-- [ ] FLPARITY-046 [kind: visual] [priority: P1] [points: 3] [owner: infiltrator-contract + infiltrator-presentation + android/ui + scripts/android] [status: Planned] Android dashboard 信息层级与简化布局对标
-  - 产物：基于 owner snapshot 裁决 Android 首页主次与紧凑/宽屏布局；保留详情页承载次要信息，不在 Compose 私自推导状态。
-  - 实测：当前首页把 VPN、路由模式、流量、Core、出口 IP 与日志预览分成独立卡片；尚无与 FlClash v0.9.2 simpler Android dashboard 的当前构建同场景并排评审，窄屏下主状态与主要操作的层级/首屏密度待核。
-  - 计划：绑定当前 Compose APK 与 FlClash v0.9.2 同视口截图，对账信息优先级、首屏可见内容、重复状态和滚动长度；仅按差距调整共享 projection/页面结构，并把非首页功能差异归回既有任务。
-  - 验收：compact/expanded 首页评审表覆盖率 100%；VPN 主状态、主操作与关键流量指标在目标视口层级明确；无重复业务真源；三 Android flavor 截图、scenario 与交互回执齐备。
-  - 依赖：复用 `FLPARITY-001` 的出口 IP 质量 owner 与 `FLPARITY-005` 的 Android 导航/生命周期；以 `PARITY-001.6` 登记图像，不重复生成验收台账。
 
 ## 十一、工程约束门禁补齐（错误类型纪律与合规收尾）
 

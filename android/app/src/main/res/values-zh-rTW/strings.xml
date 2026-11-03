@@ -33,6 +33,7 @@
     <string name="label_ip_location">地區: %1$s</string>
 
     <string name="card_recent_logs">最近日誌</string>
+    <string name="action_view_all_logs">查看完整日誌</string>
     <string name="text_no_logs">暫無日誌</string>
     <string name="text_loading">載入中…</string>
     <string name="text_no_connections">暫無活動連線</string>
@@ -98,6 +99,8 @@
     <string name="routing_mode_proxy_selected">僅代理選中 (白名單)</string>
     <string name="routing_mode_bypass_selected">僅繞過選中 (黑名單)</string>
     <string name="routing_mode_unavailable">路由狀態無法使用</string>
+    <string name="label_selected_apps_count">已選擇 %1$d 個應用程式</string>
+    <string name="access_control_status_title">存取控制</string>
     <string name="action_retry">重試</string>
     <string name="search_apps_hint">搜尋應用程式</string>
     <string name="tab_user_apps">使用者應用</string>

@@ -23,8 +23,11 @@ use tokio::time::{sleep, timeout};
 mod common;
 use common::*;
 
-#[path = "active_profile_reference_tests/part1.rs"]
-mod part1;
+#[path = "active_profile_reference_tests/reset_recovery_and_migration.rs"]
+mod reset_recovery_and_migration;
 
-#[path = "active_profile_reference_tests/part2.rs"]
-mod part2;
+#[path = "active_profile_reference_tests/owner_switch_and_recovery.rs"]
+mod owner_switch_and_recovery;
+
+#[path = "active_profile_reference_tests/cross_process_concurrency.rs"]
+mod cross_process_concurrency;

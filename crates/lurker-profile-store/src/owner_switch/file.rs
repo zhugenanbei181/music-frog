@@ -4,7 +4,9 @@ use crate::document_store::{
     RECORD_DURABILITY_UNCERTAIN_PREFIX, read_optional, write_document_bytes_durable,
     write_document_bytes_durable_sync,
 };
-use crate::instance_lock::{ThreadedInstanceLockGuard, try_acquire_threaded_instance_lock};
+use crate::instance_lock::{
+    ThreadedInstanceLockGuard, acquire_threaded_instance_lock, try_acquire_threaded_instance_lock,
+};
 use crate::owner_switch::codec::OwnerSwitchCodec;
 use crate::owner_switch::owner::{
     ActiveCoreOwnerProofRecord, parse_active_core_owner_proof_record,
@@ -16,10 +18,8 @@ use std::fs::read_to_string;
 use std::io::ErrorKind;
 use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
 use tokio::fs::{canonicalize, create_dir_all};
 use tokio::task::spawn_blocking;
-use tokio::time::sleep;
 
 /// Stateless product-root file owner. Revision locks and typed transitions are
 /// acquired by the protocol coordinator before calling these operations.
@@ -311,19 +311,13 @@ pub fn is_durability_uncertain(error: &PortError) -> bool {
 async fn acquire_instance_lock_async(
     lock_path: PathBuf,
 ) -> Result<ThreadedInstanceLockGuard, PortError> {
-    loop {
-        let attempt_path = lock_path.clone();
-        let attempt = spawn_blocking(move || {
-            try_acquire_threaded_instance_lock(&attempt_path)
-                .map_err(|error| PortError::Io(error.to_string()))
-        })
-        .await
-        .map_err(|error| PortError::Io(error.to_string()))??;
-        if let Some(guard) = attempt {
-            return Ok(guard);
-        }
-        sleep(Duration::from_millis(10)).await;
-    }
+    let attempt_path = lock_path.clone();
+    spawn_blocking(move || {
+        acquire_threaded_instance_lock(&attempt_path)
+            .map_err(|error| PortError::Io(error.to_string()))
+    })
+    .await
+    .map_err(|error| PortError::Io(error.to_string()))?
 }
 
 /// Reconciles a durable write whose durability is uncertain.

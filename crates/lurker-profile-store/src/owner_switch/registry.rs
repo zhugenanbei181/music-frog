@@ -297,6 +297,11 @@ impl LocalOwnerRegistryGuard<'_> {
         }
     }
 
+    /// Removes the local registration for a configuration root unconditionally (e.g. simulating process crash).
+    pub fn remove_config_root(&mut self, config_root: &Path) {
+        self.registrations.remove(config_root);
+    }
+
     /// Recovers a local registration into the switching state.
     ///
     /// Returns whether the registration was already switching, was promoted

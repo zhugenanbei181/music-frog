@@ -106,7 +106,9 @@ impl VpnServiceApplication {
         let snapshot = self.port.stop().await.map_err(Failure::from)?;
         if !matches!(
             snapshot.state,
-            VpnSessionState::Stopped | VpnSessionState::Revoked
+            VpnSessionState::Stopped
+                | VpnSessionState::Revoked
+                | VpnSessionState::PermissionRequired
         ) {
             return Err(Failure::new(
                 ErrorCode::InvalidState,
@@ -458,6 +460,26 @@ mod tests {
             vec!["owner_stop"],
             "the Stop receipt already carries the owner snapshot",
         );
+    }
+
+    #[tokio::test]
+    async fn stop_accepts_a_permission_gate_as_a_released_terminal_state() {
+        let port = Arc::new(NonterminalStopReadbackPort {
+            snapshot: VpnSessionSnapshot {
+                state: VpnSessionState::PermissionRequired,
+                foreground: false,
+                ..VpnSessionSnapshot::default()
+            },
+            events: sync::Mutex::new(Vec::new()),
+        });
+        let application = VpnServiceApplication::new(port.clone());
+
+        let stopped = application
+            .stop()
+            .await
+            .expect("a consent gate over released resources completes the stop");
+
+        assert_eq!(stopped.state, VpnSessionState::PermissionRequired);
     }
 
     struct OwnerUnavailableStopPort {

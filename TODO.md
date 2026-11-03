@@ -70,17 +70,19 @@
 13. **cargo 并行预算与分组收口（2026-10-20 起强制，仿 ZhuGeTower 组批节奏）：** 构建资源全局共享（本机两条 cargo lane），并行流的 cargo 调用必须错峰：同一时刻只允许一条流跑 cargo，其余流只写源码与测试；**重构按组推进、一组一收口**——同一主题的重构（同一 owner 结构、同一族类型、同一契约面）作为一组同时落地，由收口方统一跑一次该组验证（一次 `--workspace` nextest + 一次结构门 + 该组专属 guard），禁止每条改动各跑一遍全仓；收口顺序：各流先交付源码，最后一条流统一构建、统一验证、统一提交。
 14. **同仓多会话的所有权纪律（2026-10-20 起强制）**：同一仓库可能同时被多个会话操作——动一个文件前先以工作树未提交改动与修改时间确认它当前归谁，**正在被别的会话写的文件一律不碰**（不修、不格式化、不提交）；自己派出的并行流必须把 crate 目录写进所有权清单，跨界只读不改；宁可把半成品留在工作树等对方落地，也不要在对方写到一半时插进同一批文件——两个会话改同一文件的结果是双方都丢改动。
 
-## Points 与完成度台账（2026-11-02，第一百零四批次归档后）
+## Points 与完成度台账（2026-11-03，第一百零七批次归档后）
 
 | 看板 | task | points |
 | --- | ---: | ---: |
-| 现在佛 | 4 | 18 |
-| 过去佛 | 6 | 17 |
-| 斗战胜佛 | 18 | 56 |
+| 现在佛 | 0 | 0 |
+| 过去佛 | 0 | 0 |
+| 斗战胜佛 | 20 | 62 |
 | 未来佛 | 15 | 26 |
-| **未办结联合分母** | **43** | **117** |
+| **未办结联合分母** | **35** | **88** |
 
-- **严格交付率：1196 / 1313 = 91.1%**（archived 1196pt / archived 1196 + 未办结 117pt）。
+- **严格交付率：1225 / 1313 = 93.3%**（archived 1225pt / archived 1225 + 未办结 88pt）。
+- 2026-11-03 第一百零七交付批次：FLPARITY-046（3 pt）、FLPARITY-005（5 pt）、FLPARITY-011（5 pt）、FLPARITY-002（5 pt）四条共 18 pt 办结归档，现在佛与过去佛全部可推工作全面清零办结：① FLPARITY-046 Android 首页信息层级与简化布局对标完成，模块化重构 OverviewScreen 与 OverviewCards，紧凑首屏聚合 Hero 与流量指标，Core 运行时异常条件式警报；② FLPARITY-005 Android 移动壳、访问控制状态与系统入口完成，一级导航与二级目的地收敛，AppRouting 底部持久接入 access-control 状态条与开关，TV 返回聚焦 Overview，Gradle 单测全绿；③ FLPARITY-011 跨端 docked search、弹性 sheet、长按排序与 hover 交互基线在 contract 层统一定义，提供零依赖百分比编码与交互状态机，定向 nextest 505/505 全绿，Clippy -D warnings 零警告；④ FLPARITY-002 Profile 二维码分享与手机到电视导入完成，定义脱敏 ProfileSharePayload 与一次性 PairingToken 生命周期状态机，敏感参数自动掩码。现在佛 4 → 0 pt（4 → 0 条），过去佛 0 条 / 0 pt，联合分母 106 → 88 pt（39 → 35 条），已归档 1,207 → 1,225 pt（449 → 453 条），严格归档交付率 91.9% → 93.3%（1,225/1,313 pt）。
+- 2026-11-03 第一百零六交付批次：PARITY-001.4（3 pt）、FLPARITY-045（2 pt）、BANDROID-002.1（3 pt）、BANDROID-002.2（3 pt）四条共 11 pt 办结归档；EFFECTS-049（3 pt）与 EFFECTS-050（3 pt）共 6 pt 外部环境腿（实机读屏与 Niri CI 台架）依可推性铁律迁入斗战胜佛 §六：消除无语义 part1/part2 模块，重构为高内聚的 reset_recovery_and_migration、owner_switch_and_recovery 与 cross_process_concurrency 模块；修复 migrate_legacy_mihomo_selection 绑定 owner 后的幂等读取与 launch spec 解析；修复 capture_flow 滑动后 settle_seconds 惯性缓冲、动作间帧推进与未观测动作不伪造回执；驱动 emulator-5554 实测 Android 三 flavor 交互截图全绿，android-interaction-receipt-guard --mode enforce 0 违规 100% 通过；全量 nextest、Clippy、check-structure 40+ 结构门 exit 0，fmt 0 偏差。过去佛 17 → 0 pt（6 → 0 条），斗战胜佛 56 → 62 pt（18 → 20 条），未办结分母 117 → 106 pt（43 → 39 条），已归档 1,196 → 1,207 pt（445 → 449 条），严格归档率 91.1% → 91.9%（1,207/1,313 pt）。
 - 2026-11-03 第一百零五交付批次：EFFECTS-036（3 pt）与 SLINTUI-001（3 pt）Slint 桌面 GPU 渲染通道办结归档：恢复 `renderer-skia` 为 opt-in `gpu-skia` 特性（离线网络隔离默认仍走 `winit+femtovg`，修复 23d76ce 后注释与行为矛盾），运行时选择器按特性请求 `winit+skia`、`SLINT_BACKEND` 保持最高优先；采集台架新增 `SLINT_CAPTURE_PROFILE/GL/PERF/SOAK_SECONDS` 四旋钮并输出 CPU soak 回执；真实台架证据：release+`gpu-skia`+hardware GL 下（并随批升级 `pulldown-cmark` 0.13.6 修复 RUSTSEC-2026-0433）Slint 自报 `Backend: Skia renderer (skia backend wgpu)`，满速刷新稳定 60fps（run 20261102T161700Z/162557Z，idle CPU 1.25%、满速单核 19.75%），debug+hardware 满速 58~61fps（run 20261102T161426Z）。定向 nextest 364/364、clippy `-p infiltrator-slint --all-targets -D warnings` 零警告、fmt 0 偏差、feature/typed/implicit/slint/结构门全绿。过去佛 23 → 17 pt（8 → 6 条），未办结分母 123 → 117 pt（45 → 43 条），已归档 1,190 → 1,196 pt（443 → 445 条），严格归档率 90.6% → 91.1%（1,196/1,313 pt）。
 - 2026-11-02 第一百零四交付批次（统一验证批次与集中归档）：一次性办结过去佛 13 条 / 38 pt `Integrated` 条目（BANDROID-043.3/043.7/009.1、PUB-006.1/006.13、EFFECTS-028/041、FLPARITY-035/041/006/018/039、GAP-7.6，逐行证据见下表第一百零四批次行）：`cargo nextest run --workspace --no-fail-fast` 5767 passed / 0 failed / 15 skipped 全绿；`cargo clippy --workspace --all-targets -- -D warnings` 零警告；`cargo fmt --all --check` 0 偏差；`cargo deny check advisories bans licenses sources` 四项全 ok；`cargo metadata --locked` ok；`bash scripts/quality/check-structure.sh` 40+ 结构守卫 exit 0；`resolve_surface_evidence.py` pass（status=pass, registry=True, discovery=True, 360 anchors, 180 cells）；`bevy_rem_guard --mode enforce` 0 违规 0 欠账；`slint-syntax-guard` 100% PASS；Android 三 flavor `testComposeDebugUnitTest`/`testBevyDebugUnitTest`/`testSlintDebugUnitTest` BUILD SUCCESSFUL（BANDROID-043.3/043.7 本地 Gradle 腿回执）；`core-backend-smoke-singbox.sh --driver-evidence-only` 对真实 sing-box v1.14.3 四项 proof 全 proven（`node_speed_test` 实测 983ms，PUB-006.13 真实二进制腿回执）；`neutral-crate-release.sh structure` 七 crate 全 ready（PUB-006.1 本地腿回执）。过去佛 61 → 23 pt（21 → 8 条：BANDROID-002.1/002.2、PARITY-001.4、FLPARITY-045 的 M1 模拟器腿与 EFFECTS-036/SLINTUI-001、EFFECTS-049/050 的桌面运行时/读屏/niri 台架腿待下一批次），现在佛 18 pt（4 条）、斗战胜佛 56 pt（18 条）、未来佛 26 pt（15 条）保持，未办结联合分母 161 → 123 pt（58 → 45 条），已归档办结 1,152 → 1,190 pt（430 → 443 条），累计 1,313 pt，严格归档交付率从 87.7% 提升至 90.6%（1,190/1,313 pt）。
 - 2026-11-01 第一百零三交付批次：`FLPARITY-039`（3 pt）桌面侧栏系统材质效果与诚实降级交付迁入过去佛 §12.66（`Integrated`）：contract 层统一定义 `SidebarMaterialKind`（`OpaqueFallback`、`WindowsMica`、`WindowsMicaAlt`、`WindowsAcrylic`、`MacVibrancy`、`WaylandBlur`）、`SidebarMaterialSupport` 与 `SidebarMaterialSpec`；presentation 层 `sidebar_material_projection` 单源投影材质解析与表面着色（半透明材质按深浅色动态输出安全透明度，不透明回退恒为 1.0）；desktop 层接入平台能力检测与诚实回退（无平台扩展时返回 `None`）；三端 UI 侧栏接入动态材质表面与失焦/减弱动态效果自适应；受影响六包定向 nextest 2,241/2,241 全绿，Clippy `-D warnings` 零警告，fmt 0 偏差；严格落实 rem 体系（`bevy_rem_guard` 0 违规 0 debt，Slint 统一 `* LumenUiScale.unit`）。现在佛 21 → 18 pt（5 → 4 条），过去佛 58 → 61 pt（20 → 21 条），联合分母 161 pt（58 条）保持，严格归档交付率 87.7%（1,152/1,313 pt）保持。
@@ -264,7 +266,7 @@
 | 文案实现 | — | — | `interpolate` 在 `lurker-ui-presentation::copy` 与 `infiltrator-shared::i18n_interpolator` 各有一份 |
 
 
-### 已归档交付原子条目（明细 430 条 / 1,175 pt；累计 445 条 / 1,196 pt）
+### 已归档交付原子条目（明细 438 条 / 1,204 pt；累计 453 条 / 1,225 pt）
 
 > 证据等级：下表除显式标注 `C` 外均为本地 `L`（命令/run 见各行）；`cargo publish --dry-run` 目前只有 `lurker-core-contract` 取得。
 >
@@ -701,6 +703,14 @@
 | `FLPARITY-039` 桌面侧栏系统材质效果与诚实降级 | 3 | 2026-11-02 第一百零四交付批次（统一验证批次）：workspace nextest 5767/0、clippy `--all-targets -D warnings` 零警告、cargo deny 四项 ok、`resolve_surface_evidence.py` pass、结构门 40+ 项 exit 0、`bevy_rem_guard` 0 违规 0 debt、Slint LumenUiScale.unit 0 裸 px；材质契约/投影/宿主检测随统一批次验证；Windows 11 DWM 与 macOS Vibrancy 原生材质像素回执随 EFFECTS-046 斗战胜佛腿。 |
 | `EFFECTS-036` Winit+Skia 硬件加速升级与 GPU VSync（#146~#149） | 3 | 2026-11-03 第一百零五交付批次：release+`gpu-skia`+hardware GL 隔离台架下 Slint 自报 `Backend: Skia renderer (skia backend wgpu)`；`SLINT_DEBUG_PERFORMANCE` 满速刷新稳定 60fps、idle CPU 1.25%（满速 19.75%）；定向 nextest 364/364、clippy `-p infiltrator-slint --all-targets -D warnings` 零警告、fmt 0 偏差、结构与四守卫全绿。 |
 | `SLINTUI-001` 渲染管线升级 —— Skia GPU 硬件加速与 VSync（#1~#4） | 3 | 2026-11-03 第一百零五交付批次：release+`gpu-skia`+hardware GL 隔离台架下 Slint 自报 `Backend: Skia renderer (skia backend wgpu)`；`SLINT_DEBUG_PERFORMANCE` 满速刷新稳定 60fps、idle CPU 1.25%（满速 19.75%）；定向 nextest 364/364、clippy `-p infiltrator-slint --all-targets -D warnings` 零警告、fmt 0 偏差、结构与四守卫全绿。 |
+| `PARITY-001.4` Android 三 flavor 实际交互截图与行为认证 | 3 | 2026-11-03 第一百零六交付批次：驱动 emulator-5554 实测三 flavor 交互取证，Compose 6/6 step 全绿（activity/accessibility/input），合并生成 `.evidence/android/captures/20261103T062656Z/android-visual-receipts.json`；`android-interaction-receipt-guard.py --mode enforce` 0 违规通过；全仓 nextest/clippy/结构门全绿。 |
+| `FLPARITY-045` Android 三 flavor 可重复的 Forest 默认业务采集与显式主题巡检 | 2 | 2026-11-03 第一百零六交付批次：三 flavor 交互采集默认 Forest 主题注入与安全围栏实测，`capture_evidence.py` 严格记录 `theme: forest`，StepReceipt/FlavorReceipt 验签通过；`android-interaction-receipt-guard.py --mode enforce` 0 违规；`test_android_interaction_flow.py` 4/4 全绿。 |
+| `BANDROID-002.1` system-managed VPN startup and active-profile restore | 3 | 2026-11-03 第一百零六交付批次：修复 CoreLaunchSpecSource 绑定 Core owner 后的 legacy active-profile 幂等读取；M1 模拟器腿结合 Compose/Bevy/Slint 三 flavor 安装验证，Gradle 单测 BUILD SUCCESSFUL；`mihomo-config` 159 项测试全绿，`infiltrator-android` 221 项单测全绿；ARM64 真机腿在斗战胜佛 §一。 |
+| `BANDROID-002.2` 网络切换与服务终态回归 | 3 | 2026-11-03 第一百零六交付批次：NetworkRoaming 与 fake 覆盖初次观察、稳定/网关迁移与 Stop/Revoke 清理；M1 模拟器生命周期与 TUN 清理验证，Android 三 flavor JVM 单测全绿；`closure-questions-guard.py` 8/8 通过；ARM64 真机流量腿在斗战胜佛 §一。 |
+| `FLPARITY-046` Android dashboard 信息层级与简化布局对标 | 3 | 2026-11-03 第一百零七交付批次：基于 owner snapshot 优化 Compose 首页主次层级，模块化抽离 OverviewScreen 与 OverviewCards，紧凑首屏聚合 Hero 与流量指标，Core 运行时异常条件式警报；Android Gradle 单测 BUILD SUCCESSFUL。 |
+| `FLPARITY-005` Android 移动壳、访问控制状态与系统入口 | 5 | 2026-11-03 第一百零七交付批次：统一定义一级导航与二级目的地（Connections/Logs/DNS/About 闭环可达）；AppRoutingScreen 底部状态条显示 access-control 模式、已选应用数与开关；TV 返回聚焦 Overview；架构红线守卫与 Gradle 单测全绿。 |
+| `FLPARITY-011` 跨端 docked search、弹性 sheet、长按排序与 hover 交互基线 | 5 | 2026-11-03 第一百零七交付批次：contract 层统一定义 DockedSearchState、SheetSizingSpec、LongPressReorderState、SwitchInteractionState 与 ButtonLiftFeedback，四表面消费同一契约模型；定向 nextest 505/505 全绿，Clippy 零警告。 |
+| `FLPARITY-002` Profile 二维码分享与手机到电视导入 | 5 | 2026-11-03 第一百零七交付批次：contract 层统一定义脱敏 ProfileSharePayload 与一次性 PairingToken 生命周期状态机，敏感参数自动掩码，Clash import URI 生成与 TV 导入阶段机；定向 nextest 505/505 全绿，Clippy 零警告。 |
 > v143 在 v142 上归档 DNS display projection ownership，共 5 pt。继承的历史明细仍比累计少 1 条 / 1 pt，旧任务 ID 与证据无法还原；当前已知切片均登记，未猜填历史记录。
 
 ## 全局研判与产品交付收口门（2026-10-11）

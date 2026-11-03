@@ -11,6 +11,7 @@ use crate::icon::IconId;
 use crate::icon_tile::icon_tile_scene;
 use crate::palette::UiPalette;
 use crate::palette::rem;
+use crate::picking;
 use crate::text::{Role, TextRole};
 use crate::theme::space;
 use bevy::color::Color;
@@ -265,6 +266,7 @@ pub fn toast_stack_scene(toasts: &[ToastMessage], palette: &UiPalette) -> impl S
             ToastContainer
             ThemeContext(SurfaceLevel::Floating)
             FixedNode
+            picking::NON_INTERACTIVE
             Children [
                 { toast_nodes }
             ]

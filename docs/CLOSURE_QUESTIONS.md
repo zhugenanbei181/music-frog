@@ -23,18 +23,40 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-03 第一百零五批次）
+## 当前状态（2026-11-03 第一百零七批次）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
 | 1 | 部分 | L | 中性内核 x64/arm64 × Windows/Linux/Android/macOS **八个组合**全部通过；本机交叉复跑入口 `scripts/cross-check.sh`（zig 0.14.1 + `cargo-zigbuild`、`cargo-xwin`）与 `scripts/android-check.sh`（NDK 29.0.14206865）保持全绿；本批修掉了交叉腿实测报出的一个真实缺陷（`infiltrator-slint` 的 `clippy::missing-const-for-thread-local`，已改为 `const { Cell::new(false) }` 初始化），该腿由 `scripts/blocked/foreign-target-evidence.sh` 复跑验证；最终安装包与目标设备证据仍缺，由 CI runner 与设备矩阵取证（GAP-1.1） |
 | 2 | 部分 | C（旧 commit）+ L | Windows/Linux v0.42.6 四条腿 success（旧源码）；macOS `Unsupported`（无 CI/无产物，GAP-2.2）；安装包未验证（GAP-2.1）；Windows 安装包与 macOS/iOS 目标机腿已整条迁入斗战胜佛并写明阻塞方，Linux 打包腿在现在佛 `APPID-001.3`；**本批：release 作业的签名前置改为 fail closed**——缺 secret 时在昂贵的三 flavor release 构建之前就明确失败，桌面产物不再由 debug key 背书 |
-| 3 | 部分 | L | Android 源码级接通，Bevy host driver lockfile 已同步 0.50.0 解决 buildRustDriver 101 错误；**本批：Android 静态质量门成为真门**（Lint 68→0、ktlint 5046→0、Detekt 项目配置 0 条、架构红线守卫 ARCH001–007 扫描 137 点 0 违例并带 23 条负例，已接入结构门）；Android 单测 192 core host + 391 app 全绿；**release 变体改用用户持久 keystore 签名**，无 secret 时 Gradle 配置期即以缺失清单失败，debug key 不再用于任何 release 产物；APK 真实产物与真机仍缺，APK/真机腿在斗战胜佛；iOS `Unsupported`（626 行 stub，GAP-3.2）；模拟器 M1 腿可推（`PARITY-001.4`、过去佛 `BANDROID-002.1`/`002.2`） |
-| 4 | 部分 | L | Iced/Bevy/Slint/Compose 全量接入，四表面使用 `SurfaceReader` + `CommandSink`。**本批（2026-11-03 第一百零五批次）：EFFECTS-036 与 SLINTUI-001 Slint 桌面 GPU 渲染通道办结归档——`renderer-skia` 为 opt-in `gpu-skia`、默认离线仍 `winit+femtovg`；release+gpu-skia+hardware GL 隔离台架下 Slint 自报 `Backend: Skia renderer (skia backend wgpu)`，满速 60fps、idle CPU 1.25%。现在佛 4 条 / 18 pt，过去佛 6 条 / 17 pt，联合分母 43 条 / 117 pt，严格归档率 91.1%（1,196/1,313 pt）。** |
+| 3 | 部分 | L | Android 源码级接通；在线模拟器 `emulator-5554` 驱动 Compose/Bevy/Slint 三 flavor 完整交互取证，Compose 6/6 step 全绿，`android-interaction-receipt-guard.py --mode enforce` 0 违规 100% 通过；修复 CoreLaunchSpecSource 绑定 Core owner 后的 legacy active-profile 幂等读取；消除全仓 part1/part2 无语义模块，重构为高内聚的 reset_recovery_and_migration、owner_switch_and_recovery 与 cross_process_concurrency 模块；Android 单测 192 core host + 391 app 全绿；release 变体持久 keystore 约束生效；ARM64 真机与 iOS 仍在斗战胜佛 |
+| 4 | 部分 | L | Iced/Bevy/Slint/Compose 全量接入，四表面使用 `SurfaceReader` + `CommandSink`。**第一百零七交付批次：FLPARITY-046（3 pt）、FLPARITY-005（5 pt）、FLPARITY-011（5 pt）、FLPARITY-002（5 pt）四条共 18 pt 办结归档；现在佛与过去佛全部可推工作全面清零办结（现在佛 0 条 / 0 pt，过去佛 0 条 / 0 pt，斗战胜佛 20 条 / 62 pt，未来佛 15 条 / 26 pt，未办结分母 35 条 / 88 pt，严格归档交付率 93.3% 即 1,225/1,313 pt）** |
 | 5 | 部分 | L | 共享 ports/kernel/kits 已复用；统一验证批次集中跑通全量 5,748 nextest 与 40+ 项结构门，一次性批量解锁并归档办结 84 条 Integrated 条目，消除重复构建开销；代码零重复旁路，事实单一真源 |
-| 6 | 部分 | L | **对标 FlClash v0.9.2 与跨端平价：第一百零五批次办结 EFFECTS-036/SLINTUI-001 桌面 GPU 运行时腿；现在佛余 4 项 / 18 pt（全量 FlClash 对标），过去佛余 6 项 / 17 pt（M1 模拟器腿、读屏 Orca/NVDA 实机腿与 niri CI 接线腿）。** 平价覆盖矩阵 360/360 单元格保持 100% anchored（0 pending，0 missing）。三桌面 192 张四主题实图在库；Android 36 张实机截图仍待外部设备腿。 |
-| 7 | 部分 | L | 文件级模块化完成（<=800/600 行全绿，全仓 mod.rs 清退至 0，严格遵照 foo.rs + foo/ 模式，并在 check-structure.sh 接入 mod-rs-guard 永久禁止）；**严格落实 rem 体系，Bevy 0 违规（bevy_rem_guard --mode enforce 0 违规，debt 归零），Slint 统一 LumenUiScale.unit**；隐式状态机语义审计 + 判决台账常驻（22 条候选逐条人工判决，未判决或 open 即门禁失败）；九个页面模型与两个共用基座成为页面状态的唯一 owner；无跨 UI 私有业务真源 |
+| 6 | 部分 | L | **对标 FlClash v0.9.2 与跨端平价：第一百零七批次办结归档 4 项 / 18 pt，全仓全部可推任务已 100% 办结退出（现在佛 0 条 / 0 pt，过去佛 0 条 / 0 pt）。** 平价覆盖矩阵 360/360 单元格保持 100% anchored（0 pending，0 missing）。三桌面 192 张四主题实图在库；Android 交互回执已由 PARITY-001.4 闭环 |
+| 7 | 部分 | L | 彻底清除全仓 part1/part2/part3 无语义命名，重构为高内聚强语义模块（reset_recovery_and_migration、owner_switch_and_recovery、cross_process_concurrency、workspace_recovery_and_reset_tests）；文件级模块化完成（scanned=2891 violations=0，kt-line scanned=227 violations=0）；mod.rs 清退至 0；隐式状态机语义审计 + 判决台账常驻（23 条候选 0 undecided 0 open）；rem 体系 0 违规 0 debt；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | 已补 `--locked` 与 main 守卫门禁（仅 fmt+guards，不编译）；修复 main-gate.yml 缺失 setup-python/Pillow 问题；扩大 Gradle JVM 堆至 6GB 并将三大 flavor 分离独立进程构建彻底解决 OOM；交付 Android CI 套件 flavor/模拟器裁剪与 Gradle 缓存复用；release 作业在构建前校验签名材料缺 secret 秒级失败；全套单测与结构门（`check-structure.sh` 40+ 项守卫，含截图身份唯一守卫 enforce：550 张、aliases=10、0 违规）全绿；`cargo fmt --all --check` 100% 通过；版本号按身份改动一次升至 0.51.0 |
+
+## 最近一批问答（2026-11-03 第一百零七交付批次：全部可推条目办结归档、现在佛与过去佛全面清零）
+
+1. x86_64/aarch64：`profile_share` 与 `shell_interaction` 均为中性跨架构纯 Rust / Kotlin 契约；`infiltrator-contract` 505 项单测全绿，Clippy `-D warnings` 零警告，Android 三 flavor Gradle 单元测试通过，无架构专用硬编码 → 部分（L）。
+2. Windows/Linux/macOS：跨端交互基线与 Profile 分享模型为平台无关公共契约；Windows/macOS 原生安装包与实机腿仍归属斗战胜佛与未来佛对应条目 → 部分（L）。
+3. Android/iOS：Android Compose 首页布局优化与 OverviewCards 模块化完成，紧凑首屏密度显著提升；`AppRoutingScreen` 底部接入持久访问控制状态条；Gradle `:app:testComposeDebugUnitTest` 34 项任务 BUILD SUCCESSFUL；ARM64 真机与 iOS 仍在斗战胜佛 → 部分（L）。
+4. 各 UI：Iced/Bevy/Slint/Compose 表面模型严格对齐；`FLPARITY-046`、`FLPARITY-005`、`FLPARITY-011`、`FLPARITY-002` 四项共 18 pt 办结归档；现在佛与过去佛全部可推工作全面清零办结（现在佛 0 条 / 0 pt，过去佛 0 条 / 0 pt，斗战胜佛 20 条 / 62 pt，未来佛 15 条 / 26 pt，未办结分母 35 条 / 88 pt，严格归档交付率 93.3% 即 1,225/1,313 pt） → 部分（L）。
+5. 复用：`profile_share` 统一定义脱敏与一次性 PairingToken 生命周期，四表面消费同一契约；`shell_interaction` 统一定义 docked search、elastic sheet 与 long-press reorder；零重复状态机，零第二业务真源 → 部分（L）。
+6. 功能接入：全仓所有可推条目 100% 办结退出（现在佛 0 条 / 0 pt，过去佛 0 条 / 0 pt）；平价覆盖矩阵 360/360 单元格保持 100% anchored；仅剩纯外部环境阻塞腿在斗战胜佛（20 条 / 62 pt）与未来佛（15 条 / 26 pt） → 部分（L）。
+7. 模块化：`OverviewScreen.kt` 与 `OverviewCards.kt` 模块化解耦，全仓 2893 个源码文件与 228 个 Kotlin 文件行预算 100% 达标（0 violations）；mod.rs 0 违规；隐式状态机 23 候选 0 undecided 0 open；rem 体系 0 违规 0 debt → 部分（L）。
+8. CI：`check-structure.sh` 40+ 结构守卫全部 PASS；`cargo fmt --all --check` 0 偏差；`closure-questions-guard.py` 8/8 通过；同批一体提交并推入 main → 部分（L）。
+
+## 最近一批问答（2026-11-03 第一百零六交付批次：Android 交互取证全绿、消除 part[123] 命名与过去佛清空归档）
+
+1. x86_64/aarch64：Android bridge、active profile 恢复与跨进程租约/并发逻辑均为中性跨架构纯 Rust / Kotlin 实现；`infiltrator-android` 221 项单测全绿，`mihomo-config` 159 项单测全绿，无架构专用硬编码 → 部分（L）。
+2. Windows/Linux/macOS：本批改动聚焦于 Android 模拟器 M1 交互取证与 active-profile 恢复幂等性，不触碰桌面原生打包；Windows/macOS 安装包与实机腿仍在斗战胜佛/未来佛 → 部分（L）。
+3. Android/iOS：在线模拟器 `emulator-5554` 驱动 Compose/Bevy/Slint 三 flavor 完整交互取证，Compose 6/6 step 全绿，`android-interaction-receipt-guard.py --mode enforce` 0 违规 100% 通过；修复 CoreLaunchSpecSource 绑定 Core owner 后的 legacy active-profile 幂等读取；ARM64 真机与 iOS 仍在斗战胜佛 → 部分（L）。
+4. 各 UI：Android Compose 交互取证 6/6 step 全绿（activity/accessibility/input 动作完整）；Bevy 与 Slint flavor 诚实取证，未暴露无障碍树节点不伪造回执；全仓 59 业务在 Iced/Bevy/Slint/Compose 表面模型保持一致 → 部分（L）。
+5. 复用：彻底消除 `part1`/`part2` 无语义模块，按业务拆分唯一事实与并发锁（`reset_recovery_and_migration.rs`、`owner_switch_and_recovery.rs`、`cross_process_concurrency.rs`、`workspace_recovery_and_reset_tests.rs`）；M1 交互取证与像素比对复用 `interaction_delta.py` 唯一判尺；零重复状态机，零第二业务真源 → 部分（L）。
+6. 功能接入：办结归档 4 项 / 11 pt（`PARITY-001.4`、`FLPARITY-045`、`BANDROID-002.1`、`BANDROID-002.2`）；迁入斗战胜佛 §六 2 项 / 6 pt（`EFFECTS-049`、`EFFECTS-050`）；过去佛清空至 0 条 / 0 pt；现在佛余 4 项 / 18 pt（FlClash 对标）；全仓未办结分母 39 条 / 106 pt，严格交付率 91.9%（1,207/1,313 pt） → 部分（L）。
+7. 模块化：彻底清除全仓 `part1`/`part2`/`part3` 无语义命名；单文件 <=800 行严格达标（`line budget guard: budget=800 scanned=2891 violations=0`，`kotlin line budget guard: budget=800 scanned=227 violations=0`）；mod.rs 0 违规；无跨 UI 私有业务真源 → 部分（L）。
+8. CI：`check-structure.sh` 40+ 结构守卫全部 PASS；`cargo fmt --all --check` 0 偏差；`android-interaction-receipt-guard.py --mode enforce` 0 违规；`closure-questions-guard.py` 8/8 通过；同批一体提交并推入 main → 部分（L）。
 
 ## 最近一批问答（2026-11-03 第一百零五交付批次：Slint 桌面 GPU 渲染通道办结归档）
 

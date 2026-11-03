@@ -114,6 +114,8 @@ mod gamepad_focus_tests;
 mod keyboard_focus_tests;
 #[path = "shell_tests/nav.rs"]
 mod nav;
+#[path = "shell_tests/picking.rs"]
+mod picking;
 #[path = "shell_tests/responsive.rs"]
 mod responsive;
 #[path = "shell_tests/screen_reader_bridge_tests.rs"]

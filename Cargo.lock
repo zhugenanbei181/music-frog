@@ -6062,6 +6062,7 @@ dependencies = [
 name = "infiltrator-android"
 version = "0.68.2"
 dependencies = [
+ "android_logger",
  "anyhow",
  "async-trait",
  "camino",

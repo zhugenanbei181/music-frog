@@ -143,7 +143,13 @@ fn on_core_control_activated(
         return;
     };
     let command = match action {
-        CoreControlAction::Start => UiCommand::StartCore,
+        CoreControlAction::Start => {
+            if cfg!(target_os = "android") {
+                UiCommand::StartVpn
+            } else {
+                UiCommand::StartCore
+            }
+        }
         CoreControlAction::Stop => UiCommand::StopCore,
     };
     let Some(request_id) = sink.submit_tracked(command) else {
@@ -170,8 +176,10 @@ fn finish_core_control(result: On<CommandExecutedEvent>, mut state: ResMut<CoreC
     };
     let matches_action = matches!(
         (&result.command, pending.action),
-        (UiCommand::StartCore, CoreControlAction::Start)
-            | (UiCommand::StopCore, CoreControlAction::Stop)
+        (
+            UiCommand::StartCore | UiCommand::StartVpn,
+            CoreControlAction::Start
+        ) | (UiCommand::StopCore, CoreControlAction::Stop)
     );
     if pending.request_id != result.request_id || !matches_action {
         return;

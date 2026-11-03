@@ -84,7 +84,7 @@ internal fun MihomoControlService.attachVpnStartReply(key: VpnOwnerRequestKey, m
         if (replies.size >= MihomoControlService.MAX_VPN_START_REQUEST_WAITERS) {
             VpnStartReplyAdmission.CapacityExceeded
         } else {
-            replies += message
+            replies += OwnerIpcReplyTarget(message.replyTo)
             VpnStartReplyAdmission.Attached
         }
     }
@@ -93,8 +93,8 @@ internal fun MihomoControlService.publishVpnStartReplies(key: VpnOwnerRequestKey
     val replies = synchronized(vpnStartRepliesLock) {
         vpnStartReplies.remove(key).orEmpty().toList()
     }
-    replies.forEach { requestMessage ->
-        sendResponse(requestMessage, key.requestId, key.clientSessionId, response)
+    replies.forEach { replyTarget ->
+        sendResponse(replyTarget.messenger, key.requestId, key.clientSessionId, response)
     }
 }
 
