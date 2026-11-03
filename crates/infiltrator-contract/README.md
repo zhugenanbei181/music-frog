@@ -20,3 +20,7 @@ Core 资源使用 [`ResourceAvailability<T>` 与 owner-scoped `CoreResourceSnaps
 LAN 共享只有一个读回事实：[`LanSharingSnapshot`](src/lan.rs) 携带 `enabled`、`mixed_port`、`bind_address` 与配置 `revision`；`RuntimeControlSnapshot.lan_sharing` 与 `SettingsPageSnapshot.lan_sharing` 以 `Option` 承载它，缺省表示“未观测”，不得折叠成“已关闭”。写入可按读回的 `revision` 围栏。
 
 PAC 读回 [`PacSnapshot`](src/pac.rs) 携带请求的全部事实（`bypass_domains`、`bypass_lan`、`minify`）与服务状态；读回缺省不得被读成请求的默认值。
+
+Profile 二维码分享与手机到电视导入由 [`ProfileSharePayload` 与 `PairingToken`](src/profile_share.rs) 统一定义脱敏后的订阅链接与一次性配对令牌生命周期；订阅敏感凭据不入二维码。
+
+跨端交互原语由 [`shell_interaction`](src/shell_interaction.rs) 表达 docked search、弹性 sheet 分阶高度、长按拖拽排序与按钮 elevation 提拉反馈。

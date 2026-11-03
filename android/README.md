@@ -26,3 +26,8 @@ Android 构建共享版本登记于 [toolchain.properties](toolchain.properties)
 ## bevy-host module
 
 Gradle module 为 Bevy flavor 打包 NativeActivity 与 Rust driver；Compose flavor 不带该 driver。两种 flavor 共用 `:app` 的 VPN/control host，本目录的构建由 `android/app` Gradle 变体驱动。driver entry 行为与 lockfile 约定见 [driver README](bevy-host/driver/README.md)；依赖闭包边界与迁移状态见 [Android 产品章程](docs/BEVY_ANDROID_PRODUCT.md)。
+
+## Android UI 与移动壳架构（FLPARITY-046 / FLPARITY-005）
+
+- **首页仪表盘信息层级对标**：Compose 仪表盘由 `OverviewScreen.kt` 与 `OverviewCards.kt` 模块化解耦，首屏高度聚焦 Hero VPN 控制卡与实时上下行流量指标；Core 运行时异常条件式警报（STOPPED/FAILED 状态置顶提醒并提供一键恢复与重启操作，RUNNING 正常状态不挤占首屏垂直高度）；日志预览卡片精简并提供一键跳转完整日志页通道，适配紧凑竖屏与宽屏自适应双列布局。
+- **移动端导航与访问控制状态条**：一级导航（Overview, Profiles, Proxies, Settings, Sync）与二级目的地（Routing, Tun, Dns, FakeIp, Rules, Connections, Logs, About）全面打通；`AppRoutingScreen` 底部接入持久访问控制状态条，动态显示已选应用数与开关；TV / D-pad 返回栈严格聚焦主 Overview 仪表盘。

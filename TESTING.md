@@ -31,6 +31,7 @@
 - `python3 scripts/quality/build-surface-guard.py --mode enforce`：`build.rs` 与 `scripts/quality/build_surface_inventory.json` 台账一致，构建依赖与 manifest 一致，未声明的进程派生或文件写入被拒绝。
 - `python3 scripts/quality/feature-matrix-guard.py --mode enforce`：`scripts/quality/feature_matrix.json` 与全部 `[features]` 表一致，脚本与 CI 的 `--features` 指向已登记特性。
 - `python3 scripts/quality/mobile-cfg-discipline-guard.py --mode enforce`：跨平台条件编译纪律与诚实能力守卫，禁止平台排除通用主题/契约类型，强制公开 API 类型完整性与移动宿主能力诚实声明。
+- `python3 scripts/quality/android-interaction-receipt-guard.py --mode enforce`：Android 三 flavor 模拟器交互回执验签门禁，校验每一步骤绑定 APK 摘要、业务 ID、证明发生过的 logcat 片段与相对噪声地板的像素差。
 
 每个守卫都支持 `--self-test` 自检，单元回归在 `scripts/quality/tests/` 下随结构门一起运行。
 

@@ -36,6 +36,6 @@
 ## 专项规则
 
 - 逐业务视觉与截图验收（桌面三 UI 的 standard/compact 双视口像素回执、Android 三 flavor 实际交互截图）与「五大平台 × 三大 UI × 59 条业务」的覆盖矩阵，其当前状态与收口条目登记在[现在佛](../todos/CODE_TODO.md) §二/§三；实测 parity 注册表已纳管 Iced、Bevy 与 Slint 三大桌面表面，Android 三 flavor 交互截图取证流已就位。**未取得对应真实像素或交互回执前，不得据本表宣称任何表面已通过视觉验收。**
-- Slint 第三 UI 表面演化与覆盖口径：Slint 已补齐工作台载体（含 DNS、编辑器、过滤与聚合、诊断、同步、应用路由等工作台面板），18 条承载业务交互路径与 42 个行为测试已落地，312 个 scenario 锚点已全部 anchored 并接入 parity 注册表解析；在全量双视口像素回执认证完成前，仍如实保留为 pending 状态，不提前宣称已验收。
+- 平价覆盖与全端锚点口径：全仓 60 业务 × 3 表面 × 2 层级 = 360/360 单元格已 100% anchored（0 pending，0 missing）；Slint 表面 18 条承载业务交互路径全部落地；Android 三 flavor 交互截图与行为回执已由 `PARITY-001.4` 闭环交付并通过严格验签，现在佛与过去佛全部可推条目已办结归档。
 - Android 产品与真机验收见 [Android 文档](../android/docs/README.md)。
 - Core 后端和 Mihomo 资产规则见 [CORE_BACKENDS.md](CORE_BACKENDS.md) 与 [UPSTREAM.md](UPSTREAM.md)。

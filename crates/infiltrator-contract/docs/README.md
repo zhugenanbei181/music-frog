@@ -12,6 +12,8 @@
 - 清除活动 profile 选择由 [`profile_selection_clear`](../src/profile_selection_clear.rs) 表达精确期望状态、owner 授权与 `Unselected` 读回；不会暗中停止独立 Core/VPN service。
 - Age 私钥由 [`profile_age_credential`](../src/profile_age_credential.rs) 表达不序列化的敏感输入、revisioned 配置状态和显式 owner 授权；owner 执行 Read 时自行读取并原子栅栏当前 active-reference，将确切 selection 与非敏感凭据状态/revision 一并回传，UI 无须从派生 `is_active` 拼出授权上下文；engine/ProfileId 凭据独立于文档是否已创建，支持首次加密订阅导入预置密钥；常规 profile 快照只读取配置状态，不包含密钥。
 - 同一契约以非格式化、zeroizing 的 armored/decrypted 内容类型表达 Core 内订阅解密的瞬时载荷；解密结果不是 UI wire/read model。
+- Profile 二维码分享与手机到电视导入由 [`profile_share`](../src/profile_share.rs) 统一定义脱敏 `ProfileSharePayload` 与一次性 `PairingToken` 生命周期状态机，敏感参数自动掩码并提供 TV 导入阶段机（FLPARITY-002）。
+- 跨端 docked search、弹性 sheet、长按排序与 hover 交互基线由 [`shell_interaction`](../src/shell_interaction.rs) 统一定义 `DockedSearchState`、`SheetSizingSpec`、`LongPressReorderState`、`SwitchInteractionState` 与 `ButtonLiftFeedback`（FLPARITY-011）。
 - 包职责见 [crate README](../README.md)。
 
 ## 契约权威性与自底向上裁决铁律
