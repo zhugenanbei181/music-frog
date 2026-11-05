@@ -43,8 +43,9 @@ use infiltrator_bevy_widgets::icon::{IconId, icon_scene};
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::{radius, space};
+use infiltrator_contract::design_resources;
 use infiltrator_presentation::latency_projection::project_proxy_latency;
 use infiltrator_presentation::proxies_page_model::proxy_protocol_chip;
 use infiltrator_shared::country_flags::node_flag_emoji;
@@ -382,7 +383,7 @@ pub fn proxy_node_scene_sized(
                 justify_content: JustifyContent::Center,
             }
             ThemeBackgroundColor({ Token::AccentContainer })
-            Children [ Text(proto_tag) NodeProtoText { group_idx: g_idx, node_idx: n_idx } TextRole(Role::Caption) ThemeTextColor({ Token::Accent }) ]
+            Children [ Text(proto_tag) NodeProtoText { group_idx: g_idx, node_idx: n_idx } TextRole(design_resources::TextRole::Caption) ThemeTextColor({ Token::Accent }) ]
         })]
     };
 
@@ -420,7 +421,7 @@ pub fn proxy_node_scene_sized(
                 }
                 ThemeBackgroundColor({ Token::Surface })
                 Children [
-                    Text({ f_str }) TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
+                    Text({ f_str }) TextRole(design_resources::TextRole::Caption) ThemeTextColor({ Token::InkDim })
                 ]
 }) as Box<dyn Scene>
         })
@@ -439,7 +440,7 @@ pub fn proxy_node_scene_sized(
                     Children [
                         Text({ "UDP".to_owned() })
                         NodeUdpTag { group_idx: g_idx, node_idx: n_idx }
-                        TextRole(Role::Caption)
+                        TextRole(design_resources::TextRole::Caption)
                         ThemeTextColor({ Token::InkDim })
                     ]
         }) as Box<dyn Scene>]
@@ -515,11 +516,11 @@ pub fn proxy_node_scene_sized(
                             --
                             Text({ flag.to_owned() })
                             NodeFlagText { group_idx: g_idx, node_idx: n_idx }
-                            TextRole(Role::BodyStrong)
+                            TextRole(design_resources::TextRole::BodyStrong)
                             --
                             Text({ name.clone() })
                             NodeNameText { group_idx: g_idx, node_idx: n_idx }
-                            TextRole(Role::BodyStrong)
+                            TextRole(design_resources::TextRole::BodyStrong)
                             --
                             @{ name_fade_scene(palette.over_surface(paint.fill)) }
                         ]
@@ -539,7 +540,7 @@ pub fn proxy_node_scene_sized(
                             --
                             LocalizedText::new(delay_copy.key,delay_copy.params)
                             LatencyText { group_idx: g_idx, node_idx: n_idx }
-                            TextRole(Role::Mono)
+                            TextRole(design_resources::TextRole::Mono)
                             TextColor(delay_color_val)
                         ]
                     ]
@@ -574,7 +575,7 @@ pub fn proxy_node_scene_sized(
                         Children [
                             Text({ star.to_owned() })
                             ProxyFavoriteStar
-                            TextRole(Role::BodyStrong)
+                            TextRole(design_resources::TextRole::BodyStrong)
                             TextColor({ star_color })
                             --
                             Text({ "📌".to_owned() })
@@ -584,7 +585,7 @@ pub fn proxy_node_scene_sized(
                                 node_name: { name.clone() },
                                 outbound_id: { node.outbound_id.clone() },
                             }
-                            TextRole(Role::Caption)
+                            TextRole(design_resources::TextRole::Caption)
                             ThemeTextColor({ if node.favorite { Token::Warning } else { Token::InkDim } })
                         --
                         Node {
@@ -635,7 +636,7 @@ pub fn proxy_node_scene_sized(
                         outbound_id: { node.outbound_id.clone() },
                     }
                     Children [
-                        Text({ "★".to_owned() }) TextRole(Role::BodyStrong) ThemeTextColor({ Token::Surface })
+                        Text({ "★".to_owned() }) TextRole(design_resources::TextRole::BodyStrong) ThemeTextColor({ Token::Surface })
                     ]
                     --
                     Node {
@@ -651,7 +652,7 @@ pub fn proxy_node_scene_sized(
                         collection_id: { collection_id.clone() },
                     }
                     Children [
-                        Text({ "⚡".to_owned() }) TextRole(Role::BodyStrong) ThemeTextColor({ Token::Surface })
+                        Text({ "⚡".to_owned() }) TextRole(design_resources::TextRole::BodyStrong) ThemeTextColor({ Token::Surface })
                     ]
                 ]
             ]

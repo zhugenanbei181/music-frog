@@ -33,8 +33,9 @@ use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::sandbox::{
     HostCapability, IsolatedRenderSlot, SandboxFault, SandboxedWidgetInstance, WidgetManifest,
 };
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 
 /// One-off layout value (not a ladder rung): the width of the sandbox
 /// dashboard slot panel that floats above the widget board.
@@ -326,17 +327,17 @@ pub fn widget_sandbox_slot_scene(
             BorderColor { top: edge, right: edge, bottom: edge, left: edge }
             WidgetSandboxSlotRoot
             Children [
-                Text(title) TextRole(Role::Heading) WidgetSandboxText(WidgetSandboxTextKind::Title)
+                Text(title) TextRole(design_resources::TextRole::Heading) WidgetSandboxText(WidgetSandboxTextKind::Title)
                 --
-                Text(String::new()) TextRole(Role::Caption) WidgetSandboxText(WidgetSandboxTextKind::Identity)
+                Text(String::new()) TextRole(design_resources::TextRole::Caption) WidgetSandboxText(WidgetSandboxTextKind::Identity)
                 --
-                Text(String::new()) TextRole(Role::Caption) WidgetSandboxText(WidgetSandboxTextKind::Slot)
+                Text(String::new()) TextRole(design_resources::TextRole::Caption) WidgetSandboxText(WidgetSandboxTextKind::Slot)
                 --
-                Text(String::new()) TextRole(Role::Caption) WidgetSandboxText(WidgetSandboxTextKind::Quota)
+                Text(String::new()) TextRole(design_resources::TextRole::Caption) WidgetSandboxText(WidgetSandboxTextKind::Quota)
                 --
-                Text(String::new()) TextRole(Role::Caption) WidgetSandboxText(WidgetSandboxTextKind::Grant)
+                Text(String::new()) TextRole(design_resources::TextRole::Caption) WidgetSandboxText(WidgetSandboxTextKind::Grant)
                 --
-                Text(String::new()) TextRole(Role::Caption) WidgetSandboxText(WidgetSandboxTextKind::Status)
+                Text(String::new()) TextRole(design_resources::TextRole::Caption) WidgetSandboxText(WidgetSandboxTextKind::Status)
             ]
     }
 }

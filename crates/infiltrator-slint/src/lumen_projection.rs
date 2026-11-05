@@ -6,7 +6,9 @@
 //! store.
 
 pub(super) mod collections;
+pub(super) mod dashboard;
 pub(super) mod lan;
+pub(super) mod token_ink;
 pub(super) mod workbench;
 
 use super::flag_assets;
@@ -53,8 +55,6 @@ pub(super) fn project_initial(window: &AppWindow, language: &str, autostart: Opt
     window.set_runtime_detail(lang.tr("runtime_detail_waiting").into_owned().into());
     window.set_license_catalog_error("".into());
     window.set_license_rows(slint_model(collections::license_rows("", language)));
-    window.set_stat_total_down("—".into());
-    window.set_stat_total_up("—".into());
     window.set_title_bar_upload("0 B/s".into());
     window.set_title_bar_download("0 B/s".into());
     window.set_sidebar_background(project_slint_sidebar_wash(true, false));
@@ -106,6 +106,31 @@ fn public_ip_status_copy(snapshot: &SurfaceSnapshot, language: &str) -> Option<S
         }
         .into_owned(),
     )
+}
+
+/// Transforms raw technical Rust debug error messages or cold-start notifications
+/// into clear, user-friendly Chinese notices.
+pub(crate) fn humanize_notice(raw: &str) -> String {
+    if raw.is_empty() {
+        return String::new();
+    }
+    if raw.contains("waiting for the first Android surface snapshot") {
+        return "Connecting to Android core service...".to_string();
+    }
+    if raw.contains("HostUnavailable") || raw.contains("core capability denied") {
+        if raw.contains("VersionUnavailable") {
+            return "Core version unavailable; check installation or network configuration"
+                .to_string();
+        }
+        return "Current environment does not support this core capability".to_string();
+    }
+    if raw.contains("core capability is read-only") {
+        return "Current configuration is read-only".to_string();
+    }
+    if raw.contains("permission denied") {
+        return "Insufficient permissions; check app permission settings".to_string();
+    }
+    raw.to_string()
 }
 
 pub(super) fn project_snapshot(
@@ -220,15 +245,13 @@ pub(super) fn project_snapshot(
             .to_ascii_lowercase()
             .into(),
     );
-    window.set_home_exit_flag_index(
-        snapshot
-            .public_ip
-            .country_code
-            .as_deref()
-            .filter(|_| public_ip_drawable)
-            .and_then(flag_assets::index_for_code)
-            .unwrap_or(-1),
-    );
+    let exit_flag_code = snapshot
+        .public_ip
+        .country_code
+        .as_deref()
+        .filter(|_| public_ip_drawable)
+        .unwrap_or_default();
+    window.set_home_exit_flag_index(flag_assets::index_for_code(exit_flag_code).unwrap_or(-1));
     window.set_home_exit_status(
         snapshot
             .public_ip
@@ -269,22 +292,19 @@ pub(super) fn project_snapshot(
         .into(),
     );
     window.set_home_traffic_has_data(snapshot.traffic_waveform.is_drawable());
-    window.set_stat_total_down("—".into());
-    window.set_stat_total_up("—".into());
     if snapshot.failure.is_some() || collections::page_failure(window, snapshot).is_some() {
-        window.set_notice(
-            snapshot
-                .failure
-                .as_ref()
-                .map(|failure| failure.message.clone())
-                .or_else(|| collections::page_failure(window, snapshot))
-                .unwrap_or_default()
-                .into(),
-        );
+        let raw_notice = snapshot
+            .failure
+            .as_ref()
+            .map(|failure| failure.message.clone())
+            .or_else(|| collections::page_failure(window, snapshot))
+            .unwrap_or_default();
+        window.set_notice(humanize_notice(&raw_notice).into());
     }
 
     project_settings(window, snapshot, autostart);
     project_overview_layout(window, snapshot, &language);
+    dashboard::project_dashboard_facts(window, snapshot);
     lan::project_lan_sharing(window, snapshot, &language);
     project_profiles(window, snapshot, &language);
     collections::project_proxies(window, snapshot);
@@ -315,7 +335,7 @@ pub(super) fn project_snapshot(
                 }
                 ProfileReadStatus::Failed(failure) => {
                     window.set_content_preview("".into());
-                    window.set_notice(failure.message.clone().into());
+                    window.set_notice(humanize_notice(&failure.message).into());
                 }
                 ProfileReadStatus::Loading => {
                     window.set_content_preview(lang.tr("正在读取配置文档").into_owned().into());

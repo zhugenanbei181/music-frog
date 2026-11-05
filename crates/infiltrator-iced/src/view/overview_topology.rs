@@ -8,7 +8,7 @@ use crate::view::component_forms::row_card_surface;
 use crate::view::components::{BadgeKind, badge, card_surface};
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme;
-use crate::view::theme::{FONT_SEMIBOLD, R_CHIP, R_CONTROL, tokens};
+use crate::view::theme::{R_CHIP, R_CONTROL, tokens};
 use crate::view::topology::topology_flow_canvas;
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
@@ -31,12 +31,11 @@ pub fn topology_card<'a>(
         row![
             icon_themed(Icon::Network, 16.0, |t: &Theme| tokens(t).accent),
             Space::new().width(theme::SP_SM),
-            text(lang.tr("overview_topology_title").to_string())
-                .size(14)
-                .font(FONT_SEMIBOLD)
-                .style(|t: &Theme| text::Style {
+            theme::role_body_text(lang.tr("overview_topology_title").to_string()).style(
+                |t: &Theme| text::Style {
                     color: Some(tokens(t).text_primary)
-                }),
+                }
+            ),
         ]
         .align_y(Alignment::Center),
         Space::new().width(Length::Fill),
@@ -244,12 +243,9 @@ fn topology_node_box<'a>(
     let top_row = row![
         icon_part,
         Space::new().width(theme::SP_XS),
-        text(stage_name)
-            .size(11)
-            .font(FONT_SEMIBOLD)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_secondary),
-            }),
+        theme::role_body_text(stage_name).style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_secondary),
+        }),
         Space::new().width(Length::Fill),
         badge(badge_label, badge_kind),
     ]
@@ -273,12 +269,9 @@ fn colored_flow_chip<'a>(
     color_fn: impl Fn(&Theme) -> Color + Copy + 'a,
 ) -> Element<'a, Message> {
     container(
-        text(label)
-            .size(12)
-            .font(FONT_SEMIBOLD)
-            .style(move |t: &Theme| text::Style {
-                color: Some(color_fn(t)),
-            }),
+        theme::role_body_text(label).style(move |t: &Theme| text::Style {
+            color: Some(color_fn(t)),
+        }),
     )
     .padding([3, 10])
     .style(move |t: &Theme| {

@@ -14,8 +14,9 @@ use infiltrator_bevy_widgets::button::ButtonVariant;
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_presentation::dns_hosts_editor::HostDraftRow;
 use std::collections::HashMap;
 fn row_scene(row: &HostDraftRow, palette: &UiPalette) -> impl Scene + use<> {
@@ -25,10 +26,10 @@ fn row_scene(row: &HostDraftRow, palette: &UiPalette) -> impl Scene + use<> {
         HostRowIdentity(id)
         Children [
             Node { width: percent(22), min_width: px(0.0) }
-            Children [ Text({ row.entry.address.clone() }) HostRowText(id, true) TextRole(Role::Mono) ]
+            Children [ Text({ row.entry.address.clone() }) HostRowText(id, true) TextRole(design_resources::TextRole::Mono) ]
             --
             Node { width: percent(28), min_width: px(0.0) }
-            Children [ Text({ row.entry.domain.clone() }) HostRowText(id, false) TextRole(Role::Caption) ]
+            Children [ Text({ row.entry.domain.clone() }) HostRowText(id, false) TextRole(design_resources::TextRole::Caption) ]
             --
             @{ (localized_button_scene(LocalizedText::plain("dns_hosts_edit"), ButtonVariant::Default, palette), bsn! { HostAction::Edit(id) }) }
             --

@@ -23,8 +23,9 @@ use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::{UiPalette, rem};
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot;
 use infiltrator_contract::provider_cache::{KernelEtagSupportSnapshot, RuleProviderCacheSnapshot};
 use infiltrator_presentation::rule_provider_projection::{
@@ -82,9 +83,9 @@ fn providers_card_scene(
                                 padding: UiRect::bottom(rem(space::S8)),
                             }
                             Children [
-                                LocalizedText::plain("rules_providers_title") TextRole(Role::BodyStrong)
+                                LocalizedText::plain("rules_providers_title") TextRole(design_resources::TextRole::BodyStrong)
                                 --
-                                LocalizedText::plain("rules_providers_hint") TextRole(Role::Caption)
+                                LocalizedText::plain("rules_providers_hint") TextRole(design_resources::TextRole::Caption)
                             ]
             }),
             Box::new(bsn! {
@@ -93,7 +94,7 @@ fn providers_card_scene(
                                 padding: UiRect::bottom(rem(space::S8)),
                             }
                             Children [
-                                Text(etag_line) RulesLine(RulesLineKind::EtagSupport) TextRole(Role::Caption)
+                                Text(etag_line) RulesLine(RulesLineKind::EtagSupport) TextRole(design_resources::TextRole::Caption)
                             ]
             }),
             Box::new(bsn! {
@@ -155,9 +156,9 @@ fn provider_item_scene(
                     column_gap: rem(space::S8),
                 }
                 Children [
-                    Text(name) ProviderNameText(idx) TextRole(Role::Body)
+                    Text(name) ProviderNameText(idx) TextRole(design_resources::TextRole::Body)
                     --
-                    Text(count_info) ProviderCountText(idx) TextRole(Role::Caption)
+                    Text(count_info) ProviderCountText(idx) TextRole(design_resources::TextRole::Caption)
                 ]
                 --
                 Node {
@@ -166,9 +167,9 @@ fn provider_item_scene(
                     row_gap: rem(space::S4),
                 }
                 Children [
-                    Text(updated) ProviderUpdatedText(idx) TextRole(Role::Caption)
+                    Text(updated) ProviderUpdatedText(idx) TextRole(design_resources::TextRole::Caption)
                     --
-                    Text({ failure }) RuleProviderFailureText(idx) TextRole(Role::Mono)
+                    Text({ failure }) RuleProviderFailureText(idx) TextRole(design_resources::TextRole::Mono)
                     --
                     @{ rule_provider_refresh_scene(idx, provider.controller.is_some(), palette) }
                 ]

@@ -40,11 +40,11 @@ pub(crate) fn stun_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a
     let server = display.server;
 
     let body = column![
-        text(lang.tr("dns_stun_probe_desc").to_string())
-            .size(12)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_secondary)
-            }),
+        theme::role_body_text(lang.tr("dns_stun_probe_desc").to_string()).style(|t: &Theme| {
+            text::Style {
+                color: Some(tokens(t).text_secondary),
+            }
+        }),
         row![
             badge(status, kind),
             Space::new().width(Length::Fill),
@@ -59,18 +59,13 @@ pub(crate) fn stun_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a
             ),
         ]
         .align_y(Alignment::Center),
-        text(server)
-            .size(11)
-            .font(theme::MONO)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_secondary)
-            }),
-        text(comparison).size(12),
-        text(display.boundary)
-            .size(11)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_secondary)
-            }),
+        theme::role_body_text(server).style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_secondary)
+        }),
+        theme::role_body_text(comparison),
+        theme::role_body_text(display.boundary).style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_secondary)
+        }),
     ]
     .spacing(SP_XS);
 

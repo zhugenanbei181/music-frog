@@ -21,8 +21,9 @@ use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_presentation::doctor_projection::{
     check_detail, check_name, status_key, summary, watchdog_status_text,
 };
@@ -58,13 +59,13 @@ pub fn check_row_scene(
         ThemeBackgroundColor({ Token::SurfaceElevated })
         Children [
             Text({ check_name(check.kind, &check.name, &check.category, &Lang(code)) })
-            DoctorName({ id.clone() }) TextRole(Role::BodyStrong)
+            DoctorName({ id.clone() }) TextRole(design_resources::TextRole::BodyStrong)
             --
             Text({ check_detail(check.detail_copy_key.as_deref(), &check.detail, &Lang(code)) })
-            CheckDetailText({ id.clone() }) TextRole(Role::Caption)
+            CheckDetailText({ id.clone() }) TextRole(design_resources::TextRole::Caption)
             --
             Text({ check.hint.clone().unwrap_or_default() })
-            DoctorHint({ id.clone() }) TextRole(Role::Caption)
+            DoctorHint({ id.clone() }) TextRole(design_resources::TextRole::Caption)
             --
             Node {
                 align_items: AlignItems::Center,
@@ -72,7 +73,7 @@ pub fn check_row_scene(
             }
             Children [
                 Text({ Lang(code).tr(status_key(check.state)).into_owned() })
-                CheckStateText({ id.clone() }) TextRole(Role::BodyStrong)
+                CheckStateText({ id.clone() }) TextRole(design_resources::TextRole::BodyStrong)
                 TextColor({ check_state_color(check.state, palette) })
                 --
                 @{ (

@@ -14,11 +14,12 @@ use infiltrator_bevy_widgets::button::{ButtonDisabled, ButtonVariant};
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::rule_condition::TrafficField;
 use infiltrator_contract::rules_workspace::RulesTab;
 use infiltrator_presentation::rule_condition_projection::field_key;
@@ -50,7 +51,7 @@ pub fn scene(palette: &UiPalette) -> impl Scene + use<> {
         Box::new(bsn! {
             Node { width: percent(100), flex_direction: FlexDirection::Column }
             Children [
-                LocalizedText::plain(field_key(field)) TextRole(Role::Caption)
+                LocalizedText::plain(field_key(field)) TextRole(design_resources::TextRole::Caption)
                 --
                 @{ (localized_field_scene(String::new(), LocalizedText::plain("rule_trace_sandbox_unknown"), palette),
                     bsn! { TracerSandboxField { field, initialized: false } NativeTextField({ index as i32+3 }) }) }
@@ -65,7 +66,7 @@ pub fn scene(palette: &UiPalette) -> impl Scene + use<> {
             Node { width: percent(100), height: rem(TRACER_SANDBOX_PANEL_HEIGHT_PX), min_height: px(0.0), display: Display::None, flex_direction: FlexDirection::Column, row_gap: rem(space::S8), overflow: Overflow::scroll_y(), padding: UiRect::all(rem(space::S4)) }
             TracerSandboxRoot ScrollArea
             Children [
-                LocalizedText::plain("rule_trace_sandbox_notice") TextRole(Role::Caption)
+                LocalizedText::plain("rule_trace_sandbox_notice") TextRole(design_resources::TextRole::Caption)
                 --
                 { fields }
             ]

@@ -39,9 +39,10 @@ use infiltrator_bevy_widgets::button::{
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::text_runs::{TextRuns, TextRunsInk, TextRunsSet};
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::logs::LogLevel;
 use infiltrator_shared::locales::{Lang, Localizer};
 use zhuge_ui_core::text::SearchTextRun;
@@ -179,7 +180,7 @@ pub fn log_row_scene(idx: usize, entry: &LogEntry, palette: &UiPalette) -> impl 
                 Children [
                     TextRuns({ rail })
                     LogRowMeta { index: { idx }, level: { level } }
-                    TextRole(Role::Mono)
+                    TextRole(design_resources::TextRole::Mono)
                     TextRunsInk({ palette.ink_dim })
                 ]
                 --
@@ -191,7 +192,7 @@ pub fn log_row_scene(idx: usize, entry: &LogEntry, palette: &UiPalette) -> impl 
                 Children [
                     TextRuns({ message })
                     LogMessageText({ idx })
-                    TextRole(Role::Mono)
+                    TextRole(design_resources::TextRole::Mono)
                     TextLayout::linebreak(LineBreak::WordOrCharacter)
                 ]
                 --
@@ -210,7 +211,7 @@ pub fn log_row_scene(idx: usize, entry: &LogEntry, palette: &UiPalette) -> impl 
 fn copy_button_scene(id: u64, palette: &UiPalette) -> Box<dyn Scene> {
     Box::new(bsn! {
             @{ button_with_label_scene(
-                bsn! { LocalizedText::plain("common_copy") TextRole(Role::Caption) ButtonLabel },
+                bsn! { LocalizedText::plain("common_copy") TextRole(design_resources::TextRole::Caption) ButtonLabel },
                 ButtonVariant::Ghost,
                 ButtonSize::Sm,
                 palette,

@@ -19,6 +19,7 @@
 pub mod feather;
 pub mod scroll_core;
 pub mod scrollbar;
+use infiltrator_contract::design_resources;
 use scroll_core::*;
 use zhuge_ui_core::virtual_list::{ExtentUpdate, VariableExtentIndex, VirtualListConfig};
 
@@ -27,7 +28,7 @@ use crate::list::feather::list_scroll_frame_with_feathers;
 use crate::nav::{NavActive, NavItem, NavLabel, nav_fill_token};
 use crate::palette::UiPalette;
 use crate::palette::rem;
-use crate::text::{Role, TextRole};
+use crate::text::TextRole;
 use crate::theme::space;
 use bevy::app::{App, Plugin, PostUpdate, Update};
 use bevy::ecs::component::Component;
@@ -44,6 +45,7 @@ use bevy::ui::prelude::{
 use bevy::ui::widget::Text;
 use bevy::ui::{UiSystems, ui_layout_system};
 use bevy::ui_widgets::{ScrollArea, ScrollbarPlugin};
+
 use scrollbar::{
     ListScrollContainer, bind_list_scrollbars, list_scrollbar_scene, reveal_selected_list_rows,
 };
@@ -611,7 +613,7 @@ pub fn list_row_scene(label: String, selected: bool, palette: &UiPalette) -> Box
             NavItem
             NavActive({ selected })
             Children [
-                Text(label) TextRole(Role::Body) NavLabel
+                Text(label) TextRole(design_resources::TextRole::Body) NavLabel
             ]
     })
 }

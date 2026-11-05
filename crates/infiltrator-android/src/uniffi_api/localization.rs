@@ -59,7 +59,7 @@ mod tests {
         );
         assert_eq!(
             android_routing_intent_copy(AndroidRoutingIntentCopyKey::FollowRules, "zh-CN".into()),
-            "遵循分流规则",
+            "规则模式",
         );
         assert_eq!(
             android_engine_defined_routing_intent_copy("en-US".into(), "script".into()),

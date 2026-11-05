@@ -11,7 +11,7 @@ use crate::view::component_card::card;
 use crate::view::component_forms::{form_field_label, form_input_style, style_accent, style_ghost};
 use crate::view::components::{BadgeKind, badge, icon_button};
 use crate::view::svg_icons::Icon;
-use crate::view::theme::{FONT_SEMIBOLD, MONO, tokens};
+use crate::view::theme::tokens;
 use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Border, Element, Length, Theme, border};
@@ -24,12 +24,11 @@ pub fn subrules_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
     let projection = project_logical_rule(draft, &Lang(lang.0));
 
     let mut op_selector = row![
-        text(lang.tr("subrules_operator").to_string())
-            .size(12)
-            .font(FONT_SEMIBOLD)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_secondary)
-            })
+        theme::role_body_text(lang.tr("subrules_operator").to_string()).style(|t: &Theme| {
+            text::Style {
+                color: Some(tokens(t).text_secondary),
+            }
+        })
     ]
     .align_y(Alignment::Center);
     for (index, choice) in logical::LOGICAL_OPERATOR_CHOICES.iter().enumerate() {
@@ -39,7 +38,7 @@ pub fn subrules_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
             theme::SP_XS
         }));
         op_selector = op_selector.push(
-            button(text(*choice).size(11))
+            button(theme::role_body_text(*choice))
                 .padding([4, 8])
                 .style(if draft.operator == *choice {
                     style_accent
@@ -53,11 +52,11 @@ pub fn subrules_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
     let mut cond_rows = column![].spacing(theme::SP_XS);
     if draft.conditions.is_empty() {
         cond_rows = cond_rows.push(
-            text(lang.tr("subrules_no_conditions").to_string())
-                .size(11)
-                .style(|t: &Theme| text::Style {
+            theme::role_body_text(lang.tr("subrules_no_conditions").to_string()).style(
+                |t: &Theme| text::Style {
                     color: Some(tokens(t).text_tertiary),
-                }),
+                },
+            ),
         );
     }
     for (idx, cond) in draft.conditions.iter().enumerate() {
@@ -66,7 +65,7 @@ pub fn subrules_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
             row![
                 badge(format!("#{}", idx + 1), BadgeKind::Neutral),
                 Space::new().width(theme::SP_SM),
-                text(cond_str).size(12).font(MONO).width(Length::Fill),
+                theme::role_body_text(cond_str).width(Length::Fill),
                 icon_button(Icon::Trash2, 12.0, Message::RemoveSubRuleCondition(idx)),
             ]
             .align_y(Alignment::Center),
@@ -74,11 +73,11 @@ pub fn subrules_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
     }
 
     let mut add_cond_row = row![
-        text(lang.tr("subrules_btn_add_leaf").to_string())
-            .size(11)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_secondary)
-            }),
+        theme::role_body_text(lang.tr("subrules_btn_add_leaf").to_string()).style(|t: &Theme| {
+            text::Style {
+                color: Some(tokens(t).text_secondary),
+            }
+        }),
     ]
     .align_y(Alignment::Center);
     for preset in logical::SUB_RULE_CONDITION_PRESETS.iter() {
@@ -88,7 +87,7 @@ pub fn subrules_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
                 row![
                     svg_icons::icon_themed(Icon::Plus, 12.0, |t: &Theme| tokens(t).accent),
                     Space::new().width(theme::SP_XS),
-                    text((*preset).to_string()).size(11),
+                    theme::role_body_text((*preset).to_string()),
                 ]
                 .align_y(Alignment::Center),
             )
@@ -104,8 +103,6 @@ pub fn subrules_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
         text_input("PROXY", &draft.target)
             .on_input(Message::UpdateSubRuleTarget)
             .padding([6, 10])
-            .size(12)
-            .font(MONO)
             .style(form_input_style)
             .width(Length::Fill),
     ]
@@ -124,15 +121,13 @@ pub fn subrules_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
     let preview_card = container(
         column![
             row![
-                text(format!("{}:", lang.tr("subrules_result_preview")))
-                    .size(11)
-                    .style(|t: &Theme| text::Style {
+                theme::role_body_text(format!("{}:", lang.tr("subrules_result_preview"))).style(
+                    |t: &Theme| text::Style {
                         color: Some(tokens(t).text_secondary)
-                    }),
+                    }
+                ),
                 Space::new().width(theme::SP_SM),
-                text(preview_text)
-                    .size(12)
-                    .font(MONO)
+                theme::role_body_text(preview_text)
                     .width(Length::Fill)
                     .style(|t: &Theme| text::Style {
                         color: Some(tokens(t).accent)
@@ -141,7 +136,7 @@ pub fn subrules_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
                     row![
                         svg_icons::icon_themed(Icon::Plus, 12.0, |t: &Theme| tokens(t).on_accent),
                         Space::new().width(theme::SP_XS),
-                        text(lang.tr("subrules_btn_insert").to_string()).size(11),
+                        theme::role_body_text(lang.tr("subrules_btn_insert").to_string()),
                     ]
                     .align_y(Alignment::Center)
                 )

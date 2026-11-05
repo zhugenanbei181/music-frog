@@ -4,7 +4,7 @@ use crate::interaction_block::InteractionBlocked;
 use crate::localization::LocalizedLabel;
 use crate::palette::UiPalette;
 use crate::palette::rem;
-use crate::text::{Role, TextRole};
+use crate::text::TextRole;
 use crate::text_input::TextFieldFocused;
 use bevy::a11y::AccessibilityNode;
 use bevy::app::{App, Plugin, PostUpdate};
@@ -34,6 +34,7 @@ use bevy::ui::{
 };
 use bevy::ui_widgets::{TextInput, TextInputPlugin};
 use bevy::window::Ime;
+use infiltrator_contract::design_resources;
 
 /// The editor's minimum height in baseline pixels.
 const MULTILINE_EDITOR_MIN_HEIGHT_PX: f32 = 160.0;
@@ -110,7 +111,7 @@ pub fn multiline_editor_scene(
         ThemeBackgroundColor({Token::SurfaceElevated})
         BorderColor::all(palette.border)
         MultilineEditor MultilineReadOnly(false) TabIndex(order)
-        EditableText { ..{editable} } TextRole(Role::Mono)
+        EditableText { ..{editable} } TextRole(design_resources::TextRole::Mono)
         cursor_style
         LocalizedLabel::plain(label)
     }

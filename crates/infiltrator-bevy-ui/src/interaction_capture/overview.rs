@@ -261,12 +261,12 @@ fn activate_card_reorder(surface: &mut OverviewSurface<'_, '_>, commands: &mut C
         OverviewStage::Published => {
             // Only a card that can move is offered the move: the disabled bit
             // of the control is the shared order's own answer. The capture
-            // moves the traffic card, the second card of the shared default
+            // moves the metrics card, the second card of the shared default
             // order, so the move really changes the order the page renders.
             let Some((entity, _, _)) = surface
                 .moves
                 .iter()
-                .find(|(_, button, disabled)| button.0 == OverviewCardKind::Traffic && !disabled.0)
+                .find(|(_, button, disabled)| button.0 == OverviewCardKind::Metrics && !disabled.0)
             else {
                 return;
             };
@@ -375,9 +375,11 @@ pub fn observe(
             }
             FeatureId::OverviewCardReorder => {
                 // The owner's order is the page's order: the page renders the
-                // slots in the order the owner published.
+                // slots in the order the owner published. Moving the second
+                // card up puts Metrics first, which proves the interaction
+                // really changed the order instead of replaying the default.
                 let published = surface.latest.0.overview_layout.order.clone();
-                if published.first() != Some(&OverviewCardKind::Traffic) {
+                if published.first() != Some(&OverviewCardKind::Metrics) {
                     return None;
                 }
                 // The container's own child order is the page's visual order:
@@ -398,13 +400,24 @@ pub fn observe(
                 let (entity, _) = surface
                     .slots
                     .iter()
-                    .find(|(_, slot)| slot.0 == OverviewCardKind::Traffic)?;
+                    .find(|(_, slot)| slot.0 == OverviewCardKind::Metrics)?;
                 // The moved card sits deep in the Overview page, so the
                 // capture scrolls the page's own viewport until the card is
                 // really rendered, and measures it on the next frame.
                 if !geometry.unclipped(entity) {
                     reveal_slot(&mut surface, &mut geometry, &mut commands, entity);
-                    return geometry.rect(entity);
+                    let rect = geometry.rect(entity)?;
+                    let Ok(page) = surface.pages.single() else {
+                        return None;
+                    };
+                    let viewport = geometry.rect(page)?;
+                    // The compact viewport is shorter than the card after the
+                    // shared type scale grew; measure the visible part of the
+                    // top-aligned card instead of demanding a full fit that
+                    // the window cannot provide.
+                    let top = rect[1].max(viewport[1]);
+                    let bottom = (rect[1] + rect[3]).min(viewport[1] + viewport[3]);
+                    return (bottom > top).then_some([rect[0], top, rect[2], bottom - top]);
                 }
                 geometry.bounds(entity, "overview reordered card")
             }

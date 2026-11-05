@@ -19,7 +19,7 @@ use crate::icon::IconId;
 use crate::icon_tile::icon_tile_scene;
 use crate::palette::UiPalette;
 use crate::palette::rem;
-use crate::text::{Role, TextRole};
+use crate::text::TextRole;
 use crate::theme::{radius, space};
 use bevy::app::{App, Plugin, Update};
 use bevy::ecs::component::Component;
@@ -47,6 +47,7 @@ use bevy::ui_widgets::{
     Activate, Button, DialogPlugin, ModalDialog, ModalDialogBarrier, ModalDialogPlugin,
     RequestClose, TabPlugin,
 };
+use infiltrator_contract::design_resources;
 
 /// One-off layout value (not a ladder rung): the width of the shared modal
 /// dialog card. The shared ladder carries no dialog width.
@@ -352,7 +353,7 @@ pub fn modal_scene(
                         justify_content: JustifyContent::SpaceBetween,
                     }
                     Children [
-                        Text(title) TextRole(Role::Heading) ModalTitle
+                        Text(title) TextRole(design_resources::TextRole::Heading) ModalTitle
                         --
                         Node {
                             align_items: AlignItems::Center,
@@ -430,7 +431,7 @@ pub fn confirm_dialog_scene(
                 padding: UiRect::vertical(rem(space::S8)),
             }
             Children [
-                Text(message) TextRole(Role::Body)
+                Text(message) TextRole(design_resources::TextRole::Body)
             ]
     });
 

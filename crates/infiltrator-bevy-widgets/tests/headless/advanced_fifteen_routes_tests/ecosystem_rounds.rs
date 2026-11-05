@@ -260,7 +260,6 @@ fn test_advanced_ecosystem_round_eight_capabilities() {
     use infiltrator_bevy_widgets::chart::ring_buffer::RollingWindowAggregator;
     use infiltrator_bevy_widgets::focus::FocusTrapManager;
     use infiltrator_bevy_widgets::mobile_view::PlatformViewLifecycleHost;
-    use infiltrator_bevy_widgets::motion::CardParallaxTilt;
     use std::time::Duration;
 
     // 1. Focus trap manager
@@ -272,13 +271,7 @@ fn test_advanced_ecosystem_round_eight_capabilities() {
     assert!(trap.is_trapped());
     assert_eq!(trap.cycle_next(), Some(e2));
 
-    // 2. Card parallax tilt
-    let tilt_calc = CardParallaxTilt::new(Vec2::new(100.0, 100.0), Vec2::new(200.0, 200.0), 10.0);
-    let (angles, highlight) = tilt_calc.evaluate(Vec2::new(100.0, 100.0));
-    assert_eq!(angles, Vec2::ZERO);
-    assert!(highlight > 0.9);
-
-    // 3. Rolling window aggregator
+    // 2. Rolling window aggregator
     let mut agg = RollingWindowAggregator::<3>::new();
     agg.push(10.0);
     agg.push(20.0);

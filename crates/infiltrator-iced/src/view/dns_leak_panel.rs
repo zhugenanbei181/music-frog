@@ -12,7 +12,7 @@ use crate::view::component_card::card;
 use crate::view::component_forms::{style_accent, text_btn};
 use crate::view::components::{BadgeKind, badge};
 use crate::view::theme;
-use crate::view::theme::{MONO, tokens};
+use crate::view::theme::tokens;
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Space, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
@@ -50,22 +50,20 @@ fn observation_rows<'a>(display: &LeakDisplay) -> Vec<Element<'a, Message>> {
         .map(|observation| {
             let tone = observation.tone;
             column![
-                text(format!(
+                theme::role_body_text(format!(
                     "{} → {}",
                     observation.resolver, observation.authority
-                ))
-                .size(12)
-                .font(MONO),
-                text(observation.outcome.clone())
-                    .size(12)
-                    .style(move |theme: &Theme| text::Style {
+                )),
+                theme::role_body_text(observation.outcome.clone()).style(move |theme: &Theme| {
+                    text::Style {
                         color: Some(match tone {
                             LeakTone::Neutral => tokens(theme).text_secondary,
                             LeakTone::Success => tokens(theme).success,
                             LeakTone::Warning => tokens(theme).warning,
                             LeakTone::Danger => tokens(theme).danger,
-                        })
-                    }),
+                        }),
+                    }
+                }),
             ]
             .spacing(4)
             .into()
@@ -85,8 +83,7 @@ pub(crate) fn leak_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a
 
     let mut body = column![
         row![
-            text(lang.tr("dns_leak_probe_desc").to_string())
-                .size(12)
+            theme::role_body_text(lang.tr("dns_leak_probe_desc").to_string())
                 .style(|t: &Theme| text::Style {
                     color: Some(tokens(t).text_secondary)
                 })
@@ -107,20 +104,18 @@ pub(crate) fn leak_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a
         row![
             badge(display.conclusion.clone(), kind),
             Space::new().width(Length::Fill),
-            text(display.sources.clone())
-                .size(11)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_secondary)
-                }),
+            theme::role_body_text(display.sources.clone()).style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary)
+            }),
         ]
         .align_y(Alignment::Center),
     ]
     .spacing(theme::SP_XS);
     if let Some(feedback) = &display.feedback {
-        body = body.push(text(feedback.clone()).size(12));
+        body = body.push(theme::role_body_text(feedback.clone()));
     }
     if let DnsLeakActionPhase::Failed { failure } = &state.diag.dns_leak_action.phase {
-        body = body.push(text(failure.message.clone()).size(12));
+        body = body.push(theme::role_body_text(failure.message.clone()));
     }
     if state.diag.dns_leak_action.can_retry() {
         body = body.push(text_btn(

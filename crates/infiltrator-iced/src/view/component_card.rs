@@ -14,12 +14,9 @@ pub fn card<'a, Message: 'a, R: Renderer<Font = Font> + 'a>(
     let content = content.into();
     let body = match title {
         Some(title) => {
-            let header = text(title)
-                .size(14)
-                .font(theme::FONT_SEMIBOLD)
-                .style(|t: &Theme| text::Style {
-                    color: Some(theme::tokens(t).text_primary),
-                });
+            let header = theme::role_body_text(title).style(|t: &Theme| text::Style {
+                color: Some(theme::tokens(t).text_primary),
+            });
             column![header, content]
                 .spacing(theme::SP_MD)
                 .width(Length::Fill)

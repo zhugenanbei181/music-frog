@@ -1,5 +1,5 @@
 //! Shared rates, retained-history peaks and observation state; native renderers replay this fold.
-use crate::shell_readout::{rate_copy, rate_status};
+use crate::shell_readout::{ShellQuantityBadge, rate_badge, rate_copy, rate_status};
 use infiltrator_contract::shell_readout::{ShellObservation, ShellReadoutSnapshot};
 use infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot;
 use lurker_ui_presentation::copy::TextCatalog;
@@ -21,12 +21,23 @@ enum TrafficDirection {
 pub struct TrafficReadout {
     pub upload: String,
     pub download: String,
+    pub upload_display: String,
+    pub download_display: String,
     pub upload_peak: Option<String>,
     pub download_peak: Option<String>,
     pub freshness: TrafficFreshness,
     pub failure: String,
     pub status: String,
 }
+
+/// A compact rate visualization: unobserved data is a dash, never a sentence.
+fn compact_rate(rate: &ShellObservation<f64>, catalog: &dyn TextCatalog) -> String {
+    match rate_badge(rate) {
+        ShellQuantityBadge::Current(_) | ShellQuantityBadge::Stale(_) => rate_copy(rate, catalog),
+        ShellQuantityBadge::Unobserved => "—".into(),
+    }
+}
+
 pub fn project_traffic_readout(
     rates: &ShellReadoutSnapshot,
     waveform: &TrafficWaveformSnapshot,
@@ -48,11 +59,11 @@ pub fn project_traffic_readout(
         ) => TrafficFreshness::Unobserved,
         (None, _, _) => TrafficFreshness::Stale,
     };
-    let status_key = match freshness {
-        TrafficFreshness::Failed => "conn_state_unavailable",
-        TrafficFreshness::Current => "conn_state_live",
-        TrafficFreshness::Stale => "shell_rate_stale",
-        TrafficFreshness::Unobserved => "shell_readout_unknown",
+    let status = match freshness {
+        TrafficFreshness::Failed => catalog.text("conn_state_unavailable").into_owned(),
+        TrafficFreshness::Current => catalog.text("conn_state_live").into_owned(),
+        TrafficFreshness::Stale => catalog.text("shell_rate_stale").into_owned(),
+        TrafficFreshness::Unobserved => String::new(),
     };
     let peak = |direction| {
         let value = (waveform.generation == rates.generation)
@@ -83,10 +94,12 @@ pub fn project_traffic_readout(
     TrafficReadout {
         upload: rate_copy(&rates.upload_bps, catalog),
         download: rate_copy(&rates.download_bps, catalog),
+        upload_display: compact_rate(&rates.upload_bps, catalog),
+        download_display: compact_rate(&rates.download_bps, catalog),
         upload_peak: peak(TrafficDirection::Upload),
         download_peak: peak(TrafficDirection::Download),
         freshness,
         failure: rate_status(rates, catalog),
-        status: catalog.text(status_key).into_owned(),
+        status,
     }
 }

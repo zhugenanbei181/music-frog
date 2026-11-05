@@ -15,15 +15,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.UploadFile
-import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -53,6 +44,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.musicfrog.infiltrator.R
+import com.musicfrog.infiltrator.ui.common.AppIcon
+import com.musicfrog.infiltrator.ui.common.AppIconSemantic
 import com.musicfrog.infiltrator.ui.common.EmptyStateText
 import com.musicfrog.infiltrator.ui.common.EmptyStateTextKey
 import com.musicfrog.infiltrator.ui.common.ErrorDialog
@@ -153,7 +146,7 @@ internal fun ProfilesScreen(
                     elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 2.dp),
                 ) {
                     Icon(
-                        Icons.Default.UploadFile,
+                        AppIcon.image(AppIconSemantic.FileText),
                         contentDescription = stringResource(R.string.action_import_local),
                     )
                 }
@@ -163,7 +156,7 @@ internal fun ProfilesScreen(
                     },
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = stringResource(R.string.title_add_profile))
+                    Icon(AppIcon.image(AppIconSemantic.Add), contentDescription = stringResource(R.string.title_add_profile))
                 }
             }
         },
@@ -315,13 +308,13 @@ private fun ProfileRow(
     StandardListItem(
         headline = profile.name,
         supporting = updatedText,
-        leadingIcon = Icons.Outlined.Description,
+        leadingIcon = AppIcon.image(AppIconSemantic.FileText),
         onClick = onSelect,
         trailingContent = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (profile.active) {
                     Icon(
-                        Icons.Default.Check,
+                        AppIcon.image(AppIconSemantic.Check),
                         contentDescription = stringResource(R.string.status_active),
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(start = 8.dp, end = 12.dp),
@@ -330,7 +323,7 @@ private fun ProfileRow(
                 Box {
                     IconButton(onClick = { actionsExpanded = true }) {
                         Icon(
-                            Icons.Default.Settings,
+                            AppIcon.image(AppIconSemantic.Settings),
                             contentDescription = stringResource(R.string.action_subscription_settings),
                         )
                     }
@@ -340,7 +333,7 @@ private fun ProfileRow(
                     ) {
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.action_update_now)) },
-                            leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null) },
+                            leadingIcon = { Icon(AppIcon.image(AppIconSemantic.Refresh), contentDescription = null) },
                             onClick = {
                                 actionsExpanded = false
                                 onUpdate()
@@ -348,7 +341,7 @@ private fun ProfileRow(
                         )
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.action_edit)) },
-                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                            leadingIcon = { Icon(AppIcon.image(AppIconSemantic.Edit), contentDescription = null) },
                             onClick = {
                                 actionsExpanded = false
                                 onEdit()
@@ -356,7 +349,7 @@ private fun ProfileRow(
                         )
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.action_subscription_settings)) },
-                            leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                            leadingIcon = { Icon(AppIcon.image(AppIconSemantic.Settings), contentDescription = null) },
                             onClick = {
                                 actionsExpanded = false
                                 onSubscription()
@@ -364,7 +357,7 @@ private fun ProfileRow(
                         )
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.action_delete)) },
-                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
+                            leadingIcon = { Icon(AppIcon.image(AppIconSemantic.Delete), contentDescription = null) },
                             onClick = {
                                 actionsExpanded = false
                                 onDelete()

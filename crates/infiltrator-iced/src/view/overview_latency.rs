@@ -5,7 +5,7 @@ use crate::types::message::Message;
 use crate::view::components::{card_surface, icon_button};
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme;
-use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, R_CHIP, tokens};
+use crate::view::theme::{R_CHIP, tokens};
 use iced::widget::{Space, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -19,12 +19,11 @@ pub fn latency_card<'a>(
         row![
             icon_themed(Icon::Activity, 11.0, |t| tokens(t).success),
             Space::new().width(theme::SP_XS),
-            text(lang.tr("overview_avg_latency").to_string())
-                .size(11)
-                .font(MONO)
-                .style(|t: &Theme| text::Style {
+            theme::role_body_text(lang.tr("overview_avg_latency").to_string()).style(
+                |t: &Theme| text::Style {
                     color: Some(tokens(t).success)
-                }),
+                }
+            ),
         ]
         .align_y(Alignment::Center),
     )
@@ -55,12 +54,11 @@ pub fn latency_card<'a>(
         row![
             icon_themed(Icon::Target, 16.0, |t: &Theme| tokens(t).accent),
             Space::new().width(theme::SP_SM),
-            text(lang.tr("runtime_delay_title").to_string())
-                .size(14)
-                .font(FONT_SEMIBOLD)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_primary)
-                }),
+            theme::role_body_text(lang.tr("runtime_delay_title").to_string()).style(|t: &Theme| {
+                text::Style {
+                    color: Some(tokens(t).text_primary),
+                }
+            }),
         ]
         .align_y(Alignment::Center),
         Space::new().width(Length::Fill),
@@ -129,9 +127,7 @@ fn latency_comparison_bar<'a>(name: &'static str, ms: u32, max_ms: f32) -> Eleme
     });
 
     row![
-        text(name)
-            .size(12)
-            .font(FONT_MEDIUM)
+        theme::role_body_text(name)
             .width(Length::Fixed(80.0))
             .style(|t: &Theme| {
                 text::Style {
@@ -140,9 +136,7 @@ fn latency_comparison_bar<'a>(name: &'static str, ms: u32, max_ms: f32) -> Eleme
             }),
         bar,
         Space::new().width(theme::SP_MD),
-        text(format!("{ms} ms"))
-            .size(12)
-            .font(MONO)
+        theme::role_body_text(format!("{ms} ms"))
             .width(Length::Fixed(55.0))
             .style(move |t: &Theme| {
                 text::Style {

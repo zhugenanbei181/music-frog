@@ -19,19 +19,23 @@ use bevy::ui::BackgroundColor;
 use bevy::ui::prelude::{Display, Node};
 use bevy::ui::widget::{ImageNode, Text};
 use bevy::ui_widgets::Activate;
-use infiltrator_bevy_ui::app::{ContentSlot, ShellPlugin, SidebarFoot};
+use infiltrator_bevy_ui::app::{ContentSlot, ShellLayoutState, ShellPlugin, SidebarFoot};
 use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommand, UiCommandSink};
 use infiltrator_bevy_ui::history::{TrafficHistory, demo_traffic_series};
+use infiltrator_bevy_ui::pages::globe::GlobeSectionSlot;
 use infiltrator_bevy_ui::pages::overview::{
-    CHART_HEIGHT_PX, CHART_WIDTH_PX, OverviewCardMoveUpButton, OverviewCardSlot, OverviewCardState,
-    OverviewChip, OverviewChipKind, OverviewLine, OverviewLineKind, OverviewProjectionUpdated,
-    OverviewReloadMask, OverviewReloadMaskText, OverviewRoutingIntentPill, OverviewStatusCard,
-    StatusDot, format_memory, format_rate, subscription_quota_scene, topology_chain_scene,
+    CHART_HEIGHT_PX, CHART_WIDTH_PX, OverviewCardMoveUpButton, OverviewCardSlot, OverviewCardSlots,
+    OverviewCardState, OverviewChip, OverviewChipKind, OverviewLine, OverviewLineKind,
+    OverviewProjectionUpdated, OverviewReloadMask, OverviewReloadMaskText,
+    OverviewResourceGaugeCard, OverviewRoutingIntentPill, OverviewServiceHealthCard,
+    OverviewStatusCard, OverviewTrafficCard, OverviewTrafficDetailSection, StatusDot,
+    format_memory, format_rate, subscription_quota_scene, topology_chain_scene,
 };
 use infiltrator_bevy_ui::pages::overview_cards::{
     ActiveExitNodeCard, SystemProxyMasterCard, TunMasterCard,
 };
 use infiltrator_bevy_ui::pages::overview_lifecycle::CoreControlButton;
+use infiltrator_bevy_ui::pages::overview_policy_groups::OverviewPolicyGroupCard;
 use infiltrator_bevy_ui::pages::overview_public_ip::{
     PublicIpProbeCard, PublicIpRefreshButton, PublicIpText, PublicIpTextKind,
 };
@@ -56,14 +60,15 @@ use infiltrator_bevy_widgets::chart::{ChartCrosshairTracked, ChartPlate};
 use infiltrator_bevy_widgets::icon::{IconId, IconPlate};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::stat_chip::StatChipValue;
-use infiltrator_bevy_widgets::surface::SurfacePanel;
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::{Theme, ThemeSkin};
+use infiltrator_bevy_widgets::waveform::{WaveformPlate, WaveformSeries};
 use infiltrator_contract::resources::{CoreResourceSnapshot, ResourceAvailability};
 use infiltrator_contract::shell_readout::ShellReadoutSnapshot;
 use infiltrator_contract::traffic_topology::TrafficTopologyStage;
 use infiltrator_contract::traffic_waveform::{TrafficSample, TrafficWaveformSnapshot};
+use infiltrator_presentation::dashboard_hero_projection::PolicyGroupGridProjection;
 use infiltrator_presentation::overview_page_model::OverviewRunState;
 use infiltrator_presentation::shell_readout::observed_rate;
 use lurker_core_contract::lifecycle::CoreLifecycle;
@@ -103,6 +108,8 @@ impl OverviewSource for StubSource {
             subscription_quota: Default::default(),
             system_toggles: Default::default(),
             cpu_percent: ResourceAvailability::NotObserved,
+            memory_limit_bytes: None,
+            policy_groups: PolicyGroupGridProjection::unavailable(),
             total_traffic_bytes: None,
             routing_intent: RoutingIntentSnapshot {
                 current: Some(RoutingIntent::BypassProxy),
@@ -308,6 +315,8 @@ fn live_projection(upload_bps: f64, download_bps: f64) -> OverviewProjection {
         subscription_quota: Default::default(),
         system_toggles: Default::default(),
         cpu_percent: ResourceAvailability::NotObserved,
+        memory_limit_bytes: None,
+        policy_groups: PolicyGroupGridProjection::unavailable(),
         total_traffic_bytes: None,
         routing_intent: RoutingIntentSnapshot {
             current: Some(RoutingIntent::FollowRules),
@@ -382,6 +391,8 @@ impl OverviewSource for LiveFootStub {
             subscription_quota: Default::default(),
             system_toggles: Default::default(),
             cpu_percent: ResourceAvailability::NotObserved,
+            memory_limit_bytes: None,
+            policy_groups: PolicyGroupGridProjection::unavailable(),
             total_traffic_bytes: None,
             routing_intent: RoutingIntentSnapshot {
                 current: Some(RoutingIntent::FollowRules),

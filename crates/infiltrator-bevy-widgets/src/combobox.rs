@@ -15,7 +15,7 @@ use crate::icon_tile::icon_tile_scene;
 use crate::palette::UiPalette;
 use crate::palette::rem;
 use crate::popover::{ANCHOR_GAP_PX, AnchorHint, placement};
-use crate::text::{Role, TextRole};
+use crate::text::TextRole;
 use crate::theme::{metrics, space};
 use bevy::color::Color;
 use bevy::ecs::component::Component;
@@ -35,6 +35,7 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
+use infiltrator_contract::design_resources;
 
 /// One selectable option in a combobox / select dropdown.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -374,7 +375,7 @@ pub fn combobox_scene(
             ComboboxRoot
             ComboboxTrigger
             Children [
-                Text(display_text) TextRole(Role::Body) ComboboxLabel
+                Text(display_text) TextRole(design_resources::TextRole::Body) ComboboxLabel
                 --
                 @{ icon_tile_scene(IconId::ArrowDown, 16.0, palette) }
             ]
@@ -423,7 +424,7 @@ pub fn combobox_dropdown_scene(
                 Button
                 ComboboxOptionItem(idx)
                 Children [
-                    Text(lbl) TextRole(Role::Body)
+                    Text(lbl) TextRole(design_resources::TextRole::Body)
                 ]
 }) as Box<dyn Scene>
         })

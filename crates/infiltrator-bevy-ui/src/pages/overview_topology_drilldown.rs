@@ -31,8 +31,9 @@ use bevy::ui_widgets::{Activate, Button};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::palette::{UiPalette, rem};
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::traffic_topology::{
     TrafficTopologyNavigationTarget, TrafficTopologyStage,
 };
@@ -75,9 +76,9 @@ pub fn drilldown_panel_scene(palette: &UiPalette) -> Box<dyn Scene> {
             ThemeBackgroundColor({ Token::SurfaceElevated })
             TopologyDrilldownPanel
             Children [
-                Text({ String::new() }) TopologyDrilldownText TextRole(Role::BodyStrong)
+                Text({ String::new() }) TopologyDrilldownText TextRole(design_resources::TextRole::BodyStrong)
                 --
-                Text({ String::new() }) TopologyDrilldownKeywordText TextRole(Role::Mono)
+                Text({ String::new() }) TopologyDrilldownKeywordText TextRole(design_resources::TextRole::Mono)
                 --
                 Node {
                     width: percent(100),
@@ -97,7 +98,7 @@ pub fn drilldown_panel_scene(palette: &UiPalette) -> Box<dyn Scene> {
                     TopologyDrilldownNavigateButton
                     Button
                     Children [
-                        Text({ "→".to_owned() }) TextRole(Role::Body)
+                        Text({ "→".to_owned() }) TextRole(design_resources::TextRole::Body)
                     ]
                     --
                     Node {
@@ -111,7 +112,7 @@ pub fn drilldown_panel_scene(palette: &UiPalette) -> Box<dyn Scene> {
                     TopologyDrilldownCloseButton
                     Button
                     Children [
-                        Text({ "×".to_owned() }) TextRole(Role::Body)
+                        Text({ "×".to_owned() }) TextRole(design_resources::TextRole::Body)
                     ]
                 ]
             ]

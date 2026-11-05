@@ -19,7 +19,7 @@ use crate::view::overview_traffic::traffic_card;
 use crate::view::subscription_quota::subscription_quota_card;
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme;
-use crate::view::theme::{FONT_MEDIUM, tokens};
+use crate::view::theme::tokens;
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Space, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
@@ -82,12 +82,9 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 row![
                     icon_themed(Icon::Shield, 16.0, |t: &Theme| tokens(t).on_accent),
                     Space::new().width(theme::SP_SM),
-                    text(detail)
-                        .size(12)
-                        .font(FONT_MEDIUM)
-                        .style(|t: &Theme| text::Style {
-                            color: Some(tokens(t).on_accent)
-                        }),
+                    theme::role_body_text(detail).style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).on_accent)
+                    }),
                     Space::new().width(Length::Fill),
                 ]
                 .align_y(Alignment::Center),
@@ -168,11 +165,11 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 Space::new().width(Length::Fill),
                 icon_button(Icon::RefreshCw, 13.0, Message::ResetOverviewCardOrder),
                 Space::new().width(theme::SP_XS),
-                text(lang.tr("overview_reset_card_order").to_string())
-                    .size(11)
-                    .style(|t: &Theme| text::Style {
+                theme::role_body_text(lang.tr("overview_reset_card_order").to_string()).style(
+                    |t: &Theme| text::Style {
                         color: Some(tokens(t).text_secondary)
-                    }),
+                    }
+                ),
             ]
             .align_y(Alignment::Center),
         );

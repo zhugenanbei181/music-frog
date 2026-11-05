@@ -15,7 +15,7 @@ use infiltrator_shared::byte_units::format_bytes;
 
 use crate::view::components::{BadgeKind, badge, icon_button};
 use crate::view::svg_icons::Icon;
-use crate::view::theme::{FONT_SEMIBOLD, MONO, tokens};
+use crate::view::theme::tokens;
 use crate::view::waveform::{StripInk, hud_waveform};
 use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, mouse_area, row, text};
@@ -34,12 +34,11 @@ pub fn mini_hud_view<'a>(state: &'a AppState) -> Element<'a, Message> {
         svg_icons::icon_themed(Icon::ArrowDown, 14.0, |t: &Theme| tokens(t).accent),
         Space::new().width(theme::SP_XS),
         column![
-            text(format!("{}/s", format_bytes(model.down_bytes_per_sec)))
-                .size(12)
-                .font(MONO)
-                .style(|t: &Theme| text::Style {
+            theme::role_body_text(format!("{}/s", format_bytes(model.down_bytes_per_sec))).style(
+                |t: &Theme| text::Style {
                     color: Some(tokens(t).accent),
-                }),
+                }
+            ),
         ],
         Space::new().width(theme::SP_SM),
         hud_waveform(&model.waveform.down, StripInk::Accent),
@@ -51,12 +50,11 @@ pub fn mini_hud_view<'a>(state: &'a AppState) -> Element<'a, Message> {
         svg_icons::icon_themed(Icon::ArrowUp, 14.0, |t: &Theme| tokens(t).success),
         Space::new().width(theme::SP_XS),
         column![
-            text(format!("{}/s", format_bytes(model.up_bytes_per_sec)))
-                .size(12)
-                .font(MONO)
-                .style(|t: &Theme| text::Style {
+            theme::role_body_text(format!("{}/s", format_bytes(model.up_bytes_per_sec))).style(
+                |t: &Theme| text::Style {
                     color: Some(tokens(t).success),
-                }),
+                }
+            ),
         ],
         Space::new().width(theme::SP_SM),
         hud_waveform(&model.waveform.up, StripInk::Success),
@@ -67,9 +65,7 @@ pub fn mini_hud_view<'a>(state: &'a AppState) -> Element<'a, Message> {
     let header_title = labelled(
         ShellA11yNode::MiniHudCard,
         &state.shell.lang,
-        text(lang.tr("mini_hud_title").to_string())
-            .size(11)
-            .font(FONT_SEMIBOLD)
+        theme::role_body_text(lang.tr("mini_hud_title").to_string())
             .style(|t: &Theme| text::Style {
                 color: Some(tokens(t).text_secondary),
             })
@@ -155,9 +151,11 @@ pub fn mini_hud_view<'a>(state: &'a AppState) -> Element<'a, Message> {
             tun_button.into(),
         ))
         .push(Space::new().width(theme::SP_SM))
-        .push(text(state_text).size(10).style(|t: &Theme| text::Style {
-            color: Some(tokens(t).text_tertiary),
-        }));
+        .push(
+            theme::role_body_text(state_text).style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_tertiary),
+            }),
+        );
 
     let hud_card = container(
         column![

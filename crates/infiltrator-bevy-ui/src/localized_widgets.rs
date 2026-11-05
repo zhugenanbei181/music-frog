@@ -8,8 +8,9 @@ use infiltrator_bevy_widgets::checkbox::checkbox_with_label_scene;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedPlaceholder, LocalizedText};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::tabs::{SegmentedTabLabel, segmented_control_with_labels_scene};
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::text_input::text_field_with_placeholder_scene;
+use infiltrator_contract::design_resources;
 
 pub fn localized_pill_scene(
     copy: LocalizedText,
@@ -19,7 +20,7 @@ pub fn localized_pill_scene(
     let semantic = copy.clone();
     (
         pill_caption_with_label_scene(
-            bsn! { LocalizedText { key: { copy.key }, params: { copy.params } } TextRole(Role::Caption) PillLabel },
+            bsn! { LocalizedText { key: { copy.key }, params: { copy.params } } TextRole(design_resources::TextRole::Caption) PillLabel },
             selected,
             palette,
         ),
@@ -35,7 +36,7 @@ pub fn localized_checkbox_scene(
     let label = copy.clone();
     (
         checkbox_with_label_scene(
-            bsn! { LocalizedText { key: { copy.key }, params: { copy.params } } TextRole(Role::Body) },
+            bsn! { LocalizedText { key: { copy.key }, params: { copy.params } } TextRole(design_resources::TextRole::Body) },
             checked,
             palette,
         ),
@@ -63,7 +64,7 @@ pub fn localized_button_scene(
     let label = copy.clone();
     (
         button_with_label_scene(
-            bsn! { LocalizedText { key: { copy.key }, params: { copy.params } } TextRole(Role::Body) ButtonLabel },
+            bsn! { LocalizedText { key: { copy.key }, params: { copy.params } } TextRole(design_resources::TextRole::Body) ButtonLabel },
             variant,
             ButtonSize::Md,
             palette,
@@ -84,7 +85,7 @@ pub fn localized_segmented_scene(
             let copy = LocalizedText::plain(key);
             Box::new(bsn! {
                 LocalizedText { key: { copy.key }, params: { copy.params } }
-                TextRole(Role::Caption) SegmentedTabLabel
+                TextRole(design_resources::TextRole::Caption) SegmentedTabLabel
             }) as Box<dyn Scene>
         })
         .collect();

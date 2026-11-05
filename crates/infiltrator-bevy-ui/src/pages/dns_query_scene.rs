@@ -25,9 +25,10 @@ use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText};
 use infiltrator_bevy_widgets::modal::{ModalDialogCard, ModalScrim};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::dns_query::DnsRecordType;
 use infiltrator_presentation::dns_query_actions::QuerySection;
 
@@ -50,7 +51,7 @@ pub fn query_button(
         button_with_label_scene(
             bsn! {
                 LocalizedText { key: { copy.key }, params: { copy.params } }
-                TextRole(Role::Caption) ButtonLabel
+                TextRole(design_resources::TextRole::Caption) ButtonLabel
             },
             ButtonVariant::Default,
             ButtonSize::Sm,
@@ -133,7 +134,7 @@ fn modal(palette: &UiPalette) -> impl Scene + use<> {
             ModalDialog
             AccessibilityNode(semantic) LocalizedLabel::plain("dns_query_title")
             Children [
-                LocalizedText::plain("dns_query_title") TextRole(Role::Heading)
+                LocalizedText::plain("dns_query_title") TextRole(design_resources::TextRole::Heading)
                 --
                 @{ (localized_field_scene(String::new(), LocalizedText::plain("dns_query_name"), palette),
                     bsn! { QueryNameField NativeTextField(0) }) }
@@ -142,7 +143,7 @@ fn modal(palette: &UiPalette) -> impl Scene + use<> {
                 Children [
                     @{ query_button(QueryAction::TypePicker, LocalizedText::plain("dns_query_record_type"), palette) }
                     --
-                    Text(String::new()) QueryLine::RecordType TextRole(Role::BodyStrong)
+                    Text(String::new()) QueryLine::RecordType TextRole(design_resources::TextRole::BodyStrong)
                 ]
                 --
                 Node {
@@ -153,7 +154,7 @@ fn modal(palette: &UiPalette) -> impl Scene + use<> {
                 QueryTypeMenu GlobalZIndex(117) ThemeBackgroundColor({ Token::SurfaceElevated })
                 Children [ { types } ]
                 --
-                Text(String::new()) QueryLine::Status TextRole(Role::Caption)
+                Text(String::new()) QueryLine::Status TextRole(design_resources::TextRole::Caption)
                 --
                 Node { width: percent(100), column_gap: rem(space::S8) }
                 Children [ { sections } ]
@@ -172,7 +173,7 @@ fn modal(palette: &UiPalette) -> impl Scene + use<> {
                     }
                     ThemeBackgroundColor({ Token::AccentContainer })
                     Children [
-                        Text(String::new()) QueryLine::Provenance TextRole(Role::Caption)
+                        Text(String::new()) QueryLine::Provenance TextRole(design_resources::TextRole::Caption)
                     ]
                     --
                     Node {
@@ -185,9 +186,9 @@ fn modal(palette: &UiPalette) -> impl Scene + use<> {
                     }
                     ThemeBackgroundColor({ Token::SurfaceElevated })
                     Children [
-                        Text(String::new()) QueryLine::Question TextRole(Role::Mono)
+                        Text(String::new()) QueryLine::Question TextRole(design_resources::TextRole::Mono)
                         --
-                        Text(String::new()) QueryLine::Flags TextRole(Role::Mono)
+                        Text(String::new()) QueryLine::Flags TextRole(design_resources::TextRole::Mono)
                     ]
                     --
                     Node {
@@ -200,9 +201,9 @@ fn modal(palette: &UiPalette) -> impl Scene + use<> {
                     }
                     ThemeBackgroundColor({ Token::SurfaceElevated })
                     Children [
-                        Text(String::new()) QueryLine::SectionLabel TextRole(Role::Caption)
+                        Text(String::new()) QueryLine::SectionLabel TextRole(design_resources::TextRole::Caption)
                         --
-                        Text(String::new()) QueryLine::Records TextRole(Role::Mono)
+                        Text(String::new()) QueryLine::Records TextRole(design_resources::TextRole::Mono)
                     ]
                 ]
                 --
@@ -210,7 +211,7 @@ fn modal(palette: &UiPalette) -> impl Scene + use<> {
                 Children [
                     @{ query_button(QueryAction::Previous, LocalizedText::plain("dns_query_previous_page"), palette) }
                     --
-                    Text(String::new()) QueryLine::Counter TextRole(Role::Caption)
+                    Text(String::new()) QueryLine::Counter TextRole(design_resources::TextRole::Caption)
                     --
                     @{ query_button(QueryAction::Next, LocalizedText::plain("dns_query_next_page"), palette) }
                 ]

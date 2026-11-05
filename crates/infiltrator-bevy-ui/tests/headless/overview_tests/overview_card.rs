@@ -54,9 +54,9 @@ fn overview_page_mounts_reorderable_slots_and_publishes_the_shared_intent() {
         let mut buttons = world.query::<(Entity, &OverviewCardMoveUpButton)>();
         buttons
             .iter(world)
-            .find(|(_, marker)| marker.0 == OverviewCardKind::Traffic)
+            .find(|(_, marker)| marker.0 == OverviewCardKind::Metrics)
             .map(|(entity, _)| entity)
-            .expect("the traffic card's move-up control")
+            .expect("the metrics card's move-up control")
     };
     app.world_mut()
         .commands()
@@ -68,8 +68,8 @@ fn overview_page_mounts_reorderable_slots_and_publishes_the_shared_intent() {
     match &submitted[0] {
         UiCommand::ReorderOverviewCards { order } => {
             assert_eq!(order.len(), OverviewCardKind::DEFAULT_ORDER.len());
-            assert_eq!(order[0], OverviewCardKind::Traffic);
-            assert_eq!(order[1], OverviewCardKind::RoutingIntentSegment);
+            assert_eq!(order[0], OverviewCardKind::Metrics);
+            assert_eq!(order[1], OverviewCardKind::Traffic);
         }
         other => panic!("the move publishes the shared reorder intent, got {other:?}"),
     }

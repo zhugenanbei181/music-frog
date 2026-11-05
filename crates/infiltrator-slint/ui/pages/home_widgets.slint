@@ -1,0 +1,633 @@
+import { DesignType } from "../components/design-type.slint";
+import { LumenUiScale } from "../lumen-ui-scale.slint";
+import { LumenTheme } from "../components/theme.slint";
+import { ConnectionRow, DashboardFacts, ObservationRow, ProxyGroup } from "../components/models.slint";
+import { RouteMode, RuntimeStatus } from "../components/domain_enums.slint";
+import { FlagIcon } from "../lumen-flags.slint";
+
+// The dashboard card's title row: one icon, one title, one trailing affordance.
+//
+// The reference dashboard names every card with a line icon; this surface used
+// to print bare text plus a raw ">" and a clipboard emoji that the font has no
+// glyph for. One component keeps the hierarchy identical on every card and on
+// both tiers, and the chevron is a real vector icon.
+export component AppCardHeader inherits Rectangle {
+    in property <string> title;
+    in property <image> icon;
+    in property <string> glyph: "";
+    in property <color> icon-color: LumenTheme.text-secondary;
+    in property <string> trailing: "";
+    in property <color> trailing-color: LumenTheme.text-secondary;
+    in property <bool> chevron: false;
+    in property <bool> actionable: false;
+    in property <length> title-size: 13 * LumenUiScale.unit;
+    callback clicked();
+
+    height: 20 * LumenUiScale.unit;
+    background: transparent;
+    accessible-role: button;
+    accessible-label: root.title;
+    accessible-action-default => { if root.actionable { root.clicked(); } }
+
+    HorizontalLayout {
+        width: parent.width;
+        spacing: LumenTheme.space-2;
+        if root.glyph != "": Text {
+            text: root.glyph;
+            color: root.icon-color;
+            font-size: root.title-size;
+            font-weight: DesignType.body-weight;
+            vertical-alignment: center;
+        }
+        if root.icon.width > 0: Image {
+            source: root.icon;
+            width: 16 * LumenUiScale.unit;
+            height: 16 * LumenUiScale.unit;
+            image-fit: contain;
+            colorize: root.icon-color;
+            vertical-alignment: center;
+        }
+        title-text := Text {
+            text: root.title;
+            color: LumenTheme.text-secondary;
+            font-size: root.title-size;
+            font-weight: DesignType.body-weight;
+            vertical-alignment: center;
+            overflow: elide;
+            // The title claims the slack. It used to have no stretch while a
+            // stretch-1 spacer sat beside it, so an eliding Text collapsed to
+            // its minimum width and the dense tier showed "服…" for 服务状态.
+            horizontal-stretch: 1;
+        }
+        if root.trailing != "": Text {
+            text: root.trailing;
+            color: root.trailing-color;
+            font-size: DesignType.micro-size;
+            font-weight: DesignType.micro-weight;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+        if root.chevron: Image {
+            source: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/chevron-right.svg");
+            width: 14 * LumenUiScale.unit;
+            height: 14 * LumenUiScale.unit;
+            image-fit: contain;
+            colorize: LumenTheme.text-muted;
+            vertical-alignment: center;
+        }
+    }
+    if root.actionable: TouchArea {
+        width: parent.width;
+        height: parent.height;
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+// The speed card's waveform band. The path comes from the owner's typed
+// waveform projection, so neither layout redraws a synthetic curve of its own.
+export component HomeWaveBand inherits Rectangle {
+    in property <string> commands;
+    in property <color> ink;
+    in property <length> band-height: 36 * LumenUiScale.unit;
+
+    height: root.band-height;
+    clip: true;
+    Path {
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 100;
+        viewbox-height: 32;
+        commands: root.commands;
+        fill: root.ink.with_alpha(38%);
+        stroke: root.ink;
+        stroke-width: 1.5 * LumenUiScale.unit;
+    }
+}
+
+// The hero's organic run/stop control. The reference is not a flat circle:
+// it is a soft-edged blob with a halo, a pause/play vector and its caption
+// inside the action. Keeping it shared means desktop, tablet and phone all
+// read the same typed runtime state and emit the same typed intent.
+export component HomeHeroActionButton inherits Rectangle {
+    in property <RuntimeStatus> runtime-status;
+    in property <length> button-size: 64 * LumenUiScale.unit;
+    callback start-runtime();
+    callback stop-runtime();
+
+    // The running halo is larger than the blob, so the component reserves room
+    // for it. When the box was only as wide as the blob the halo crossed the
+    // hero card's border and sat on top of the neighbouring speed card, which
+    // is what made the 720x480 dashboard read as broken.
+    width: root.button-size * 1.2;
+    height: root.button-size * 1.2;
+    background: transparent;
+    accessible-role: button;
+    accessible-label: root.runtime-status == RuntimeStatus.running ? @tr("暂停") : @tr("启动");
+    accessible-action-default => {
+        if root.runtime-status == RuntimeStatus.running {
+            root.stop-runtime();
+        } else {
+            root.start-runtime();
+        }
+    }
+
+    halo := Rectangle {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        width: root.runtime-status == RuntimeStatus.running
+            ? parent.width
+            : root.button-size;
+        height: root.runtime-status == RuntimeStatus.running
+            ? parent.height
+            : root.button-size;
+        border-radius: self.width / 2;
+        background: root.runtime-status == RuntimeStatus.running ? LumenTheme.accent.with_alpha(18%) : transparent;
+    }
+
+    blob := Rectangle {
+        x: (parent.width - root.button-size) / 2;
+        y: (parent.height - root.button-size) / 2;
+        width: root.button-size;
+        height: root.button-size;
+        background: transparent;
+
+        Path {
+            x: 0 * LumenUiScale.unit;
+            y: 0 * LumenUiScale.unit;
+            width: parent.width;
+            height: parent.height;
+            viewbox-width: 100;
+            viewbox-height: 100;
+            commands: "M 50 4 C 57 4 60 11 66 13 C 72 15 80 12 84 18 C 88 24 84 31 86 37 C 88 43 95 46 95 52 C 95 58 88 61 86 67 C 84 73 88 80 83 85 C 78 90 71 86 65 88 C 59 90 56 96 50 96 C 44 96 41 90 35 88 C 29 86 22 90 17 85 C 12 80 16 73 14 67 C 12 61 5 58 5 52 C 5 46 12 43 14 37 C 16 31 12 24 17 18 C 22 12 29 15 35 13 C 41 11 43 4 50 4 Z";
+            fill: root.runtime-status == RuntimeStatus.running ? LumenTheme.accent : LumenTheme.zinc-4;
+            stroke: root.runtime-status == RuntimeStatus.running ? LumenTheme.accent-foreground.with_alpha(22%) : LumenTheme.hairline-glow;
+            stroke-width: 1.2 * LumenUiScale.unit;
+        }
+
+        if root.runtime-status == RuntimeStatus.running: Path {
+            x: 0 * LumenUiScale.unit;
+            y: 0 * LumenUiScale.unit;
+            width: parent.width;
+            height: parent.height;
+            viewbox-width: 100;
+            viewbox-height: 100;
+            commands: "M 41 31 L 41 55 M 59 31 L 59 55";
+            stroke: LumenTheme.accent-foreground;
+            stroke-width: 6 * LumenUiScale.unit;
+            stroke-line-cap: round;
+        }
+
+        if root.runtime-status != RuntimeStatus.running: Path {
+            x: 0 * LumenUiScale.unit;
+            y: 0 * LumenUiScale.unit;
+            width: parent.width;
+            height: parent.height;
+            viewbox-width: 100;
+            viewbox-height: 100;
+            commands: "M 40 30 L 66 43 L 40 56 Z";
+            fill: LumenTheme.text-primary;
+            stroke: LumenTheme.text-primary;
+            stroke-width: 2 * LumenUiScale.unit;
+        }
+    }
+
+    Text {
+        text: root.runtime-status == RuntimeStatus.running ? @tr("暂停") : @tr("启动");
+        color: root.runtime-status == RuntimeStatus.running ? LumenTheme.accent-foreground : LumenTheme.text-secondary;
+        font-size: DesignType.tag-size;
+        y: blob.y + root.button-size - 14 * LumenUiScale.unit;
+        x: (parent.width - self.width) / 2;
+    }
+
+    TouchArea {
+        width: parent.width;
+        height: parent.height;
+        mouse-cursor: pointer;
+        clicked => {
+            if root.runtime-status == RuntimeStatus.running {
+                root.stop-runtime();
+            } else {
+                root.start-runtime();
+            }
+        }
+    }
+}
+
+// The dashboard's shared service-latency chip: a service badge plus its
+// measured latency. The chip shrinks with the card and elides the latency
+// instead of crossing the card's border.
+export component HomeLatencyChip inherits Rectangle {
+    in property <string> label;
+    in property <string> value;
+    in property <color> pulse-ink: LumenTheme.text-muted;
+    in property <bool> observed: root.value != "—" && root.value != "";
+
+    horizontal-stretch: 1;
+    height: 28 * LumenUiScale.unit;
+    border-radius: 6 * LumenUiScale.unit;
+    background: root.observed ? LumenTheme.zinc-4 : LumenTheme.zinc-3;
+
+    HorizontalLayout {
+        x: 6 * LumenUiScale.unit;
+        width: max(0 * LumenUiScale.unit, parent.width - 12 * LumenUiScale.unit);
+        spacing: 4 * LumenUiScale.unit;
+        Rectangle {
+            width: 7 * LumenUiScale.unit;
+            height: 7 * LumenUiScale.unit;
+            border-radius: 4 * LumenUiScale.unit;
+            y: (parent.height - self.height) / 2;
+            background: root.pulse-ink;
+        }
+        Text {
+            text: root.label;
+            font-weight: DesignType.tag-weight;
+            color: LumenTheme.text-primary;
+            font-size: DesignType.micro-size;
+            vertical-alignment: center;
+        }
+        Text {
+            text: root.value;
+            font-family: DesignType.mono-family;
+            color: root.observed ? LumenTheme.status-info : LumenTheme.text-muted;
+            font-size: DesignType.micro-size;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+            overflow: elide;
+        }
+    }
+}
+
+export component HomeMetaChip inherits Rectangle {
+    in property <string> label;
+    in property <string> value;
+    in property <length> chip-height: 22 * LumenUiScale.unit;
+    in property <length> chip-font-size: DesignType.micro-size;
+
+    // The hero's meta chips used to be bare Rectangles in a HorizontalLayout.
+    // A Rectangle has no implicit width, so the layout stretched them into two
+    // long empty bars that read as skeleton placeholders. A chip now hugs the
+    // text it actually carries, the way the reference's pills do.
+    horizontal-stretch: 0;
+    width: chip-text.preferred-width + 18 * LumenUiScale.unit;
+    height: root.chip-height;
+    border-radius: 4 * LumenUiScale.unit;
+    background: LumenTheme.zinc-4;
+
+    chip-text := Text {
+        width: parent.width;
+        height: parent.height;
+        text: root.value == "" ? root.label : root.label + " " + root.value;
+        color: LumenTheme.text-secondary;
+        font-size: root.chip-font-size;
+        font-weight: DesignType.micro-weight;
+        font-family: DesignType.micro-family;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
+// The dashboard's live connection mini table: the owner's active connection
+// rows, the shared counters and no row the owner did not publish.
+export component HomeConnectionMiniTable inherits VerticalLayout {
+    in property <DashboardFacts> dashboard-facts;
+    in property <[ConnectionRow]> connections;
+    // One column weight unit; 48 units plus six gaps fill the row. The caller
+    // passes it from the page width, which is a one-way input and never feeds
+    // back into this table's own layout info (a `self.width` binding did form
+    // a layout loop). Header and body read the same unit, so the columns align.
+    in property <length> column-unit;
+
+    spacing: LumenTheme.space-2;
+    alignment: start;
+
+    HorizontalLayout {
+        spacing: LumenTheme.space-2;
+        height: 28 * LumenUiScale.unit;
+        // Tab 1: 实时连接 (active pill)
+        Rectangle {
+            height: 28 * LumenUiScale.unit;
+            border-radius: 14 * LumenUiScale.unit;
+            background: LumenTheme.is-dark ? #2563EB : LumenTheme.accent;
+            width: conn-tab-text.preferred-width + 24 * LumenUiScale.unit;
+            conn-tab-text := Text {
+                width: parent.width;
+                height: parent.height;
+                text: root.dashboard-facts.connection-count + " " + @tr("实时连接");
+                color: LumenTheme.accent-foreground;
+                font-size: DesignType.caption-size;
+                font-weight: DesignType.labelStrong-weight;
+                font-family: DesignType.caption-family;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+        // Tab 2: 最近请求
+        Rectangle {
+            height: 28 * LumenUiScale.unit;
+            border-radius: 14 * LumenUiScale.unit;
+            background: LumenTheme.zinc-4;
+            width: req-tab-text.preferred-width + 24 * LumenUiScale.unit;
+            req-tab-text := Text {
+                width: parent.width;
+                height: parent.height;
+                text: root.dashboard-facts.request-count + " " + @tr("最近请求");
+                color: LumenTheme.text-secondary;
+                font-size: DesignType.caption-size;
+                font-weight: DesignType.caption-weight;
+                font-family: DesignType.caption-family;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+        // Tab 3: DNS 查询
+        Rectangle {
+            height: 28 * LumenUiScale.unit;
+            border-radius: 14 * LumenUiScale.unit;
+            background: LumenTheme.zinc-4;
+            width: dns-tab-text.preferred-width + 24 * LumenUiScale.unit;
+            dns-tab-text := Text {
+                width: parent.width;
+                height: parent.height;
+                text: root.dashboard-facts.dns-query-count + " " + @tr("DNS查询");
+                font-family: DesignType.caption-family;
+                font-size: DesignType.caption-size;
+                font-weight: DesignType.caption-weight;
+                color: LumenTheme.text-secondary;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+        Rectangle { horizontal-stretch: 1; background: transparent; }
+        // Badge: TCP / UDP counts matching FlClash
+        Rectangle {
+            height: 24 * LumenUiScale.unit;
+            border-radius: 6 * LumenUiScale.unit;
+            background: LumenTheme.zinc-4;
+            y: (parent.height - self.height) / 2;
+            width: tcp-count-text.preferred-width + 16 * LumenUiScale.unit;
+            tcp-count-text := Text {
+                width: parent.width;
+                height: parent.height;
+                text: "TCP " + root.dashboard-facts.connection-count;
+                font-family: DesignType.mono-family;
+                font-size: DesignType.micro-size;
+                font-weight: DesignType.micro-weight;
+                color: LumenTheme.text-secondary;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+    }
+    // The reference renders live connections as a real table: source,
+    // destination, protocol, outbound, download, upload, duration. Every
+    // column has one fixed width, shared by the header and every row, so
+    // the column edges cannot drift with the text inside them. The unit is
+    // passed in by the caller from the card width rather than bound to this
+    // component's own width (which would form a layout binding loop).
+    // The duration stays the honest unknown until the owner publishes a
+    // time base; the column is kept so the table will not reflow.
+    HorizontalLayout {
+        padding-left: 10 * LumenUiScale.unit;
+        padding-right: 10 * LumenUiScale.unit;
+        spacing: LumenTheme.space-2;
+        height: 22 * LumenUiScale.unit;
+        Text { text: @tr("来源"); color: LumenTheme.text-secondary; font-size: DesignType.micro-size; font-weight: DesignType.micro-weight; font-family: DesignType.micro-family; width: root.column-unit * 8; overflow: elide; }
+        Text { text: @tr("目标"); color: LumenTheme.text-secondary; font-size: DesignType.micro-size; font-weight: DesignType.micro-weight; font-family: DesignType.micro-family; width: root.column-unit * 16; overflow: elide; }
+        Text { text: @tr("协议"); color: LumenTheme.text-secondary; font-size: DesignType.micro-size; font-weight: DesignType.micro-weight; font-family: DesignType.micro-family; width: root.column-unit * 3; overflow: elide; }
+        Text { text: @tr("出口"); color: LumenTheme.text-secondary; font-size: DesignType.micro-size; font-weight: DesignType.micro-weight; font-family: DesignType.micro-family; width: root.column-unit * 5; overflow: elide; }
+        Text { text: @tr("下载"); color: LumenTheme.text-secondary; font-size: DesignType.micro-size; font-weight: DesignType.micro-weight; font-family: DesignType.micro-family; width: root.column-unit * 6; horizontal-alignment: right; overflow: elide; }
+        Text { text: @tr("上传"); color: LumenTheme.text-secondary; font-size: DesignType.micro-size; font-weight: DesignType.micro-weight; font-family: DesignType.micro-family; width: root.column-unit * 6; horizontal-alignment: right; overflow: elide; }
+        Text { text: @tr("时长"); color: LumenTheme.text-secondary; font-size: DesignType.micro-size; font-weight: DesignType.micro-weight; font-family: DesignType.micro-family; width: root.column-unit * 4; horizontal-alignment: right; overflow: elide; }
+    }
+    Rectangle { height: 1 * LumenUiScale.unit; background: LumenTheme.border.with_alpha(15%); }
+    for connection in root.connections: Rectangle {
+        height: 30 * LumenUiScale.unit;
+        border-radius: 6 * LumenUiScale.unit;
+        background: LumenTheme.zinc-2;
+        border-width: 1 * LumenUiScale.unit;
+        border-color: LumenTheme.hairline-glow;
+        HorizontalLayout {
+            padding-left: 10 * LumenUiScale.unit;
+            padding-right: 10 * LumenUiScale.unit;
+            spacing: LumenTheme.space-2;
+            height: parent.height;
+            Text { text: connection.source; color: LumenTheme.text-secondary; font-size: DesignType.mono-size; font-weight: DesignType.mono-weight; font-family: DesignType.mono-family; width: root.column-unit * 8; height: parent.height; vertical-alignment: center; overflow: elide; }
+            Text { text: connection.destination; color: LumenTheme.text-primary; font-size: DesignType.mono-size; font-weight: DesignType.mono-weight; font-family: DesignType.mono-family; width: root.column-unit * 16; height: parent.height; vertical-alignment: center; overflow: elide; }
+            Text { text: connection.protocol; color: LumenTheme.text-secondary; font-size: DesignType.micro-size; font-weight: DesignType.micro-weight; font-family: DesignType.micro-family; width: root.column-unit * 3; height: parent.height; vertical-alignment: center; overflow: elide; }
+            Text { text: connection.outbound; color: LumenTheme.text-secondary; font-size: DesignType.micro-size; font-weight: DesignType.micro-weight; font-family: DesignType.micro-family; width: root.column-unit * 5; height: parent.height; vertical-alignment: center; overflow: elide; }
+            Text { text: connection.download; color: LumenTheme.text-secondary; font-size: DesignType.mono-size; font-weight: DesignType.mono-weight; font-family: DesignType.mono-family; width: root.column-unit * 6; height: parent.height; vertical-alignment: center; horizontal-alignment: right; overflow: elide; }
+            Text { text: connection.upload; color: LumenTheme.text-secondary; font-size: DesignType.mono-size; font-weight: DesignType.mono-weight; font-family: DesignType.mono-family; width: root.column-unit * 6; height: parent.height; vertical-alignment: center; horizontal-alignment: right; overflow: elide; }
+            Text { text: connection.duration; color: LumenTheme.text-secondary; font-size: DesignType.mono-size; font-weight: DesignType.mono-weight; font-family: DesignType.mono-family; width: root.column-unit * 4; height: parent.height; vertical-alignment: center; horizontal-alignment: right; overflow: elide; }
+        }
+    }
+    if root.connections.length == 0: Text {
+        text: @tr("暂无实时连接");
+        color: LumenTheme.text-muted;
+        font-size: DesignType.micro-size;
+        font-weight: DesignType.micro-weight;
+        font-family: DesignType.micro-family;
+    }
+    Rectangle { height: 1 * LumenUiScale.unit; background: LumenTheme.border.with_alpha(15%); }
+}
+
+// One pill of the outbound-mode selector. The selection is the owner's
+// routing intent, never a local bit: the pill only reads `selected` and only
+// reports a tap.
+component HomeRouteModePill inherits Rectangle {
+    in property <string> label;
+    in property <bool> selected: false;
+    in property <bool> enabled: true;
+    in property <length> pill-width: 58 * LumenUiScale.unit;
+    in property <length> pill-height: 30 * LumenUiScale.unit;
+    in property <length> font-size: DesignType.caption-size;
+    callback clicked();
+
+    width: root.pill-width;
+    height: root.pill-height;
+    border-radius: root.pill-height / 2;
+    background: root.selected
+        ? LumenTheme.accent
+        : (touch.has-hover && root.enabled ? LumenTheme.zinc-3 : transparent);
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-action-default => { if root.enabled { root.clicked(); } }
+
+    Text {
+        text: root.label;
+        color: root.selected ? LumenTheme.accent-foreground : LumenTheme.text-secondary;
+        font-size: root.font-size;
+        font-weight: DesignType.caption-weight;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+    }
+    touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? pointer : default;
+        clicked => { if root.enabled { root.clicked(); } }
+    }
+}
+
+// The dashboard's outbound-mode selector. Both the compact flow and the
+// desktop grid mount this one component so a tap always submits the shared
+// typed route-mode intent; a surface can no longer render the three pills as
+// decoration while the other wires them.
+export component HomeRouteModePills inherits Rectangle {
+    in property <RouteMode> route-mode;
+    in property <bool> enabled: true;
+    in property <length> pill-width: 58 * LumenUiScale.unit;
+    in property <length> pill-height: 30 * LumenUiScale.unit;
+    in property <length> font-size: DesignType.caption-size;
+    callback select(RouteMode);
+
+    // Three pills plus the two 2px gaps and the 2px inset on each side.
+    // Without an explicit width the Rectangle shrank to its parent's spare
+    // space and the third pill was clipped: the selector looked like a
+    // two-option control even though the owner publishes three modes.
+    width: 3 * root.pill-width + 8 * LumenUiScale.unit;
+    height: root.pill-height + 4 * LumenUiScale.unit;
+    border-radius: (root.pill-height + 4 * LumenUiScale.unit) / 2;
+    background: LumenTheme.zinc-4;
+
+    HorizontalLayout {
+        x: 2 * LumenUiScale.unit;
+        y: 2 * LumenUiScale.unit;
+        width: parent.width - 4 * LumenUiScale.unit;
+        height: parent.height - 4 * LumenUiScale.unit;
+        spacing: 2 * LumenUiScale.unit;
+        HomeRouteModePill {
+            label: @tr("规则");
+            selected: root.route-mode == RouteMode.rule;
+            enabled: root.enabled;
+            pill-width: root.pill-width;
+            pill-height: root.pill-height;
+            font-size: root.font-size;
+            clicked => { root.select(RouteMode.rule); }
+        }
+        HomeRouteModePill {
+            label: @tr("全局");
+            selected: root.route-mode == RouteMode.global;
+            enabled: root.enabled;
+            pill-width: root.pill-width;
+            pill-height: root.pill-height;
+            font-size: root.font-size;
+            clicked => { root.select(RouteMode.global); }
+        }
+        HomeRouteModePill {
+            label: @tr("直连");
+            selected: root.route-mode == RouteMode.direct;
+            enabled: root.enabled;
+            pill-width: root.pill-width;
+            pill-height: root.pill-height;
+            font-size: root.font-size;
+            clicked => { root.select(RouteMode.direct); }
+        }
+    }
+}
+
+// One tile of the policy grid: the group's own avatar, its name, and the
+// outbound the owner currently selected for it, with that node's flag.
+component HomePolicyGroupTile inherits Rectangle {
+    in property <ProxyGroup> group;
+    in property <length> tile-height: 44 * LumenUiScale.unit;
+    callback clicked();
+
+    height: root.tile-height;
+    border-radius: 10 * LumenUiScale.unit;
+    background: touch.has-hover ? LumenTheme.zinc-3 : LumenTheme.zinc-4;
+    border-width: 1 * LumenUiScale.unit;
+    border-color: LumenTheme.hairline-glow;
+    accessible-role: button;
+    accessible-label: root.group.name;
+    accessible-action-default => { root.clicked(); }
+
+    HorizontalLayout {
+        x: 8 * LumenUiScale.unit;
+        width: max(0 * LumenUiScale.unit, parent.width - 16 * LumenUiScale.unit);
+        spacing: 8 * LumenUiScale.unit;
+        Rectangle {
+            width: 26 * LumenUiScale.unit; height: 26 * LumenUiScale.unit;
+            border-radius: 13 * LumenUiScale.unit;
+            background: LumenTheme.zinc-3;
+            y: (parent.height - self.height) / 2;
+            Text {
+                text: root.group.icon-emoji != "" ? root.group.icon-emoji : root.group.name;
+                font-size: DesignType.micro-size;
+                font-weight: DesignType.micro-weight;
+                color: LumenTheme.text-primary;
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                overflow: elide;
+            }
+        }
+        VerticalLayout {
+            horizontal-stretch: 1;
+            spacing: 1 * LumenUiScale.unit;
+            alignment: center;
+            Text {
+                text: root.group.name;
+                font-size: DesignType.caption-size;
+                font-weight: DesignType.caption-weight;
+                color: LumenTheme.text-primary;
+                overflow: elide;
+            }
+            HorizontalLayout {
+                spacing: 4 * LumenUiScale.unit;
+                if root.group.current-flag-index >= 0: FlagIcon {
+                    index: root.group.current-flag-index;
+                    country-code: root.group.current-flag-code;
+                    diameter: 12 * LumenUiScale.unit;
+                    y: (parent.height - self.height) / 2;
+                }
+                Text {
+                    text: root.group.current;
+                    font-size: DesignType.tag-size;
+                    color: LumenTheme.text-secondary;
+                    vertical-alignment: center;
+                    overflow: elide;
+                    horizontal-stretch: 1;
+                }
+            }
+        }
+    }
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+// The dashboard's policy group quick grid: the owner's published groups and
+// their currently selected outbound, never a hardcoded group list. Two
+// columns on every surface, so a long group list reads as a grid instead of
+// one squeezed row, and a tile opens that group.
+export component HomePolicyGroupGrid inherits VerticalLayout {
+    in property <[ProxyGroup]> proxy-groups;
+    in property <length> tile-height: 44 * LumenUiScale.unit;
+    in property <bool> show-header: true;
+    in property <image> header-icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/list-checks.svg");
+    callback select-group(string);
+
+    spacing: LumenTheme.space-2;
+    alignment: start;
+
+    if root.show-header: HorizontalLayout {
+        AppCardHeader {
+            title: @tr("策略组");
+            icon: root.header-icon;
+            trailing: "" + root.proxy-groups.length;
+            trailing-color: LumenTheme.accent;
+            chevron: true;
+            horizontal-stretch: 1;
+        }
+    }
+    GridLayout {
+        spacing: LumenTheme.space-2;
+        for group[index] in root.proxy-groups: HomePolicyGroupTile {
+            col: Math.mod(index, 2);
+            row: index / 2;
+            tile-height: root.tile-height;
+            group: group;
+            clicked => { root.select-group(group.name); }
+        }
+    }
+}

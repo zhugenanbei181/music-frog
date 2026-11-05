@@ -53,15 +53,15 @@ fn test_dns_page_mounting_and_default_state() {
     ));
     assert!(subtree_has_text(app.world(), root, "虚拟 IP (Fake-IP)"));
     assert!(subtree_has_text(app.world(), root, "真实 IP (Redir-Host)"));
-    assert!(subtree_has_text(app.world(), root, "取消映射 (None)"));
+    assert!(subtree_has_text(app.world(), root, "取消映射"));
     assert!(subtree_has_text(
         app.world(),
         root,
         "过滤模式 (fake_ip_filter_mode)"
     ));
-    assert!(subtree_has_text(app.world(), root, "黑名单 (Blacklist)"));
-    assert!(subtree_has_text(app.world(), root, "白名单 (Whitelist)"));
-    assert!(subtree_has_text(app.world(), root, "规则 (Rules)"));
+    assert!(subtree_has_text(app.world(), root, "黑名单"));
+    assert!(subtree_has_text(app.world(), root, "白名单"));
+    assert!(subtree_has_text(app.world(), root, "规则"));
 
     let switch_count = app
         .world_mut()

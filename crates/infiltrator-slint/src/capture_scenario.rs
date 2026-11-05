@@ -477,7 +477,7 @@ impl CarriedScenario {
                 return None;
             }
             Self::OverviewCardReorder => vec![BusinessStep::MoveOverviewCard {
-                kind: "traffic",
+                kind: "metrics",
                 up: true,
             }],
             // The repair progress is the shared pending phase of the repair

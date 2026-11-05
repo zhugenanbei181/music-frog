@@ -12,12 +12,17 @@ use bevy::app::Startup;
 use bevy::color::Color;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
+use bevy::ecs::query::With;
 use bevy::ecs::system::{Commands, Res};
 use bevy::scene::{CommandsSceneExt, bsn};
 use bevy::text::TextColor;
-use bevy::ui::{BackgroundColor, BorderColor, BorderRadius, Node, PositionType, UiRect, Val};
+use bevy::time::TimeUpdateStrategy;
+use bevy::ui::{
+    BackgroundColor, BorderColor, BorderRadius, Node, PositionType, UiRect, UiTransform, Val,
+};
 use infiltrator_bevy_widgets::button::{ControlVisual, pill_scene};
 use infiltrator_bevy_widgets::checkbox::checkbox_scene;
+use infiltrator_bevy_widgets::motion::UiMotionPreference;
 use infiltrator_bevy_widgets::palette::{UiPalette, rem};
 use infiltrator_bevy_widgets::switch::{
     SWITCH_KNOB_OFF_OFFSET_PX, SWITCH_KNOB_ON_OFFSET_PX, SWITCH_KNOB_SIZE_PX,
@@ -25,6 +30,7 @@ use infiltrator_bevy_widgets::switch::{
     SwitchTrack, ThemeSwitch, switch_control_scene, switch_knob_scene, switch_track_scene,
 };
 use infiltrator_bevy_widgets::theme::{Theme, ThemeSkin};
+use std::time::Duration;
 
 #[test]
 fn switch_to_light_rethemes_the_mounted_tree_in_place() {
@@ -343,4 +349,109 @@ fn switch_control_knob_follows_the_typed_position_without_a_surface_offset() {
         rem(SWITCH_KNOB_ON_OFFSET_PX),
         "the shared control moved the knob; no surface computed the offset"
     );
+}
+
+/// A typed flip glides through `UiTransform`; the node's rest offset is the
+/// target immediately, so a moving knob never changes the layout box.
+#[test]
+fn a_typed_flip_glides_the_knob_and_settles_at_the_new_rest() {
+    let mut app = headless_app();
+    app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(
+        16,
+    )));
+    app.add_systems(
+        Startup,
+        |mut commands: Commands, palette: Res<UiPalette>| {
+            commands.spawn_scene(switch_control_scene(
+                &palette,
+                SwitchColors {
+                    track_fill: palette.surface_elevated,
+                    track_edge: palette.border,
+                    knob_fill: palette.ink_dim,
+                },
+                SwitchPosition::Off,
+            ));
+        },
+    );
+    app.update();
+
+    let knob = app
+        .world_mut()
+        .query_filtered::<Entity, With<SwitchKnob>>()
+        .single(app.world())
+        .expect("one knob mounted");
+    app.world_mut()
+        .entity_mut(knob)
+        .insert(SwitchKnob(SwitchPosition::On));
+    app.update();
+
+    let transform = *app
+        .world()
+        .get::<UiTransform>(knob)
+        .expect("knob transform");
+    let node = app.world().get::<Node>(knob).expect("knob node");
+    assert_eq!(
+        node.left,
+        rem(SWITCH_KNOB_ON_OFFSET_PX),
+        "rest follows state"
+    );
+    assert_ne!(
+        transform.translation.x,
+        Val::ZERO,
+        "the first frame travels"
+    );
+    assert!(
+        matches!(transform.translation.x, Val::Rem(offset) if offset < 0.0),
+        "the knob glides from the old rest toward the new one"
+    );
+
+    for _ in 0..60 {
+        app.update();
+    }
+    let transform = *app
+        .world()
+        .get::<UiTransform>(knob)
+        .expect("knob transform");
+    assert_eq!(transform.translation.x, Val::ZERO, "the glide settles");
+    assert_eq!(transform.translation.y, Val::ZERO);
+}
+
+/// Reduced motion still resolves to the same typed rest, without travel.
+#[test]
+fn reduced_motion_snaps_the_knob_to_its_typed_rest() {
+    let mut app = headless_app();
+    app.insert_resource(UiMotionPreference::Reduced);
+    app.add_systems(
+        Startup,
+        |mut commands: Commands, palette: Res<UiPalette>| {
+            commands.spawn_scene(switch_control_scene(
+                &palette,
+                SwitchColors {
+                    track_fill: palette.surface_elevated,
+                    track_edge: palette.border,
+                    knob_fill: palette.ink_dim,
+                },
+                SwitchPosition::Off,
+            ));
+        },
+    );
+    app.update();
+
+    let knob = app
+        .world_mut()
+        .query_filtered::<Entity, With<SwitchKnob>>()
+        .single(app.world())
+        .expect("one knob mounted");
+    app.world_mut()
+        .entity_mut(knob)
+        .insert(SwitchKnob(SwitchPosition::On));
+    app.update();
+
+    let transform = *app
+        .world()
+        .get::<UiTransform>(knob)
+        .expect("knob transform");
+    let node = app.world().get::<Node>(knob).expect("knob node");
+    assert_eq!(node.left, rem(SWITCH_KNOB_ON_OFFSET_PX));
+    assert_eq!(transform.translation.x, Val::ZERO, "no decorative travel");
 }

@@ -10,11 +10,12 @@
 //! close request — the product owns the typed stage and moves it through
 //! typed transitions.
 
+use crate::feathers_theme::Token;
 use crate::modal::ModalStage;
 use crate::palette::UiPalette;
 use crate::palette::rem;
 use crate::responsive::{ModalForm, ResponsiveContext};
-use crate::text::{Role, TextRole};
+use crate::text::TextRole;
 use crate::theme::{radius, space};
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
@@ -26,22 +27,34 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::{With, Without};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
-use bevy::feathers::theme::{SurfaceLevel, ThemeContext};
+use bevy::feathers::theme::{SurfaceLevel, ThemeBackgroundColor, ThemeContext};
 use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::input_focus::{AcquireFocus, FocusCause, InputFocus};
+use bevy::picking::events::{PointerDrag, PointerDragEnd, PointerDragStart};
 use bevy::scene::{Scene, bsn, on};
-use bevy::ui::FixedNode;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderColor, BorderRadius, Display, FlexDirection, JustifyContent,
     Node, Overflow, PositionType, UiRect, Val, percent, px,
 };
 use bevy::ui::widget::Text;
+use bevy::ui::{FixedNode, UiTransform, Val2};
 use bevy::ui_widgets::{Activate, Button, ModalDialog, ModalDialogBarrier, RequestClose};
 use bevy::window::PrimaryWindow;
+use infiltrator_contract::design_resources;
+
 use std::ops::Not;
 
 /// The centered-dialog card's fixed width in baseline pixels.
 const ADAPTIVE_MODAL_CARD_WIDTH_PX: f32 = 480.0;
+
+/// The ActionSheet drag affordance's hit area, in baseline pixels.
+const MODAL_SWIPE_HANDLE_WIDTH_PX: f32 = 56.0;
+const MODAL_SWIPE_HANDLE_HEIGHT_PX: f32 = 20.0;
+/// The visible drag indicator inside the larger touch hit area.
+const MODAL_SWIPE_INDICATOR_WIDTH_PX: f32 = 32.0;
+const MODAL_SWIPE_INDICATOR_HEIGHT_PX: f32 = 4.0;
+/// The downward travel that resolves a drag as a dismiss gesture.
+const MODAL_SWIPE_CLOSE_THRESHOLD_PX: f32 = 72.0;
 
 /// State tracking the adaptive modal's typed stage and its presentation form.
 ///
@@ -136,6 +149,13 @@ pub struct ModalCard;
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ModalCloseButton;
 
+/// Marker on the ActionSheet's bottom-sheet drag handle.
+///
+/// The handle is the gesture affordance; the official `RequestClose` still
+/// owns the dismissal, so a swipe cannot create a second close pathway.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ModalSwipeHandle;
+
 /// Event to request opening the adaptive modal.
 #[derive(Event, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct OpenModal;
@@ -198,14 +218,32 @@ pub fn adaptive_modal_scene(
                 BorderColor { top: edge, right: edge, bottom: edge, left: edge }
                 ModalCard
                 ModalDialog
+                UiTransform
                 Children [
+                    Node {
+                        width: rem(MODAL_SWIPE_HANDLE_WIDTH_PX),
+                        height: rem(MODAL_SWIPE_HANDLE_HEIGHT_PX),
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::Center,
+                        display: Display::None,
+                    }
+                    ModalSwipeHandle
+                    Children [
+                        Node {
+                            width: rem(MODAL_SWIPE_INDICATOR_WIDTH_PX),
+                            height: rem(MODAL_SWIPE_INDICATOR_HEIGHT_PX),
+                            border_radius: BorderRadius::MAX,
+                        }
+                        ThemeBackgroundColor({ Token::Border })
+                    ]
+                    --
                     Node {
                         width: percent(100),
                         align_items: AlignItems::Center,
                         justify_content: JustifyContent::SpaceBetween,
                     }
                     Children [
-                        Text(title) TextRole(Role::Heading)
+                        Text(title) TextRole(design_resources::TextRole::Heading)
                         --
                         Node {
                             align_items: AlignItems::Center,
@@ -220,7 +258,7 @@ pub fn adaptive_modal_scene(
                             commands.trigger(RequestClose { source: activate.entity });
                         })
                         Children [
-                            Text(close_label) TextRole(Role::BodyStrong)
+                            Text(close_label) TextRole(design_resources::TextRole::BodyStrong)
                         ]
                     ]
                     --
@@ -238,6 +276,93 @@ pub fn adaptive_modal_scene(
                 ]
             ]
     })
+}
+
+/// The card that owns a swipe gesture, found through the handle's parent.
+fn modal_card_for_handle(
+    target: Entity,
+    parents: &Query<&ChildOf>,
+    handles: &Query<(), With<ModalSwipeHandle>>,
+    cards: &Query<(), With<ModalCard>>,
+) -> Option<Entity> {
+    let mut owns_handle = false;
+    let mut current = Some(target);
+    while let Some(entity) = current {
+        if handles.contains(entity) {
+            owns_handle = true;
+        }
+        if owns_handle && cards.contains(entity) {
+            return Some(entity);
+        }
+        current = parents.get(entity).ok().map(|parent| parent.parent());
+    }
+    None
+}
+
+/// Reset the sheet's drag offset when a swipe begins.
+pub fn on_modal_swipe_drag_start(
+    drag_start: On<PointerDragStart>,
+    mut cards: Query<&mut UiTransform, With<ModalCard>>,
+    parents: Query<&ChildOf>,
+    handles: Query<(), With<ModalSwipeHandle>>,
+    card_markers: Query<(), With<ModalCard>>,
+) {
+    let Some(card) =
+        modal_card_for_handle(drag_start.event_target(), &parents, &handles, &card_markers)
+    else {
+        return;
+    };
+    if let Ok(mut transform) = cards.get_mut(card)
+        && transform.translation != Val2::ZERO
+    {
+        transform.translation = Val2::ZERO;
+    }
+}
+
+/// Follow the drag downward; upward movement stays pinned to the origin.
+pub fn on_modal_swipe_drag(
+    drag: On<PointerDrag>,
+    mut cards: Query<&mut UiTransform, With<ModalCard>>,
+    parents: Query<&ChildOf>,
+    handles: Query<(), With<ModalSwipeHandle>>,
+    card_markers: Query<(), With<ModalCard>>,
+) {
+    let Some(card) = modal_card_for_handle(drag.event_target(), &parents, &handles, &card_markers)
+    else {
+        return;
+    };
+    let target_y = drag.distance.y.max(0.0);
+    if let Ok(mut transform) = cards.get_mut(card)
+        && transform.translation != Val2::new(Val::ZERO, rem(target_y))
+    {
+        transform.translation = Val2::new(Val::ZERO, rem(target_y));
+    }
+}
+
+/// Resolve the drag: past the threshold the official close pathway runs.
+pub fn on_modal_swipe_drag_end(
+    drag_end: On<PointerDragEnd>,
+    mut commands: Commands,
+    mut cards: Query<&mut UiTransform, With<ModalCard>>,
+    parents: Query<&ChildOf>,
+    handles: Query<(), With<ModalSwipeHandle>>,
+    card_markers: Query<(), With<ModalCard>>,
+) {
+    let Some(card) =
+        modal_card_for_handle(drag_end.event_target(), &parents, &handles, &card_markers)
+    else {
+        return;
+    };
+    let should_close = drag_end.distance.y >= MODAL_SWIPE_CLOSE_THRESHOLD_PX
+        && drag_end.distance.y > drag_end.distance.x.abs();
+    if let Ok(mut transform) = cards.get_mut(card)
+        && transform.translation != Val2::ZERO
+    {
+        transform.translation = Val2::ZERO;
+    }
+    if should_close {
+        commands.trigger(RequestClose { source: card });
+    }
 }
 
 /// The official close request reaches the adaptive layer's own close path.
@@ -275,7 +400,22 @@ pub fn on_modal_close(_trigger: On<CloseModal>, mut state: Option<ResMut<ModalSt
 /// System to sync ModalRoot visibility and ModalCard morphology (ActionSheet vs Centered Dialog).
 /// The adaptive modal's own roots: the modal card is excluded, so the
 /// morphology system and the card's own system never fight over a node.
-type AdaptiveModalRootFilter = (With<AdaptiveModalRoot>, Without<ModalCard>);
+type ModalCardMorphologyFilter = (
+    With<ModalCard>,
+    Without<AdaptiveModalRoot>,
+    Without<ModalSwipeHandle>,
+);
+type ModalSwipeHandleMorphologyFilter = (
+    With<ModalSwipeHandle>,
+    Without<ModalCard>,
+    Without<AdaptiveModalRoot>,
+);
+
+type AdaptiveModalRootFilter = (
+    With<AdaptiveModalRoot>,
+    Without<ModalCard>,
+    Without<ModalSwipeHandle>,
+);
 
 /// The lookups the morphology system reads while it morphs the modal.
 ///
@@ -290,16 +430,18 @@ pub struct AdaptiveModalLookups<'w, 's> {
     closes: Query<'w, 's, Entity, With<ModalCloseButton>>,
     /// The window the modal lives in.
     windows: Query<'w, 's, Entity, With<PrimaryWindow>>,
+    /// The ActionSheet drag affordance, shown only in the bottom-sheet form.
+    swipe_handles: Query<'w, 's, &'static mut Node, ModalSwipeHandleMorphologyFilter>,
 }
 
 pub fn sync_adaptive_modal_morphology(
     ctx: Option<Res<ResponsiveContext>>,
     state: Option<Res<ModalState>>,
     mut roots: Query<(Entity, &mut Node), AdaptiveModalRootFilter>,
-    mut cards: Query<&mut Node, (With<ModalCard>, Without<AdaptiveModalRoot>)>,
+    mut cards: Query<&mut Node, ModalCardMorphologyFilter>,
     mut commands: Commands,
     mut focus: ResMut<InputFocus>,
-    lookups: AdaptiveModalLookups,
+    mut lookups: AdaptiveModalLookups,
 ) {
     let is_open = state.as_ref().is_some_and(|s| s.is_presented());
     let form = ctx
@@ -324,6 +466,17 @@ pub fn sync_adaptive_modal_morphology(
                 root.justify_content = JustifyContent::Center;
                 root.align_items = AlignItems::Center;
             }
+        }
+    }
+
+    let handle_display = if is_open && form == ModalForm::ActionSheet {
+        Display::Flex
+    } else {
+        Display::None
+    };
+    for mut handle in &mut lookups.swipe_handles {
+        if handle.display != handle_display {
+            handle.display = handle_display;
         }
     }
 

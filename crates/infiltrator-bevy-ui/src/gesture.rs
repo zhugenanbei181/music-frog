@@ -27,10 +27,11 @@
 //! Zero is only the initial value before the host's first observation arrives.
 
 use crate::command::{CommandSinkHandle, UiCommand};
-use crate::host_capabilities::{HostPreferenceIntent, MotionPreference};
+use crate::host_capabilities::{HostPreferenceIntent, HostPreferences, MotionPreference};
 use crate::pages::outbound_batch_probe::{OutboundBatchProbeReadback, submit_batch};
 use crate::route::{ActiveRoute, Route};
 use crate::surface::LatestSurfaceSnapshot;
+use bevy::app::Startup;
 use bevy::app::{App, Plugin, Update};
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
@@ -54,7 +55,7 @@ use infiltrator_bevy_widgets::gesture::{
 use infiltrator_bevy_widgets::localization::{
     LocaleCopySet, LocalizedText, WidgetLocalizationPlugin,
 };
-use infiltrator_bevy_widgets::scrollarea::ScrollMotionPreference;
+use infiltrator_bevy_widgets::motion::UiMotionPreference;
 use infiltrator_contract::shell_gesture::{
     GesturePoint, GestureSemanticEvent, GestureSnapshot, GestureTouchPhase, PullPhase,
     SafeAreaInsets, TouchGestureSupport,
@@ -314,24 +315,48 @@ impl Plugin for ShellGesturePlugin {
                 )
                     .chain(),
             )
-            .add_observer(sync_scroll_motion_preference);
+            .add_observer(sync_scroll_motion_preference)
+            .add_systems(Startup, sync_initial_motion_preference);
     }
 }
 
 /// Map the shell's typed host accessibility preference to scroll physics.
 fn sync_scroll_motion_preference(
     intent: On<HostPreferenceIntent>,
-    preference: Option<ResMut<ScrollMotionPreference>>,
+    preference: Option<ResMut<UiMotionPreference>>,
 ) {
     let Some(mut preference) = preference else {
         return;
     };
     let next = match intent.0.effective_motion() {
-        MotionPreference::Reduced => ScrollMotionPreference::Reduced,
-        MotionPreference::Standard => ScrollMotionPreference::Full,
+        MotionPreference::Reduced => UiMotionPreference::Reduced,
+        MotionPreference::Standard => UiMotionPreference::Full,
     };
     if *preference != next {
         *preference = next;
+    }
+}
+
+/// Seed the widgets' shared motion preference from the shell's authoritative
+/// host preferences at startup. A host that inserts a reduced-motion default
+/// (capture/demo fixtures do) therefore never animates decorative travel,
+/// even when it does not emit a change intent.
+fn sync_initial_motion_preference(
+    preferences: Option<Res<HostPreferences>>,
+    mut motion: Option<ResMut<UiMotionPreference>>,
+) {
+    let Some(preferences) = preferences.as_deref() else {
+        return;
+    };
+    let Some(motion) = motion.as_deref_mut() else {
+        return;
+    };
+    let next = match preferences.effective_motion() {
+        MotionPreference::Reduced => UiMotionPreference::Reduced,
+        MotionPreference::Standard => UiMotionPreference::Full,
+    };
+    if *motion != next {
+        *motion = next;
     }
 }
 

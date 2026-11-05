@@ -460,6 +460,29 @@ detekt {
 
 androidComponents {
     onVariants { variant ->
+        val sharedFontTask = tasks.register<GenerateSharedFonts>(
+            "generate${variant.name.replaceFirstChar { it.uppercase() }}SharedFonts",
+        ) {
+            sharedFontDirectory.set(
+                rootProject.layout.projectDirectory.dir("../crates/infiltrator-shared/assets/fonts"),
+            )
+            fontNames.set(
+                listOf(
+                    "inter_regular.ttf",
+                    "inter_medium.ttf",
+                    "inter_semibold.ttf",
+                    "jetbrains_mono_regular.ttf",
+                    "cjk_regular.ttf",
+                ),
+            )
+            outputDirectory.set(
+                layout.buildDirectory.dir("generated/sharedFonts/${variant.name}/res"),
+            )
+        }
+        variant.sources.res?.addGeneratedSourceDirectory(
+            sharedFontTask,
+            GenerateSharedFonts::getOutputDirectory,
+        )
         val product =
             variant.productFlavors
                 .singleOrNull { (dimension, _) -> dimension == "surface" }
@@ -627,7 +650,6 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.13.0")
     implementation("androidx.compose.material3:material3-window-size-class")
     implementation("androidx.compose.material3:material3")
-    implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     debugImplementation("androidx.compose.ui:ui-tooling")

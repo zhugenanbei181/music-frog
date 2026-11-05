@@ -1,3 +1,4 @@
+import { DesignType } from "../components/design-type.slint";
 import { CheckBox } from "std-widgets.slint";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "../components/theme.slint";
@@ -34,7 +35,7 @@ export component PageConnections inherits VerticalLayout {
     SectionCard {
         heading: @tr("连接");
         detail: root.connection-show-closed ? @tr("MusicFrog 本次运行中观察到的已关闭连接；最多保留 500 条。") : (root.runtime-status == RuntimeStatus.running ? @tr("本地 Mihomo 活动连接；最多显示 500 条。") : @tr("Runtime 未运行；不显示缓存数据作为实时状态。"));
-        if root.snapshot-window-warning != "": Text { text: root.snapshot-window-warning; color: LumenTheme.ping-warning; font-size: 13 * LumenUiScale.unit; wrap: word-wrap; }
+        if root.snapshot-window-warning != "": Text { text: root.snapshot-window-warning; color: LumenTheme.ping-warning; font-size: DesignType.mono-size; wrap: word-wrap; }
 
         // View switcher pills + refresh
         HorizontalLayout {
@@ -160,8 +161,8 @@ export component PageConnections inherits VerticalLayout {
                         Text {
                             text: row.title;
                             color: LumenTheme.text-primary;
-                            font-size: 12 * LumenUiScale.unit;
-                            font-weight: 600;
+                            font-size: DesignType.caption-size;
+                            font-weight: DesignType.caption-weight;
                             vertical-alignment: center;
                         }
                     }
@@ -180,7 +181,7 @@ export component PageConnections inherits VerticalLayout {
                         Text {
                             text: row.subtitle;
                             color: LumenTheme.text-secondary;
-                            font-size: 12 * LumenUiScale.unit;
+                            font-size: DesignType.caption-size;
                             vertical-alignment: center;
                             overflow: elide;
                         }
@@ -194,8 +195,8 @@ export component PageConnections inherits VerticalLayout {
                         width: parent.width;
                         text: row.trailing;
                         color: LumenTheme.text-secondary;
-                        font-size: 12 * LumenUiScale.unit;
-                        font-family: LumenTheme.mono-family;
+                        font-size: DesignType.caption-size;
+                        font-family: DesignType.mono-family;
                         horizontal-alignment: right;
                         vertical-alignment: center;
                     }
@@ -220,8 +221,8 @@ export component PageConnections inherits VerticalLayout {
                         Text {
                             text: row.id == root.connection-breaking-id ? @tr("打断中") : @tr("打断");
                             color: LumenTheme.error;
-                            font-size: 11 * LumenUiScale.unit;
-                            font-weight: 500;
+                            font-size: DesignType.micro-size;
+                            font-weight: DesignType.micro-weight;
                             vertical-alignment: center;
                         }
                     }
@@ -246,7 +247,7 @@ export component PageConnections inherits VerticalLayout {
                             ? (root.connection-search == "" ? @tr("尚未观察到已关闭连接") : (@tr("没有匹配到已关闭连接：") + root.connection-search))
                             : @tr("Runtime 未运行；已关闭连接不可用"));
                     color: LumenTheme.text-secondary;
-                    font-size: 13 * LumenUiScale.unit;
+                    font-size: DesignType.mono-size;
                     horizontal-alignment: center;
                 }
             }
@@ -273,7 +274,7 @@ export component PageLogs inherits VerticalLayout {
     SectionCard {
         heading: @tr("实时日志");
         detail: root.runtime-status != RuntimeStatus.running ? @tr("Runtime 未运行；不显示缓存数据作为实时状态。") : (root.log-stream-status == "正在重连" ? @tr("日志流断开，正在重连；保留最近 300 条并脱敏。") : (root.log-stream-status == "已连接" ? @tr("Mihomo 实时日志流已连接；保留最近 300 条并脱敏。") : @tr("正在连接 Mihomo 实时日志流。")));
-        if root.snapshot-window-warning != "": Text { text: root.snapshot-window-warning; color: LumenTheme.ping-warning; font-size: 13 * LumenUiScale.unit; wrap: word-wrap; }
+        if root.snapshot-window-warning != "": Text { text: root.snapshot-window-warning; color: LumenTheme.ping-warning; font-size: DesignType.mono-size; wrap: word-wrap; }
 
         // Search bar + export
         HorizontalLayout {
@@ -354,7 +355,7 @@ export component PageLogs inherits VerticalLayout {
             }
         }
 
-        if root.log-search-error != "": Text { text: root.log-search-error; color: LumenTheme.error; font-size: 13 * LumenUiScale.unit; wrap: word-wrap; }
+        if root.log-search-error != "": Text { text: root.log-search-error; color: LumenTheme.error; font-size: DesignType.mono-size; wrap: word-wrap; }
 
         for row in root.logs: HorizontalLayout {
             spacing: 6 * LumenUiScale.unit;
@@ -364,8 +365,8 @@ export component PageLogs inherits VerticalLayout {
             Text {
                 text: row.title;
                 color: LumenTheme.text-muted;
-                font-size: 11 * LumenUiScale.unit;
-                font-family: LumenTheme.mono-family;
+                font-size: DesignType.micro-size;
+                font-family: DesignType.mono-family;
             }
 
             Rectangle {
@@ -377,9 +378,9 @@ export component PageLogs inherits VerticalLayout {
                     Text {
                         text: row.subtitle;
                         color: row.subtitle == "error" ? LumenTheme.error : (row.subtitle == "warning" ? LumenTheme.status-warning : LumenTheme.text-secondary);
-                        font-size: 10 * LumenUiScale.unit;
-                        font-family: LumenTheme.mono-family;
-                        font-weight: 600;
+                        font-size: DesignType.tag-size;
+                        font-family: DesignType.mono-family;
+                        font-weight: DesignType.tag-weight;
                     }
                 }
             }
@@ -387,8 +388,8 @@ export component PageLogs inherits VerticalLayout {
             Text {
                 text: row.trailing;
                 color: LumenTheme.text-primary;
-                font-size: 12 * LumenUiScale.unit;
-                font-family: LumenTheme.mono-family;
+                font-size: DesignType.caption-size;
+                font-family: DesignType.mono-family;
                 wrap: word-wrap;
                 horizontal-stretch: 1;
             }
@@ -405,7 +406,7 @@ export component PageLogs inherits VerticalLayout {
                 Text {
                     text: root.runtime-status != RuntimeStatus.running ? @tr("Runtime 未运行，日志不可用") : (root.log-search != "" || root.log-level != LogLevel.all ? @tr("没有匹配的日志") : (root.log-stream-status == "正在重连" ? @tr("正在重连日志流") : @tr("等待 Mihomo 日志流")));
                     color: LumenTheme.text-secondary;
-                    font-size: 13 * LumenUiScale.unit;
+                    font-size: DesignType.mono-size;
                     horizontal-alignment: center;
                 }
             }
@@ -430,7 +431,7 @@ export component PageRules inherits VerticalLayout {
     SectionCard {
         heading: @tr("运行规则");
         detail: root.runtime-status == RuntimeStatus.running ? @tr("核心运行规则；启停仅影响当前会话，重启后恢复配置值。") : @tr("Runtime 未运行；不显示缓存数据作为实时状态。");
-        if root.snapshot-window-warning != "": Text { text: root.snapshot-window-warning; color: LumenTheme.ping-warning; font-size: 13 * LumenUiScale.unit; wrap: word-wrap; }
+        if root.snapshot-window-warning != "": Text { text: root.snapshot-window-warning; color: LumenTheme.ping-warning; font-size: DesignType.mono-size; wrap: word-wrap; }
 
         // Search bar + refresh pill
         HorizontalLayout {
@@ -470,7 +471,7 @@ export component PageRules inherits VerticalLayout {
                 Text {
                     text: row.title + "  ·  " + row.subtitle;
                     color: LumenTheme.text-primary;
-                    font-size: 13 * LumenUiScale.unit;
+                    font-size: DesignType.mono-size;
                     horizontal-stretch: 1;
                     vertical-alignment: center;
                     overflow: elide;
@@ -500,8 +501,8 @@ export component PageRules inherits VerticalLayout {
                         badge-txt := Text {
                             text: row.trailing;
                             color: LumenTheme.text-secondary;
-                            font-size: 11 * LumenUiScale.unit;
-                            font-family: LumenTheme.mono-family;
+                            font-size: DesignType.micro-size;
+                            font-family: DesignType.mono-family;
                             horizontal-alignment: center;
                             vertical-alignment: center;
                         }
@@ -523,7 +524,7 @@ export component PageRules inherits VerticalLayout {
                         ? @tr("Runtime 未运行，规则不可用")
                         : (root.rule-search == "" ? @tr("暂无运行规则") : (@tr("没有匹配到规则：") + root.rule-search));
                     color: LumenTheme.text-secondary;
-                    font-size: 13 * LumenUiScale.unit;
+                    font-size: DesignType.mono-size;
                     horizontal-alignment: center;
                 }
             }

@@ -12,7 +12,7 @@ use crate::view::component_forms::style_accent;
 use crate::view::components::{BadgeKind, badge, kbd_badge, modern_scrollable};
 use crate::view::script_export::export_section;
 use crate::view::svg_icons::Icon;
-use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
+use crate::view::theme::tokens;
 use crate::view::{svg_icons, theme};
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Space, button, column, container, row, text, text_editor};
@@ -30,7 +30,7 @@ fn preset_chip<'a>(
     is_active: bool,
     busy: bool,
 ) -> Element<'a, Message> {
-    button(text(label).size(12).font(FONT_MEDIUM))
+    button(theme::role_body_text(label))
         .padding([4, 10])
         .style(move |t: &Theme, status| {
             let tk = tokens(t);
@@ -81,19 +81,13 @@ fn active_preset_chip<'a>(
 
 fn meta_line<'a>(label: String, value: String) -> Element<'a, Message> {
     row![
-        text(label)
-            .size(11)
-            .font(FONT_SEMIBOLD)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_secondary)
-            }),
+        theme::role_body_text(label).style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_secondary)
+        }),
         Space::new().width(theme::SP_SM),
-        text(value)
-            .size(11)
-            .font(MONO)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_primary)
-            }),
+        theme::role_body_text(value).style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_primary)
+        }),
     ]
     .align_y(Alignment::Center)
     .into()
@@ -101,22 +95,14 @@ fn meta_line<'a>(label: String, value: String) -> Element<'a, Message> {
 
 fn preview_box<'a>(title: String, body: String) -> Element<'a, Message> {
     column![
-        text(title)
-            .size(12)
-            .font(FONT_SEMIBOLD)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_primary)
-            }),
+        theme::role_body_text(title).style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_primary)
+        }),
         Space::new().height(theme::SP_XS),
         container(
-            modern_scrollable(
-                text(body)
-                    .size(11)
-                    .font(MONO)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_primary),
-                    }),
-            )
+            modern_scrollable(theme::role_body_text(body).style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_primary),
+            }),)
             .height(Length::Fixed(160.0)),
         )
         .padding(10)
@@ -160,34 +146,26 @@ fn console_body<'a>(lang: &Lang<'_>, snapshot: &ScriptSandboxSnapshot) -> Elemen
     let mut directives_col = column![].spacing(4);
     if snapshot.matched_directives.is_empty() {
         directives_col = directives_col.push(
-            text(lang.tr("script_sandbox_no_match").to_string())
-                .size(11)
-                .font(MONO)
-                .style(|t: &Theme| text::Style {
+            theme::role_body_text(lang.tr("script_sandbox_no_match").to_string()).style(
+                |t: &Theme| text::Style {
                     color: Some(tokens(t).text_tertiary),
-                }),
+                },
+            ),
         );
     } else {
         for line in view.directives {
             directives_col =
-                directives_col.push(text(line).size(11).font(MONO).style(|t: &Theme| {
-                    text::Style {
-                        color: Some(tokens(t).text_primary),
-                    }
+                directives_col.push(theme::role_body_text(line).style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_primary),
                 }));
         }
     }
 
     let mut logs_col = column![].spacing(4);
     for entry in view.logs {
-        logs_col = logs_col.push(
-            text(entry)
-                .size(11)
-                .font(MONO)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_secondary),
-                }),
-        );
+        logs_col = logs_col.push(theme::role_body_text(entry).style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_secondary),
+        }));
     }
 
     let breaker = view.breaker;
@@ -234,41 +212,36 @@ fn console_body<'a>(lang: &Lang<'_>, snapshot: &ScriptSandboxSnapshot) -> Elemen
         body = body
             .push(Space::new().height(theme::SP_SM))
             .push(
-                text(error.to_string())
-                    .size(12)
-                    .font(MONO)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).danger),
-                    }),
+                theme::role_body_text(error.to_string()).style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).danger),
+                }),
             )
             .push(
-                text(lang.tr("script_sandbox_degraded").to_string())
-                    .size(11)
-                    .style(|t: &Theme| text::Style {
+                theme::role_body_text(lang.tr("script_sandbox_degraded").to_string()).style(
+                    |t: &Theme| text::Style {
                         color: Some(tokens(t).text_secondary),
-                    }),
+                    },
+                ),
             );
     }
 
     body = body
         .push(Space::new().height(theme::SP_SM))
         .push(
-            text(lang.tr("script_sandbox_matched").to_string())
-                .size(12)
-                .font(FONT_SEMIBOLD)
-                .style(|t: &Theme| text::Style {
+            theme::role_body_text(lang.tr("script_sandbox_matched").to_string()).style(
+                |t: &Theme| text::Style {
                     color: Some(tokens(t).text_primary),
-                }),
+                },
+            ),
         )
         .push(modern_scrollable(directives_col).height(Length::Fixed(72.0)))
         .push(Space::new().height(theme::SP_SM))
         .push(
-            text(lang.tr("script_sandbox_logs").to_string())
-                .size(12)
-                .font(FONT_SEMIBOLD)
-                .style(|t: &Theme| text::Style {
+            theme::role_body_text(lang.tr("script_sandbox_logs").to_string()).style(|t: &Theme| {
+                text::Style {
                     color: Some(tokens(t).text_primary),
-                }),
+                }
+            }),
         )
         .push(modern_scrollable(logs_col).height(Length::Fixed(96.0)))
         .push(Space::new().height(theme::SP_SM))
@@ -313,12 +286,11 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
 
     let preset_definitions = ScriptApplication::new().builtin_presets();
     let mut preset_row = row![
-        text(lang.tr("script_sandbox_presets").to_string())
-            .size(12)
-            .font(FONT_SEMIBOLD)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_secondary)
-            }),
+        theme::role_body_text(lang.tr("script_sandbox_presets").to_string()).style(|t: &Theme| {
+            text::Style {
+                color: Some(tokens(t).text_secondary),
+            }
+        }),
         Space::new().width(theme::SP_SM),
     ]
     .align_y(Alignment::Center);
@@ -360,9 +332,7 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
                 row![
                     svg_icons::icon_themed(Icon::Zap, 14.0, |t: &Theme| tokens(t).on_accent),
                     Space::new().width(theme::SP_SM),
-                    text(lang.tr("script_sandbox_run").to_string())
-                        .size(12)
-                        .font(FONT_MEDIUM),
+                    theme::role_body_text(lang.tr("script_sandbox_run").to_string()),
                     kbd_badge("Ctrl+↵")
                 ]
                 .align_y(Alignment::Center),
@@ -380,12 +350,11 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
     let preset_row = container(preset_row).width(Length::Fill);
 
     let script_input = column![
-        text("function main(config, profile) { ... }")
-            .size(12)
-            .font(FONT_SEMIBOLD)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_secondary)
-            }),
+        theme::role_body_text("function main(config, profile) { ... }").style(|t: &Theme| {
+            text::Style {
+                color: Some(tokens(t).text_secondary),
+            }
+        }),
         Space::new().height(theme::SP_XS),
         text_editor(&state.editor.script_code_content)
             .placeholder("function main(config, profile) { return config; }")
@@ -394,19 +363,16 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
                 action: Box::new(action)
             }))
             .padding(10)
-            .size(12)
-            .font(MONO)
             .height(Length::Fixed(160.0))
     ]
     .width(Length::FillPortion(1));
 
     let yaml_input = column![
-        text(lang.tr("script_sandbox_input_preview").to_string())
-            .size(12)
-            .font(FONT_SEMIBOLD)
-            .style(|t: &Theme| text::Style {
+        theme::role_body_text(lang.tr("script_sandbox_input_preview").to_string()).style(
+            |t: &Theme| text::Style {
                 color: Some(tokens(t).text_secondary)
-            }),
+            }
+        ),
         Space::new().height(theme::SP_XS),
         text_editor(&state.editor.script_yaml_content)
             .placeholder("proxies:\n  - name: Example\n    type: ss")
@@ -415,8 +381,6 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
                 action: Box::new(action)
             }))
             .padding(10)
-            .size(12)
-            .font(MONO)
             .height(Length::Fixed(160.0))
     ]
     .width(Length::FillPortion(1));
@@ -429,11 +393,11 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
             row![
                 svg_icons::icon_themed(Icon::Zap, 16.0, |t: &Theme| tokens(t).text_tertiary),
                 Space::new().width(theme::SP_SM),
-                text(lang.tr("script_sandbox_subtitle").to_string())
-                    .size(12)
-                    .style(|t: &Theme| text::Style {
+                theme::role_body_text(lang.tr("script_sandbox_subtitle").to_string()).style(
+                    |t: &Theme| text::Style {
                         color: Some(tokens(t).text_tertiary)
-                    }),
+                    }
+                ),
             ]
             .align_y(Alignment::Center),
         )
@@ -456,11 +420,11 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
 
     let mut feedback = column![].spacing(8);
     if state.editor.script_sandbox.is_running() {
-        feedback = feedback.push(text(lang.tr("script_workbench_running")).size(12));
+        feedback = feedback.push(theme::role_body_text(lang.tr("script_workbench_running")));
     }
     if let Some(failure) = state.editor.script_sandbox.failure() {
         feedback = feedback.push(
-            container(text(&failure.message).size(12).width(Length::Fill))
+            container(theme::role_body_text(&failure.message).width(Length::Fill))
                 .padding(8)
                 .style(|theme: &Theme| container::Style {
                     border: Border {
@@ -474,7 +438,7 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
     }
     if state.editor.script_sandbox.can_retry() {
         feedback = feedback.push(
-            button(text(lang.tr("script_workbench_retry")))
+            button(theme::role_body_text(lang.tr("script_workbench_retry")))
                 .style(style_accent)
                 .on_press(Message::Script(ScriptAction::Retry)),
         );

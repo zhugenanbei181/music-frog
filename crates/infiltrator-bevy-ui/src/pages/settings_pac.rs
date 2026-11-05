@@ -24,11 +24,12 @@ use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_bevy_widgets::text_input::{TextField, text_field_with_placeholder_scene};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::command::CommandIntent;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::pac::PacServiceState;
 use infiltrator_presentation::host_network_projection::pac;
 use infiltrator_presentation::settings_page_model::SettingsPageModel;
@@ -61,7 +62,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                         row_gap: rem(space::S6),
                     }
                     Children [
-                        LocalizedText::plain("settings_pac_title") TextRole(Role::BodyStrong)
+                        LocalizedText::plain("settings_pac_title") TextRole(design_resources::TextRole::BodyStrong)
                         --
                         Node {
                             width: percent(100),
@@ -75,7 +76,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                         Children [
                             @{ localized_checkbox_scene(LocalizedText::plain("pac_enable_service"), matches!(projection.pac.state, PacServiceState::Running { .. }), palette) }
                             --
-                            Text(status) PacStatusLine TextRole(Role::Mono)
+                            Text(status) PacStatusLine TextRole(design_resources::TextRole::Mono)
                         ]
                         --
                         Node {
@@ -85,7 +86,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                             padding: UiRect::all(rem(space::S8)),
                         }
                         Children [
-                            LocalizedText::plain("settings_pac_bypass_label") TextRole(Role::Body)
+                            LocalizedText::plain("settings_pac_bypass_label") TextRole(design_resources::TextRole::Body)
                             --
                             Node { width: rem(PAC_BYPASS_FIELD_WIDTH_PX) }
                             PacBypassField
@@ -111,7 +112,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                             PacApplyButton
                             Button
                             Children [
-                                LocalizedText::plain("settings_pac_apply_action") TextRole(Role::BodyStrong)
+                                LocalizedText::plain("settings_pac_apply_action") TextRole(design_resources::TextRole::BodyStrong)
                             ]
                         ]
                     ]

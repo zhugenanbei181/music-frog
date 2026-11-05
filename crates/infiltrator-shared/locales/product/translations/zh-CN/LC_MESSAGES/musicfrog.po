@@ -1557,3 +1557,33 @@ msgstr "输入新私钥以支持加密订阅；留空保留当前设置。"
 
 msgid "运行时"
 msgstr "运行时"
+
+msgid "MusicFrog Infiltrator"
+msgstr "MusicFrog Infiltrator"
+
+msgid "AMOLED"
+msgstr "AMOLED"
+
+msgid "English"
+msgstr "English"
+
+msgid "布局密度"
+msgstr "布局密度"
+
+msgid "来源"
+msgstr "来源"
+
+msgid "目标"
+msgstr "目标"
+
+msgid "协议"
+msgstr "协议"
+
+msgid "出口"
+msgstr "出口"
+
+msgid "时长"
+msgstr "时长"
+
+msgid "暂无实时连接"
+msgstr "暂无实时连接"

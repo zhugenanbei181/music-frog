@@ -22,9 +22,10 @@ use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::command::RequestId;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::language::LanguagePreference;
 use infiltrator_presentation::language_choice::{
     LanguageChoiceFinish, LanguageChoicePhase, LanguageChoiceState, LanguagePersistence,
@@ -62,7 +63,7 @@ pub fn language_card(palette: &UiPalette) -> impl Scene + use<> {
         Node { width: percent(100), flex_shrink: 0.0, padding: UiRect::all(rem(space::S16)), flex_direction: FlexDirection::Column, row_gap: rem(space::S12), border_radius: BorderRadius::all(rem(palette.card_radius_px)) }
         LanguageChoiceCard ThemeBackgroundColor({ Token::Surface })
         Children [
-            LocalizedText::plain("settings_language_title") TextRole(Role::BodyStrong)
+            LocalizedText::plain("settings_language_title") TextRole(design_resources::TextRole::BodyStrong)
             --
             @{ choices_scene(palette) }
         ]
@@ -85,7 +86,7 @@ fn language_choice_scenes(palette: &UiPalette) -> impl SceneList + use<> {
         }
         Button LanguageChoiceButton(preference) ButtonDisabled(true) ThemeBackgroundColor({ Token::SurfaceElevated })
         LocalizedLabel::plain(preference.label_key())
-        Children [ LocalizedText::plain(preference.label_key()) TextRole(Role::Body) ]
+        Children [ LocalizedText::plain(preference.label_key()) TextRole(design_resources::TextRole::Body) ]
     }) as Box<dyn Scene>).collect();
     bsn_list! { { choices } }
 }
@@ -111,13 +112,13 @@ pub fn choices_scene(palette: &UiPalette) -> impl Scene + use<> {
             Children [
                 Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(space::S12) }
                 Children [
-                    Text(String::new()) LanguageChoiceStatus TextRole(Role::Body)
+                    Text(String::new()) LanguageChoiceStatus TextRole(design_resources::TextRole::Body)
                     --
                     Node { align_items: AlignItems::Center, flex_wrap: FlexWrap::Wrap, column_gap: rem(space::S8) }
                     Children [
                         Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(space::S8)) }
                         Button RetryLanguageChoice ButtonDisabled(true)
-                        Children [ LocalizedText::plain("language_retry") TextRole(Role::Body) ]
+                        Children [ LocalizedText::plain("language_retry") TextRole(design_resources::TextRole::Body) ]
                     ]
                 ]
             ]

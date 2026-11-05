@@ -4,8 +4,9 @@ use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::script::ScriptAction;
 use crate::view::component_forms::{style_accent, style_ghost};
+use crate::view::theme;
 use crate::view_root::interaction_regions::InteractionRegion;
-use iced::widget::{Scrollable, Space, button, column, container, row, text};
+use iced::widget::{Scrollable, Space, button, column, container, row};
 use iced::{Element, Length};
 use infiltrator_presentation::script_export_projection::project_script_export;
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -15,11 +16,11 @@ pub(crate) fn modal(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
     let view = project_script_export(model, &Lang(&state.shell.lang));
     let body = column![
-        text(lang.tr("script_export_title")).size(17),
-        text(view.status).size(12).width(Length::Fill),
-        text(view.details).size(12).width(Length::Fill),
-        text(view.content).size(12).width(Length::Fill),
-        text(view.path).size(12).width(Length::Fill)
+        theme::role_body_text(lang.tr("script_export_title")),
+        theme::role_body_text(view.status).width(Length::Fill),
+        theme::role_body_text(view.details).width(Length::Fill),
+        theme::role_body_text(view.content).width(Length::Fill),
+        theme::role_body_text(view.path).width(Length::Fill)
     ]
     .spacing(12)
     .width(Length::Fill);
@@ -27,7 +28,7 @@ pub(crate) fn modal(state: &AppState) -> Element<'_, Message> {
         .export()
         .is_some_and(|snapshot| snapshot.outcome.is_saved());
     let mut actions = row![
-        button(text(lang.tr(if saved {
+        button(theme::role_body_text(lang.tr(if saved {
             "logs_export_close"
         } else {
             "logs_export_cancel"
@@ -42,7 +43,7 @@ pub(crate) fn modal(state: &AppState) -> Element<'_, Message> {
     .spacing(8);
     if view.confirm {
         actions = actions.push(
-            button(text(lang.tr("logs_export_confirm")))
+            button(theme::role_body_text(lang.tr("logs_export_confirm")))
                 .style(style_accent)
                 .on_press_maybe(
                     view.close
@@ -52,7 +53,7 @@ pub(crate) fn modal(state: &AppState) -> Element<'_, Message> {
     }
     if view.retry {
         actions = actions.push(
-            button(text(lang.tr("logs_export_retry")))
+            button(theme::role_body_text(lang.tr("logs_export_retry")))
                 .style(style_accent)
                 .on_press_maybe(view.close.then_some(Message::Script(ScriptAction::Retry))),
         );

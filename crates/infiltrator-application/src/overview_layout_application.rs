@@ -193,6 +193,13 @@ fn validate_card_order(order: &[OverviewCardKind]) -> Result<(), Failure> {
     }
     let mut seen = HashSet::new();
     for kind in order {
+        if !kind.is_overview_card() {
+            return Err(Failure::new(
+                ErrorCode::InvalidInput,
+                format!("the Overview card order names a shell control {kind:?}"),
+                false,
+            ));
+        }
         if !seen.insert(*kind) {
             return Err(Failure::new(
                 ErrorCode::InvalidInput,

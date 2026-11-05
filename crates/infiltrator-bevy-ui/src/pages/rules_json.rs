@@ -46,8 +46,9 @@ use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::profile_configuration::{
     ProfileConfigurationRequest, ProfileConfigurationUpdate,
 };
@@ -397,7 +398,7 @@ fn section_chip_scene(section: RulesJsonSection, palette: &UiPalette) -> Box<dyn
             RulesJsonSectionChip(index)
             Children [
                 LocalizedText::plain(section.i18n_key())
-                TextRole(Role::Caption)
+                TextRole(design_resources::TextRole::Caption)
                 ThemeTextColor({ if selected { Token::OnAccent } else { Token::InkDim } })
                 RulesJsonSectionLabel(index)
             ]
@@ -417,7 +418,7 @@ fn edit_button_scene(palette: &UiPalette) -> Box<dyn Scene> {
             Button
             RulesJsonEditButton
             Children [
-                LocalizedText::plain("profiles_editor_buffer_title") TextRole(Role::Body)
+                LocalizedText::plain("profiles_editor_buffer_title") TextRole(design_resources::TextRole::Body)
             ]
     })
 }
@@ -438,7 +439,7 @@ fn save_button_scene(section: RulesJsonSection, palette: &UiPalette) -> Box<dyn 
             semantic LocalizedLabel::plain(section.save_i18n_key())
             Children [
                 LocalizedText::plain(section.save_i18n_key())
-                TextRole(Role::BodyStrong)
+                TextRole(design_resources::TextRole::BodyStrong)
                 RulesJsonSaveLabel
             ]
     })
@@ -475,7 +476,7 @@ pub fn rules_json_scene(palette: &UiPalette, state: &RulesJsonState) -> impl Sce
                     padding: UiRect::bottom(rem(space::S8)),
                 }
                 Children [
-                    LocalizedText::plain("rules_json_editor_title") TextRole(Role::BodyStrong)
+                    LocalizedText::plain("rules_json_editor_title") TextRole(design_resources::TextRole::BodyStrong)
                     --
                     Node {
                         align_items: AlignItems::Center,
@@ -496,7 +497,7 @@ pub fn rules_json_scene(palette: &UiPalette, state: &RulesJsonState) -> impl Sce
                     { section_chip_scenes(palette) }
                 ]
                 --
-                Text({ status }) RulesJsonStatusText TextRole(Role::Caption)
+                Text({ status }) RulesJsonStatusText TextRole(design_resources::TextRole::Caption)
                 --
                 Node {
                     width: percent(100),

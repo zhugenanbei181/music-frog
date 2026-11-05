@@ -2,9 +2,10 @@
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::view::component_forms::{form_input_style, style_accent, style_ghost};
+use crate::view::theme;
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::advanced::text::Renderer;
-use iced::widget::{button, column, container, row, text, text_input};
+use iced::widget::{button, column, container, row, text_input};
 use iced::{Element, Font, Length, Theme};
 use infiltrator_domain::connection_view::ConnectionGroupingMode;
 use infiltrator_presentation::connection_grouping::grouping_label_key;
@@ -23,7 +24,7 @@ pub(crate) fn grouping<'a, R: Renderer<Font = Font> + 'a>(
                 ConnectionGroupingMode::ByHost => InteractionRegion::ConnectionGroupHost,
             };
             container(
-                button(text(lang.tr(grouping_label_key(mode))).size(12))
+                button(theme::role_body_text(lang.tr(grouping_label_key(mode))))
                     .padding([6, 8])
                     .style(if state.diag.connections_model.mode() == mode {
                         style_accent
@@ -59,7 +60,6 @@ pub(crate) fn search<'a, R: Renderer<Font = Font> + 'a>(
         text_input(lang.tr("runtime_conn_filter_placeholder").as_ref(), query)
             .on_input(on_input)
             .padding([7, 10])
-            .size(12)
             .width(Length::Fill)
             .style(form_input_style),
     )
@@ -69,7 +69,7 @@ pub(crate) fn search<'a, R: Renderer<Font = Font> + 'a>(
     if !query.is_empty() {
         controls = controls.push(
             container(
-                button(text(lang.tr("common_clear")).size(12))
+                button(theme::role_body_text(lang.tr("common_clear")))
                     .padding([7, 8])
                     .style(style_ghost)
                     .on_press(Message::UpdateRuntimeConnectionFilter(if closed {
@@ -88,7 +88,7 @@ pub(crate) fn search<'a, R: Renderer<Font = Font> + 'a>(
         lang.tr(owner.search_summary_key()).as_ref(),
         &[("matched", matched.as_str()), ("total", total.as_str())],
     );
-    column![controls.width(Length::Fill), text(summary).size(11)]
+    column![controls.width(Length::Fill), theme::role_body_text(summary)]
         .spacing(4)
         .width(Length::Fill)
         .into()

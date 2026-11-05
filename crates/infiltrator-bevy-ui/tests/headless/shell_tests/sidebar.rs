@@ -68,8 +68,12 @@ fn sidebar_orders_nav_into_the_content_flow_above_the_spacer() {
         "the gap between nav and version stays a flexible spacer"
     );
     assert!(
-        subtree_has_text(world, children[8], "0.30 demo"),
-        "the version caption closes the rail"
+        subtree_contains::<SidebarFoot>(world, children[8]),
+        "the authoritative source slot closes the rail"
+    );
+    assert!(
+        !subtree_has_text(world, children[8], "0.30 demo"),
+        "the rail never leaks a raw demo literal"
     );
 }
 

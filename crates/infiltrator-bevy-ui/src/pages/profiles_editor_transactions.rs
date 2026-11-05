@@ -25,10 +25,11 @@ use infiltrator_bevy_widgets::editor::state::CodeEditorState;
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::{metrics, space};
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_output::CommandOutput;
+use infiltrator_contract::design_resources;
 use infiltrator_presentation::profile_edit_session::{
     ProfileEditFinish, ProfileEditOperationPhase,
 };
@@ -237,7 +238,7 @@ pub fn discard_scene(mixin: bool, palette: &UiPalette) -> impl Scene {
     bsn! {
         Node { min_height: rem(metrics::CONTROL_HEIGHT_COMPACT), padding: UiRect::horizontal(rem(space::S8)) }
         BackgroundColor({ background }) Button EditorMutationControl EditorDiscardButton { mixin }
-        Children [ LocalizedText::plain("editor_discard_draft") TextRole(Role::Caption) ]
+        Children [ LocalizedText::plain("editor_discard_draft") TextRole(design_resources::TextRole::Caption) ]
     }
 }
 

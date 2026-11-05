@@ -692,7 +692,7 @@ fn app_routing_page_in_place_update() {
     let world = app.world_mut();
     let mut rules = world.query::<(&Text, &AppRuleText)>();
     let (rule_text, _) = rules.iter(world).find(|(_, m)| m.0 == 0).expect("app rule");
-    assert_eq!(rule_text.0, "拦截 (Block)");
+    assert_eq!(rule_text.0, "拦截");
 }
 
 #[test]

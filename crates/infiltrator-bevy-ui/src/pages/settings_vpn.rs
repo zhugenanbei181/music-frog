@@ -23,8 +23,9 @@ use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_presentation::host_network_projection::vpn;
 use infiltrator_shared::locales::{Lang, Localizer};
 
@@ -52,7 +53,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                         row_gap: rem(space::S6),
                     }
                     Children [
-                        LocalizedText::plain("settings_android_vpn_title") TextRole(Role::BodyStrong)
+                        LocalizedText::plain("settings_android_vpn_title") TextRole(design_resources::TextRole::BodyStrong)
                         --
                         Node {
                             width: percent(100),
@@ -63,7 +64,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                         }
                         ThemeBackgroundColor({ Token::SurfaceElevated })
                         Children [
-                            Text({format!("{} · {}",view.status,view.details)}) VpnStatusLine TextRole(Role::Mono)
+                            Text({format!("{} · {}",view.status,view.details)}) VpnStatusLine TextRole(design_resources::TextRole::Mono)
                             --
                             Node {
                                 align_items: AlignItems::Center,
@@ -81,7 +82,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                 VpnStartButton
                                 Button
                                 Children [
-                                    Text({Lang(locale.code()).tr(view.start_key).into_owned()}) VpnStartLabel TextRole(Role::BodyStrong)
+                                    Text({Lang(locale.code()).tr(view.start_key).into_owned()}) VpnStartLabel TextRole(design_resources::TextRole::BodyStrong)
                                 ]
                                 --
                                 Node {
@@ -95,7 +96,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                 VpnStopButton
                                 Button
                                 Children [
-                                    Text({Lang(locale.code()).tr(view.stop_key).into_owned()}) VpnStopLabel TextRole(Role::Body)
+                                    Text({Lang(locale.code()).tr(view.stop_key).into_owned()}) VpnStopLabel TextRole(design_resources::TextRole::Body)
                                 ]
                             ]
                         ]

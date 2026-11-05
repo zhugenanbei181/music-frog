@@ -3,9 +3,11 @@ use crate::types::message::Message;
 use crate::view::components::card_surface;
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme;
-use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, R_CONTROL, tokens};
+use crate::view::theme::font_for;
+use crate::view::theme::{R_CONTROL, tokens};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
+use infiltrator_contract::design_resources::TextRole;
 use infiltrator_presentation::routing_intent_projection::{
     routing_intent_copy, routing_intent_status_copy,
 };
@@ -35,10 +37,10 @@ pub fn overview_routing_intent_segment<'a>(
 
         let label = routing_intent_copy(&intent, &Lang(lang.0));
 
-        let btn_content = text(label).size(13).font(if is_current {
-            FONT_SEMIBOLD
+        let btn_content = theme::role_body_text(label).font(if is_current {
+            font_for(TextRole::LabelStrong)
         } else {
-            FONT_MEDIUM
+            font_for(TextRole::Label)
         });
 
         let btn = button(btn_content)
@@ -82,18 +84,16 @@ pub fn overview_routing_intent_segment<'a>(
     let header = row![
         icon_themed(Icon::Settings, 16.0, |t: &Theme| tokens(t).accent),
         Space::new().width(theme::SP_SM),
-        text(lang.tr("overview_routing_intent_title").into_owned())
-            .size(14)
-            .font(FONT_SEMIBOLD)
-            .style(|t: &Theme| text::Style {
+        theme::role_body_text(lang.tr("overview_routing_intent_title").into_owned()).style(
+            |t: &Theme| text::Style {
                 color: Some(tokens(t).text_primary)
-            }),
+            }
+        ),
         Space::new().width(Length::Fill),
-        text(routing_intent_status_copy(
+        theme::role_body_text(routing_intent_status_copy(
             &state.runtime.routing_intent_state,
             &Lang(lang.0)
         ))
-        .size(12)
         .style(|t: &Theme| text::Style {
             color: Some(tokens(t).text_secondary)
         }),

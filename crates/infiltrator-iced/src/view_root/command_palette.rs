@@ -13,12 +13,14 @@ use crate::view::component_forms::style_ghost;
 use crate::view::components::{BadgeKind, badge, kbd_badge, modern_scrollable};
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme;
-use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, tokens};
+use crate::view::theme::font_for;
+use crate::view::theme::tokens;
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_contract::a11y::ShellA11yNode;
 use infiltrator_contract::command_catalogue::{CommandCategory, CommandTarget, ShellPage};
+use infiltrator_contract::design_resources::TextRole;
 use infiltrator_presentation::command_palette_projection::localized_title;
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::routing_intent::RoutingIntent;
@@ -89,7 +91,6 @@ pub fn command_palette_modal(state: &AppState) -> Element<'_, Message> {
         .on_input(Message::SetCommandQuery)
         .on_submit(Message::ExecuteSelectedCommand)
         .padding([8, 12])
-        .size(14)
         .width(Length::Fill)
         .style(|t: &Theme, _status| {
             let tk = tokens(t);
@@ -152,11 +153,9 @@ pub fn command_palette_modal(state: &AppState) -> Element<'_, Message> {
             column![
                 icon_themed(Icon::Search, 24.0, |t: &Theme| tokens(t).text_tertiary),
                 Space::new().height(theme::SP_SM),
-                text(lang.tr("cmd_no_results"))
-                    .size(13)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_tertiary),
-                    }),
+                theme::role_body_text(lang.tr("cmd_no_results")).style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_tertiary),
+                }),
             ]
             .align_x(Alignment::Center),
         )
@@ -198,12 +197,11 @@ pub fn command_palette_modal(state: &AppState) -> Element<'_, Message> {
                     }
                 }),
                 Space::new().width(theme::SP_SM),
-                text(title_str)
-                    .size(13)
+                theme::role_body_text(title_str)
                     .font(if is_selected {
-                        FONT_SEMIBOLD
+                        font_for(TextRole::LabelStrong)
                     } else {
-                        FONT_MEDIUM
+                        font_for(TextRole::Label)
                     })
                     .style(move |t: &Theme| text::Style {
                         color: Some(if is_selected {
@@ -283,33 +281,31 @@ pub fn command_palette_modal(state: &AppState) -> Element<'_, Message> {
         row![
             kbd_badge("↑↓"),
             Space::new().width(theme::SP_XS),
-            text(lang.tr("cmd_palette_hint_nav"))
-                .size(11)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_tertiary),
-                }),
+            theme::role_body_text(lang.tr("cmd_palette_hint_nav")).style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_tertiary),
+            }),
         ]
         .align_y(Alignment::Center),
         Space::new().width(theme::SP_MD),
         row![
             kbd_badge("↵"),
             Space::new().width(theme::SP_XS),
-            text(lang.tr("cmd_palette_hint_select"))
-                .size(11)
-                .style(|t: &Theme| text::Style {
+            theme::role_body_text(lang.tr("cmd_palette_hint_select")).style(|t: &Theme| {
+                text::Style {
                     color: Some(tokens(t).text_tertiary),
-                }),
+                }
+            }),
         ]
         .align_y(Alignment::Center),
         Space::new().width(theme::SP_MD),
         row![
             kbd_badge("ESC"),
             Space::new().width(theme::SP_XS),
-            text(lang.tr("cmd_palette_hint_close"))
-                .size(11)
-                .style(|t: &Theme| text::Style {
+            theme::role_body_text(lang.tr("cmd_palette_hint_close")).style(|t: &Theme| {
+                text::Style {
                     color: Some(tokens(t).text_tertiary),
-                }),
+                }
+            }),
         ]
         .align_y(Alignment::Center),
     ]

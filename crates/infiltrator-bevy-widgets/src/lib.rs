@@ -104,6 +104,7 @@ pub mod theme_export;
 pub mod toast;
 pub mod tooltip;
 pub mod tsdb;
+pub mod waveform;
 pub mod windowing;
 
 use crate::button::ButtonDisabled;
@@ -113,7 +114,8 @@ use crate::responsive::{Density, ResponsiveContext};
 use crate::telemetry_gpu::TelemetryGpuPlugin;
 use crate::text_input::native::NativeTextFieldPlugin;
 use crate::text_input::render::{
-    sync_field_borders, sync_field_carets, sync_ime_cursor_areas, sync_text_fields,
+    sync_field_borders, sync_field_carets, sync_focused_text_input, sync_ime_cursor_areas,
+    sync_text_fields,
 };
 use crate::text_runs::TextRunsPlugin;
 use crate::theme::Breakpoint;
@@ -168,6 +170,7 @@ impl Plugin for WidgetsPlugin {
             app.add_plugins(WidgetLocalizationPlugin);
         }
         app.add_plugins((NativeTextFieldPlugin, TextRunsPlugin));
+        app.add_plugins(waveform::WaveformGlowPlugin);
         app.add_plugins(TelemetryGpuPlugin);
         app.init_resource::<MouseScrollPixelsPerLine>();
         app.add_message::<PointerInput>();
@@ -186,7 +189,7 @@ impl Plugin for WidgetsPlugin {
             app.add_plugins(list::ListScrollPlugin);
         }
         app.init_resource::<scrollarea::ScrollMotionState>()
-            .init_resource::<scrollarea::ScrollMotionPreference>()
+            .init_resource::<motion::UiMotionPreference>()
             .init_resource::<scrollarea::PointerGestureTracker>()
             .add_observer(scrollarea::track_button_pointer_press)
             .add_observer(scrollarea::cancel_pointer_tap_on_drag_start)
@@ -270,6 +273,9 @@ impl Plugin for WidgetsPlugin {
         app.add_observer(adaptive_modal::on_adaptive_modal_request_close);
         app.add_observer(adaptive_modal::on_modal_open);
         app.add_observer(adaptive_modal::on_modal_close);
+        app.add_observer(adaptive_modal::on_modal_swipe_drag_start);
+        app.add_observer(adaptive_modal::on_modal_swipe_drag);
+        app.add_observer(adaptive_modal::on_modal_swipe_drag_end);
 
         app.add_message::<menu::MenuOutcome>();
         app.add_message::<context_menu::ContextMenuOutcome>();
@@ -304,6 +310,7 @@ impl Plugin for WidgetsPlugin {
                 slider::sync_range_slider_visuals,
                 sync_text_fields,
                 sync_field_borders,
+                sync_focused_text_input,
                 sync_field_carets,
                 sync_ime_cursor_areas,
                 icon::sync_icon_tints,
@@ -348,6 +355,7 @@ impl Plugin for WidgetsPlugin {
                 status_badge::sync_status_badge_visuals,
                 sparkline::sync_mini_sparklines,
                 surface::sync_surface_visuals,
+                waveform::sync_waveform_materials,
                 popover::sync_popover_visuals,
                 list::advance_virtual_lists,
                 list::sync_list_selection.before(nav::sync_nav_visuals),

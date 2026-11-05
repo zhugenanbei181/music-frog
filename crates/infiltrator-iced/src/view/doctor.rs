@@ -6,10 +6,9 @@ use crate::view::component_card::card;
 use crate::view::components::{BadgeKind, badge};
 use crate::view::crash_watchdog_card::crash_watchdog_card;
 use crate::view::theme;
-use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD};
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::border::Radius;
-use iced::widget::{Space, button, column, container, row, scrollable, text};
+use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_contract::doctor::{DoctorAction, DoctorCheckResult, DoctorReport, DoctorStatus};
 use infiltrator_contract::surface_snapshot::DoctorCheckSnapshot;
@@ -45,29 +44,21 @@ pub fn section(state: &AppState) -> Element<'_, Message> {
 
     let actions: Element<'_, Message> = if state.shell.viewport.tier.is_compact() {
         column![
-            button(
-                text(lang.tr("doctor_btn_check").to_string())
-                    .size(12)
-                    .font(FONT_MEDIUM),
-            )
+            button(theme::role_body_text(
+                lang.tr("doctor_btn_check").to_string()
+            ),)
             .width(Length::Fill)
             .padding([7, 14])
             .style(button::primary)
             .on_press_maybe((!busy).then_some(Message::RunDoctor)),
-            button(
-                text(lang.tr("doctor_btn_fix").to_string())
-                    .size(12)
-                    .font(FONT_MEDIUM),
-            )
-            .width(Length::Fill)
-            .padding([7, 14])
-            .style(button::secondary)
-            .on_press_maybe(repairable.then_some(Message::RunDoctorFix)),
-            button(
-                text(lang.tr("doctor_btn_bootstrap").to_string())
-                    .size(12)
-                    .font(FONT_MEDIUM),
-            )
+            button(theme::role_body_text(lang.tr("doctor_btn_fix").to_string()),)
+                .width(Length::Fill)
+                .padding([7, 14])
+                .style(button::secondary)
+                .on_press_maybe(repairable.then_some(Message::RunDoctorFix)),
+            button(theme::role_body_text(
+                lang.tr("doctor_btn_bootstrap").to_string()
+            ),)
             .width(Length::Fill)
             .padding([7, 14])
             .style(button::secondary)
@@ -77,29 +68,21 @@ pub fn section(state: &AppState) -> Element<'_, Message> {
         .into()
     } else {
         row![
-            button(
-                text(lang.tr("doctor_btn_check").to_string())
-                    .size(12)
-                    .font(FONT_MEDIUM),
-            )
+            button(theme::role_body_text(
+                lang.tr("doctor_btn_check").to_string()
+            ),)
             .padding([7, 14])
             .style(button::primary)
             .on_press_maybe((!busy).then_some(Message::RunDoctor)),
             Space::new().width(theme::SP_SM),
-            button(
-                text(lang.tr("doctor_btn_fix").to_string())
-                    .size(12)
-                    .font(FONT_MEDIUM),
-            )
-            .padding([7, 14])
-            .style(button::secondary)
-            .on_press_maybe(repairable.then_some(Message::RunDoctorFix)),
+            button(theme::role_body_text(lang.tr("doctor_btn_fix").to_string()),)
+                .padding([7, 14])
+                .style(button::secondary)
+                .on_press_maybe(repairable.then_some(Message::RunDoctorFix)),
             Space::new().width(theme::SP_SM),
-            button(
-                text(lang.tr("doctor_btn_bootstrap").to_string())
-                    .size(12)
-                    .font(FONT_MEDIUM),
-            )
+            button(theme::role_body_text(
+                lang.tr("doctor_btn_bootstrap").to_string()
+            ),)
             .padding([7, 14])
             .style(button::secondary)
             .on_press_maybe((!busy).then_some(Message::RunBootstrap)),
@@ -138,8 +121,10 @@ pub fn section(state: &AppState) -> Element<'_, Message> {
     if doctor.can_retry() {
         body = body.push(
             container(
-                button(text(lang.tr("doctor_retry_action").into_owned()))
-                    .on_press_maybe((!busy).then_some(Message::RetryDoctorCommand)),
+                button(theme::role_body_text(
+                    lang.tr("doctor_retry_action").into_owned(),
+                ))
+                .on_press_maybe((!busy).then_some(Message::RetryDoctorCommand)),
             )
             .id(InteractionRegion::DoctorRetry.id()),
         );
@@ -221,11 +206,9 @@ fn check_row(check: &DoctorCheckResult, code: &str) -> Element<'static, Message>
                 status_badge_kind(check.status)
             ),
             Space::new().width(theme::SP_SM),
-            text(check.summary.clone())
-                .size(13)
-                .style(|t: &Theme| text::Style {
-                    color: Some(theme::tokens(t).text_primary),
-                }),
+            theme::role_body_text(check.summary.clone()).style(|t: &Theme| text::Style {
+                color: Some(theme::tokens(t).text_primary),
+            }),
         ]
         .spacing(0)
         .align_y(Alignment::Center),
@@ -234,31 +217,24 @@ fn check_row(check: &DoctorCheckResult, code: &str) -> Element<'static, Message>
 
     if let Some(detail) = &check.detail {
         lines = lines.push(
-            text(detail.clone())
-                .size(12)
-                .style(|t: &Theme| text::Style {
-                    color: Some(theme::tokens(t).text_secondary),
-                }),
+            theme::role_body_text(detail.clone()).style(|t: &Theme| text::Style {
+                color: Some(theme::tokens(t).text_secondary),
+            }),
         );
     }
     if let Some(hint) = &check.hint {
         lines = lines.push(
-            text(format!("→ {hint}"))
-                .size(12)
-                .style(|t: &Theme| text::Style {
-                    color: Some(theme::tokens(t).text_tertiary),
-                }),
+            theme::role_body_text(format!("→ {hint}")).style(|t: &Theme| text::Style {
+                color: Some(theme::tokens(t).text_tertiary),
+            }),
         );
     }
 
     let row = row![
         lines.width(Length::Fill),
-        text(check.id.clone())
-            .size(11)
-            .font(theme::MONO)
-            .style(|t: &Theme| text::Style {
-                color: Some(theme::tokens(t).text_tertiary),
-            }),
+        theme::role_body_text(check.id.clone()).style(|t: &Theme| text::Style {
+            color: Some(theme::tokens(t).text_tertiary),
+        }),
     ]
     .align_y(Alignment::Center);
 
@@ -284,25 +260,26 @@ fn snapshot_check_row(
 ) -> Element<'static, Message> {
     let lang = Lang(code);
     let mut content = column![
-        text(check_name(
+        theme::role_body_text(check_name(
             check.kind,
             &check.name,
             &check.category,
             &Lang(code)
-        ))
-        .size(13),
-        text(check_detail(
+        )),
+        theme::role_body_text(check_detail(
             check.detail_copy_key.as_deref(),
             &check.detail,
             &Lang(code)
-        ))
-        .size(12),
+        )),
         row![
             badge(
                 lang.tr(status_key(check.state)).into_owned(),
                 status_badge_kind(check.state)
             ),
-            button(text(lang.tr("doctor_repair_row").into_owned()).size(12)).on_press_maybe(
+            button(theme::role_body_text(
+                lang.tr("doctor_repair_row").into_owned()
+            ))
+            .on_press_maybe(
                 (repairable && check.fix_available)
                     .then(|| Message::RepairDoctorIssue(check.id.clone()))
             )
@@ -312,7 +289,7 @@ fn snapshot_check_row(
     ]
     .spacing(4);
     if let Some(hint) = &check.hint {
-        content = content.push(text(hint.clone()).size(12));
+        content = content.push(theme::role_body_text(hint.clone()));
     }
     container(content)
         .width(Length::Fill)
@@ -330,8 +307,7 @@ fn snapshot_check_row(
 }
 
 fn secondary_text(value: String) -> Element<'static, Message> {
-    text(value)
-        .size(12)
+    theme::role_body_text(value)
         .style(|t: &Theme| text::Style {
             color: Some(theme::tokens(t).text_secondary),
         })
@@ -339,8 +315,7 @@ fn secondary_text(value: String) -> Element<'static, Message> {
 }
 
 fn error_text(value: &str) -> Element<'_, Message> {
-    text(value.to_string())
-        .size(12)
+    theme::role_body_text(value.to_string())
         .style(|t: &Theme| text::Style {
             color: Some(theme::tokens(t).danger),
         })
@@ -351,12 +326,9 @@ fn error_text(value: &str) -> Element<'_, Message> {
 pub fn view(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
     let title = row![
-        text(lang.tr("nav_doctor").to_string())
-            .size(24)
-            .font(FONT_SEMIBOLD)
-            .style(|t: &Theme| text::Style {
-                color: Some(theme::tokens(t).text_primary),
-            }),
+        theme::role_body_text(lang.tr("nav_doctor").to_string()).style(|t: &Theme| text::Style {
+            color: Some(theme::tokens(t).text_primary),
+        }),
     ]
     .align_y(Alignment::Center);
 
@@ -364,7 +336,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         .spacing(theme::SP_MD)
         .width(Length::Fill);
 
-    scrollable(content)
+    modern_scrollable(content)
         .width(Length::Fill)
         .height(Length::Fill)
         .id(DOCTOR_SCROLL_ID)
@@ -376,3 +348,4 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 /// The capture scrolls this element to bring the lifecycle recovery panel into
 /// the measured region, so the identity is part of the capture contract.
 pub const DOCTOR_SCROLL_ID: &str = "doctor-scroll";
+use crate::view::components::modern_scrollable;

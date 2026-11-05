@@ -12,9 +12,11 @@
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::history::TrafficHistory;
 use crate::pages::overview::{
-    LastOverviewProjection, OverviewCardMoveDownButton, OverviewCardMoveUpButton, OverviewCardSlot,
-    OverviewCardSlots, OverviewTrafficCard, chips_row_scene, traffic_card_scene,
+    LastOverviewProjection, OverviewCardMoveControls, OverviewCardMoveDownButton,
+    OverviewCardMoveUpButton, OverviewCardSlot, OverviewCardSlots, OverviewTrafficCard,
+    traffic_card_scene,
 };
+use crate::pages::overview_traffic_scenes::chips_row_scene;
 use crate::pages::{overview_cards, overview_public_ip, overview_topology};
 use crate::projection::OverviewProjection;
 use bevy::ecs::entity::Entity;
@@ -22,19 +24,24 @@ use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::system::{Query, Res};
-use bevy::feathers::theme::ThemeBackgroundColor;
+use bevy::feathers::theme::ThemeTextColor;
 use bevy::scene::{Scene, bsn};
-use bevy::ui::prelude::{
-    AlignItems, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, percent,
-};
+use bevy::ui::prelude::{AlignItems, BorderRadius, FlexDirection, JustifyContent, Node, percent};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::palette::{UiPalette, rem};
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
+use infiltrator_bevy_widgets::theme::radius;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::overview_layout::{OverviewCardKind, OverviewLayoutSnapshot};
+
+/// One card move control's square extent in baseline pixels. The reorder pair
+/// is a quiet affordance — the reference dashboard shows no move chrome at
+/// all, so the controls stay smaller than a real control and carry no fill.
+const CARD_MOVE_CONTROL_PX: f32 = 26.0;
 
 /// The Overview page's cards in the shared layout order, each in its own
 /// reorderable slot.
@@ -48,11 +55,17 @@ pub fn overview_card_scenes(
     palette: &UiPalette,
     order: &[OverviewCardKind],
 ) -> Vec<Box<dyn Scene>> {
+    // The shared layout contract still carries the routing selector and the
+    // master switches, but marks them `ShellSidebar`. Mount them once here
+    // (before the reorderable slots) and never inside the owner's card order.
     let routing_intent: Box<dyn Scene> = Box::new(
         overview_cards::routing_intent_segmented_controller_scene_with_snapshot(
             &projection.routing_intent,
             palette,
         ),
+    );
+    let master_switches: Box<dyn Scene> = Box::new(
+        overview_cards::master_switches_scene_with_snapshot(&projection.system_toggles, palette),
     );
     let traffic: Box<dyn Scene> = Box::new(bsn! {
             Node {
@@ -64,9 +77,6 @@ pub fn overview_card_scenes(
             ]
     });
     let metrics: Box<dyn Scene> = Box::new(chips_row_scene(projection, palette));
-    let master_switches: Box<dyn Scene> = Box::new(
-        overview_cards::master_switches_scene_with_snapshot(&projection.system_toggles, palette),
-    );
     let active_exit: Box<dyn Scene> = Box::new(
         overview_cards::active_exit_node_scene_with_snapshot(&projection.active_exit, palette),
     );
@@ -85,11 +95,10 @@ pub fn overview_card_scenes(
         palette,
     ));
 
+    let shell_sidebar: Vec<Box<dyn Scene>> = vec![routing_intent, master_switches];
     let mut remaining: Vec<(OverviewCardKind, Box<dyn Scene>)> = vec![
-        (OverviewCardKind::RoutingIntentSegment, routing_intent),
         (OverviewCardKind::Traffic, traffic),
         (OverviewCardKind::Metrics, metrics),
-        (OverviewCardKind::MasterSwitches, master_switches),
         (OverviewCardKind::ActiveExit, active_exit),
         (OverviewCardKind::PublicIp, public_ip),
         (OverviewCardKind::Topology, topology),
@@ -97,14 +106,14 @@ pub fn overview_card_scenes(
     ];
 
     let mut ordered: Vec<Box<dyn Scene>> = Vec::with_capacity(remaining.len());
-    for kind in order {
-        let Some(index) = remaining.iter().position(|(entry, _)| entry == kind) else {
+    for kind in order.iter().copied().filter(|kind| kind.is_overview_card()) {
+        let Some(index) = remaining.iter().position(|(entry, _)| *entry == kind) else {
             continue;
         };
         let (_, card) = remaining.remove(index);
-        ordered.push(reorderable_card_scene(*kind, card, order, palette));
+        ordered.push(reorderable_card_scene(kind, card, order, palette));
     }
-    ordered
+    shell_sidebar.into_iter().chain(ordered).collect()
 }
 
 /// The card order the shared layout snapshot publishes.
@@ -116,7 +125,7 @@ pub fn published_order(layout: &OverviewLayoutSnapshot) -> Vec<OverviewCardKind>
     let mut order: Vec<OverviewCardKind> =
         Vec::with_capacity(OverviewCardKind::DEFAULT_ORDER.len());
     for kind in &layout.order {
-        if !order.contains(kind) {
+        if kind.is_overview_card() && !order.contains(kind) {
             order.push(*kind);
         }
     }
@@ -186,6 +195,7 @@ fn move_controls_scene(
                 justify_content: JustifyContent::FlexEnd,
                 column_gap: rem(space::S4),
             }
+            OverviewCardMoveControls
             Children [
                 @{ move_up_button_scene(kind, can_up, palette) }
                 --
@@ -198,23 +208,23 @@ fn move_controls_scene(
 fn move_up_button_scene(
     kind: OverviewCardKind,
     enabled: bool,
-    palette: &UiPalette,
+    _palette: &UiPalette,
 ) -> Box<dyn Scene> {
     Box::new(bsn! {
             Node {
-                min_height: rem(palette.control_height_px),
-                min_width: rem(palette.control_height_px),
-                padding: UiRect::horizontal(rem(space::S8)),
+                min_height: rem(CARD_MOVE_CONTROL_PX),
+                min_width: rem(CARD_MOVE_CONTROL_PX),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
+                border_radius: BorderRadius::all(rem(radius::PILL)),
             }
-            ThemeBackgroundColor({ Token::SurfaceElevated })
             OverviewCardMoveUpButton({ kind })
             ButtonDisabled({ !enabled })
             Button
             Children [
-                Text({ "↑".to_owned() }) TextRole(Role::BodyStrong)
+                Text({ "↑".to_owned() })
+                TextRole(design_resources::TextRole::Body)
+                ThemeTextColor({ Token::InkDim })
             ]
     })
 }
@@ -223,23 +233,23 @@ fn move_up_button_scene(
 fn move_down_button_scene(
     kind: OverviewCardKind,
     enabled: bool,
-    palette: &UiPalette,
+    _palette: &UiPalette,
 ) -> Box<dyn Scene> {
     Box::new(bsn! {
             Node {
-                min_height: rem(palette.control_height_px),
-                min_width: rem(palette.control_height_px),
-                padding: UiRect::horizontal(rem(space::S8)),
+                min_height: rem(CARD_MOVE_CONTROL_PX),
+                min_width: rem(CARD_MOVE_CONTROL_PX),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
+                border_radius: BorderRadius::all(rem(radius::PILL)),
             }
-            ThemeBackgroundColor({ Token::SurfaceElevated })
             OverviewCardMoveDownButton({ kind })
             ButtonDisabled({ !enabled })
             Button
             Children [
-                Text({ "↓".to_owned() }) TextRole(Role::BodyStrong)
+                Text({ "↓".to_owned() })
+                TextRole(design_resources::TextRole::Body)
+                ThemeTextColor({ Token::InkDim })
             ]
     })
 }
@@ -355,20 +365,31 @@ mod tests {
     #[test]
     fn a_move_publishes_the_whole_new_order() {
         let order = OverviewCardKind::DEFAULT_ORDER.to_vec();
-        let moved = moved_order(&order, OverviewCardKind::Traffic, true);
-        assert_eq!(moved[0], OverviewCardKind::Traffic);
-        assert_eq!(moved[1], OverviewCardKind::RoutingIntentSegment);
+        let moved = moved_order(&order, OverviewCardKind::Metrics, true);
+        assert_eq!(moved[0], OverviewCardKind::Metrics);
+        assert_eq!(moved[1], OverviewCardKind::Traffic);
         assert_eq!(moved.len(), order.len());
     }
 
     #[test]
     fn a_move_of_the_first_or_last_card_is_a_no_op() {
         let order = OverviewCardKind::DEFAULT_ORDER.to_vec();
-        assert_eq!(
-            moved_order(&order, OverviewCardKind::RoutingIntentSegment, true),
-            order
-        );
+        assert_eq!(moved_order(&order, OverviewCardKind::Traffic, true), order);
         assert_eq!(moved_order(&order, OverviewCardKind::Quota, false), order);
+    }
+
+    /// The segments the shell rail owns are not Overview cards and never
+    /// become one because a layout listed a legacy shell entry.
+    #[test]
+    fn shell_sidebar_entries_are_not_overview_cards() {
+        let layout = OverviewLayoutSnapshot {
+            order: OverviewCardKind::SHELL_SIDEBAR_ORDER.to_vec(),
+            is_customized: true,
+        };
+        assert_eq!(
+            published_order(&layout),
+            OverviewCardKind::DEFAULT_ORDER.to_vec()
+        );
     }
 
     #[test]

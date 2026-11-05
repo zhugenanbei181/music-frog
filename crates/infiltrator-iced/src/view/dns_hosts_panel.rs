@@ -9,7 +9,7 @@ use crate::view::component_card::card;
 use crate::view::component_forms::{form_input_style, row_card_surface, style_accent, text_btn};
 use crate::view::components::{BadgeKind, badge};
 use crate::view::theme;
-use crate::view::theme::{MONO, tokens};
+use crate::view::theme::tokens;
 use iced::widget::{Space, column, container, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_contract::dns_latency::DnsLatencyReport;
@@ -27,18 +27,16 @@ pub(crate) fn latency_result_lines<'a>(rows: Vec<DnsLatencyRow>) -> Vec<Element<
         .map(|result| {
             let tone = result.tone;
             row![
-                text(result.address).size(12).font(MONO).width(Length::Fill),
-                text(format!("{} · ", result.tier)).size(11),
-                text(result.outcome)
-                    .size(12)
-                    .style(move |t: &Theme| text::Style {
-                        color: Some(match tone {
-                            DnsObservationTone::Success => tokens(t).success,
-                            DnsObservationTone::Warning => tokens(t).warning,
-                            DnsObservationTone::Danger => tokens(t).danger,
-                            DnsObservationTone::Neutral => tokens(t).text_tertiary,
-                        }),
+                theme::role_body_text(result.address).width(Length::Fill),
+                theme::role_body_text(format!("{} · ", result.tier)),
+                theme::role_body_text(result.outcome).style(move |t: &Theme| text::Style {
+                    color: Some(match tone {
+                        DnsObservationTone::Success => tokens(t).success,
+                        DnsObservationTone::Warning => tokens(t).warning,
+                        DnsObservationTone::Danger => tokens(t).danger,
+                        DnsObservationTone::Neutral => tokens(t).text_tertiary,
                     }),
+                }),
             ]
             .align_y(Alignment::Center)
             .into()
@@ -67,11 +65,11 @@ pub(crate) fn latency_policy_line<'a>(
     let kind = observation_badge(display.tone);
     let mut body = column![
         row![
-            text(lang.tr("dns_latency_title").to_string())
-                .size(12)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_secondary)
-                }),
+            theme::role_body_text(lang.tr("dns_latency_title").to_string()).style(|t: &Theme| {
+                text::Style {
+                    color: Some(tokens(t).text_secondary),
+                }
+            }),
             Space::new().width(theme::SP_SM),
             badge(label.to_string(), kind),
             Space::new().width(Length::Fill),
@@ -104,8 +102,7 @@ pub(crate) fn self_heal_panel<'a>(
     let kind = observation_badge(display.tone);
     let mut body = column![
         row![
-            text(lang.tr("dns_self_heal_desc").to_string())
-                .size(12)
+            theme::role_body_text(lang.tr("dns_self_heal_desc").to_string())
                 .style(|t: &Theme| text::Style {
                     color: Some(tokens(t).text_secondary)
                 })
@@ -117,20 +114,21 @@ pub(crate) fn self_heal_panel<'a>(
     .spacing(theme::SP_XS);
 
     if display.rows.is_empty() {
-        body = body.push(text(display.empty).size(12).style(|t: &Theme| text::Style {
-            color: Some(tokens(t).text_tertiary),
-        }));
+        body = body.push(
+            theme::role_body_text(display.empty).style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_tertiary),
+            }),
+        );
     }
     for check in display.rows {
         let label = check.state;
         let kind = observation_badge(check.tone);
         let mut row_content = row![
-            text(check.kind).size(12).width(Length::Shrink),
+            theme::role_body_text(check.kind).width(Length::Shrink),
             Space::new().width(theme::SP_SM),
             badge(label, kind),
             Space::new().width(theme::SP_SM),
-            text(check.detail.clone())
-                .size(11)
+            theme::role_body_text(check.detail.clone())
                 .width(Length::Fill)
                 .style(|t: &Theme| text::Style {
                     color: Some(tokens(t).text_secondary),
@@ -140,7 +138,7 @@ pub(crate) fn self_heal_panel<'a>(
         if let Some(fix) = check.fix {
             row_content = row_content
                 .push(Space::new().width(Length::Fill))
-                .push(text(fix).size(11));
+                .push(theme::role_body_text(fix));
         }
         body = body.push(
             container(row_content)
@@ -162,12 +160,11 @@ pub(crate) fn fake_ip_pool_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> El
         &state.editor.dns_fake_ip_query,
         &Lang(lang.0),
     );
-    let source_line: Element<'_, Message> = text(display.source.clone()).size(11).into();
+    let source_line: Element<'_, Message> = theme::role_body_text(display.source.clone()).into();
 
     let mut body = column![
         row![
-            text(lang.tr("dns_fakeip_pool_desc").to_string())
-                .size(12)
+            theme::role_body_text(lang.tr("dns_fakeip_pool_desc").to_string())
                 .style(|t: &Theme| text::Style {
                     color: Some(tokens(t).text_secondary)
                 })
@@ -181,35 +178,32 @@ pub(crate) fn fake_ip_pool_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> El
         )
         .on_input(Message::UpdateDnsFakeIpQuery)
         .padding([8, 12])
-        .size(12)
-        .font(MONO)
         .style(form_input_style),
     ]
     .spacing(theme::SP_XS);
 
-    body = body.push(text(display.count).size(11).style(|t: &Theme| text::Style {
-        color: Some(tokens(t).text_tertiary),
-    }));
+    body = body.push(
+        theme::role_body_text(display.count).style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_tertiary),
+        }),
+    );
 
     if display.rows.is_empty() {
-        body = body.push(text(display.empty).size(12).style(|t: &Theme| text::Style {
-            color: Some(tokens(t).text_tertiary),
-        }));
+        body = body.push(
+            theme::role_body_text(display.empty).style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_tertiary),
+            }),
+        );
     } else {
         let mut rows = column![].spacing(4);
         for entry in display.rows {
             rows = rows.push(
                 container(
                     row![
-                        text(entry.address.clone())
-                            .size(12)
-                            .font(MONO)
-                            .width(Length::FillPortion(2)),
-                        text("↔").size(12),
+                        theme::role_body_text(entry.address.clone()).width(Length::FillPortion(2)),
+                        theme::role_body_text("↔"),
                         Space::new().width(theme::SP_SM),
-                        text(entry.domain.clone())
-                            .size(12)
-                            .width(Length::FillPortion(3)),
+                        theme::role_body_text(entry.domain.clone()).width(Length::FillPortion(3)),
                     ]
                     .align_y(Alignment::Center),
                 )
@@ -232,8 +226,8 @@ pub(crate) fn hosts_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'
     card(
         Some(lang.tr("dns_hosts_title").into_owned()),
         column![
-            text(summary(editor, &Lang(lang.0))).size(12),
-            text(feedback(editor, &Lang(lang.0))).size(11),
+            theme::role_body_text(summary(editor, &Lang(lang.0))),
+            theme::role_body_text(feedback(editor, &Lang(lang.0))),
             text_btn(
                 lang.tr("dns_hosts_open").into_owned(),
                 style_accent,

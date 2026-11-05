@@ -15,9 +15,10 @@ use bevy::ui::ScrollPosition;
 use bevy::ui::prelude::{ComputedNode, Node, Overflow};
 use bevy::ui_widgets::ScrollArea;
 use infiltrator_bevy_widgets::WidgetsPlugin;
+use infiltrator_bevy_widgets::motion::UiMotionPreference;
 use infiltrator_bevy_widgets::scrollarea::{
-    SCROLL_INERTIA_MAX_SPEED, SCROLL_INERTIA_MIN_SPEED, ScrollMotion, ScrollMotionPreference,
-    ScrollMotionState, ScrollVelocitySampling,
+    SCROLL_INERTIA_MAX_SPEED, SCROLL_INERTIA_MIN_SPEED, ScrollMotion, ScrollMotionState,
+    ScrollVelocitySampling,
 };
 use infiltrator_bevy_widgets::theme::Theme;
 use std::time::Duration;
@@ -146,7 +147,7 @@ fn reduced_motion_stops_scroll_without_a_coast() {
     app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(
         20,
     )));
-    *app.world_mut().resource_mut::<ScrollMotionPreference>() = ScrollMotionPreference::Reduced;
+    *app.world_mut().resource_mut::<UiMotionPreference>() = UiMotionPreference::Reduced;
     let root = app
         .world_mut()
         .spawn((

@@ -12,13 +12,12 @@ use crate::a11y::{nav_semantic_node, semantic_node, toggle_semantic_node};
 use crate::app::shell_bidi::{ShellDirectionRoot, ShellDirectionRow};
 use crate::app::shell_focus::ShellFocusable;
 use crate::app::{
-    BOTTOM_NAV_CONTENT_HEIGHT, BottomNavActive, BottomNavBar, BottomNavItem, ContentColumn,
-    ContentSlot, ContentTitleLabel, DensityToggle, HistoryBackButton, HistoryForwardButton,
-    RoutingIntentStatusCapsule, SIDEBAR_WIDTH_PX, ShellHeader, ShellRoot, SidebarExpandedOnly,
-    SidebarFoot, SidebarFooterRow, SidebarPanel, StatusDotImage, ThemeToggle,
+    BOTTOM_NAV_CONTENT_HEIGHT, BottomNavActive, BottomNavBar, BottomNavIconPill, BottomNavItem,
+    ContentColumn, ContentSlot, ContentTitleLabel, DensityToggle, HistoryBackButton,
+    HistoryForwardButton, RoutingIntentStatusCapsule, SIDEBAR_WIDTH_PX, ShellHeader, ShellRoot,
+    SidebarExpandedOnly, SidebarFoot, SidebarFooterRow, SidebarPanel, StatusDotImage, ThemeToggle,
 };
 use crate::chrome::chrome_bar_scene;
-use crate::localized_widgets::localized_pill_scene;
 use crate::pages::connections_confirm::confirmation_scene;
 use crate::pages::overview_speedtest::overview_speedtest_detail_modal_scene;
 use crate::route::Route;
@@ -37,17 +36,20 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
-use infiltrator_bevy_widgets::button::{ControlVisual, PillLabel, pill_caption_with_label_scene};
+use infiltrator_bevy_widgets::button::{ButtonVariant, ButtonVariantStyle, ControlVisual};
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::{IconId, icon_scene_val};
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::responsive::TouchHitbox;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::a11y::ShellA11yNode;
+use infiltrator_contract::design_resources;
+use infiltrator_contract::shared_copy::SharedCopyKey;
 use infiltrator_contract::system_toggle::SystemToggleSnapshot;
+use infiltrator_shared::locales::{Lang, Localizer};
 
 /// The sidebar speed footer's waveform strip width in baseline pixels.
 pub const SHELL_WAVEFORM_WIDTH_PX: f32 = 60.0;
@@ -205,15 +207,10 @@ fn bottom_nav_item_scene(
     active: bool,
     palette: &UiPalette,
 ) -> Box<dyn Scene> {
-    let ink = if active {
-        palette.accent
-    } else {
-        palette.ink_dim
-    };
     let role = if active {
-        Role::BodyStrong
+        design_resources::TextRole::BodyStrong
     } else {
-        Role::Caption
+        design_resources::TextRole::Caption
     };
     Box::new(bsn! {
             Node {
@@ -230,11 +227,50 @@ fn bottom_nav_item_scene(
             BottomNavActive(active)
             ShellFocusable
             Children [
-                @{ icon_scene_val(icon, rem(BOTTOM_NAV_ICON_PX), ink) }
+                @{ bottom_nav_icon_seat_scene(icon, active, palette) }
                 --
                 LocalizedText::plain(route.label_key()) TextRole(role)
             ]
     })
+}
+
+/// The icon's seat: the active route wears the shared selection-wash pill
+/// (M3 bottom navigation), the inactive route stays bare. Both seats share
+/// one geometry, so a route switch recolors without shifting the row.
+fn bottom_nav_icon_seat_scene(icon: IconId, active: bool, palette: &UiPalette) -> Box<dyn Scene> {
+    let ink = if active {
+        palette.accent
+    } else {
+        palette.ink_dim
+    };
+    if active {
+        Box::new(bsn! {
+                Node {
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::Center,
+                    padding: UiRect::axes(rem(space::S12), rem(space::S2)),
+                    border_radius: BorderRadius::MAX,
+                }
+                ThemeBackgroundColor({ Token::SelectionFill })
+                BottomNavIconPill
+                Children [
+                    @{ icon_scene_val(icon, rem(BOTTOM_NAV_ICON_PX), ink) }
+                ]
+        })
+    } else {
+        Box::new(bsn! {
+                Node {
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::Center,
+                    padding: UiRect::axes(rem(space::S12), rem(space::S2)),
+                    border_radius: BorderRadius::MAX,
+                }
+                BottomNavIconPill
+                Children [
+                    @{ icon_scene_val(icon, rem(BOTTOM_NAV_ICON_PX), ink) }
+                ]
+        })
+    }
 }
 
 /// Mount the inline status point into its seat inside the title text.
@@ -284,7 +320,7 @@ pub fn content_title_row(_title: &str, palette: &UiPalette) -> impl Scene + use<
                 HistoryForwardButton
                 ShellFocusable
                 --
-                LocalizedText::plain("nav_overview") TextRole(Role::Heading) ContentTitleLabel
+                LocalizedText::plain("nav_overview") TextRole(design_resources::TextRole::Heading) ContentTitleLabel
                 Children [
                     @{ status_point_slot_scene() }
                 ]
@@ -343,7 +379,7 @@ fn routing_status_capsule_scene(palette: &UiPalette) -> impl Scene + use<> {
             BackgroundColor({ palette.surface_elevated })
             BorderColor { top: edge, right: edge, bottom: edge, left: edge }
             Children [
-                Text({ String::new() }) TextRole(Role::Caption) ThemeTextColor({ Token::Ink })
+                Text({ String::new() }) TextRole(design_resources::TextRole::Caption) ThemeTextColor({ Token::Ink })
             ]
     }
 }
@@ -358,8 +394,7 @@ pub fn sidebar_scene_with_toggles(
     toggles: &SystemToggleSnapshot,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    let density_node = toggle_semantic_node("Toggle layout density");
-    let theme_label = LocalizedText::plain("theme");
+    let density_node = toggle_semantic_node(&Lang("zh-CN").tr(SharedCopyKey::LayoutDensity.key()));
     let theme_semantic = semantic_node(ShellA11yNode::ThemeToggle);
     bsn! {
             Node {
@@ -394,11 +429,16 @@ pub fn sidebar_scene_with_toggles(
                     width: percent(100),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::SpaceBetween,
+                    column_gap: rem(space::S8),
                 }
                 SidebarFooterRow
                 SidebarExpandedOnly
                 Children [
-                    Text({ "0.30 demo".to_owned() }) TextRole(Role::Caption)
+                    // `sync_sidebar_foot` restamps `&mut Text` on the entity
+                    // that carries `SidebarFoot`, so the marker and the text
+                    // stay on one node: nesting the text made the caption
+                    // unreachable and the foot rendered permanently blank.
+                    Text({ String::new() }) TextRole(design_resources::TextRole::Caption)
                     SidebarFoot
                     --
                     Node {
@@ -406,25 +446,39 @@ pub fn sidebar_scene_with_toggles(
                         column_gap: rem(space::S4),
                     }
                     Children [
-                        @{
-                            pill_caption_with_label_scene(
-                                bsn! {
-                                    LocalizedText { key: { theme_label.key }, params: { theme_label.params } }
-                                    TextRole(Role::Caption) PillLabel
-                                },
-                                false,
-                                palette,
-                            )
-                        }
+                        @{ sidebar_preference_button_scene(IconId::Settings, palette) }
                         ThemeToggle ShellFocusable
                         theme_semantic
                         --
-                        @{ localized_pill_scene(LocalizedText::plain("density"), false, palette) }
+                        @{ sidebar_preference_button_scene(IconId::LayoutGrid, palette) }
                         DensityToggle
                         ShellFocusable
                         density_node
                     ]
                 ]
+            ]
+    }
+}
+
+/// One sidebar preference control: a quiet icon button. The localized
+/// AccessKit label carries the semantics; the dashboard does not show a raw
+/// settings word as chrome.
+fn sidebar_preference_button_scene(icon: IconId, palette: &UiPalette) -> impl Scene + use<> {
+    bsn! {
+            Node {
+                width: rem(palette.control_square_px),
+                height: rem(palette.control_square_px),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
+            }
+            BackgroundColor({ Color::NONE })
+            Button
+            ButtonVariantStyle(ButtonVariant::Ghost)
+            ControlVisual(false)
+            TouchHitbox::default()
+            Children [
+                @{ icon_scene_val(icon, rem(space::S12), palette.ink_dim) }
             ]
     }
 }

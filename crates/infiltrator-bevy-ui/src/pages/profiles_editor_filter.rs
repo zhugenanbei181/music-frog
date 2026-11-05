@@ -6,7 +6,7 @@ use crate::pages::profiles_editor_panes::{
 };
 use crate::pages::profiles_editor_panes_sync::editor_profile;
 use crate::pages::profiles_editor_state::ProfileEditorState;
-use accesskit::{Role, Toggled};
+use accesskit::Toggled;
 use bevy::a11y::AccessibilityNode;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
@@ -155,7 +155,7 @@ pub(super) fn controls(
                 node.clear_disabled();
             }
             if button.choice.is_some() {
-                node.set_role(Role::RadioButton);
+                node.set_role(accesskit::Role::RadioButton);
                 node.set_toggled(if selected {
                     Toggled::True
                 } else {

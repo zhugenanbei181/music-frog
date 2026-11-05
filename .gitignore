@@ -59,6 +59,8 @@ android/build/
 android/app/build/
 android/bevy-host/build/
 android/core-host-tests/build/
+android/buildSrc/build/
+android/buildSrc/.gradle/
 android/app/.cxx/
 android/app/.externalNativeBuild/
 android/app/src/main/jniLibs/
@@ -70,3 +72,14 @@ android/Medium-Phone-*
 
 # The Bevy UI capture matrix is published identity evidence (GAP-7.3):
 # the 182 PNGs and their manifest.tsv are tracked and identity-guarded.
+
+# Design font collection binaries and local commercial candidates
+crates/infiltrator-shared/assets/fonts/base-local/
+crates/infiltrator-shared/assets/fonts/*-local/
+crates/infiltrator-shared/assets/fonts/collection/**
+!crates/infiltrator-shared/assets/fonts/collection/**/
+!crates/infiltrator-shared/assets/fonts/collection/**/*.txt
+crates/infiltrator-shared/assets/fonts/*.otf
+crates/infiltrator-shared/assets/fonts/LongCang-Regular.ttf
+crates/infiltrator-shared/assets/fonts/MaShanZheng-Regular.ttf
+crates/infiltrator-shared/assets/fonts/ZCOOLXiaoWei-Regular.ttf

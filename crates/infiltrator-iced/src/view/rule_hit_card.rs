@@ -3,11 +3,12 @@ use crate::state::AppState;
 use crate::types::message::Message;
 use crate::view::component_card::card;
 use crate::view::component_forms::style_ghost;
+use crate::view::scrollbar::auto_hide_scrollable;
 use crate::view::theme;
-use crate::view::theme::{FONT_SEMIBOLD, MONO, tokens};
+use crate::view::theme::tokens;
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::advanced::text::Renderer;
-use iced::widget::{Space, button, column, container, row, scrollable, text};
+use iced::widget::{Space, button, column, container, row, text};
 use iced::{Element, Font, Length, Theme};
 use infiltrator_presentation::rule_statistics_inspector_projection::project_inspector;
 use infiltrator_presentation::rule_statistics_workbench::{StatisticsAction, StatisticsTab};
@@ -32,7 +33,7 @@ pub fn rule_hit_card<'a, R: Renderer<Font = Font> + 'a>(
         };
         tabs = tabs.push(
             container(
-                button(text(lang.tr(tab.label_key()).into_owned()).size(12))
+                button(theme::role_body_text(lang.tr(tab.label_key()).into_owned()))
                     .style(style_ghost)
                     .on_press(action(StatisticsAction::Tab(tab))),
             )
@@ -40,8 +41,8 @@ pub fn rule_hit_card<'a, R: Renderer<Font = Font> + 'a>(
         );
     }
     let mut body = column![
-        text(display.status).size(12),
-        text(display.source).size(11),
+        theme::role_body_text(display.status),
+        theme::role_body_text(display.source),
         tabs.spacing(8)
     ];
     if model.tab == StatisticsTab::Summary {
@@ -54,15 +55,15 @@ pub fn rule_hit_card<'a, R: Renderer<Font = Font> + 'a>(
         ] {
             metrics = metrics.push(
                 column![
-                    text(lang.tr(key).into_owned()).size(11),
-                    text(value).size(14).font(FONT_SEMIBOLD)
+                    theme::role_body_text(lang.tr(key).into_owned()),
+                    theme::role_body_text(value)
                 ]
                 .width(Length::Fill),
             );
         }
         body = body
             .push(metrics.spacing(8))
-            .push(text(display.last_hit).size(11).font(MONO));
+            .push(theme::role_body_text(display.last_hit));
     } else {
         let mut rows = column![];
         let empty = display.rows.is_empty();
@@ -70,9 +71,9 @@ pub fn rule_hit_card<'a, R: Renderer<Font = Font> + 'a>(
             rows = rows.push(
                 container(
                     column![
-                        text(format!("#{} · {}", item.ordinal, item.count)).size(11),
-                        text(item.raw).size(12).font(MONO),
-                        text(item.detail).size(11),
+                        theme::role_body_text(format!("#{} · {}", item.ordinal, item.count)),
+                        theme::role_body_text(item.raw),
+                        theme::role_body_text(item.detail),
                     ]
                     .spacing(4),
                 )
@@ -81,18 +82,24 @@ pub fn rule_hit_card<'a, R: Renderer<Font = Font> + 'a>(
             );
         }
         if empty {
-            rows = rows.push(text(display.empty_rows).size(12));
+            rows = rows.push(theme::role_body_text(display.empty_rows));
         }
-        body = body.push(scrollable(rows.spacing(6)).height(240));
+        body = body.push(auto_hide_scrollable(rows.spacing(6)).height(240));
         body = body.push(
             row![
-                button(text(lang.tr("common_previous_page").into_owned())).on_press_maybe(
+                button(theme::role_body_text(
+                    lang.tr("common_previous_page").into_owned()
+                ))
+                .on_press_maybe(
                     display
                         .can_previous
                         .then_some(action(StatisticsAction::PreviousPage))
                 ),
-                text(display.page).size(11),
-                button(text(lang.tr("common_next_page").into_owned())).on_press_maybe(
+                theme::role_body_text(display.page),
+                button(theme::role_body_text(
+                    lang.tr("common_next_page").into_owned()
+                ))
+                .on_press_maybe(
                     display
                         .can_next
                         .then_some(action(StatisticsAction::NextPage))
@@ -103,11 +110,9 @@ pub fn rule_hit_card<'a, R: Renderer<Font = Font> + 'a>(
         );
     }
     body = body.push(
-        text(display.feedback)
-            .size(12)
-            .style(|theme: &Theme| text::Style {
-                color: Some(tokens(theme).text_primary),
-            }),
+        theme::role_body_text(display.feedback).style(|theme: &Theme| text::Style {
+            color: Some(tokens(theme).text_primary),
+        }),
     );
     let clear_key = if model.reset_failure().is_some() {
         "logs_export_retry"
@@ -117,12 +122,15 @@ pub fn rule_hit_card<'a, R: Renderer<Font = Font> + 'a>(
     body = body.push(
         row![
             container(
-                button(text(lang.tr(clear_key).into_owned()))
+                button(theme::role_body_text(lang.tr(clear_key).into_owned()))
                     .on_press_maybe(display.can_reset.then_some(action(StatisticsAction::Reset)))
             )
             .id(InteractionRegion::StatisticsReset.id()),
             container(
-                button(text(lang.tr("rule_hit_btn_audit").into_owned())).on_press_maybe(
+                button(theme::role_body_text(
+                    lang.tr("rule_hit_btn_audit").into_owned()
+                ))
+                .on_press_maybe(
                     display
                         .can_inspect
                         .then_some(action(StatisticsAction::Inspect))
@@ -130,7 +138,10 @@ pub fn rule_hit_card<'a, R: Renderer<Font = Font> + 'a>(
             )
             .id(InteractionRegion::StatisticsInspect.id()),
             container(
-                button(text(lang.tr("rule_hit_btn_clean").into_owned())).on_press_maybe(
+                button(theme::role_body_text(
+                    lang.tr("rule_hit_btn_clean").into_owned()
+                ))
+                .on_press_maybe(
                     display
                         .can_prepare_cleanup
                         .then_some(action(StatisticsAction::PrepareCleanup))
@@ -143,14 +154,14 @@ pub fn rule_hit_card<'a, R: Renderer<Font = Font> + 'a>(
     );
     if model.reset_failure().is_some() {
         body = body.push(
-            button(text(lang.tr("modal_close").into_owned()))
+            button(theme::role_body_text(lang.tr("modal_close").into_owned()))
                 .on_press(action(StatisticsAction::DismissFailure)),
         );
     }
     container(card(
         Some(lang.tr("rule_hit_title").into_owned()),
         column![
-            text(lang.tr("rule_hit_desc").into_owned()).size(12),
+            theme::role_body_text(lang.tr("rule_hit_desc").into_owned()),
             Space::new().height(theme::SP_XS),
             body.spacing(theme::SP_SM),
         ]

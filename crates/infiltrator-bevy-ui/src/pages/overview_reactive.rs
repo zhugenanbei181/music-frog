@@ -29,8 +29,9 @@ use infiltrator_bevy_widgets::reactive::{
     stage_signal_inputs,
 };
 use infiltrator_bevy_widgets::signal_dag::{ReactiveDag, SignalId};
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::resources::ResourceAvailability;
 
 /// Active connection count source.
@@ -168,9 +169,9 @@ pub fn reactive_summary_scene(_palette: &UiPalette) -> impl Scene + use<> {
             column_gap: rem(space::S8),
         }
         Children [
-            Text("Load score") TextRole(Role::Caption)
+            Text("Load score") TextRole(design_resources::TextRole::Caption)
             --
-            Text(String::new()) OverviewReactiveSummary TextRole(Role::Mono)
+            Text(String::new()) OverviewReactiveSummary TextRole(design_resources::TextRole::Mono)
         ]
     }
 }

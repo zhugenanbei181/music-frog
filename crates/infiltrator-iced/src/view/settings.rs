@@ -19,7 +19,7 @@ use crate::view::net_roam_card::net_roam_card;
 use crate::view::pac_card::pac_card;
 use crate::view::privileged_network_card::privileged_network_card;
 use crate::view::theme;
-use crate::view::theme::{FONT_SEMIBOLD, MONO, tokens};
+use crate::view::theme::tokens;
 use crate::view::uwp_card::uwp_card;
 use crate::view::vpn_card::vpn_card;
 use crate::view::web_dash_card::web_dash_card;
@@ -52,10 +52,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             Some(TunServiceStatus::InstalledAndRunning)
         );
 
-    let header = text(lang.tr("nav_settings").to_string())
-        .size(24)
-        .font(FONT_SEMIBOLD)
-        .style(|t: &Theme| text::Style {
+    let header =
+        theme::role_body_text(lang.tr("nav_settings").to_string()).style(|t: &Theme| text::Style {
             color: Some(tokens(t).text_primary),
         });
 
@@ -142,7 +140,6 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             )
             .on_input(Message::UpdateEditorPathSetting)
             .padding([8, 12])
-            .size(13)
             .style(form_input_style),
             row![
                 if state
@@ -194,8 +191,6 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                             Length::Fixed(120.0)
                         })
                         .padding([8, 12])
-                        .size(13)
-                        .font(MONO)
                         .style(form_input_style),
                     Space::new().width(theme::SP_MD),
                     text_btn(
@@ -209,12 +204,11 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             row![
                 status_dot(admin_running),
                 Space::new().width(theme::SP_SM),
-                text(if admin_running {
+                theme::role_body_text(if admin_running {
                     lang.tr("settings_admin_running")
                 } else {
                     lang.tr("settings_admin_stopped")
                 })
-                .size(12)
                 .style(move |t: &Theme| text::Style {
                     color: Some(if admin_running {
                         tokens(t).success
@@ -224,9 +218,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 }),
                 Space::new().width(theme::SP_MD),
                 if admin_running {
-                    text(state.shell.admin_server.url().unwrap_or_default())
-                        .size(12)
-                        .font(MONO)
+                    theme::role_body_text(state.shell.admin_server.url().unwrap_or_default())
                         .style(|t: &Theme| text::Style {
                             color: Some(tokens(t).text_secondary),
                         })
@@ -244,13 +236,9 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         Some(lang.tr("settings_font_attribution_title").into_owned()),
         column![
             secondary_text(lang.tr("settings_font_attribution_copy").into_owned()),
-            button(
-                text(lang.tr("nav_licenses").into_owned())
-                    .size(12)
-                    .font(FONT_SEMIBOLD),
-            )
-            .padding([6, 12])
-            .on_press(Message::Navigate(Route::Licenses)),
+            button(theme::role_body_text(lang.tr("nav_licenses").into_owned()),)
+                .padding([6, 12])
+                .on_press(Message::Navigate(Route::Licenses)),
         ]
         .spacing(theme::SP_SM),
     ))
@@ -260,11 +248,10 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         header,
         font_attribution,
         language_card,
-        text(format_runtime_status(
+        theme::role_body_text(format_runtime_status(
             &state.runtime.runtime_control.status,
             &Lang(lang.0)
-        ))
-        .size(12),
+        )),
         Space::new().height(theme::SP_LG)
     ]
     .spacing(10);

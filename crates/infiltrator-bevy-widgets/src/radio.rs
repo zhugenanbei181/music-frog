@@ -10,7 +10,7 @@
 
 use crate::palette::UiPalette;
 use crate::palette::rem;
-use crate::text::{Role, TextRole};
+use crate::text::TextRole;
 use crate::theme::space;
 use bevy::color::Color;
 use bevy::ecs::component::Component;
@@ -26,6 +26,7 @@ use bevy::ui::prelude::{
 use bevy::ui::widget::Text;
 use bevy::ui::{BorderColor, Checked};
 use bevy::ui_widgets::{RadioButton, RadioGroup};
+use infiltrator_contract::design_resources;
 
 /// Marker on the visual ring child of a radio row.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -190,7 +191,7 @@ pub fn indexed_radio_scene(
                         }
                         RadioRing
                         --
-                        Text(label) TextRole(Role::Body)
+                        Text(label) TextRole(design_resources::TextRole::Body)
                     ]
         })
     } else {
@@ -224,7 +225,7 @@ pub fn indexed_radio_scene(
                         }
                         RadioRing
                         --
-                        Text(label) TextRole(Role::Body)
+                        Text(label) TextRole(design_resources::TextRole::Body)
                     ]
         })
     }
@@ -312,7 +313,7 @@ fn selected_row(label: String, palette: &UiPalette) -> impl Scene + use<> {
                 }
                 RadioRing
                 --
-                Text(label) TextRole(Role::Body)
+                Text(label) TextRole(design_resources::TextRole::Body)
             ]
     }
 }
@@ -349,7 +350,7 @@ fn idle_row(label: String, palette: &UiPalette) -> impl Scene + use<> {
                 }
                 RadioRing
                 --
-                Text(label) TextRole(Role::Body)
+                Text(label) TextRole(design_resources::TextRole::Body)
             ]
     }
 }

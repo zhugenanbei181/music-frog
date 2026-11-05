@@ -1,8 +1,8 @@
 //! Native overview copy replays shared facts and locale without replacing entities.
 use crate::pages::overview::{
     LastOverviewProjection, OverviewChip, OverviewChipKind, OverviewLine, OverviewLineKind,
-    banner_note, banner_state_text, chip_label, format_cpu, format_memory, format_scale,
-    format_total_traffic, state_ink,
+    banner_note, banner_state_text, chip_label, format_cpu, format_memory, format_total_traffic,
+    state_ink,
 };
 use bevy::a11y::AccessibilityNode;
 use bevy::ecs::change_detection::DetectChanges;
@@ -15,6 +15,7 @@ use bevy::ui::widget::Text;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::stat_chip::{StatChipLabel, StatChipValue};
+use infiltrator_presentation::dashboard_hero_projection::TrafficWaveformProjection;
 use infiltrator_presentation::shell_readout::{rate_copy, rate_status};
 use infiltrator_shared::locales::Lang;
 use lurker_ui_presentation::core_status_projection::failure_copy;
@@ -78,7 +79,34 @@ pub fn refresh(mut copy: OverviewCopy) {
             OverviewLineKind::Failure => {
                 failure_copy(&projection.lifecycle, projection.failure(), &Lang(language))
             }
-            OverviewLineKind::Scale => format_scale(&projection.traffic_scale),
+            OverviewLineKind::UploadPeak => {
+                let waveform =
+                    TrafficWaveformProjection::from_waveform(&projection.traffic_waveform, 0, 0);
+                waveform.peak_up_formatted
+            }
+            OverviewLineKind::DownloadPeak => {
+                let waveform =
+                    TrafficWaveformProjection::from_waveform(&projection.traffic_waveform, 0, 0);
+                waveform.peak_down_formatted
+            }
+            OverviewLineKind::UploadTotal => {
+                let total = projection.total_traffic_bytes.unwrap_or(0);
+                let waveform = TrafficWaveformProjection::from_waveform(
+                    &projection.traffic_waveform,
+                    total / 2,
+                    total / 2,
+                );
+                waveform.total_up_formatted
+            }
+            OverviewLineKind::DownloadTotal => {
+                let total = projection.total_traffic_bytes.unwrap_or(0);
+                let waveform = TrafficWaveformProjection::from_waveform(
+                    &projection.traffic_waveform,
+                    total / 2,
+                    total / 2,
+                );
+                waveform.total_down_formatted
+            }
         };
         if let Some(mut semantic) = line.semantic {
             semantic.0.set_label(value.as_str());

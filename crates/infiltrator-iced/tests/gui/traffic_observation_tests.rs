@@ -42,8 +42,12 @@ impl Operation for CopyProbe {
 }
 fn native_rate(state: &AppState) -> Vec<String> {
     let rates = state.traffic_readout();
-    let mut element =
-        legend_indicator::<()>(Color::BLACK, "Upload", &rates.upload, rates.upload_peak);
+    let mut element = legend_indicator::<()>(
+        Color::BLACK,
+        "Upload",
+        &rates.upload_display,
+        rates.upload_peak,
+    );
     let mut tree = Tree::new(element.as_widget());
     let node = element.as_widget_mut().layout(
         &mut tree,
@@ -83,11 +87,8 @@ fn composed_rates_unknown_zero_failed_stale_and_new_session_are_distinct_and_uns
     let _ = state.update(Message::SurfaceSnapshotUpdated(Box::new(first)));
     assert!(state.diag.traffic.is_none());
     assert_eq!(state.traffic_readout().upload, "Not observed");
-    assert!(
-        native_rate(&state)
-            .iter()
-            .any(|copy| copy == "Not observed")
-    );
+    assert_eq!(state.traffic_readout().upload_display, "—");
+    assert!(native_rate(&state).iter().any(|copy| copy == "—"));
     assert!(state.traffic_readout().upload_peak.is_none());
     let zero = run(reader.read()).unwrap();
     let _ = state.update(Message::SurfaceSnapshotUpdated(Box::new(zero)));

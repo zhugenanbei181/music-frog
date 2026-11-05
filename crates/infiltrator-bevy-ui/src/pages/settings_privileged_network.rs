@@ -22,8 +22,9 @@ use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_presentation::host_network_projection::privileged;
 use infiltrator_shared::locales::Lang;
 
@@ -54,9 +55,9 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                             row_gap: rem(space::S4),
                         }
                         Children [
-                            LocalizedText::plain("settings_privileged_network_title") TextRole(Role::Body)
+                            LocalizedText::plain("settings_privileged_network_title") TextRole(design_resources::TextRole::Body)
                             --
-                            Text({format!("{} · {}",view.status,view.details)}) PrivilegedNetworkStatusLine TextRole(Role::Mono)
+                            Text({format!("{} · {}",view.status,view.details)}) PrivilegedNetworkStatusLine TextRole(design_resources::TextRole::Mono)
                         ]
                         --
                         Node {
@@ -70,7 +71,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                         PrivilegedNetworkRunButton
                         Button
                         Children [
-                            LocalizedText::plain("privileged_network_run") TextRole(Role::BodyStrong)
+                            LocalizedText::plain("privileged_network_run") TextRole(design_resources::TextRole::BodyStrong)
                         ]
                     ]
         })],

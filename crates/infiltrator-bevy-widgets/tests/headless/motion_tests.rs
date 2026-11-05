@@ -3,13 +3,10 @@
 use bevy::app::{App, Update};
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::ResMut;
-use bevy::picking::hover::PickingInteraction;
 use bevy::time::{Time, TimePlugin};
 use bevy::transform::components::Transform;
-use bevy::ui::prelude::{Node, Val};
 use infiltrator_bevy_widgets::motion::{
-    SpringAnimationPlugin, SpringButtonPop, SpringRouteTransition, SpringToggleKnob,
-    sync_spring_button_pop,
+    SpringAnimationPlugin, SpringRouteTransition, sync_spring_route_transition,
 };
 use std::time::Duration;
 
@@ -25,26 +22,10 @@ fn test_spring_animation_plugin_systems_execution() {
         (|mut time: ResMut<Time>| {
             time.advance_by(Duration::from_millis(50));
         })
-        .before(sync_spring_button_pop),
+        .before(sync_spring_route_transition),
     );
 
-    // 1. Button Pop
-    let btn = app
-        .world_mut()
-        .spawn((
-            SpringButtonPop::default(),
-            Transform::default(),
-            PickingInteraction::Pressed,
-        ))
-        .id();
-
-    // 2. Toggle Knob
-    let knob = app
-        .world_mut()
-        .spawn((SpringToggleKnob::new(0.0, 20.0, true), Node::default()))
-        .id();
-
-    // 3. Route Transition
+    // The plugin's one live system: the route entry spring.
     let route = app
         .world_mut()
         .spawn((SpringRouteTransition::new(8.0), Transform::default()))
@@ -52,17 +33,6 @@ fn test_spring_animation_plugin_systems_execution() {
 
     // Initialize app
     app.update();
-
-    // Button should compress towards 0.96
-    let btn_transform = app.world().get::<Transform>(btn).unwrap();
-    assert!(btn_transform.scale.x < 1.0);
-
-    // Knob should advance towards 20.0
-    let knob_node = app.world().get::<Node>(knob).unwrap();
-    match knob_node.left {
-        Val::Rem(offset) => assert!(offset > 0.0),
-        _ => panic!("Expected Val::Rem for knob.left"),
-    }
 
     // Route transition should move towards 0.0
     let route_transform = app.world().get::<Transform>(route).unwrap();

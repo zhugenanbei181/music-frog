@@ -59,15 +59,15 @@ async fn a_layout_move_is_dispatched_to_the_owner_and_answers_with_its_order() {
     let application = layout_application();
     let output = application
         .execute_output(CommandIntent::MoveOverviewCard {
-            kind: OverviewCardKind::Traffic,
+            kind: OverviewCardKind::Metrics,
             direction: OverviewCardMoveDirection::Up,
         })
         .await
         .expect("the layout owner answers");
 
     let snapshot = output.into_overview_layout().expect("layout readback");
-    assert_eq!(snapshot.order[0], OverviewCardKind::Traffic);
-    assert_eq!(snapshot.order[1], OverviewCardKind::RoutingIntentSegment);
+    assert_eq!(snapshot.order[0], OverviewCardKind::Metrics);
+    assert_eq!(snapshot.order[1], OverviewCardKind::Traffic);
     assert!(snapshot.is_customized);
 }
 
@@ -96,7 +96,7 @@ async fn a_layout_reset_restores_the_canonical_order() {
     let application = layout_application();
     application
         .execute_output(CommandIntent::MoveOverviewCard {
-            kind: OverviewCardKind::Traffic,
+            kind: OverviewCardKind::Metrics,
             direction: OverviewCardMoveDirection::Up,
         })
         .await

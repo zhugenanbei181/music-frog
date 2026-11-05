@@ -2,7 +2,18 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Enumeration of distinct reorderable cards on the Overview page.
+/// Regions that own a shell control or a reorderable Overview card.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum OverviewCardRegion {
+    /// The card belongs to the Overview page.
+    Overview,
+    /// The control belongs to the persistent shell sidebar and must not appear
+    /// as a second Overview card.
+    ShellSidebar,
+}
+
+/// Enumeration of distinct shell and Overview controls represented by the
+/// shared layout contract.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum OverviewCardKind {
@@ -26,16 +37,30 @@ pub enum OverviewCardKind {
 
 impl OverviewCardKind {
     /// Canonical default visual order of cards on the Overview page.
-    pub const DEFAULT_ORDER: [Self; 8] = [
-        Self::RoutingIntentSegment,
+    pub const DEFAULT_ORDER: [Self; 6] = [
         Self::Traffic,
         Self::Metrics,
-        Self::MasterSwitches,
         Self::ActiveExit,
         Self::PublicIp,
         Self::Topology,
         Self::Quota,
     ];
+
+    /// Controls owned by the persistent sidebar rather than the Overview page.
+    pub const SHELL_SIDEBAR_ORDER: [Self; 2] = [Self::RoutingIntentSegment, Self::MasterSwitches];
+
+    /// The single region decision for one contract entry.
+    pub const fn region(self) -> OverviewCardRegion {
+        match self {
+            Self::RoutingIntentSegment | Self::MasterSwitches => OverviewCardRegion::ShellSidebar,
+            _ => OverviewCardRegion::Overview,
+        }
+    }
+
+    /// Whether the entry may be mounted as an Overview card.
+    pub const fn is_overview_card(self) -> bool {
+        matches!(self.region(), OverviewCardRegion::Overview)
+    }
 
     pub const fn as_str(self) -> &'static str {
         match self {
@@ -53,10 +78,8 @@ impl OverviewCardKind {
     pub fn from_str_loose(s: &str) -> Option<Self> {
         let clean = s.trim().to_ascii_lowercase().replace(['-', '_'], "");
         match clean.as_str() {
-            "routingintentsegment" | "routingintent" => Some(Self::RoutingIntentSegment),
             "traffic" | "waveform" | "chart" => Some(Self::Traffic),
             "metrics" | "stats" | "chips" => Some(Self::Metrics),
-            "masterswitches" | "switches" | "masters" => Some(Self::MasterSwitches),
             "activeexit" | "exit" | "node" => Some(Self::ActiveExit),
             "publicip" | "ip" | "probe" => Some(Self::PublicIp),
             "topology" | "chain" => Some(Self::Topology),
@@ -97,6 +120,10 @@ impl Default for OverviewLayoutSnapshot {
 
 impl OverviewLayoutSnapshot {
     pub fn new(order: Vec<OverviewCardKind>) -> Self {
+        let order: Vec<_> = order
+            .into_iter()
+            .filter(|kind| kind.is_overview_card())
+            .collect();
         let is_customized = order != OverviewCardKind::DEFAULT_ORDER.to_vec();
         Self {
             order,
@@ -176,29 +203,51 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_order_covers_all_eight_overview_cards() {
+    fn default_order_covers_the_six_overview_cards() {
         let snapshot = OverviewLayoutSnapshot::default();
-        assert_eq!(snapshot.order.len(), 8);
+        assert_eq!(snapshot.order.len(), 6);
         assert!(!snapshot.is_customized);
-        assert_eq!(snapshot.order[0], OverviewCardKind::RoutingIntentSegment);
-        assert_eq!(snapshot.order[7], OverviewCardKind::Quota);
+        assert_eq!(snapshot.order[0], OverviewCardKind::Traffic);
+        assert_eq!(snapshot.order[5], OverviewCardKind::Quota);
+        assert_eq!(
+            OverviewCardKind::SHELL_SIDEBAR_ORDER
+                .iter()
+                .filter(|kind| kind.is_overview_card())
+                .count(),
+            0
+        );
     }
 
     #[test]
     fn reorder_and_move_operations_work() {
         let mut snapshot = OverviewLayoutSnapshot::default();
-        assert!(snapshot.move_down(OverviewCardKind::RoutingIntentSegment));
+        assert!(snapshot.move_down(OverviewCardKind::Traffic));
         assert!(snapshot.is_customized);
-        assert_eq!(snapshot.order[0], OverviewCardKind::Traffic);
-        assert_eq!(snapshot.order[1], OverviewCardKind::RoutingIntentSegment);
+        assert_eq!(snapshot.order[0], OverviewCardKind::Metrics);
+        assert_eq!(snapshot.order[1], OverviewCardKind::Traffic);
 
-        assert!(snapshot.move_up(OverviewCardKind::RoutingIntentSegment));
+        assert!(snapshot.move_up(OverviewCardKind::Traffic));
         assert!(!snapshot.is_customized);
-        assert_eq!(snapshot.order[0], OverviewCardKind::RoutingIntentSegment);
+        assert_eq!(snapshot.order[0], OverviewCardKind::Traffic);
 
         assert!(snapshot.reorder(0, 3));
         assert!(snapshot.is_customized);
         snapshot.reset_to_default();
         assert!(!snapshot.is_customized);
+    }
+
+    #[test]
+    fn legacy_sidebar_controls_are_dropped_from_the_overview_order() {
+        let mut snapshot = OverviewLayoutSnapshot::new(vec![
+            OverviewCardKind::RoutingIntentSegment,
+            OverviewCardKind::Traffic,
+            OverviewCardKind::MasterSwitches,
+        ]);
+
+        assert_eq!(snapshot.order, vec![OverviewCardKind::Traffic]);
+        assert!(!snapshot.move_card(
+            OverviewCardKind::RoutingIntentSegment,
+            OverviewCardMoveDirection::Down
+        ));
     }
 }

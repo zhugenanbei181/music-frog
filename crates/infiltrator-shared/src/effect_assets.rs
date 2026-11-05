@@ -12,7 +12,8 @@
 //! before the font engine has measured it, so a truncation plan and a layout
 //! agree on where a text ends.
 
-use crate::assets::iced_icon_svg;
+use crate::assets::{AssetCatalog, AssetFormat, iced_icon_svg};
+use std::fs::read;
 
 /// The edge length of the canonical icon grid, in user units.
 pub const ICON_GRID_SIZE: f32 = 24.0;
@@ -180,6 +181,51 @@ impl FontFace {
         }
     }
 
+    /// Every shipped face's bytes, in catalog order.
+    ///
+    /// A renderer registers these and never repeats a relative asset path:
+    /// moving a file inside the shared catalog cannot silently strand one
+    /// surface on an old copy.
+    pub fn all_bytes() -> [&'static [u8]; 5] {
+        Self::ALL.map(Self::bytes)
+    }
+
+    /// The stable catalog identity of this physical face.
+    pub const fn catalog_id(self) -> &'static str {
+        match self {
+            Self::InterRegular => "font.Inter-Regular",
+            Self::InterMedium => "font.Inter-Medium",
+            Self::InterSemiBold => "font.Inter-SemiBold",
+            Self::Mono => "font.JetBrainsMono-Regular",
+            Self::Cjk => "font.CJK-Regular",
+        }
+    }
+
+    /// Prove the inventory and the byte owner agree in both directions.
+    pub fn assert_catalog_alignment() {
+        for face in Self::ALL {
+            let record = AssetCatalog::find(face.catalog_id(), AssetFormat::Ttf, "default")
+                .unwrap_or_else(|| panic!("missing catalog record: {}", face.catalog_id()));
+            let path = AssetCatalog::path(face.catalog_id(), AssetFormat::Ttf, "default")
+                .expect("catalog path");
+            assert_eq!(
+                read(path).expect("catalog font bytes").as_slice(),
+                face.bytes(),
+                "font bytes drifted from catalog: {}",
+                record.id
+            );
+        }
+        assert_eq!(Self::all_bytes().len(), Self::ALL.len());
+        assert_eq!(
+            AssetCatalog::records()
+                .iter()
+                .filter(|record| record.format == "ttf")
+                .count(),
+            Self::ALL.len(),
+            "catalog owns a font face the byte owner does not ship"
+        );
+    }
+
     /// Whether the face draws every digit with the same advance.
     ///
     /// The monospaced face is physically tabular: every glyph advances by the
@@ -270,6 +316,11 @@ pub fn text_width_em(text: &str) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_shipped_font_face_matches_the_catalog() {
+        FontFace::assert_catalog_alignment();
+    }
 
     #[test]
     fn every_canonical_icon_sits_on_the_24_grid() {

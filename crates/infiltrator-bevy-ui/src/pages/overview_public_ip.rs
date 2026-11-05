@@ -22,8 +22,9 @@ use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLo
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::public_ip::{PublicIpProbeSnapshot, PublicIpProbeStatus};
 
 /// Public IP probe card (BEVY-GAP-023 / DUAL-03-11).
@@ -68,7 +69,7 @@ pub fn public_ip_probe_card_scene_with_snapshot(
                             Children [
                                 @{ icon_scene(IconId::Globe, 16.0, palette.accent) }
                                 --
-                                LocalizedText::plain("overview_public_ip_title") TextRole(Role::Heading)
+                                LocalizedText::plain("overview_public_ip_title") TextRole(design_resources::TextRole::Heading)
                             ]
                             --
                             Node {
@@ -83,7 +84,7 @@ pub fn public_ip_probe_card_scene_with_snapshot(
                                 ThemeBackgroundColor({ Token::SurfaceElevated })
                                 SurfaceElevatedFill
                                 Children [
-                                    Text({ provider }) PublicIpText(PublicIpTextKind::Provider) TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
+                                    Text({ provider }) PublicIpText(PublicIpTextKind::Provider) TextRole(design_resources::TextRole::Caption) ThemeTextColor({ Token::InkDim })
                                 ]
                                 --
                                 Button
@@ -99,7 +100,7 @@ pub fn public_ip_probe_card_scene_with_snapshot(
                                 Children [
                                     @{ icon_scene(IconId::Activity, 12.0, palette.ink) }
                                     --
-                                    LocalizedText::plain("refresh") TextRole(Role::Caption) ThemeTextColor({ Token::Ink })
+                                    LocalizedText::plain("refresh") TextRole(design_resources::TextRole::Caption) ThemeTextColor({ Token::Ink })
                                 ]
                             ]
                         ]
@@ -119,18 +120,18 @@ pub fn public_ip_probe_card_scene_with_snapshot(
                                 row_gap: rem(space::S2),
                             }
                             Children [
-                                Text({ ip }) PublicIpText(PublicIpTextKind::Ip) TextRole(Role::BodyStrong) ThemeTextColor({ Token::Ink })
+                                Text({ ip }) PublicIpText(PublicIpTextKind::Ip) TextRole(design_resources::TextRole::BodyStrong) ThemeTextColor({ Token::Ink })
                                 --
                                 Node {
                                     align_items: AlignItems::Center,
                                     column_gap: rem(space::S8),
                                 }
                                 Children [
-                                    Text({ location }) PublicIpText(PublicIpTextKind::Location) TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
+                                    Text({ location }) PublicIpText(PublicIpTextKind::Location) TextRole(design_resources::TextRole::Caption) ThemeTextColor({ Token::InkDim })
                                     --
-                                    Text({ "·".to_owned() }) TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
+                                    Text({ "·".to_owned() }) TextRole(design_resources::TextRole::Caption) ThemeTextColor({ Token::InkDim })
                                     --
-                                    Text({ isp }) PublicIpText(PublicIpTextKind::Isp) TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
+                                    Text({ isp }) PublicIpText(PublicIpTextKind::Isp) TextRole(design_resources::TextRole::Caption) ThemeTextColor({ Token::InkDim })
                                 ]
                             ]
                             --
@@ -141,7 +142,7 @@ pub fn public_ip_probe_card_scene_with_snapshot(
                             ThemeBackgroundColor({ Token::AccentContainer })
                             AccentContainerFill
                             Children [
-                                Text({ status }) PublicIpText(PublicIpTextKind::Status) TextRole(Role::Caption) ThemeTextColor({ Token::Accent })
+                                Text({ status }) PublicIpText(PublicIpTextKind::Status) TextRole(design_resources::TextRole::Caption) ThemeTextColor({ Token::Accent })
                             ]
                         ]
                     ]

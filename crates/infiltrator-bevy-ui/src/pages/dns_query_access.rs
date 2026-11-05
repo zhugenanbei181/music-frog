@@ -9,9 +9,10 @@ use bevy::ecs::query::{QueryFilter, With, Without};
 use bevy::ecs::system::{Query, SystemParam};
 use bevy::text::TextColor;
 use bevy::ui::BorderColor;
-use bevy::ui::prelude::{BackgroundColor, Node};
+use bevy::ui::prelude::BackgroundColor;
 use bevy::ui::widget::Text;
 use infiltrator_bevy_widgets::localization::LocalizedText;
+use infiltrator_bevy_widgets::switch::SwitchKnob;
 
 #[derive(SystemParam)]
 pub struct DnsActionControls<'w, 's> {
@@ -133,7 +134,7 @@ pub struct DnsProjectionTargets<'w, 's> {
         's,
         (
             &'static mut BackgroundColor,
-            &'static mut Node,
+            &'static mut SwitchKnob,
             &'static DnsSwitchKnob,
         ),
         ApplyDnsProjectionSwitchKnobsFilter,

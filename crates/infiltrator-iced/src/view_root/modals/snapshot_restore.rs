@@ -4,8 +4,9 @@ use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::snapshot_restore::RestoreAction;
 use crate::view::component_forms::{style_accent, style_danger, style_ghost};
+use crate::view::theme;
 use crate::view_root::interaction_regions::InteractionRegion;
-use iced::widget::{Scrollable, Space, button, column, container, row, text};
+use iced::widget::{Scrollable, Space, button, column, container, row};
 use iced::{Element, Length};
 use infiltrator_presentation::snapshot_restore_projection::project_restore;
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -13,15 +14,15 @@ pub(crate) fn modal(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
     let presentation = project_restore(&state.editor.snapshot_restore, &Lang(&state.shell.lang));
     let body = column![
-        text(lang.tr("snapshot_restore_title")).size(17),
-        text(presentation.status).size(12).width(Length::Fill),
-        container(text(presentation.details).size(12).width(Length::Fill))
+        theme::role_body_text(lang.tr("snapshot_restore_title")),
+        theme::role_body_text(presentation.status).width(Length::Fill),
+        container(theme::role_body_text(presentation.details).width(Length::Fill))
             .id(InteractionRegion::RestoreDetails.id()),
-        text(presentation.content).size(12).width(Length::Fill)
+        theme::role_body_text(presentation.content).width(Length::Fill)
     ]
     .spacing(12)
     .width(Length::Fill);
-    let cancel = button(text(lang.tr("snapshot_restore_cancel")))
+    let cancel = button(theme::role_body_text(lang.tr("snapshot_restore_cancel")))
         .style(style_ghost)
         .on_press_maybe(
             presentation
@@ -34,14 +35,14 @@ pub(crate) fn modal(state: &AppState) -> Element<'_, Message> {
     ]
     .spacing(8);
     if presentation.confirm {
-        let confirm = button(text(lang.tr("snapshot_restore_confirm")))
+        let confirm = button(theme::role_body_text(lang.tr("snapshot_restore_confirm")))
             .style(style_danger)
             .on_press(Message::SnapshotRestore(RestoreAction::Confirm));
         actions = actions.push(container(confirm).id(InteractionRegion::RestoreConfirm.id()));
     }
     if presentation.retry {
         actions = actions.push(
-            button(text(lang.tr("snapshot_restore_retry")))
+            button(theme::role_body_text(lang.tr("snapshot_restore_retry")))
                 .style(style_accent)
                 .on_press(Message::SnapshotRestore(RestoreAction::Retry)),
         );

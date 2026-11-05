@@ -7,7 +7,7 @@ use crate::types::message::Message;
 use crate::view::components::card_surface;
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme;
-use crate::view::theme::{FONT_SEMIBOLD, MONO, R_CHIP, tokens};
+use crate::view::theme::{R_CHIP, tokens};
 use crate::view::waveform::TrafficChart;
 use iced::widget::{Space, canvas, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
@@ -44,22 +44,19 @@ pub fn traffic_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Messag
         row![
             icon_themed(Icon::Activity, 16.0, |t: &Theme| tokens(t).accent),
             Space::new().width(theme::SP_SM),
-            text(lang.tr("overview_traffic").into_owned())
-                .size(14)
-                .font(FONT_SEMIBOLD)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_primary)
-                }),
+            theme::role_body_text(lang.tr("overview_traffic").into_owned()).style(|t: &Theme| {
+                text::Style {
+                    color: Some(tokens(t).text_primary),
+                }
+            }),
         ]
         .align_y(Alignment::Center),
         Space::new().width(Length::Fill),
-        text(format!(
+        theme::role_body_text(format!(
             "{} {}",
             lang.tr("overview_scale_max"),
             scale.format_max()
         ))
-        .size(10)
-        .font(MONO)
         .style(|t: &Theme| text::Style {
             color: Some(tokens(t).text_secondary),
         }),
@@ -97,12 +94,9 @@ fn speed_pill<'a>(
         row![
             icon_themed(glyph, 13.0, color),
             Space::new().width(theme::SP_XS),
-            text(value)
-                .size(13)
-                .font(MONO)
-                .style(move |t: &Theme| text::Style {
-                    color: Some(color(t))
-                }),
+            theme::role_body_text(value).style(move |t: &Theme| text::Style {
+                color: Some(color(t))
+            }),
         ]
         .align_y(Alignment::Center),
     )

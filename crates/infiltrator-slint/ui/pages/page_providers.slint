@@ -1,3 +1,4 @@
+import { DesignType } from "../components/design-type.slint";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "../components/theme.slint";
 import { ObservationRow } from "../components/models.slint";
@@ -44,7 +45,7 @@ export component PageProviders inherits VerticalLayout {
                 Text {
                     text: row.title + " · " + row.subtitle;
                     color: LumenTheme.text-primary;
-                    font-size: 13 * LumenUiScale.unit;
+                    font-size: DesignType.mono-size;
                     horizontal-stretch: 1;
                     vertical-alignment: center;
                     overflow: elide;
@@ -53,7 +54,7 @@ export component PageProviders inherits VerticalLayout {
                 Text {
                     text: row.trailing;
                     color: LumenTheme.text-secondary;
-                    font-size: 12 * LumenUiScale.unit;
+                    font-size: DesignType.caption-size;
                     vertical-alignment: center;
                 }
 
@@ -69,7 +70,7 @@ export component PageProviders inherits VerticalLayout {
         if root.providers.length == 0: Text {
             text: root.runtime-status != RuntimeStatus.running ? @tr("Runtime 未运行，外部资源不可用") : @tr("暂无外部资源");
             color: LumenTheme.text-secondary;
-            font-size: 13 * LumenUiScale.unit;
+            font-size: DesignType.mono-size;
         }
     }
 }

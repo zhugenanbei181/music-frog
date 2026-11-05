@@ -8,7 +8,7 @@ use crate::view::component_card::card;
 use crate::view::component_forms::{style_accent, style_danger, style_ghost};
 use crate::view::components::{BadgeKind, badge};
 use crate::view::svg_icons::Icon;
-use crate::view::theme::{FONT_MEDIUM, MONO, tokens};
+use crate::view::theme::tokens;
 use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
@@ -22,9 +22,7 @@ pub fn pcap_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Messag
             row![
                 svg_icons::icon_themed(Icon::X, 14.0, |t: &Theme| tokens(t).on_accent),
                 Space::new().width(theme::SP_SM),
-                text(lang.tr("pcap_btn_stop").to_string())
-                    .size(12)
-                    .font(FONT_MEDIUM),
+                theme::role_body_text(lang.tr("pcap_btn_stop").to_string()),
             ]
             .align_y(Alignment::Center),
         )
@@ -36,9 +34,7 @@ pub fn pcap_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Messag
             row![
                 svg_icons::icon_themed(Icon::Activity, 14.0, |t: &Theme| tokens(t).on_accent),
                 Space::new().width(theme::SP_SM),
-                text(lang.tr("pcap_btn_start").to_string())
-                    .size(12)
-                    .font(FONT_MEDIUM),
+                theme::role_body_text(lang.tr("pcap_btn_start").to_string()),
             ]
             .align_y(Alignment::Center),
         )
@@ -51,9 +47,7 @@ pub fn pcap_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Messag
         row![
             svg_icons::icon_themed(Icon::FileText, 14.0, |t: &Theme| tokens(t).text_secondary),
             Space::new().width(theme::SP_SM),
-            text(lang.tr("pcap_btn_export").to_string())
-                .size(12)
-                .font(FONT_MEDIUM),
+            theme::role_body_text(lang.tr("pcap_btn_export").to_string()),
         ]
         .align_y(Alignment::Center),
     )
@@ -63,15 +57,16 @@ pub fn pcap_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Messag
 
     let status_row = if pcap.is_capturing {
         row![
-            badge("Capturing".to_string(), BadgeKind::Success),
+            badge(
+                lang.tr("pcap_status_capturing").to_string(),
+                BadgeKind::Success
+            ),
             Space::new().width(theme::SP_SM),
-            text(format!(
+            theme::role_body_text(format!(
                 "Packets: {} | Bytes: {}",
                 pcap.packet_count,
                 format_bytes(pcap.total_bytes as u64)
             ))
-            .size(12)
-            .font(MONO)
             .style(|t: &Theme| text::Style {
                 color: Some(tokens(t).text_primary)
             }),
@@ -79,13 +74,13 @@ pub fn pcap_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Messag
         .align_y(Alignment::Center)
     } else {
         row![
-            badge("Idle".to_string(), BadgeKind::Neutral),
+            badge(lang.tr("pcap_status_idle").to_string(), BadgeKind::Neutral),
             Space::new().width(theme::SP_SM),
-            text(lang.tr("pcap_idle").to_string())
-                .size(12)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_secondary)
-                }),
+            theme::role_body_text(lang.tr("pcap_idle").to_string()).style(|t: &Theme| {
+                text::Style {
+                    color: Some(tokens(t).text_secondary),
+                }
+            }),
         ]
         .align_y(Alignment::Center)
     };
@@ -93,12 +88,11 @@ pub fn pcap_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Messag
     let export_feedback: Element<'_, Message> = if let Some(path) = &pcap.exported_path {
         container(
             row![
-                text(format!("Exported to: {path}"))
-                    .size(11)
-                    .font(MONO)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).success)
-                    }),
+                theme::role_body_text(format!("Exported to: {path}")).style(|t: &Theme| {
+                    text::Style {
+                        color: Some(tokens(t).success),
+                    }
+                }),
             ]
             .align_y(Alignment::Center),
         )

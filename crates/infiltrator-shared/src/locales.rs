@@ -38,6 +38,13 @@ mod surface_zh;
 use surface_en::translate_surface_en;
 use surface_zh::translate_surface_zh;
 
+#[path = "locales_table_shared_copy_en.rs"]
+mod shared_copy_en;
+#[path = "locales_table_shared_copy_zh.rs"]
+mod shared_copy_zh;
+use shared_copy_en::translate_shared_copy_en;
+use shared_copy_zh::translate_shared_copy_zh;
+
 #[path = "locales_table_errors_en.rs"]
 mod errors_en;
 #[path = "locales_table_errors_zh.rs"]
@@ -79,6 +86,7 @@ impl Localizer for Lang<'_> {
                 translate_workflow_en,
                 translate_network_en,
                 translate_surface_en,
+                translate_shared_copy_en,
                 translate_errors_en,
             ],
             _ => [
@@ -87,6 +95,7 @@ impl Localizer for Lang<'_> {
                 translate_workflow_zh,
                 translate_network_zh,
                 translate_surface_zh,
+                translate_shared_copy_zh,
                 translate_errors_zh,
             ],
         };

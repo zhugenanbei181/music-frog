@@ -18,8 +18,9 @@ use infiltrator_bevy_widgets::editor::state::CodeEditorState;
 use infiltrator_bevy_widgets::editor::{SyntaxToken, SyntaxTokenKind, syntax_token_ink};
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 
 /// The width of the JSON editor's line-number gutter (px).
 const JSON_EDITOR_GUTTER_WIDTH_PX: f32 = 44.0;
@@ -131,7 +132,7 @@ pub fn json_editor_body_scene(state: &CodeEditorState) -> Box<dyn Scene> {
                     }
                     Children [
                         Text({ format!("{number}") })
-                        TextRole(Role::Mono)
+                        TextRole(design_resources::TextRole::Mono)
                         ThemeTextColor({ Token::InkDim })
                     ]
             }) as Box<dyn Scene>
@@ -148,7 +149,7 @@ pub fn json_editor_body_scene(state: &CodeEditorState) -> Box<dyn Scene> {
                     let ink = syntax_token_ink(token.kind);
                     Box::new(bsn! {
                             Text({ token.text })
-                            TextRole(Role::Mono)
+                            TextRole(design_resources::TextRole::Mono)
                             ThemeTextColor({ ink })
                     }) as Box<dyn Scene>
                 })

@@ -25,7 +25,7 @@ use crate::interaction_block::InteractionBlocked;
 use crate::palette::UiPalette;
 use crate::palette::rem;
 use crate::responsive::TouchHitbox;
-use crate::text::{Role, TextRole};
+use crate::text::TextRole;
 use crate::theme::{metrics, space};
 use bevy::a11y::AccessibilityNode;
 use bevy::color::{Alpha, Color};
@@ -46,6 +46,8 @@ use bevy::ui::prelude::{
 use bevy::ui::widget::Text;
 use bevy::ui::{InteractionDisabled, Pressed, UiTransform};
 use bevy::ui_widgets::Button;
+use infiltrator_contract::design_resources;
+
 use zhuge_ui_kit_bevy::control::{self, ButtonLayout};
 
 /// Button visual variants specifying tone, hierarchy and semantic role.
@@ -494,9 +496,9 @@ pub fn button_sized_scene(
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     let role = match size {
-        ButtonSize::Sm => Role::Caption,
-        ButtonSize::Md => Role::Body,
-        ButtonSize::Lg => Role::Heading,
+        ButtonSize::Sm => design_resources::TextRole::Caption,
+        ButtonSize::Md => design_resources::TextRole::Body,
+        ButtonSize::Lg => design_resources::TextRole::Heading,
     };
     button_with_label_scene(
         bsn! { Text(label) TextRole(role) ButtonLabel },
@@ -515,9 +517,9 @@ pub fn hierarchical_button_sized_scene(
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     let role = match size {
-        ButtonSize::Sm => Role::Caption,
-        ButtonSize::Md => Role::Body,
-        ButtonSize::Lg => Role::Heading,
+        ButtonSize::Sm => design_resources::TextRole::Caption,
+        ButtonSize::Md => design_resources::TextRole::Body,
+        ButtonSize::Lg => design_resources::TextRole::Heading,
     };
     hierarchical_button_with_label_scene(
         bsn! { Text(label) TextRole(role) ButtonLabel },
@@ -623,7 +625,7 @@ pub fn button_action_scene<M: Component + Clone + Unpin>(
         },
         fill,
         BorderColor::all(edge),
-        bsn! { Text(label) TextRole(Role::Body) ButtonLabel },
+        bsn! { Text(label) TextRole(design_resources::TextRole::Body) ButtonLabel },
     );
 
     bsn! {
@@ -678,7 +680,7 @@ pub fn loading_button_scene(
             ButtonPressScale::default()
             UiTransform
             Children [
-                Text(display_text) TextRole(Role::Body) ButtonLabel
+                Text(display_text) TextRole(design_resources::TextRole::Body) ButtonLabel
             ]
     }
 }
@@ -699,9 +701,15 @@ pub fn pill_scene(label: String, selected: bool, palette: &UiPalette) -> impl Sc
         },
         control_fill(selected, false, false, palette),
         BorderColor::all(edge),
-        bsn! { Text(label) TextRole(Role::Body) PillLabel },
+        bsn! { Text(label) TextRole(design_resources::TextRole::Body) PillLabel },
     );
-    bsn! { @{ scene } ControlVisual(selected) TouchHitbox::default() }
+    bsn! {
+        @{ scene }
+        ControlVisual(selected)
+        TouchHitbox::default()
+        ButtonPressScale::default()
+        UiTransform
+    }
 }
 
 /// The compact pill variant for segmented controls.
@@ -711,7 +719,7 @@ pub fn pill_caption_scene(
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     pill_caption_with_label_scene(
-        bsn! { Text(label) TextRole(Role::Caption) PillLabel },
+        bsn! { Text(label) TextRole(design_resources::TextRole::Caption) PillLabel },
         selected,
         palette,
     )
@@ -738,6 +746,8 @@ pub fn pill_caption_with_label_scene(
             ControlVisual(selected)
             Button
             TouchHitbox::default()
+            ButtonPressScale::default()
+            UiTransform
             Children [
                 @label
             ]

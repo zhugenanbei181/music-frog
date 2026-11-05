@@ -22,8 +22,9 @@ use bevy::ui_widgets::{Activate, Button};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::palette::{UiPalette, rem};
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 
 /// One rule provider row's refresh failure line.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -55,7 +56,7 @@ pub fn rule_provider_refresh_scene(
             ButtonDisabled({ !enabled })
             Button
             Children [
-                Text({ "↻".to_owned() }) TextRole(Role::Body)
+                Text({ "↻".to_owned() }) TextRole(design_resources::TextRole::Body)
             ]
     })
 }

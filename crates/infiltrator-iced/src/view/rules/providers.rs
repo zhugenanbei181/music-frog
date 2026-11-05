@@ -15,7 +15,7 @@ use crate::view::components::{
 use crate::view::mrs_panel::{format_rule_count, mrs_acceleration_card, mrs_card};
 use crate::view::provider_unpack_card::provider_unpack_card;
 use crate::view::svg_icons::Icon;
-use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, SP_MD, tokens};
+use crate::view::theme::{SP_MD, tokens};
 use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, row, text, text_editor};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
@@ -54,7 +54,6 @@ fn json_editor_card<'a>(
             container(
                 text_editor(content)
                     .on_action(on_action)
-                    .font(MONO)
                     .padding(10)
                     .height(Length::Fixed(440.0))
             )
@@ -178,9 +177,7 @@ pub fn rule_provider_row<'a>(
             row![
                 svg_icons::icon_themed(Icon::Code2, 12.0, |t: &Theme| tokens(t).text_secondary),
                 Space::new().width(4.0),
-                text(lang.tr("snapshot_diff_open").into_owned())
-                    .size(11)
-                    .font(FONT_MEDIUM)
+                theme::role_body_text(lang.tr("snapshot_diff_open").into_owned())
             ]
             .align_y(Alignment::Center)
         )
@@ -194,9 +191,7 @@ pub fn rule_provider_row<'a>(
             row![
                 svg_icons::icon_themed(Icon::Zap, 12.0, |t: &Theme| tokens(t).text_secondary),
                 Space::new().width(4.0),
-                text(lang.tr("provider_unpack_action").into_owned())
-                    .size(11)
-                    .font(FONT_MEDIUM)
+                theme::role_body_text(lang.tr("provider_unpack_action").into_owned())
             ]
             .align_y(Alignment::Center)
         )
@@ -222,31 +217,28 @@ pub fn rule_provider_row<'a>(
             {
                 let mut details = column![
                     row![
-                        text(provider.name.clone())
-                            .size(13)
-                            .font(FONT_SEMIBOLD)
-                            .style(|t: &Theme| text::Style {
-                                color: Some(tokens(t).text_primary)
-                            }),
+                        theme::role_body_text(provider.name.clone()).style(|t: &Theme| {
+                            text::Style {
+                                color: Some(tokens(t).text_primary),
+                            }
+                        }),
                         Space::new().width(theme::SP_SM),
                         badge(behavior_badge_text, BadgeKind::Neutral),
                         Space::new().width(theme::SP_XS),
                         badge(rule_count_str, BadgeKind::Accent),
                     ]
                     .align_y(Alignment::Center),
-                    text(updated_text)
-                        .size(11)
-                        .font(MONO)
-                        .style(|t: &Theme| text::Style {
-                            color: Some(tokens(t).text_secondary)
-                        }),
+                    theme::role_body_text(updated_text).style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_secondary)
+                    }),
                 ];
                 if let Some(fingerprint_text) = fingerprint_text {
-                    details = details.push(text(fingerprint_text).size(11).font(MONO).style(
-                        |t: &Theme| text::Style {
-                            color: Some(tokens(t).text_tertiary),
-                        },
-                    ));
+                    details =
+                        details.push(theme::role_body_text(fingerprint_text).style(|t: &Theme| {
+                            text::Style {
+                                color: Some(tokens(t).text_tertiary),
+                            }
+                        }));
                 }
                 details.width(Length::Fill)
             },
@@ -291,9 +283,7 @@ pub fn providers_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
     // top of the active profile. It gates the kernel's ETag/304 cache for
     // provider downloads; the per-request 304 outcome stays inside the kernel.
     content = content.push(
-        text(etag_support_line(&state.editor.rule_etag_support, lang).to_string())
-            .size(11)
-            .font(MONO)
+        theme::role_body_text(etag_support_line(&state.editor.rule_etag_support, lang).to_string())
             .style(|t: &Theme| text::Style {
                 color: Some(tokens(t).text_secondary),
             }),
@@ -331,9 +321,7 @@ pub fn providers_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
                     svg_icons::icon_themed(Icon::RefreshCw, 12.0, |t: &Theme| tokens(t)
                         .text_secondary),
                     Space::new().width(4.0),
-                    text(lang.tr("rules_updating_geo").to_string())
-                        .size(12)
-                        .font(FONT_MEDIUM),
+                    theme::role_body_text(lang.tr("rules_updating_geo").to_string()),
                 ]
                 .align_y(Alignment::Center),
             )
@@ -344,9 +332,7 @@ pub fn providers_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
                 row![
                     svg_icons::icon_themed(Icon::RefreshCw, 12.0, |t: &Theme| tokens(t).on_accent),
                     Space::new().width(4.0),
-                    text(lang.tr("rules_update_geo_btn").to_string())
-                        .size(12)
-                        .font(FONT_MEDIUM),
+                    theme::role_body_text(lang.tr("rules_update_geo_btn").to_string()),
                 ]
                 .align_y(Alignment::Center),
             )
@@ -362,17 +348,16 @@ pub fn providers_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
                     provider_icon_chip(Icon::Globe, 18.0),
                     Space::new().width(theme::SP_MD),
                     column![
-                        text("geoip.metadb / geosite.dat / Country.mmdb")
-                            .size(13)
-                            .font(MONO)
-                            .style(|t: &Theme| text::Style {
+                        theme::role_body_text("geoip.metadb / geosite.dat / Country.mmdb").style(
+                            |t: &Theme| text::Style {
                                 color: Some(tokens(t).text_primary)
-                            }),
-                        text(lang.tr("rule_repo_official").to_string())
-                            .size(11)
-                            .style(|t: &Theme| text::Style {
+                            }
+                        ),
+                        theme::role_body_text(lang.tr("rule_repo_official").to_string()).style(
+                            |t: &Theme| text::Style {
                                 color: Some(tokens(t).text_secondary)
-                            }),
+                            }
+                        ),
                     ]
                     .width(Length::Fill),
                     badge("MetaCubeX", BadgeKind::Accent),
@@ -387,12 +372,11 @@ pub fn providers_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
         );
 
         let rule_card_header = row![
-            text(lang.tr("rules_rule_providers").to_string())
-                .size(14)
-                .font(FONT_SEMIBOLD)
-                .style(|t: &Theme| text::Style {
+            theme::role_body_text(lang.tr("rules_rule_providers").to_string()).style(
+                |t: &Theme| text::Style {
                     color: Some(tokens(t).text_primary)
-                }),
+                }
+            ),
             Space::new().width(theme::SP_SM),
             chip(format!("Total External Rules: {total_ext_rules}")),
         ]

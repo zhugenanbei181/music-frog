@@ -2,6 +2,7 @@
 //! test-intent: behavior
 
 use super::*;
+use infiltrator_presentation::dashboard_hero_projection::PolicyGroupGridProjection;
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::routing_intent::RoutingIntentSnapshot;
 
@@ -59,6 +60,8 @@ fn stat_chips_and_banner_status_carry_accesskit_semantics() {
         subscription_quota: Default::default(),
         system_toggles: Default::default(),
         cpu_percent: ResourceAvailability::NotObserved,
+        memory_limit_bytes: None,
+        policy_groups: PolicyGroupGridProjection::unavailable(),
         total_traffic_bytes: None,
         routing_intent: RoutingIntentSnapshot {
             current: Some(RoutingIntent::FollowRules),

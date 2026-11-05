@@ -27,11 +27,7 @@ fn test_rules_page_mounting_and_default_state() {
     ));
     assert!(subtree_has_text(app.world(), root, "google.com"));
     assert!(subtree_has_text(app.world(), root, "1420 次本地追踪命中"));
-    assert!(subtree_has_text(
-        app.world(),
-        root,
-        "实时分流追踪器沙盒 (Live Rule Tracer)"
-    ));
+    assert!(subtree_has_text(app.world(), root, "分流追踪沙盒"));
     assert!(subtree_has_text(app.world(), root, "执行模拟追踪"));
     assert!(subtree_has_text(
         app.world(),
@@ -43,21 +39,13 @@ fn test_rules_page_mounting_and_default_state() {
         root,
         "没有抓包或嗅探结果；目标来自输入的查询。"
     ));
-    assert!(subtree_has_text(
-        app.world(),
-        root,
-        "MRS 二进制规则集治理与解构 (MRS Ruleset Engine)"
-    ));
+    assert!(subtree_has_text(app.world(), root, "MRS 规则集管理"));
     assert!(subtree_has_text(
         app.world(),
         root,
         "一键解构导入为本地规则"
     ));
-    assert!(subtree_has_text(
-        app.world(),
-        root,
-        "添加自定义规则向导 (Add Custom Rule)"
-    ));
+    assert!(subtree_has_text(app.world(), root, "添加自定义规则"));
     assert!(subtree_has_text(app.world(), root, "一键注入游戏分流预设"));
     assert!(subtree_has_text(app.world(), root, "+ 确认添加规则"));
     // DUAL-11-09: the shared disabled flag reaches the row's own status chip.

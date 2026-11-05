@@ -16,7 +16,7 @@ use crate::icon::IconId;
 use crate::icon_tile::icon_tile_scene;
 use crate::menu::MenuItemDisabled;
 use crate::palette::{UiPalette, rem};
-use crate::text::{Role, TextRole};
+use crate::text::TextRole;
 use crate::theme::{metrics, radius, space};
 use bevy::camera::visibility::Visibility;
 use bevy::ecs::component::Component;
@@ -40,6 +40,7 @@ use bevy::ui::prelude::{
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::popover::{Popover, PopoverAlign, PopoverPlacement, PopoverSide};
 use bevy::ui_widgets::{MenuAction, MenuEvent, MenuFocusState, MenuItem, MenuLayout, MenuPopup};
+use infiltrator_contract::design_resources;
 
 /// One-off layout value (not a ladder rung): the width of the floating
 /// context-menu panel that lists the actions.
@@ -249,9 +250,9 @@ fn context_menu_row_scene(item: &ContextMenuItem, palette: &UiPalette) -> Box<dy
     // The destructive action reads as emphasised copy; the role vocabulary
     // carries no danger ink of its own.
     let role = if item.is_destructive {
-        Role::BodyStrong
+        design_resources::TextRole::BodyStrong
     } else {
-        Role::Body
+        design_resources::TextRole::Body
     };
     let icon_node: Option<Box<dyn Scene>> = item
         .icon

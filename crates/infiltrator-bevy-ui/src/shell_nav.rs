@@ -33,10 +33,11 @@ use infiltrator_bevy_widgets::motion::Spring;
 use infiltrator_bevy_widgets::nav::{NavActive, NavItem, NavLabel, nav_fill_token};
 use infiltrator_bevy_widgets::palette::{UiPalette, rem};
 use infiltrator_bevy_widgets::picking;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::{radius, space};
 use infiltrator_bevy_widgets::tooltip::TooltipBubble;
 use infiltrator_contract::a11y::ShellA11yNode;
+use infiltrator_contract::design_resources;
 
 /// The route row's height in baseline pixels.
 ///
@@ -156,9 +157,9 @@ pub fn sidebar_nav_item_scene(route: Route, active: bool, palette: &UiPalette) -
                 LocalizedText::plain(route.label_key())
                 TextRole({
                         if active {
-                            Role::BodyStrong
+                            design_resources::TextRole::BodyStrong
                         } else {
-                            Role::Body
+                            design_resources::TextRole::Body
                         }
                     })
                 NavLabel
@@ -188,7 +189,7 @@ fn rail_tooltip_scene(route: Route, palette: &UiPalette) -> impl Scene + use<> {
             TooltipBubble
             RailNavTooltip(route)
             Children [
-                LocalizedText::plain(route.label_key()) TextRole(Role::Caption)
+                LocalizedText::plain(route.label_key()) TextRole(design_resources::TextRole::Caption)
             ]
     }
 }

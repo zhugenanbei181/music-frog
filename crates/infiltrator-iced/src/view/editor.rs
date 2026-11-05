@@ -16,7 +16,7 @@ use crate::view::mixin_studio::{cascade_strip, preflight_banner, three_column_ro
 use crate::view::profile_filter::filter_pane;
 use crate::view::script_export::export_section;
 use crate::view::svg_icons::{Icon, icon_themed};
-use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
+use crate::view::theme::tokens;
 use crate::view::{editor_viewport, script_console, theme};
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::advanced::widget::Id;
@@ -107,17 +107,16 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 icon_themed(Icon::Shield, 14.0, |t: &Theme| tokens(t).warning),
                 Space::new().width(theme::SP_SM),
                 column![
-                    text(protection_label(protection, &Lang(lang.0)))
-                        .size(12)
-                        .font(FONT_SEMIBOLD)
-                        .style(|t: &Theme| text::Style {
+                    theme::role_body_text(protection_label(protection, &Lang(lang.0))).style(
+                        |t: &Theme| text::Style {
                             color: Some(tokens(t).text_primary),
-                        }),
-                    text(protection_hint(protection, &Lang(lang.0)))
-                        .size(11)
-                        .style(|t: &Theme| text::Style {
+                        }
+                    ),
+                    theme::role_body_text(protection_hint(protection, &Lang(lang.0))).style(
+                        |t: &Theme| text::Style {
                             color: Some(tokens(t).text_secondary),
-                        }),
+                        }
+                    ),
                 ]
                 .spacing(2)
                 .width(Length::Fill),
@@ -126,21 +125,17 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             .padding([8, 12]);
 
             banner = banner.push(
-                button(
-                    text(
-                        if state
-                            .editor
-                            .profile_write_authorization
-                            .allows_protected_write()
-                        {
-                            lang.tr("editor_protection_lock").to_string()
-                        } else {
-                            lang.tr("editor_protection_unlock").to_string()
-                        },
-                    )
-                    .size(11)
-                    .font(FONT_MEDIUM),
-                )
+                button(theme::role_body_text(
+                    if state
+                        .editor
+                        .profile_write_authorization
+                        .allows_protected_write()
+                    {
+                        lang.tr("editor_protection_lock").to_string()
+                    } else {
+                        lang.tr("editor_protection_unlock").to_string()
+                    },
+                ))
                 .padding([4, 10])
                 .style(style_ghost)
                 .on_press(Message::SetProfileWriteAuthorization(
@@ -148,11 +143,9 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 )),
             );
             banner = banner.push(
-                button(
-                    text(lang.tr("editor_protection_use_mixin").to_string())
-                        .size(11)
-                        .font(FONT_MEDIUM),
-                )
+                button(theme::role_body_text(
+                    lang.tr("editor_protection_use_mixin").to_string(),
+                ))
                 .padding([4, 10])
                 .style(style_accent)
                 .on_press(Message::SetEditorPane(EditorPane::Mixin)),
@@ -198,17 +191,14 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             }),
         column![
             row![
-                text(filename)
-                    .size(16)
-                    .font(FONT_SEMIBOLD)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_primary),
-                    }),
+                theme::role_body_text(filename).style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_primary),
+                }),
                 Space::new().width(theme::SP_SM),
                 chip(pane_tag),
             ]
             .align_y(Alignment::Center),
-            text(
+            theme::role_body_text(
                 state
                     .editor
                     .editor_path
@@ -216,7 +206,6 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                     .map(|p| p.to_string_lossy().to_string())
                     .unwrap_or_default()
             )
-            .size(11)
             .style(|t: &Theme| text::Style {
                 color: Some(tokens(t).text_tertiary),
             }),
@@ -264,10 +253,10 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     };
 
     let save_btn = button(if narrow {
-        row![text(save_label).size(12).font(FONT_MEDIUM)].align_y(Alignment::Center)
+        row![theme::role_body_text(save_label)].align_y(Alignment::Center)
     } else {
         row![
-            text(save_label).size(12).font(FONT_MEDIUM),
+            theme::role_body_text(save_label),
             Space::new().width(theme::SP_SM),
             kbd_badge("Ctrl+S"),
         ]
@@ -303,18 +292,14 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let cancel_btn = button(if narrow {
         row![
             icon_themed(Icon::X, 14.0, |t: &Theme| tokens(t).text_secondary),
-            text(lang.tr("btn_cancel").to_string())
-                .size(12)
-                .font(FONT_MEDIUM),
+            theme::role_body_text(lang.tr("btn_cancel").to_string()),
         ]
         .spacing(theme::SP_XS)
         .align_y(Alignment::Center)
     } else {
         row![
             icon_themed(Icon::X, 14.0, |t: &Theme| tokens(t).text_secondary),
-            text(lang.tr("btn_cancel").to_string())
-                .size(12)
-                .font(FONT_MEDIUM),
+            theme::role_body_text(lang.tr("btn_cancel").to_string()),
             Space::new().width(theme::SP_XS),
             kbd_badge("Esc"),
         ]
@@ -326,18 +311,18 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     .on_press(Message::Navigate(Route::Profiles));
 
     let discard: Element<'_, Message> = match state.editor.editor_pane {
-        EditorPane::Profile | EditorPane::Mixin => {
-            button(text(lang.tr("editor_discard_draft").into_owned()).size(12))
-                .on_press_maybe((!saving).then_some(
-                    if state.editor.editor_pane == EditorPane::Mixin {
-                        Message::DiscardMixinDraft
-                    } else {
-                        Message::DiscardProfileDraft
-                    },
-                ))
-                .style(style_ghost)
-                .into()
-        }
+        EditorPane::Profile | EditorPane::Mixin => button(theme::role_body_text(
+            lang.tr("editor_discard_draft").into_owned(),
+        ))
+        .on_press_maybe(
+            (!saving).then_some(if state.editor.editor_pane == EditorPane::Mixin {
+                Message::DiscardMixinDraft
+            } else {
+                Message::DiscardProfileDraft
+            }),
+        )
+        .style(style_ghost)
+        .into(),
         _ => Space::new().width(0).into(),
     };
     // Toolbar row: file info + pane switch + action buttons (Save / Cancel).
@@ -449,20 +434,17 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let pane_hint: Option<Element<'_, Message>> = match state.editor.editor_pane {
         EditorPane::Profile => None,
         EditorPane::Mixin => Some(
-            text(lang.tr("editor_mixin_hint").to_string())
-                .size(11)
+            theme::role_body_text(lang.tr("editor_mixin_hint").to_string())
                 .style(hint_style)
                 .into(),
         ),
         EditorPane::Filter => Some(
-            text(lang.tr("editor_filter_hint").to_string())
-                .size(11)
+            theme::role_body_text(lang.tr("editor_filter_hint").to_string())
                 .style(hint_style)
                 .into(),
         ),
         EditorPane::Script => Some(
-            text(lang.tr("script_sandbox_subtitle").to_string())
-                .size(11)
+            theme::role_body_text(lang.tr("script_sandbox_subtitle").to_string())
                 .style(hint_style)
                 .into(),
         ),
@@ -470,44 +452,44 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
     let syntax_alert: Option<Element<'_, Message>> =
         state.editor.syntax_error.as_ref().map(|msg| {
-            let line_badge = state.editor.syntax_error_line.map(|l| {
-                container(text(format_syntax_line_pill(l)).size(10).font(MONO).style(
-                    |t: &Theme| text::Style {
-                        color: Some(tokens(t).danger),
-                    },
-                ))
-                .padding([2, 8])
-                .style(|t: &Theme| {
-                    let tk = tokens(t);
-                    container::Style {
-                        background: Some(
-                            Color {
-                                a: 0.16,
-                                ..tk.danger
-                            }
-                            .into(),
-                        ),
-                        border: Border {
-                            radius: border::Radius::from(theme::R_CHIP),
-                            width: theme::HAIRLINE,
-                            color: Color {
-                                a: 0.35,
-                                ..tk.danger
-                            },
+            let line_badge =
+                state.editor.syntax_error_line.map(|l| {
+                    container(theme::role_body_text(format_syntax_line_pill(l)).style(
+                        |t: &Theme| text::Style {
+                            color: Some(tokens(t).danger),
                         },
-                        ..Default::default()
-                    }
-                })
-            });
+                    ))
+                    .padding([2, 8])
+                    .style(|t: &Theme| {
+                        let tk = tokens(t);
+                        container::Style {
+                            background: Some(
+                                Color {
+                                    a: 0.16,
+                                    ..tk.danger
+                                }
+                                .into(),
+                            ),
+                            border: Border {
+                                radius: border::Radius::from(theme::R_CHIP),
+                                width: theme::HAIRLINE,
+                                color: Color {
+                                    a: 0.35,
+                                    ..tk.danger
+                                },
+                            },
+                            ..Default::default()
+                        }
+                    })
+                });
 
             let mut header_row = row![
                 icon_themed(Icon::Activity, 16.0, |t: &Theme| tokens(t).danger),
-                text(lang.tr("yaml_status_error").to_string())
-                    .size(12)
-                    .font(FONT_SEMIBOLD)
-                    .style(|t: &Theme| text::Style {
+                theme::role_body_text(lang.tr("yaml_status_error").to_string()).style(
+                    |t: &Theme| text::Style {
                         color: Some(tokens(t).danger),
-                    }),
+                    }
+                ),
             ]
             .spacing(theme::SP_SM)
             .align_y(Alignment::Center);
@@ -518,12 +500,9 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
             let banner_body = column![
                 header_row,
-                text(msg.clone())
-                    .size(11)
-                    .font(MONO)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_secondary),
-                    }),
+                theme::role_body_text(msg.clone()).style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_secondary),
+                }),
             ]
             .spacing(theme::SP_XS);
 
@@ -558,8 +537,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     // DUAL-09-04: the snippet bar renders the shared catalogue — the surface
     // owns no snippet body of its own, and the same ids drive the Bevy bar.
     let mut snippet_items: Vec<Element<'_, Message>> = vec![
-        text(lang.tr("yaml_snippets_title").to_string())
-            .size(11)
+        theme::role_body_text(lang.tr("yaml_snippets_title").to_string())
             .style(|t: &Theme| text::Style {
                 color: Some(tokens(t).text_tertiary),
             })
@@ -592,9 +570,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             row![
                 icon_themed(Icon::Code2, 12.0, |t: &Theme| tokens(t).accent),
                 Space::new().width(4.0),
-                text(lang.tr("yaml_format_btn").to_string())
-                    .size(11)
-                    .font(FONT_MEDIUM)
+                theme::role_body_text(lang.tr("yaml_format_btn").to_string())
             ]
             .align_y(Alignment::Center)
         )
@@ -628,8 +604,9 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         _ => String::new(),
     };
     if !save_status.is_empty() {
-        content = content
-            .push(container(text(save_status).size(12)).id(InteractionRegion::EditorStatus.id()));
+        content = content.push(
+            container(theme::role_body_text(save_status)).id(InteractionRegion::EditorStatus.id()),
+        );
     }
     if let Some(alert) = syntax_alert {
         content = content.push(alert).push(Space::new().height(theme::SP_SM));
@@ -690,12 +667,9 @@ pub fn pane_has_snippet_bar(pane: EditorPane) -> bool {
 
 fn snip_btn<'a>(label: &str, snippet_id: &'static str) -> Element<'a, Message> {
     button(
-        text(label.to_owned())
-            .size(10)
-            .font(MONO)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_secondary),
-            }),
+        theme::role_body_text(label.to_owned()).style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_secondary),
+        }),
     )
     .padding([2, 6])
     .style(|t: &Theme, status| {

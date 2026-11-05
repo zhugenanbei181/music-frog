@@ -4,10 +4,12 @@ use crate::types::message::Message;
 use crate::view::components::{icon_button, toggle_switch};
 use crate::view::svg_icons;
 use crate::view::svg_icons::Icon;
-use crate::view::theme::{self, tokens};
+use crate::view::theme;
+use crate::view::theme::tokens;
 use iced::advanced::widget::Id;
 use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
+use infiltrator_contract::design_resources::TextRole;
 use infiltrator_presentation::proxies_page_model::PROXY_SORT_OPTIONS;
 use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -31,7 +33,6 @@ pub fn controls<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Message
             &state.runtime.proxy_filter,
         )
         .on_input(Message::FilterProxies)
-        .size(12)
         .padding([5, 9])
         .width(Length::Fixed(180.0))
         .style(delay_input_style),
@@ -46,12 +47,9 @@ pub fn controls<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Message
 
     let search_box = container(search_box).id(search_region_id());
     let alive_toggle = row![
-        text(lang.tr("proxies_filter_alive"))
-            .size(11)
-            .font(theme::FONT_MEDIUM)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_secondary),
-            }),
+        theme::role_body_text(lang.tr("proxies_filter_alive")).style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_secondary),
+        }),
         Space::new().width(theme::SP_XS),
         toggle_switch(
             state.runtime.proxies_model.healthy_only(),
@@ -64,12 +62,11 @@ pub fn controls<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Message
     let mut sort_segment = row![].spacing(2);
     for (index, order) in SORT_ORDERS.iter().copied().enumerate() {
         let active = state.runtime.proxies_model.sort_order() == order;
-        let label = text(lang.tr(SORT_LABEL_KEYS[index]))
-            .size(11)
+        let label = theme::role_body_text(lang.tr(SORT_LABEL_KEYS[index]))
             .font(if active {
-                theme::FONT_SEMIBOLD
+                theme::font_for(TextRole::LabelStrong)
             } else {
-                theme::FONT_MEDIUM
+                theme::font_for(TextRole::Label)
             })
             .style(move |t: &Theme| text::Style {
                 color: Some(if active {
@@ -158,12 +155,11 @@ pub fn controls<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Message
             });
     let status = if let Some(failure) = state.runtime.proxy_search.failure() {
         row![
-            text(interpolate(
+            theme::role_body_text(interpolate(
                 lang.tr("proxies_search_failed").as_ref(),
                 &[("reason", failure.message.as_str())]
-            ))
-            .size(12),
-            button(text(lang.tr("proxies_search_retry")))
+            )),
+            button(theme::role_body_text(lang.tr("proxies_search_retry")))
                 .on_press(Message::FilterProxies(state.runtime.proxy_filter.clone()))
         ]
         .spacing(theme::SP_SM)
@@ -174,15 +170,14 @@ pub fn controls<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Message
         .preference_write_phase()
         .failure()
     {
-        Element::from(
-            text(interpolate(
-                lang.tr("proxies_preferences_failed").as_ref(),
-                &[("reason", failure.message.as_str())],
-            ))
-            .size(12),
-        )
+        Element::from(theme::role_body_text(interpolate(
+            lang.tr("proxies_preferences_failed").as_ref(),
+            &[("reason", failure.message.as_str())],
+        )))
     } else if typed_inventory_ready && state.runtime.proxies_model.healthy_only() {
-        Element::from(text(lang.tr("proxies_alive_filter_unknown")).size(12))
+        Element::from(theme::role_body_text(
+            lang.tr("proxies_alive_filter_unknown"),
+        ))
     } else if !state.runtime.proxy_filter.trim().is_empty()
         && state
             .runtime
@@ -190,9 +185,9 @@ pub fn controls<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Message
             .iter()
             .all(|group| group.proxies.is_empty())
     {
-        Element::from(text(lang.tr("proxies_search_empty")).size(12))
+        Element::from(theme::role_body_text(lang.tr("proxies_search_empty")))
     } else {
-        Element::from(text(lang.tr("proxies_search_hint")).size(12))
+        Element::from(theme::role_body_text(lang.tr("proxies_search_hint")))
     };
     column![filters, status, delay_test_group(state, lang)]
         .spacing(theme::SP_SM)
@@ -208,9 +203,9 @@ fn delay_test_group<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Mes
         .unwrap_or_else(|| lang.tr("proxy_probe_settings_unavailable").into_owned());
     container(
         row![
-            button(text(lang.tr("proxy_probe_settings_title")).size(12))
+            button(theme::role_body_text(lang.tr("proxy_probe_settings_title")))
                 .on_press(Message::OpenRuntimeProbeSettings),
-            text(caption).size(11).width(Length::Fill),
+            theme::role_body_text(caption).width(Length::Fill),
         ]
         .spacing(theme::SP_SM)
         .align_y(Alignment::Center),

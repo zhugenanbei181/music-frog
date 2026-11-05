@@ -1,3 +1,4 @@
+import { DesignType } from "../components/design-type.slint";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "../components/theme.slint";
 import { ItemHeader, ItemRow, DraftField } from "../components/workbench_parts.slint";
@@ -53,7 +54,7 @@ component WorkbenchPanelCard inherits Rectangle {
                           item.id == "speedtest-details-modal/summary" ? (@tr("探测目标：") + item.detail + @tr(" 个节点")) :
                           item.detail;
                     color: LumenTheme.text-secondary;
-                    font-size: 13 * LumenUiScale.unit;
+                    font-size: DesignType.mono-size;
                     wrap: word-wrap;
                 }
                 Rectangle { height: 8 * LumenUiScale.unit; }
@@ -63,8 +64,8 @@ component WorkbenchPanelCard inherits Rectangle {
                 Text {
                     text: item.detail;
                     color: LumenTheme.error;
-                    font-size: 13 * LumenUiScale.unit;
-                    font-weight: 500;
+                    font-size: DesignType.mono-size;
+                    font-weight: DesignType.mono-weight;
                     wrap: word-wrap;
                 }
                 Rectangle { height: 8 * LumenUiScale.unit; }
@@ -74,7 +75,7 @@ component WorkbenchPanelCard inherits Rectangle {
                 Text {
                     text: item.detail;
                     color: LumenTheme.text-muted;
-                    font-size: 12 * LumenUiScale.unit;
+                    font-size: DesignType.caption-size;
                     wrap: word-wrap;
                 }
                 Rectangle { height: 8 * LumenUiScale.unit; }
@@ -93,7 +94,7 @@ component WorkbenchPanelCard inherits Rectangle {
                         Text {
                             text: item.detail;
                             color: LumenTheme.text-primary;
-                            font-size: 13 * LumenUiScale.unit;
+                            font-size: DesignType.mono-size;
                             vertical-alignment: center;
                             overflow: elide;
                         }

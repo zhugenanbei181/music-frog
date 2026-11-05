@@ -1,5 +1,6 @@
 //! Native badge replays the shared controller-history caption and band.
-use crate::view::theme::{MONO, tokens};
+use crate::view::theme;
+use crate::view::theme::tokens;
 use iced::widget::text;
 use iced::{Element, Theme};
 use infiltrator_contract::latency_display::LatencyBand;
@@ -13,9 +14,7 @@ pub fn latency_badge<'a, Message: 'a>(
     let caption = project_proxy_latency(delay);
     let label = caption.render(language);
     let band = caption.band;
-    text(label)
-        .size(12)
-        .font(MONO)
+    theme::role_body_text(label)
         .style(move |theme: &Theme| {
             let palette = tokens(theme);
             text::Style {

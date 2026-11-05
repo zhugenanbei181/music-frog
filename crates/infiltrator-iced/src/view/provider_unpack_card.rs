@@ -6,7 +6,7 @@ use crate::view::component_card::card;
 use crate::view::component_forms::{style_accent, style_ghost};
 use crate::view::components::{BadgeKind, badge};
 use crate::view::svg_icons::Icon;
-use crate::view::theme::{FONT_MEDIUM, MONO, tokens};
+use crate::view::theme::tokens;
 use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
@@ -36,7 +36,7 @@ pub fn provider_unpack_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element
         row![
             svg_icons::icon_themed(Icon::Plus, 12.0, |t: &Theme| tokens(t).on_accent),
             Space::new().width(theme::SP_XS),
-            text(unpack_label).size(11).font(FONT_MEDIUM),
+            theme::role_body_text(unpack_label),
         ]
         .align_y(Alignment::Center),
     )
@@ -50,9 +50,7 @@ pub fn provider_unpack_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element
         row![
             svg_icons::icon_themed(Icon::Trash2, 12.0, |t: &Theme| tokens(t).text_secondary),
             Space::new().width(theme::SP_XS),
-            text(lang.tr("provider_btn_purge_cache").to_string())
-                .size(11)
-                .font(FONT_MEDIUM),
+            theme::role_body_text(lang.tr("provider_btn_purge_cache").to_string()),
         ]
         .align_y(Alignment::Center),
     )
@@ -75,15 +73,13 @@ pub fn provider_unpack_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element
                     tokens(t).success
                 }),
                 Space::new().width(theme::SP_XS),
-                text(msg.clone())
-                    .size(11)
-                    .style(move |t: &Theme| text::Style {
-                        color: Some(if in_flight {
-                            tokens(t).warning
-                        } else {
-                            tokens(t).success
-                        })
-                    }),
+                theme::role_body_text(msg.clone()).style(move |t: &Theme| text::Style {
+                    color: Some(if in_flight {
+                        tokens(t).warning
+                    } else {
+                        tokens(t).success
+                    })
+                }),
             ]
             .align_y(Alignment::Center),
         )
@@ -95,19 +91,17 @@ pub fn provider_unpack_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element
     card(
         Some(lang.tr("provider_unpack_title").to_string()),
         column![
-            text(lang.tr("provider_unpack_desc").to_string())
-                .size(12)
-                .style(|t: &Theme| text::Style {
+            theme::role_body_text(lang.tr("provider_unpack_desc").to_string()).style(
+                |t: &Theme| text::Style {
                     color: Some(tokens(t).text_secondary)
-                }),
+                }
+            ),
             Space::new().height(theme::SP_XS),
             row![
-                text(
+                theme::role_body_text(
                     lang.tr("provider_unpack_total")
                         .replace("{count}", &unp.unpacked_rules_count.to_string())
                 )
-                .size(12)
-                .font(MONO)
                 .width(Length::Fill),
                 badge(
                     lang.tr("provider_unpack_active").to_string(),
@@ -116,12 +110,9 @@ pub fn provider_unpack_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element
             ]
             .align_y(Alignment::Center),
             feedback,
-            text(cache_line)
-                .size(11)
-                .font(MONO)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_secondary)
-                }),
+            theme::role_body_text(cache_line).style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary)
+            }),
             Space::new().height(theme::SP_XS),
             row![
                 Space::new().width(Length::Fill),

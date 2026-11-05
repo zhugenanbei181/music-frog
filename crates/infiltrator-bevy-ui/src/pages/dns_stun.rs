@@ -22,8 +22,9 @@ use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_presentation::stun_projection::project_stun;
 use infiltrator_shared::locales::Lang;
 
@@ -50,7 +51,7 @@ pub fn dns_stun_card_scene(projection: &DnsProjection, palette: &UiPalette) -> i
                             Children [
                                 Text(conclusion)
                                 DnsLine(DnsLineKind::StunConclusion)
-                                TextRole(Role::BodyStrong)
+                                TextRole(design_resources::TextRole::BodyStrong)
                                 TextColor(conclusion_color)
                             ]
             }),
@@ -68,7 +69,7 @@ pub fn dns_stun_card_scene(projection: &DnsProjection, palette: &UiPalette) -> i
                             Children [
                                 Text(listing)
                                 DnsLine(DnsLineKind::Stun)
-                                TextRole(Role::Mono)
+                                TextRole(design_resources::TextRole::Mono)
                             ]
             }),
         ],

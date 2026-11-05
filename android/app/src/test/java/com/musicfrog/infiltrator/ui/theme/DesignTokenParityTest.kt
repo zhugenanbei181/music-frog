@@ -1,9 +1,16 @@
 package com.musicfrog.infiltrator.ui.theme
 
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
+
+private val AUTHORITY_CANDIDATES = listOf(
+    "crates/infiltrator-contract/assets/design-authority.json",
+    "../crates/infiltrator-contract/assets/design-authority.json",
+    "../../crates/infiltrator-contract/assets/design-authority.json",
+)
 
 /**
  * BANDROID-033.1: Token parity verification between Kotlin DesignTokens
@@ -45,16 +52,24 @@ class DesignTokenParityTest {
     }
 
     @Test
-    fun typeScaleMatchesSharedContract() {
-        assertEquals(22.sp, DesignTokens.TypeScale.Display)
-        assertEquals(20.sp, DesignTokens.TypeScale.Title)
-        assertEquals(20.sp, DesignTokens.TypeScale.Heading)
-        assertEquals(16.sp, DesignTokens.TypeScale.BodyLarge)
-        assertEquals(15.sp, DesignTokens.TypeScale.Body)
-        assertEquals(14.sp, DesignTokens.TypeScale.LabelLarge)
-        assertEquals(12.sp, DesignTokens.TypeScale.Caption)
-        assertEquals(11.sp, DesignTokens.TypeScale.LabelSmall)
-        assertEquals(10.sp, DesignTokens.TypeScale.Tag)
-        assertEquals(13.sp, DesignTokens.TypeScale.Mono)
+    fun generatedTypographyMatchesTheContractAuthority() {
+        val workingDirectory = File(System.getProperty("user.dir"))
+        val authority = AUTHORITY_CANDIDATES
+            .asSequence()
+            .map { workingDirectory.resolve(it) }
+            .firstOrNull(File::isFile)
+            ?.readText()
+            ?: error("design-authority.json is missing from $workingDirectory")
+        val weights = Regex("\"font_weights\"\\s*:\\s*\\[([^]]+)]")
+            .find(authority)?.groupValues?.get(1)
+            ?.replace(Regex("\\s+"), "")
+            ?.trim()
+        assertEquals("400,500,600", weights)
+        assertTrue(authority.contains("\"android_resource\": \"inter_semibold\""))
+        assertTrue(authority.contains("\"role\": \"BodyStrong\""))
+        assertTrue(authority.contains("\"semantic\": \"Settings\""))
+        assertEquals(22f, TypeScale.Display.value)
+        assertEquals(15f, TypeScale.Body.value)
+        assertEquals(13f, TypeScale.Mono.value)
     }
 }

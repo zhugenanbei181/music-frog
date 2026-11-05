@@ -17,6 +17,9 @@ use infiltrator_desktop::crash::write_sanitized_report;
 use infiltrator_desktop::exit_cleanup::{install, run_now};
 use infiltrator_desktop::product::{DesktopProductSession, DesktopProductSessionHandle};
 use infiltrator_desktop::storage::home_dir;
+use infiltrator_shared::effect_assets::FontFace;
+#[cfg(feature = "capture-tools")]
+use infiltrator_shared::effect_assets::FontFace;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use single_instance::SingleInstance;
 use std::backtrace::Backtrace;
@@ -126,14 +129,11 @@ fn run_production(surface_bridge: Option<SurfaceBridge>) -> iced::Result {
         .title(AppState::title)
         .theme(AppState::theme)
         .subscription(AppState::subscription)
-        .font(include_bytes!("../../infiltrator-shared/assets/fonts/Inter-Regular.ttf").as_slice())
-        .font(include_bytes!("../../infiltrator-shared/assets/fonts/Inter-Medium.ttf").as_slice())
-        .font(include_bytes!("../../infiltrator-shared/assets/fonts/Inter-SemiBold.ttf").as_slice())
-        .font(
-            include_bytes!("../../infiltrator-shared/assets/fonts/JetBrainsMono-Regular.ttf")
-                .as_slice(),
-        )
-        .font(include_bytes!("../../infiltrator-shared/assets/fonts/CJK-Regular.ttf").as_slice())
+        .font(FontFace::all_bytes()[0])
+        .font(FontFace::all_bytes()[1])
+        .font(FontFace::all_bytes()[2])
+        .font(FontFace::all_bytes()[3])
+        .font(FontFace::all_bytes()[4])
         .default_font(iced::Font::with_name("Inter"))
         .window(window_settings(
             (1180.0, 780.0),

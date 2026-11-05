@@ -3,8 +3,9 @@ use crate::state::AppState;
 use crate::types::message::Message;
 use crate::view::component_card::card;
 use crate::view::component_forms::{style_accent, style_ghost};
+use crate::view::theme;
 use crate::view_root::interaction_regions::InteractionRegion;
-use iced::widget::{button, column, container, row, text};
+use iced::widget::{button, column, container, row};
 use iced::{Element, Length};
 use infiltrator_contract::language::LanguagePreference;
 use infiltrator_presentation::language_choice::{
@@ -44,7 +45,7 @@ pub fn language_controls(state: &AppState) -> Element<'_, Message> {
         let persistence_available =
             model.persistence == LanguagePersistence::Available || state.shell.demo;
         choices = choices.push(
-            button(text(lang.tr(preference.label_key())))
+            button(theme::role_body_text(lang.tr(preference.label_key())))
                 .style(if active { style_accent } else { style_ghost })
                 .on_press_maybe(
                     (!active && !busy && persistence_available)
@@ -69,12 +70,12 @@ pub fn language_controls(state: &AppState) -> Element<'_, Message> {
     };
     let retryable = matches!(&model.phase, LanguageChoicePhase::Failed { .. })
         && model.persistence == LanguagePersistence::Available;
-    let retry = button(text(lang.tr("language_retry")))
+    let retry = button(theme::role_body_text(lang.tr("language_retry")))
         .style(style_ghost)
         .on_press_maybe(retryable.then_some(Message::RetryLanguageChoice));
     column![
         choices,
-        row![text(status).size(12).width(Length::Fill), retry].spacing(8)
+        row![theme::role_body_text(status).width(Length::Fill), retry].spacing(8)
     ]
     .spacing(8)
     .into()

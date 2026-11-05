@@ -259,6 +259,7 @@ fn projection_from_snapshot(
         download_bps: snapshot.download_bps,
         active_connections: snapshot.active_connections,
         memory_bytes: ResourceAvailability::NotObserved,
+        memory_limit_bytes: None,
         sampled_at,
         origin: OverviewOrigin::LiveCore,
         core_version: snapshot.core_version,
@@ -290,6 +291,7 @@ fn projection_from_snapshot(
         system_toggles: SystemToggleSnapshot::from_legacy(false, None, snapshot.revision.max(1)),
         routing_intent,
         speedtest: Default::default(),
+        policy_groups: Default::default(),
         cpu_percent: ResourceAvailability::NotObserved,
         total_traffic_bytes: None,
     }

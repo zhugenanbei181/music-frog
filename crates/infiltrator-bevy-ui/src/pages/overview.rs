@@ -33,22 +33,30 @@
 //! Remaining localized status folds are tracked by the shared-copy quality gate.
 
 use crate::history::{ScrubberAction, TrafficHistory, TrafficReplay, chart_inputs};
-use crate::localized_widgets::localized_button_scene;
-use crate::pages::globe::GlobeSectionSlot;
 use crate::pages::overview_card_order;
-use crate::pages::overview_lifecycle::core_control_scene;
+use crate::pages::overview_hero::{banner_scene, globe_slot_scene};
+use crate::pages::overview_policy_groups::{
+    OverviewPolicyGroupCard, PolicyGroupPickerState, close_policy_group_picker_on_route,
+    on_policy_group_activated, on_policy_group_request_close, policy_group_card_scene,
+    policy_group_picker_scene, sync_policy_group_grid, sync_policy_group_picker,
+};
 use crate::pages::overview_public_ip::on_overview_public_ip_refresh_activated;
 use crate::pages::overview_quota_copy;
 use crate::pages::overview_rates;
+use crate::pages::overview_resource_gauges::{resource_gauges_scene, sync_resource_gauges};
 use crate::pages::overview_restamp::{
     apply_overview_projection, on_overview_master_switch_activated, sync_overview_replay,
 };
+use crate::pages::overview_service_health::{
+    animate_service_health_pulses, service_health_card_scene, sync_service_health_tiles,
+};
 use crate::pages::overview_speedtest::{
     on_overview_speedtest_activated, on_overview_speedtest_concurrency_stepped,
-    on_overview_speedtest_detail_activated, speedtest_button_scene,
+    on_overview_speedtest_detail_activated,
 };
 use crate::pages::overview_topology::on_topology_stage_activated;
 use crate::pages::overview_topology_drilldown;
+use crate::pages::overview_traffic_scenes::{traffic_detail_card_scene, traffic_mini_card_scene};
 use crate::projection::{OverviewOrigin, OverviewProjection};
 use crate::route::{PageRoot, Route};
 use bevy::a11y::AccessibilityNode;
@@ -64,39 +72,34 @@ use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::PositionType;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, ComputedNode, Display, FlexDirection, FlexWrap,
-    JustifyContent, Node, Overflow, UiRect, Val, percent, px,
+    AlignItems, BackgroundColor, ComputedNode, Display, FlexDirection, FlexWrap, JustifyContent,
+    Node, Overflow, Val, percent, px,
 };
-use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, ScrollArea};
-use infiltrator_bevy_widgets::button::{ButtonSize, ButtonVariant, button_sized_scene};
-use infiltrator_bevy_widgets::chart::chart_scene_with_scale;
 use infiltrator_bevy_widgets::fluid_grid::{FluidCardGrid, compute_ideal_column_layout};
 use infiltrator_bevy_widgets::icon::{IconId, icon_scene};
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::responsive::ResponsiveContext;
-use infiltrator_bevy_widgets::stat_chip::stat_chip_scene;
-use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::{Breakpoint, space};
+use infiltrator_bevy_widgets::waveform::WaveformSeries;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::overview_layout::OverviewCardKind;
 use infiltrator_contract::resources::ResourceAvailability;
 use infiltrator_contract::system_toggle::SystemToggleState;
-use infiltrator_contract::traffic_scale::TrafficScaleSnapshot;
-use infiltrator_presentation::shell_readout::{observed_rate, rate_copy, rate_status};
+use infiltrator_presentation::dashboard_hero_projection::ResourceGaugeProjection;
+use infiltrator_presentation::dashboard_hero_projection::TrafficWaveformProjection;
+use infiltrator_presentation::shell_readout::{observed_rate, rate_copy};
 use infiltrator_shared::byte_units::format_bytes;
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::page::SurfaceOrigin;
 use lurker_core_contract::routing_intent::RoutingIntent;
 use lurker_ui_presentation::core_status_projection::{
-    OverviewBannerVerdict, banner_verdict_copy, failure_copy, project_banner_verdict, source_copy,
+    OverviewBannerVerdict, banner_verdict_copy, project_banner_verdict, source_copy,
 };
-
-/// The status banner's text column minimum width in baseline pixels.
-const OVERVIEW_STATUS_TEXT_MIN_WIDTH_PX: f32 = 180.0;
 
 #[path = "overview_reactive.rs"]
 pub mod overview_reactive;
@@ -104,11 +107,14 @@ pub mod overview_reactive;
 #[path = "overview_pulse.rs"]
 pub mod overview_pulse;
 
-use self::overview_pulse::status_dot_scene;
-use self::overview_reactive::{OverviewMetricKind, OverviewMetricSource};
 use bevy::feathers::theme::ThemeTextColor;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::palette::rem;
+
+/// One upload/download mini card's preferred width in baseline pixels. Below
+/// two of them plus the gutter the pair stacks, so a rate never breaks in the
+/// middle of its unit.
+const TRAFFIC_MINI_BASIS_PX: f32 = 176.0;
 
 /// The trend chart's raster box (ui-side tokens — the widget's pixel box
 /// is fixed at mount; a resize is a remount, chart.rs). Height ~140px per
@@ -145,6 +151,18 @@ pub struct OverviewTrafficCard;
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct OverviewTrafficChart;
 
+/// Marker component on the historical trend detail chart and scrubber controls, hidden in compact mobile mode.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct OverviewTrafficDetailSection;
+
+/// Marker on the resource gauge card.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct OverviewResourceGaugeCard;
+
+/// Marks the Overview service-health card for sectioned screenshot capture.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct OverviewServiceHealthCard;
+
 /// Marker on one time-travel scrubber button; carries its typed action.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct OverviewScrubberButton(pub ScrubberAction);
@@ -175,8 +193,14 @@ pub enum OverviewLineKind {
     /// The banner's data-origin note: 演示数据 for the fixture, the live
     /// core's real version for the pump (BEVY-005).
     BannerNote,
-    /// The shared dynamic max and human-readable tick labels.
-    Scale,
+    /// Uplink peak rate readout (峰值 ...).
+    UploadPeak,
+    /// Downlink peak rate readout (峰值 ...).
+    DownloadPeak,
+    /// Cumulative uplink volume (累计 ...).
+    UploadTotal,
+    /// Cumulative downlink volume (累计 ...).
+    DownloadTotal,
 }
 
 /// Which stat a chip in the metrics band stands for; the refresh observer
@@ -238,6 +262,12 @@ pub struct OverviewReloadMaskText;
 /// Reorder button action on an Overview card slot (Move Up).
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct OverviewCardMoveUpButton(pub OverviewCardKind);
+
+/// Marker on one card slot's shared reorder controls row. Compact mobile
+/// hides the whole row: touch reorder belongs to a future gesture slice,
+/// and the floating arrows read as desktop HUD traces.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct OverviewCardMoveControls;
 
 impl Default for OverviewCardMoveUpButton {
     fn default() -> Self {
@@ -456,8 +486,7 @@ pub fn banner_state_text(projection: &OverviewProjection, language: &str) -> Str
 }
 
 /// The state line's ink: readable on the accent container while
-/// running/stopped, `on_accent` on the danger fill while unavailable.
-/// Tokens only.
+/// running/stopped; semantic state ink otherwise. Tokens only.
 pub fn state_ink(
     projection: Option<&OverviewProjection>,
     state: &CoreLifecycle,
@@ -471,14 +500,14 @@ pub fn state_ink(
             OverviewBannerVerdict::VpnUnauthorized | OverviewBannerVerdict::Transitioning => {
                 palette.warning
             }
-            OverviewBannerVerdict::MissingHost => palette.on_accent,
+            OverviewBannerVerdict::MissingHost => palette.danger,
         }
     } else {
         match state {
             CoreLifecycle::Running | CoreLifecycle::Ready => palette.ink,
             CoreLifecycle::Stopped => palette.ink_dim,
             CoreLifecycle::Starting | CoreLifecycle::Stopping => palette.warning,
-            CoreLifecycle::Failed => palette.on_accent,
+            CoreLifecycle::Failed => palette.danger,
         }
     }
 }
@@ -514,24 +543,14 @@ pub fn banner_note(projection: &OverviewProjection, language: &str) -> String {
     )
 }
 
-/// The banner's fill: the accent container token, or the danger token
-/// while unavailable — the whole-banner failure projection.
+/// The banner's fill: the standard opaque card surface. Availability is
+/// carried by the status dot and state ink, not by a full-bleed semantic fill.
 pub fn card_fill(
-    projection: Option<&OverviewProjection>,
-    state: &CoreLifecycle,
+    _projection: Option<&OverviewProjection>,
+    _state: &CoreLifecycle,
     palette: &UiPalette,
 ) -> Color {
-    if let Some(projection) = projection {
-        match banner_verdict(projection) {
-            OverviewBannerVerdict::MissingHost => palette.danger,
-            _ => palette.accent_container,
-        }
-    } else {
-        match state {
-            CoreLifecycle::Failed => palette.danger,
-            _ => palette.accent_container,
-        }
-    }
+    palette.surface
 }
 
 // ---- scene adapters ---------------------------------------------------------
@@ -555,15 +574,19 @@ pub(crate) fn reload_mask_scene(palette: &UiPalette) -> impl Scene + use<> {
             Children [
                 @{ icon_scene(IconId::Activity, 24.0, palette.accent) }
                 --
-                LocalizedText::plain("overview_content_effecting") OverviewReloadMaskText TextRole(Role::BodyStrong) ThemeTextColor({ Token::OnAccent })
+                LocalizedText::plain("overview_content_effecting") OverviewReloadMaskText TextRole(design_resources::TextRole::BodyStrong) ThemeTextColor({ Token::OnAccent })
             ]
     }
 }
 
-/// The Overview page: status banner, live traffic card and the metrics
-/// chip band, filling the shell's content slot. The traffic card's trend
-/// chart seeds from [`chart_series`] — the demo fixture's synthetic waves
-/// at mount, the live pump's recorded ring for a live source.
+/// The Overview page: hero band, the reorderable card grid and the page's
+/// own detail blocks, filling the shell's content slot. The detail blocks
+/// follow the card band — the trend band first, then service health, the
+/// resource gauges, the policy grid and the view-relative floating layers —
+/// so the desktop page opens with dense dashboard modules, not a full-width
+/// visualization. The trend band's series seed from [`chart_series`]: the
+/// demo fixture's synthetic waves at mount, the live pump's recorded ring for
+/// a live source.
 pub fn overview_page(
     projection: &OverviewProjection,
     history: &TrafficHistory,
@@ -571,6 +594,74 @@ pub fn overview_page(
 ) -> impl Scene + use<> {
     let order = overview_card_order::published_order(&projection.layout);
     let cards = overview_card_order::overview_card_scenes(projection, history, palette, &order);
+    let banner: Box<dyn Scene> = Box::new(bsn! { @{ banner_scene(projection, palette) } });
+    let card_slots: Box<dyn Scene> = Box::new(bsn! {
+            Node {
+                width: percent(100),
+                flex_direction: FlexDirection::Row,
+                flex_wrap: FlexWrap::Wrap,
+                align_items: AlignItems::FlexStart,
+                column_gap: rem(space::S12),
+                row_gap: rem(space::S16),
+            }
+            OverviewCardSlots
+            Children [
+                { cards }
+            ]
+    });
+    let service_health: Box<dyn Scene> = Box::new(bsn! {
+            Node {
+                width: percent(100),
+            }
+            OverviewServiceHealthCard
+            Children [
+                @{ service_health_card_scene(&projection.speedtest, palette) }
+            ]
+    });
+    let traffic_detail: Box<dyn Scene> =
+        Box::new(traffic_detail_band_scene(projection, history, palette));
+    let resource_gauges: Box<dyn Scene> = Box::new(bsn! {
+            Node {
+                width: percent(100),
+            }
+            OverviewResourceGaugeCard
+            Children [
+                @{ resource_gauges_scene(&resource_gauge_projection(projection), palette) }
+            ]
+    });
+    let policy_groups_scene = || -> Box<dyn Scene> {
+        Box::new(bsn! {
+            Node {
+                width: percent(100),
+            }
+            OverviewPolicyGroupCard
+            Children [
+                @{ policy_group_card_scene(&projection.policy_groups, palette) }
+            ]
+        })
+    };
+    let mut children: Vec<Box<dyn Scene>> = vec![banner];
+    // The reference dashboard opens with the owner's card band, and the page's
+    // own detail blocks follow it: the trend chart, then service health, the
+    // resource gauges and the policy grid. The owner's card order stays
+    // authoritative inside its band; the tier only decides that the band
+    // precedes the page's detail blocks instead of burying it under them. On
+    // the compact surface the trend band hides itself (the phone carries the
+    // two mini readings), so one order serves both viewports.
+    children.push(card_slots);
+    children.push(traffic_detail);
+    children.push(service_health);
+    children.push(resource_gauges);
+    children.push(policy_groups_scene());
+    // The picker rides the page but not its scroll clip: the root is a
+    // `FixedNode`, so it positions against the viewport like every other
+    // overlay in this product.
+    children.push(Box::new(bsn! { @{ policy_group_picker_scene(palette) } }));
+    children.push(Box::new(bsn! { @{ globe_slot_scene() } }));
+    children.push(Box::new(
+        bsn! { @{ overview_reactive::reactive_summary_scene(palette) } },
+    ));
+    children.push(Box::new(bsn! { @{ reload_mask_scene(palette) } }));
 
     bsn! {
             Node {
@@ -587,364 +678,143 @@ pub fn overview_page(
             OverviewPageRoot
             ScrollArea
             Children [
-                @{ banner_scene(projection, palette) }
-                --
-                @{ globe_slot_scene() }
-                --
-                Node {
-                    width: percent(100),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: rem(space::S16),
-                }
-                OverviewCardSlots
-                Children [
-                    { cards }
-                ]
-                --
-                @{ overview_reactive::reactive_summary_scene(palette) }
-                --
-                @{ reload_mask_scene(palette) }
+                { children }
             ]
     }
 }
 
-/// The status banner: the accent-container card with the running dot and
-/// state word, the data-origin note (demo fixture vs live core version) and
-/// failure line, then the stop button — the danger pill under a demo source,
-/// or an honest lifecycle caption under a live core
-/// The separate lifecycle control below submits the shared typed command.
-/// The origin is fixed for a mounted source, so baking the branch at mount
-/// keeps every restamp in place.
-///
-/// The current routing policy is **not** repeated here: the shell's status
-/// capsule and the page's own routing-intent card already name it, and a
-/// third copy of the same words in a pill only reads as a second control.
-fn banner_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl Scene + use<> {
-    let state = banner_state_text(projection, "en-US");
-    let state_node = status_semantic_node(&state);
-    let failure = failure_copy(&projection.lifecycle, projection.failure(), &Lang("en-US"));
-    let note = banner_note(projection, "en-US");
-    bsn! {
-            Node {
-                width: percent(100),
-                padding: UiRect::all(rem(space::S16)),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::SpaceBetween,
-                column_gap: rem(space::S16),
-                row_gap: rem(space::S12),
-                flex_wrap: FlexWrap::Wrap,
-                border_radius: BorderRadius::all(rem(palette.card_radius_px)),
-            }
-            BackgroundColor({ card_fill(Some(projection), &projection.lifecycle, palette) })
-            OverviewStatusCard
-            OverviewCardState({ Some(projection.lifecycle.clone()) })
-            Children [
-                Node {
-                    flex_grow: 1.0,
-                    min_width: rem(OVERVIEW_STATUS_TEXT_MIN_WIDTH_PX),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: rem(space::S8),
-                }
-                Children [
-                    Node {
-                        align_items: AlignItems::Center,
-                        column_gap: rem(space::S12),
-                    }
-                    Children [
-                        @{ status_dot_scene(palette) }
-                        --
-                        Text({ state }) OverviewLine(OverviewLineKind::State)
-                        TextRole(Role::Display)
-                        state_node
-                    ]
-                    --
-                    Node {
-                        align_items: AlignItems::Center,
-                        column_gap: rem(space::S8),
-                        flex_wrap: FlexWrap::Wrap,
-                        row_gap: rem(space::S4),
-                    }
-                    Children [
-                        Text({ note }) OverviewLine(OverviewLineKind::BannerNote) TextRole(Role::Caption)
-                        --
-                        Text({ failure }) OverviewLine(OverviewLineKind::Failure) TextRole(Role::Caption)
-                    ]
-                ]
-                --
-                @{ core_control_scene(palette) }
-                --
-                @{ speedtest_button_scene(palette) }
-            ]
-    }
-}
-
-/// The Overview page's geo slot. The Globe section mounts here, so the page
-/// owns where the section sits: the section never outranks the page's own
-/// hero, and the compact viewport keeps the banner in view.
-fn globe_slot_scene() -> impl Scene + use<> {
+/// The live traffic card: caption title, the up/down mono rate lines and
+/// the WESL-glow waveform strip under each rate. The two readings share one
+/// slot so the pair is read together; the page's large trend chart is **not**
+/// inside this card — it owns the band under the card grid
+/// ([`traffic_detail_band_scene`]), because a chart three times the height of
+/// its neighbour leaves a hole in the row beside it.
+pub(crate) fn traffic_card_scene(
+    projection: &OverviewProjection,
+    history: &TrafficHistory,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
+    let (up, down, _, _) = chart_inputs(projection, history);
+    let upload = up.clone();
+    let download = down.clone();
+    let total_bytes = projection.total_traffic_bytes.unwrap_or(0);
+    let waveform_proj = TrafficWaveformProjection::from_waveform(
+        &projection.traffic_waveform,
+        total_bytes / 2,
+        total_bytes / 2,
+    );
+    let total_up = waveform_proj.total_up_formatted.clone();
+    let total_down = waveform_proj.total_down_formatted.clone();
     bsn! {
             Node {
                 width: percent(100),
                 min_width: px(0.0),
                 max_width: percent(100),
                 flex_direction: FlexDirection::Column,
+                row_gap: rem(space::S12),
             }
-            GlobeSectionSlot
+            OverviewTrafficCard
+            Children [
+                Node {
+                    width: percent(100),
+                    min_width: px(0.0),
+                    flex_direction: FlexDirection::Row,
+                    flex_wrap: FlexWrap::Wrap,
+                    align_items: AlignItems::FlexStart,
+                    column_gap: rem(space::S12),
+                    row_gap: rem(space::S12),
+                }
+                Children [
+                    Node {
+                        flex_grow: 1.0,
+                        flex_basis: rem(TRAFFIC_MINI_BASIS_PX),
+                        min_width: px(0.0),
+                    }
+                    Children [
+                        @{ traffic_mini_card_scene(
+                        TrafficMiniReading {
+                            series: WaveformSeries::Upload,
+                            icon: IconId::ArrowUp,
+                            label_key: "overview_upload",
+                            rate: rate_copy(&projection.readout.upload_bps, &Lang("en-US")),
+                            peak: waveform_proj.peak_up_formatted,
+                            total: total_up,
+                            samples: upload,
+                        },
+                            palette,
+                        ) }
+                    ]
+                    --
+                    Node {
+                        flex_grow: 1.0,
+                        flex_basis: rem(TRAFFIC_MINI_BASIS_PX),
+                        min_width: px(0.0),
+                    }
+                    Children [
+                        @{ traffic_mini_card_scene(
+                        TrafficMiniReading {
+                            series: WaveformSeries::Download,
+                            icon: IconId::ArrowDown,
+                            label_key: "overview_download",
+                            rate: rate_copy(&projection.readout.download_bps, &Lang("en-US")),
+                            peak: waveform_proj.peak_down_formatted,
+                            total: total_down,
+                            samples: download,
+                        },
+                            palette,
+                        ) }
+                    ]
+                ]
+            ]
     }
 }
 
-/// The live traffic card: caption title, the up/down mono rate lines and
-/// the dual-series trend chart (the widget layer's [`chart_scene`] —
-/// upper series the accent ink, lower the success ink, fade fills under
-/// both, exactly the reference card's language). The series come from
-/// [`chart_series`]: the demo fixture's synthetic waves, or the live
-/// pump's recorded ring. The widget's own `sync_charts` rasterizes the
-/// plate and re-derives every ink from the live palette, so a theme
-/// switch recolors the chart in place.
-pub(crate) fn traffic_card_scene(
+/// The trend detail band: the page's own full-width block under the card
+/// grid. The dual-series chart (the widget layer's [`chart_scene`] — upper
+/// series the accent ink, lower the success ink, fade fills under both) is
+/// the page's largest single reading, so it keeps a band of its own instead
+/// of stretching one card slot. The series come from [`chart_series`]: the
+/// demo fixture's synthetic waves at mount, the live pump's recorded ring for
+/// a live source, and the widget's own `sync_charts` re-derives every ink
+/// from the live palette, so a theme switch recolors the chart in place.
+/// The compact surface hides the whole section: the phone dashboard carries
+/// the two mini readings instead.
+pub(crate) fn traffic_detail_band_scene(
     projection: &OverviewProjection,
     history: &TrafficHistory,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     let (up, down, smooth, scale) = chart_inputs(projection, history);
-    surface_scene(
-        vec![
-            Box::new(bsn! { LocalizedText::plain("overview_traffic") TextRole(Role::Caption) }),
-            Box::new(rates_row_scene(
-                rate_copy(&projection.readout.upload_bps, &Lang("en-US")),
-                rate_copy(&projection.readout.download_bps, &Lang("en-US")),
-            )),
-            Box::new(scale_line_scene(&scale)),
-            Box::new(
-                bsn! { Text({rate_status(&projection.readout, &Lang("en-US"))})
-                OverviewLine(OverviewLineKind::TelemetryFailure) TextRole(Role::Caption) },
-            ),
-            Box::new(overview_chart_scene(
-                up,
-                down,
-                smooth,
-                Some(scale.max_bps as f32),
-            )),
-            Box::new(scrubber_scene(palette)),
-        ],
-        palette,
-    )
-}
-
-/// The trend chart plate, marked so the projection restamp and the replay
-/// scrubber address only the Overview chart.
-fn overview_chart_scene(
-    up: Vec<f32>,
-    down: Vec<f32>,
-    smooth: bool,
-    scale_max: Option<f32>,
-) -> impl Scene + use<> {
-    bsn! {
-        @{ chart_scene_with_scale(
-            up,
-            down,
-            CHART_WIDTH_PX,
-            CHART_HEIGHT_PX,
-            smooth,
-            scale_max,
-        ) }
-        OverviewTrafficChart
-    }
-}
-
-/// The time-travel scrubber row under the trend chart: coarse seeks, single
-/// steps, a return-to-live button and the typed status readout. Purely
-/// structural — the buttons' `Activate` observer and
-/// [`sync_overview_replay`](crate::pages::overview_restamp::sync_overview_replay)
-/// own the behavior.
-fn scrubber_scene(palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
             Node {
                 width: percent(100),
                 min_width: px(0.0),
-                align_items: AlignItems::Center,
-                column_gap: rem(space::S8),
-                row_gap: rem(space::S4),
-                flex_wrap: FlexWrap::Wrap,
             }
+            OverviewTrafficDetailSection
             Children [
-                @{ scrubber_button_scene("⏮".to_owned(), ScrubberAction::SeekBackward, palette) }
-                --
-                @{ scrubber_button_scene("◀".to_owned(), ScrubberAction::StepBackward, palette) }
-                --
-                @{ scrubber_button_scene("▶".to_owned(), ScrubberAction::StepForward, palette) }
-                --
-                @{ scrubber_button_scene("⏭".to_owned(), ScrubberAction::SeekForward, palette) }
-                --
-                @{ scrubber_live_button_scene(palette) }
-                --
-                Text({ String::new() }) OverviewScrubberStatus TextRole(Role::Caption)
+                @{ traffic_detail_card_scene(
+                    projection,
+                    up,
+                    down,
+                    smooth,
+                    scale.max_bps as f32,
+                    palette,
+                ) }
             ]
     }
 }
 
-/// One transport button: the shared button skin with a typed scrub action.
-fn scrubber_button_scene(
-    label: String,
-    action: ScrubberAction,
-    palette: &UiPalette,
-) -> impl Scene + use<> {
-    bsn! {
-        @{ button_sized_scene(label, ButtonVariant::Ghost, ButtonSize::Sm, palette) }
-        OverviewScrubberButton(action)
-    }
-}
-
-/// The return-to-live button: a primary-labeled control carrying the live
-/// copy key, so it follows the active locale.
-fn scrubber_live_button_scene(palette: &UiPalette) -> impl Scene + use<> {
-    bsn! {
-        @{ localized_button_scene(
-            LocalizedText::plain("conn_state_live"),
-            ButtonVariant::Primary,
-            palette,
-        ) }
-        OverviewScrubberButton(ScrubberAction::ReturnToLive)
-    }
-}
-
-/// The up/down rates side by side on one row (the reference layout).
-fn rates_row_scene(upload: String, download: String) -> impl Scene + use<> {
-    bsn! {
-            Node {
-                align_items: AlignItems::Center,
-                column_gap: rem(space::S16),
-            }
-            Children [
-                @{ rate_line("↑ ", OverviewLineKind::Upload, upload) }
-                --
-                @{ rate_line("↓ ", OverviewLineKind::Download, download) }
-            ]
-    }
-}
-
-fn scale_line_scene(scale: &TrafficScaleSnapshot) -> impl Scene + use<> {
-    let label = format_scale(scale);
-    bsn! {
-            Node {
-                width: percent(100),
-                min_height: rem(space::S16),
-            }
-            Children [
-                Text({ label }) OverviewLine(OverviewLineKind::Scale) TextRole(Role::Mono)
-            ]
-    }
-}
-
-pub(crate) fn format_scale(scale: &TrafficScaleSnapshot) -> String {
-    format!(
-        "scale max={} · ticks={}",
-        scale.format_max(),
-        scale
-            .ticks
-            .iter()
-            .map(|tick| scale.format_tick(*tick))
-            .collect::<Vec<_>>()
-            .join(" / ")
-    )
-}
-
-/// One rate line: the arrow and the mono rate share one marked text so
-/// the refresh observer restamps them together (the arrow keeps the
-/// line's ink — success for uplink, ordinary for downlink).
-fn rate_line(arrow: &str, kind: OverviewLineKind, value: String) -> impl Scene + use<> {
-    bsn! {
-            Node {
-                align_items: AlignItems::Center,
-                column_gap: rem(space::S8),
-            }
-            Children [
-                Text({ format!("{arrow}{value}") }) OverviewLine(kind) TextRole(Role::Mono)
-            ]
-    }
-}
-
-/// A plain caption line inside a card.
-/// The metrics band: four stat chips sharing the width evenly. Each chip
-/// root carries a labeled `Group` semantic node ("name value") that the
-/// refresh observer restamps alongside the visible value.
-pub(crate) fn chips_row_scene(
-    projection: &OverviewProjection,
-    palette: &UiPalette,
-) -> impl Scene + use<> {
-    let connections = projection.active_connections.to_string();
-    let memory = format_memory(&projection.memory_bytes);
-    let cpu = format_cpu(&projection.cpu_percent);
-    let upload = rate_copy(&projection.readout.upload_bps, &Lang("en-US"));
-    let download = rate_copy(&projection.readout.download_bps, &Lang("en-US"));
-    let total = format_total_traffic(projection.total_traffic_bytes);
-
-    let connections_node = stat_group_semantic_node(&format!(
-        "{} {connections}",
-        chip_label(OverviewChipKind::Connections, "en-US")
-    ));
-    let memory_node = stat_group_semantic_node(&format!(
-        "{} {memory}",
-        chip_label(OverviewChipKind::Memory, "en-US")
-    ));
-    let cpu_node = stat_group_semantic_node(&format!(
-        "{} {cpu}",
-        chip_label(OverviewChipKind::Cpu, "en-US")
-    ));
-    let upload_node = stat_group_semantic_node(&format!(
-        "{} {upload}",
-        chip_label(OverviewChipKind::Upload, "en-US")
-    ));
-    let download_node = stat_group_semantic_node(&format!(
-        "{} {download}",
-        chip_label(OverviewChipKind::Download, "en-US")
-    ));
-    let total_node = stat_group_semantic_node(&format!(
-        "{} {total}",
-        chip_label(OverviewChipKind::TotalTraffic, "en-US")
-    ));
-
-    bsn! {
-            Node {
-                width: percent(100),
-                min_width: px(0.0),
-                max_width: percent(100),
-                flex_direction: FlexDirection::Row,
-                flex_wrap: FlexWrap::Wrap,
-                align_items: AlignItems::Center,
-                column_gap: rem(space::S12),
-                row_gap: rem(space::S12),
-            }
-            OverviewMetricsBand
-            Children [
-                @{ stat_chip_scene(IconId::Activity, chip_label(OverviewChipKind::Connections, "en-US").to_owned(), connections, palette) }
-                OverviewChip(OverviewChipKind::Connections)
-                OverviewMetricSource(OverviewMetricKind::Connections)
-                connections_node
-                --
-                @{ stat_chip_scene(IconId::Zap, chip_label(OverviewChipKind::Memory, "en-US").to_owned(), memory, palette) }
-                OverviewChip(OverviewChipKind::Memory)
-                OverviewMetricSource(OverviewMetricKind::Memory)
-                memory_node
-                --
-                @{ stat_chip_scene(IconId::Settings, chip_label(OverviewChipKind::Cpu, "en-US").to_owned(), cpu, palette) }
-                OverviewChip(OverviewChipKind::Cpu)
-                OverviewMetricSource(OverviewMetricKind::Cpu)
-                cpu_node
-                --
-                @{ stat_chip_scene(IconId::ArrowUp, chip_label(OverviewChipKind::Upload, "en-US").to_owned(), upload, palette) }
-                OverviewChip(OverviewChipKind::Upload)
-                upload_node
-                --
-                @{ stat_chip_scene(IconId::ArrowDown, chip_label(OverviewChipKind::Download, "en-US").to_owned(), download, palette) }
-                OverviewChip(OverviewChipKind::Download)
-                download_node
-                --
-                @{ stat_chip_scene(IconId::Globe, chip_label(OverviewChipKind::TotalTraffic, "en-US").to_owned(), total, palette) }
-                OverviewChip(OverviewChipKind::TotalTraffic)
-                total_node
-            ]
-    }
+/// One channel's authoritative mini reading: the identity the card shows, the
+/// values the page restamps, and the series the widget rasterizes. Bundled so
+/// the two cards differ by data, never by a positional argument list.
+pub(crate) struct TrafficMiniReading {
+    pub(crate) series: WaveformSeries,
+    pub(crate) icon: IconId,
+    pub(crate) label_key: &'static str,
+    pub(crate) rate: String,
+    pub(crate) peak: String,
+    pub(crate) total: String,
+    pub(crate) samples: Vec<f32>,
 }
 
 /// The traffic topology chain card: 4 linked stage chips with connecting arrows (">").
@@ -972,6 +842,7 @@ impl Plugin for OverviewPagePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<TrafficReplay>();
         app.init_resource::<overview_pulse::OverviewPulseState>();
+        app.init_resource::<PolicyGroupPickerState>();
         overview_reactive::register(app);
         // The hero's status dot breathes around its live dot; the drilldown
         // writes its own texts, and its queries are disjoint from the
@@ -980,15 +851,24 @@ impl Plugin for OverviewPagePlugin {
         app.add_systems(
             Update,
             (
+                sync_overview_card_columns,
                 overview_rates::refresh,
                 overview_quota_copy::replay,
                 sync_overview_replay,
                 overview_topology_drilldown::sync_topology_drilldown,
                 overview_pulse::animate_status_dot,
+                sync_service_health_tiles,
+                sync_resource_gauges,
+                sync_policy_group_grid,
+                sync_policy_group_picker,
+                close_policy_group_picker_on_route,
+                animate_service_health_pulses,
                 overview_card_order::sync_overview_card_order,
             ),
         );
         app.add_observer(apply_overview_projection);
+        app.add_observer(on_policy_group_activated);
+        app.add_observer(on_policy_group_request_close);
         app.add_observer(on_overview_scrubber_activated);
         app.add_observer(on_topology_stage_activated);
         app.add_observer(on_overview_master_switch_activated);
@@ -1016,6 +896,63 @@ pub(crate) fn on_overview_scrubber_activated(
         return;
     };
     replay.apply(&history, button.0);
+}
+
+/// The shared overview card's column count at each responsive tier.
+///
+/// The contract owns the same operator in
+/// [`infiltrator_contract::responsive_viewport`]; this local resolver exists
+/// so the Bevy UI can apply it to a different layout marker than the metrics
+/// band without inventing a second breakpoint ladder.
+pub fn overview_card_columns(breakpoint: Breakpoint) -> usize {
+    match breakpoint {
+        Breakpoint::Compact => 1,
+        Breakpoint::Medium => 2,
+        Breakpoint::Expanded => 2,
+        Breakpoint::Ultra => 3,
+    }
+}
+
+/// The authoritative resource gauge projection for the page.
+pub(crate) fn resource_gauge_projection(
+    projection: &OverviewProjection,
+) -> ResourceGaugeProjection {
+    ResourceGaugeProjection::new(
+        match &projection.memory_bytes {
+            ResourceAvailability::Available(bytes) => Some(*bytes),
+            _ => None,
+        },
+        projection.memory_limit_bytes,
+        match &projection.cpu_percent {
+            ResourceAvailability::Available(percent) => Some(*percent),
+            _ => None,
+        },
+    )
+}
+
+/// Pin overview cards to the shared tier column count (1 / 2 / 2 / 3).
+///
+/// The wrapping container owns the gutters; each card slot only changes its
+/// width basis, so card order and reorder behavior stay the same across all
+/// four tiers.
+pub fn sync_overview_card_columns(
+    ctx: Option<Res<ResponsiveContext>>,
+    mut slots: Query<&mut Node, With<OverviewCardSlot>>,
+) {
+    let Some(ctx) = ctx else {
+        return;
+    };
+    let basis = Val::Percent(FluidCardGrid::wrapped_item_percent(overview_card_columns(
+        ctx.breakpoint,
+    )));
+    for mut node in &mut slots {
+        if node.width != basis {
+            node.width = basis;
+        }
+        if node.flex_basis != basis {
+            node.flex_basis = basis;
+        }
+    }
 }
 
 /// Pin the Overview metrics chip band to the shared tier column count

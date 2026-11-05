@@ -22,12 +22,13 @@ use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::palette::{UiPalette, theme_color};
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::{Theme, ThemeSkin, space};
 use infiltrator_bevy_widgets::theme_export::{
     DEFAULT_LADDER_STEPS, LadderSource, LadderStrategy, TonalLadder, generate_ladder,
     theme_tonal_ladders,
 };
+use infiltrator_contract::design_resources;
 use infiltrator_contract::theme::{self, AppearanceMode, ThemePreference};
 use infiltrator_contract::theme_palette::ResolvedThemePalette;
 use infiltrator_contract::theme_palette::SystemDynamicColor;
@@ -263,7 +264,7 @@ pub fn tonal_ladder_preview_scene(palette: &UiPalette) -> impl Scene + use<> {
             TonalLadderPreviewRoot
             ThemeBackgroundColor({ Token::SurfaceElevated })
             Children [
-                Text(String::new()) TonalLadderSourceText TextRole(Role::Caption)
+                Text(String::new()) TonalLadderSourceText TextRole(design_resources::TextRole::Caption)
                 --
                 Node {
                     width: percent(100),

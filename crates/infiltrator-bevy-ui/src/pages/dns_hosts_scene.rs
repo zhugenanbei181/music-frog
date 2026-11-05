@@ -23,9 +23,10 @@ use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText};
 use infiltrator_bevy_widgets::modal::{ModalDialogCard, ModalScrim};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 
 /// The hosts modal dialog's maximum width in baseline pixels.
 const DNS_HOSTS_MODAL_MAX_WIDTH_PX: f32 = 600.0;
@@ -73,20 +74,20 @@ pub fn modal(palette: &UiPalette) -> impl Scene + use<> {
             Node { width: percent(90), max_width: rem(DNS_HOSTS_MODAL_MAX_WIDTH_PX), max_height: percent(90), padding: UiRect::all(rem(space::S16)), flex_direction: FlexDirection::Column, row_gap: rem(space::S8), border_radius: BorderRadius::all(rem(palette.modal_radius_px)) }
             ModalDialogCard HostsModalCard ThemeBackgroundColor({ Token::Surface }) ModalDialog AccessibilityNode(semantic) LocalizedLabel::plain("dns_hosts_title")
             Children [
-                LocalizedText::plain("dns_hosts_title") TextRole(Role::Heading)
+                LocalizedText::plain("dns_hosts_title") TextRole(design_resources::TextRole::Heading)
                 --
-                LocalizedText::plain("dns_hosts_desc") TextRole(Role::Caption)
+                LocalizedText::plain("dns_hosts_desc") TextRole(design_resources::TextRole::Caption)
                 --
                 Node { width: percent(100), column_gap: rem(space::S8) }
                 Children [
                     Node { width: percent(48), min_width: px(0.0), flex_direction: FlexDirection::Column, row_gap: rem(space::S4) }
                     DnsHostsEditorField
-                    Children [ LocalizedText::plain("dns_hosts_address") TextRole(Role::Caption) --
+                    Children [ LocalizedText::plain("dns_hosts_address") TextRole(design_resources::TextRole::Caption) --
                         @{ (localized_field_scene(String::new(), LocalizedText::plain("dns_hosts_address"), palette), bsn! { NativeTextField(0) }) } ]
                     --
                     Node { width: percent(48), min_width: px(0.0), flex_direction: FlexDirection::Column, row_gap: rem(space::S4) }
                     DnsHostsDomainField
-                    Children [ LocalizedText::plain("dns_hosts_domain") TextRole(Role::Caption) --
+                    Children [ LocalizedText::plain("dns_hosts_domain") TextRole(design_resources::TextRole::Caption) --
                         @{ (localized_field_scene(String::new(), LocalizedText::plain("dns_hosts_domain"), palette), bsn! { NativeTextField(1) }) } ]
                 ]
                 --
@@ -102,11 +103,11 @@ pub fn modal(palette: &UiPalette) -> impl Scene + use<> {
                 Node { width: percent(100), height: rem(DNS_HOSTS_ROWS_HEIGHT_PX), min_height: rem(DNS_HOSTS_ROWS_MIN_HEIGHT_PX), flex_shrink: 1.0, flex_direction: FlexDirection::Column, row_gap: rem(space::S4), overflow: Overflow::scroll_y() }
                 ScrollArea HostsRows
                 --
-                LocalizedText::plain("dns_hosts_empty") HostsEmptyHint TextRole(Role::Caption)
+                LocalizedText::plain("dns_hosts_empty") HostsEmptyHint TextRole(design_resources::TextRole::Caption)
                 --
-                LocalizedText::plain("common_message") HostsLegacyHint TextRole(Role::Caption)
+                LocalizedText::plain("common_message") HostsLegacyHint TextRole(design_resources::TextRole::Caption)
                 --
-                LocalizedText::plain("dns_hosts_unobserved") DnsHostsStatusLine TextRole(Role::Caption)
+                LocalizedText::plain("dns_hosts_unobserved") DnsHostsStatusLine TextRole(design_resources::TextRole::Caption)
                 --
                 Node { width: percent(100), column_gap: rem(space::S8), justify_content: JustifyContent::FlexEnd, flex_shrink: 0.0 }
                 Children [

@@ -13,7 +13,7 @@ use crate::icon::IconId;
 use crate::icon_tile::icon_tile_scene;
 use crate::palette::UiPalette;
 use crate::palette::rem;
-use crate::text::{Role, TextRole};
+use crate::text::TextRole;
 use crate::theme::{space, type_scale};
 use bevy::color::Color;
 use bevy::ecs::component::Component;
@@ -23,6 +23,7 @@ use bevy::ecs::system::{Query, Res};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{AlignItems, BackgroundColor, BorderRadius, FlexDirection, Node, UiRect};
 use bevy::ui::widget::Text;
+use infiltrator_contract::design_resources;
 
 /// Minimum chip height (px) — one card row of the metrics band.
 pub const CHIP_MIN_HEIGHT: f32 = 64.0;
@@ -84,9 +85,9 @@ pub fn stat_chip_scene(
                     row_gap: rem(space::S4),
                 }
                 Children [
-                    Text(label) TextRole(Role::Caption) StatChipLabel
+                    Text(label) TextRole(design_resources::TextRole::Caption) StatChipLabel
                     --
-                    Text(value) TextRole(Role::Mono) StatChipValue
+                    Text(value) TextRole(design_resources::TextRole::Mono) StatChipValue
                 ]
             ]
     }

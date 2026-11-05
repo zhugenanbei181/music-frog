@@ -7,7 +7,7 @@ use crate::view::components::{
     BadgeKind, badge, empty_state, modern_scrollable, section_header, segmented_control,
 };
 use crate::view::svg_icons::Icon;
-use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
+use crate::view::theme::tokens;
 use crate::view::uwp_card::uwp_card;
 use crate::view::{svg_icons, theme};
 use crate::view_root::interaction_regions::InteractionRegion;
@@ -102,9 +102,7 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
         row![
             svg_icons::icon_themed(Icon::RefreshCw, 14.0, |t: &Theme| tokens(t).on_accent),
             Space::new().width(theme::SP_SM),
-            text(lang.tr("app_routing_btn_refresh").to_string())
-                .size(12)
-                .font(FONT_MEDIUM),
+            theme::role_body_text(lang.tr("app_routing_btn_refresh").to_string()),
         ]
         .align_y(Alignment::Center),
     )
@@ -207,24 +205,21 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
                     Space::new().width(theme::SP_MD),
                     column![
                         row![
-                            text(proc.display_name.clone())
-                                .size(13)
-                                .font(FONT_SEMIBOLD)
-                                .style(|t: &Theme| text::Style {
+                            theme::role_body_text(proc.display_name.clone()).style(|t: &Theme| {
+                                text::Style {
                                     color: Some(tokens(t).text_primary),
-                                }),
+                                }
+                            }),
                             Space::new().width(theme::SP_SM),
                             badge(proc.category.to_string(), bkind),
                         ]
                         .align_y(Alignment::Center),
                         Space::new().height(theme::SP_XS),
-                        text(
+                        theme::role_body_text(
                             proc.binary_path
                                 .clone()
                                 .unwrap_or_else(|| proc_name_clone.clone())
                         )
-                        .size(11)
-                        .font(MONO)
                         .style(|t: &Theme| text::Style {
                             color: Some(tokens(t).text_secondary),
                         }),

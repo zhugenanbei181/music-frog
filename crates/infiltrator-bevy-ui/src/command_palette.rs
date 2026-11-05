@@ -34,10 +34,11 @@ use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::{radius, space};
 use infiltrator_contract::a11y::ShellA11yNode;
 use infiltrator_contract::command_catalogue::{CommandCatalogue, CommandEntry};
+use infiltrator_contract::design_resources;
 use infiltrator_contract::shortcuts::ShortcutRegistry;
 use infiltrator_presentation::command_palette_projection::{filtered_indices, localized_title};
 use infiltrator_shared::fuzzy_search::pinyin_fuzzy_match;
@@ -292,10 +293,10 @@ pub fn command_palette_item_scene(
                 }
                 Children [
                     Text({ category_text })
-                    TextRole(Role::Caption)
+                    TextRole(design_resources::TextRole::Caption)
                     --
                     Text({ title_text })
-                    TextRole(Role::Body)
+                    TextRole(design_resources::TextRole::Body)
                 ]
                 --
                 Node {
@@ -305,7 +306,7 @@ pub fn command_palette_item_scene(
                 ThemeBackgroundColor({ Token::SurfaceElevated })
                 Children [
                     Text({ hint_text })
-                    TextRole(Role::Caption)
+                    TextRole(design_resources::TextRole::Caption)
                 ]
             ]
     }
@@ -357,7 +358,7 @@ pub fn command_palette_modal_scene(
     if items_boxed.is_empty() {
         items_boxed.push(Box::new(bsn! {
             Text({ lang.tr("cmd_no_results").into_owned() })
-            TextRole(Role::Caption)
+            TextRole(design_resources::TextRole::Caption)
             CommandPaletteEmptyState
         }));
     }
@@ -419,7 +420,7 @@ pub fn command_palette_modal_scene(
                         @{ icon_tile_scene(IconId::Activity, 24.0, palette) }
                         --
                         Text({ query_display })
-                        TextRole(Role::Body)
+                        TextRole(design_resources::TextRole::Body)
                         CommandPaletteQueryLabel
                         query_semantic
                         --
@@ -430,7 +431,7 @@ pub fn command_palette_modal_scene(
                         on(|activate: On<Activate>, mut commands: Commands| {
                             commands.trigger(RequestClose { source: activate.entity });
                         })
-                        Children [ Text(close_label) TextRole(Role::Caption) ]
+                        Children [ Text(close_label) TextRole(design_resources::TextRole::Caption) ]
                     ]
                     --
                     // The list scrolls while query and keyboard hints stay reachable.
@@ -453,10 +454,10 @@ pub fn command_palette_modal_scene(
                     }
                     Children [
                         Text(hints)
-                        TextRole(Role::Caption)
+                        TextRole(design_resources::TextRole::Caption)
                         --
                         Text({ format!("{}/{}", state.filtered_indices.len(), state.catalogue.len()) })
-                        TextRole(Role::Caption)
+                        TextRole(design_resources::TextRole::Caption)
                     ]
                 ]
             ]
@@ -519,7 +520,7 @@ mod tests {
         state.open();
 
         // Typed routing-intent names match their shared localized rows.
-        state.set_query("遵循分流规则");
+        state.set_query("规则模式");
         assert_eq!(state.filtered_indices.len(), 1);
         assert_eq!(
             state.current_selected_action().unwrap().id,

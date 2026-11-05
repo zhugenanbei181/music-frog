@@ -1,3 +1,4 @@
+import { DesignType } from "./design-type.slint";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "theme.slint";
 import { WorkbenchItem } from "models.slint";
@@ -73,8 +74,8 @@ export component ItemHeader inherits VerticalLayout {
         Text {
             text: root.item.title;
             color: LumenTheme.text-primary;
-            font-size: 16 * LumenUiScale.unit;
-            font-weight: 600;
+            font-size: DesignType.bodyLarge-size;
+            font-weight: DesignType.bodyLarge-weight;
             vertical-alignment: center;
             horizontal-stretch: 1;
             overflow: elide;
@@ -95,8 +96,8 @@ export component ItemHeader inherits VerticalLayout {
                 Text {
                     text: root.item.status;
                     color: WorkbenchTone.color(root.item.tone);
-                    font-size: 12 * LumenUiScale.unit;
-                    font-weight: 600;
+                    font-size: DesignType.caption-size;
+                    font-weight: DesignType.caption-weight;
                     vertical-alignment: center;
                 }
             }
@@ -106,7 +107,7 @@ export component ItemHeader inherits VerticalLayout {
     if !root.badge && root.item.status != "": Text {
         text: root.item.status;
         color: WorkbenchTone.color(root.item.tone);
-        font-size: 13 * LumenUiScale.unit;
+        font-size: DesignType.mono-size;
         wrap: word-wrap;
     }
 }
@@ -119,7 +120,7 @@ export component ItemText inherits Text {
 
     text: root.item.detail;
     color: root.danger ? LumenTheme.error : LumenTheme.text-secondary;
-    font-size: 12 * LumenUiScale.unit;
+    font-size: DesignType.caption-size;
     wrap: word-wrap;
 }
 
@@ -129,8 +130,8 @@ export component SectionLabel inherits Text {
 
     text: root.label;
     color: LumenTheme.text-secondary;
-    font-size: 14 * LumenUiScale.unit;
-    font-weight: 600;
+    font-size: DesignType.label-size;
+    font-weight: DesignType.label-weight;
     vertical-alignment: center;
 }
 
@@ -164,7 +165,7 @@ export component DraftField inherits Rectangle {
             width: parent.width;
             text <=> root.text;
             color: LumenTheme.text-primary;
-            font-size: 13 * LumenUiScale.unit;
+            font-size: DesignType.mono-size;
             font-family: root.mono ? LumenTheme.mono-family : "";
             wrap: root.mono ? word-wrap : no-wrap;
             vertical-alignment: root.mono ? top : center;
@@ -180,7 +181,7 @@ export component DraftField inherits Rectangle {
         height: root.mono ? 24 * LumenUiScale.unit : parent.height;
         text: root.placeholder;
         color: LumenTheme.text-muted;
-        font-size: 13 * LumenUiScale.unit;
+        font-size: DesignType.mono-size;
         vertical-alignment: root.mono ? top : center;
     }
 }
@@ -215,8 +216,8 @@ export component ItemRow inherits Rectangle {
         Text {
             text: root.item.title;
             color: LumenTheme.text-primary;
-            font-size: 13 * LumenUiScale.unit;
-            font-weight: 500;
+            font-size: DesignType.mono-size;
+            font-weight: DesignType.mono-weight;
             horizontal-stretch: 1;
             vertical-alignment: center;
             overflow: elide;
@@ -225,7 +226,7 @@ export component ItemRow inherits Rectangle {
         if root.item.detail != "": Text {
             text: root.item.detail;
             color: LumenTheme.text-secondary;
-            font-size: 12 * LumenUiScale.unit;
+            font-size: DesignType.caption-size;
             horizontal-stretch: 2;
             horizontal-alignment: right;
             vertical-alignment: center;
@@ -235,7 +236,7 @@ export component ItemRow inherits Rectangle {
         if root.item.trailing != "" && !root.trailing-badge: Text {
             text: root.item.trailing;
             color: LumenTheme.text-muted;
-            font-size: 11 * LumenUiScale.unit;
+            font-size: DesignType.micro-size;
             vertical-alignment: center;
             overflow: elide;
         }
@@ -255,8 +256,8 @@ export component ItemRow inherits Rectangle {
                 Text {
                     text: root.item.trailing;
                     color: WorkbenchTone.color(root.item.tone);
-                    font-size: 11 * LumenUiScale.unit;
-                    font-weight: 500;
+                    font-size: DesignType.micro-size;
+                    font-weight: DesignType.micro-weight;
                     vertical-alignment: center;
                 }
             }
@@ -282,8 +283,8 @@ export component ItemRow inherits Rectangle {
                 row-btn-label := Text {
                     text: root.item.label;
                     color: row-btn-touch.has-hover && root.item.enabled ? LumenTheme.accent : LumenTheme.text-primary;
-                    font-size: 11 * LumenUiScale.unit;
-                    font-weight: 500;
+                    font-size: DesignType.micro-size;
+                    font-weight: DesignType.micro-weight;
                     vertical-alignment: center;
                 }
             }

@@ -3,6 +3,7 @@
 #[path = "settings_lan_query_access.rs"]
 pub mod query_access;
 use self::query_access::{LanProjectionTargets, LanSecurityControls};
+use infiltrator_contract::design_resources;
 use infiltrator_shared::locales::Lang;
 
 use super::SettingsProjectionUpdated;
@@ -29,7 +30,7 @@ use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::text_input::state::{TextFieldInput, TextFieldState};
 use infiltrator_bevy_widgets::text_input::{
     TextField, TextFieldFocused, password_field_scene, text_field_with_placeholder_scene,
@@ -151,7 +152,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                 padding: UiRect::bottom(rem(space::S8)),
                             }
                             Children [
-                                LocalizedText::plain("settings_allow_lan_title") TextRole(Role::BodyStrong)
+                                LocalizedText::plain("settings_allow_lan_title") TextRole(design_resources::TextRole::BodyStrong)
                             ]
             }),
             Box::new(bsn! {
@@ -179,7 +180,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                 }
                                 ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Children [
-                                    LocalizedText::plain("settings_mixed_port_label") TextRole(Role::Body)
+                                    LocalizedText::plain("settings_mixed_port_label") TextRole(design_resources::TextRole::Body)
                                     --
                                     Node { width: rem(LAN_MIXED_PORT_FIELD_WIDTH_PX) }
                                     LanMixedPortField
@@ -197,7 +198,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                 }
                                 ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Children [
-                                    LocalizedText::plain("settings_bind_address_label") TextRole(Role::Body)
+                                    LocalizedText::plain("settings_bind_address_label") TextRole(design_resources::TextRole::Body)
                                     --
                                     Node { width: rem(LAN_BIND_ADDRESS_FIELD_WIDTH_PX) }
                                     LanBindAddressField
@@ -213,9 +214,9 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                     padding: UiRect::all(rem(space::S8)),
                                 }
                                 Children [
-                                    LocalizedText::plain("settings_current_bind_label") TextRole(Role::Caption)
+                                    LocalizedText::plain("settings_current_bind_label") TextRole(design_resources::TextRole::Caption)
                                     --
-                                    Text({ current_binding.clone() }) SettingsLine(SettingsLineKind::LanBindAddress) TextRole(Role::Mono)
+                                    Text({ current_binding.clone() }) SettingsLine(SettingsLineKind::LanBindAddress) TextRole(design_resources::TextRole::Mono)
                                     --
                                     Node {
                                         min_height: rem(palette.control_height_px),
@@ -228,7 +229,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                     LanSharingApplyButton
                                     Button
                                     Children [
-                                        LocalizedText::plain("settings_apply_readback_action") TextRole(Role::BodyStrong)
+                                        LocalizedText::plain("settings_apply_readback_action") TextRole(design_resources::TextRole::BodyStrong)
                                     ]
                                 ]
                                 --
@@ -237,7 +238,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                     padding: UiRect::top(rem(space::S8)),
                                 }
                                 Children [
-                                    LocalizedText::plain("settings_lan_access_control_title") TextRole(Role::BodyStrong)
+                                    LocalizedText::plain("settings_lan_access_control_title") TextRole(design_resources::TextRole::BodyStrong)
                                 ]
                                 --
                                 Node {
@@ -249,7 +250,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                 }
                                 ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Children [
-                                    LocalizedText::plain("settings_allowed_cidr_label") TextRole(Role::Body)
+                                    LocalizedText::plain("settings_allowed_cidr_label") TextRole(design_resources::TextRole::Body)
                                     --
                                     Node { width: rem(LAN_ALLOWED_IPS_FIELD_WIDTH_PX) }
                                     LanAllowedIpsField
@@ -267,7 +268,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                 }
                                 ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Children [
-                                    LocalizedText::plain("settings_denied_cidr_label") TextRole(Role::Body)
+                                    LocalizedText::plain("settings_denied_cidr_label") TextRole(design_resources::TextRole::Body)
                                     --
                                     Node { width: rem(LAN_DENIED_IPS_FIELD_WIDTH_PX) }
                                     LanDisallowedIpsField
@@ -285,7 +286,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                 }
                                 ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Children [
-                                    LocalizedText::plain("settings_skip_auth_cidr_label") TextRole(Role::Body)
+                                    LocalizedText::plain("settings_skip_auth_cidr_label") TextRole(design_resources::TextRole::Body)
                                     --
                                     Node { width: rem(LAN_SKIP_AUTH_PREFIXES_FIELD_WIDTH_PX) }
                                     LanSkipAuthPrefixesField
@@ -304,7 +305,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                 Children [
                                     @{ localized_checkbox_scene(LocalizedText::plain("lan_require_basic_auth"), projection.lan_security.as_ref().is_some_and(|value| value.authentication_enabled), palette) }
                                     --
-                                    Text({ auth_status }) SettingsLine(SettingsLineKind::LanSecurity) TextRole(Role::Mono)
+                                    Text({ auth_status }) SettingsLine(SettingsLineKind::LanSecurity) TextRole(design_resources::TextRole::Mono)
                                 ]
                                 --
                                 Node {
@@ -316,7 +317,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                 }
                                 ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Children [
-                                    LocalizedText::plain("settings_auth_username_label") TextRole(Role::Body)
+                                    LocalizedText::plain("settings_auth_username_label") TextRole(design_resources::TextRole::Body)
                                     --
                                     Node { width: rem(LAN_AUTH_USERNAME_FIELD_WIDTH_PX) }
                                     LanAuthUsernameField
@@ -334,7 +335,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                 }
                                 ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Children [
-                                    LocalizedText::plain("settings_auth_password_label") TextRole(Role::Body)
+                                    LocalizedText::plain("settings_auth_password_label") TextRole(design_resources::TextRole::Body)
                                     --
                                     Node { width: rem(LAN_AUTH_PASSWORD_FIELD_WIDTH_PX) }
                                     LanAuthPasswordField
@@ -361,7 +362,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                     LanSecurityApplyButton
                                     Button
                                     Children [
-                                        LocalizedText::plain("settings_lan_access_apply_action") TextRole(Role::BodyStrong)
+                                        LocalizedText::plain("settings_lan_access_apply_action") TextRole(design_resources::TextRole::BodyStrong)
                                     ]
                                 ]
                             ]

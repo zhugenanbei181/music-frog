@@ -24,9 +24,10 @@ use infiltrator_bevy_widgets::button::{ButtonDisabled, ButtonVariant};
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::command::RequestId;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::rule_document::RuleListOperationId;
 use infiltrator_presentation::rule_list_editor::RuleListEditor;
 use infiltrator_presentation::rule_list_projection::{draft_page, editor_preview, editor_status};
@@ -84,7 +85,7 @@ pub fn scene(palette: &UiPalette) -> impl Scene + use<> {
                     min_width: px(0.0),
                 }
                 Children [
-                    Text(String::new()) RuleListStatus TextRole(Role::Caption)
+                    Text(String::new()) RuleListStatus TextRole(design_resources::TextRole::Caption)
                 ]
                 --
                 Node {
@@ -103,7 +104,7 @@ pub fn scene(palette: &UiPalette) -> impl Scene + use<> {
                 ]
             ]
             --
-            Text(String::new()) RuleListPreview TextRole(Role::Body)
+            Text(String::new()) RuleListPreview TextRole(design_resources::TextRole::Body)
         ]
     }
 }

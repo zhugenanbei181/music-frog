@@ -16,8 +16,9 @@
 //! the same rows and mounts them as real `AccessibilityNode`s.
 
 use crate::state::AppState;
+use crate::view::theme;
 use iced::Element;
-use iced::widget::{container, text, tooltip};
+use iced::widget::{container, tooltip};
 use infiltrator_contract::a11y::{A11yRole, ShellA11yNode};
 use infiltrator_shared::locales::{Lang, Localizer};
 
@@ -48,7 +49,7 @@ pub fn labelled<'a, Message: 'a>(
     let label = Lang(lang).tr(node.label_key()).to_string();
     tooltip(
         content,
-        container(text(label).size(12))
+        container(theme::role_body_text(label))
             .padding(6)
             .style(container::rounded_box),
         tooltip::Position::Top,

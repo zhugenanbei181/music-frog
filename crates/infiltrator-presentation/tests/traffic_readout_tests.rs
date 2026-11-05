@@ -18,7 +18,8 @@ fn absent_zero_retained_and_wrong_generation_peaks_have_distinct_copy() {
     };
     let unknown = project_traffic_readout(&rates, &history, &Lang("en-US"));
     assert_eq!(unknown.upload, "Not observed");
-    assert_eq!(unknown.status, "Not observed");
+    assert_eq!(unknown.upload_display, "—");
+    assert!(unknown.status.is_empty());
     assert_eq!(unknown.freshness, TrafficFreshness::Unobserved);
     assert!(unknown.upload_peak.is_none());
 
@@ -31,6 +32,7 @@ fn absent_zero_retained_and_wrong_generation_peaks_have_distinct_copy() {
     });
     let zero = project_traffic_readout(&rates, &history, &Lang("en-US"));
     assert_eq!(zero.upload, "0 B/s");
+    assert_eq!(zero.upload_display, "0 B/s");
     assert_eq!(zero.status, "Live");
     assert_eq!(zero.upload_peak.as_deref(), Some("0 B/s"));
     assert_eq!(zero.freshness, TrafficFreshness::Current);
@@ -39,6 +41,7 @@ fn absent_zero_retained_and_wrong_generation_peaks_have_distinct_copy() {
     rates.download_bps = ShellObservation::Stale(0.0);
     let stale = project_traffic_readout(&rates, &history, &Lang("zh-CN"));
     assert_eq!(stale.upload, "0 B/s（已失效）");
+    assert_eq!(stale.upload_display, "0 B/s（已失效）");
     assert_eq!(stale.status, "已失效");
     assert_eq!(stale.upload_peak.as_deref(), Some("0 B/s（已失效）"));
     assert_eq!(stale.freshness, TrafficFreshness::Stale);

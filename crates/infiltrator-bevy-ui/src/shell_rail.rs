@@ -2,8 +2,8 @@
 //! tooltips for the shell.
 
 use crate::app::{
-    BottomNavActive, BottomNavBar, BottomNavItem, LayoutMode, RailNavTooltip, ShellLayoutState,
-    SidebarExpandedOnly, SidebarNavItem,
+    BottomNavActive, BottomNavBar, BottomNavIconPill, BottomNavItem, LayoutMode, RailNavTooltip,
+    ShellLayoutState, SidebarExpandedOnly, SidebarNavItem,
 };
 use crate::host_capabilities::{HostPreferences, MotionPreference};
 use crate::route::{ActiveRoute, Route};
@@ -12,7 +12,7 @@ use bevy::color::Alpha;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::query::{With, Without};
-use bevy::ecs::system::{Commands, Query, Res};
+use bevy::ecs::system::{Commands, Query, Res, SystemParam};
 use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::feathers::theme::{SurfaceLevel, UiTheme};
 use bevy::picking::hover::PickingInteraction;
@@ -26,9 +26,10 @@ use infiltrator_bevy_widgets::motion::lerp_color;
 use infiltrator_bevy_widgets::nav::{NavActive, NavLabel, nav_fill_token, nav_label_ink_token};
 use infiltrator_bevy_widgets::palette::{UiPalette, rem};
 use infiltrator_bevy_widgets::popover::Rect;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_bevy_widgets::tooltip::{TooltipPosition, compute_tooltip_rect};
+use infiltrator_contract::design_resources;
 
 /// The gap between a route row and the tooltip that names it.
 const TOOLTIP_GAP_PX: f32 = space::S8;
@@ -71,9 +72,9 @@ pub fn sync_sidebar_nav_visuals(
             SurfaceLevel::Base,
         );
         let target_role = if is_active {
-            Role::BodyStrong
+            design_resources::TextRole::BodyStrong
         } else {
-            Role::Body
+            design_resources::TextRole::Body
         };
         for child in children.iter() {
             if let Ok(mut icon_tint) = icons.get_mut(*child)
@@ -91,6 +92,30 @@ pub fn sync_sidebar_nav_visuals(
     }
 }
 
+/// The queries `sync_bottom_nav_visuals` walks: the bar's items, each
+/// item's icon seat, the icons inside the seats and the labels beside them.
+/// Bundled so the system keeps a small typed parameter list (BEVY-ECS-009).
+#[derive(SystemParam)]
+pub struct BottomNavVisualParams<'w, 's> {
+    items: Query<
+        'w,
+        's,
+        (
+            &'static BottomNavItem,
+            &'static mut BottomNavActive,
+            &'static Children,
+        ),
+    >,
+    icon_seats: Query<
+        'w,
+        's,
+        (&'static Children, Option<&'static ThemeBackgroundColor>),
+        With<BottomNavIconPill>,
+    >,
+    icons: Query<'w, 's, &'static mut IconTint>,
+    labels: Query<'w, 's, Option<&'static mut TextRole>>,
+}
+
 /// Repaint bottom navigation bar and sync active states with ActiveRoute.
 pub fn sync_bottom_nav_visuals(
     palette: Res<UiPalette>,
@@ -98,9 +123,14 @@ pub fn sync_bottom_nav_visuals(
     active_route: Option<Res<ActiveRoute>>,
     mut commands: Commands,
     mut bars: Query<(Entity, &mut BorderColor, Option<&ThemeBackgroundColor>), With<BottomNavBar>>,
-    mut items: Query<(&BottomNavItem, &mut BottomNavActive, &Children)>,
-    mut icons: Query<&mut IconTint>,
+    nav: BottomNavVisualParams,
 ) {
+    let BottomNavVisualParams {
+        mut items,
+        icon_seats,
+        mut icons,
+        mut labels,
+    } = nav;
     let edge = palette.border;
     for (entity, mut border, fill) in &mut bars {
         if fill
@@ -125,17 +155,45 @@ pub fn sync_bottom_nav_visuals(
         if active_marker.0 != is_active {
             active_marker.0 = is_active;
         }
-        let target_token = if is_active {
-            Token::Accent
-        } else {
-            Token::InkDim
-        };
-        let target_ink = theme.context_color(&target_token.theme_token(), SurfaceLevel::Base);
         for child in children.iter() {
-            if let Ok(mut tint) = icons.get_mut(*child)
-                && tint.0 != target_ink
-            {
-                tint.0 = target_ink;
+            // The icon lives inside its seat: the seat wears the shared
+            // selection wash while the route is active and stays bare
+            // otherwise, so the bar reads like the reference's M3 nav.
+            if let Ok((seat_children, seat_fill)) = icon_seats.get(*child) {
+                if is_active {
+                    let fill = Token::SelectionFill.theme_token();
+                    let needs_fill = seat_fill.map(|bg| bg.0 != fill).unwrap_or(true);
+                    if needs_fill {
+                        commands.entity(*child).insert(ThemeBackgroundColor(fill));
+                    }
+                } else if seat_fill.is_some() {
+                    commands.entity(*child).remove::<ThemeBackgroundColor>();
+                }
+                for grandchild in seat_children.iter() {
+                    if let Ok(mut tint) = icons.get_mut(*grandchild) {
+                        let target_token = if is_active {
+                            Token::Accent
+                        } else {
+                            Token::InkDim
+                        };
+                        let target_ink =
+                            theme.context_color(&target_token.theme_token(), SurfaceLevel::Base);
+                        if tint.0 != target_ink {
+                            tint.0 = target_ink;
+                        }
+                    }
+                }
+            } else if let Some(mut role) = labels.get_mut(*child).ok().flatten() {
+                // The label follows the same verdict: the active route's
+                // label reads strong, the rest stay caption-weight.
+                let target_role = if is_active {
+                    design_resources::TextRole::BodyStrong
+                } else {
+                    design_resources::TextRole::Caption
+                };
+                if role.0 != target_role {
+                    role.0 = target_role;
+                }
             }
         }
     }

@@ -14,23 +14,30 @@
 //! renders with the cosmic-text system fallback — a degradation, never a
 //! panic.
 
-use crate::text::Role;
 use bevy::asset::{Assets, Handle};
 use bevy::ecs::resource::Resource;
 use bevy::text::Font;
+use infiltrator_contract::design_resources;
 
-/// Inter SemiBold — headings.
-const HEADING_TTF: &[u8] =
-    include_bytes!("../../infiltrator-shared/assets/fonts/Inter-SemiBold.ttf");
-/// Inter Regular — body and control labels.
-const BODY_TTF: &[u8] = include_bytes!("../../infiltrator-shared/assets/fonts/Inter-Regular.ttf");
-/// Inter Medium — captions and idle labels.
-const CAPTION_TTF: &[u8] = include_bytes!("../../infiltrator-shared/assets/fonts/Inter-Medium.ttf");
-/// JetBrains Mono Regular — aligned telemetry values.
-const MONO_TTF: &[u8] =
-    include_bytes!("../../infiltrator-shared/assets/fonts/JetBrainsMono-Regular.ttf");
-/// Unified embedded CJK font — full Chinese character support across all platforms.
-const CJK_TTF: &[u8] = include_bytes!("../../infiltrator-shared/assets/fonts/CJK-Regular.ttf");
+use infiltrator_contract::design_resources::{FontFamilyToken, FontWeightTier, typeface};
+use infiltrator_shared::effect_assets::FontFace;
+
+/// The shared byte owner decides which physical face belongs to each role.
+const FACES: FontRoleFaces = FontRoleFaces {
+    heading: FontFace::InterSemiBold,
+    body: FontFace::InterRegular,
+    caption: FontFace::InterMedium,
+    mono: FontFace::Mono,
+    cjk: FontFace::Cjk,
+};
+
+struct FontRoleFaces {
+    heading: FontFace,
+    body: FontFace,
+    caption: FontFace,
+    mono: FontFace,
+    cjk: FontFace,
+}
 
 /// The role → face table, injected as a resource by [`crate::WidgetsPlugin`].
 #[derive(Resource, Clone, Debug)]
@@ -46,11 +53,11 @@ impl FontSources {
     /// Register every embedded face and return the handle table. All
     /// faces are OFL/Apache-licensed and logged in `THIRD-PARTY-NOTICES.md`.
     pub fn embedded(fonts: &mut Assets<Font>) -> Self {
-        let heading = fonts.add(Font::from_bytes(HEADING_TTF.to_vec()));
-        let body = fonts.add(Font::from_bytes(BODY_TTF.to_vec()));
-        let caption = fonts.add(Font::from_bytes(CAPTION_TTF.to_vec()));
-        let mono = fonts.add(Font::from_bytes(MONO_TTF.to_vec()));
-        let cjk = fonts.add(Font::from_bytes(CJK_TTF.to_vec()));
+        let heading = fonts.add(Font::from_bytes(FACES.heading.bytes().to_vec()));
+        let body = fonts.add(Font::from_bytes(FACES.body.bytes().to_vec()));
+        let caption = fonts.add(Font::from_bytes(FACES.caption.bytes().to_vec()));
+        let mono = fonts.add(Font::from_bytes(FACES.mono.bytes().to_vec()));
+        let cjk = fonts.add(Font::from_bytes(FACES.cjk.bytes().to_vec()));
         Self {
             heading,
             body,
@@ -61,19 +68,16 @@ impl FontSources {
     }
 
     /// The face one typographic role draws with.
-    pub fn face(&self, role: Role) -> Handle<Font> {
-        #[cfg(target_os = "android")]
-        return match role {
-            Role::Mono => self.mono.clone(),
-            _ => self.cjk.clone(),
-        };
-
-        #[cfg(not(target_os = "android"))]
-        match role {
-            Role::Heading | Role::Display | Role::BodyStrong => self.heading.clone(),
-            Role::Body => self.body.clone(),
-            Role::Caption => self.caption.clone(),
-            Role::Mono => self.mono.clone(),
+    pub fn face(&self, role: design_resources::TextRole) -> Handle<Font> {
+        let spec = typeface(role);
+        match (spec.face.family, spec.face.weight) {
+            (FontFamilyToken::Mono, _) => self.mono.clone(),
+            (FontFamilyToken::Cjk, _) => self.cjk.clone(),
+            (FontFamilyToken::Sans, weight) => match weight {
+                FontWeightTier::Regular => self.body.clone(),
+                FontWeightTier::Medium => self.caption.clone(),
+                FontWeightTier::SemiBold => self.heading.clone(),
+            },
         }
     }
 }

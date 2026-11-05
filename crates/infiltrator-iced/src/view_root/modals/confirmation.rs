@@ -8,7 +8,8 @@ use crate::types::message::Message;
 use crate::types::rule_trace::RuleTraceAction;
 use crate::view::component_forms::{style_danger, style_ghost};
 use crate::view::svg_icons::{Icon, icon_themed};
-use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, SP_SM, SP_XS, tokens};
+use crate::view::theme;
+use crate::view::theme::{SP_SM, SP_XS, tokens};
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
@@ -49,20 +50,18 @@ pub fn confirmation_modal<'a>(
             });
     if guide {
         actions = actions.push(
-            button(text(lang.tr("dns_query_settings").to_string())).on_press_maybe(
-                (!pending).then_some(Message::RuleTrace(RuleTraceAction::Settings)),
-            ),
+            button(theme::role_body_text(
+                lang.tr("dns_query_settings").to_string(),
+            ))
+            .on_press_maybe((!pending).then_some(Message::RuleTrace(RuleTraceAction::Settings))),
         );
     }
 
     let content = column![
         row![
-            text(title)
-                .size(16)
-                .font(FONT_SEMIBOLD)
-                .style(|theme: &Theme| text::Style {
-                    color: Some(tokens(theme).text_primary),
-                }),
+            theme::role_body_text(title).style(|theme: &Theme| text::Style {
+                color: Some(tokens(theme).text_primary),
+            }),
             Space::new().width(Length::Fill),
             button(icon_themed(Icon::X, 14.0, |t: &Theme| tokens(t).text_secondary))
                 .padding(4)
@@ -71,11 +70,13 @@ pub fn confirmation_modal<'a>(
         ]
         .align_y(Alignment::Center),
         Space::new().height(SP_XS),
-        container(text(detail).size(13).style(|theme: &Theme| text::Style {
-            color: Some(tokens(theme).text_secondary),
-        }))
+        container(
+            theme::role_body_text(detail).style(|theme: &Theme| text::Style {
+                color: Some(tokens(theme).text_secondary),
+            })
+        )
         .id(InteractionRegion::ConfirmationDetails.id()),
-        text(if pending {
+        theme::role_body_text(if pending {
             lang.tr("rule_trace_apply_running").to_string()
         } else if matches!(action, ConfirmAction::TracerOverride(_)) {
             state
@@ -86,13 +87,12 @@ pub fn confirmation_modal<'a>(
                 .unwrap_or_default()
         } else {
             String::new()
-        })
-        .size(12),
+        }),
         Space::new().height(SP_SM),
         actions
             .extend([
                 container(
-                    button(text(cancel_label).size(12).font(FONT_MEDIUM))
+                    button(theme::role_body_text(cancel_label))
                         .padding([7, 14])
                         .style(style_ghost)
                         .on_press_maybe((!pending).then_some(Message::CancelConfirmation))
@@ -101,7 +101,7 @@ pub fn confirmation_modal<'a>(
                 .into(),
                 Space::new().width(Length::Fill).into(),
                 container(
-                    button(text(confirm_label).size(12).font(FONT_MEDIUM))
+                    button(theme::role_body_text(confirm_label))
                         .padding([7, 16])
                         .style(style_danger)
                         .on_press_maybe((!pending).then_some(Message::ConfirmAction))

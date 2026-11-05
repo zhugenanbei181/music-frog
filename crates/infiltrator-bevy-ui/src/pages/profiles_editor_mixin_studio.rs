@@ -29,8 +29,9 @@ use infiltrator_bevy_widgets::editor::state::CodeEditorState;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::{radius, space};
+use infiltrator_contract::design_resources;
 use infiltrator_contract::profile_mixin_studio::{
     ProfileMixinColumn, ProfileMixinColumnRole, ProfileMixinColumns, ProfileMixinComposition,
     ProfileMixinPreflight, ProfileMixinToggle, ProfileMixinToggleId, ProfileMixinToggleObservation,
@@ -156,7 +157,7 @@ pub fn mixin_studio_scene(
                             EditorMutationControl
                             MixinToggleButton { id: { toggle.id } }
                             Children [
-                                label TextRole(Role::Caption)
+                                label TextRole(design_resources::TextRole::Caption)
                             ]
             }) as Box<dyn Scene>
         })
@@ -196,10 +197,10 @@ pub fn mixin_studio_scene(
                     }
                     BackgroundColor({ preflight_pill.1 })
                     Children [
-                        Text(preflight_label) MixinPreflightText verdict_role TextRole(Role::Caption)
+                        Text(preflight_label) MixinPreflightText verdict_role TextRole(design_resources::TextRole::Caption)
                     ]
                     --
-                    Text(preflight_detail) MixinPreflightDetail detail_role TextRole(Role::Mono)
+                    Text(preflight_detail) MixinPreflightDetail detail_role TextRole(design_resources::TextRole::Mono)
                 ]
                 --
                 Node {
@@ -210,12 +211,12 @@ pub fn mixin_studio_scene(
                     row_gap: rem(space::S4),
                 }
                 Children [
-                    LocalizedText::plain("mixin_studio_toggles_title") TextRole(Role::Caption)
+                    LocalizedText::plain("mixin_studio_toggles_title") TextRole(design_resources::TextRole::Caption)
                     --
                     { toggle_buttons }
                 ]
                 --
-                Text(cascade_text) MixinCascadeText cascade_role TextRole(Role::Mono)
+                Text(cascade_text) MixinCascadeText cascade_role TextRole(design_resources::TextRole::Mono)
                 --
                 @{ columns }
             ]
@@ -286,7 +287,7 @@ fn three_column_scene(columns: &ProfileMixinColumns, palette: &UiPalette) -> Box
                     row_gap: rem(space::S2),
                 }
                 Children [
-                    Text({ base_caption }) MixinColumnCaption(ProfileMixinColumnRole::Base) base_role TextRole(Role::Caption)
+                    Text({ base_caption }) MixinColumnCaption(ProfileMixinColumnRole::Base) base_role TextRole(design_resources::TextRole::Caption)
                     --
                     Node {
                         width: percent(100),
@@ -300,7 +301,7 @@ fn three_column_scene(columns: &ProfileMixinColumns, palette: &UiPalette) -> Box
                     BackgroundColor({ box_background })
                     BorderColor { top: border, right: border, bottom: border, left: border }
                     Children [
-                        Text(base_text) TextRole(Role::Mono)
+                        Text(base_text) TextRole(design_resources::TextRole::Mono)
                     ]
                 ]
                 --
@@ -311,7 +312,7 @@ fn three_column_scene(columns: &ProfileMixinColumns, palette: &UiPalette) -> Box
                     row_gap: rem(space::S2),
                 }
                 Children [
-                    Text({ overlay_caption }) MixinColumnCaption(ProfileMixinColumnRole::Overlay) overlay_role TextRole(Role::Caption)
+                    Text({ overlay_caption }) MixinColumnCaption(ProfileMixinColumnRole::Overlay) overlay_role TextRole(design_resources::TextRole::Caption)
                     --
                     Node {
                         width: percent(100),
@@ -338,7 +339,7 @@ fn three_column_scene(columns: &ProfileMixinColumns, palette: &UiPalette) -> Box
                     row_gap: rem(space::S2),
                 }
                 Children [
-                    Text({ composed_caption }) MixinColumnCaption(ProfileMixinColumnRole::Composed) composed_role TextRole(Role::Caption)
+                    Text({ composed_caption }) MixinColumnCaption(ProfileMixinColumnRole::Composed) composed_role TextRole(design_resources::TextRole::Caption)
                     --
                     Node {
                         width: percent(100),
@@ -358,9 +359,9 @@ fn three_column_scene(columns: &ProfileMixinColumns, palette: &UiPalette) -> Box
                             row_gap: rem(space::S2),
                         }
                         Children [
-                            Text(composed_text) TextRole(Role::Mono) MixinComposedText
+                            Text(composed_text) TextRole(design_resources::TextRole::Mono) MixinComposedText
                             --
-                            Text(composed_note) TextRole(Role::Mono) MixinComposedErrorText error_role TextColor({ composed_color })
+                            Text(composed_note) TextRole(design_resources::TextRole::Mono) MixinComposedErrorText error_role TextColor({ composed_color })
                         ]
                     ]
                 ]

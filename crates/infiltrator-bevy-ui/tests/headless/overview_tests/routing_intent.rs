@@ -2,6 +2,8 @@
 //! test-intent: behavior
 
 use super::*;
+use bevy::ecs::hierarchy::ChildOf;
+use bevy::ui::prelude::{Display, FlexWrap, Node};
 use infiltrator_bevy_ui::app::RoutingIntentActionState;
 use infiltrator_bevy_ui::pages::overview_cards::{
     OverviewRoutingIntentSegmentPill, RoutingIntentSegmentCard,
@@ -71,5 +73,43 @@ fn overview_routing_intent_card_exposes_only_the_three_shared_choices() {
             RoutingIntent::RouteAllThroughProxy,
             RoutingIntent::BypassProxy,
         ]
+    );
+}
+
+#[test]
+fn routing_intent_choices_share_one_three_column_row() {
+    let mut app = mounted_default();
+    let world = app.world_mut();
+
+    // Read the row through the choices' own parent: that pins this card's
+    // geometry instead of matching some other grid on the page.
+    {
+        let mut pills = world.query::<&OverviewRoutingIntentSegmentPill>();
+        assert_eq!(pills.iter(world).count(), 3, "three routing choices mount");
+    }
+    let row_entity = {
+        let mut parents = world.query::<(&OverviewRoutingIntentSegmentPill, &ChildOf)>();
+        let shared = parents
+            .iter(world)
+            .map(|(_, parent_of)| parent_of.parent())
+            .reduce(|same, parent| {
+                assert_eq!(same, parent, "all three choices share one row");
+                same
+            });
+        shared.expect("three routing choices mount")
+    };
+
+    let row = world.get::<Node>(row_entity).expect("the shared row");
+    assert_eq!(row.display, Display::Grid, "the row is a grid");
+    assert_eq!(
+        row.grid_template_columns.len(),
+        3,
+        "the row owns exactly three columns, one per choice"
+    );
+    assert_eq!(row.grid_template_rows.len(), 1, "one row owns all three");
+    assert_eq!(
+        row.flex_wrap,
+        FlexWrap::NoWrap,
+        "a wrapping row is what stacked the third choice under the other two"
     );
 }

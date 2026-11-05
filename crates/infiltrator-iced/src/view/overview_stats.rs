@@ -10,7 +10,7 @@ use std::mem;
 use crate::view::components::card_surface;
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme;
-use crate::view::theme::{FONT_MEDIUM, MONO, R_CONTROL, tokens};
+use crate::view::theme::{R_CONTROL, tokens};
 use iced::widget::{Space, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -169,18 +169,12 @@ fn metric_tile<'a>(
         row![
             icon_chip,
             column![
-                text(label)
-                    .size(11)
-                    .font(FONT_MEDIUM)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_secondary),
-                    }),
-                text(value)
-                    .size(15)
-                    .font(MONO)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_primary),
-                    }),
+                theme::role_body_text(label).style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_secondary),
+                }),
+                theme::role_body_text(value).style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_primary),
+                }),
             ]
             .spacing(2),
         ]

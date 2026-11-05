@@ -22,8 +22,9 @@ use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText};
 use infiltrator_bevy_widgets::modal::{ModalDialogCard, ModalScrim};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 
 /// One-off layout value (not a ladder rung): the widest the logs export modal
 /// card may grow on a wide viewport.
@@ -71,17 +72,17 @@ fn scene(palette: &UiPalette) -> impl Scene + use<> {
             ModalDialog
             AccessibilityNode(semantic) LocalizedLabel::plain("logs_export_title")
             Children [
-                LocalizedText::plain("logs_export_title") TextRole(Role::Heading)
+                LocalizedText::plain("logs_export_title") TextRole(design_resources::TextRole::Heading)
                 --
                 Node { width: percent(100), min_height: px(0.0), flex_shrink: 1.0,
                     flex_direction: FlexDirection::Column, row_gap: rem(space::S12), overflow: Overflow::scroll_y() }
                 ScrollArea
                 Children [
-                    Text(String::new()) LogsExportLine::Status TextRole(Role::Body)
+                    Text(String::new()) LogsExportLine::Status TextRole(design_resources::TextRole::Body)
                     --
-                    Text(String::new()) LogsExportLine::Details TextRole(Role::Caption)
+                    Text(String::new()) LogsExportLine::Details TextRole(design_resources::TextRole::Caption)
                     --
-                    Text(String::new()) LogsExportLine::Path TextRole(Role::Caption)
+                    Text(String::new()) LogsExportLine::Path TextRole(design_resources::TextRole::Caption)
                     TextLayout::linebreak(LineBreak::WordOrCharacter)
                 ]
                 --

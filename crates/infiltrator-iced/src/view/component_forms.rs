@@ -23,7 +23,6 @@ pub fn search_input<'a, Message: 'a + Clone>(
     let input = text_input(placeholder, value)
         .on_input(on_input)
         .padding([7, 10])
-        .size(13)
         .width(Length::Fill)
         .style(form_input_style);
 
@@ -52,12 +51,9 @@ pub fn dynamic_list_editor<'a, Message: 'a + Clone>(
         .iter()
         .enumerate()
         .map(|(idx, item)| {
-            let label = text(item.clone())
-                .size(12)
-                .font(theme::MONO)
-                .style(|t: &Theme| text::Style {
-                    color: Some(theme::tokens(t).text_primary),
-                });
+            let label = theme::role_body_text(item.clone()).style(|t: &Theme| text::Style {
+                color: Some(theme::tokens(t).text_primary),
+            });
             let delete_btn = icon_button(Icon::Trash2, 13.0, on_remove(idx));
             let item_content = row![label, Space::new().width(Length::Fill), delete_btn]
                 .align_y(iced::Alignment::Center)
@@ -75,7 +71,6 @@ pub fn dynamic_list_editor<'a, Message: 'a + Clone>(
         .on_input(on_input)
         .on_submit(on_add.clone())
         .padding([7, 10])
-        .size(13)
         .width(Length::Fill)
         .style(form_input_style);
     let add_btn = icon_button(Icon::Plus, 13.0, on_add);
@@ -174,7 +169,7 @@ pub fn text_btn<'a, Message: 'a + Clone>(
     style: fn(&Theme, button::Status) -> button::Style,
     on_press: Option<Message>,
 ) -> Element<'a, Message> {
-    button(text(label.into()).size(12).font(theme::FONT_MEDIUM))
+    button(theme::role_body_text(label.into()))
         .padding([7, 14])
         .style(style)
         .on_press_maybe(on_press)
@@ -247,7 +242,7 @@ pub fn style_focus_ring(t: &Theme, is_focused: bool) -> Border {
 }
 
 pub fn form_field_label(value: impl Into<String>) -> text::Text<'static> {
-    text(value.into()).size(11).style(|t: &Theme| text::Style {
+    theme::role_body_text(value.into()).style(|t: &Theme| text::Style {
         color: Some(theme::tokens(t).text_secondary),
     })
 }
@@ -258,7 +253,7 @@ pub fn form_toggle_row<'a, Message: 'a + Clone>(
     on_change: impl Fn(bool) -> Message + 'a,
 ) -> Element<'a, Message> {
     row![
-        text(label.into()).size(13).style(|t: &Theme| text::Style {
+        theme::role_body_text(label.into()).style(|t: &Theme| text::Style {
             color: Some(theme::tokens(t).text_primary),
         }),
         Space::new().width(Length::Fill),
@@ -280,12 +275,12 @@ pub fn responsive_form_row<'a, Message: 'a + Clone>(
     description: Option<impl Into<String>>,
     control: impl Into<Element<'a, Message>>,
 ) -> Element<'a, Message> {
-    let label_text = text(label.into()).size(13).style(|t: &Theme| text::Style {
+    let label_text = theme::role_body_text(label.into()).style(|t: &Theme| text::Style {
         color: Some(theme::tokens(t).text_primary),
     });
 
     let header: Element<'a, Message> = if let Some(desc) = description {
-        let desc_text = text(desc.into()).size(11).style(|t: &Theme| text::Style {
+        let desc_text = theme::role_body_text(desc.into()).style(|t: &Theme| text::Style {
             color: Some(theme::tokens(t).text_secondary),
         });
         column![label_text, desc_text].spacing(theme::SP_XS).into()
@@ -352,20 +347,19 @@ pub fn banner_alert<'a, Message: 'a + Clone>(
         kind.color(theme::tokens(t))
     });
 
-    let mut text_col =
-        column![
-            text(title_str)
-                .size(13)
-                .font(theme::FONT_SEMIBOLD)
-                .style(|t: &Theme| text::Style {
-                    color: Some(theme::tokens(t).text_primary),
-                })
-        ];
+    let mut text_col = column![
+        theme::role_body_text(title_str).style(|t: &Theme| text::Style {
+            color: Some(theme::tokens(t).text_primary),
+        })
+    ];
 
     if !detail_str.is_empty() {
-        text_col = text_col.push(text(detail_str).size(12).style(|t: &Theme| text::Style {
-            color: Some(theme::tokens(t).text_secondary),
-        }));
+        text_col =
+            text_col.push(
+                theme::role_body_text(detail_str).style(|t: &Theme| text::Style {
+                    color: Some(theme::tokens(t).text_secondary),
+                }),
+            );
     }
     text_col = text_col.spacing(2).width(Length::Fill);
 

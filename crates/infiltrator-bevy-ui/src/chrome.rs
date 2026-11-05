@@ -14,7 +14,6 @@
 //!   `infiltrator_contract::window_chrome` shape, and the capability report is
 //!   what this host honestly implements.
 
-#[cfg(not(target_os = "android"))]
 use crate::a11y::semantic_node;
 #[cfg(not(target_os = "android"))]
 use crate::command_palette::ToggleCommandPalette;
@@ -70,11 +69,13 @@ use infiltrator_bevy_widgets::palette::rem;
 #[cfg(not(target_os = "android"))]
 use infiltrator_bevy_widgets::responsive::TouchHitbox;
 #[cfg(not(target_os = "android"))]
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 #[cfg(not(target_os = "android"))]
 use infiltrator_bevy_widgets::theme::space;
 #[cfg(not(target_os = "android"))]
 use infiltrator_contract::a11y::ShellA11yNode;
+#[cfg(not(target_os = "android"))]
+use infiltrator_contract::design_resources;
 #[cfg(not(target_os = "android"))]
 use infiltrator_contract::window_chrome::CHROME_DRAG_STRIP_HEIGHT_PX;
 use infiltrator_contract::window_chrome::{NativeShadow, WindowChrome, WindowChromeSupport};
@@ -326,7 +327,7 @@ pub fn chrome_bar_scene(palette: &UiPalette) -> impl Scene + use<> {
             ChromeDragBar
             Children [
                 Text({ "MusicFrog Infiltrator".to_owned() })
-                TextRole(Role::Caption)
+                TextRole(design_resources::TextRole::Caption)
                 ThemeTextColor({ Token::InkDim })
                 --
                 Node { flex_grow: 1.0 }
@@ -420,7 +421,7 @@ fn chrome_traffic_capsule_scene(palette: &UiPalette) -> impl Scene + use<> {
         semantic_node(ShellA11yNode::TrafficReadout)
         Children [
             Text({ "↑ 0 B/s  ↓ 0 B/s".to_owned() })
-            TextRole(Role::Caption)
+            TextRole(design_resources::TextRole::Caption)
             ThemeTextColor({ Token::InkDim })
             ShellReadoutText::TrafficCapsule
         ]
@@ -448,7 +449,7 @@ fn chrome_search_trigger_scene(palette: &UiPalette) -> impl Scene + use<> {
         semantic_node(ShellA11yNode::CommandPaletteDialog)
         Children [
             Text({ "Ctrl+K".to_owned() })
-            TextRole(Role::Caption)
+            TextRole(design_resources::TextRole::Caption)
             ThemeTextColor({ Token::InkDim })
         ]
     }

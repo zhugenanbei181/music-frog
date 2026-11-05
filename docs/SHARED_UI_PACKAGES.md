@@ -58,6 +58,8 @@ Git rev 升级由各产品决定，不迫使所有产品同步升级；CI 接入
 
 所有 UI 表面共用 `infiltrator-shared` 的文本 lookup 与视觉资产身份；surface 只适配 renderer，不持有第二份翻译源或重复源文件。
 
-- 本地化：`infiltrator_shared::locales::Lang` 解析稳定应用文案 key 与产品 gettext message ID，来源为 `crates/infiltrator-shared/locales/product/`；Slint 编译器读取同一份共享 `.po`。运行期用户数据（profile 名、代理名、日志、controller 值）保持 opaque，不作为翻译 key。
+- 本地化：`infiltrator_contract::shared_copy` 是所有 UI 共享描述的 typed key 目录；`infiltrator_shared::locales::Lang` 解析稳定文案 key 与产品 gettext message ID，Slint 编译器读取同一份共享 `.po`，Android 三语言 `strings.xml` 同步登记同名 key。`shared-copy-guard.py` 强制各端接入。运行期用户数据（profile 名、代理名、日志、controller 值）保持 opaque，不作为翻译 key。
+- 描述只写一次：中文文案不夹注英文译名，括号只保留配置字段、单位或协议标识；跨端共用键的简洁度由 `copy_conciseness_baseline.json` 棘轮守卫，新堆字失败、旧债只许递减。
 - 视觉资产：`infiltrator_shared::assets::AssetCatalog` 从 `crates/infiltrator-shared/assets/asset-catalog.json` 解析语义 ID、格式与变体；目录记录 SVG/PNG/ICO/字体及其来源与许可证。render adapter 嵌入或解码所选格式，不重定义资产身份。
+- 排版与图标唯一体系：`infiltrator_contract::design_resources` 持有闭合的 `FontWeightTier`（400/500/600）、`TextRole`→`TypefaceSpec` 与 `IconSemantic` 目录；`design-authority.json` 由其导出，Kotlin/Slint 适配文件由 `generate_design_resources.py` 与 `generate_shared_icons.py` 生成。字重只能是随包物理面，Tier A 图标只解析 canonical Lucide SVG；国旗、启动图标、通知小图标与 Slint 测速帧在 `PLATFORM_NATIVE_ICONS` 显式登记理由。`design-resource-authority.py` 校验生成物新鲜度、catalog 与字节 owner 双向闭合、四端不请求族外字重或第二套图标。
 - 实现与更新流程见 [`infiltrator-shared` crate](../crates/infiltrator-shared/README.md) 与 [asset catalog guide](../crates/infiltrator-shared/assets/README.md)。

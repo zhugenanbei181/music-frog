@@ -15,11 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.outlined.Check
-import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
@@ -37,11 +32,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.musicfrog.infiltrator.R
+import com.musicfrog.infiltrator.ui.common.AppIcon
+import com.musicfrog.infiltrator.ui.common.AppIconSemantic
 import com.musicfrog.infiltrator.ui.common.EmptyStateText
 import com.musicfrog.infiltrator.ui.common.EmptyStateTextKey
 import com.musicfrog.infiltrator.ui.common.ErrorDialog
@@ -220,7 +216,6 @@ private fun InventoryContent(
                     Text(
                         "Outbound details",
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
                     )
                 }
                 items(entries, key = { "outbound:${it.id.engineId}:${it.id.value}" }) { entry ->
@@ -417,10 +412,10 @@ private fun OutboundCollectionCard(
                     .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Outlined.Tune, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Icon(AppIcon.image(AppIconSemantic.Settings), contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 Spacer(modifier = Modifier.width(16.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(collection.id.value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text(collection.id.value, style = MaterialTheme.typography.titleMedium)
                     Text(
                         collectionStatusLabel(collection, selectedLabel),
                         style = MaterialTheme.typography.bodySmall,
@@ -428,7 +423,7 @@ private fun OutboundCollectionCard(
                     )
                 }
                 Icon(
-                    if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    if (expanded) AppIcon.image(AppIconSemantic.ChevronUp) else AppIcon.image(AppIconSemantic.ChevronDown),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -464,7 +459,11 @@ private fun OutboundCollectionCard(
                                     color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                                 )
                                 if (isSelected) {
-                                    Icon(Icons.Outlined.Check, contentDescription = "Selected", tint = MaterialTheme.colorScheme.primary)
+                                    Icon(
+                                        AppIcon.image(AppIconSemantic.Check),
+                                        contentDescription = "Selected",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                    )
                                 }
                             }
                         }
@@ -491,7 +490,7 @@ private fun OutboundDetailCard(
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(entry.displayName ?: entry.id.value, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Text(entry.displayName ?: entry.id.value, style = MaterialTheme.typography.titleSmall)
                     Text(entry.id.value, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 TextButton(enabled = preferencesAvailable && !commandInProgress, onClick = onToggleFavorite) {

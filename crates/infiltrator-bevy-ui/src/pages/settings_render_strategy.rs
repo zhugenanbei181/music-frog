@@ -24,8 +24,9 @@ use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::shader_fx::CardRenderStrategy;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 
 /// The persisted setting key for the card render strategy.
 pub const RENDER_STRATEGY_SETTING_KEY: &str = "card_render_strategy";
@@ -82,7 +83,7 @@ pub fn render_strategy_row_scene(palette: &UiPalette) -> impl Scene + use<> {
             padding: UiRect::top(rem(space::S4)),
         }
         Children [
-            Text("Card render strategy") TextRole(Role::Caption)
+            Text("Card render strategy") TextRole(design_resources::TextRole::Caption)
             --
             Node {
                 align_items: AlignItems::Center,
@@ -112,7 +113,7 @@ fn strategy_button_scene(
         RenderStrategyButton(strategy)
         Button
         Children [
-            Text(label) TextRole(Role::Caption)
+            Text(label) TextRole(design_resources::TextRole::Caption)
         ]
     }
 }

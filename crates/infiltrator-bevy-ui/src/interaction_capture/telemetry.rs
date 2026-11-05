@@ -1,20 +1,22 @@
 //! Read real telemetry through its injected port, then observe native stale-zero texts and geometry.
 use super::capability::install_core_capabilities;
 use super::geometry::CaptureGeometry;
-use super::scroll::request_scroll;
+use super::scroll::{outermost_scroll_area, request_scroll, union};
 use super::{InteractionCapture, ObservedInteraction, selected};
 use crate::pages::overview::{
     OverviewLine, OverviewLineKind, OverviewPageRoot, OverviewProjectionUpdated,
-    OverviewTrafficCard,
+    OverviewTrafficDetailSection,
 };
 use crate::route::{ActiveRoute, Route};
 use crate::surface::{LatestSurfaceSnapshot, overview_projection};
 use bevy::app::App;
 use bevy::ecs::entity::Entity;
+use bevy::ecs::hierarchy::ChildOf;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::ui::widget::Text;
+use bevy::ui_widgets::ScrollArea;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_composition::surface_reader::ProductSurfaceReader;
@@ -74,8 +76,10 @@ pub struct TelemetryControls<'w, 's> {
     latest: ResMut<'w, LatestSurfaceSnapshot>,
     locale: Res<'w, UiLocale>,
     lines: Query<'w, 's, (Entity, &'static OverviewLine, &'static Text)>,
-    cards: Query<'w, 's, Entity, With<OverviewTrafficCard>>,
+    cards: Query<'w, 's, Entity, With<OverviewTrafficDetailSection>>,
     scroll: Query<'w, 's, Entity, With<OverviewPageRoot>>,
+    parents: Query<'w, 's, &'static ChildOf>,
+    areas: Query<'w, 's, Entity, With<ScrollArea>>,
 }
 pub fn activate(
     mut controls: TelemetryControls,
@@ -117,11 +121,42 @@ pub fn activate(
         commands.trigger(OverviewProjectionUpdated(overview_projection(&snapshot)));
         controls.capture.initialized = true;
     }
-    if let (Ok(card), Ok(scroll)) = (controls.cards.single(), controls.scroll.single())
-        && let (Some(bounds), Some(viewport)) = (geometry.rect(card), geometry.rect(scroll))
-    {
-        request_scroll(&mut commands, scroll, bounds, viewport);
+    if let (Ok(card), Ok(page)) = (controls.cards.single(), controls.scroll.single()) {
+        let mut boxes = vec![];
+        for (entity, line, _) in controls.lines.iter() {
+            if matches!(
+                line.0,
+                OverviewLineKind::Upload
+                    | OverviewLineKind::Download
+                    | OverviewLineKind::TelemetryFailure
+            ) && within_card(entity, card, &controls.parents)
+                && let Some(rect) = geometry.rect(entity)
+            {
+                boxes.push(rect);
+            }
+        }
+        if let Some(rect) = geometry.rect(card) {
+            boxes.push(rect);
+        }
+        if let (Some(subject), Some(viewport)) = (union(&boxes), geometry.rect(page)) {
+            let scroll =
+                outermost_scroll_area(card, &controls.parents, &controls.areas).unwrap_or(page);
+            request_scroll(&mut commands, scroll, subject, viewport);
+        }
     }
+}
+
+/// Whether a text line is rendered inside the anchored detail card rather
+/// than in the grid's own live-rate card.
+fn within_card(entity: Entity, card: Entity, parents: &Query<'_, '_, &'static ChildOf>) -> bool {
+    let mut current = entity;
+    while let Ok(child_of) = parents.get(current) {
+        current = child_of.parent();
+        if current == card {
+            return true;
+        }
+    }
+    false
 }
 pub fn observe(
     controls: TelemetryControls,
@@ -138,6 +173,7 @@ pub fn observe(
         return;
     }
     let bounds = (|| {
+        let card = controls.cards.single().ok()?;
         // The owner really reports a stale zero: the denied read left the
         // last measurement in place instead of inventing a fresh one.
         let readout = &controls.latest.0.shell_readout;
@@ -161,21 +197,23 @@ pub fn observe(
                 format!("↓ {}", rate_copy(&stale, &Lang(&language))),
             ),
         ] {
-            let (entity, _, text) = controls.lines.iter().find(|(_, line, _)| line.0 == kind)?;
+            let (entity, _, text) = controls.lines.iter().find(|(entity, line, _)| {
+                line.0 == kind && within_card(*entity, card, &controls.parents)
+            })?;
             if text.0 != expected {
                 return None;
             }
             geometry.bounds(entity, "telemetry-stale-zero-rate")?;
         }
-        let (entity, _, text) = controls
-            .lines
-            .iter()
-            .find(|(_, line, _)| line.0 == OverviewLineKind::TelemetryFailure)?;
+        let (entity, _, text) = controls.lines.iter().find(|(entity, line, _)| {
+            line.0 == OverviewLineKind::TelemetryFailure
+                && within_card(*entity, card, &controls.parents)
+        })?;
         if !text.0.contains("isolated telemetry read denied") {
             return None;
         }
         geometry.bounds(entity, "telemetry-read-failure")?;
-        geometry.bounds(controls.cards.single().ok()?, "telemetry-observation-card")
+        geometry.bounds(card, "telemetry-observation-card")
     })();
     observed.publish(&mut feature, bounds);
 }

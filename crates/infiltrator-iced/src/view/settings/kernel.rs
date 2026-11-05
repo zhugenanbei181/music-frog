@@ -20,7 +20,7 @@ use crate::view::component_forms::{
 use crate::view::components::{BadgeKind, badge, icon_button, section_header};
 use crate::view::svg_icons::Icon;
 use crate::view::theme;
-use crate::view::theme::{FONT_SEMIBOLD, R_CONTROL, SP_MD, tokens};
+use crate::view::theme::{R_CONTROL, SP_MD, tokens};
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Space, column, container, pick_list, progress_bar, row, text};
 use iced::{Alignment, Color, Element, Length, Theme, border};
@@ -91,13 +91,10 @@ pub(super) fn kernel_management_card<'a>(
                 .style(form_pick_style),
             )
         } else {
-            Element::from(
-                text(optional_copy(
-                    state.runtime.runtime_control.log_level.as_ref(),
-                    &Lang(lang.0),
-                ))
-                .size(12),
-            )
+            Element::from(theme::role_body_text(optional_copy(
+                state.runtime.runtime_control.log_level.as_ref(),
+                &Lang(lang.0),
+            )))
         },
     ));
     let rollback_target = state.runtime.core_versions.rollback.target.clone();
@@ -129,7 +126,7 @@ pub(super) fn kernel_management_card<'a>(
         kernel_rows = kernel_rows.push(
             container(
                 row![
-                    text(if state.runtime.core_download.is_downloading() {
+                    theme::role_body_text(if state.runtime.core_download.is_downloading() {
                         format!(
                             "{} {:.0}%",
                             lang.tr("settings_downloading"),
@@ -138,7 +135,6 @@ pub(super) fn kernel_management_card<'a>(
                     } else {
                         format!("{} {}", lang.tr("settings_available"), latest)
                     })
-                    .size(13)
                     .width(Length::Fill),
                     if state.runtime.core_download.is_downloading() {
                         Element::from(
@@ -210,11 +206,9 @@ pub(super) fn kernel_management_card<'a>(
                 container(
                     row![
                         column![
-                            text(&kernel.version).size(13).font(FONT_SEMIBOLD).style(
-                                |t: &Theme| text::Style {
-                                    color: Some(tokens(t).text_primary)
-                                }
-                            ),
+                            theme::role_body_text(&kernel.version).style(|t: &Theme| text::Style {
+                                color: Some(tokens(t).text_primary)
+                            }),
                             if kernel.is_default {
                                 badge(lang.tr("active_tag").trim().to_string(), BadgeKind::Success)
                             } else {
@@ -273,8 +267,7 @@ pub(super) fn kernel_management_card<'a>(
                         .style(form_pick_style),
                         Space::new().width(theme::SP_SM),
                         if state.runtime.core_update_check.is_checking() {
-                            text(lang.tr("settings_checking").to_string())
-                                .size(12)
+                            theme::role_body_text(lang.tr("settings_checking").to_string())
                                 .style(|t: &Theme| text::Style {
                                     color: Some(tokens(t).text_tertiary),
                                 })

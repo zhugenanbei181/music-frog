@@ -9,10 +9,10 @@ use crate::view::components::{BadgeKind, badge, icon_button, section_header};
 use crate::view::runtime::logs_controls;
 use crate::view::svg_icons::Icon;
 use crate::view::theme;
-use crate::view::theme::{MONO, R_CONTROL, tokens};
+use crate::view::theme::{R_CONTROL, tokens};
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::advanced::text::Wrapping;
-use iced::widget::{Id, Scrollable, Space, column, container, pick_list, row, text};
+use iced::widget::{Id, Scrollable, Space, column, container, pick_list, row};
 use iced::{Alignment, Border, Element, Length, Theme, border};
 use infiltrator_contract::logs::LogLevel;
 use infiltrator_presentation::log_search::LogSearchRow;
@@ -57,7 +57,7 @@ pub(crate) fn logs_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<'
             })
     });
     let failure_copy: Element<'_, Message> = match failure {
-        Some(failure) => text(failure.message.clone()).size(12).into(),
+        Some(failure) => theme::role_body_text(failure.message.clone()).into(),
         None => Space::new().height(0).into(),
     };
 
@@ -198,8 +198,6 @@ fn log_text<'a>(
         plain,
         palette.accent,
     )
-    .size(11)
-    .font(MONO)
     .width(width)
     .wrapping(Wrapping::WordOrGlyph)
     .into()

@@ -16,7 +16,7 @@ use crate::view::dns::{
     append_item_to_list, dns_protocol_chip, parse_item_list, remove_item_from_list,
 };
 use crate::view::svg_icons::Icon;
-use crate::view::theme::{MONO, tokens};
+use crate::view::theme::tokens;
 use crate::view::{svg_icons, theme};
 use iced::widget::{Space, column, container, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
@@ -50,12 +50,9 @@ pub(crate) fn token_row<'a>(
             meta = meta.push(chip(server_tags_text(&[server_tag], &Lang(lang.0))));
         }
     }
-    let address = text(item.to_string())
-        .size(12)
-        .font(MONO)
-        .style(|t: &Theme| text::Style {
-            color: Some(tokens(t).text_primary),
-        });
+    let address = theme::role_body_text(item.to_string()).style(|t: &Theme| text::Style {
+        color: Some(tokens(t).text_primary),
+    });
     let delete_btn = icon_button(
         Icon::Trash2,
         12.0,
@@ -123,8 +120,6 @@ pub(crate) fn dynamic_token_section<'a>(
         text_input(placeholder, raw_list)
             .on_input(on_update)
             .padding([8, 12])
-            .size(12)
-            .font(MONO)
             .style(form_input_style),
     )
     .into()
@@ -252,8 +247,6 @@ pub(crate) fn dns_form_field_widget<'a>(
             text_input("CN", &form.fallback_policy.geoip_code)
                 .on_input(Message::UpdateDnsFormFallbackGeoipCode)
                 .padding([8, 12])
-                .size(12)
-                .font(MONO)
                 .style(form_input_style),
         ]
         .spacing(theme::SP_XS)
@@ -272,8 +265,6 @@ pub(crate) fn dns_form_field_widget<'a>(
             text_input("198.18.0.1/16", &form.fake_ip_range)
                 .on_input(Message::UpdateDnsFormFakeIpRange)
                 .padding([8, 12])
-                .size(12)
-                .font(MONO)
                 .style(form_input_style),
         ]
         .spacing(theme::SP_XS)
@@ -332,8 +323,7 @@ pub(crate) fn dns_cache_flush_status<'a>(
 ) -> Element<'a, Message> {
     let report = &state.diag.dns_cache_flush;
     let line = flush_summary(report, &Lang(lang.0));
-    text(line)
-        .size(11)
+    theme::role_body_text(line)
         .style(|t: &Theme| text::Style {
             color: Some(tokens(t).text_secondary),
         })

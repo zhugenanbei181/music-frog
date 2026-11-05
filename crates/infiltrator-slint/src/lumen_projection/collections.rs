@@ -7,6 +7,7 @@ mod connections;
 mod logs;
 mod proxies;
 
+use super::token_ink::unobserved_ink;
 use super::{THIRD_PARTY_NOTICES, snapshot_language};
 use crate::{AppWindow, HomeTrafficPoint, LicenseRow, ObservationRow, TrafficBar, slint_model};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
@@ -69,7 +70,7 @@ pub(super) fn project_rules_and_providers(window: &AppWindow, snapshot: &Surface
                         accessible_title: expression.into(),
                         flag_code: "".into(),
                         flag_index: -1,
-                        delay_ms: -1,
+                        latency_ink: unobserved_ink(),
                         subtitle: format!("{} → {}", rule.rule_type, rule.proxy).into(),
                         trailing: rule
                             .hit_count
@@ -89,7 +90,7 @@ pub(super) fn project_rules_and_providers(window: &AppWindow, snapshot: &Surface
                     accessible_title: provider.name.clone().into(),
                     flag_code: "".into(),
                     flag_index: -1,
-                    delay_ms: -1,
+                    latency_ink: unobserved_ink(),
                     subtitle: provider.behavior.clone().into(),
                     trailing: format!("{}{}", provider.rule_count, lang.tr("条规则")).into(),
                     active: false,
@@ -141,7 +142,7 @@ pub(super) fn project_traffic(window: &AppWindow, snapshot: &SurfaceSnapshot) {
             accessible_title: format!("{download:.0} bps").into(),
             flag_code: "".into(),
             flag_index: -1,
-            delay_ms: -1,
+            latency_ink: unobserved_ink(),
             subtitle: format!("{} / {}", lang.tr("下载"), lang.tr("上传")).into(),
             trailing: format!("{upload:.0} bps").into(),
             active: false,

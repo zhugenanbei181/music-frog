@@ -5,7 +5,7 @@
 //! the frontend crate) is allowed to construct a `Color` from raw numbers.
 
 use crate::theme::{
-    REM_BASE, Theme, TokenColor, metrics, mobile_theme_tokens, radius, space, timing, type_scale,
+    REM_BASE, Theme, TokenColor, metrics, mobile_theme_tokens, radius, space, timing,
 };
 use bevy::color::{Alpha, Color, LinearRgba};
 use bevy::ecs::resource::Resource;
@@ -68,14 +68,6 @@ pub struct UiPalette {
     pub track_height_px: f32,
     pub hairline_px: f32,
     pub caret_width_px: f32,
-    pub display_font_px: f32,
-    pub heading_font_px: f32,
-    pub body_font_px: f32,
-    pub body_large_font_px: f32,
-    pub label_large_font_px: f32,
-    pub caption_font_px: f32,
-    pub label_small_font_px: f32,
-    pub mono_font_px: f32,
     pub bottom_sheet_radius_px: f32,
     pub touch_target_compact_px: f32,
     pub touch_target_comfortable_px: f32,
@@ -121,14 +113,6 @@ impl UiPalette {
             track_height_px: metrics::TRACK_HEIGHT,
             hairline_px: metrics::HAIRLINE,
             caret_width_px: metrics::CARET_WIDTH,
-            display_font_px: type_scale::DISPLAY,
-            heading_font_px: type_scale::HEADING,
-            body_font_px: type_scale::BODY,
-            body_large_font_px: type_scale::BODY_LARGE,
-            label_large_font_px: type_scale::LABEL_LARGE,
-            caption_font_px: type_scale::CAPTION,
-            label_small_font_px: type_scale::LABEL_SMALL,
-            mono_font_px: type_scale::MONO,
             bottom_sheet_radius_px: radius::BOTTOM_SHEET,
             touch_target_compact_px: metrics::TOUCH_TARGET_COMPACT,
             touch_target_comfortable_px: metrics::TOUCH_TARGET_COMFORTABLE,

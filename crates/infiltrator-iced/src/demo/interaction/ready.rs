@@ -328,7 +328,7 @@ pub(crate) fn ready(state: &AppState, feature: FeatureId) -> bool {
             // The shared layout order really moved: the page assembles its
             // cards from that order.
             let order = &state.diag.overview_card_order;
-            order.first() == Some(&OverviewCardKind::Traffic)
+            order.first() == Some(&OverviewCardKind::Metrics)
                 && order != &OverviewCardKind::DEFAULT_ORDER.to_vec()
         }
         FeatureId::RulesSearchHighlight => {

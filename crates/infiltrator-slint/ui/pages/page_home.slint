@@ -1,410 +1,157 @@
+import { DesignType } from "../components/design-type.slint";
 import { FilledButton, TonalButton } from "@material";
+import { HomeDesktopGrid } from "home_desktop_grid.slint";
+import { HomeCompactFlow } from "home_compact_flow.slint";
+import { AppPreferenceSwitch } from "../components/base_widgets.slint";
 import { FlagIcon } from "../lumen-flags.slint";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "../components/theme.slint";
 import { PageTitles } from "../components/page_titles.slint";
 import { RouteMode, RuntimeStatus } from "../components/domain_enums.slint";
+import { NetworkMode } from "../components/domain_enums.slint";
 import {
-    HomeTrafficPoint, ProfileCard, ProxyGroup, TrafficBar
+        ConnectionRow, HomeTrafficPoint, ProfileCard, ProxyGroup, TrafficBar, DashboardFacts
 } from "../components/models.slint";
 import {
-    HomeActionButton, HomeProfileBadge, HomeRoundActionButton, HomeStatusChip,
-    StatusBadge, SummaryRow, SurfaceCard
+        HomeActionButton, HomeProfileBadge, HomeRoundActionButton, HomeStatusChip,
+        StatusBadge, SummaryRow, SurfaceCard
 } from "../components/cards.slint";
 
 export component PageHome inherits VerticalLayout {
-    in property <bool> compact-layout;
-    in property <bool> android-platform;
-    in property <bool> predictive-back-enabled;
-    in property <bool> application-dark-mode;
-    in property <[ProfileCard]> profiles;
-    in property <string> active-profile;
-    in property <RouteMode> route-mode;
-    in property <RuntimeStatus> runtime-status;
-    in property <string> network-mode-label;
-    in property <bool> has-current-profile;
-    in property <string> stat-down;
-    in property <string> stat-up;
-    in property <string> stat-down-value;
-    in property <string> stat-down-unit;
-    in property <string> stat-up-compact;
-    in property <string> stat-total-down;
-    in property <string> stat-total-up;
-    in property <string> stat-connections;
-    in property <string> home-current-node;
-    in property <string> home-current-delay;
-    in property <string> home-current-flag-code;
-    in property <int> home-current-flag-index;
-    in property <string> home-current-accessible;
-    in property <string> home-exit-country-code;
-    in property <int> home-exit-flag-index;
-    in property <string> home-exit-ip;
-    in property <string> home-exit-status;
-    in property <bool> home-traffic-has-data;
-    in property <[HomeTrafficPoint]> home-traffic-points;
-    in property <bool> traffic-today-has-data;
-    in property <string> traffic-today-down;
-    in property <string> traffic-today-up;
-    in property <[TrafficBar]> traffic-today-bars;
-    in property <[ProxyGroup]> proxy-groups;
-    in property <length> home-title-gap;
-    in property <length> home-data-upload-gap;
-    in property <length> home-before-node-gap;
-    in property <length> home-node-egress-gap;
+        in property <bool> compact-layout;
+        in property <bool> android-platform;
+        in property <bool> predictive-back-enabled;
+        in property <bool> application-dark-mode;
+        in property <[ProfileCard]> profiles;
+        in property <string> active-profile;
+        in property <RouteMode> route-mode;
+        in property <RuntimeStatus> runtime-status;
+        // The owner's typed takeover mode and TUN capability: the home cards read
+        // the two quick switches from these, never from a label string.
+        in property <NetworkMode> network-mode;
+        in property <bool> tun-capable: true;
+        in property <bool> has-current-profile;
+        in property <string> stat-down;
+        in property <string> stat-up;
+        in property <string> stat-down-value;
+        in property <string> stat-down-unit;
+        in property <string> stat-up-compact;
+        in property <string> stat-connections;
+        in property <string> home-current-node;
+        in property <string> home-current-delay;
+        in property <string> home-current-flag-code;
+        in property <int> home-current-flag-index;
+        in property <string> home-current-accessible;
+        in property <string> home-exit-country-code;
+        in property <int> home-exit-flag-index;
+        in property <string> home-exit-ip;
+        in property <string> home-exit-status;
+        in property <DashboardFacts> dashboard-facts;
+        in property <[ConnectionRow]> home-connection-table;
+        in property <bool> home-traffic-has-data;
+        in property <[HomeTrafficPoint]> home-traffic-points;
+        in property <bool> traffic-today-has-data;
+        in property <string> traffic-today-down;
+        in property <string> traffic-today-up;
+        in property <[TrafficBar]> traffic-today-bars;
+        in property <[ProxyGroup]> proxy-groups;
+        in property <length> home-title-gap;
+        in property <length> home-data-upload-gap;
+        in property <length> home-before-node-gap;
+        in property <length> home-node-egress-gap;
 
-    callback start-runtime();
-    callback stop-runtime();
-    callback open-profile-add();
-    callback navigate(string);
-    callback cache-back-preview();
-    callback refresh-home-egress();
-    // Opens the Overview card order sheet. The sheet lists the cards in the
-    // order the shared owner published, so the page itself keeps no order.
-    callback open-overview-order();
-
-    width: 100%;
-    spacing: LumenTheme.space-4;
-    alignment: start;
-
-    if root.compact-layout: VerticalLayout {
-        width: parent.width;
-        spacing: 0 * LumenUiScale.unit;
+        callback start-runtime();
+        callback stop-runtime();
+        callback open-profile-add();
+        callback navigate(string);
+        callback cache-back-preview();
+        callback refresh-home-egress();
+        // Opens the Overview card order sheet. The sheet lists the cards in the
+        // order the shared owner published, so the page itself keeps no order.
+        callback open-overview-order();
+        callback set-route-mode(RouteMode);
+        callback set-network-mode(NetworkMode);
+        callback select-group(string);
+        width: 100%;
+        spacing: LumenTheme.space-4;
         alignment: start;
-        Text { text: "MusicFrog"; color: LumenTheme.text-primary; font-size: 32 * LumenUiScale.unit; font-weight: 400; height: 48 * LumenUiScale.unit; vertical-alignment: center; }
-        Rectangle { height: 16 * LumenUiScale.unit; background: transparent; }
-        HorizontalLayout {
-            width: parent.width; height: 32 * LumenUiScale.unit; spacing: LumenTheme.space-2;
-            Text { text: @tr("下载"); color: LumenTheme.text-secondary; font-size: 14 * LumenUiScale.unit; font-weight: 400; vertical-alignment: center; }
-            Rectangle { horizontal-stretch: 1; background: transparent; }
+        // The compact tier still gets the reference dashboard's density once
+        // the window is wide enough to carry two-column rows. A phone keeps
+        // the single-column flow; a true Android surface is always phone.
+        property <bool> uses-dashboard-grid: !root.android-platform && root.width >= 640 * LumenUiScale.unit;
+
+        if root.compact-layout && root.uses-dashboard-grid: HorizontalLayout {
+            width: parent.width;
+            height: 40 * LumenUiScale.unit;
+            alignment: space-between;
+            Text {
+                text: "MusicFrog";
+                color: LumenTheme.text-primary;
+                font-size: DesignType.display-size;
+                font-weight: DesignType.display-weight;
+                vertical-alignment: center;
+            }
             if root.profiles.length > 0: HomeProfileBadge {
-                badge-width: min(190 * LumenUiScale.unit, max(0 * LumenUiScale.unit, parent.width - 104 * LumenUiScale.unit));
+                badge-width: min(220 * LumenUiScale.unit, max(0 * LumenUiScale.unit, parent.width - 140 * LumenUiScale.unit));
                 profile-name: root.active-profile;
                 route-mode: root.route-mode;
             }
         }
-        HorizontalLayout {
-            width: parent.width;
-            height: 130 * LumenUiScale.unit;
-            spacing: LumenTheme.space-1;
-            Text {
-                text: root.runtime-status == RuntimeStatus.running ? root.stat-down-value : "0";
-                // SLINTUI-007 #31: the live numeral rides the mono family.
-                font-family: LumenTheme.mono-family;
-                color: LumenTheme.accent;
-                font-size: root.runtime-status == RuntimeStatus.running ? (parent.width < 300 * LumenUiScale.unit ? 72 * LumenUiScale.unit : 84 * LumenUiScale.unit) : 100 * LumenUiScale.unit;
-                font-weight: 400;
-                height: parent.height;
-                vertical-alignment: center;
-                overflow: elide;
-                accessible-label: root.runtime-status == RuntimeStatus.running ? root.stat-down : "0 B/s";
-            }
-            Rectangle {
-                width: root.runtime-status == RuntimeStatus.running && root.stat-down-unit != "B/s" ? 64 * LumenUiScale.unit : 32 * LumenUiScale.unit;
-                height: parent.height;
-                background: transparent;
-                Text {
-                    x: 0 * LumenUiScale.unit; y: 93 * LumenUiScale.unit; width: parent.width; height: 34 * LumenUiScale.unit;
-                    text: root.runtime-status == RuntimeStatus.running ? root.stat-down-unit : "B/s";
-                    font-family: LumenTheme.mono-family;
-                    color: LumenTheme.accent.with_alpha(60%);
-                    font-size: 20 * LumenUiScale.unit;
-                    vertical-alignment: bottom;
-                    overflow: elide;
-                }
-            }
-            Rectangle { horizontal-stretch: 1; background: transparent; }
+
+        if root.compact-layout && !root.uses-dashboard-grid: HomeCompactFlow {
+        runtime-status: root.runtime-status;
+        home-exit-status: root.home-exit-status;
+        dashboard-facts: root.dashboard-facts;
+        home-exit-country-code: root.home-exit-country-code;
+        home-exit-ip: root.home-exit-ip;
+        home-exit-flag-index: root.home-exit-flag-index;
+        stat-up: root.stat-up;
+        stat-down: root.stat-down;
+        route-mode: root.route-mode;
+        active-profile: root.active-profile;
+        profiles: root.profiles;
+        has-current-profile: root.has-current-profile;
+        proxy-groups: root.proxy-groups;
+        start-runtime => { root.start-runtime(); }
+        stop-runtime => { root.stop-runtime(); }
+        open-overview-order => { root.open-overview-order(); }
+        navigate(page) => { root.navigate(page); }
+        network-mode: root.network-mode;
+        tun-capable: root.tun-capable;
+        set-route-mode(mode) => { root.set-route-mode(mode); }
+        set-network-mode(mode) => { root.set-network-mode(mode); }
+        select-group(group) => { root.select-group(group); }
         }
-        Rectangle { height: root.home-data-upload-gap; background: transparent; }
-        HorizontalLayout {
-            width: parent.width; height: 38 * LumenUiScale.unit; spacing: LumenTheme.space-4; alignment: start;
-            Text { text: @tr("上传"); color: LumenTheme.text-secondary; font-size: 14 * LumenUiScale.unit; horizontal-stretch: 0; vertical-alignment: center; }
-            Text { text: root.runtime-status == RuntimeStatus.running ? root.stat-up-compact : "0 B/s"; color: LumenTheme.accent; font-family: LumenTheme.mono-family; font-size: 24 * LumenUiScale.unit; horizontal-stretch: 0; vertical-alignment: center; }
+        // EFFECTS-037 #153: desktop dashboard grid — speed and overview share
+        // the first row. Wide compact windows use the same grid so the first
+        // screen reaches the mode/switch band instead of stopping after speed.
+        if !root.compact-layout || root.uses-dashboard-grid: HomeDesktopGrid {
+        runtime-status: root.runtime-status;
+        home-exit-status: root.home-exit-status;
+        dashboard-facts: root.dashboard-facts;
+        home-connection-table: root.home-connection-table;
+        home-exit-country-code: root.home-exit-country-code;
+        home-exit-ip: root.home-exit-ip;
+        home-exit-flag-index: root.home-exit-flag-index;
+        stat-up: root.stat-up;
+        stat-down: root.stat-down;
+        route-mode: root.route-mode;
+        active-profile: root.active-profile;
+        proxy-groups: root.proxy-groups;
+        start-runtime => { root.start-runtime(); }
+        stop-runtime => { root.stop-runtime(); }
+        navigate(page) => { root.navigate(page); }
+        network-mode: root.network-mode;
+        tun-capable: root.tun-capable;
+        set-route-mode(mode) => { root.set-route-mode(mode); }
+        set-network-mode(mode) => { root.set-network-mode(mode); }
+        select-group(group) => { root.select-group(group); }
         }
-        if root.runtime-status == RuntimeStatus.running: HorizontalLayout {
-            width: parent.width; height: 48 * LumenUiScale.unit; spacing: LumenTheme.space-2;
-            HomeStatusChip {
-                min-chip-width: 90 * LumenUiScale.unit;
-                label: @tr("运行中");
-                icon: root.application-dark-mode ? @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/activity-dark.svg") : @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/activity.svg");
-                active: true;
-            }
-            HomeStatusChip {
-                min-chip-width: 80 * LumenUiScale.unit;
-                label: root.network-mode-label;
-                icon: root.application-dark-mode ? @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/vpn-dark.svg") : @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/vpn.svg");
-                active: true;
-            }
-            Rectangle { horizontal-stretch: 1; background: transparent; }
-            HomeRoundActionButton {
-                icon: root.application-dark-mode ? @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/stop-dark.svg") : @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/stop.svg");
-                accessible-name: @tr("停止代理");
-                clicked => { root.stop-runtime(); }
-            }
-        }
-        if root.runtime-status != RuntimeStatus.running: HomeActionButton {
-            label: root.runtime-status == RuntimeStatus.starting ? @tr("启动中…") : root.runtime-status == RuntimeStatus.stopping ? @tr("停止中…") : root.has-current-profile ? @tr("轻触启动") : root.profiles.length == 0 ? @tr("添加配置") : @tr("选择配置");
-            running: false;
-            busy: root.runtime-status == RuntimeStatus.starting || root.runtime-status == RuntimeStatus.stopping;
-            clicked => {
-                if root.runtime-status == RuntimeStatus.starting || root.runtime-status == RuntimeStatus.stopping { }
-                else if root.has-current-profile { root.start-runtime(); }
-                else { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Config"); }
-            }
-        }
-        Rectangle { height: root.home-before-node-gap; background: transparent; }
-        HorizontalLayout {
-            width: parent.width; height: 28 * LumenUiScale.unit;
-            Text { text: @tr("节点"); color: LumenTheme.text-secondary; font-size: 14 * LumenUiScale.unit; vertical-alignment: center; }
-            Rectangle { horizontal-stretch: 1; background: transparent; }
-            Text { text: @tr("延迟"); color: LumenTheme.text-secondary; font-size: 14 * LumenUiScale.unit; horizontal-alignment: right; vertical-alignment: center; }
-        }
-        HorizontalLayout {
-            width: parent.width; height: 34 * LumenUiScale.unit; spacing: LumenTheme.space-2;
-            if root.home-current-flag-code != "": FlagIcon {
-                country-code: root.home-current-flag-code;
-                index: root.home-current-flag-index;
-            }
-            Text {
-                text: root.runtime-status == RuntimeStatus.running ? root.home-current-node : @tr("未知");
-                accessible-label: root.home-current-accessible;
-                color: LumenTheme.text-primary; font-size: 16 * LumenUiScale.unit; horizontal-stretch: 1; vertical-alignment: center; overflow: elide;
-            }
-            Text { text: root.runtime-status == RuntimeStatus.running ? root.home-current-delay : "—"; color: LumenTheme.text-secondary; font-size: 16 * LumenUiScale.unit; vertical-alignment: center; }
-        }
-        Rectangle { height: root.home-node-egress-gap; background: transparent; }
-        HorizontalLayout {
-            width: parent.width; height: 24 * LumenUiScale.unit; spacing: LumenTheme.space-2;
-            Text { text: @tr("出口 IP"); color: LumenTheme.text-secondary; font-size: 14 * LumenUiScale.unit; vertical-alignment: center; }
-            Rectangle { horizontal-stretch: 1; background: transparent; }
-            if root.home-exit-country-code != "" && root.home-exit-flag-index >= 0: FlagIcon {
-                country-code: root.home-exit-country-code;
-                index: root.home-exit-flag-index;
-                diameter: 22 * LumenUiScale.unit;
-            }
-            if root.home-exit-country-code != "": Text { text: root.home-exit-country-code; color: LumenTheme.accent; font-size: 16 * LumenUiScale.unit; vertical-alignment: center; }
-        }
-        HorizontalLayout {
-            width: parent.width; height: 40 * LumenUiScale.unit; spacing: LumenTheme.space-2;
-            Text { text: root.home-exit-ip; color: LumenTheme.text-primary; font-size: 18 * LumenUiScale.unit; vertical-alignment: center; }
-            Rectangle { horizontal-stretch: 1; background: transparent; }
-            if root.home-exit-status != "" && root.home-exit-status != "已更新": Text { text: root.home-exit-status; color: LumenTheme.text-secondary; font-size: 12 * LumenUiScale.unit; vertical-alignment: center; }
-            TonalButton { text: @tr("刷新"); clicked => { root.refresh-home-egress(); } }
-        }
-        Rectangle {
-            width: parent.width;
-            height: root.home-traffic-has-data ? 120 * LumenUiScale.unit : 32 * LumenUiScale.unit;
-            background: transparent;
-            if root.home-traffic-has-data: Rectangle { x: 0 * LumenUiScale.unit; y: parent.height - 8 * LumenUiScale.unit; width: parent.width; height: 1 * LumenUiScale.unit; background: LumenTheme.border.with_alpha(35%); }
-            HorizontalLayout {
-                width: parent.width; height: parent.height; spacing: 1 * LumenUiScale.unit;
-                for point[index] in root.home-traffic-points: Rectangle {
-                    horizontal-stretch: 1;
-                    height: parent.height;
-                    background: transparent;
-                    if point.download-fraction > 0.01: Rectangle {
-                        x: max(0 * LumenUiScale.unit, (parent.width - 4 * LumenUiScale.unit) / 2 - 2 * LumenUiScale.unit);
-                        y: parent.height - 8 * LumenUiScale.unit - min(86 * LumenUiScale.unit, parent.height - 12 * LumenUiScale.unit) * point.download-fraction;
-                        width: 2 * LumenUiScale.unit;
-                        height: min(86 * LumenUiScale.unit, parent.height - 12 * LumenUiScale.unit) * point.download-fraction;
-                        border-radius: 1 * LumenUiScale.unit;
-                        background: LumenTheme.accent;
-                        animate y, height { duration: 260ms; easing: ease-out; }
-                    }
-                    if point.upload-fraction > 0.01: Rectangle {
-                        x: max(0 * LumenUiScale.unit, (parent.width - 4 * LumenUiScale.unit) / 2 + 1 * LumenUiScale.unit);
-                        y: parent.height - 8 * LumenUiScale.unit - min(52 * LumenUiScale.unit, parent.height - 12 * LumenUiScale.unit) * point.upload-fraction;
-                        width: 2 * LumenUiScale.unit;
-                        height: min(52 * LumenUiScale.unit, parent.height - 12 * LumenUiScale.unit) * point.upload-fraction;
-                        border-radius: 1 * LumenUiScale.unit;
-                        background: LumenTheme.accent-soft;
-                        animate y, height { duration: 260ms; easing: ease-out; }
-                    }
-                }
-            }
-        }
-        if root.profiles.length > 0: SummaryRow { label: @tr("当前配置"); value: root.active-profile; actionable: true; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Config"); } }
-        if root.profiles.length > 0: SummaryRow { label: @tr("代理模式"); value: PageTitles.route-title(root.route-mode); actionable: true; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Network"); } }
-        if root.profiles.length > 0: SummaryRow { label: @tr("活动连接"); value: root.stat-connections; emphasized: true; actionable: true; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Connections"); } }
-        for profile in root.profiles: VerticalLayout {
-            if profile.current && profile.has-quota: SummaryRow {
-                label: @tr("订阅流量");
-                value: profile.used-text + " / " + profile.total-text;
-                emphasized: profile.quota-grade == "danger";
-                actionable: true;
-                clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Config"); }
-            }
-        }
-        if root.traffic-today-has-data: HorizontalLayout {
-            width: parent.width; height: 42 * LumenUiScale.unit;
-            Text { text: @tr("今日流量"); color: LumenTheme.text-secondary; font-size: 14 * LumenUiScale.unit; vertical-alignment: center; }
-            Rectangle { horizontal-stretch: 1; background: transparent; }
-            Text { text: "↓ " + root.traffic-today-down + "   ↑ " + root.traffic-today-up; color: LumenTheme.text-primary; font-size: 14 * LumenUiScale.unit; vertical-alignment: center; }
-        }
-        TonalButton {
+
+        if root.compact-layout && root.uses-dashboard-grid: TonalButton {
             text: @tr("调整卡片顺序");
-            height: 48 * LumenUiScale.unit;
+            height: 44 * LumenUiScale.unit;
             horizontal-stretch: 1;
             clicked => { root.open-overview-order(); }
         }
-    }
-    // EFFECTS-037 #153: desktop dashboard grid — speed and overview share
-    // the first row, the traffic card spans the full width below; the
-    // compact tier keeps the single column above.
-    if !root.compact-layout: GridLayout {
-        width: parent.width;
-        spacing: LumenTheme.space-4;
-        Row {
-            if root.profiles.length == 0: SurfaceCard {
-                colspan: 2;
-        Text { text: @tr("尚未添加配置"); color: LumenTheme.text-primary; font-size: 20 * LumenUiScale.unit; font-weight: 600; }
-        Text { text: @tr("添加订阅或导入 YAML 文件后即可启动 Mihomo。"); color: LumenTheme.text-secondary; font-size: LumenTheme.body-size; wrap: word-wrap; }
-        FilledButton {
-            text: @tr("添加配置");
-            height: 52 * LumenUiScale.unit;
-            horizontal-stretch: 1;
-            clicked => { root.open-profile-add(); }
-        }
-    }
-            if root.profiles.length > 0: SurfaceCard {
-        HorizontalLayout { spacing: LumenTheme.space-2;
-            Text { text: @tr("下载"); color: LumenTheme.text-secondary; font-size: LumenTheme.supporting-size; font-weight: 600; vertical-alignment: center; }
-            Rectangle { horizontal-stretch: 1; background: transparent; }
-            StatusBadge { label: root.runtime-status == RuntimeStatus.running ? @tr("运行中") : @tr("已停止"); active: root.runtime-status == RuntimeStatus.running; badge-width: 82 * LumenUiScale.unit; }
-        }
-        Text {
-            text: root.runtime-status == RuntimeStatus.running ? root.stat-down : "0 B/s";
-            color: LumenTheme.accent;
-            font-size: parent.width < 280 * LumenUiScale.unit ? 38 * LumenUiScale.unit : 48 * LumenUiScale.unit;
-            font-weight: 600;
-            height: 60 * LumenUiScale.unit;
-            vertical-stretch: 0;
-            vertical-alignment: center;
-            overflow: elide;
-            accessible-label: root.runtime-status == RuntimeStatus.running ? root.stat-down : "0 B/s";
-        }
-        Text { text: @tr("实时下载速度"); color: LumenTheme.text-secondary; font-size: LumenTheme.supporting-size; }
-        Rectangle { height: 1 * LumenUiScale.unit; background: LumenTheme.border; }
-        SummaryRow { label: @tr("上传"); value: root.runtime-status == RuntimeStatus.running ? root.stat-up : "0 B/s"; emphasized: true; }
-        Text {
-            text: @tr("本次运行  ↓ ") + root.stat-total-down + "   ↑ " + root.stat-total-up;
-            color: LumenTheme.text-secondary;
-            font-size: 13 * LumenUiScale.unit;
-            wrap: word-wrap;
-            accessible-label: @tr("本次运行累计下载 ") + root.stat-total-down + @tr("，上传 ") + root.stat-total-up;
-        }
-        FilledButton {
-            text: root.runtime-status == RuntimeStatus.running ? @tr("停止代理") : root.has-current-profile ? @tr("启动代理") : @tr("选择配置");
-            height: 44 * LumenUiScale.unit;
-            horizontal-stretch: 1;
-            enabled: true;
-            clicked => {
-                if root.runtime-status == RuntimeStatus.running { root.stop-runtime(); }
-                else if root.has-current-profile { root.start-runtime(); }
-                else { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Config"); }
-            }
-        }
-    }
-            if root.profiles.length > 0: SurfaceCard {
-        Text { text: @tr("运行概况"); color: LumenTheme.text-primary; font-size: 18 * LumenUiScale.unit; font-weight: 600; }
-        SummaryRow { label: @tr("当前配置"); value: root.active-profile; actionable: true; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Config"); } }
-        Rectangle { height: 48 * LumenUiScale.unit;
-            HorizontalLayout { spacing: LumenTheme.space-3;
-                Text { text: @tr("当前节点"); color: LumenTheme.text-secondary; font-size: LumenTheme.supporting-size; vertical-alignment: center; }
-                Rectangle { horizontal-stretch: 1; background: transparent; }
-                if root.proxy-groups.length > 0 && root.proxy-groups[0].current-flag-code != "": FlagIcon {
-                    country-code: root.proxy-groups[0].current-flag-code;
-                    index: root.proxy-groups[0].current-flag-index;
-                }
-                Text {
-                    text: root.proxy-groups.length > 0 ? root.proxy-groups[0].current : @tr("暂无可用节点");
-                    accessible-label: root.proxy-groups.length > 0 ? root.proxy-groups[0].current-accessible : @tr("暂无可用节点");
-                    color: LumenTheme.text-primary;
-                    font-size: LumenTheme.body-size;
-                    horizontal-alignment: right;
-                    vertical-alignment: center;
-                    overflow: elide;
-                }
-            }
-            TouchArea { width: parent.width; height: parent.height; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Proxy"); } }
-        }
-        SummaryRow { label: @tr("网络接管"); value: root.network-mode-label; actionable: true; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Network"); } }
-        SummaryRow { label: @tr("代理模式"); value: PageTitles.route-title(root.route-mode); actionable: true; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Proxy"); } }
-        SummaryRow { label: @tr("活动连接"); value: root.stat-connections; emphasized: true; actionable: true; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Connections"); } }
-        for profile in root.profiles: VerticalLayout {
-            if profile.current && profile.has-quota: SummaryRow {
-                label: @tr("订阅流量");
-                value: profile.used-text + " / " + profile.total-text;
-                emphasized: profile.quota-grade == "danger";
-                actionable: true;
-                clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Config"); }
-            }
-        }
-        SummaryRow { label: @tr("出口 IP"); value: root.home-exit-ip; }
-        HorizontalLayout {
-            spacing: LumenTheme.space-2;
-            TonalButton {
-                text: @tr("刷新");
-                height: 38 * LumenUiScale.unit;
-                horizontal-stretch: 0;
-                clicked => { root.refresh-home-egress(); }
-            }
-            TonalButton {
-                text: @tr("调整卡片顺序");
-                height: 38 * LumenUiScale.unit;
-                horizontal-stretch: 1;
-                clicked => { root.open-overview-order(); }
-            }
-        }
-    }
-        }
-        Row {
-            if root.traffic-today-has-data: SurfaceCard {
-                colspan: 2;
-        HorizontalLayout { spacing: LumenTheme.space-2;
-            Text { text: @tr("今日流量"); color: LumenTheme.text-primary; font-size: 18 * LumenUiScale.unit; font-weight: 600; }
-            Rectangle { horizontal-stretch: 1; background: transparent; }
-            Text { text: @tr("过去 24 小时"); color: LumenTheme.text-secondary; font-size: 12 * LumenUiScale.unit; vertical-alignment: center; }
-        }
-        HorizontalLayout { height: 76 * LumenUiScale.unit; spacing: 1 * LumenUiScale.unit;
-            for bar in root.traffic-today-bars: Rectangle {
-                width: 8 * LumenUiScale.unit;
-                height: 76 * LumenUiScale.unit;
-                background: transparent;
-                Rectangle {
-                    x: 0 * LumenUiScale.unit;
-                    y: parent.height - max(2 * LumenUiScale.unit, 70 * LumenUiScale.unit * bar.download-fraction);
-                    width: 3 * LumenUiScale.unit;
-                    height: max(2 * LumenUiScale.unit, 70 * LumenUiScale.unit * bar.download-fraction);
-                    border-radius: 2 * LumenUiScale.unit;
-                    background: LumenTheme.accent;
-                }
-                Rectangle {
-                    x: 4 * LumenUiScale.unit;
-                    y: parent.height - max(2 * LumenUiScale.unit, 70 * LumenUiScale.unit * bar.upload-fraction);
-                    width: 3 * LumenUiScale.unit;
-                    height: max(2 * LumenUiScale.unit, 70 * LumenUiScale.unit * bar.upload-fraction);
-                    border-radius: 2 * LumenUiScale.unit;
-                    background: LumenTheme.accent-soft;
-                }
-            }
-        }
-        HorizontalLayout { spacing: LumenTheme.space-3;
-            HorizontalLayout { spacing: LumenTheme.space-2; horizontal-stretch: 1;
-                Rectangle { width: 8 * LumenUiScale.unit; height: 8 * LumenUiScale.unit; border-radius: 4 * LumenUiScale.unit; background: LumenTheme.accent; }
-                Text { text: @tr("下载 ") + root.traffic-today-down; color: LumenTheme.text-primary; font-size: 12 * LumenUiScale.unit; horizontal-stretch: 1; overflow: elide; }
-            }
-            HorizontalLayout { spacing: LumenTheme.space-2; horizontal-stretch: 1;
-                Rectangle { width: 8 * LumenUiScale.unit; height: 8 * LumenUiScale.unit; border-radius: 4 * LumenUiScale.unit; background: LumenTheme.accent-soft; }
-                Text { text: @tr("上传 ") + root.traffic-today-up; color: LumenTheme.text-primary; font-size: 12 * LumenUiScale.unit; horizontal-stretch: 1; horizontal-alignment: right; overflow: elide; }
-            }
-        }
-        TonalButton {
-            text: @tr("查看流量统计");
-            height: LumenTheme.min-touch-target;
-            horizontal-stretch: 1;
-            clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Traffic"); }
-        }
-    }
-        }
-    }
 }

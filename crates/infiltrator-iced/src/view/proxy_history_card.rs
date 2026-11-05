@@ -3,9 +3,10 @@ use crate::state::AppState;
 use crate::types::message::Message;
 use crate::view::component_card::card;
 use crate::view::component_forms::style_accent;
+use crate::view::theme;
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::Element;
-use iced::widget::{button, column, container, text};
+use iced::widget::{button, column, container};
 use infiltrator_shared::locales::{Lang, Localizer};
 pub fn proxy_history_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
     let member = state
@@ -31,8 +32,8 @@ pub fn proxy_history_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'
     container(card(
         Some(lang.tr("proxy_inspection_history").into_owned()),
         column![
-            text(name).size(12),
-            button(text(lang.tr("proxy_inspection_title")))
+            theme::role_body_text(name),
+            button(theme::role_body_text(lang.tr("proxy_inspection_title")))
                 .style(style_accent)
                 .on_press_maybe(message)
         ]

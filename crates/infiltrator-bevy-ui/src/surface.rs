@@ -36,8 +36,9 @@ use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot;
 use lurker_core_contract::error::{ErrorCode, Failure};
@@ -144,7 +145,7 @@ pub fn status_banner_scene(
                     }
                     BackgroundColor({ fill })
                     Children [
-                        LocalizedText { .. { label } } TextRole(Role::Caption) ThemeTextColor({ Token::Ink })
+                        LocalizedText { .. { label } } TextRole(design_resources::TextRole::Caption) ThemeTextColor({ Token::Ink })
                     ]
         })],
         palette,

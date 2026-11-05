@@ -13,6 +13,7 @@
 //! [`focus_avoidance_auto_scroll_system`] ensure focused input fields stay
 //! visible when an on-screen keyboard (mobile / Android / touch) appears.
 
+use crate::motion::UiMotionPreference;
 use crate::palette::UiPalette;
 use crate::palette::rem;
 use bevy::ecs::component::Component;
@@ -53,16 +54,6 @@ pub const SCROLL_INERTIA_MIN_SPEED: f32 = 80.0;
 const SCROLL_VELOCITY_SAMPLE_MAX_AGE: Duration = Duration::from_millis(150);
 const SCROLL_DIRECT_STATE_TIMEOUT: Duration = Duration::from_millis(500);
 const SCROLL_COAST_DECELERATION: f32 = 5.0;
-
-/// Host preference for post-release motion.
-#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum ScrollMotionPreference {
-    /// Apply bounded inertial motion after a sufficiently fast drag.
-    #[default]
-    Full,
-    /// Stop at the release position without inertial motion.
-    Reduced,
-}
 
 /// Describes whether the latest pointer delta can be trusted for velocity.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -116,6 +107,12 @@ impl ScrollMotionState {
     /// Read the current typed motion state for one area.
     pub fn motion(&self, area: Entity) -> Option<&ScrollMotion> {
         self.motions.get(&area)
+    }
+
+    /// Seed an inertial coasting state for an area.
+    pub fn seed_coasting(&mut self, area: Entity, velocity: Vec2) {
+        self.motions
+            .insert(area, ScrollMotion::Coasting { velocity });
     }
 }
 
@@ -197,7 +194,7 @@ fn direct_motion_lease(now: Duration, last_activity: Duration) -> DirectMotionLe
 }
 
 fn coast_disposition(
-    preference: ScrollMotionPreference,
+    preference: UiMotionPreference,
     position: f32,
     max_scroll: f32,
     previous_position: f32,
@@ -221,7 +218,7 @@ fn coast_disposition(
         boundary,
         velocity.length().partial_cmp(&SCROLL_INERTIA_MIN_SPEED),
     ) {
-        (ScrollMotionPreference::Reduced, _, _, _) => CoastDisposition::ReducedMotion,
+        (UiMotionPreference::Reduced, _, _, _) => CoastDisposition::ReducedMotion,
         (_, _, ScrollBoundary::Lower | ScrollBoundary::Upper, _)
         | (_, ScrollDeltaOutcome::AtBoundary, _, _) => CoastDisposition::ReachedBoundary,
         (_, _, _, Some(Ordering::Less | Ordering::Equal) | None) => {
@@ -437,7 +434,7 @@ pub fn scrollarea_on_drag_end(
     parents: Query<&ChildOf>,
     scroll_areas: Query<(), With<ScrollArea>>,
     time: Res<Time>,
-    preference: Res<ScrollMotionPreference>,
+    preference: Res<UiMotionPreference>,
     mut motion: ResMut<ScrollMotionState>,
 ) {
     if drag.button != PointerButton::Primary {
@@ -468,7 +465,7 @@ pub fn scrollarea_on_drag_end(
         velocity.length().partial_cmp(&SCROLL_INERTIA_MIN_SPEED),
     ) {
         (
-            ScrollMotionPreference::Full,
+            UiMotionPreference::Full,
             ScrollVelocitySampling::Fresh { .. },
             Ordering::Less | Ordering::Equal,
             Some(Ordering::Greater),
@@ -568,7 +565,7 @@ pub fn cancel_motion_on_pointer_input(
 /// Advance inertia, clamp it to the live content geometry, and prune stale states.
 pub fn advance_scroll_motion(
     time: Res<Time>,
-    preference: Res<ScrollMotionPreference>,
+    preference: Res<UiMotionPreference>,
     pointer_map: Option<Res<PointerMap>>,
     pointer_states: Query<&PointerPressState>,
     mut motion: ResMut<ScrollMotionState>,

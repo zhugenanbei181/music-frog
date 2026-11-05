@@ -1,3 +1,4 @@
+import { DesignType } from "../components/design-type.slint";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "../components/theme.slint";
 import { WorkbenchCard, ItemHeader, ItemText, ItemRow, DraftField } from "../components/workbench_parts.slint";
@@ -169,12 +170,12 @@ export component PageDns inherits VerticalLayout {
                     padding-bottom: 8 * LumenUiScale.unit;
                     spacing: 8 * LumenUiScale.unit;
                     cross-axis-alignment: center;
-                    Text { text: "⚠"; color: LumenTheme.error; font-size: 16 * LumenUiScale.unit; }
+                    Text { text: "⚠"; color: LumenTheme.error; font-size: DesignType.bodyLarge-size; }
                     Text {
                         text: item.detail;
                         color: LumenTheme.error;
-                        font-size: 13 * LumenUiScale.unit;
-                        font-weight: 500;
+                        font-size: DesignType.mono-size;
+                        font-weight: DesignType.mono-weight;
                         wrap: word-wrap;
                         horizontal-stretch: 1;
                     }

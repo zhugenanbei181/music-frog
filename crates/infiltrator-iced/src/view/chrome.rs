@@ -14,7 +14,7 @@ use crate::view::components::icon_button;
 use crate::view::svg_icons::Icon;
 use crate::view::theme;
 use iced::border;
-use iced::widget::{Space, column, container, mouse_area, row, text};
+use iced::widget::{Space, column, container, mouse_area, row};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_contract::a11y::ShellA11yNode;
 use infiltrator_contract::window_chrome::WindowChrome;
@@ -36,8 +36,7 @@ pub fn chrome_strip(state: &AppState) -> Element<'_, Message> {
         return Space::new().height(Length::Shrink).into();
     }
 
-    let title = text(state.title())
-        .size(12)
+    let title = theme::role_body_text(state.title())
         .color(theme::tokens(&state.shell.theme).text_secondary);
 
     let drag_surface = mouse_area(
@@ -52,8 +51,7 @@ pub fn chrome_strip(state: &AppState) -> Element<'_, Message> {
     let up_str = rate_copy(&state.shell.readout.upload_bps, &Lang(&state.shell.lang));
     let down_str = rate_copy(&state.shell.readout.download_bps, &Lang(&state.shell.lang));
     let traffic_capsule = container(
-        text(format!("↑ {}  ↓ {}", up_str, down_str))
-            .size(11)
+        theme::role_body_text(format!("↑ {}  ↓ {}", up_str, down_str))
             .color(theme::tokens(&state.shell.theme).text_secondary),
     )
     .padding([2.0, 8.0])

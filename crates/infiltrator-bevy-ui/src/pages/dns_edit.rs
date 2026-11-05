@@ -31,12 +31,15 @@ use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::switch::{SwitchPosition, switch_knob_scene, switch_track_scene};
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::switch::{
+    SwitchKnob, SwitchPosition, switch_knob_scene, switch_track_scene,
+};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_bevy_widgets::text_input::{TextField, text_field_with_placeholder_scene};
 use infiltrator_bevy_widgets::theme::{radius, space};
+use infiltrator_contract::design_resources;
 use infiltrator_contract::dns::{append_server, parse_server_list};
 use infiltrator_contract::dns_form::{DnsFormField, DnsFormIssue, DnsWorkbenchForm};
 use infiltrator_presentation::dns_page_model::DnsOperation;
@@ -231,9 +234,9 @@ pub fn dns_edit_card_scene(projection: &DnsProjection, palette: &UiPalette) -> i
                             }
                             Children [
                                 LocalizedText::plain("dns_upstream_form_title")
-                                TextRole(Role::BodyStrong)
+                                TextRole(design_resources::TextRole::BodyStrong)
                                 --
-                                Text({ "DoH / DoT / DoQ · fallback-filter".to_owned() }) TextRole(Role::Caption)
+                                Text({ "DoH / DoT / DoQ · fallback-filter".to_owned() }) TextRole(design_resources::TextRole::Caption)
                             ]
             }),
             Box::new(bsn! {
@@ -276,7 +279,7 @@ fn edit_field_row(
                 row_gap: rem(space::S4),
             }
             Children [
-                label TextRole(Role::Caption)
+                label TextRole(design_resources::TextRole::Caption)
                 --
                 Node { width: percent(100) }
                 DnsEditField(field)
@@ -326,7 +329,7 @@ fn template_chip(
             DnsEditTemplate { field, server }
             Button
             Children [
-                Text(label) TextRole(Role::Caption) TextColor({ ink })
+                Text(label) TextRole(design_resources::TextRole::Caption) TextColor({ ink })
             ]
     }
 }
@@ -374,9 +377,9 @@ fn geoip_toggle_row(
                     row_gap: rem(space::S2),
                 }
                 Children [
-                    LocalizedText::plain("dns_geoip_fallback_label") TextRole(Role::Body)
+                    LocalizedText::plain("dns_geoip_fallback_label") TextRole(design_resources::TextRole::Body)
                     --
-                    details DnsEditTriggerCount TextRole(Role::Caption)
+                    details DnsEditTriggerCount TextRole(design_resources::TextRole::Caption)
                 ]
                 --
                 Node {
@@ -384,13 +387,14 @@ fn geoip_toggle_row(
                     column_gap: rem(space::S8),
                 }
                 Children [
-                    Text(status) DnsEditGeoipStatus TextRole(Role::Caption) TextColor({ status_color })
+                    Text(status) DnsEditGeoipStatus TextRole(design_resources::TextRole::Caption) TextColor({ status_color })
                     --
                     @{ switch_track_scene(palette, track, edge) }
                     DnsEditGeoipToggle(enabled)
                     Button
                     Children [
                         @{ switch_knob_scene(knob, SwitchPosition::from_enabled(enabled)) }
+                        SwitchKnob(SwitchPosition::from_enabled(enabled))
                     ]
                 ]
             ]
@@ -408,7 +412,7 @@ fn edit_apply_row(palette: &UiPalette) -> impl Scene + use<> {
             Children [
                 Text({form_status(&[],false,false,false,&Lang(UiLocale::default().code()))})
                 DnsEditStatusLine
-                TextRole(Role::Caption)
+                TextRole(design_resources::TextRole::Caption)
                 ThemeTextColor({ Token::InkDim })
                 --
                 Node {
@@ -422,7 +426,7 @@ fn edit_apply_row(palette: &UiPalette) -> impl Scene + use<> {
                 DnsEditApplyButton
                 Button
                 Children [
-                    LocalizedText::plain("dns_apply_form_action") TextRole(Role::BodyStrong)
+                    LocalizedText::plain("dns_apply_form_action") TextRole(design_resources::TextRole::BodyStrong)
                 ]
             ]
     }

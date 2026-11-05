@@ -7,7 +7,7 @@ use crate::view::component_forms::style_ghost;
 use crate::view::components::{card_surface, chip, icon_button};
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme;
-use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
+use crate::view::theme::tokens;
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_shared::i18n_interpolator::interpolate;
@@ -42,9 +42,7 @@ pub fn current_ip_card<'a>(
         row![
             icon_themed(Icon::Copy, 12.0, |t| tokens(t).text_secondary),
             Space::new().width(theme::SP_XS),
-            text(lang.tr("common_copy").to_string())
-                .size(11)
-                .font(FONT_MEDIUM),
+            theme::role_body_text(lang.tr("common_copy").to_string()),
         ]
         .align_y(Alignment::Center),
     )
@@ -56,12 +54,11 @@ pub fn current_ip_card<'a>(
         row![
             icon_themed(Icon::Globe, 16.0, |t: &Theme| tokens(t).accent),
             Space::new().width(theme::SP_SM),
-            text(lang.tr("overview_current_ip").to_string())
-                .size(14)
-                .font(FONT_SEMIBOLD)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_primary)
-                }),
+            theme::role_body_text(lang.tr("overview_current_ip").to_string()).style(|t: &Theme| {
+                text::Style {
+                    color: Some(tokens(t).text_primary),
+                }
+            }),
         ]
         .align_y(Alignment::Center),
         Space::new().width(Length::Fill),
@@ -73,12 +70,9 @@ pub fn current_ip_card<'a>(
     .width(Length::Fill);
 
     let ip_readout_row = row![
-        text(public_ip_str)
-            .size(20)
-            .font(MONO)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_primary),
-            }),
+        theme::role_body_text(public_ip_str).style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_primary),
+        }),
         Space::new().width(Length::Fill),
         copy_btn,
     ]
@@ -86,25 +80,22 @@ pub fn current_ip_card<'a>(
     .width(Length::Fill);
 
     let meta_text: Element<'a, Message> = if let Some(err) = state.diag.public_ip_error.as_deref() {
-        text(format!("{}: {err}", lang.tr("overview_probe_failed")))
-            .size(11)
+        theme::role_body_text(format!("{}: {err}", lang.tr("overview_probe_failed")))
             .style(|t: &Theme| text::Style {
                 color: Some(tokens(t).danger),
             })
             .into()
     } else if let Some(checked_at) = state.diag.public_ip_checked_at.as_deref() {
-        text(format!(
+        theme::role_body_text(format!(
             "{} · {provider_name} · {checked_at}",
             lang.tr("overview_via_current_proxy")
         ))
-        .size(11)
         .style(|t: &Theme| text::Style {
             color: Some(tokens(t).text_secondary),
         })
         .into()
     } else {
-        text(lang.tr("overview_probe_source_desc").to_string())
-            .size(11)
+        theme::role_body_text(lang.tr("overview_probe_source_desc").to_string())
             .style(|t: &Theme| text::Style {
                 color: Some(tokens(t).text_tertiary),
             })

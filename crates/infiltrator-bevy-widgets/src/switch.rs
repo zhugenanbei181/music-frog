@@ -30,6 +30,7 @@
 
 use crate::button::{ControlVisual, control_fill};
 use crate::fonts::FontSources;
+use crate::motion::UiMotionPreference;
 use crate::palette::{UiPalette, rem};
 use crate::text::{TextRole, role_typography};
 use crate::theme::{Theme, ThemeSkin};
@@ -42,9 +43,12 @@ use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::picking::hover::PickingInteraction;
 use bevy::scene::{Scene, bsn};
 use bevy::text::{TextColor, TextFont};
+use bevy::time::Time;
 use bevy::ui::{
-    AlignItems, BackgroundColor, BorderColor, BorderRadius, Node, PositionType, UiRect, Val,
+    AlignItems, BackgroundColor, BorderColor, BorderRadius, Node, PositionType, UiRect,
+    UiTransform, Val, Val2,
 };
+use infiltrator_shared::effect_math::{SpringState, spring_settled, spring_step};
 
 /// Pick one of the token sets defined in [`crate::theme`]. Observe with
 /// [`apply_theme`], registered by [`crate::WidgetsPlugin`].
@@ -103,6 +107,16 @@ pub const SWITCH_KNOB_ON_OFFSET_PX: f32 = 18.0;
 
 /// The knob's left offset inside the track while the switch is off.
 pub const SWITCH_KNOB_OFF_OFFSET_PX: f32 = 2.0;
+
+/// The stiffness of the knob glide.
+const SWITCH_GLIDE_STIFFNESS: f32 = 1500.0;
+
+/// The damping of the knob glide: just under critical, so it carries one
+/// small overshoot on its way to the new rest position.
+const SWITCH_GLIDE_DAMPING: f32 = 54.0;
+
+/// How close the glide must come to rest before it stops integrating.
+const SWITCH_GLIDE_SETTLE_EPSILON: f32 = 1.0e-3;
 
 /// Where the knob rests inside the track: the switch's single on/off fact.
 ///
@@ -174,6 +188,8 @@ pub fn switch_knob_scene(knob: Color, position: SwitchPosition) -> impl Scene + 
             border_radius: BorderRadius::MAX,
         }
         BackgroundColor({ knob })
+        SwitchKnobGlide::at(position)
+        UiTransform::default()
     }
 }
 
@@ -194,6 +210,29 @@ pub struct SwitchColors {
 /// Marker on the shared switch control's track node.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SwitchTrack;
+
+/// The live glide of one knob between the two typed rest positions.
+///
+/// [`SwitchKnob`] is the only on/off truth; this component carries just the
+/// physical travel between those positions. A reduced-motion host snaps the
+/// travel without changing the switch state.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
+pub struct SwitchKnobGlide {
+    /// The knob's current offset in baseline pixels.
+    pub state: SpringState,
+}
+
+impl SwitchKnobGlide {
+    /// A knob resting at its typed position does not need to travel.
+    pub fn at(position: SwitchPosition) -> Self {
+        Self {
+            state: SpringState {
+                value: position.knob_offset_px(),
+                velocity: 0.0,
+            },
+        }
+    }
+}
 
 /// The knob's typed rest position: the shared control's own state.
 ///
@@ -224,17 +263,54 @@ pub fn switch_control_scene(
     }
 }
 
-/// Re-project every shared switch knob's rest offset from its typed position.
+/// Glide every shared switch knob toward its typed rest position.
 ///
 /// The knob's geometry is this module's fact: the surface only flips
-/// [`SwitchKnob`]'s typed position, and this system moves the knob to the
-/// shared offset. Compare-and-set: a knob already at its rest position is
-/// left untouched.
-pub fn sync_switch_knobs(mut knobs: Query<(&SwitchKnob, &mut Node)>) {
-    for (knob, mut node) in &mut knobs {
-        let left = rem(knob.0.knob_offset_px());
+/// [`SwitchKnob`]'s typed position; this system restamps the node's rest
+/// offset and integrates only the visual travel through [`UiTransform`], so
+/// a moving knob never changes the layout box. Reduce-motion snaps to the
+/// same typed rest instead of animating.
+pub fn sync_switch_knobs(
+    time: Res<Time>,
+    preference: Res<UiMotionPreference>,
+    mut knobs: Query<(
+        &SwitchKnob,
+        &mut SwitchKnobGlide,
+        &mut Node,
+        &mut UiTransform,
+    )>,
+) {
+    let dt = time.delta_secs();
+    let reduced = *preference == UiMotionPreference::Reduced;
+    for (knob, mut glide, mut node, mut transform) in &mut knobs {
+        let target = knob.0.knob_offset_px();
+        let left = rem(target);
         if node.left != left {
             node.left = left;
+        }
+        if reduced {
+            glide.state = SpringState {
+                value: target,
+                velocity: 0.0,
+            };
+        } else if !spring_settled(glide.state, target, SWITCH_GLIDE_SETTLE_EPSILON) {
+            glide.state = spring_step(
+                glide.state,
+                target,
+                SWITCH_GLIDE_STIFFNESS,
+                SWITCH_GLIDE_DAMPING,
+                dt,
+            );
+            if spring_settled(glide.state, target, SWITCH_GLIDE_SETTLE_EPSILON) {
+                glide.state = SpringState {
+                    value: target,
+                    velocity: 0.0,
+                };
+            }
+        }
+        let wanted = Val2::new(rem(glide.state.value - target), Val::ZERO);
+        if transform.translation != wanted {
+            transform.translation = wanted;
         }
     }
 }

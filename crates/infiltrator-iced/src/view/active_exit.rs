@@ -6,7 +6,7 @@ use crate::types::message::Message;
 use crate::view::components::{BadgeKind, badge, card_surface, chip};
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme;
-use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
+use crate::view::theme::tokens;
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Element, Length, Theme, border};
 use infiltrator_contract::active_exit::{ActiveExitSnapshot, ActiveExitStatus};
@@ -34,12 +34,11 @@ pub fn active_exit_card<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a,
         row![
             icon_themed(Icon::Globe, 16.0, |t: &Theme| tokens(t).accent),
             Space::new().width(theme::SP_SM),
-            text(lang.tr("overview_active_exit").to_string())
-                .size(14)
-                .font(FONT_SEMIBOLD)
-                .style(|t: &Theme| text::Style {
+            theme::role_body_text(lang.tr("overview_active_exit").to_string()).style(
+                |t: &Theme| text::Style {
                     color: Some(tokens(t).text_primary),
-                }),
+                }
+            ),
         ]
         .align_y(Alignment::Center),
         Space::new().width(Length::Fill),
@@ -47,12 +46,11 @@ pub fn active_exit_card<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a,
         Space::new().width(theme::SP_SM),
         button(
             row![
-                text(lang.tr("common_details").to_string())
-                    .size(11)
-                    .font(FONT_MEDIUM)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).accent)
-                    }),
+                theme::role_body_text(lang.tr("common_details").to_string()).style(|t: &Theme| {
+                    text::Style {
+                        color: Some(tokens(t).accent),
+                    }
+                }),
                 icon_themed(Icon::ChevronRight, 12.0, |t: &Theme| tokens(t).accent),
             ]
             .spacing(2)
@@ -79,22 +77,17 @@ pub fn active_exit_card<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a,
     .width(Length::Fill);
 
     let node_row = row![
-        text(flag).size(22),
+        theme::role_body_text(flag),
         Space::new().width(theme::SP_SM),
         column![
-            text(name)
-                .size(15)
-                .font(FONT_SEMIBOLD)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_primary),
-                }),
-            text(format!(
+            theme::role_body_text(name).style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_primary),
+            }),
+            theme::role_body_text(format!(
                 "{} {}",
                 lang.tr("overview_active_exit_group"),
                 group
             ))
-            .size(10)
-            .font(MONO)
             .style(|t: &Theme| text::Style {
                 color: Some(tokens(t).text_secondary),
             }),
@@ -113,12 +106,9 @@ pub fn active_exit_card<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a,
             Space::new().height(theme::SP_MD),
             node_row,
             Space::new().height(theme::SP_SM),
-            text(status)
-                .size(10)
-                .font(FONT_MEDIUM)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_secondary),
-                }),
+            theme::role_body_text(status).style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary),
+            }),
         ]
         .spacing(theme::SP_XS),
     )

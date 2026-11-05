@@ -41,8 +41,9 @@ use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::speedtest::SpeedtestOutboundResult;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use lurker_core_contract::outbound::{identity::OutboundId, inventory::OutboundInventoryState};
@@ -114,9 +115,9 @@ pub fn self_heal_card_scene(palette: &UiPalette) -> impl Scene + use<> {
                         column_gap: rem(space::S8),
                     }
                     Children [
-                        LocalizedText::plain("proxies_title") TextRole(Role::BodyStrong)
+                        LocalizedText::plain("proxies_title") TextRole(design_resources::TextRole::BodyStrong)
                         --
-                        Text(unknown) DoctorBestNodeText TextRole(Role::BodyStrong)
+                        Text(unknown) DoctorBestNodeText TextRole(design_resources::TextRole::BodyStrong)
                     ]
             }),
             Box::new(bsn! {
@@ -137,7 +138,7 @@ pub fn self_heal_card_scene(palette: &UiPalette) -> impl Scene + use<> {
                         flex_wrap: FlexWrap::Wrap,
                     }
                     Children [
-                        LocalizedText::plain("auto_heal_loss_description") TextRole(Role::Caption)
+                        LocalizedText::plain("auto_heal_loss_description") TextRole(design_resources::TextRole::Caption)
                         --
                         @{ (
                             localized_button_scene(LocalizedText::plain("btn_switch"), ButtonVariant::Primary, palette),
@@ -303,7 +304,7 @@ fn desired_rows(
 
 fn anomaly_row_scene(id: String, text: String, color: Color) -> impl Scene + use<> {
     bsn! {
-            Text(text) DoctorSelfHealAnomalyRow(id) TextRole(Role::Caption) TextColor(color)
+            Text(text) DoctorSelfHealAnomalyRow(id) TextRole(design_resources::TextRole::Caption) TextColor(color)
     }
 }
 

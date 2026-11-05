@@ -1,0 +1,229 @@
+// The reference's proxy picker: one persistent row of policy-group pills above
+// a dense grid of node cards. The group row never disappears, so switching
+// egress is one tap and the node list stays on screen. The Slint page used to
+// hide the groups behind a drill-down, which made every group change a round
+// trip and left the node list as one tall column of near-empty rows.
+
+import { DesignType } from "./design-type.slint";
+import { LumenUiScale } from "../lumen-ui-scale.slint";
+import { LumenTheme } from "./theme.slint";
+import { FlagIcon } from "../lumen-flags.slint";
+import { ObservationRow, ProxyGroup } from "./models.slint";
+import { ScrollView } from "std-widgets.slint";
+
+// Pills share one width so the row can scroll without measuring every label;
+// a long group name elides instead of pushing its neighbours off screen.
+export global ProxyPillMetrics {
+    out property <length> pill-width: 152 * LumenUiScale.unit;
+    out property <length> pill-height: 40 * LumenUiScale.unit;
+    out property <length> pill-spacing: 8 * LumenUiScale.unit;
+}
+
+/// One policy group in the pill row.
+export component ProxyGroupPill inherits Rectangle {
+    in property <ProxyGroup> group;
+    in property <bool> selected;
+    callback picked();
+
+    width: ProxyPillMetrics.pill-width;
+    height: ProxyPillMetrics.pill-height;
+    border-radius: ProxyPillMetrics.pill-height / 2;
+    background: root.selected ? (LumenTheme.is-dark ? #2563EB : LumenTheme.accent) : LumenTheme.zinc-3;
+    border-width: 1 * LumenUiScale.unit;
+    border-color: root.selected ? transparent : LumenTheme.hairline-glow;
+    accessible-role: button;
+    accessible-label: root.group.name;
+    accessible-checked: root.selected;
+
+    pill-layout := HorizontalLayout {
+        x: 10 * LumenUiScale.unit;
+        width: parent.width - 20 * LumenUiScale.unit;
+        height: parent.height;
+        spacing: 7 * LumenUiScale.unit;
+        cross-axis-alignment: center;
+
+        // The reference puts a pictograph on every pill. The owner publishes a
+        // flag for the group's current egress and a single-letter avatar; an
+        // invented per-group emoji would be a second source of truth, so the
+        // flag is used when the owner resolved one and the avatar otherwise.
+        if root.group.current-flag-index >= 0: FlagIcon {
+            index: root.group.current-flag-index;
+            country-code: root.group.current-flag-code;
+            diameter: 20 * LumenUiScale.unit;
+        }
+        if root.group.current-flag-index < 0: Rectangle {
+            width: 20 * LumenUiScale.unit;
+            height: 20 * LumenUiScale.unit;
+            border-radius: 10 * LumenUiScale.unit;
+            background: root.selected
+                ? LumenTheme.accent-foreground.with_alpha(24%)
+                : LumenTheme.zinc-4;
+            Text {
+                text: root.group.icon-emoji;
+                color: root.selected ? LumenTheme.accent-foreground : LumenTheme.text-secondary;
+                font-size: DesignType.tag-size;
+                font-weight: DesignType.labelStrong-weight;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+        Text {
+            text: root.group.name;
+            color: root.selected ? LumenTheme.accent-foreground : LumenTheme.text-primary;
+            font-size: DesignType.caption-size;
+            font-weight: root.selected ? DesignType.labelStrong-weight : DesignType.label-weight;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
+
+    TouchArea {
+        width: parent.width;
+        height: parent.height;
+        clicked => { root.picked(); }
+    }
+}
+
+/// The persistent group row, scrolled horizontally when it overflows.
+export component ProxyGroupPillBar inherits ScrollView {
+    in property <[ProxyGroup]> groups;
+    in property <string> selected-group;
+    callback picked(string);
+
+    horizontal-scrollbar-policy: ScrollBarPolicy.as-needed;
+    vertical-scrollbar-policy: ScrollBarPolicy.always-off;
+
+    // `ScrollView` ships a 50px minimum, which would make the row taller than
+    // the pills it carries; the row asks for its own height instead, and leaves
+    // a little more so a horizontal bar that appears on overflow cannot clip the
+    // pills.
+    min-height: ProxyPillMetrics.pill-height + 8 * LumenUiScale.unit;
+
+    HorizontalLayout {
+        // The content is as wide as the pills need and never narrower than the
+        // viewport, so short rows stay left-aligned instead of stretching.
+        width: Math.max(
+            parent.width,
+            root.groups.length * ProxyPillMetrics.pill-width
+                + Math.max(0, root.groups.length - 1) * ProxyPillMetrics.pill-spacing
+        );
+        height: ProxyPillMetrics.pill-height;
+        spacing: ProxyPillMetrics.pill-spacing;
+        cross-axis-alignment: center;
+
+        for group in root.groups: ProxyGroupPill {
+            selected: group.name == root.selected-group;
+            group: group;
+            picked => { root.picked(group.name); }
+        }
+    }
+}
+
+/// One outbound as the reference draws it: flag and name on top, quiet
+/// protocol metadata bottom-left, the graded latency bottom-right.
+export component ProxyNodeCard inherits Rectangle {
+    in property <ObservationRow> node;
+    in property <bool> testing: false;
+    // Switching an egress needs a running core, which the page already knows.
+    // The card keeps the fact as an input so a tap never looks alive and then
+    // does nothing.
+    in property <bool> switching-allowed: true;
+    callback picked();
+    callback probed();
+
+    height: 78 * LumenUiScale.unit;
+    border-radius: 14 * LumenUiScale.unit;
+    background: root.node.active ? LumenTheme.zinc-3 : LumenTheme.zinc-2;
+    border-width: 1 * LumenUiScale.unit;
+    border-color: root.node.active ? (LumenTheme.is-dark ? #2563EB : LumenTheme.accent) : LumenTheme.hairline-glow;
+    accessible-role: button;
+    accessible-label: node.accessible-title;
+    accessible-checked: root.node.active;
+
+    card-content := VerticalLayout {
+        x: 12 * LumenUiScale.unit;
+        y: 10 * LumenUiScale.unit;
+        width: parent.width - 24 * LumenUiScale.unit;
+        height: parent.height - 20 * LumenUiScale.unit;
+        spacing: 6 * LumenUiScale.unit;
+
+        HorizontalLayout {
+            height: 22 * LumenUiScale.unit;
+            spacing: 7 * LumenUiScale.unit;
+            cross-axis-alignment: center;
+
+            if root.node.flag-index >= 0: FlagIcon {
+                index: root.node.flag-index;
+                country-code: root.node.flag-code;
+                diameter: 18 * LumenUiScale.unit;
+            }
+            Text {
+                text: root.node.title;
+                color: LumenTheme.text-primary;
+                font-size: DesignType.bodyStrong-size;
+                font-weight: DesignType.bodyStrong-weight;
+                horizontal-stretch: 1;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+            // The reference marks the chosen egress with a filled circular
+            // check, not a bare square glyph floating mid-row.
+            if root.node.active: Rectangle {
+                width: 20 * LumenUiScale.unit;
+                height: 20 * LumenUiScale.unit;
+                border-radius: 10 * LumenUiScale.unit;
+                background: LumenTheme.is-dark ? #2563EB : LumenTheme.accent;
+                Path {
+                    width: parent.width;
+                    height: parent.height;
+                    viewbox-width: 24;
+                    viewbox-height: 24;
+                    commands: "M 7 12.5 L 10.5 16 L 17 8.5";
+                    stroke: LumenTheme.accent-foreground;
+                    stroke-width: 2.2 * LumenUiScale.unit;
+                    stroke-line-cap: round;
+                    stroke-line-join: round;
+                }
+            }
+        }
+
+        HorizontalLayout {
+            height: 18 * LumenUiScale.unit;
+            spacing: LumenTheme.space-2;
+            cross-axis-alignment: center;
+
+            Text {
+                text: root.node.subtitle;
+                color: LumenTheme.text-secondary;
+                font-size: DesignType.micro-size;
+                font-weight: DesignType.micro-weight;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+            Rectangle { horizontal-stretch: 1; background: transparent; }
+            // The only coloured fact on the card, painted from the grade the
+            // contract assigned rather than re-derived here.
+            Text {
+                text: root.testing ? @tr("正在测速") : root.node.trailing;
+                color: root.node.latency-ink;
+                font-size: DesignType.caption-size;
+                font-family: DesignType.mono-family;
+                font-weight: DesignType.caption-weight;
+                vertical-alignment: center;
+            }
+        }
+    }
+
+    TouchArea {
+        width: parent.width;
+        height: parent.height;
+        enabled: (!root.node.active && root.switching-allowed) || root.node.active;
+        clicked => {
+            if root.node.active {
+                root.probed();
+            } else if root.switching-allowed {
+                root.picked();
+            }
+        }
+    }
+}

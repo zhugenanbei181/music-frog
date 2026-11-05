@@ -4,6 +4,7 @@ use super::{
     trigger_page_projection_events,
 };
 use crate::app::ContentSlot;
+use crate::app::ShellLayoutState;
 use crate::history::TrafficHistory;
 use crate::pages::about::{about_page, disclaimer_page, licenses_page, tools_page};
 use crate::pages::app_routing::app_routing_page;
@@ -31,6 +32,7 @@ use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::scene::{CommandsSceneExt, Scene};
 use infiltrator_bevy_widgets::motion::{Spring, SpringRouteTransition};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_contract::responsive_viewport::ResponsiveViewportSnapshot;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_presentation::motion_projection::is_headless_capture_active;
 
@@ -43,6 +45,7 @@ pub(crate) struct RouteMount<'w, 's> {
     source: Res<'w, SurfaceSourceHandle>,
     history_ring: Res<'w, TrafficHistory>,
     latest: Option<Res<'w, LatestSurfaceSnapshot>>,
+    layout: Option<Res<'w, ShellLayoutState>>,
 }
 
 pub(crate) fn sync_route(trigger: On<RouteChanged>, mut mount: RouteMount, mut commands: Commands) {
@@ -60,7 +63,18 @@ pub(crate) fn sync_route(trigger: On<RouteChanged>, mut mount: RouteMount, mut c
         || mount.source.0.surface_snapshot(),
         |latest| latest.0.clone(),
     );
-    let scene = page_scene(route, &snapshot, &mount.history_ring, &mount.palette);
+    let mut projection = overview_projection(&snapshot);
+    if let Some(layout) = mount.layout.as_deref() {
+        projection.viewport = ResponsiveViewportSnapshot::from_dimensions(layout.width_px, 760.0);
+    }
+    let scene = match route {
+        Route::Overview => Box::new(overview_page(
+            &projection,
+            &mount.history_ring,
+            &mount.palette,
+        )),
+        _ => page_scene(route, &snapshot, &mount.history_ring, &mount.palette),
+    };
     commands.entity(slot).despawn_children();
     let transition = if is_headless_capture_active() {
         SpringRouteTransition {

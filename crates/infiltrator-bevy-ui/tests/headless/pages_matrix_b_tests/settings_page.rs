@@ -15,16 +15,8 @@ fn test_settings_page_mounting_and_default_state() {
         root,
         "系统与内核全局设置 · 统一策略中枢"
     ));
-    assert!(subtree_has_text(
-        app.world(),
-        root,
-        "开机自动启动 (Autostart on Boot)"
-    ));
-    assert!(subtree_has_text(
-        app.world(),
-        root,
-        "设置系统代理 (Set System Proxy)"
-    ));
+    assert!(subtree_has_text(app.world(), root, "开机自动启动"));
+    assert!(subtree_has_text(app.world(), root, "设置系统代理"));
     assert!(subtree_has_text(app.world(), root, "端口: 7890"));
     assert!(subtree_has_text(app.world(), root, "gVisor"));
     assert!(subtree_has_text(app.world(), root, "127.0.0.1:9090"));

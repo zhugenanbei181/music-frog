@@ -3,6 +3,8 @@
 
 use super::*;
 use infiltrator_contract::a11y::ShellA11yNode;
+use infiltrator_contract::design_resources;
+use infiltrator_shared::locales::{Lang, Localizer};
 
 #[test]
 fn shell_mounts_camera_content_slot_and_stamped_header() {
@@ -28,9 +30,9 @@ fn shell_mounts_camera_content_slot_and_stamped_header() {
     let mut headers = world.query::<(&Text, &TextRole, &TextColor, &TextFont)>();
     let (_, role, ink, font) = headers
         .iter(world)
-        .find(|(_, role, _, _)| role.0 == Role::Heading)
+        .find(|(_, role, _, _)| role.0 == design_resources::TextRole::Heading)
         .expect("title row carries the heading role");
-    assert_eq!(role.0, Role::Heading);
+    assert_eq!(role.0, design_resources::TextRole::Heading);
     let palette = UiPalette::new(&Theme::dark());
     assert_eq!(ink.0, palette.ink, "heading ink stamped from tokens");
     assert!(
@@ -61,17 +63,20 @@ fn shell_exposes_named_semantic_nodes_on_root_header_and_pill() {
     let (root, _) = roots.single(world).expect("shell root semantic node");
     // DUAL-15-10: the window/header/theme labels are the shared grammar rows.
     assert_eq!(root.role(), accesskit::Role::Window);
-    assert_eq!(root.label(), Some(ShellA11yNode::Window.label_zh()));
+    let window_label = Lang("zh-CN").tr(ShellA11yNode::Window.label_key());
+    assert_eq!(root.label(), Some(window_label.as_ref()));
 
     let mut headers = world.query::<(&AccessibilityNode, &ShellHeader)>();
     let (header, _) = headers.single(world).expect("header semantic node");
     assert_eq!(header.role(), accesskit::Role::Header);
-    assert_eq!(header.label(), Some(ShellA11yNode::ShellHeader.label_zh()));
+    let header_label = Lang("zh-CN").tr(ShellA11yNode::ShellHeader.label_key());
+    assert_eq!(header.label(), Some(header_label.as_ref()));
 
     let mut pills = world.query::<(&AccessibilityNode, &ThemeToggle)>();
     let (pill, _) = pills.single(world).expect("pill semantic node");
     assert_eq!(pill.role(), accesskit::Role::Button);
-    assert_eq!(pill.label(), Some(ShellA11yNode::ThemeToggle.label_zh()));
+    let pill_label = Lang("zh-CN").tr(ShellA11yNode::ThemeToggle.label_key());
+    assert_eq!(pill.label(), Some(pill_label.as_ref()));
 }
 
 #[test]

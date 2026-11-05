@@ -9,7 +9,7 @@ use crate::icon_tile::icon_tile_scene;
 use crate::palette::UiPalette;
 use crate::palette::rem;
 use crate::responsive::{MasterDetailMode, ResponsiveContext};
-use crate::text::{Role, TextRole};
+use crate::text::TextRole;
 use crate::theme::space;
 use bevy::ecs::component::Component;
 use bevy::ecs::event::Event;
@@ -23,6 +23,7 @@ use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{AlignItems, Display, FlexDirection, Node, UiRect, percent};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
+use infiltrator_contract::design_resources;
 
 /// The master pane's fixed width in baseline pixels (split layout).
 const MASTER_PANE_WIDTH_PX: f32 = 320.0;
@@ -175,7 +176,7 @@ pub fn master_back_button_scene(label: &str, palette: &UiPalette) -> Box<dyn Sce
             Children [
                 @{ icon_tile_scene(IconId::ArrowUp, 20.0, palette) }
                 --
-                Text(lbl) TextRole(Role::Body)
+                Text(lbl) TextRole(design_resources::TextRole::Body)
             ]
     })
 }

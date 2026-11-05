@@ -9,16 +9,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.List
-import androidx.compose.material.icons.outlined.Apps
-import androidx.compose.material.icons.outlined.BatteryChargingFull
-import androidx.compose.material.icons.outlined.Description
-import androidx.compose.material.icons.outlined.Dns
-import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.Language
-import androidx.compose.material.icons.outlined.Public
-import androidx.compose.material.icons.outlined.Router
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -40,6 +30,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.musicfrog.infiltrator.R
+import com.musicfrog.infiltrator.ui.common.AppIcon
+import com.musicfrog.infiltrator.ui.common.AppIconSemantic
 import com.musicfrog.infiltrator.ui.common.StandardListItem
 
 @Composable
@@ -68,7 +60,7 @@ fun SettingsScreen(
                 StandardListItem(
                     headline = stringResource(R.string.setting_language_title),
                     supporting = getLocaleLabel(currentLocale),
-                    leadingIcon = Icons.Outlined.Language,
+                    leadingIcon = AppIcon.image(AppIconSemantic.Globe),
                     onClick = { showLanguageDialog = true },
                 )
                 HorizontalDivider()
@@ -78,7 +70,7 @@ fun SettingsScreen(
                 StandardListItem(
                     headline = stringResource(R.string.setting_battery_title),
                     supporting = stringResource(R.string.setting_battery_desc),
-                    leadingIcon = Icons.Outlined.BatteryChargingFull,
+                    leadingIcon = AppIcon.image(AppIconSemantic.Zap),
                     onClick = { requestBatteryExemption(context) },
                 )
                 HorizontalDivider()
@@ -87,7 +79,7 @@ fun SettingsScreen(
                 StandardListItem(
                     headline = stringResource(R.string.setting_routing_title),
                     supporting = stringResource(R.string.setting_routing_desc),
-                    leadingIcon = Icons.Outlined.Apps,
+                    leadingIcon = AppIcon.image(AppIconSemantic.LayoutGrid),
                     onClick = onNavigateToRouting,
                 )
                 HorizontalDivider()
@@ -96,7 +88,7 @@ fun SettingsScreen(
                 StandardListItem(
                     headline = stringResource(R.string.setting_tun_title),
                     supporting = stringResource(R.string.setting_tun_desc),
-                    leadingIcon = Icons.Outlined.Router,
+                    leadingIcon = AppIcon.image(AppIconSemantic.Network),
                     onClick = onNavigateToTun,
                 )
                 HorizontalDivider()
@@ -105,7 +97,7 @@ fun SettingsScreen(
                 StandardListItem(
                     headline = stringResource(R.string.setting_dns_title),
                     supporting = stringResource(R.string.setting_dns_desc),
-                    leadingIcon = Icons.Outlined.Dns,
+                    leadingIcon = AppIcon.image(AppIconSemantic.Server),
                     onClick = onNavigateToDns,
                 )
                 HorizontalDivider()
@@ -114,7 +106,7 @@ fun SettingsScreen(
                 StandardListItem(
                     headline = stringResource(R.string.setting_fakeip_title),
                     supporting = stringResource(R.string.setting_fakeip_desc),
-                    leadingIcon = Icons.Outlined.Public,
+                    leadingIcon = AppIcon.image(AppIconSemantic.Globe),
                     onClick = onNavigateToFakeIp,
                 )
                 HorizontalDivider()
@@ -123,7 +115,7 @@ fun SettingsScreen(
                 StandardListItem(
                     headline = stringResource(R.string.setting_rules_title),
                     supporting = stringResource(R.string.setting_rules_desc),
-                    leadingIcon = Icons.AutoMirrored.Outlined.List,
+                    leadingIcon = AppIcon.image(AppIconSemantic.ListChecks),
                     onClick = onNavigateToRules,
                 )
                 HorizontalDivider()
@@ -132,7 +124,7 @@ fun SettingsScreen(
                 StandardListItem(
                     headline = stringResource(R.string.setting_connections_title),
                     supporting = stringResource(R.string.setting_connections_desc),
-                    leadingIcon = Icons.Outlined.Apps,
+                    leadingIcon = AppIcon.image(AppIconSemantic.LayoutGrid),
                     onClick = onNavigateToConnections,
                 )
                 HorizontalDivider()
@@ -141,7 +133,7 @@ fun SettingsScreen(
                 StandardListItem(
                     headline = stringResource(R.string.setting_logs_title),
                     supporting = stringResource(R.string.setting_logs_desc),
-                    leadingIcon = Icons.Outlined.Description,
+                    leadingIcon = AppIcon.image(AppIconSemantic.FileText),
                     onClick = onNavigateToLogs,
                 )
                 HorizontalDivider()
@@ -150,7 +142,7 @@ fun SettingsScreen(
                 StandardListItem(
                     headline = stringResource(R.string.setting_about_title),
                     supporting = stringResource(R.string.setting_about_desc),
-                    leadingIcon = Icons.Outlined.Info,
+                    leadingIcon = AppIcon.image(AppIconSemantic.Target),
                     onClick = onNavigateToAbout,
                 )
             }

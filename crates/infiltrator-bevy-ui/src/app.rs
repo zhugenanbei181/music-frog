@@ -21,7 +21,7 @@ use crate::appearance::{
     sync_system_appearance, sync_theme_readback,
 };
 use crate::cadence::WindowCadenceState;
-use crate::chrome::WindowChromePlugin;
+use crate::chrome::{ChromeSearchButton, ChromeTrafficCapsule, WindowChromePlugin};
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::command_palette_shell::CommandPalettePlugin;
 use crate::gesture::{GestureHostReport, ShellGesturePlugin};
@@ -30,6 +30,9 @@ use crate::ime::ShellImePlugin;
 use crate::lifecycle::HostLifecyclePlugin;
 use crate::localization::LocalizationPlugin;
 use crate::mini_hud_shell::MiniHudPlugin;
+use crate::pages::globe::GlobeSectionSlot;
+use crate::pages::overview::{OverviewCardMoveControls, OverviewTrafficDetailSection};
+use crate::pages::overview_speedtest::OverviewSpeedtestSection;
 use crate::pages::profiles_editor::ProfilesEditorPlugin;
 use crate::pages::profiles_editor_panes_sync::ProfilesEditorPanesPlugin;
 use crate::route::{ActiveRoute, NavigateBack, NavigateForward, Route, RouteChanged};
@@ -53,7 +56,7 @@ use bevy::color::Color;
 use bevy::ecs::change_detection::DetectChanges;
 use bevy::ecs::component::Component;
 use bevy::ecs::observer::On;
-use bevy::ecs::query::{With, Without};
+use bevy::ecs::query::{Or, With, Without};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
@@ -284,6 +287,12 @@ pub struct BottomNavItem(pub Route);
 /// Active state flag for bottom navigation items.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct BottomNavActive(pub bool);
+
+/// Marker on the bottom navigation icon's seat. The active route's seat
+/// wears the shared selection-wash pill; the seat geometry never changes,
+/// so a route switch cannot shift the bar.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct BottomNavIconPill;
 
 /// Marker on the sidebar's foot caption.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -588,6 +597,7 @@ impl Plugin for ShellPlugin {
                 sync_sidebar_nav_visuals.after(sync_ui_theme),
                 sync_bottom_nav_visuals.after(sync_ui_theme),
                 sync_responsive_shell,
+                sync_responsive_mobile_nodes.after(sync_responsive_shell),
                 sync_sidebar_rail_morphology,
                 sync_rail_nav_tooltips,
                 sync_nav_hover_fill,
@@ -777,6 +787,40 @@ fn sync_responsive_shell(
     for mut node in &mut density_pills {
         if node.display != density_display {
             node.display = density_display;
+        }
+    }
+}
+
+/// Every node the compact phone viewport hides: the desktop history
+/// buttons, the 3D globe slot, the desktop speedtest controls, the desktop
+/// title bar's traffic capsule and search trigger, and the floating card
+/// reorder arrows. One query, one visibility rule — the phone surface
+/// carries its own readouts instead of the desktop chrome.
+type MobileHiddenInCompactFilter = Or<(
+    With<HistoryBackButton>,
+    With<HistoryForwardButton>,
+    With<GlobeSectionSlot>,
+    With<OverviewSpeedtestSection>,
+    With<ChromeTrafficCapsule>,
+    With<ChromeSearchButton>,
+    With<OverviewCardMoveControls>,
+    With<OverviewTrafficDetailSection>,
+)>;
+
+/// Controls visibility of mobile-inappropriate controls (history buttons, 3D globe slot, speedtest, desktop title bar capsule and search trigger, card reorder arrows) in compact mode.
+fn sync_responsive_mobile_nodes(
+    layout: Res<ShellLayoutState>,
+    mut mobile_nodes: Query<&mut Node, MobileHiddenInCompactFilter>,
+) {
+    let is_compact = layout.mode == LayoutMode::BottomNav;
+    let display = if is_compact {
+        Display::None
+    } else {
+        Display::Flex
+    };
+    for mut node in &mut mobile_nodes {
+        if node.display != display {
+            node.display = display;
         }
     }
 }

@@ -18,7 +18,7 @@ use crate::view::checkbox::check_box;
 use crate::view::component_forms::{form_input_style, style_accent, style_ghost};
 use crate::view::components::{BadgeKind, badge, icon_button, modern_scrollable};
 use crate::view::svg_icons::Icon;
-use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
+use crate::view::theme::tokens;
 use crate::view::{svg_icons, theme};
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::advanced::widget::Id;
@@ -40,21 +40,21 @@ pub fn aggregator_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
     let title_row = row![
         svg_icons::icon_themed(Icon::LayoutGrid, 18.0, |t: &Theme| tokens(t).accent),
         Space::new().width(theme::SP_SM),
-        text(lang.tr("aggregator_title").to_string())
-            .size(15)
-            .font(FONT_SEMIBOLD)
-            .style(|t: &Theme| text::Style {
+        theme::role_body_text(lang.tr("aggregator_title").to_string()).style(|t: &Theme| {
+            text::Style {
                 color: Some(tokens(t).text_primary),
-            }),
+            }
+        }),
         Space::new().width(Length::Fill),
         icon_button(Icon::X, 14.0, Message::CloseAggregatorModal),
     ]
     .align_y(Alignment::Center);
 
-    let subtitle = text(lang.tr("aggregator_desc").to_string())
-        .size(12)
-        .style(|t: &Theme| text::Style {
-            color: Some(tokens(t).text_secondary),
+    let subtitle =
+        theme::role_body_text(lang.tr("aggregator_desc").to_string()).style(|t: &Theme| {
+            text::Style {
+                color: Some(tokens(t).text_secondary),
+            }
         });
 
     let name_input = labeled_field(
@@ -62,8 +62,6 @@ pub fn aggregator_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
         text_input("Aggregated-Profiles", &state.profile.aggregator_name_input)
             .on_input(Message::UpdateAggregatorName)
             .padding([6, 10])
-            .size(12)
-            .font(MONO)
             .width(Length::Fill)
             .style(form_input_style),
     );
@@ -116,8 +114,6 @@ pub fn aggregator_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
         )
         .on_input(Message::UpdateAggregatorRenames)
         .padding([6, 10])
-        .size(12)
-        .font(MONO)
         .width(Length::Fill)
         .style(form_input_style),
     );
@@ -132,8 +128,6 @@ pub fn aggregator_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
                 )
                 .on_input(Message::UpdateAggregatorCustomGroupName)
                 .padding([6, 10])
-                .size(12)
-                .font(MONO)
                 .width(Length::Fill)
                 .style(form_input_style),
                 Space::new().height(theme::SP_XS),
@@ -143,18 +137,14 @@ pub fn aggregator_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
                 )
                 .on_input(Message::UpdateAggregatorCustomGroupKeywords)
                 .padding([6, 10])
-                .size(12)
-                .font(MONO)
                 .width(Length::Fill)
                 .style(form_input_style),
             ]
             .spacing(0),
         ),
-        button(
-            text(lang.tr("aggregator_custom_add").to_string())
-                .size(12)
-                .font(FONT_MEDIUM),
-        )
+        button(theme::role_body_text(
+            lang.tr("aggregator_custom_add").to_string()
+        ),)
         .padding([6, 14])
         .style(style_ghost)
         .on_press(Message::AddAggregatorCustomGroup),
@@ -234,22 +224,20 @@ pub fn aggregator_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
                 .as_str(),
         )],
     );
-    let selected_line = text(selected_count)
-        .size(11)
-        .style(|t: &Theme| text::Style {
-            color: Some(tokens(t).text_secondary),
-        });
+    let selected_line = theme::role_body_text(selected_count).style(|t: &Theme| text::Style {
+        color: Some(tokens(t).text_secondary),
+    });
 
     let preview_section: Element<'_, Message> = match &state.profile.aggregator_report {
         Some(report) => container(preview_section(report, &lang))
             .id(InteractionRegion::AggregatorPreview.id())
             .into(),
         None => container(
-            text(lang.tr("aggregator_preview_hint").to_string())
-                .size(11)
-                .style(|t: &Theme| text::Style {
+            theme::role_body_text(lang.tr("aggregator_preview_hint").to_string()).style(
+                |t: &Theme| text::Style {
                     color: Some(tokens(t).text_tertiary),
-                }),
+                },
+            ),
         )
         .padding([8, 12])
         .into(),
@@ -257,7 +245,7 @@ pub fn aggregator_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
     let template_section = template_section(state, &lang);
 
     let actions = row![
-        button(text(lang.tr("btn_cancel").to_string()).size(12))
+        button(theme::role_body_text(lang.tr("btn_cancel").to_string()))
             .padding([6, 14])
             .style(style_ghost)
             .on_press(Message::CloseAggregatorModal),
@@ -266,9 +254,7 @@ pub fn aggregator_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
             row![
                 svg_icons::icon_themed(Icon::ListChecks, 12.0, |t: &Theme| tokens(t).accent),
                 Space::new().width(theme::SP_XS),
-                text(lang.tr("aggregator_btn_preview").to_string())
-                    .size(12)
-                    .font(FONT_MEDIUM),
+                theme::role_body_text(lang.tr("aggregator_btn_preview").to_string()),
             ]
             .align_y(Alignment::Center)
         )
@@ -280,9 +266,7 @@ pub fn aggregator_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
             row![
                 svg_icons::icon_themed(Icon::RefreshCw, 12.0, |t: &Theme| tokens(t).on_accent),
                 Space::new().width(theme::SP_XS),
-                text(lang.tr("aggregator_btn_save").to_string())
-                    .size(12)
-                    .font(FONT_MEDIUM),
+                theme::role_body_text(lang.tr("aggregator_btn_save").to_string()),
             ]
             .align_y(Alignment::Center)
         )
@@ -380,12 +364,9 @@ pub fn aggregator_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
 /// One labelled input row.
 fn labeled_field<'a>(label: &str, field: impl Into<Element<'a, Message>>) -> Element<'a, Message> {
     column![
-        text(label.to_string())
-            .size(12)
-            .font(FONT_MEDIUM)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_primary),
-            }),
+        theme::role_body_text(label.to_string()).style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_primary),
+        }),
         Space::new().height(2),
         field.into(),
     ]
@@ -412,8 +393,7 @@ fn custom_group_list<'a>(
     lang: &Lang<'_>,
 ) -> Element<'a, Message> {
     if groups.is_empty() {
-        return text(lang.tr("aggregator_custom_empty").to_string())
-            .size(11)
+        return theme::role_body_text(lang.tr("aggregator_custom_empty").to_string())
             .style(|t: &Theme| text::Style {
                 color: Some(tokens(t).text_tertiary),
             })
@@ -426,14 +406,16 @@ fn custom_group_list<'a>(
             row![
                 badge(group.name.clone(), BadgeKind::Accent),
                 Space::new().width(theme::SP_SM),
-                text(keywords).size(11).style(|t: &Theme| text::Style {
+                theme::role_body_text(keywords).style(|t: &Theme| text::Style {
                     color: Some(tokens(t).text_secondary),
                 }),
                 Space::new().width(Length::Fill),
-                button(text(lang.tr("aggregator_custom_remove").to_string()).size(11))
-                    .padding([2, 8])
-                    .style(style_ghost)
-                    .on_press(Message::RemoveAggregatorCustomGroup(index)),
+                button(theme::role_body_text(
+                    lang.tr("aggregator_custom_remove").to_string()
+                ))
+                .padding([2, 8])
+                .style(style_ghost)
+                .on_press(Message::RemoveAggregatorCustomGroup(index)),
             ]
             .align_y(Alignment::Center),
         );
@@ -445,27 +427,22 @@ fn custom_group_list<'a>(
 /// generated YAML structure (DUAL-08-11).
 fn preview_section<'a>(report: &'a AggregationReport, lang: &Lang<'_>) -> Element<'a, Message> {
     let mut body = column![
-        text(lang.tr("aggregator_preview_title").to_string())
-            .size(12)
-            .font(FONT_SEMIBOLD),
-        text(aggregation_counters(Some(report), &Lang(lang.0))).size(11),
-        text(aggregation_regions(Some(report), &Lang(lang.0))).size(12),
-        text(aggregation_groups(Some(report), &Lang(lang.0))).size(12),
+        theme::role_body_text(lang.tr("aggregator_preview_title").to_string()),
+        theme::role_body_text(aggregation_counters(Some(report), &Lang(lang.0))),
+        theme::role_body_text(aggregation_regions(Some(report), &Lang(lang.0))),
+        theme::role_body_text(aggregation_groups(Some(report), &Lang(lang.0))),
     ]
     .spacing(theme::SP_XS);
     if !report.invalid_node_samples.is_empty() {
-        body = body.push(
-            text(report.invalid_node_samples.join("\n"))
-                .size(11)
-                .font(MONO),
-        );
+        body = body.push(theme::role_body_text(
+            report.invalid_node_samples.join("\n"),
+        ));
     }
     body = body.push(container(
-        modern_scrollable(
-            text(aggregation_yaml_preview(Some(report), &Lang(lang.0)))
-                .size(11)
-                .font(MONO),
-        )
+        modern_scrollable(theme::role_body_text(aggregation_yaml_preview(
+            Some(report),
+            &Lang(lang.0),
+        )))
         .height(Length::Fixed(160.0)),
     ));
     container(modern_scrollable(body).height(Length::Fixed(320.0)))
@@ -489,12 +466,11 @@ fn preview_section<'a>(report: &'a AggregationReport, lang: &Lang<'_>) -> Elemen
 /// and delete actions.
 fn template_section<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
     let mut section = column![
-        text(lang.tr("aggregator_template_title").to_string())
-            .size(12)
-            .font(FONT_SEMIBOLD)
-            .style(|t: &Theme| text::Style {
+        theme::role_body_text(lang.tr("aggregator_template_title").to_string()).style(
+            |t: &Theme| text::Style {
                 color: Some(tokens(t).text_primary),
-            }),
+            }
+        ),
         row![
             text_input(
                 lang.tr("aggregator_template_name_ph").as_ref(),
@@ -502,16 +478,12 @@ fn template_section<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Mes
             )
             .on_input(Message::UpdateAggregatorTemplateName)
             .padding([6, 10])
-            .size(12)
-            .font(MONO)
             .width(Length::Fill)
             .style(form_input_style),
             Space::new().width(theme::SP_XS),
-            button(
-                text(lang.tr("aggregator_template_save").to_string())
-                    .size(11)
-                    .font(FONT_MEDIUM),
-            )
+            button(theme::role_body_text(
+                lang.tr("aggregator_template_save").to_string()
+            ),)
             .padding([6, 12])
             .style(style_ghost)
             .on_press(Message::SaveAggregatorTemplate),
@@ -522,11 +494,11 @@ fn template_section<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Mes
 
     if state.profile.aggregator_templates.is_empty() {
         section = section.push(
-            text(lang.tr("aggregator_template_empty").to_string())
-                .size(11)
-                .style(|t: &Theme| text::Style {
+            theme::role_body_text(lang.tr("aggregator_template_empty").to_string()).style(
+                |t: &Theme| text::Style {
                     color: Some(tokens(t).text_tertiary),
-                }),
+                },
+            ),
         );
         return section.into();
     }
@@ -543,26 +515,32 @@ fn template_row<'a>(template: &'a AggregationTemplate, lang: &Lang<'_>) -> Eleme
     row![
         badge(template.name.clone(), BadgeKind::Neutral),
         Space::new().width(theme::SP_SM),
-        text(aggregation_template_row(template, &Lang(lang.0)))
-            .size(11)
-            .style(|t: &Theme| text::Style {
+        theme::role_body_text(aggregation_template_row(template, &Lang(lang.0))).style(
+            |t: &Theme| text::Style {
                 color: Some(tokens(t).text_tertiary),
-            }),
+            }
+        ),
         Space::new().width(Length::Fill),
-        button(text(lang.tr("aggregator_template_use").to_string()).size(11))
-            .padding([2, 8])
-            .style(style_ghost)
-            .on_press(Message::ApplyAggregatorTemplate(name.clone())),
+        button(theme::role_body_text(
+            lang.tr("aggregator_template_use").to_string()
+        ))
+        .padding([2, 8])
+        .style(style_ghost)
+        .on_press(Message::ApplyAggregatorTemplate(name.clone())),
         Space::new().width(theme::SP_XS),
-        button(text(lang.tr("aggregator_template_reaggregate").to_string()).size(11))
-            .padding([2, 8])
-            .style(style_ghost)
-            .on_press(Message::ReAggregateProfile(name.clone())),
+        button(theme::role_body_text(
+            lang.tr("aggregator_template_reaggregate").to_string()
+        ))
+        .padding([2, 8])
+        .style(style_ghost)
+        .on_press(Message::ReAggregateProfile(name.clone())),
         Space::new().width(theme::SP_XS),
-        button(text(lang.tr("aggregator_template_delete").to_string()).size(11))
-            .padding([2, 8])
-            .style(style_ghost)
-            .on_press(Message::DeleteAggregatorTemplate(name)),
+        button(theme::role_body_text(
+            lang.tr("aggregator_template_delete").to_string()
+        ))
+        .padding([2, 8])
+        .style(style_ghost)
+        .on_press(Message::DeleteAggregatorTemplate(name)),
     ]
     .align_y(Alignment::Center)
     .into()

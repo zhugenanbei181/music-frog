@@ -3,7 +3,7 @@
 use crate::types::message::Message;
 use crate::view::components::{BadgeKind, badge};
 use crate::view::theme;
-use crate::view::theme::{FONT_MEDIUM, MONO, tokens};
+use crate::view::theme::tokens;
 use chrono::{DateTime, Local, Utc};
 use iced::widget::{Space, button, column, progress_bar, row, text};
 use iced::{Alignment, Border, Element, Length, Theme, border};
@@ -114,7 +114,7 @@ pub(super) fn read_clipboard_url() -> Option<String> {
 /// User-Agent preset chip button: clicking it quickly fills the UA input field (P12-11).
 pub(super) fn ua_preset_chip<'a>(label: &'static str, current_val: &str) -> Element<'a, Message> {
     let is_selected = current_val == label;
-    button(text(label).size(11).font(FONT_MEDIUM))
+    button(theme::role_body_text(label))
         .padding([4, 10])
         .style(move |t: &Theme, status| {
             let tk = tokens(t);
@@ -195,20 +195,17 @@ pub(super) fn traffic_row<'a>(
     let usage_label = format!("{}{expire_suffix}", traffic_caption(&facts, &Lang(lang.0)));
 
     let mut info_row = row![
-        text(usage_label)
-            .size(11)
-            .font(MONO)
-            .style(move |t: &Theme| {
-                let tk = tokens(t);
-                let col = if is_depleted || is_expired {
-                    tk.danger
-                } else if is_exhausted || is_expiring_soon || is_warning {
-                    tk.warning
-                } else {
-                    tk.text_secondary
-                };
-                text::Style { color: Some(col) }
-            }),
+        theme::role_body_text(usage_label).style(move |t: &Theme| {
+            let tk = tokens(t);
+            let col = if is_depleted || is_expired {
+                tk.danger
+            } else if is_exhausted || is_expiring_soon || is_warning {
+                tk.warning
+            } else {
+                tk.text_secondary
+            };
+            text::Style { color: Some(col) }
+        }),
         Space::new().width(Length::Fill),
     ]
     .spacing(theme::SP_SM)

@@ -14,6 +14,9 @@ use infiltrator_bevy_widgets::text_input::native::{
     ScreenReaderAction, ScreenReaderGate, ScreenReaderOutcome,
 };
 use infiltrator_contract::a11y::{A11yRole, ShellA11yNode};
+use infiltrator_contract::shared_copy::SharedCopyKey;
+use infiltrator_shared::locales::{Lang, Localizer};
+use lurker_ui_presentation::copy::interpolate;
 
 /// Map a shared grammar role onto the AccessKit role Bevy publishes.
 pub const fn accesskit_role(role: A11yRole) -> accesskit::Role {
@@ -31,17 +34,21 @@ pub const fn accesskit_role(role: A11yRole) -> accesskit::Role {
     }
 }
 
-/// The mounted semantic node for one grammar row (role + bare-Chinese label).
+fn shared_label(node: ShellA11yNode) -> String {
+    Lang("zh-CN").tr(node.label_key()).into_owned()
+}
+
+/// The mounted semantic node for one grammar row (role + shared label).
 pub fn semantic_node(node: ShellA11yNode) -> AccessibilityNode {
     let mut a11y = accesskit::Node::new(accesskit_role(node.role()));
-    a11y.set_label(node.label_zh());
+    a11y.set_label(shared_label(node));
     AccessibilityNode(a11y)
 }
 
 /// A switch row with its live on/off state; the label stays the shared one.
 pub fn switch_node(node: ShellA11yNode, enabled: bool) -> AccessibilityNode {
     let mut a11y = accesskit::Node::new(accesskit_role(A11yRole::Switch));
-    a11y.set_label(node.label_zh());
+    a11y.set_label(shared_label(node));
     a11y.set_toggled(accesskit::Toggled::from(enabled));
     AccessibilityNode(a11y)
 }
@@ -57,7 +64,12 @@ pub fn sync_switch_state(node: &mut AccessibilityNode, enabled: bool) {
 /// A read-only status/text row: the label plus the live value the shell shows.
 pub fn value_node(node: ShellA11yNode, value: &str) -> AccessibilityNode {
     let mut a11y = accesskit::Node::new(accesskit_role(node.role()));
-    a11y.set_label(format!("{}: {value}", node.label_zh()));
+    let template = Lang("zh-CN").tr(SharedCopyKey::A11yValuePrefix.key());
+    let label = interpolate(
+        &template,
+        &[("label", shared_label(node).as_str()), ("value", value)],
+    );
+    a11y.set_label(label);
     AccessibilityNode(a11y)
 }
 

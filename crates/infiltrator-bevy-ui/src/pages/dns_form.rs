@@ -27,9 +27,12 @@ use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::switch::{SwitchPosition, switch_knob_scene, switch_track_scene};
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::switch::{
+    SwitchKnob, SwitchPosition, switch_knob_scene, switch_track_scene,
+};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::dns::{
     DnsCoreSwitches, DnsEnhancedMode, DnsFakeIpFilterMode, DnsSwitchField,
 };
@@ -82,7 +85,7 @@ fn dns_switch_row_scene(
                     min_width: px(0.0),
                 }
                 Children [
-                    label TextRole(Role::Body)
+                    label TextRole(design_resources::TextRole::Body)
                 ]
                 --
                 Node {
@@ -99,6 +102,7 @@ fn dns_switch_row_scene(
                     AccessibilityNode(switch_a11y)
                     Children [
                         @{ switch_knob_scene(knob_color, SwitchPosition::from_enabled(enabled)) }
+                        SwitchKnob(SwitchPosition::from_enabled(enabled))
                         DnsSwitchKnob(field)
                     ]
                 ]
@@ -136,7 +140,7 @@ fn enhanced_mode_pill(
             DnsEnhancedModePill(mode)
             Children [
                 Text({ label.to_owned() })
-                TextRole(Role::Caption)
+                TextRole(design_resources::TextRole::Caption)
                 TextColor({ ink })
                 DnsLine(DnsLineKind::EnhancedModeLabel(mode))
             ]
@@ -173,7 +177,7 @@ fn filter_mode_pill(
             DnsFilterModePill(mode)
             Children [
                 Text({ label.to_owned() })
-                TextRole(Role::Caption)
+                TextRole(design_resources::TextRole::Caption)
                 TextColor({ ink })
                 DnsLine(DnsLineKind::FilterModeLabel(mode))
             ]
@@ -228,10 +232,10 @@ pub(crate) fn dns_form_card_scene(
                                 Children [
                                     @{ icon_tile_scene(IconId::Settings, 24.0, palette) }
                                     --
-                                    LocalizedText::plain("dns_core_configuration_title") TextRole(Role::BodyStrong)
+                                    LocalizedText::plain("dns_core_configuration_title") TextRole(design_resources::TextRole::BodyStrong)
                                 ]
                                 --
-                                LocalizedText::plain("dns_core_configuration_hint") TextRole(Role::Caption)
+                                LocalizedText::plain("dns_core_configuration_hint") TextRole(design_resources::TextRole::Caption)
                             ]
             }),
             Box::new(bsn! {
@@ -263,7 +267,7 @@ pub(crate) fn dns_form_card_scene(
                             }
                             DnsEnhancedModeControl
                             Children [
-                                LocalizedText::plain("dns_mode_label") TextRole(Role::Caption)
+                                LocalizedText::plain("dns_mode_label") TextRole(design_resources::TextRole::Caption)
                                 --
                                 @{ segmented_row_scene(enhanced_pills, palette) }
                             ]
@@ -277,7 +281,7 @@ pub(crate) fn dns_form_card_scene(
                             }
                             DnsFilterModeControl
                             Children [
-                                LocalizedText::plain("dns_filter_label") TextRole(Role::Caption)
+                                LocalizedText::plain("dns_filter_label") TextRole(design_resources::TextRole::Caption)
                                 --
                                 @{ segmented_row_scene(filter_pills, palette) }
                             ]

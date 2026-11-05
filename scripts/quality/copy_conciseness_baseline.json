@@ -1,0 +1,37 @@
+{
+  "version": 2,
+  "entries": [
+    "crates/infiltrator-shared/src/locales_table.rs|conn_drawer_ttfb_time",
+    "crates/infiltrator-shared/src/locales_table.rs|dns_filter_label",
+    "crates/infiltrator-shared/src/locales_table.rs|dns_mode_fakeip",
+    "crates/infiltrator-shared/src/locales_table.rs|dns_mode_label",
+    "crates/infiltrator-shared/src/locales_table.rs|dns_mode_redirhost",
+    "crates/infiltrator-shared/src/locales_table.rs|dns_store_fake_ip",
+    "crates/infiltrator-shared/src/locales_table.rs|system_proxy_missing_port",
+    "crates/infiltrator-shared/src/locales_table_ext.rs|custom_node_ca_fingerprint",
+    "crates/infiltrator-shared/src/locales_table_ext.rs|custom_node_ca_str",
+    "crates/infiltrator-shared/src/locales_table_ext.rs|custom_node_dialer_proxy",
+    "crates/infiltrator-shared/src/locales_table_ext.rs|custom_node_ech_config",
+    "crates/infiltrator-shared/src/locales_table_ext.rs|custom_node_flow",
+    "crates/infiltrator-shared/src/locales_table_ext.rs|custom_node_hy2_ports",
+    "crates/infiltrator-shared/src/locales_table_ext.rs|custom_node_mux_protocol",
+    "crates/infiltrator-shared/src/locales_table_ext.rs|dns_self_heal_listen_port",
+    "crates/infiltrator-shared/src/locales_table_ext.rs|lan_security_allowed",
+    "crates/infiltrator-shared/src/locales_table_ext.rs|lan_security_disallowed",
+    "crates/infiltrator-shared/src/locales_table_ext.rs|lan_security_skip_auth",
+    "crates/infiltrator-shared/src/locales_table_ext.rs|lan_sharing_acl",
+    "crates/infiltrator-shared/src/locales_table_ext.rs|lan_sharing_title",
+    "crates/infiltrator-shared/src/locales_table_ext.rs|script_export_kind_package_json",
+    "crates/infiltrator-shared/src/locales_table_ext.rs|subrules_operator",
+    "crates/infiltrator-shared/src/locales_table_network_zh.rs|dns_field_nameserver",
+    "crates/infiltrator-shared/src/locales_table_surface_zh.rs|proxy_inspection_rtt",
+    "crates/infiltrator-shared/src/locales_table_workflow_zh.rs|dns_geoip_fallback_label",
+    "crates/infiltrator-shared/src/locales_table_workflow_zh.rs|field_filter_protocols",
+    "crates/infiltrator-shared/src/locales_table_workflow_zh.rs|rule_trace_field_network",
+    "crates/infiltrator-shared/src/locales_table_workflow_zh.rs|settings_artifact_integrity_title"
+  ],
+  "long_copy": [
+    "crates/infiltrator-shared/src/locales_table_ext.rs|settings_font_attribution_copy",
+    "crates/infiltrator-shared/src/locales_table_workflow_zh.rs|filter_advanced_ph"
+  ]
+}

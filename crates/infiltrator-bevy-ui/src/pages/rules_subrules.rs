@@ -34,9 +34,10 @@ use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::theme::{radius, space};
+use infiltrator_contract::design_resources;
 use infiltrator_contract::rule_edit::LogicalDraft;
 use infiltrator_domain::rules::{edit, logical};
 use infiltrator_presentation::logical_rule_projection::project_logical_rule;
@@ -152,11 +153,11 @@ pub fn rules_subrules_scene(palette: &UiPalette, state: &RulesSubRuleState) -> i
                                 Children [
                                     @{ icon_tile_scene(IconId::Zap, 24.0, palette) }
                                     --
-                                    LocalizedText::plain("rules_subrule_builder_title") TextRole(Role::BodyStrong)
+                                    LocalizedText::plain("rules_subrule_builder_title") TextRole(design_resources::TextRole::BodyStrong)
                                     --
                                     Text({
                                             display.selection.clone()
-                                    }) SubRuleOperatorSelection TextRole(Role::Caption)
+                                    }) SubRuleOperatorSelection TextRole(design_resources::TextRole::Caption)
                                 ]
                                 --
                                 Node {
@@ -220,9 +221,9 @@ pub fn rules_subrules_scene(palette: &UiPalette, state: &RulesSubRuleState) -> i
                                     column_gap: rem(space::S8),
                                 }
                                 Children [
-                                    Text({display.preview.clone()}) SubRulePreviewLine TextRole(Role::Caption)
+                                    Text({display.preview.clone()}) SubRulePreviewLine TextRole(design_resources::TextRole::Caption)
                                     --
-                                    Text({display.issue.clone()}) SubRuleIssueLine TextRole(Role::Caption)
+                                    Text({display.issue.clone()}) SubRuleIssueLine TextRole(design_resources::TextRole::Caption)
                                 ]
                                 --
                                 Node {
@@ -236,7 +237,7 @@ pub fn rules_subrules_scene(palette: &UiPalette, state: &RulesSubRuleState) -> i
                                 Button
                                 SubRuleInsertButton RuleDraftMutationButton ButtonDisabled(true)
                                 Children [
-                                    LocalizedText::plain("rules_insert_routing_action") TextRole(Role::BodyStrong)
+                                    LocalizedText::plain("rules_insert_routing_action") TextRole(design_resources::TextRole::BodyStrong)
                                 ]
                             ]
             }),
@@ -253,7 +254,7 @@ fn condition_rows_scene(draft: &LogicalDraft, palette: &UiPalette) -> impl Scene
                         padding: UiRect::all(rem(space::S6)),
                     }
                     Children [
-                        LocalizedText::plain("subrules_no_conditions") TextRole(Role::Caption)
+                        LocalizedText::plain("subrules_no_conditions") TextRole(design_resources::TextRole::Caption)
                     ]
         }) as Box<dyn Scene>]
     } else {
@@ -292,7 +293,7 @@ fn condition_row(index: usize, condition: String, _palette: &UiPalette) -> impl 
             ThemeBackgroundColor({ Token::SurfaceElevated })
             SubRuleConditionRow(index)
             Children [
-                Text(label) TextRole(Role::Caption)
+                Text(label) TextRole(design_resources::TextRole::Caption)
                 --
                 Node {
                     min_height: rem(SUBRULE_REMOVE_CONDITION_MIN_HEIGHT_PX),
@@ -305,7 +306,7 @@ fn condition_row(index: usize, condition: String, _palette: &UiPalette) -> impl 
                 Button
                 SubRuleRemoveConditionButton(index)
                 Children [
-                    LocalizedText::plain("aggregator_custom_remove") TextRole(Role::Caption)
+                    LocalizedText::plain("aggregator_custom_remove") TextRole(design_resources::TextRole::Caption)
                 ]
             ]
     }
@@ -334,7 +335,7 @@ fn operator_chip(
             Button
             SubRuleOperatorChip(index)
             Children [
-                Text(operator) TextRole(Role::Caption)
+                Text(operator) TextRole(design_resources::TextRole::Caption)
             ]
     }
 }
@@ -354,7 +355,7 @@ fn preset_button(index: usize, preset: String, _palette: &UiPalette) -> impl Sce
             Children [
                 Text({
                         format!("+ {preset}")
-                }) TextRole(Role::Caption)
+                }) TextRole(design_resources::TextRole::Caption)
             ]
     }
 }

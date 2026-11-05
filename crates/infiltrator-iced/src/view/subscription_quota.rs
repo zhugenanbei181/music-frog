@@ -8,7 +8,7 @@ use crate::view::component_card::card;
 use crate::view::components::{BadgeKind, badge};
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme;
-use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
+use crate::view::theme::tokens;
 use iced::advanced::Renderer;
 use iced::widget::{Space, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
@@ -51,38 +51,26 @@ pub fn subscription_quota_card<'a>(state: &'a AppState, lang: &Lang<'a>) -> Elem
             row![
                 icon_themed(Icon::FileText, 14.0, |t: &Theme| tokens(t).accent),
                 Space::new().width(theme::SP_XS),
-                text(presentation.profile)
-                    .size(13)
-                    .font(FONT_SEMIBOLD)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_primary),
-                    }),
+                theme::role_body_text(presentation.profile).style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_primary),
+                }),
                 Space::new().width(Length::Fill),
                 badge(presentation.status, status_kind(presentation.grade)),
             ]
             .align_y(Alignment::Center),
-            text(presentation.expiry)
-                .size(10)
-                .font(MONO)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_secondary),
-                }),
+            theme::role_body_text(presentation.expiry).style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary),
+            }),
             metrics,
             progress,
             row![
-                text(presentation.metrics)
-                    .size(10)
-                    .font(MONO)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_secondary),
-                    }),
+                theme::role_body_text(presentation.metrics).style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_secondary),
+                }),
                 Space::new().width(Length::Fill),
-                text(presentation.reset)
-                    .size(10)
-                    .font(FONT_MEDIUM)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_tertiary),
-                    }),
+                theme::role_body_text(presentation.reset).style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_tertiary),
+                }),
             ]
             .align_y(Alignment::Center),
         ]
@@ -92,18 +80,12 @@ pub fn subscription_quota_card<'a>(state: &'a AppState, lang: &Lang<'a>) -> Elem
 
 fn metric<'a>(label: String, value: String) -> Element<'a, Message> {
     column![
-        text(label)
-            .size(10)
-            .font(FONT_MEDIUM)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_secondary),
-            }),
-        text(value)
-            .size(12)
-            .font(MONO)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_primary),
-            }),
+        theme::role_body_text(label).style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_secondary),
+        }),
+        theme::role_body_text(value).style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_primary),
+        }),
     ]
     .spacing(2)
     .width(Length::Fill)

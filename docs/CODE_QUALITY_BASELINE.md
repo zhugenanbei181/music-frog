@@ -9,7 +9,9 @@
 - Rust、Kotlin 生产代码、测试、示例和构建辅助源码均按单文件 **800 行**预算执行；不压行、不提高阈值、不加白名单或用源码拼接绕过。
 - 导入使用定义模块；禁止长路径代替导入、命名导入别名、`pub use` 转发和纯类型转发。
 - 外部能力、缺失观测、失败、取消和不支持使用明确类型表达；不得用默认值、空数据或静默 no-op 冒充成功。
-- 文案由 `infiltrator-shared` 统一维护。UI 视图、状态和异步结果均使用共享本地化资源。
+- 文案由 `infiltrator-contract::shared_copy` 定义 key，`infiltrator-shared` 与产品 `.po`/Android `strings.xml` 统一维护描述。所有 UI 视图、状态和异步结果强制经共享本地化资源解析；禁止 UI 自带第二份用户可见文案。
+- 字体、字重与图标按 [跨表面设计资源强制标准](DESIGN_RESOURCE_STANDARD.md) 执行：`infiltrator_contract::design_resources` 为唯一 typed 权威，`design-authority.json` 为唯一导出真源；字重闭集 400/500/600 且必须对应随包物理面；Tier A 图标只解析 canonical Lucide SVG；`design-resource-authority.py` 是结构门判据，禁止手写生成物、第二套图标族、合成假粗或未登记平台分叉。
+- 文案言简意赅：一种语言只把同一事实写一次；中文条目不重复夹注英文译名，英文拼写留在英文表。括号只用于必要的配置字段、单位或协议标识；`shared-copy-guard.py` 的棘轮台账禁止新增堆字。
 - 所有多阶段操作都必须以一个显式 enum/sealed 状态表达互斥状态和合法迁移，并由穷尽匹配或纯 reducer 转移。未观测、进行中、取消、超时、成功、失败、过期、待清理等必须使用各自的 typed variant；禁止用多个 bool/Option 组合藏出隐式状态机、用 action 字符串表示命令，或用 bool 参数/返回值表示请求种类、准入和操作结果。
 - `bool` 只表示真实二值事实（例如配置开关）或只用于呈现的派生投影；派生投影不得授权副作用。`Option`/nullable 只表示单一、明确的可选数据，不能同时代表未读、失败、不支持、未确认等状态。操作阶段转移不得依靠散布的 `if/else` 和早退标志；输入校验、范围检查等局部条件仍可使用条件分支。
 - 已完成切片的精确退役 public symbol 与 CLI surface 登记于 `scripts/quality/retired-surfaces.json`，由结构门扫描生产入口与权威产品文档，并要求每项指向替代行为测试；历史 TODO 与归档不作为产品接口，但也不能被误用作当前状态。登记项的作用域只能指向仓库跟踪（git tracked）的权威源码；生成物与 gitignore 的构建产物不构成产品表面，禁止作为作用域。

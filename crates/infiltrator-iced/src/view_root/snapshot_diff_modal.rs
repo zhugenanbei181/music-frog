@@ -15,7 +15,7 @@ use crate::view::components::{
     BadgeKind, badge, icon_button, modern_scrollable, segmented_control,
 };
 use crate::view::svg_icons::Icon;
-use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
+use crate::view::theme::tokens;
 use crate::view::{svg_icons, theme};
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Space, button, column, container, row, text};
@@ -30,12 +30,11 @@ pub fn snapshot_diff_modal<'a>(state: &'a AppState, snapshot_id: &str) -> Elemen
     let title_row = row![
         svg_icons::icon_themed(Icon::FileText, 18.0, |t: &Theme| tokens(t).accent),
         Space::new().width(theme::SP_SM),
-        text(lang.tr("snapshot_diff_title").to_string())
-            .size(15)
-            .font(FONT_SEMIBOLD)
-            .style(|t: &Theme| text::Style {
+        theme::role_body_text(lang.tr("snapshot_diff_title").to_string()).style(|t: &Theme| {
+            text::Style {
                 color: Some(tokens(t).text_primary),
-            }),
+            }
+        }),
         Space::new().width(theme::SP_SM),
         badge(snapshot_id.to_string(), BadgeKind::Neutral),
         Space::new().width(Length::Fill),
@@ -46,11 +45,10 @@ pub fn snapshot_diff_modal<'a>(state: &'a AppState, snapshot_id: &str) -> Elemen
     // DUAL-09-14: when the shared diff is loaded, the subtitle names the same
     // source → target pair the Bevy card renders; before that it falls back to
     // the requested snapshot id.
-    let subtitle = text(snapshot_presentation::diff_summary(
+    let subtitle = theme::role_body_text(snapshot_presentation::diff_summary(
         state.editor.snapshot_diff_modal.diff(),
         &Lang(&state.shell.lang),
     ))
-    .size(12)
     .style(|t: &Theme| text::Style {
         color: Some(tokens(t).text_secondary),
     });
@@ -92,12 +90,11 @@ pub fn snapshot_diff_modal<'a>(state: &'a AppState, snapshot_id: &str) -> Elemen
                 },
             ),
             Space::new().width(theme::SP_SM),
-            text(diff.fidelity_grade.as_str().to_string())
-                .size(11)
-                .font(MONO)
-                .style(|t: &Theme| text::Style {
+            theme::role_body_text(diff.fidelity_grade.as_str().to_string()).style(|t: &Theme| {
+                text::Style {
                     color: Some(tokens(t).text_secondary),
-                }),
+                }
+            }),
         ]
         .align_y(Alignment::Center)
     });
@@ -124,9 +121,7 @@ pub fn snapshot_diff_modal<'a>(state: &'a AppState, snapshot_id: &str) -> Elemen
         row![
             svg_icons::icon_themed(Icon::RefreshCw, 12.0, |t: &Theme| tokens(t).text_secondary),
             Space::new().width(theme::SP_XS),
-            text(lang.tr("snapshot_diff_refresh").to_string())
-                .size(12)
-                .font(FONT_MEDIUM),
+            theme::role_body_text(lang.tr("snapshot_diff_refresh").to_string()),
         ]
         .align_y(Alignment::Center),
     )
@@ -159,14 +154,14 @@ pub fn snapshot_diff_modal<'a>(state: &'a AppState, snapshot_id: &str) -> Elemen
 
     let target_id = snapshot_id.to_string();
     let rollback_controls: Element<'a, Message> =
-        button(text(lang.tr("snapshot_diff_rollback_btn")).size(12))
+        button(theme::role_body_text(lang.tr("snapshot_diff_rollback_btn")))
             .padding([6, 16])
             .style(style_accent)
             .on_press(Message::RollbackToSnapshot(target_id))
             .into();
 
     let actions = row![
-        button(text(lang.tr("btn_cancel").to_string()).size(12))
+        button(theme::role_body_text(lang.tr("btn_cancel").to_string()))
             .padding([6, 14])
             .style(style_ghost)
             .on_press(Message::CloseSnapshotDiff),
@@ -231,8 +226,7 @@ pub fn snapshot_diff_modal<'a>(state: &'a AppState, snapshot_id: &str) -> Elemen
 }
 
 fn message_block<'a>(message: String, color: fn(&Theme) -> Color) -> Element<'a, Message> {
-    text(message)
-        .size(12)
+    theme::role_body_text(message)
         .style(move |t: &Theme| text::Style {
             color: Some(color(t)),
         })
@@ -285,19 +279,15 @@ fn color_or_secondary(t: &Theme, kind: DiffKind) -> Color {
 
 fn unified_row(line: &DiffLine) -> Element<'_, Message> {
     row![
-        text(line_number_label(line))
-            .size(10)
-            .font(MONO)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_tertiary),
-            }),
+        theme::role_body_text(line_number_label(line)).style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_tertiary),
+        }),
         Space::new().width(theme::SP_XS),
-        text(format!("{}{}", line.kind.symbol(), line.content))
-            .size(11)
-            .font(MONO)
-            .style(move |t: &Theme| text::Style {
+        theme::role_body_text(format!("{}{}", line.kind.symbol(), line.content)).style(
+            move |t: &Theme| text::Style {
                 color: Some(color_or_secondary(t, line.kind)),
-            }),
+            }
+        ),
     ]
     .align_y(Alignment::Center)
     .into()
@@ -305,22 +295,18 @@ fn unified_row(line: &DiffLine) -> Element<'_, Message> {
 
 fn split_side<'a>(line: Option<&'a DiffLine>) -> Element<'a, Message> {
     let Some(line) = line else {
-        return text("").into();
+        return theme::role_body_text("").into();
     };
     row![
-        text(line_number_label(line))
-            .size(10)
-            .font(MONO)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_tertiary),
-            }),
+        theme::role_body_text(line_number_label(line)).style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_tertiary),
+        }),
         Space::new().width(theme::SP_XS),
-        text(format!("{}{}", line.kind.symbol(), line.content))
-            .size(11)
-            .font(MONO)
-            .style(move |t: &Theme| text::Style {
+        theme::role_body_text(format!("{}{}", line.kind.symbol(), line.content)).style(
+            move |t: &Theme| text::Style {
                 color: Some(color_or_secondary(t, line.kind)),
-            }),
+            }
+        ),
     ]
     .align_y(Alignment::Center)
     .into()

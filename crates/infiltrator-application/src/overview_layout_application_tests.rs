@@ -9,11 +9,11 @@ use super::*;
 #[test]
 fn a_move_applies_the_swap_against_the_owner_and_reads_the_order_back() {
     let owner = OverviewLayoutApplication::new();
-    let mutation = owner.move_card(OverviewCardKind::Traffic, OverviewCardMoveDirection::Up);
+    let mutation = owner.move_card(OverviewCardKind::Metrics, OverviewCardMoveDirection::Up);
 
     let order = &mutation.snapshot().order;
-    assert_eq!(order[0], OverviewCardKind::Traffic);
-    assert_eq!(order[1], OverviewCardKind::RoutingIntentSegment);
+    assert_eq!(order[0], OverviewCardKind::Metrics);
+    assert_eq!(order[1], OverviewCardKind::Traffic);
     assert!(mutation.snapshot().is_customized);
     assert_eq!(mutation.revision(), 1);
     // The owner's own state really changed.
@@ -24,10 +24,7 @@ fn a_move_applies_the_swap_against_the_owner_and_reads_the_order_back() {
 #[test]
 fn a_move_of_the_first_or_last_card_does_not_move_the_state() {
     let owner = OverviewLayoutApplication::new();
-    let mutation = owner.move_card(
-        OverviewCardKind::RoutingIntentSegment,
-        OverviewCardMoveDirection::Up,
-    );
+    let mutation = owner.move_card(OverviewCardKind::Traffic, OverviewCardMoveDirection::Up);
 
     assert!(matches!(mutation, OverviewLayoutMutation::Unchanged { .. }));
     assert_eq!(owner.revision(), 0);
@@ -55,6 +52,23 @@ fn an_order_that_repeats_a_card_is_refused_with_a_typed_failure() {
 }
 
 #[test]
+fn an_order_that_names_a_sidebar_control_is_refused_with_a_typed_failure() {
+    let owner = OverviewLayoutApplication::new();
+    let failure = owner
+        .reorder(vec![
+            OverviewCardKind::Traffic,
+            OverviewCardKind::MasterSwitches,
+        ])
+        .expect_err("a sidebar control is not an Overview card");
+
+    assert_eq!(failure.code, ErrorCode::InvalidInput);
+    assert_eq!(
+        owner.snapshot().order,
+        OverviewCardKind::DEFAULT_ORDER.to_vec()
+    );
+}
+
+#[test]
 fn an_order_that_names_no_card_is_refused_with_a_typed_failure() {
     let owner = OverviewLayoutApplication::new();
     let failure = owner
@@ -72,14 +86,12 @@ fn an_order_that_names_no_card_is_refused_with_a_typed_failure() {
 fn a_stale_observation_cannot_move_the_owner_state() {
     let owner = OverviewLayoutApplication::new();
     let observed = owner.revision();
-    owner.move_card(OverviewCardKind::Traffic, OverviewCardMoveDirection::Up);
+    owner.move_card(OverviewCardKind::Metrics, OverviewCardMoveDirection::Up);
 
     let stale_order = vec![
         OverviewCardKind::Quota,
-        OverviewCardKind::RoutingIntentSegment,
         OverviewCardKind::Traffic,
         OverviewCardKind::Metrics,
-        OverviewCardKind::MasterSwitches,
         OverviewCardKind::ActiveExit,
         OverviewCardKind::PublicIp,
         OverviewCardKind::Topology,
@@ -91,7 +103,7 @@ fn a_stale_observation_cannot_move_the_owner_state() {
     assert_eq!(failure.code, ErrorCode::NotReady);
     assert!(failure.retryable);
     // The stale answer did not move the owner's state.
-    assert_eq!(owner.snapshot().order[0], OverviewCardKind::Traffic);
+    assert_eq!(owner.snapshot().order[0], OverviewCardKind::Metrics);
     assert_eq!(owner.revision(), 1);
 }
 
@@ -112,7 +124,7 @@ fn a_fresh_observation_applies_the_new_order() {
 #[test]
 fn the_reset_restores_the_canonical_order() {
     let owner = OverviewLayoutApplication::new();
-    owner.move_card(OverviewCardKind::Traffic, OverviewCardMoveDirection::Up);
+    owner.move_card(OverviewCardKind::Metrics, OverviewCardMoveDirection::Up);
     let mutation = owner.reset();
 
     assert_eq!(

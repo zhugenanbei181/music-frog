@@ -22,9 +22,10 @@ use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::interaction_block::InteractionBlocked;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::{UiPalette, rem};
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::yaml_ast_diff::{DiffKind, YamlAstDiffSnapshot};
 use infiltrator_presentation::snapshot_restore_projection::project_restore;
 use infiltrator_shared::locales::Lang;
@@ -142,10 +143,10 @@ fn diff_row_scene(
         RestoreDiffRow
         Children [
             Node { flex_grow: 1.0, min_width: px(0.0) }
-            Children [ Text(left) TextRole(Role::Mono) TextColor(left_color) ]
+            Children [ Text(left) TextRole(design_resources::TextRole::Mono) TextColor(left_color) ]
             --
             Node { flex_grow: 1.0, min_width: px(0.0) }
-            Children [ Text(right) TextRole(Role::Mono) TextColor(right_color) ]
+            Children [ Text(right) TextRole(design_resources::TextRole::Mono) TextColor(right_color) ]
         ]
     }
 }

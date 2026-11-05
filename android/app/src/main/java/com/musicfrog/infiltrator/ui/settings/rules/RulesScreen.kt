@@ -6,8 +6,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -28,6 +26,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.musicfrog.infiltrator.R
+import com.musicfrog.infiltrator.ui.common.AppIcon
+import com.musicfrog.infiltrator.ui.common.AppIconSemantic
 import com.musicfrog.infiltrator.ui.common.ErrorDialog
 import com.musicfrog.infiltrator.ui.common.StandardListItem
 import com.musicfrog.infiltrator.ui.common.toLocalizedFailure
@@ -164,7 +164,7 @@ internal fun RulesScreen(viewModel: RulesViewModel = viewModel()) {
                                 enabled = state.activity == RulesActivity.Interactive,
                             ) {
                                 Icon(
-                                    Icons.Outlined.Delete,
+                                    AppIcon.image(AppIconSemantic.Delete),
                                     contentDescription = stringResource(R.string.action_remove),
                                 )
                             }

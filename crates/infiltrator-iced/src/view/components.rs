@@ -9,15 +9,14 @@ use crate::types::message::Message;
 use crate::view::component_card::card;
 use crate::view::svg_icons::Icon;
 use crate::view::theme::{Elevation, Tokens, skins};
-use crate::view::{svg_icons, theme};
+use crate::view::{scrollbar, svg_icons, theme};
 use canvas::gradient::Linear;
 use iced::advanced::text::Renderer;
-use iced::widget::{
-    Scrollable, Space, button, canvas, column, container, row, scrollable, text, toggler,
-};
+use iced::widget::{Scrollable, Space, button, canvas, column, container, row, text, toggler};
 use iced::{
     Border, Color, Element, Length, Point, Rectangle, Shadow, Theme, Vector, border, mouse,
 };
+use infiltrator_contract::design_resources::TextRole;
 use infiltrator_contract::scrollbar::ScrollbarMetrics;
 use zhuge_ui_kit_iced::surface::{self, BadgeGeometry, SurfaceGeometry, rgba, surface_style};
 use zhuge_ui_tokens::surface::SurfaceColors;
@@ -36,18 +35,7 @@ pub const SCROLLBAR_GUTTER: f32 = ScrollbarMetrics::DEFAULT.content_gutter_px;
 // ---------------------------------------------------------------------------
 
 pub fn modern_scrollable<'a, T: 'a>(content: impl Into<Element<'a, T>>) -> Scrollable<'a, T> {
-    let metrics = ScrollbarMetrics::DEFAULT;
-    let safe_content = container(content).padding(iced::Padding {
-        top: 0.0,
-        right: metrics.content_gutter_px,
-        bottom: 0.0,
-        left: 0.0,
-    });
-    scrollable(safe_content).direction(scrollable::Direction::Vertical(
-        scrollable::Scrollbar::new()
-            .width(metrics.track_width_px)
-            .margin(metrics.thumb_margin_px),
-    ))
+    scrollbar::modern_scrollable(content)
 }
 
 // ---------------------------------------------------------------------------
@@ -179,12 +167,9 @@ pub fn dual_shadow_card<'a, Message: 'a>(
     let content = content.into();
     let body = match title {
         Some(title) => {
-            let header = text(title)
-                .size(14)
-                .font(theme::FONT_SEMIBOLD)
-                .style(|t: &Theme| text::Style {
-                    color: Some(theme::tokens(t).text_primary),
-                });
+            let header = theme::role_body_text(title).style(|t: &Theme| text::Style {
+                color: Some(theme::tokens(t).text_primary),
+            });
             column![header, content]
                 .spacing(theme::SP_MD)
                 .width(Length::Fill)
@@ -269,18 +254,12 @@ pub fn stat_card<'a, Message: 'a>(
         });
 
     let texts = column![
-        text(label.to_string())
-            .size(11)
-            .font(theme::FONT_MEDIUM)
-            .style(|t: &Theme| text::Style {
-                color: Some(theme::tokens(t).text_secondary),
-            }),
-        text(value.to_string())
-            .size(18)
-            .font(theme::FONT_SEMIBOLD)
-            .style(|t: &Theme| text::Style {
-                color: Some(theme::tokens(t).text_primary),
-            }),
+        theme::role_body_text(label.to_string()).style(|t: &Theme| text::Style {
+            color: Some(theme::tokens(t).text_secondary),
+        }),
+        theme::role_body_text(value.to_string()).style(|t: &Theme| text::Style {
+            color: Some(theme::tokens(t).text_primary),
+        }),
     ]
     .spacing(2);
 
@@ -312,12 +291,9 @@ pub fn section_header<'a, Message: 'a>(
     title: &str,
     trailing: Option<Element<'a, Message>>,
 ) -> Element<'a, Message> {
-    let title = text(title.to_string())
-        .size(13)
-        .font(theme::FONT_SEMIBOLD)
-        .style(|t: &Theme| text::Style {
-            color: Some(theme::tokens(t).text_secondary),
-        });
+    let title = theme::role_body_text(title.to_string()).style(|t: &Theme| text::Style {
+        color: Some(theme::tokens(t).text_secondary),
+    });
 
     row![
         title,
@@ -333,17 +309,12 @@ pub fn section_header<'a, Message: 'a>(
 pub fn empty_state<'a, Message: 'a>(icon: Icon, title: &str, hint: &str) -> Element<'a, Message> {
     column![
         svg_icons::icon_themed(icon, 36.0, |t: &Theme| theme::tokens(t).text_tertiary),
-        text(title.to_string())
-            .size(14)
-            .font(theme::FONT_SEMIBOLD)
-            .style(|t: &Theme| text::Style {
-                color: Some(theme::tokens(t).text_secondary),
-            }),
-        text(hint.to_string())
-            .size(12)
-            .style(|t: &Theme| text::Style {
-                color: Some(theme::tokens(t).text_tertiary),
-            }),
+        theme::role_body_text(title.to_string()).style(|t: &Theme| text::Style {
+            color: Some(theme::tokens(t).text_secondary),
+        }),
+        theme::role_body_text(hint.to_string()).style(|t: &Theme| text::Style {
+            color: Some(theme::tokens(t).text_tertiary),
+        }),
     ]
     .spacing(theme::SP_SM)
     .align_x(iced::Alignment::Center)
@@ -472,7 +443,7 @@ pub fn badge<'a, Message: 'a>(label: impl Into<String>, kind: BadgeKind) -> Elem
         label,
         BadgeGeometry {
             size: 11.0,
-            font: Some(theme::FONT_SEMIBOLD),
+            font: Some(theme::font_for(TextRole::LabelStrong)),
             padding: [3.0, 8.0].into(),
             height: Length::Shrink,
             centered: false,
@@ -496,7 +467,7 @@ pub fn badge<'a, Message: 'a>(label: impl Into<String>, kind: BadgeKind) -> Elem
 
 /// Neutral pill for protocol/type tags ("Shadowsocks", "VMess", ...).
 pub fn chip<'a, Message: 'a>(label: impl Into<String>) -> Element<'a, Message> {
-    container(text(label.into()).size(11).font(theme::FONT_MEDIUM))
+    container(theme::role_body_text(label.into()))
         .padding([3, 10])
         .style(|t: &Theme| {
             let tk = theme::tokens(t);
@@ -517,12 +488,9 @@ pub fn chip<'a, Message: 'a>(label: impl Into<String>) -> Element<'a, Message> {
 /// 10px monospace font, and background tint.
 pub fn kbd_badge<'a, Message: 'a>(key: impl Into<String>) -> Element<'a, Message> {
     container(
-        text(key.into())
-            .size(10)
-            .font(theme::MONO)
-            .style(|t: &Theme| text::Style {
-                color: Some(theme::tokens(t).text_secondary),
-            }),
+        theme::role_body_text(key.into()).style(|t: &Theme| text::Style {
+            color: Some(theme::tokens(t).text_secondary),
+        }),
     )
     .padding([2, 6])
     .style(|t: &Theme| {
@@ -681,12 +649,11 @@ pub fn segmented_control_with_actions<'a, Message: 'a + Clone>(
         .enumerate()
         .map(|(index, option)| {
             let is_active = index == selected;
-            let label = text(option.clone())
-                .size(12)
+            let label = theme::role_body_text(option.clone())
                 .font(if is_active {
-                    theme::FONT_SEMIBOLD
+                    theme::font_for(TextRole::LabelStrong)
                 } else {
-                    theme::FONT_MEDIUM
+                    theme::font_for(TextRole::Label)
                 })
                 .style(move |t: &Theme| text::Style {
                     color: Some(if is_active {
@@ -811,10 +778,10 @@ pub fn nav_button<'a>(label: String, route: Route, current_route: &Route) -> Ele
         }
     });
 
-    let label_text = text(label).size(14).font(if is_active {
-        theme::FONT_SEMIBOLD
+    let label_text = theme::role_body_text(label).font(if is_active {
+        theme::font_for(TextRole::LabelStrong)
     } else {
-        theme::FONT_MEDIUM
+        theme::font_for(TextRole::Label)
     });
     let content = container(
         row![indicator, glyph, label_text]

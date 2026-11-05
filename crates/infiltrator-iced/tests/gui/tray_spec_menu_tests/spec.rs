@@ -73,11 +73,7 @@ fn spec_layout_mirrors_the_full_feature_menu() {
     assert_eq!(items[4], TrayMenuItem::Separator);
     assert_eq!(
         items[5],
-        TrayMenuItem::checkmark(
-            TRAY_ACTION_TOGGLE_SYSTEM_PROXY,
-            "系统代理 (System Proxy)",
-            false
-        )
+        TrayMenuItem::checkmark(TRAY_ACTION_TOGGLE_SYSTEM_PROXY, "系统代理", false)
     );
     assert_eq!(
         items[6],

@@ -55,5 +55,6 @@ Core-first 顺序同样是硬门：先完成所有可独立于 UI 推进的底�
 - UI 与平台规则分别见 [共享 UI 契约](crates/infiltrator-contract/docs/README.md)、[Bevy 文档](crates/infiltrator-bevy-ui/docs/README.md) 和 [Android 文档](android/docs/README.md)。**Bevy UI 新代码必须先读并遵守 [Bevy 0.20 UI 能力规范](crates/infiltrator-bevy-ui/docs/BEVY_020_UI_CAPABILITIES.md)**：rem/em 尺寸随 `RemSize` 缩放、`ThemeContext` 两段式主题、官方 headless 控件优先（TabList/Dialog/Popover/Menu）、`FixedNode` 悬浮层、`InlineBox` 行内内容、`bsn_list!`/`Ready`/`despawn_all`。
 - 不支持标为 `unsupported`；没有对应证据不写“已验证”。代码规则与验证入口见 [质量底线](docs/CODE_QUALITY_BASELINE.md) 和 [TESTING.md](TESTING.md)。
 
+- **跨表面设计资源强制标准（2026-11-04 起强制）：** 字体、字重、图标与视觉资产必须按 [设计资源强制标准](docs/DESIGN_RESOURCE_STANDARD.md) 落地：`infiltrator_contract::design_resources` 是唯一 typed 权威，`design-authority.json` 是唯一导出真源，`infiltrator_shared::effect_assets::FontFace` 是唯一字体字节 owner，canonical Lucide SVG 是 Tier A 唯一图标源。字重只允许随包物理面 400/500/600，禁止合成假粗、700/Bold、跨 crate 相对字体路径、第二套图标族与未登记的平台分叉；Kotlin/Slint 适配物只能由生成器写入，`design-resource-authority.py` 必须在结构门与 CI 通过。任何身份变化必须有双视口真实像素回执，缺回执只能写「部分」。求同存异以 `PLATFORM_NATIVE_ICONS` 显式理由为准，不得在 UI 层自行推导。
 - 修改 Iced/Bevy 通用组件前，先读 [跨产品共享包契约](docs/SHARED_UI_PACKAGES.md)：
   优先扩展共享 owner，保留必要差异，检查其他消费者和版本兼容性。

@@ -179,20 +179,13 @@ fn overview_card_order_follows_shared_layout_moves() {
     );
 
     // Move the first card down: it swaps with the second card.
-    let moved = state.update(Message::MoveOverviewCardDown(
-        OverviewCardKind::RoutingIntentSegment,
-    ));
+    let moved = state.update(Message::MoveOverviewCardDown(OverviewCardKind::Traffic));
     drain_surface_task(&mut state, moved, AppState::update);
-    assert_eq!(state.diag.overview_card_order[0], OverviewCardKind::Traffic);
-    assert_eq!(
-        state.diag.overview_card_order[1],
-        OverviewCardKind::RoutingIntentSegment
-    );
+    assert_eq!(state.diag.overview_card_order[0], OverviewCardKind::Metrics);
+    assert_eq!(state.diag.overview_card_order[1], OverviewCardKind::Traffic);
 
     // Move it back up restores the canonical order.
-    let moved = state.update(Message::MoveOverviewCardUp(
-        OverviewCardKind::RoutingIntentSegment,
-    ));
+    let moved = state.update(Message::MoveOverviewCardUp(OverviewCardKind::Traffic));
     drain_surface_task(&mut state, moved, AppState::update);
     assert_eq!(
         state.diag.overview_card_order,
@@ -200,14 +193,9 @@ fn overview_card_order_follows_shared_layout_moves() {
     );
 
     // Moving the top card up is a no-op (already first).
-    let moved = state.update(Message::MoveOverviewCardUp(
-        OverviewCardKind::RoutingIntentSegment,
-    ));
+    let moved = state.update(Message::MoveOverviewCardUp(OverviewCardKind::Traffic));
     drain_surface_task(&mut state, moved, AppState::update);
-    assert_eq!(
-        state.diag.overview_card_order[0],
-        OverviewCardKind::RoutingIntentSegment
-    );
+    assert_eq!(state.diag.overview_card_order[0], OverviewCardKind::Traffic);
 
     // After a custom order, reset restores the default.
     let moved = state.update(Message::MoveOverviewCardUp(OverviewCardKind::Quota));

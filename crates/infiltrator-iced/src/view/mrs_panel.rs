@@ -13,7 +13,7 @@ use crate::view::component_forms::{row_card_surface, style_ghost};
 use crate::view::components::{BadgeKind, badge, chip};
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme;
-use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
+use crate::view::theme::tokens;
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_contract::rule_provider_snapshot::RuleProviderSnapshot;
@@ -50,12 +50,9 @@ pub fn format_rule_count(count: impl Display) -> String {
 }
 
 fn meta_text(value: String) -> text::Text<'static> {
-    text(value)
-        .size(11)
-        .font(MONO)
-        .style(|t: &Theme| text::Style {
-            color: Some(tokens(t).text_secondary),
-        })
+    theme::role_body_text(value).style(|t: &Theme| text::Style {
+        color: Some(tokens(t).text_secondary),
+    })
 }
 
 fn detail_row<'a>(
@@ -87,12 +84,9 @@ fn detail_row<'a>(
     };
 
     let badge_row = row![
-        text(detail.name.clone())
-            .size(13)
-            .font(FONT_SEMIBOLD)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_primary),
-            }),
+        theme::role_body_text(detail.name.clone()).style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_primary),
+        }),
         Space::new().width(theme::SP_SM),
         count_badge,
         Space::new().width(theme::SP_SM),
@@ -122,9 +116,7 @@ fn detail_row<'a>(
         row![
             icon_themed(Icon::Zap, 12.0, |t: &Theme| tokens(t).text_secondary),
             Space::new().width(4.0),
-            text(lang.tr("provider_unpack_action").into_owned())
-                .size(11)
-                .font(FONT_MEDIUM),
+            theme::role_body_text(lang.tr("provider_unpack_action").into_owned()),
         ]
         .align_y(Alignment::Center),
     )
@@ -136,9 +128,7 @@ fn detail_row<'a>(
         row![
             icon_themed(Icon::RefreshCw, 12.0, |t: &Theme| tokens(t).text_secondary),
             Space::new().width(4.0),
-            text(lang.tr("btn_update").to_string())
-                .size(11)
-                .font(FONT_MEDIUM),
+            theme::role_body_text(lang.tr("btn_update").to_string()),
         ]
         .align_y(Alignment::Center),
     )
@@ -198,11 +188,11 @@ pub fn mrs_card(state: &AppState) -> Option<Element<'_, Message>> {
     let mut body = column![].spacing(theme::SP_SM);
     if state.editor.mrs_scan_phase.is_scanning() {
         body = body.push(
-            text(lang.tr("mrs_scanning").to_string())
-                .size(11)
-                .style(|t: &Theme| text::Style {
+            theme::role_body_text(lang.tr("mrs_scanning").to_string()).style(|t: &Theme| {
+                text::Style {
                     color: Some(tokens(t).text_tertiary),
-                }),
+                }
+            }),
         );
     }
     let rp_map: HashMap<&str, &RuleProviderSnapshot> = state
@@ -229,11 +219,9 @@ pub fn mrs_acceleration_card(state: &AppState) -> Element<'_, Message> {
         column![meta_text(mrs_acceleration_status_line(&lang, mrs))].spacing(theme::SP_XS);
     for item in &mrs.items {
         body = body.push(
-            container(
-                text(mrs_acceleration_item_label(&lang, item))
-                    .size(11)
-                    .font(MONO),
-            )
+            container(theme::role_body_text(mrs_acceleration_item_label(
+                &lang, item,
+            )))
             .padding([6, 10])
             .width(Length::Fill)
             .style(row_card_surface),

@@ -63,7 +63,7 @@ fn native_routing_copy_matches_domain_policy_and_keeps_raw_identity_and_command_
                     if language == "en-US" {
                         "Proxy".into()
                     } else {
-                        "代理 (Proxy)".into()
+                        "代理".into()
                     }
                 }
             };

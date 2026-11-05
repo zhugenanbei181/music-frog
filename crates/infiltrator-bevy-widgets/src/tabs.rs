@@ -14,7 +14,7 @@
 use crate::feathers_theme::Token;
 use crate::palette::UiPalette;
 use crate::palette::rem;
-use crate::text::{Role, TextRole};
+use crate::text::TextRole;
 use crate::theme::space;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
@@ -33,6 +33,7 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{ControlOrientation, SelectedTab, Tab, TabActivation, TabList};
+use infiltrator_contract::design_resources;
 
 /// Pure geometry: percentage metrics `(left_percent, width_percent)` for the
 /// sliding capsule indicator. Pure function — headless-testable.
@@ -115,7 +116,7 @@ pub fn segmented_control_scene(
         .into_iter()
         .map(|title| {
             Box::new(bsn! {
-                Text(title) TextRole(Role::Caption) SegmentedTabLabel
+                Text(title) TextRole(design_resources::TextRole::Caption) SegmentedTabLabel
             }) as Box<dyn Scene>
         })
         .collect();
@@ -246,7 +247,7 @@ pub fn tabs_scene(
                 SegmentedTab(idx)
                 Children [
                     Text(title)
-                    TextRole(Role::Body)
+                    TextRole(design_resources::TextRole::Body)
                     SegmentedTabLabel
                 ]
             }) as Box<dyn Scene>

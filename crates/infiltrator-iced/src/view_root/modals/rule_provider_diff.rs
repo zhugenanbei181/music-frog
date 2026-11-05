@@ -5,11 +5,11 @@ use crate::state::AppState;
 use crate::types::message::Message;
 use crate::view::component_forms::{style_accent, style_ghost};
 use crate::view::components::{BadgeKind, badge, chip};
+use crate::view::scrollbar::auto_hide_scrollable;
 use crate::view::svg_icons::{Icon, icon_themed};
-use crate::view::theme::{
-    FONT_MEDIUM, FONT_SEMIBOLD, HAIRLINE, MONO, R_CHIP, R_CONTROL, SP_MD, SP_SM, SP_XS, tokens,
-};
-use iced::widget::{Space, button, column, container, row, scrollable, text};
+use crate::view::theme;
+use crate::view::theme::{HAIRLINE, R_CHIP, R_CONTROL, SP_MD, SP_SM, SP_XS, tokens};
+use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_domain::rules::RuleProviderDiff;
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -47,26 +47,27 @@ pub fn rule_provider_diff_modal<'a>(
     .align_y(Alignment::Center);
 
     if diff.added_rules.is_empty() && diff.removed_rules.is_empty() {
-        diff_items =
-            diff_items.push(
-                container(text(lang.tr("modal_no_diff").to_string()).size(12).style(
-                    |t: &Theme| text::Style {
+        diff_items = diff_items.push(
+            container(
+                theme::role_body_text(lang.tr("modal_no_diff").to_string()).style(|t: &Theme| {
+                    text::Style {
                         color: Some(tokens(t).text_secondary),
-                    },
-                ))
-                .padding([12, 16]),
-            );
+                    }
+                }),
+            )
+            .padding([12, 16]),
+        );
     } else {
         for added in &diff.added_rules {
             let row_item = row![
-                badge("+ Add", BadgeKind::Success),
+                badge(
+                    format!("+ {}", lang.tr("rule_diff_added")),
+                    BadgeKind::Success
+                ),
                 Space::new().width(SP_SM),
-                text(added.clone())
-                    .size(11)
-                    .font(MONO)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_primary),
-                    }),
+                theme::role_body_text(added.clone()).style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_primary),
+                }),
             ]
             .align_y(Alignment::Center);
 
@@ -93,14 +94,14 @@ pub fn rule_provider_diff_modal<'a>(
         }
         for removed in &diff.removed_rules {
             let row_item = row![
-                badge("- Del", BadgeKind::Danger),
+                badge(
+                    format!("- {}", lang.tr("rule_diff_removed")),
+                    BadgeKind::Danger
+                ),
                 Space::new().width(SP_SM),
-                text(removed.clone())
-                    .size(11)
-                    .font(MONO)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_primary),
-                    }),
+                theme::role_body_text(removed.clone()).style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_primary),
+                }),
             ]
             .align_y(Alignment::Center);
 
@@ -127,21 +128,15 @@ pub fn rule_provider_diff_modal<'a>(
         }
     }
 
-    let diff_scrollable = scrollable(diff_items)
-        .height(Length::Fixed(240.0))
-        .direction(scrollable::Direction::Vertical(
-            scrollable::Scrollbar::new().width(4).margin(2),
-        ));
+    let diff_scrollable = auto_hide_scrollable(diff_items).height(Length::Fixed(240.0));
 
     let provider_name = diff.provider_name.clone();
     let header = row![
-        text(format!(
+        theme::role_body_text(format!(
             "{} · {}",
             lang.tr("modal_diff_title"),
             diff.provider_name
         ))
-        .size(16)
-        .font(FONT_SEMIBOLD)
         .style(|t: &Theme| text::Style {
             color: Some(tokens(t).text_primary),
         }),
@@ -154,20 +149,14 @@ pub fn rule_provider_diff_modal<'a>(
     .align_y(Alignment::Center);
 
     let actions = row![
-        button(
-            text(lang.tr("modal_close").to_string())
-                .size(12)
-                .font(FONT_MEDIUM)
-        )
-        .padding([7, 14])
-        .style(style_ghost)
-        .on_press(Message::InspectRuleProviderDiff(None)),
+        button(theme::role_body_text(lang.tr("modal_close").to_string()))
+            .padding([7, 14])
+            .style(style_ghost)
+            .on_press(Message::InspectRuleProviderDiff(None)),
         Space::new().width(Length::Fill),
-        button(
-            text(lang.tr("modal_unpack_rules").to_string())
-                .size(12)
-                .font(FONT_MEDIUM)
-        )
+        button(theme::role_body_text(
+            lang.tr("modal_unpack_rules").to_string()
+        ))
         .padding([7, 16])
         .style(style_accent)
         .on_press(Message::UnpackRuleProvider(provider_name)),

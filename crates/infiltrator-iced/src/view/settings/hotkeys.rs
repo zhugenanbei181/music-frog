@@ -6,8 +6,7 @@ use crate::types::message::Message;
 use crate::view::component_card::card;
 use crate::view::component_forms::{style_accent, style_ghost};
 use crate::view::theme;
-use crate::view::theme::{FONT_SEMIBOLD, MONO};
-use iced::widget::{Space, button, column, row, text};
+use iced::widget::{Space, button, column, row};
 use iced::{Alignment, Element, Length};
 use infiltrator_shared::locales::{Lang, Localizer};
 
@@ -30,7 +29,7 @@ pub(super) fn hotkeys_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<
 
         // Capture button: starts listening for the next chord; the mutation
         // itself is validated + persisted by the shared shortcut facade.
-        let capture_button = button(text(capturing_label).size(11).font(MONO))
+        let capture_button = button(theme::role_body_text(capturing_label))
             .padding([4, 10])
             .style(if is_capturing {
                 style_accent
@@ -45,7 +44,7 @@ pub(super) fn hotkeys_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<
 
         let row_item = row![
             column![
-                text(action_name.to_string()).size(13).font(FONT_SEMIBOLD),
+                theme::role_body_text(action_name.to_string()),
                 secondary_text(format!(
                     "{}: {} · {}",
                     lang.tr("shortcut_action"),
@@ -56,16 +55,20 @@ pub(super) fn hotkeys_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<
             .width(Length::Fill),
             capture_button,
             Space::new().width(theme::SP_SM),
-            button(text(if binding.enabled { "Active" } else { "Off" }).size(11))
-                .padding([4, 8])
-                .style(if binding.enabled {
-                    style_accent
-                } else {
-                    style_ghost
-                })
-                .on_press(Message::ToggleHotkeyEnabled(action)),
+            button(theme::role_body_text(if binding.enabled {
+                "Active"
+            } else {
+                "Off"
+            }))
+            .padding([4, 8])
+            .style(if binding.enabled {
+                style_accent
+            } else {
+                style_ghost
+            })
+            .on_press(Message::ToggleHotkeyEnabled(action)),
             Space::new().width(theme::SP_XS),
-            button(text(lang.tr("hotkey_reset").to_string()).size(11))
+            button(theme::role_body_text(lang.tr("hotkey_reset").to_string()))
                 .padding([4, 8])
                 .style(style_ghost)
                 .on_press(Message::ResetHotkey(action)),

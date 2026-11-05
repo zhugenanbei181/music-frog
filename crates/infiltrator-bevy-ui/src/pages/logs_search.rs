@@ -32,12 +32,13 @@ use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedPlaceholder, LocalizedText};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_bevy_widgets::text_input::{TextField, text_field_with_placeholder_scene};
 use infiltrator_bevy_widgets::text_runs::{TextRuns, TextRunsInk, TextRunsSet};
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::logs::{LogLevel, LogStreamState};
 use infiltrator_contract::surface_snapshot::{LogSnapshot, LogsPageSnapshot};
 use infiltrator_presentation::log_page_model::{LogLevelFilter, LogsPageModel};
@@ -78,12 +79,12 @@ pub fn logs_search_scene(palette: &UiPalette) -> impl Scene + use<> {
                 ]
                 --
                 Node { padding: UiRect::all(rem(space::S8)) } Button ClearLogsSearch
-                Children [ LocalizedText::plain("common_clear") TextRole(Role::Caption) ]
+                Children [ LocalizedText::plain("common_clear") TextRole(design_resources::TextRole::Caption) ]
             ]
             --
-            LocalizedText::plain("logs_search_unavailable") LogsSearchSummary TextRole(Role::Caption)
+            LocalizedText::plain("logs_search_unavailable") LogsSearchSummary TextRole(design_resources::TextRole::Caption)
             --
-            LocalizedText::plain("logs_search_invalid_detail") LogsSearchError TextRole(Role::Body)
+            LocalizedText::plain("logs_search_invalid_detail") LogsSearchError TextRole(design_resources::TextRole::Body)
         ]
     }
 }
@@ -370,10 +371,10 @@ fn level_tab_scene(level: Option<LogLevel>, selected: bool, palette: &UiPalette)
     };
     let label: Box<dyn Scene> = match level {
         None => Box::new(bsn! {
-            LocalizedText::plain("logs_level_all") TextRole(Role::Caption) ThemeTextColor({ ink }) LogLevelTabLabel
+            LocalizedText::plain("logs_level_all") TextRole(design_resources::TextRole::Caption) ThemeTextColor({ ink }) LogLevelTabLabel
         }),
         Some(level) => Box::new(bsn! {
-            Text({ level.label().to_owned() }) TextRole(Role::Caption) ThemeTextColor({ ink }) LogLevelTabLabel
+            Text({ level.label().to_owned() }) TextRole(design_resources::TextRole::Caption) ThemeTextColor({ ink }) LogLevelTabLabel
         }),
     };
 

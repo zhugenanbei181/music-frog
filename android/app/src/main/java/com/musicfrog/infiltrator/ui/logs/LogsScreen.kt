@@ -13,9 +13,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ContentCopy
-import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -33,15 +30,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.musicfrog.infiltrator.R
+import com.musicfrog.infiltrator.ui.common.AppIcon
+import com.musicfrog.infiltrator.ui.common.AppIconSemantic
 import com.musicfrog.infiltrator.ui.common.LocalizedFailureText
 import com.musicfrog.infiltrator.ui.common.LogEntry
 import com.musicfrog.infiltrator.ui.common.LogLevel
@@ -153,7 +150,7 @@ fun LogsScreen() {
                                 showToast(context, copiedMessage)
                             }) {
                                 Icon(
-                                    Icons.Outlined.ContentCopy,
+                                    AppIcon.image(AppIconSemantic.Copy),
                                     contentDescription = stringResource(R.string.action_copy),
                                 )
                             }
@@ -162,7 +159,7 @@ fun LogsScreen() {
                                 onClick = { viewModel.dispatch(LogsIntent.Clear) },
                             ) {
                                 Icon(
-                                    Icons.Outlined.Delete,
+                                    AppIcon.image(AppIconSemantic.Delete),
                                     contentDescription = stringResource(R.string.action_clear),
                                 )
                             }
@@ -278,7 +275,6 @@ private fun LogEntryItem(entry: LogEntry) {
             text = formatLogLevel(entry.level),
             style = MaterialTheme.typography.labelSmall,
             color = levelColor,
-            fontFamily = FontFamily.Monospace,
             modifier = Modifier.width(32.dp).padding(top = 2.dp),
         )
         Spacer(modifier = Modifier.width(8.dp))
@@ -286,15 +282,12 @@ private fun LogEntryItem(entry: LogEntry) {
             Text(
                 text = entry.message,
                 style = MaterialTheme.typography.bodySmall,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
                 text = formatTimestamp(entry.timestamp),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 10.sp,
             )
         }
     }

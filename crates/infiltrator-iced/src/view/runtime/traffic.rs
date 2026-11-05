@@ -14,7 +14,7 @@ use crate::view::components::{
 };
 use crate::view::svg_icons::{Icon, icon};
 use crate::view::theme;
-use crate::view::theme::{FONT_SEMIBOLD, MONO, SP_LG, SP_MD, SP_SM, SP_XS, tokens};
+use crate::view::theme::{SP_LG, SP_MD, SP_SM, SP_XS, tokens};
 use crate::view_root::interaction_regions::InteractionRegion;
 use canvas::path::Builder;
 use iced::widget::{Space, button, canvas, column, container, row, text};
@@ -159,16 +159,19 @@ pub(super) fn traffic_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Elemen
     let time_range_pills = segmented_control(&time_range_labels, 0, |_| Message::Noop);
 
     let waiting_note: Element<'a, Message> = match rates.freshness {
-        TrafficFreshness::Failed => container(text(rates.failure).size(11).width(Length::Fill))
-            .id(InteractionRegion::TrafficFailure.id())
-            .width(Length::Fill)
-            .into(),
-        TrafficFreshness::Unobserved => text(lang.tr("waiting_traffic").to_string())
-            .size(11)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_tertiary),
-            })
-            .into(),
+        TrafficFreshness::Failed => {
+            container(theme::role_body_text(rates.failure).width(Length::Fill))
+                .id(InteractionRegion::TrafficFailure.id())
+                .width(Length::Fill)
+                .into()
+        }
+        TrafficFreshness::Unobserved => {
+            theme::role_body_text(lang.tr("waiting_traffic").to_string())
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_tertiary),
+                })
+                .into()
+        }
         TrafficFreshness::Current | TrafficFreshness::Stale => Space::new().width(0).into(),
     };
 
@@ -265,11 +268,9 @@ fn public_ip_tile<'a>(state: &'a AppState, lang: &Lang<'a>, accent: Color) -> El
         });
 
     let ip_text = state.diag.public_ip.as_deref().unwrap_or("—");
-    let probe_btn = button(
-        text(lang.tr("traffic_probe_btn").to_string())
-            .size(10)
-            .font(theme::FONT_MEDIUM),
-    )
+    let probe_btn = button(theme::role_body_text(
+        lang.tr("traffic_probe_btn").to_string(),
+    ))
     .padding([2, 6])
     .style(button::secondary)
     .on_press(Message::FetchIpInfo);
@@ -279,34 +280,30 @@ fn public_ip_tile<'a>(state: &'a AppState, lang: &Lang<'a>, accent: Color) -> El
         state.diag.public_ip_checked_at.as_deref(),
         state.diag.public_ip_error.as_deref(),
     ) {
-        (Some(provider), Some(checked_at), _) => text(format!("{provider} · {checked_at}")),
-        (_, _, Some(error)) => text(format!("Error: {error}")),
-        _ => text(lang.tr("traffic_probe_tooltip").to_string()),
+        (Some(provider), Some(checked_at), _) => {
+            theme::role_body_text(format!("{provider} · {checked_at}"))
+        }
+        (_, _, Some(error)) => theme::role_body_text(format!("Error: {error}")),
+        _ => theme::role_body_text(lang.tr("traffic_probe_tooltip").to_string()),
     }
-    .size(10)
-    .font(MONO)
     .style(|t: &Theme| text::Style {
         color: Some(tokens(t).text_tertiary),
     });
 
     let texts = column![
         row![
-            text(lang.tr("runtime_stat_public_ip").to_string())
-                .size(11)
-                .font(theme::FONT_MEDIUM)
-                .style(|t: &Theme| text::Style {
+            theme::role_body_text(lang.tr("runtime_stat_public_ip").to_string()).style(
+                |t: &Theme| text::Style {
                     color: Some(tokens(t).text_secondary)
-                }),
+                }
+            ),
             Space::new().width(Length::Fill),
             probe_btn,
         ]
         .align_y(Alignment::Center),
-        text(ip_text.to_string())
-            .size(16)
-            .font(FONT_SEMIBOLD)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_primary)
-            }),
+        theme::role_body_text(ip_text.to_string()).style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_primary)
+        }),
         sub_note,
     ]
     .spacing(2)
@@ -501,37 +498,31 @@ fn render_domain_rankings<'a>(
             row![
                 rank_badge,
                 Space::new().width(theme::SP_SM),
-                text(rank.host.clone())
-                    .size(12)
-                    .font(FONT_SEMIBOLD)
+                theme::role_body_text(rank.host.clone())
                     .width(Length::Fill)
                     .style(|t: &Theme| text::Style {
                         color: Some(tokens(t).text_primary)
                     }),
-                text(format!(
+                theme::role_body_text(format!(
                     "↑ {} / ↓ {}",
                     format_bytes(rank.upload),
                     format_bytes(rank.download)
                 ))
-                .size(11)
-                .font(MONO)
                 .style(|t: &Theme| text::Style {
                     color: Some(tokens(t).text_secondary)
                 }),
                 Space::new().width(theme::SP_MD),
-                text(format!("{total_label} {}", format_bytes(rank.total)))
-                    .size(11)
-                    .font(MONO)
-                    .style(|t: &Theme| text::Style {
+                theme::role_body_text(format!("{total_label} {}", format_bytes(rank.total))).style(
+                    |t: &Theme| text::Style {
                         color: Some(tokens(t).text_secondary)
-                    }),
+                    }
+                ),
                 Space::new().width(theme::SP_MD),
-                text(format!("{:.1}%", rank.share_percent))
-                    .size(11)
-                    .font(MONO)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_primary)
-                    }),
+                theme::role_body_text(format!("{:.1}%", rank.share_percent)).style(|t: &Theme| {
+                    text::Style {
+                        color: Some(tokens(t).text_primary),
+                    }
+                }),
             ]
             .align_y(Alignment::Center),
             Space::new().height(SP_XS),

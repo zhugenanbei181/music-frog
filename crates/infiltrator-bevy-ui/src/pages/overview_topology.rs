@@ -34,8 +34,9 @@ use infiltrator_bevy_widgets::icon::{IconId, icon_scene};
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::{UiPalette, rem};
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::{radius, space};
+use infiltrator_contract::design_resources;
 use infiltrator_contract::traffic_topology::{
     TRAFFIC_TOPOLOGY_STAGE_COUNT, TrafficTopologySnapshot, TrafficTopologyStage,
 };
@@ -94,7 +95,7 @@ pub fn topology_chain_scene_with_snapshot(
                             Children [
                                 @{ icon_scene(IconId::Network, 16.0, palette.accent) }
                                 --
-                                LocalizedText::plain("overview_topology_title") TextRole(Role::Heading)
+                                LocalizedText::plain("overview_topology_title") TextRole(design_resources::TextRole::Heading)
                             ]
                             --
                             Node {
@@ -104,7 +105,7 @@ pub fn topology_chain_scene_with_snapshot(
                             ThemeBackgroundColor({ Token::AccentContainer })
                             AccentContainerFill
                             Children [
-                                Text({ header }) TopologyText { stage: TrafficTopologyStage::Inbound, kind: TopologyTextKind::HeaderBadge } TextRole(Role::Caption) ThemeTextColor({ Token::Success })
+                                Text({ header }) TopologyText { stage: TrafficTopologyStage::Inbound, kind: TopologyTextKind::HeaderBadge } TextRole(design_resources::TextRole::Caption) ThemeTextColor({ Token::Success })
                             ]
                         ]
                         --
@@ -202,7 +203,7 @@ fn topology_empty_scene(
                     @{ icon_scene(IconId::Network, 24.0, palette.accent) }
                 ]
                 --
-                Text({ detail }) TextRole(Role::Caption)
+                Text({ detail }) TextRole(design_resources::TextRole::Caption)
             ]
     }
 }
@@ -320,7 +321,7 @@ fn topology_stage_chip_scene(
                     Children [
                         @{ icon_scene(icon, 14.0, palette.ink_dim) }
                         --
-                        Text({ label }) TopologyText { stage, kind: TopologyTextKind::Label } TextRole(Role::Caption)
+                        Text({ label }) TopologyText { stage, kind: TopologyTextKind::Label } TextRole(design_resources::TextRole::Caption)
                     ]
                     --
                     Node {
@@ -330,7 +331,7 @@ fn topology_stage_chip_scene(
                     ThemeBackgroundColor({ Token::AccentContainer })
                     AccentContainerFill
                     Children [
-                        Text({ badge }) TopologyText { stage, kind: TopologyTextKind::Badge } TextRole(Role::Caption) TextColor({ badge_fg })
+                        Text({ badge }) TopologyText { stage, kind: TopologyTextKind::Badge } TextRole(design_resources::TextRole::Caption) TextColor({ badge_fg })
                     ]
                 ]
                 --
@@ -342,7 +343,7 @@ fn topology_stage_chip_scene(
                 ThemeBackgroundColor({ Token::Surface })
                 SurfaceFill
                 Children [
-                    Text({ detail }) TopologyText { stage, kind: TopologyTextKind::Detail } TextRole(Role::BodyStrong)
+                    Text({ detail }) TopologyText { stage, kind: TopologyTextKind::Detail } TextRole(design_resources::TextRole::BodyStrong)
                 ]
             ]
     }
@@ -369,7 +370,7 @@ fn topology_arrow_scene(_palette: &UiPalette) -> impl Scene + use<> {
             }
             TopologyArrow
             Children [
-                Text({ "→".to_owned() }) TextRole(Role::BodyStrong) ThemeTextColor({ Token::InkDim })
+                Text({ "→".to_owned() }) TextRole(design_resources::TextRole::BodyStrong) ThemeTextColor({ Token::InkDim })
             ]
     }
 }

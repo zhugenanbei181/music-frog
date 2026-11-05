@@ -9,6 +9,7 @@
 #[path = "profiles_subscription_policy_query_access.rs"]
 pub mod query_access;
 use self::query_access::{SubscriptionPolicyControls, SubscriptionPolicyTargets};
+use infiltrator_contract::design_resources;
 use infiltrator_shared::locales::Lang;
 
 use crate::command::{CommandSinkHandle, UiCommand};
@@ -38,7 +39,7 @@ use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
@@ -153,7 +154,7 @@ pub fn subscription_policy_card_scene(
                             Children [
                                 @{ icon_tile_scene(IconId::Settings, 24.0, palette) }
                                 --
-                                LocalizedText::plain("profiles_update_policy_title") TextRole(Role::BodyStrong)
+                                LocalizedText::plain("profiles_update_policy_title") TextRole(design_resources::TextRole::BodyStrong)
                             ]
             }),
             Box::new(bsn! {
@@ -205,7 +206,7 @@ pub fn subscription_policy_card_scene(
                                     column_gap: rem(space::S8),
                                 }
                                 Children [
-                                    Text({ status.clone() }) SubscriptionPolicyStatus TextRole(Role::Caption)
+                                    Text({ status.clone() }) SubscriptionPolicyStatus TextRole(design_resources::TextRole::Caption)
                                     --
                                     Node {
                                         min_height: rem(palette.control_height_px),
@@ -218,7 +219,7 @@ pub fn subscription_policy_card_scene(
                                     Button
                                     SaveSubscriptionPolicyButton
                                     Children [
-                                        LocalizedText::plain("profiles_update_policy_save") TextRole(Role::BodyStrong)
+                                        LocalizedText::plain("profiles_update_policy_save") TextRole(design_resources::TextRole::BodyStrong)
                                     ]
                                 ]
                             ]
@@ -245,7 +246,7 @@ pub fn subscription_policy_card_scene(
                                     column_gap: rem(space::S8),
                                 }
                                 Children [
-                                    Text({ reload_status.clone() }) SubscriptionAutoReloadStatus TextRole(Role::Caption)
+                                    Text({ reload_status.clone() }) SubscriptionAutoReloadStatus TextRole(design_resources::TextRole::Caption)
                                     --
                                     Node {
                                         min_height: rem(palette.control_height_px),
@@ -258,7 +259,7 @@ pub fn subscription_policy_card_scene(
                                     Button
                                     SaveSubscriptionAutoReloadButton
                                     Children [
-                                        LocalizedText::plain("profiles_reload_policy_save") TextRole(Role::Body)
+                                        LocalizedText::plain("profiles_reload_policy_save") TextRole(design_resources::TextRole::Body)
                                     ]
                                 ]
                             ]

@@ -6,7 +6,8 @@ use crate::types::message::Message;
 use crate::view::component_forms::{form_input_style, form_pick_style, style_accent, style_ghost};
 use crate::view::components::toggle_switch;
 use crate::view::svg_icons::{Icon, icon_themed};
-use crate::view::theme::{FONT_SEMIBOLD, SP_MD, SP_SM, tokens};
+use crate::view::theme;
+use crate::view::theme::{SP_MD, SP_SM, tokens};
 use iced::widget::{Space, button, column, pick_list, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -28,12 +29,11 @@ pub fn custom_node_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
 
     let form = column![
         row![
-            text(lang.tr("proxies_add_node_title"))
-                .size(16)
-                .font(FONT_SEMIBOLD)
-                .style(|t: &Theme| text::Style {
+            theme::role_body_text(lang.tr("proxies_add_node_title")).style(|t: &Theme| {
+                text::Style {
                     color: Some(tokens(t).text_primary),
-                }),
+                }
+            }),
             Space::new().width(Length::Fill),
             button(icon_themed(Icon::X, 14.0, |t: &Theme| tokens(t).text_secondary))
                 .padding(4)
@@ -43,11 +43,9 @@ pub fn custom_node_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
         .align_y(Alignment::Center),
         Space::new().height(SP_SM),
         column![
-            text(lang.tr("proxies_inspect_type"))
-                .size(11)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_secondary),
-                }),
+            theme::role_body_text(lang.tr("proxies_inspect_type")).style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary),
+            }),
             Space::new().height(2.0),
             pick_list(
                 types,
@@ -59,26 +57,23 @@ pub fn custom_node_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
         ]
         .spacing(2),
         column![
-            text(lang.tr("proxies_node_name_ph"))
-                .size(11)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_secondary),
-                }),
+            theme::role_body_text(lang.tr("proxies_node_name_ph")).style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary),
+            }),
             Space::new().height(2.0),
             text_input("e.g. Hong Kong 01", &state.runtime.new_node_name)
                 .on_input(Message::UpdateNewNodeName)
                 .padding([7, 10])
-                .size(12)
                 .style(form_input_style),
         ]
         .spacing(2),
         row![
             column![
-                text(lang.tr("proxies_server_ph"))
-                    .size(11)
-                    .style(|t: &Theme| text::Style {
+                theme::role_body_text(lang.tr("proxies_server_ph")).style(|t: &Theme| {
+                    text::Style {
                         color: Some(tokens(t).text_secondary),
-                    }),
+                    }
+                }),
                 Space::new().height(2.0),
                 text_input(
                     "e.g. 1.2.3.4 or example.com",
@@ -86,58 +81,50 @@ pub fn custom_node_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
                 )
                 .on_input(Message::UpdateNewNodeServer)
                 .padding([7, 10])
-                .size(12)
                 .style(form_input_style),
             ]
             .width(Length::FillPortion(3)),
             Space::new().width(SP_SM),
             column![
-                text(lang.tr("proxies_port_ph"))
-                    .size(11)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_secondary),
-                    }),
+                theme::role_body_text(lang.tr("proxies_port_ph")).style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_secondary),
+                }),
                 Space::new().height(2.0),
                 text_input("443", &state.runtime.new_node_port)
                     .on_input(Message::UpdateNewNodePort)
                     .padding([7, 10])
-                    .size(12)
                     .style(form_input_style),
             ]
             .width(Length::FillPortion(1)),
         ],
         column![
-            text(lang.tr("proxies_cred_ph"))
-                .size(11)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_secondary),
-                }),
+            theme::role_body_text(lang.tr("proxies_cred_ph")).style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary),
+            }),
             Space::new().height(2.0),
             text_input("Password or UUID", &state.runtime.new_node_credential)
                 .on_input(Message::UpdateNewNodeCredential)
                 .padding([7, 10])
-                .size(12)
                 .style(form_input_style),
         ]
         .spacing(2),
         row![
             column![
-                text(lang.tr("proxies_cipher_ph"))
-                    .size(11)
-                    .style(|t: &Theme| text::Style {
+                theme::role_body_text(lang.tr("proxies_cipher_ph")).style(|t: &Theme| {
+                    text::Style {
                         color: Some(tokens(t).text_secondary),
-                    }),
+                    }
+                }),
                 Space::new().height(2.0),
                 text_input("aes-256-gcm", &state.runtime.new_node_cipher)
                     .on_input(Message::UpdateNewNodeCipher)
                     .padding([7, 10])
-                    .size(12)
                     .style(form_input_style),
             ]
             .width(Length::FillPortion(3)),
             Space::new().width(SP_SM),
             column![
-                text("TLS").size(11).style(|t: &Theme| text::Style {
+                theme::role_body_text("TLS").style(|t: &Theme| text::Style {
                     color: Some(tokens(t).text_secondary),
                 }),
                 Space::new().height(6.0),
@@ -147,12 +134,12 @@ pub fn custom_node_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
         ],
         Space::new().height(SP_MD),
         row![
-            button(text(lang.tr("btn_cancel")).size(12))
+            button(theme::role_body_text(lang.tr("btn_cancel")))
                 .padding([7, 14])
                 .style(style_ghost)
                 .on_press(Message::OpenAddCustomNodeModal(false)),
             Space::new().width(Length::Fill),
-            button(text(lang.tr("proxies_add_node_btn")).size(12))
+            button(theme::role_body_text(lang.tr("proxies_add_node_btn")))
                 .padding([7, 16])
                 .style(style_accent)
                 .on_press(Message::SubmitAddCustomNode),

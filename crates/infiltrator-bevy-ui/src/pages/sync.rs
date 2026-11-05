@@ -10,6 +10,7 @@
 #[path = "sync_query_access.rs"]
 pub mod query_access;
 use self::query_access::SyncProjectionTargets;
+use infiltrator_contract::design_resources;
 use infiltrator_shared::locales::Lang;
 
 use crate::command::{CommandSinkHandle, UiCommand};
@@ -55,7 +56,7 @@ use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
 
 /// Root marker on the Sync page scene.
@@ -324,9 +325,9 @@ fn header_card_scene(
                                 row_gap: rem(space::S4),
                             }
                             Children [
-                                Text(summary) SyncLine(SyncLineKind::Summary) TextRole(Role::Heading)
+                                Text(summary) SyncLine(SyncLineKind::Summary) TextRole(design_resources::TextRole::Heading)
                                 --
-                                Text(last_sync) SyncLine(SyncLineKind::LastSync) TextRole(Role::Caption)
+                                Text(last_sync) SyncLine(SyncLineKind::LastSync) TextRole(design_resources::TextRole::Caption)
                             ]
                         ]
                         --
@@ -346,7 +347,7 @@ fn header_card_scene(
                             SyncNowButton
                             Button
                             Children [
-                                LocalizedText::plain("sync_now") TextRole(Role::BodyStrong)
+                                LocalizedText::plain("sync_now") TextRole(design_resources::TextRole::BodyStrong)
                             ]
                             --
                             Node {
@@ -360,7 +361,7 @@ fn header_card_scene(
                             CreateBackupButton
                             Button
                             Children [
-                                LocalizedText::plain("common_create_backup") TextRole(Role::Body)
+                                LocalizedText::plain("common_create_backup") TextRole(design_resources::TextRole::Body)
                             ]
                         ]
                     ]
@@ -399,10 +400,10 @@ fn conflict_panel_scene(
                             justify_content: JustifyContent::SpaceBetween,
                         }
                         Children [
-                            LocalizedText::plain("sync_conflict_pending") TextRole(Role::BodyStrong)
+                            LocalizedText::plain("sync_conflict_pending") TextRole(design_resources::TextRole::BodyStrong)
                         ]
                         --
-                        Text(conflict_text) ConflictSummaryText TextRole(Role::Body)
+                        Text(conflict_text) ConflictSummaryText TextRole(design_resources::TextRole::Body)
                         --
                         Node {
                             align_items: AlignItems::Center,
@@ -420,7 +421,7 @@ fn conflict_panel_scene(
                             KeepLocalConflictButton
                             Button
                             Children [
-                                LocalizedText::plain("sync_keep_local_action") TextRole(Role::Body)
+                                LocalizedText::plain("sync_keep_local_action") TextRole(design_resources::TextRole::Body)
                             ]
                             --
                             Node {
@@ -434,7 +435,7 @@ fn conflict_panel_scene(
                             TakeRemoteConflictButton
                             Button
                             Children [
-                                LocalizedText::plain("sync_take_remote_action") TextRole(Role::Body)
+                                LocalizedText::plain("sync_take_remote_action") TextRole(design_resources::TextRole::Body)
                             ]
                         ]
                     ]
@@ -457,7 +458,7 @@ fn webdav_config_card(projection: &SyncProjection, palette: &UiPalette) -> impl 
                                 padding: UiRect::bottom(rem(space::S8)),
                             }
                             Children [
-                                LocalizedText::plain("sync_webdav_settings_title") TextRole(Role::BodyStrong)
+                                LocalizedText::plain("sync_webdav_settings_title") TextRole(design_resources::TextRole::BodyStrong)
                             ]
             }),
             Box::new(bsn! {
@@ -476,9 +477,9 @@ fn webdav_config_card(projection: &SyncProjection, palette: &UiPalette) -> impl 
                                 }
                                 ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Children [
-                                    Text(server_str) SyncLine(SyncLineKind::ServerUrl) TextRole(Role::Body)
+                                    Text(server_str) SyncLine(SyncLineKind::ServerUrl) TextRole(design_resources::TextRole::Body)
                                     --
-                                    Text(user_str) SyncLine(SyncLineKind::Username) TextRole(Role::Caption)
+                                    Text(user_str) SyncLine(SyncLineKind::Username) TextRole(design_resources::TextRole::Caption)
                                 ]
                                 --
                                 @{ localized_checkbox_scene(LocalizedText::plain("sync_autostart_sync"), projection.auto_sync, palette) }
@@ -506,9 +507,9 @@ fn snapshots_card_scene(
                                 padding: UiRect::bottom(rem(space::S8)),
                             }
                             Children [
-                                LocalizedText::plain("sync_observation_history_title") TextRole(Role::BodyStrong)
+                                LocalizedText::plain("sync_observation_history_title") TextRole(design_resources::TextRole::BodyStrong)
                                 --
-                                Text(history_copy) SyncLine(SyncLineKind::HistoryStatus) TextRole(Role::Caption)
+                                Text(history_copy) SyncLine(SyncLineKind::HistoryStatus) TextRole(design_resources::TextRole::Caption)
                             ]
             }),
             Box::new(bsn! {
@@ -552,9 +553,9 @@ fn snapshot_row_scene(
                     row_gap: rem(space::S4),
                 }
                 Children [
-                    Text(device_time) SnapshotDeviceText(idx) TextRole(Role::Body)
+                    Text(device_time) SnapshotDeviceText(idx) TextRole(design_resources::TextRole::Body)
                     --
-                    Text(size_str) SnapshotSizeText(idx) TextRole(Role::Mono)
+                    Text(size_str) SnapshotSizeText(idx) TextRole(design_resources::TextRole::Mono)
                 ]
                 --
                 Node {
@@ -571,7 +572,7 @@ fn snapshot_row_scene(
                 }
                 Button
                 Children [
-                    LocalizedText::plain("sync_restore_version_action") TextRole(Role::Caption)
+                    LocalizedText::plain("sync_restore_version_action") TextRole(design_resources::TextRole::Caption)
                 ]
             ]
     }

@@ -35,8 +35,9 @@ use infiltrator_bevy_widgets::palette::{UiPalette, rem};
 use infiltrator_bevy_widgets::tabs::{
     SegmentedTab, SegmentedTabLabel, segmented_control_with_labels_scene,
 };
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::rules_workspace::RulesTab;
 
 /// The active partition of the rules workspace, as the capture layer reads it.
@@ -76,7 +77,7 @@ fn tab_chip_scene(tab: RulesTab) -> Box<dyn Scene> {
     let index = tab.index();
     Box::new(bsn! {
             LocalizedText { key: { key }, params: { Vec::new() } }
-            TextRole(Role::Caption)
+            TextRole(design_resources::TextRole::Caption)
             SegmentedTabLabel
             RulesTabChipLabel(index)
     }) as Box<dyn Scene>

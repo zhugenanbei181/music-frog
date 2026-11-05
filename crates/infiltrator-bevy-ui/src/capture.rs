@@ -29,6 +29,12 @@ use crate::interaction_capture::geometry::CaptureGeometry;
 use crate::interaction_capture::geometry::GeometryRejections;
 use crate::interaction_capture::scroll::request_scroll;
 use crate::interaction_capture::{CaptureObservationSet, InteractionCapture, ObservedInteraction};
+use crate::pages::globe::GlobeSectionSlot;
+use crate::pages::overview::OverviewResourceGaugeCard;
+use crate::pages::overview::OverviewServiceHealthCard;
+use crate::pages::overview_policy_groups::{
+    OverviewPolicyGroupCard, PolicyGroupPickerButton, PolicyGroupPickerState,
+};
 use crate::pages::profiles_editor::ProfileEditorRoot;
 use crate::pages::profiles_editor_panes::ProfileEditorOptionsState;
 use crate::pages::profiles_editor_panes::ProfileEditorPane;
@@ -130,13 +136,17 @@ pub fn parse_page(raw: &str) -> Option<Route> {
         "dns" => Some(Route::Dns),
         "doctor" => Some(Route::Doctor),
         "app_routing" | "approuting" | "app-routing" => Some(Route::AppRouting),
+        "globe" => Some(Route::Overview),
+        "service-health" | "service_health" => Some(Route::Overview),
+        "resource-gauges" | "resource_gauges" => Some(Route::Overview),
+        "policy-groups" | "policy_groups" => Some(Route::Overview),
+        "policy-picker" | "policy_picker" => Some(Route::Overview),
         "sync" => Some(Route::Sync),
         "settings" => Some(Route::Settings),
         "tools" => Some(Route::Tools),
-        "about" => Some(Route::About),
+        "about" | "font-license" | "settings-about" => Some(Route::Settings),
         "disclaimer" => Some(Route::Disclaimer),
         "licenses" => Some(Route::Licenses),
-        "font-license" | "settings-about" => Some(Route::Settings),
         _ => None,
     }
 }
@@ -151,6 +161,11 @@ pub fn parse_page(raw: &str) -> Option<Route> {
 pub enum CaptureSection {
     EditorCard(ProfileEditorPane),
     FontLicenseDialog,
+    GlobeCard,
+    OverviewServiceHealthCard,
+    OverviewResourceGaugeCard,
+    OverviewPolicyGroupCard,
+    OverviewPolicyGroupPicker,
 }
 
 /// Parse the capture section knob. Pure function.
@@ -160,6 +175,11 @@ pub fn parse_section(raw: &str) -> Option<CaptureSection> {
         "mixin" => Some(CaptureSection::EditorCard(ProfileEditorPane::Mixin)),
         "filter" => Some(CaptureSection::EditorCard(ProfileEditorPane::Filter)),
         "about" => Some(CaptureSection::FontLicenseDialog),
+        "globe" => Some(CaptureSection::GlobeCard),
+        "service-health" | "service_health" => Some(CaptureSection::OverviewServiceHealthCard),
+        "resource-gauges" | "resource_gauges" => Some(CaptureSection::OverviewResourceGaugeCard),
+        "policy-groups" | "policy_groups" => Some(CaptureSection::OverviewPolicyGroupCard),
+        "policy-picker" | "policy_picker" => Some(CaptureSection::OverviewPolicyGroupPicker),
         _ => None,
     }
 }
@@ -292,6 +312,10 @@ impl Plugin for CapturePlugin {
 #[derive(Resource)]
 struct CaptureSectionTarget(CaptureSection);
 
+/// The scroll-driven capture section has reached a fully visible target.
+#[derive(Resource)]
+struct CaptureScrollSettled;
+
 #[derive(SystemParam)]
 struct CaptureSectionControls<'w, 's> {
     target: Res<'w, CaptureSectionTarget>,
@@ -299,8 +323,18 @@ struct CaptureSectionControls<'w, 's> {
     editor_roots: Query<'w, 's, Entity, With<ProfileEditorRoot>>,
     parents: Query<'w, 's, &'static ChildOf>,
     cards: Query<'w, 's, (), With<SurfacePanel>>,
+    globe_slots: Query<'w, 's, Entity, With<GlobeSectionSlot>>,
+    resource_gauge_cards: Query<'w, 's, Entity, With<OverviewResourceGaugeCard>>,
+    service_health_cards: Query<'w, 's, Entity, With<OverviewServiceHealthCard>>,
+    policy_group_cards: Query<'w, 's, Entity, With<OverviewPolicyGroupCard>>,
+    policy_group_tiles: Query<'w, 's, Entity, With<PolicyGroupPickerButton>>,
+    // The picker's own typed state. Readiness must wait for it, because the
+    // Activate trigger only lands when the queued commands flush: settling in
+    // the same frame photographed the page a beat before the modal appeared.
+    picker_state: Option<Res<'w, PolicyGroupPickerState>>,
     page_roots: Query<'w, 's, (Entity, &'static PageRoot)>,
     scroll_children: Query<'w, 's, (Entity, &'static ChildOf), With<ScrollArea>>,
+    overview_scroll_roots: Query<'w, 's, (Entity, &'static PageRoot), With<ScrollArea>>,
     license_buttons: Query<'w, 's, Entity, With<FontLicenseButton>>,
 }
 
@@ -314,6 +348,7 @@ fn bootstrap_capture_section(
     geometry: CaptureGeometry,
     mut commands: Commands,
     mut dialog_fired: Local<bool>,
+    mut policy_picker_fired: Local<bool>,
 ) {
     match controls.target.0 {
         CaptureSection::EditorCard(pane) => {
@@ -359,6 +394,126 @@ fn bootstrap_capture_section(
             };
             commands.trigger(Activate { entity: button });
             *dialog_fired = true;
+        }
+        CaptureSection::GlobeCard => {
+            let Ok(globe_slot) = controls.globe_slots.single() else {
+                return;
+            };
+            let Some((scroll, _root)) = controls
+                .overview_scroll_roots
+                .iter()
+                .find(|(_, root)| root.0 == Route::Overview)
+                .map(|(entity, root)| (entity, *root))
+            else {
+                return;
+            };
+            let (Some(globe_rect), Some(viewport)) =
+                (geometry.rect(globe_slot), geometry.rect(scroll))
+            else {
+                return;
+            };
+            if request_scroll(&mut commands, scroll, globe_rect, viewport) {
+                commands.insert_resource(CaptureScrollSettled);
+            }
+        }
+        CaptureSection::OverviewServiceHealthCard => {
+            // The service-health tile is the smallest visible contract anchor;
+            // top-aligning it proves all four latency cells rather than a
+            // below-the-fold accidental edge.
+            let Ok(health_tile) = controls.service_health_cards.single() else {
+                return;
+            };
+            let Some((scroll, _root)) = controls
+                .overview_scroll_roots
+                .iter()
+                .find_map(|(entity, root)| (root.0 == Route::Overview).then_some((entity, *root)))
+            else {
+                return;
+            };
+            let (Some(tile_rect), Some(viewport)) =
+                (geometry.rect(health_tile), geometry.rect(scroll))
+            else {
+                return;
+            };
+            if request_scroll(&mut commands, scroll, tile_rect, viewport) {
+                commands.insert_resource(CaptureScrollSettled);
+            }
+        }
+        CaptureSection::OverviewResourceGaugeCard => {
+            let Ok(resource_card) = controls.resource_gauge_cards.single() else {
+                return;
+            };
+            let Some((scroll, _root)) = controls
+                .overview_scroll_roots
+                .iter()
+                .find_map(|(entity, root)| (root.0 == Route::Overview).then_some((entity, *root)))
+            else {
+                return;
+            };
+            let (Some(card_rect), Some(viewport)) =
+                (geometry.rect(resource_card), geometry.rect(scroll))
+            else {
+                return;
+            };
+            if request_scroll(&mut commands, scroll, card_rect, viewport) {
+                commands.insert_resource(CaptureScrollSettled);
+            }
+        }
+        CaptureSection::OverviewPolicyGroupCard => {
+            let Ok(policy_card) = controls.policy_group_cards.single() else {
+                return;
+            };
+            let Some((scroll, _root)) = controls
+                .overview_scroll_roots
+                .iter()
+                .find_map(|(entity, root)| (root.0 == Route::Overview).then_some((entity, *root)))
+            else {
+                return;
+            };
+            let (Some(card_rect), Some(viewport)) =
+                (geometry.rect(policy_card), geometry.rect(scroll))
+            else {
+                return;
+            };
+            if request_scroll(&mut commands, scroll, card_rect, viewport) {
+                commands.insert_resource(CaptureScrollSettled);
+            }
+        }
+        CaptureSection::OverviewPolicyGroupPicker => {
+            let Ok(policy_card) = controls.policy_group_cards.single() else {
+                return;
+            };
+            let Some((scroll, _root)) = controls
+                .overview_scroll_roots
+                .iter()
+                .find_map(|(entity, root)| (root.0 == Route::Overview).then_some((entity, *root)))
+            else {
+                return;
+            };
+            let (Some(card_rect), Some(viewport)) =
+                (geometry.rect(policy_card), geometry.rect(scroll))
+            else {
+                return;
+            };
+            if request_scroll(&mut commands, scroll, card_rect, viewport) {
+                if !*policy_picker_fired
+                    && let Some(tile) = controls.policy_group_tiles.iter().next()
+                {
+                    commands.trigger(Activate { entity: tile });
+                    *policy_picker_fired = true;
+                }
+                // Settle on the picker's own state, not on the frame the
+                // activation was queued: the modal is open only once the
+                // owner's typed transition has been applied and re-skinned.
+                if *policy_picker_fired
+                    && matches!(
+                        controls.picker_state.as_deref(),
+                        Some(PolicyGroupPickerState::Open { .. })
+                    )
+                {
+                    commands.insert_resource(CaptureScrollSettled);
+                }
+            }
         }
     }
 }
@@ -407,6 +562,8 @@ pub struct MarkerInputs<'w, 's> {
     mode: Option<Res<'w, ThemeMode>>,
     appearance: Option<Res<'w, SystemAppearance>>,
     route: Option<Res<'w, ActiveRoute>>,
+    section: Option<Res<'w, CaptureSectionTarget>>,
+    scroll_settled: Option<Res<'w, CaptureScrollSettled>>,
 }
 fn write_capture_marker(mut marker: MarkerInputs) {
     if marker.progress.done {
@@ -415,6 +572,19 @@ fn write_capture_marker(mut marker: MarkerInputs) {
     marker.progress.frames += 1;
     let frames = marker.progress.frames;
     if frames < CAPTURE_READY_FRAME {
+        return;
+    }
+    let waiting_for_scroll = marker.section.as_deref().is_some_and(|target| {
+        matches!(
+            target.0,
+            CaptureSection::GlobeCard
+                | CaptureSection::OverviewServiceHealthCard
+                | CaptureSection::OverviewResourceGaugeCard
+                | CaptureSection::OverviewPolicyGroupCard
+                | CaptureSection::OverviewPolicyGroupPicker
+        )
+    });
+    if waiting_for_scroll && marker.scroll_settled.is_none() {
         return;
     }
     let bounds = if let Some(interaction) = &marker.interaction {
@@ -586,7 +756,30 @@ mod tests {
         assert_eq!(parse_page("app-routing"), Some(Route::AppRouting));
         assert_eq!(parse_page("sync"), Some(Route::Sync));
         assert_eq!(parse_page("settings"), Some(Route::Settings));
+        assert_eq!(parse_page("about"), Some(Route::Settings));
+        assert_eq!(parse_page("font-license"), Some(Route::Settings));
         assert_eq!(parse_page("invalid_page"), None);
+    }
+
+    #[test]
+    fn globe_capture_section_targets_the_overview_route() {
+        assert_eq!(parse_page("globe"), Some(Route::Overview));
+        assert_eq!(parse_section("globe"), Some(CaptureSection::GlobeCard));
+        assert_eq!(parse_page("resource-gauges"), Some(Route::Overview));
+        assert_eq!(
+            parse_section("resource-gauges"),
+            Some(CaptureSection::OverviewResourceGaugeCard)
+        );
+        assert_eq!(parse_page("policy-groups"), Some(Route::Overview));
+        assert_eq!(
+            parse_section("policy-groups"),
+            Some(CaptureSection::OverviewPolicyGroupCard)
+        );
+        assert_eq!(parse_page("policy-picker"), Some(Route::Overview));
+        assert_eq!(
+            parse_section("policy-picker"),
+            Some(CaptureSection::OverviewPolicyGroupPicker)
+        );
     }
 
     #[test]

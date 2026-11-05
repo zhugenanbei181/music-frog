@@ -19,10 +19,12 @@ use infiltrator_bevy_widgets::bidi::LayoutDirection;
 use infiltrator_bevy_widgets::button::pill_scene;
 use infiltrator_bevy_widgets::fonts::FontSources;
 use infiltrator_bevy_widgets::palette::UiPalette;
-use infiltrator_bevy_widgets::text::{Role, TextRole, role_typography};
+use infiltrator_bevy_widgets::text::{TextRole, role_typography};
 use infiltrator_bevy_widgets::text_runs::{TextRuns, TextRunsDirection};
 use infiltrator_bevy_widgets::theme::REM_BASE;
 use infiltrator_bevy_widgets::theme::Theme;
+use infiltrator_contract::design_resources;
+use infiltrator_contract::design_resources::typeface;
 use zhuge_ui_core::text::SearchTextRun;
 
 fn headless_app() -> App {
@@ -93,7 +95,7 @@ fn font_initialization_precedes_startup_and_preserves_preexisting_labels() {
     let label = app
         .world_mut()
         .commands()
-        .spawn_scene(bsn! { TextRole(Role::Mono) TextFont::default() })
+        .spawn_scene(bsn! { TextRole(design_resources::TextRole::Mono) TextFont::default() })
         .id();
     app.add_systems(Startup, |sources: Res<FontSources>| {
         assert!(
@@ -122,7 +124,8 @@ fn widgets_plugin_requires_asset_plugin_before_it() {
     app.add_plugins((AssetPlugin::default(), ScenePlugin, TextPlugin));
     app.add_plugins(WidgetsPlugin::new(&Theme::dark()));
     app.add_systems(PreStartup, |mut commands: Commands| {
-        commands.spawn_scene(bsn! { TextRole(Role::Body) TextFont::default() });
+        commands
+            .spawn_scene(bsn! { TextRole(design_resources::TextRole::Body) TextFont::default() });
     });
     app.update();
     assert!(app.world().resource::<Assets<Font>>().len() >= 5);
@@ -141,11 +144,11 @@ fn faces_map_per_role() {
     let world = app.world_mut();
     let sources = world.resource::<FontSources>();
     let table = [
-        (Role::Display, sources.heading.clone()),
-        (Role::Heading, sources.heading.clone()),
-        (Role::Body, sources.body.clone()),
-        (Role::Caption, sources.caption.clone()),
-        (Role::Mono, sources.mono.clone()),
+        (design_resources::TextRole::Display, sources.heading.clone()),
+        (design_resources::TextRole::Heading, sources.heading.clone()),
+        (design_resources::TextRole::Body, sources.body.clone()),
+        (design_resources::TextRole::Caption, sources.caption.clone()),
+        (design_resources::TextRole::Mono, sources.mono.clone()),
     ];
     for (role, face) in table {
         assert_eq!(sources.face(role), face, "role resolves its own face");
@@ -159,11 +162,11 @@ fn faces_map_per_role() {
 #[test]
 fn display_role_sits_one_step_over_heading() {
     let palette = UiPalette::new(&Theme::dark());
-    assert_eq!(palette.display_font_px, 22.0);
-    assert_eq!(palette.heading_font_px, 20.0);
+    assert_eq!(typeface(design_resources::TextRole::Display).size_px, 22.0);
+    assert_eq!(typeface(design_resources::TextRole::Heading).size_px, 20.0);
 
-    let display = role_typography(Role::Display, &palette, None);
-    let heading = role_typography(Role::Heading, &palette, None);
+    let display = role_typography(design_resources::TextRole::Display, &palette, None);
+    let heading = role_typography(design_resources::TextRole::Heading, &palette, None);
     assert!(matches!(display.size, FontSize::Rem(f) if (f * REM_BASE - 22.0).abs() < 1e-4));
     assert!(matches!(heading.size, FontSize::Rem(f) if (f * REM_BASE - 20.0).abs() < 1e-4));
     assert_eq!(display.ink, palette.ink, "display draws at full ink");
@@ -177,16 +180,16 @@ fn display_role_sits_one_step_over_heading() {
 fn unregistered_sources_fall_back_to_default_handles() {
     let sources = FontSources::default();
     for role in [
-        Role::Display,
-        Role::Heading,
-        Role::Body,
-        Role::Caption,
-        Role::Mono,
+        design_resources::TextRole::Display,
+        design_resources::TextRole::Heading,
+        design_resources::TextRole::Body,
+        design_resources::TextRole::Caption,
+        design_resources::TextRole::Mono,
     ] {
         assert_eq!(sources.face(role), Handle::default());
     }
     let palette = UiPalette::new(&Theme::dark());
-    let typography = role_typography(Role::Body, &palette, None);
+    let typography = role_typography(design_resources::TextRole::Body, &palette, None);
     assert_eq!(typography.font, FontSource::default());
     assert!(matches!(typography.size, FontSize::Rem(f) if (f * REM_BASE - 15.0).abs() < 1e-4));
 }
@@ -280,10 +283,14 @@ fn root_rem_size_is_installed_and_roles_track_it() {
     assert_eq!(rem.0, REM_BASE, "WidgetsPlugin installs the root font size");
 
     let palette = UiPalette::new(&Theme::dark());
-    let FontSize::Rem(body) = role_typography(Role::Body, &palette, None).size else {
+    let FontSize::Rem(body) =
+        role_typography(design_resources::TextRole::Body, &palette, None).size
+    else {
         panic!("body must ride the rem channel");
     };
-    let FontSize::Rem(display) = role_typography(Role::Display, &palette, None).size else {
+    let FontSize::Rem(display) =
+        role_typography(design_resources::TextRole::Display, &palette, None).size
+    else {
         panic!("display must ride the rem channel");
     };
     assert!((body * REM_BASE - 15.0).abs() < 1e-4);

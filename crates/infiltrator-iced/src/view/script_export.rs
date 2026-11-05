@@ -10,14 +10,14 @@ use crate::types::message::Message;
 use crate::types::script::ScriptAction;
 use crate::view::components::modern_scrollable;
 use crate::view::theme;
-use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
+use crate::view::theme::tokens;
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_contract::script_export::{ScriptExportKind, ScriptExportOutcome};
 use infiltrator_shared::locales::{Lang, Localizer};
 
 fn kind_button<'a>(label: String, kind: ScriptExportKind, busy: bool) -> Element<'a, Message> {
-    button(text(label).size(11).font(FONT_MEDIUM))
+    button(theme::role_body_text(label))
         .padding([5, 12])
         .style(|t: &Theme, status| {
             let tk = tokens(t);
@@ -47,23 +47,17 @@ fn kind_button<'a>(label: String, kind: ScriptExportKind, busy: bool) -> Element
 
 fn detail_line<'a>(label: String, value: String, danger: bool) -> Element<'a, Message> {
     row![
-        text(label)
-            .size(11)
-            .font(FONT_SEMIBOLD)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_secondary),
-            }),
+        theme::role_body_text(label).style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_secondary),
+        }),
         Space::new().width(theme::SP_SM),
-        text(value)
-            .size(11)
-            .font(MONO)
-            .style(move |t: &Theme| text::Style {
-                color: Some(if danger {
-                    tokens(t).danger
-                } else {
-                    tokens(t).text_primary
-                }),
+        theme::role_body_text(value).style(move |t: &Theme| text::Style {
+            color: Some(if danger {
+                tokens(t).danger
+            } else {
+                tokens(t).text_primary
             }),
+        }),
     ]
     .align_y(Alignment::Center)
     .into()
@@ -84,12 +78,11 @@ pub fn export_section<'a>(state: &'a AppState, kinds: &[ScriptExportKind]) -> El
     let lang = Lang(&state.shell.lang);
     let busy = state.editor.script_sandbox.is_exporting();
     let mut buttons = row![
-        text(lang.tr("script_export_title").to_string())
-            .size(11)
-            .font(FONT_SEMIBOLD)
-            .style(|t: &Theme| text::Style {
+        theme::role_body_text(lang.tr("script_export_title").to_string()).style(|t: &Theme| {
+            text::Style {
                 color: Some(tokens(t).text_secondary),
-            }),
+            }
+        }),
     ]
     .spacing(theme::SP_SM)
     .align_y(Alignment::Center);
@@ -99,11 +92,11 @@ pub fn export_section<'a>(state: &'a AppState, kinds: &[ScriptExportKind]) -> El
     }
     if busy {
         buttons = buttons.push(
-            text(lang.tr("script_export_busy").to_string())
-                .size(11)
-                .style(|t: &Theme| text::Style {
+            theme::role_body_text(lang.tr("script_export_busy").to_string()).style(|t: &Theme| {
+                text::Style {
                     color: Some(tokens(t).text_tertiary),
-                }),
+                }
+            }),
         );
     }
 
@@ -111,11 +104,11 @@ pub fn export_section<'a>(state: &'a AppState, kinds: &[ScriptExportKind]) -> El
     match state.editor.script_sandbox.export() {
         None => {
             panel = panel.push(
-                text(lang.tr("script_export_empty").to_string())
-                    .size(11)
-                    .style(|t: &Theme| text::Style {
+                theme::role_body_text(lang.tr("script_export_empty").to_string()).style(
+                    |t: &Theme| text::Style {
                         color: Some(tokens(t).text_tertiary),
-                    }),
+                    },
+                ),
             )
         }
         Some(snapshot) => {
@@ -173,20 +166,18 @@ pub fn export_section<'a>(state: &'a AppState, kinds: &[ScriptExportKind]) -> El
             ));
             panel = panel.push(
                 column![
-                    text(lang.tr("script_export_preview").to_string())
-                        .size(11)
-                        .font(FONT_SEMIBOLD)
-                        .style(|t: &Theme| text::Style {
+                    theme::role_body_text(lang.tr("script_export_preview").to_string()).style(
+                        |t: &Theme| text::Style {
                             color: Some(tokens(t).text_secondary),
-                        }),
+                        }
+                    ),
                     container(
                         modern_scrollable(
-                            text(snapshot.content_preview(1200))
-                                .size(11)
-                                .font(MONO)
-                                .style(|t: &Theme| text::Style {
+                            theme::role_body_text(snapshot.content_preview(1200)).style(
+                                |t: &Theme| text::Style {
                                     color: Some(tokens(t).text_primary),
-                                }),
+                                }
+                            ),
                         )
                         .height(Length::Fixed(120.0)),
                     )

@@ -4,6 +4,7 @@
 #[path = "profiles_import_query_access.rs"]
 pub mod query_access;
 use self::query_access::SubscriptionFetchControls;
+use infiltrator_contract::design_resources;
 
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::localized_widgets::localized_field_scene;
@@ -33,8 +34,8 @@ use bevy::feathers::theme::ThemeTextColor;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::Checked;
 use bevy::ui::prelude::{
-    AlignItems, BorderColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val,
-    percent,
+    AlignItems, BorderColor, BorderRadius, FlexDirection, FlexWrap, JustifyContent, Node, UiRect,
+    Val, percent,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button, Checkbox};
@@ -47,7 +48,7 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::switch::{SwitchPosition, switch_knob_scene, switch_track_scene};
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_bevy_widgets::text_input::{TextField, text_field_with_placeholder_scene};
@@ -140,7 +141,7 @@ pub fn profiles_import_card_scene(
                                 Children [
                                     @{ icon_tile_scene(IconId::FileText, 24.0, palette) }
                                     --
-                                    LocalizedText::plain("profiles_local_import_title") TextRole(Role::BodyStrong)
+                                    LocalizedText::plain("profiles_local_import_title") TextRole(design_resources::TextRole::BodyStrong)
                                 ]
                             ]
             }),
@@ -169,7 +170,7 @@ pub fn profiles_import_card_scene(
                                     left: { palette.border },
                                 }
                                 Children [
-                                    LocalizedText::plain("profiles_local_import_path_hint") TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
+                                    LocalizedText::plain("profiles_local_import_path_hint") TextRole(design_resources::TextRole::Caption) ThemeTextColor({ Token::InkDim })
                                 ]
                                 --
                                 Node {
@@ -183,7 +184,7 @@ pub fn profiles_import_card_scene(
                                 Button
                                 ChooseLocalFileButton
                                 Children [
-                                    LocalizedText::plain("profiles_browse_btn") TextRole(Role::Body)
+                                    LocalizedText::plain("profiles_browse_btn") TextRole(design_resources::TextRole::Body)
                                 ]
                                 --
                                 Node {
@@ -197,7 +198,7 @@ pub fn profiles_import_card_scene(
                                 Button
                                 ImportLocalFileButton
                                 Children [
-                                    LocalizedText::plain("profiles_local_import_action") TextRole(Role::BodyStrong) ThemeTextColor({ Token::OnAccent })
+                                    LocalizedText::plain("profiles_local_import_action") TextRole(design_resources::TextRole::BodyStrong) ThemeTextColor({ Token::OnAccent })
                                 ]
                             ]
             }),
@@ -217,7 +218,7 @@ pub fn profiles_import_card_scene(
                                     column_gap: rem(space::S8),
                                 }
                                 Children [
-                                    LocalizedText::plain("profiles_import_activate") TextRole(Role::Body)
+                                    LocalizedText::plain("profiles_import_activate") TextRole(design_resources::TextRole::Body)
                                 ]
                                 --
                                 Node {
@@ -225,7 +226,7 @@ pub fn profiles_import_card_scene(
                                     column_gap: rem(space::S8),
                                 }
                                 Children [
-                                    LocalizedText::plain("overview_toggle_enabled") TextRole(Role::Caption) ThemeTextColor({ Token::Success })
+                                    LocalizedText::plain("overview_toggle_enabled") TextRole(design_resources::TextRole::Caption) ThemeTextColor({ Token::Success })
                                     --
                                     @{ switch_track_scene(palette, palette.accent, palette.accent) }
                                     ThemeBackgroundColor({ Token::Accent })
@@ -247,7 +248,7 @@ pub fn profiles_import_card_scene(
                             Children [
                                 @{ icon_tile_scene(IconId::Settings, 24.0, palette) }
                                 --
-                                LocalizedText::plain("profiles_request_settings_title") TextRole(Role::BodyStrong)
+                                LocalizedText::plain("profiles_request_settings_title") TextRole(design_resources::TextRole::BodyStrong)
                             ]
             }),
             // Section 2: Per-profile User-Agent text field + save button
@@ -278,7 +279,7 @@ pub fn profiles_import_card_scene(
                                 Button
                                 SaveUserAgentButton
                                 Children [
-                                    LocalizedText::plain("profiles_request_settings_save") TextRole(Role::BodyStrong) ThemeTextColor({ Token::OnAccent })
+                                    LocalizedText::plain("profiles_request_settings_save") TextRole(design_resources::TextRole::BodyStrong) ThemeTextColor({ Token::OnAccent })
                                 ]
                             ]
             }),
@@ -300,7 +301,7 @@ pub fn profiles_import_card_scene(
                                     @{ localized_checkbox_scene(LocalizedText::plain("profiles_skip_tls_verification"), insecure_skip_verify, palette) }
                                 ]
                                 --
-                                LocalizedText::new(conditional.key, conditional.params.clone()) SubscriptionConditionalStatus SubscriptionStatusKind::Conditional TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
+                                LocalizedText::new(conditional.key, conditional.params.clone()) SubscriptionConditionalStatus SubscriptionStatusKind::Conditional TextRole(design_resources::TextRole::Caption) ThemeTextColor({ Token::InkDim })
                             ]
             }),
             // Section 2: Safe pre-save backup status + restore action
@@ -312,7 +313,7 @@ pub fn profiles_import_card_scene(
                                 padding: UiRect::vertical(rem(space::S4)),
                             }
                             Children [
-                                LocalizedText::new(backup_status.key, backup_status.params.clone()) SubscriptionBackupStatus SubscriptionStatusKind::Backup TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
+                                LocalizedText::new(backup_status.key, backup_status.params.clone()) SubscriptionBackupStatus SubscriptionStatusKind::Backup TextRole(design_resources::TextRole::Caption) ThemeTextColor({ Token::InkDim })
                                 --
                                 Node {
                                     min_height: rem(palette.control_height_px),
@@ -325,7 +326,7 @@ pub fn profiles_import_card_scene(
                                 Button
                                 RestoreSubscriptionBackupButton
                                 Children [
-                                    LocalizedText::plain("profiles_restore_backup") TextRole(Role::Body)
+                                    LocalizedText::plain("profiles_restore_backup") TextRole(design_resources::TextRole::Body)
                                 ]
                             ]
             }),
@@ -338,7 +339,7 @@ pub fn profiles_import_card_scene(
                                 padding: UiRect::top(rem(space::S2)),
                             }
                             Children [
-                                LocalizedText::plain("profiles_user_agent_presets") TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
+                                LocalizedText::plain("profiles_user_agent_presets") TextRole(design_resources::TextRole::Caption) ThemeTextColor({ Token::InkDim })
                                 --
                                 Node {
                                     padding: UiRect::axes(rem(space::S8), rem(space::S4)),
@@ -346,7 +347,7 @@ pub fn profiles_import_card_scene(
                                 }
                                 ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Children [
-                                    Text({ "Clash.Meta".to_owned() }) TextRole(Role::Caption)
+                                    Text({ "Clash.Meta".to_owned() }) TextRole(design_resources::TextRole::Caption)
                                 ]
                                 --
                                 Node {
@@ -355,7 +356,7 @@ pub fn profiles_import_card_scene(
                                 }
                                 ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Children [
-                                    Text({ "ClashVerge".to_owned() }) TextRole(Role::Caption)
+                                    Text({ "ClashVerge".to_owned() }) TextRole(design_resources::TextRole::Caption)
                                 ]
                                 --
                                 Node {
@@ -364,7 +365,7 @@ pub fn profiles_import_card_scene(
                                 }
                                 ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Children [
-                                    Text({ "Shadowrocket".to_owned() }) TextRole(Role::Caption)
+                                    Text({ "Shadowrocket".to_owned() }) TextRole(design_resources::TextRole::Caption)
                                 ]
                             ]
             }),
@@ -379,9 +380,9 @@ pub fn profiles_import_card_scene(
                             Children [
                                 @{ icon_tile_scene(IconId::Settings, 24.0, palette) }
                                 --
-                                LocalizedText::plain("profiles_filter_pipeline_title") TextRole(Role::BodyStrong)
+                                LocalizedText::plain("profiles_filter_pipeline_title") TextRole(design_resources::TextRole::BodyStrong)
                                 --
-                                LocalizedText::new(schedule_status.key, schedule_status.params.clone()) SubscriptionScheduleStatus SubscriptionStatusKind::Schedule TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
+                                LocalizedText::new(schedule_status.key, schedule_status.params.clone()) SubscriptionScheduleStatus SubscriptionStatusKind::Schedule TextRole(design_resources::TextRole::Caption) ThemeTextColor({ Token::InkDim })
                             ]
             }),
             Box::new(bsn! {
@@ -416,14 +417,14 @@ pub fn profiles_import_card_scene(
                                     @{ localized_field_scene(filter.renames.clone(), LocalizedText::plain("field_filter_renames"), palette) } FilterText(FilterField::Renames) NativeTextField(3)
                                 ]
                                 --
-                                LocalizedText::plain("field_filter_advanced") TextRole(Role::Caption)
+                                LocalizedText::plain("field_filter_advanced") TextRole(design_resources::TextRole::Caption)
                                 --
                                 Node { width: percent(100) }
                                 Children [
                                     @{ localized_field_scene(filter.advanced_policy.clone().unwrap_or_default(), LocalizedText::plain("filter_advanced_ph"), palette) } FilterText(FilterField::Advanced) NativeTextField(4)
                                 ]
                                 --
-                                LocalizedText::plain("filter_advanced_help") TextRole(Role::Caption)
+                                LocalizedText::plain("filter_advanced_help") TextRole(design_resources::TextRole::Caption)
                             ]
             }),
             Box::new(bsn! {
@@ -441,7 +442,7 @@ pub fn profiles_import_card_scene(
                                     column_gap: rem(space::S8),
                                 }
                                 Children [
-                                    LocalizedText::new(filter_status.key, filter_status.params.clone()) SubscriptionFilterStatus SubscriptionStatusKind::Filter TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
+                                    LocalizedText::new(filter_status.key, filter_status.params.clone()) SubscriptionFilterStatus SubscriptionStatusKind::Filter TextRole(design_resources::TextRole::Caption) ThemeTextColor({ Token::InkDim })
                                     --
                                     @{ localized_pill_scene(LocalizedText::plain("profiles_filter_pipeline_apply"), true, palette) }
                                     SaveSubscriptionFilterButton
@@ -449,7 +450,7 @@ pub fn profiles_import_card_scene(
                                 ]
                             ]
             }),
-            Box::new(bsn! { FilterFormStatus TextRole(Role::Caption) }),
+            Box::new(bsn! { FilterFormStatus TextRole(design_resources::TextRole::Caption) }),
             // Section 4: DUAL-07-01 multi-channel import workbench.
             Box::new(bsn! {
                             Node {
@@ -461,7 +462,7 @@ pub fn profiles_import_card_scene(
                             Children [
                                 @{ icon_tile_scene(IconId::FileText, 24.0, palette) }
                                 --
-                                LocalizedText::plain("profiles_import_channels_title") TextRole(Role::BodyStrong)
+                                LocalizedText::plain("profiles_import_channels_title") TextRole(design_resources::TextRole::BodyStrong)
                             ]
             }),
             Box::new(bsn! {
@@ -496,11 +497,15 @@ pub fn profiles_import_card_scene(
                                 width: percent(100),
                                 align_items: AlignItems::Center,
                                 column_gap: rem(space::S8),
+                                row_gap: rem(space::S8),
+                                flex_wrap: FlexWrap::Wrap,
                                 padding: UiRect::vertical(rem(space::S4)),
                             }
                             Children [
                                 Node {
                                     min_height: rem(palette.control_height_px),
+                                    max_height: rem(palette.control_height_px),
+                                    flex_shrink: 0.0,
                                     padding: UiRect::horizontal(rem(space::S12)),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::Center,
@@ -510,11 +515,13 @@ pub fn profiles_import_card_scene(
                                 Button
                                 ImportSubscriptionUrlButton
                                 Children [
-                                    LocalizedText::plain("profiles_import_url_action") TextRole(Role::BodyStrong) ThemeTextColor({ Token::OnAccent })
+                                    LocalizedText::plain("profiles_import_url_action") TextRole(design_resources::TextRole::BodyStrong) ThemeTextColor({ Token::OnAccent })
                                 ]
                                 --
                                 Node {
                                     min_height: rem(palette.control_height_px),
+                                    max_height: rem(palette.control_height_px),
+                                    flex_shrink: 0.0,
                                     padding: UiRect::horizontal(rem(space::S12)),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::Center,
@@ -524,11 +531,13 @@ pub fn profiles_import_card_scene(
                                 Button
                                 ImportLocalSubscriptionButton
                                 Children [
-                                    LocalizedText::plain("profiles_import_file_action") TextRole(Role::Body)
+                                    LocalizedText::plain("profiles_import_file_action") TextRole(design_resources::TextRole::Body)
                                 ]
                                 --
                                 Node {
                                     min_height: rem(palette.control_height_px),
+                                    max_height: rem(palette.control_height_px),
+                                    flex_shrink: 0.0,
                                     padding: UiRect::horizontal(rem(space::S12)),
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::Center,
@@ -538,7 +547,7 @@ pub fn profiles_import_card_scene(
                                 Button
                                 ImportClipboardSubscriptionButton
                                 Children [
-                                    LocalizedText::plain("profiles_import_clipboard_action") TextRole(Role::Body)
+                                    LocalizedText::plain("profiles_import_clipboard_action") TextRole(design_resources::TextRole::Body)
                                 ]
                             ]
             }),

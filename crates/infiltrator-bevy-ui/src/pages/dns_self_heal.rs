@@ -22,8 +22,9 @@ use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_presentation::dns_health_projection::project_dns_health;
 use infiltrator_presentation::dns_latency_projection::{project_dns_latency, server_tags_text};
 use infiltrator_presentation::stun_projection::project_stun;
@@ -54,9 +55,9 @@ pub fn dns_self_heal_card_scene(
                                 padding: UiRect::bottom(rem(space::S8)),
                             }
                             Children [
-                                LocalizedText::plain("dns_self_heal_title") TextRole(Role::BodyStrong)
+                                LocalizedText::plain("dns_self_heal_title") TextRole(design_resources::TextRole::BodyStrong)
                                 --
-                                Text(overall_label) DnsLine(DnsLineKind::SelfHealOverall) TextRole(Role::BodyStrong) TextColor(overall_color)
+                                Text(overall_label) DnsLine(DnsLineKind::SelfHealOverall) TextRole(design_resources::TextRole::BodyStrong) TextColor(overall_color)
                             ]
             }),
             Box::new(bsn! {
@@ -73,7 +74,7 @@ pub fn dns_self_heal_card_scene(
                             Children [
                                 Text(listing)
                                 DnsLine(DnsLineKind::SelfHeal)
-                                TextRole(Role::Mono)
+                                TextRole(design_resources::TextRole::Mono)
                             ]
             }),
         ],

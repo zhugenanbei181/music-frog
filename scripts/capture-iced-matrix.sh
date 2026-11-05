@@ -433,7 +433,6 @@ capture_one() {
   [ "$marker_page" = "rules-providers" ] && marker_page="rules"
   [ "$marker_page" = "connections" ] && marker_page="runtime"
   [ "$marker_page" = "logs" ] && marker_page="runtime"
-  [ "$marker_page" = "about" ] && marker_page="settings"
   local scenario_dir="$RUN_DIR/$name"
   local log="$scenario_dir/app.log"
   local marker="$scenario_dir/marker.log"

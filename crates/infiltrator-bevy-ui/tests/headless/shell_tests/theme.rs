@@ -8,7 +8,12 @@ use infiltrator_bevy_widgets::button::{ButtonDisabled, ButtonVariant, button_fil
 fn theme_switch_restamps_ink_and_fill_in_place() {
     let mut app = mounted_shell();
     let header = heading_entity(app.world_mut());
-    let pill = theme_pill_entity(app.world_mut());
+    let rail = app
+        .world_mut()
+        .query::<(Entity, &SidebarPanel)>()
+        .single(app.world())
+        .expect("sidebar rail")
+        .0;
     let dark = UiPalette::new(&Theme::dark());
     let light = UiPalette::new(&Theme::light());
 
@@ -26,11 +31,11 @@ fn theme_switch_restamps_ink_and_fill_in_place() {
     assert_eq!(ink.0, light.ink, "heading ink restamped to light");
     let fill = world
         .query::<&BackgroundColor>()
-        .get(world, pill)
-        .expect("pill survives the switch");
-    assert_eq!(fill.0, light.surface_elevated, "pill fill restamped");
+        .get(world, rail)
+        .expect("rail survives the switch");
+    assert_eq!(fill.0, light.sidebar, "rail fill restamped");
     assert!(world.get_entity(header).is_ok(), "header id unchanged");
-    assert!(world.get_entity(pill).is_ok(), "pill id unchanged");
+    assert!(world.get_entity(rail).is_ok(), "rail id unchanged");
 
     app.world_mut()
         .commands()
@@ -46,14 +51,14 @@ fn theme_switch_restamps_ink_and_fill_in_place() {
     assert_eq!(ink.0, dark.ink, "heading ink restamped back to dark");
     let fill = world
         .query::<&BackgroundColor>()
-        .get(world, pill)
-        .expect("pill survives the round trip");
-    assert_eq!(fill.0, dark.surface_elevated, "pill fill reverts");
+        .get(world, rail)
+        .expect("rail survives the round trip");
+    assert_eq!(fill.0, dark.sidebar, "rail fill reverts");
     assert!(
         world.get_entity(header).is_ok(),
         "header id still unchanged"
     );
-    assert!(world.get_entity(pill).is_ok(), "pill id still unchanged");
+    assert!(world.get_entity(rail).is_ok(), "rail id still unchanged");
 }
 
 #[test]

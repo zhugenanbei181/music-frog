@@ -1,0 +1,429 @@
+{
+  "version": 1,
+  "font_weights": [
+    400,
+    500,
+    600
+  ],
+  "font_faces": [
+    {
+      "catalog_id": "font.Inter-Regular",
+      "android_resource": "inter_regular",
+      "family": "Sans",
+      "family_name": "Inter",
+      "weight": "Regular"
+    },
+    {
+      "catalog_id": "font.Inter-Medium",
+      "android_resource": "inter_medium",
+      "family": "Sans",
+      "family_name": "Inter",
+      "weight": "Medium"
+    },
+    {
+      "catalog_id": "font.Inter-SemiBold",
+      "android_resource": "inter_semibold",
+      "family": "Sans",
+      "family_name": "Inter",
+      "weight": "SemiBold"
+    },
+    {
+      "catalog_id": "font.JetBrainsMono-Regular",
+      "android_resource": "jetbrains_mono_regular",
+      "family": "Mono",
+      "family_name": "JetBrains Mono",
+      "weight": "Regular"
+    },
+    {
+      "catalog_id": "font.CJK-Regular",
+      "android_resource": "cjk_regular",
+      "family": "Cjk",
+      "family_name": "HarmonyOS Sans",
+      "weight": "Regular"
+    }
+  ],
+  "type_roles": [
+    {
+      "role": "Display",
+      "catalog_id": "font.Inter-SemiBold",
+      "family_name": "Inter",
+      "size_px": 22.0,
+      "weight": "SemiBold"
+    },
+    {
+      "role": "Title",
+      "catalog_id": "font.Inter-SemiBold",
+      "family_name": "Inter",
+      "size_px": 20.0,
+      "weight": "SemiBold"
+    },
+    {
+      "role": "Subheading",
+      "catalog_id": "font.Inter-SemiBold",
+      "family_name": "Inter",
+      "size_px": 18.0,
+      "weight": "SemiBold"
+    },
+    {
+      "role": "Heading",
+      "catalog_id": "font.Inter-SemiBold",
+      "family_name": "Inter",
+      "size_px": 20.0,
+      "weight": "SemiBold"
+    },
+    {
+      "role": "BodyLarge",
+      "catalog_id": "font.Inter-Regular",
+      "family_name": "Inter",
+      "size_px": 16.0,
+      "weight": "Regular"
+    },
+    {
+      "role": "Body",
+      "catalog_id": "font.Inter-Regular",
+      "family_name": "Inter",
+      "size_px": 15.0,
+      "weight": "Regular"
+    },
+    {
+      "role": "BodyStrong",
+      "catalog_id": "font.Inter-SemiBold",
+      "family_name": "Inter",
+      "size_px": 15.0,
+      "weight": "SemiBold"
+    },
+    {
+      "role": "Label",
+      "catalog_id": "font.Inter-Medium",
+      "family_name": "Inter",
+      "size_px": 14.0,
+      "weight": "Medium"
+    },
+    {
+      "role": "LabelStrong",
+      "catalog_id": "font.Inter-SemiBold",
+      "family_name": "Inter",
+      "size_px": 14.0,
+      "weight": "SemiBold"
+    },
+    {
+      "role": "Caption",
+      "catalog_id": "font.Inter-Medium",
+      "family_name": "Inter",
+      "size_px": 12.0,
+      "weight": "Medium"
+    },
+    {
+      "role": "Micro",
+      "catalog_id": "font.Inter-Medium",
+      "family_name": "Inter",
+      "size_px": 11.0,
+      "weight": "Medium"
+    },
+    {
+      "role": "Tag",
+      "catalog_id": "font.Inter-Medium",
+      "family_name": "Inter",
+      "size_px": 10.0,
+      "weight": "Medium"
+    },
+    {
+      "role": "Mono",
+      "catalog_id": "font.JetBrainsMono-Regular",
+      "family_name": "JetBrains Mono",
+      "size_px": 13.0,
+      "weight": "Regular"
+    },
+    {
+      "role": "MonoStrong",
+      "catalog_id": "font.JetBrainsMono-Regular",
+      "family_name": "JetBrains Mono",
+      "size_px": 13.0,
+      "weight": "Regular"
+    }
+  ],
+  "icons": [
+    {
+      "semantic": "Overview",
+      "tier": "Canonical",
+      "catalog_id": "icon.layout-grid",
+      "canonical_name": "layout-grid"
+    },
+    {
+      "semantic": "Proxy",
+      "tier": "Canonical",
+      "catalog_id": "icon.globe",
+      "canonical_name": "globe"
+    },
+    {
+      "semantic": "Config",
+      "tier": "Canonical",
+      "catalog_id": "icon.file-text",
+      "canonical_name": "file-text"
+    },
+    {
+      "semantic": "Settings",
+      "tier": "Canonical",
+      "catalog_id": "icon.settings",
+      "canonical_name": "settings"
+    },
+    {
+      "semantic": "Connections",
+      "tier": "Canonical",
+      "catalog_id": "icon.network",
+      "canonical_name": "network"
+    },
+    {
+      "semantic": "Logs",
+      "tier": "Canonical",
+      "catalog_id": "icon.file-text",
+      "canonical_name": "file-text"
+    },
+    {
+      "semantic": "Rules",
+      "tier": "Canonical",
+      "catalog_id": "icon.list-checks",
+      "canonical_name": "list-checks"
+    },
+    {
+      "semantic": "Traffic",
+      "tier": "Canonical",
+      "catalog_id": "icon.activity",
+      "canonical_name": "activity"
+    },
+    {
+      "semantic": "Search",
+      "tier": "Canonical",
+      "catalog_id": "icon.search",
+      "canonical_name": "search"
+    },
+    {
+      "semantic": "Add",
+      "tier": "Canonical",
+      "catalog_id": "icon.plus",
+      "canonical_name": "plus"
+    },
+    {
+      "semantic": "Remove",
+      "tier": "Canonical",
+      "catalog_id": "icon.trash-2",
+      "canonical_name": "trash-2"
+    },
+    {
+      "semantic": "Edit",
+      "tier": "Canonical",
+      "catalog_id": "icon.pencil",
+      "canonical_name": "pencil"
+    },
+    {
+      "semantic": "Delete",
+      "tier": "Canonical",
+      "catalog_id": "icon.trash-2",
+      "canonical_name": "trash-2"
+    },
+    {
+      "semantic": "Copy",
+      "tier": "Canonical",
+      "catalog_id": "icon.copy",
+      "canonical_name": "copy"
+    },
+    {
+      "semantic": "Refresh",
+      "tier": "Canonical",
+      "catalog_id": "icon.refresh-cw",
+      "canonical_name": "refresh-cw"
+    },
+    {
+      "semantic": "Start",
+      "tier": "Canonical",
+      "catalog_id": "icon.zap",
+      "canonical_name": "zap"
+    },
+    {
+      "semantic": "Stop",
+      "tier": "Canonical",
+      "catalog_id": "icon.square",
+      "canonical_name": "square"
+    },
+    {
+      "semantic": "ChevronRight",
+      "tier": "Canonical",
+      "catalog_id": "icon.chevron-right",
+      "canonical_name": "chevron-right"
+    },
+    {
+      "semantic": "ChevronLeft",
+      "tier": "Canonical",
+      "catalog_id": "icon.chevron-left",
+      "canonical_name": "chevron-left"
+    },
+    {
+      "semantic": "ChevronUp",
+      "tier": "Canonical",
+      "catalog_id": "icon.chevron-up",
+      "canonical_name": "chevron-up"
+    },
+    {
+      "semantic": "ChevronDown",
+      "tier": "Canonical",
+      "catalog_id": "icon.chevron-down",
+      "canonical_name": "chevron-down"
+    },
+    {
+      "semantic": "Expand",
+      "tier": "Canonical",
+      "catalog_id": "icon.chevron-down",
+      "canonical_name": "chevron-down"
+    },
+    {
+      "semantic": "Close",
+      "tier": "Canonical",
+      "catalog_id": "icon.x",
+      "canonical_name": "x"
+    },
+    {
+      "semantic": "Check",
+      "tier": "Canonical",
+      "catalog_id": "icon.square",
+      "canonical_name": "square"
+    },
+    {
+      "semantic": "Shield",
+      "tier": "Canonical",
+      "catalog_id": "icon.shield",
+      "canonical_name": "shield"
+    },
+    {
+      "semantic": "Globe",
+      "tier": "Canonical",
+      "catalog_id": "icon.globe",
+      "canonical_name": "globe"
+    },
+    {
+      "semantic": "Network",
+      "tier": "Canonical",
+      "catalog_id": "icon.network",
+      "canonical_name": "network"
+    },
+    {
+      "semantic": "Server",
+      "tier": "Canonical",
+      "catalog_id": "icon.server",
+      "canonical_name": "server"
+    },
+    {
+      "semantic": "Zap",
+      "tier": "Canonical",
+      "catalog_id": "icon.zap",
+      "canonical_name": "zap"
+    },
+    {
+      "semantic": "Target",
+      "tier": "Canonical",
+      "catalog_id": "icon.target",
+      "canonical_name": "target"
+    },
+    {
+      "semantic": "Activity",
+      "tier": "Canonical",
+      "catalog_id": "icon.activity",
+      "canonical_name": "activity"
+    },
+    {
+      "semantic": "Plus",
+      "tier": "Canonical",
+      "catalog_id": "icon.plus",
+      "canonical_name": "plus"
+    },
+    {
+      "semantic": "Minus",
+      "tier": "Canonical",
+      "catalog_id": "icon.minus",
+      "canonical_name": "minus"
+    },
+    {
+      "semantic": "X",
+      "tier": "Canonical",
+      "catalog_id": "icon.x",
+      "canonical_name": "x"
+    },
+    {
+      "semantic": "ArrowUp",
+      "tier": "Canonical",
+      "catalog_id": "icon.arrow-up",
+      "canonical_name": "arrow-up"
+    },
+    {
+      "semantic": "ArrowDown",
+      "tier": "Canonical",
+      "catalog_id": "icon.arrow-down",
+      "canonical_name": "arrow-down"
+    },
+    {
+      "semantic": "ListChecks",
+      "tier": "Canonical",
+      "catalog_id": "icon.list-checks",
+      "canonical_name": "list-checks"
+    },
+    {
+      "semantic": "LayoutGrid",
+      "tier": "Canonical",
+      "catalog_id": "icon.layout-grid",
+      "canonical_name": "layout-grid"
+    },
+    {
+      "semantic": "FileText",
+      "tier": "Canonical",
+      "catalog_id": "icon.file-text",
+      "canonical_name": "file-text"
+    },
+    {
+      "semantic": "Code2",
+      "tier": "Canonical",
+      "catalog_id": "icon.code-2",
+      "canonical_name": "code-2"
+    },
+    {
+      "semantic": "Wifi",
+      "tier": "Canonical",
+      "catalog_id": "icon.wifi",
+      "canonical_name": "wifi"
+    },
+    {
+      "semantic": "Plug",
+      "tier": "Canonical",
+      "catalog_id": "icon.plug",
+      "canonical_name": "plug"
+    },
+    {
+      "semantic": "Square",
+      "tier": "Canonical",
+      "catalog_id": "icon.square",
+      "canonical_name": "square"
+    },
+    {
+      "semantic": "Pin",
+      "tier": "Canonical",
+      "catalog_id": "icon.pin",
+      "canonical_name": "pin"
+    }
+  ],
+  "platform_native_icons": [
+    {
+      "id": "flag.*",
+      "reason": "full-colour national flags are a distinct shared inventory"
+    },
+    {
+      "id": "app.product",
+      "reason": "OS launcher density buckets and ICO frames are generated variants"
+    },
+    {
+      "id": "android.notification",
+      "reason": "system notification small icons require platform monochrome rules"
+    },
+    {
+      "id": "slint.ping-spin",
+      "reason": "Slint renders a frame sequence instead of a runtime rotation"
+    }
+  ]
+}

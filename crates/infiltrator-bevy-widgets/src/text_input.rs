@@ -29,12 +29,13 @@ pub mod ime;
 pub mod native;
 pub mod render;
 pub mod state;
+use infiltrator_contract::design_resources;
 use state::{TextFieldState, field_visual};
 
 use crate::feathers_theme::Token;
 use crate::palette::UiPalette;
 use crate::palette::rem;
-use crate::text::{Role, TextRole};
+use crate::text::TextRole;
 use crate::theme::space;
 use accesskit;
 use bevy::a11y::AccessibilityNode;
@@ -138,9 +139,9 @@ pub fn text_field_with_placeholder_scene(
             TextField(state)
             TextFieldFocused(false)
             Children [
-                Text(placeholder_text) TextRole(Role::Body) TextFieldPlaceholder
+                Text(placeholder_text) TextRole(design_resources::TextRole::Body) TextFieldPlaceholder
                 --
-                Text(before) TextRole(Role::Body) TextFieldBefore
+                Text(before) TextRole(design_resources::TextRole::Body) TextFieldBefore
                 --
                 Node {
                     width: px(caret_w),
@@ -157,7 +158,7 @@ pub fn text_field_with_placeholder_scene(
                 }
                 TextFieldPreedit
                 Children [
-                    Text({ String::new() }) TextRole(Role::Body) TextFieldPreeditText
+                    Text({ String::new() }) TextRole(design_resources::TextRole::Body) TextFieldPreeditText
                     --
                     Node {
                         width: percent(100),
@@ -172,7 +173,7 @@ pub fn text_field_with_placeholder_scene(
                 BackgroundColor({ palette.selection_fill() })
                 TextFieldSelection
                 Children [
-                    Text({ String::new() }) TextRole(Role::Body) TextFieldSelectionText
+                    Text({ String::new() }) TextRole(design_resources::TextRole::Body) TextFieldSelectionText
                 ]
                 --
                 Node {
@@ -183,7 +184,7 @@ pub fn text_field_with_placeholder_scene(
                 ThemeBackgroundColor({ Token::Accent })
                 TextFieldCaret(1) Visibility::Hidden
                 --
-                Text(after) TextRole(Role::Body) TextFieldAfter
+                Text(after) TextRole(design_resources::TextRole::Body) TextFieldAfter
             ]
     }
 }
@@ -228,9 +229,9 @@ pub fn password_field_scene(
             TextField(state)
             TextFieldFocused(false)
             Children [
-                Text(placeholder_text) TextRole(Role::Body) TextFieldPlaceholder
+                Text(placeholder_text) TextRole(design_resources::TextRole::Body) TextFieldPlaceholder
                 --
-                Text(before) TextRole(Role::Body) TextFieldBefore
+                Text(before) TextRole(design_resources::TextRole::Body) TextFieldBefore
                 --
                 Node {
                     width: px(caret_w),
@@ -247,7 +248,7 @@ pub fn password_field_scene(
                 }
                 TextFieldPreedit
                 Children [
-                    Text({ String::new() }) TextRole(Role::Body) TextFieldPreeditText
+                    Text({ String::new() }) TextRole(design_resources::TextRole::Body) TextFieldPreeditText
                     --
                     Node {
                         width: percent(100),
@@ -262,7 +263,7 @@ pub fn password_field_scene(
                 BackgroundColor({ palette.selection_fill() })
                 TextFieldSelection
                 Children [
-                    Text({ String::new() }) TextRole(Role::Body) TextFieldSelectionText
+                    Text({ String::new() }) TextRole(design_resources::TextRole::Body) TextFieldSelectionText
                 ]
                 --
                 Node {
@@ -273,7 +274,7 @@ pub fn password_field_scene(
                 ThemeBackgroundColor({ Token::Accent })
                 TextFieldCaret(1) Visibility::Hidden
                 --
-                Text(after) TextRole(Role::Body) TextFieldAfter
+                Text(after) TextRole(design_resources::TextRole::Body) TextFieldAfter
             ]
     }
 }

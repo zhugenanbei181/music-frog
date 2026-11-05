@@ -23,8 +23,9 @@ use infiltrator_bevy_widgets::button::{ButtonSize, ButtonVariant, button_with_la
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_domain::connection_activity::{
     ConnectionActivityTracker, DEFAULT_IDLE_TIMEOUT_SECS,
 };
@@ -72,13 +73,13 @@ pub fn conn_idle_controls_scene(palette: &UiPalette) -> impl Scene + use<> {
                 row_gap: rem(space::S8),
             }
             Children [
-                LocalizedText::plain("dns_fake_ip_idle_label") TextRole(Role::Caption)
+                LocalizedText::plain("dns_fake_ip_idle_label") TextRole(design_resources::TextRole::Caption)
                 --
                 @{ idle_timeout_strip_scene(DEFAULT_IDLE_TIMEOUT_SECS, palette) }
                 --
                 @{ sweep_button_scene(palette) }
                 --
-                LocalizedText::plain("conn_idle_last_sweep_none") ConnIdleStatus TextRole(Role::Caption)
+                LocalizedText::plain("conn_idle_last_sweep_none") ConnIdleStatus TextRole(design_resources::TextRole::Caption)
             ]
     }
 }
@@ -87,7 +88,7 @@ pub fn conn_idle_controls_scene(palette: &UiPalette) -> impl Scene + use<> {
 fn sweep_button_scene(palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
             @{ button_with_label_scene(
-                bsn! { LocalizedText::plain("conn_idle_sweep_btn") TextRole(Role::Caption) },
+                bsn! { LocalizedText::plain("conn_idle_sweep_btn") TextRole(design_resources::TextRole::Caption) },
                 ButtonVariant::Ghost,
                 ButtonSize::Sm,
                 palette,

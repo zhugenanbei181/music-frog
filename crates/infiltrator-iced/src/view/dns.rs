@@ -23,7 +23,7 @@ use crate::view::dns_leak_panel::leak_panel;
 use crate::view::stun_probe_panel::stun_panel;
 use crate::view::svg_icons::Icon;
 use crate::view::theme;
-use crate::view::theme::{FONT_SEMIBOLD, MONO, SP_LG, tokens};
+use crate::view::theme::{SP_LG, tokens};
 use crate::view::tun_stack_card::tun_stack_card;
 use iced::widget::{
     Row, Space, button, column, container, pick_list, row, text, text_editor, text_input,
@@ -240,8 +240,6 @@ fn fake_ip_form_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, M
         text_input("198.18.0.1/16", &state.editor.fake_ip_form.fake_ip_range)
             .on_input(Message::UpdateFakeIpFormRange)
             .padding([8, 12])
-            .size(12)
-            .font(MONO)
             .style(form_input_style),
         Space::new().height(theme::SP_XS),
         dynamic_token_section(
@@ -267,11 +265,11 @@ fn fake_ip_form_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, M
         Space::new().height(theme::SP_SM),
         container(
             row![
-                text(lang.tr("dns_flush_fakeip_desc").to_string())
-                    .size(12)
-                    .style(|t: &Theme| text::Style {
+                theme::role_body_text(lang.tr("dns_flush_fakeip_desc").to_string()).style(
+                    |t: &Theme| text::Style {
                         color: Some(tokens(t).text_secondary)
-                    }),
+                    }
+                ),
                 Space::new().width(Length::Fill),
                 text_btn(flush_label, style_ghost, Some(Message::FlushFakeIpCache)),
             ]
@@ -351,14 +349,11 @@ fn tun_form_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Messa
         text_input("1500", &state.editor.tun_form.mtu)
             .on_input(Message::UpdateTunFormMtu)
             .padding([8, 12])
-            .size(12)
-            .font(MONO)
             .style(form_input_style),
         form_field_label("dns_hijack (comma/newline separated)".to_string()),
         text_input("any:53", &state.editor.tun_form.dns_hijack)
             .on_input(Message::UpdateTunFormDnsHijack)
             .padding([8, 12])
-            .size(12)
             .style(form_input_style),
         responsive_form_toggle_row(
             state.shell.viewport.tier,
@@ -427,7 +422,6 @@ fn advanced_json_panel<'a>(
         container(
             text_editor(content)
                 .on_action(on_action)
-                .font(MONO)
                 .padding(10)
                 .height(Length::Fixed(520.0))
         )
@@ -521,15 +515,12 @@ fn stun_probe_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Mes
 pub fn view(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
     let header = row![
-        button(text(lang.tr("dns_query_open")).size(12))
+        button(theme::role_body_text(lang.tr("dns_query_open")))
             .style(style_accent)
             .on_press(Message::DnsQuery(QueryAction::Open)),
-        text(lang.tr("dns_title").to_string())
-            .size(24)
-            .font(FONT_SEMIBOLD)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_primary)
-            })
+        theme::role_body_text(lang.tr("dns_title").to_string()).style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_primary)
+        })
     ]
     .align_y(Alignment::Center);
 
@@ -550,14 +541,12 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 card(
                     None,
                     column![
-                        text(lang.tr("page_controls_loading").into_owned())
-                            .size(14)
-                            .font(FONT_SEMIBOLD)
-                            .style(|t: &Theme| text::Style {
+                        theme::role_body_text(lang.tr("page_controls_loading").into_owned()).style(
+                            |t: &Theme| text::Style {
                                 color: Some(tokens(t).text_primary)
-                            }),
-                        text(lang.tr("page_controls_loading_hint").into_owned())
-                            .size(12)
+                            }
+                        ),
+                        theme::role_body_text(lang.tr("page_controls_loading_hint").into_owned())
                             .style(|t: &Theme| text::Style {
                                 color: Some(tokens(t).text_secondary)
                             }),

@@ -11,6 +11,7 @@
 #[path = "dns_query_access.rs"]
 pub mod query_access;
 use self::query_access::{DnsActionControls, DnsProjectionTargets};
+use infiltrator_contract::design_resources;
 
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::pages::dns_edit::{
@@ -50,8 +51,9 @@ use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLo
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_bevy_widgets::theme::{metrics, space};
+use infiltrator_bevy_widgets::switch::SwitchPosition;
+use infiltrator_bevy_widgets::text::TextRole;
+use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::dns::{
     DnsCoreSwitches, DnsEnhancedMode, DnsFakeIpFilterMode, DnsServerTag, DnsSettingsPatch,
     DnsSwitchField, FakeIpMappingPool,
@@ -355,7 +357,7 @@ fn query_tool_bar_scene(palette: &UiPalette) -> impl Scene + use<> {
             Children [
                 @{ icon_tile_scene(IconId::Globe, 24.0, palette) }
                 --
-                LocalizedText::plain("dns_query_title") TextRole(Role::BodyStrong)
+                LocalizedText::plain("dns_query_title") TextRole(design_resources::TextRole::BodyStrong)
             ]
             --
             @{ query_button(QueryAction::Open, LocalizedText::plain("dns_query_open"), palette) }
@@ -398,11 +400,11 @@ fn header_card_scene(
                                 row_gap: rem(space::S4),
                             }
                             Children [
-                                Text(summary) DnsLine(DnsLineKind::Summary) TextRole(Role::Heading)
+                                Text(summary) DnsLine(DnsLineKind::Summary) TextRole(design_resources::TextRole::Heading)
                                 --
                                 Text(flush_label)
                                 DnsLine(DnsLineKind::CacheFlush)
-                                TextRole(Role::Caption)
+                                TextRole(design_resources::TextRole::Caption)
                             ]
                         ]
                         --
@@ -422,7 +424,7 @@ fn header_card_scene(
                             TestDnsLatencyButton
                             Button
                             Children [
-                                LocalizedText::plain("runtime_delay_test_one") TextRole(Role::BodyStrong)
+                                LocalizedText::plain("runtime_delay_test_one") TextRole(design_resources::TextRole::BodyStrong)
                             ]
                             --
                             Node {
@@ -436,7 +438,7 @@ fn header_card_scene(
                             TestStunProbeButton
                             Button
                             Children [
-                                LocalizedText::plain("dns_stun_egress_action") TextRole(Role::Body)
+                                LocalizedText::plain("dns_stun_egress_action") TextRole(design_resources::TextRole::Body)
                             ]
                             --
                             Node {
@@ -450,7 +452,7 @@ fn header_card_scene(
                             ClearDnsCacheButton
                             Button
                             Children [
-                                LocalizedText::plain("dns_clear_cache_action") TextRole(Role::Body)
+                                LocalizedText::plain("dns_clear_cache_action") TextRole(design_resources::TextRole::Body)
                             ]
                         ]
                     ]
@@ -474,7 +476,7 @@ fn fake_ip_card_scene(fake_ip_range: &str, palette: &UiPalette) -> impl Scene + 
                                 padding: UiRect::bottom(rem(space::S8)),
                             }
                             Children [
-                                LocalizedText::plain("dns_fake_ip_advanced_title") TextRole(Role::BodyStrong)
+                                LocalizedText::plain("dns_fake_ip_advanced_title") TextRole(design_resources::TextRole::BodyStrong)
                             ]
             }),
             Box::new(bsn! {
@@ -487,9 +489,9 @@ fn fake_ip_card_scene(fake_ip_range: &str, palette: &UiPalette) -> impl Scene + 
                             }
                             ThemeBackgroundColor({ Token::SurfaceElevated })
                             Children [
-                                Text(range_str) DnsLine(DnsLineKind::FakeIpRange) TextRole(Role::Body)
+                                Text(range_str) DnsLine(DnsLineKind::FakeIpRange) TextRole(design_resources::TextRole::Body)
                                 --
-                                LocalizedText::plain("dns_fake_ip_filter_hint") TextRole(Role::Caption)
+                                LocalizedText::plain("dns_fake_ip_filter_hint") TextRole(design_resources::TextRole::Caption)
                             ]
             }),
         ],
@@ -718,18 +720,17 @@ pub(crate) fn apply_dns_projection(
         border.left = edge;
     }
 
-    for (mut background, mut node, marker) in &mut switch_knobs {
+    for (mut background, mut knob, marker) in &mut switch_knobs {
         let enabled = projection.switches.value(marker.0);
         background.0 = if enabled {
             palette.on_accent
         } else {
             palette.ink_dim
         };
-        node.left = if enabled {
-            rem(metrics::CONTROL_SQUARE)
-        } else {
-            rem(space::S2)
-        };
+        let position = SwitchPosition::from_enabled(enabled);
+        if knob.0 != position {
+            knob.0 = position;
+        }
     }
 
     for (mut background, marker) in &mut enhanced_pills {

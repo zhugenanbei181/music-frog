@@ -18,6 +18,8 @@ pub(super) fn translate_network_zh(key: &str) -> Cow<'static, str> {
         "dns_field_geoip_code" => "fallback_filter.geoip_code（ISO 国家代码）".into(),
         "dns_field_trigger" => "fallback_filter.ipcidr（GEOIP 触发网段）".into(),
         "dns_field_fake_range" => "fake_ip_range".into(),
+        "dns_field_mtu" => "MTU".into(),
+        "dns_field_dns_hijack" => "DNS 劫持（逗号或换行分隔）".into(),
         "dns_field_fake_filter" => "fake_ip_filter".into(),
         "dns_field_proxy_nameserver" => "proxy_server_nameserver".into(),
         "dns_field_direct_nameserver" => "direct_nameserver".into(),

@@ -20,7 +20,7 @@ use crate::list::scroll_core::VirtualWindow;
 use crate::palette::UiPalette;
 use crate::palette::rem;
 use crate::selection::SelectionState;
-use crate::text::{Role, TextRole};
+use crate::text::TextRole;
 use crate::theme::space;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
@@ -31,6 +31,7 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
+use infiltrator_contract::design_resources;
 
 /// Sizing strategy for a table column.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -330,7 +331,7 @@ pub fn data_grid_header_scene<T>(
                             Button
                             DataGridSortButton(idx)
                             Children [
-                                Text(title) TextRole(Role::BodyStrong)
+                                Text(title) TextRole(design_resources::TextRole::BodyStrong)
                             ]
             }) as Box<dyn Scene>
         })
@@ -385,7 +386,7 @@ pub fn data_grid_row_scene<T>(
                                 flex_shrink: 0.0,
                             }
                             Children [
-                                Text(text_val) TextRole(Role::Body)
+                                Text(text_val) TextRole(design_resources::TextRole::Body)
                             ]
             }) as Box<dyn Scene>
         })

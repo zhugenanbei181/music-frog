@@ -3,9 +3,11 @@ use super::card::{modal_backdrop, modal_card};
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::view::component_forms::{style_accent, style_ghost};
-use crate::view::theme::{FONT_SEMIBOLD, tokens};
+use crate::view::scrollbar::auto_hide_scrollable;
+use crate::view::theme;
+use crate::view::theme::tokens;
 use crate::view_root::interaction_regions::InteractionRegion;
-use iced::widget::{Space, button, column, container, row, scrollable, text};
+use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_shared::locales::{Lang, Localizer};
 
@@ -23,14 +25,19 @@ pub fn group_order_modal(state: &AppState) -> Element<'_, Message> {
             .map_or_else(|| group_id.value().to_owned(), |group| group.name.clone());
         groups = groups.push(
             row![
-                text(name).width(Length::Fill),
-                button(text("▲")).style(style_ghost).on_press_maybe(
-                    (!pending && index > 0).then(|| Message::MoveProxyGroupUp(group_id.clone()))
-                ),
-                button(text("▼")).style(style_ghost).on_press_maybe(
-                    (!pending && index + 1 < editor.draft().len())
-                        .then(|| Message::MoveProxyGroupDown(group_id.clone()))
-                ),
+                theme::role_body_text(name).width(Length::Fill),
+                button(theme::role_body_text("▲"))
+                    .style(style_ghost)
+                    .on_press_maybe(
+                        (!pending && index > 0)
+                            .then(|| Message::MoveProxyGroupUp(group_id.clone()))
+                    ),
+                button(theme::role_body_text("▼"))
+                    .style(style_ghost)
+                    .on_press_maybe(
+                        (!pending && index + 1 < editor.draft().len())
+                            .then(|| Message::MoveProxyGroupDown(group_id.clone()))
+                    ),
             ]
             .spacing(8)
             .align_y(Alignment::Center),
@@ -42,27 +49,26 @@ pub fn group_order_modal(state: &AppState) -> Element<'_, Message> {
         .map(|failure| failure.message.as_str())
         .unwrap_or_default();
     let body = container(
-        scrollable(groups).height((state.shell.viewport.height_px - 270.0).clamp(90.0, 360.0)),
+        auto_hide_scrollable(groups)
+            .height((state.shell.viewport.height_px - 270.0).clamp(90.0, 360.0)),
     )
     .id(InteractionRegion::ProxyGroupOrderList.id());
     let content = column![
-        text(lang.tr("proxies_reorder_title"))
-            .size(16)
-            .font(FONT_SEMIBOLD),
-        text(lang.tr("proxies_reorder_description")).size(12),
+        theme::role_body_text(lang.tr("proxies_reorder_title")),
+        theme::role_body_text(lang.tr("proxies_reorder_description")),
         body,
-        text(failure).size(12).style(|theme: &Theme| text::Style {
+        theme::role_body_text(failure).style(|theme: &Theme| text::Style {
             color: Some(tokens(theme).danger)
         }),
         row![
-            button(text(lang.tr("modal_cancel")))
+            button(theme::role_body_text(lang.tr("modal_cancel")))
                 .style(style_ghost)
                 .on_press_maybe((!pending).then_some(Message::CancelProxyGroupOrder)),
-            button(text(lang.tr("proxies_reorder_reset")))
+            button(theme::role_body_text(lang.tr("proxies_reorder_reset")))
                 .style(style_ghost)
                 .on_press_maybe((!pending).then_some(Message::ResetProxyGroupOrder)),
             Space::new().width(Length::Fill),
-            button(text(lang.tr(if pending {
+            button(theme::role_body_text(lang.tr(if pending {
                 "core_control_pending"
             } else {
                 "proxies_reorder_apply"

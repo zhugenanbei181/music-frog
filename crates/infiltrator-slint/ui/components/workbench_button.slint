@@ -1,3 +1,4 @@
+import { DesignType } from "./design-type.slint";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "theme.slint";
 
@@ -61,8 +62,8 @@ export component WorkbenchButton inherits Rectangle {
                 : (root.danger || root.primary) ? LumenTheme.accent-foreground
                 : touch.has-hover ? LumenTheme.accent
                 : LumenTheme.text-primary;
-            font-size: 14 * LumenUiScale.unit;
-            font-weight: 600;
+            font-size: DesignType.label-size;
+            font-weight: DesignType.label-weight;
             horizontal-alignment: center;
             vertical-alignment: center;
         }

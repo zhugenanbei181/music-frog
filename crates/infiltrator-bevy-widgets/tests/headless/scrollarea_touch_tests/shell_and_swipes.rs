@@ -5,7 +5,7 @@ use bevy::input::touch::TouchPhase;
 use bevy::math::Vec2;
 use bevy::picking::pointer::PointerId;
 use bevy::ui::ScrollPosition;
-use infiltrator_bevy_widgets::scrollarea::ScrollMotionPreference;
+use infiltrator_bevy_widgets::motion::UiMotionPreference;
 
 #[test]
 fn fixed_shell_bars_stay_outside_the_independent_touch_scroll_area() {
@@ -226,7 +226,7 @@ fn fixed_shell_bars_stay_outside_the_independent_touch_scroll_area() {
 #[test]
 fn ten_alternating_touch_swipes_reach_both_bounds_without_activating_the_row() {
     let (mut app, targets) = touch_scroll_app();
-    *app.world_mut().resource_mut::<ScrollMotionPreference>() = ScrollMotionPreference::Reduced;
+    *app.world_mut().resource_mut::<UiMotionPreference>() = UiMotionPreference::Reduced;
 
     for swipe in 0..10 {
         let (start_y, end_y, expected_position) = if swipe % 2 == 0 {

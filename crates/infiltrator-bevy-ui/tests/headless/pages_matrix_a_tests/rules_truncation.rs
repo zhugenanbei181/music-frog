@@ -24,7 +24,7 @@ fn test_rules_truncation_note_reports_publish_cap() {
     assert!(subtree_has_text(
         app.world(),
         root,
-        "共享发布视口已截断：已省略 45000 条（发布上限 5000 条；编辑器列表为全量并按虚拟窗口渲染）"
+        "发布视口已截断：省略 45000 条（上限 5000）"
     ));
     assert!(subtree_has_text(
         app.world(),

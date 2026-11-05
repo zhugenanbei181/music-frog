@@ -4,9 +4,11 @@ use crate::state::AppState;
 use crate::state::proxy_probe::OutboundProbeActionAvailability;
 use crate::types::message::Message;
 use crate::view::component_forms::{style_accent, style_ghost};
-use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
+use crate::view::scrollbar::auto_hide_scrollable;
+use crate::view::theme;
+use crate::view::theme::tokens;
 use crate::view_root::interaction_regions::InteractionRegion;
-use iced::widget::{Space, button, column, container, row, scrollable, text};
+use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_shared::locales::Lang;
 use infiltrator_shared::locales::Localizer;
@@ -42,16 +44,13 @@ pub fn inspect_outbound_modal<'a>(
     };
     let mut body = column![].spacing(10);
     if !status.is_empty() {
-        body = body.push(text(status).size(13));
+        body = body.push(theme::role_body_text(status));
     }
     for (label, value) in facts {
         body = body.push(
             row![
-                text(label).size(12).width(Length::FillPortion(1)),
-                text(value)
-                    .size(12)
-                    .font(MONO)
-                    .width(Length::FillPortion(2)),
+                theme::role_body_text(label).width(Length::FillPortion(1)),
+                theme::role_body_text(value).width(Length::FillPortion(2)),
             ]
             .spacing(12),
         );
@@ -68,12 +67,8 @@ pub fn inspect_outbound_modal<'a>(
         })
         .unwrap_or_default();
     if !history.is_empty() {
-        body = body.push(
-            text(lang.tr("proxy_inspection_history"))
-                .size(13)
-                .font(FONT_SEMIBOLD),
-        );
-        body = body.push(text(history).size(12).font(MONO));
+        body = body.push(theme::role_body_text(lang.tr("proxy_inspection_history")));
+        body = body.push(theme::role_body_text(history));
     }
     let egress = detail
         .as_ref()
@@ -92,12 +87,8 @@ pub fn inspect_outbound_modal<'a>(
         })
         .unwrap_or_default();
     if !egress.is_empty() {
-        body = body.push(
-            text(lang.tr("proxy_inspection_egress"))
-                .size(13)
-                .font(FONT_SEMIBOLD),
-        );
-        body = body.push(text(egress).size(12).font(MONO));
+        body = body.push(theme::role_body_text(lang.tr("proxy_inspection_egress")));
+        body = body.push(theme::role_body_text(egress));
     }
 
     let probe_failure = state
@@ -124,11 +115,11 @@ pub fn inspect_outbound_modal<'a>(
     let can_probe = probe_availability == OutboundProbeActionAvailability::Available;
     let pending = state.runtime.outbound_probe.is_running();
     let actions = row![
-        button(text(lang.tr("modal_close")))
+        button(theme::role_body_text(lang.tr("modal_close")))
             .style(style_ghost)
             .on_press(Message::InspectOutbound(None)),
         Space::new().width(Length::Fill),
-        button(text(if pending {
+        button(theme::role_body_text(if pending {
             lang.tr("core_control_pending").into_owned()
         } else {
             lang.tr("modal_speed_test_now").into_owned()
@@ -139,16 +130,12 @@ pub fn inspect_outbound_modal<'a>(
     .align_y(Alignment::Center)
     .spacing(12);
     let content = column![
-        text(lang.tr("proxy_inspection_title").into_owned())
-            .size(16)
-            .font(FONT_SEMIBOLD),
-        text(name).size(14).font(FONT_MEDIUM),
-        text(probe_text)
-            .size(12)
-            .style(|theme: &Theme| text::Style {
-                color: Some(tokens(theme).danger),
-            }),
-        scrollable(body).height(Length::Fixed(390.0)),
+        theme::role_body_text(lang.tr("proxy_inspection_title").into_owned()),
+        theme::role_body_text(name),
+        theme::role_body_text(probe_text).style(|theme: &Theme| text::Style {
+            color: Some(tokens(theme).danger),
+        }),
+        auto_hide_scrollable(body).height(Length::Fixed(390.0)),
         actions,
     ]
     .spacing(12);

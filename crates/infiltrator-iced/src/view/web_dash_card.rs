@@ -5,7 +5,7 @@ use crate::types::message::Message;
 use crate::view::component_card::card;
 use crate::view::component_forms::{style_accent, style_ghost};
 use crate::view::svg_icons::Icon;
-use crate::view::theme::{FONT_MEDIUM, tokens};
+use crate::view::theme::tokens;
 use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, row, text};
 use iced::{Alignment, Element, Theme};
@@ -16,9 +16,7 @@ pub fn web_dash_card<'a>(_state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
         row![
             svg_icons::icon_themed(Icon::Globe, 14.0, |t: &Theme| tokens(t).on_accent),
             Space::new().width(theme::SP_XS),
-            text(lang.tr("web_dash_btn_metacubexd").to_string())
-                .size(12)
-                .font(FONT_MEDIUM),
+            theme::role_body_text(lang.tr("web_dash_btn_metacubexd").to_string()),
         ]
         .align_y(Alignment::Center),
     )
@@ -30,9 +28,7 @@ pub fn web_dash_card<'a>(_state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
         row![
             svg_icons::icon_themed(Icon::Globe, 14.0, |t: &Theme| tokens(t).text_secondary),
             Space::new().width(theme::SP_XS),
-            text(lang.tr("web_dash_btn_yacd").to_string())
-                .size(12)
-                .font(FONT_MEDIUM),
+            theme::role_body_text(lang.tr("web_dash_btn_yacd").to_string()),
         ]
         .align_y(Alignment::Center),
     )
@@ -44,9 +40,7 @@ pub fn web_dash_card<'a>(_state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
         row![
             svg_icons::icon_themed(Icon::Globe, 14.0, |t: &Theme| tokens(t).text_secondary),
             Space::new().width(theme::SP_XS),
-            text(lang.tr("web_dash_btn_razord").to_string())
-                .size(12)
-                .font(FONT_MEDIUM),
+            theme::role_body_text(lang.tr("web_dash_btn_razord").to_string()),
         ]
         .align_y(Alignment::Center),
     )
@@ -57,11 +51,11 @@ pub fn web_dash_card<'a>(_state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
     card(
         Some(lang.tr("web_dash_title").to_string()),
         column![
-            text(lang.tr("web_dash_desc").to_string())
-                .size(12)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_secondary)
-                }),
+            theme::role_body_text(lang.tr("web_dash_desc").to_string()).style(|t: &Theme| {
+                text::Style {
+                    color: Some(tokens(t).text_secondary),
+                }
+            }),
             Space::new().height(theme::SP_XS),
             row![
                 metacubexd_btn,

@@ -6,9 +6,7 @@
 //! where it does not — so the *grammar* lives here:
 //!
 //! * one toolkit-neutral [`A11yRole`] per shell node;
-//! * one i18n key ([`ShellA11yNode::label_key`]) for the localized surfaces;
-//! * one bare-Chinese label ([`ShellA11yNode::label_zh`]) for the Bevy
-//!   convention;
+//! * one i18n key ([`ShellA11yNode::label_key`]) resolved by every surface;
 //! * [`ShellA11yNode::ALL`] as the coverage inventory a surface can iterate,
 //!   so a mounted shell can prove every node is described with the shared
 //!   role and label instead of an ad-hoc string.
@@ -165,32 +163,6 @@ impl ShellA11yNode {
         }
     }
 
-    /// The bare-Chinese label the Bevy surface publishes (Bevy strings follow
-    /// the bare-Chinese convention; the Iced surface localizes `label_key`).
-    pub const fn label_zh(self) -> &'static str {
-        match self {
-            Self::Window => "应用主窗口",
-            Self::ShellHeader => "应用标题栏",
-            Self::ContentRegion => "内容区",
-            Self::SidebarNav => "页面导航",
-            Self::GlobalStatusDot => "内核运行状态",
-            Self::RoutingIntentSegment => "流量路由意图选择",
-            Self::SystemProxySwitch => "系统代理开关",
-            Self::TunSwitch => "TUN 模式开关",
-            Self::ThemeToggle => "切换深浅主题",
-            Self::MiniHudCard => "网速悬浮窗",
-            Self::MiniHudSystemProxySwitch => "悬浮窗系统代理开关",
-            Self::MiniHudTunSwitch => "悬浮窗 TUN 开关",
-            Self::CommandPaletteDialog => "命令面板",
-            Self::CommandPaletteQuery => "命令面板查询词",
-            Self::ToastRegion => "通知与告警",
-            Self::TrafficReadout => "上下行实时速率",
-            Self::ChromeMinimize => "最小化",
-            Self::ChromeMaximize => "最大化 / 还原",
-            Self::ChromeClose => "关闭",
-        }
-    }
-
     /// Whether this node is an on/off switch that must carry its state.
     pub const fn is_switch(self) -> bool {
         matches!(self.role(), A11yRole::Switch)
@@ -202,7 +174,6 @@ impl ShellA11yNode {
             node: self,
             role: self.role(),
             label_key: self.label_key(),
-            label_zh: self.label_zh(),
         }
     }
 }
@@ -213,7 +184,6 @@ pub struct A11yNodeSpec {
     pub node: ShellA11yNode,
     pub role: A11yRole,
     pub label_key: &'static str,
-    pub label_zh: &'static str,
 }
 
 /// Every grammar row, in inventory order.
@@ -227,18 +197,13 @@ mod tests {
     use std::collections::BTreeSet;
 
     #[test]
-    fn every_shell_node_carries_a_role_and_both_label_sources() {
+    fn every_shell_node_carries_a_role_and_one_shared_label_key() {
         for node in ShellA11yNode::ALL {
             let spec = node.spec();
             assert_eq!(spec.node, node);
             assert_eq!(spec.role, node.role());
             assert!(!spec.label_key.is_empty(), "{node:?} has no label key");
-            assert!(
-                !spec.label_zh.trim().is_empty(),
-                "{node:?} has no bare-Chinese label"
-            );
             assert_eq!(spec.label_key, node.label_key());
-            assert_eq!(spec.label_zh, node.label_zh());
         }
         assert_eq!(shell_a11y_specs().len(), ShellA11yNode::ALL.len());
     }

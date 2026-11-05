@@ -55,7 +55,9 @@ use crate::pages::overview::{
     sync_overview_metrics_columns,
 };
 use crate::pages::overview_lifecycle::CoreControlPlugin;
-use crate::pages::overview_restamp::reskin_overview_tokens;
+use crate::pages::overview_restamp::{
+    reskin_overview_tokens, sync_overview_status_border, sync_overview_waveforms,
+};
 use crate::pages::overview_speedtest::dismiss_speedtest_detail;
 use crate::pages::overview_speedtest::{
     sync_overview_speedtest_button, sync_overview_speedtest_detail,
@@ -715,7 +717,14 @@ impl Plugin for PagesPlugin {
         app.add_observer(on_host_back);
         // The Overview page's per-frame token reskin (banner / dot / mode
         // chip / stop button compare-and-set from the live palette).
-        app.add_systems(Update, reskin_overview_tokens);
+        app.add_systems(
+            Update,
+            (
+                reskin_overview_tokens,
+                sync_overview_status_border,
+                sync_overview_waveforms,
+            ),
+        );
         // State-ink recovery after a theme switch (the widget layer's
         // apply_theme restamps role ink over state ink; the replay re-fires
         // the page's last projection once the switch dispatch is done).

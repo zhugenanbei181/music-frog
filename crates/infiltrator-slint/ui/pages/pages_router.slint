@@ -1,8 +1,8 @@
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "../components/theme.slint";
 import {
-    ProfileCard, OverrideCard, ProfileOverrideChoice, ObservationRow, ProxyGroup,
-    TrafficBar, HomeTrafficPoint, LicenseRow, WorkbenchItem
+        ProfileCard, OverrideCard, ProfileOverrideChoice, ObservationRow, ConnectionRow, ProxyGroup,
+        TrafficBar, HomeTrafficPoint, LicenseRow, WorkbenchItem, DashboardFacts
 } from "../components/models.slint";
 import { PagesMain } from "pages_main.slint";
 import { PagesSettings } from "pages_settings.slint";
@@ -18,300 +18,300 @@ import { PageFilters } from "page_filters.slint";
 import { ConnectionSort, LogLevel, NetworkMode, RouteMode, RuntimeStatus, ThemeMode, TrafficRange } from "../components/domain_enums.slint";
 
 export component PagesRouter inherits VerticalLayout {
-    in property <string> page;
-    in property <bool> android-platform;
-    in property <bool> compact-layout;
-    in property <bool> application-dark-mode;
-    in property <bool> layout-debug-bounds;
-    in property <bool> layout-debug-tools-enabled;
-    in property <bool> predictive-back-enabled;
+        in property <string> page;
+        in property <bool> android-platform;
+        in property <bool> compact-layout;
+        in property <bool> application-dark-mode;
+        in property <bool> layout-debug-bounds;
+        in property <bool> layout-debug-tools-enabled;
+        in property <bool> predictive-back-enabled;
 
-    // Home
-    in property <length> home-title-gap;
-    in property <length> home-data-upload-gap;
-    in property <length> home-before-node-gap;
-    in property <length> home-node-egress-gap;
-    in property <RuntimeStatus> runtime-status;
-    in property <string> active-profile;
-    in property <bool> has-current-profile;
-    in property <string> network-mode-label;
-    in property <string> home-current-node;
-    in property <string> home-current-accessible;
-    in property <string> home-current-flag-code;
-    in property <int> home-current-flag-index;
-    in property <string> home-current-delay;
-    in property <string> home-exit-ip;
-    in property <string> home-exit-country-code;
-    in property <int> home-exit-flag-index;
-    in property <string> home-exit-status;
-    in property <[HomeTrafficPoint]> home-traffic-points;
-    in property <bool> home-traffic-has-data;
-    in property <string> stat-down;
-    in property <string> stat-up;
-    in property <string> stat-down-value;
-    in property <string> stat-down-unit;
-    in property <string> stat-up-compact;
-    in property <string> stat-connections;
-    in property <string> stat-total-down;
-    in property <string> stat-total-up;
-    in property <bool> traffic-today-has-data;
-    in property <string> traffic-today-down;
-    in property <string> traffic-today-up;
-    in property <[TrafficBar]> traffic-today-bars;
+        // Home
+        in property <length> home-title-gap;
+        in property <length> home-data-upload-gap;
+        in property <length> home-before-node-gap;
+        in property <length> home-node-egress-gap;
+        in property <RuntimeStatus> runtime-status;
+        in property <string> active-profile;
+        in property <bool> has-current-profile;
+        in property <string> network-mode-label;
+        in property <string> home-current-node;
+        in property <string> home-current-accessible;
+        in property <string> home-current-flag-code;
+        in property <int> home-current-flag-index;
+        in property <string> home-current-delay;
+        in property <string> home-exit-ip;
+        in property <string> home-exit-country-code;
+        in property <int> home-exit-flag-index;
+        in property <string> home-exit-status;
+        in property <DashboardFacts> dashboard-facts;
+        in property <[HomeTrafficPoint]> home-traffic-points;
+        in property <bool> home-traffic-has-data;
+        in property <string> stat-down;
+        in property <string> stat-up;
+        in property <string> stat-down-value;
+        in property <string> stat-down-unit;
+        in property <string> stat-up-compact;
+        in property <string> stat-connections;
+        in property <bool> traffic-today-has-data;
+        in property <string> traffic-today-down;
+        in property <string> traffic-today-up;
+        in property <[TrafficBar]> traffic-today-bars;
 
-    // Profiles & Config
-    in property <[ProfileCard]> profiles;
-    in property <string> profile-settings-id;
-    in property <string> profile-settings-kind;
-    in property <string> profile-settings-location;
-    in-out property <string> profile-settings-name;
-    in-out property <string> profile-settings-url;
-    in-out property <string> profile-settings-age-key;
-    in property <bool> profile-settings-age-configured;
-    in property <[ProfileOverrideChoice]> profile-settings-overrides;
+        // Profiles & Config
+        in property <[ProfileCard]> profiles;
+        in property <string> profile-settings-id;
+        in property <string> profile-settings-kind;
+        in property <string> profile-settings-location;
+        in-out property <string> profile-settings-name;
+        in-out property <string> profile-settings-url;
+        in-out property <string> profile-settings-age-key;
+        in property <bool> profile-settings-age-configured;
+        in property <[ProfileOverrideChoice]> profile-settings-overrides;
 
-    // Proxies
-    in property <RouteMode> route-mode;
-    in property <string> selected-group;
-    in property <string> proxy-testing-group;
-    in property <string> proxy-testing-node;
-    in property <[ProxyGroup]> proxy-groups;
-    in property <[ObservationRow]> proxy-nodes;
-    in-out property <string> proxy-search;
-    in-out property <length> proxy-active-node-position;
-    in-out property <bool> proxy-current-node-available;
+        // Proxies
+        in property <RouteMode> route-mode;
+        in property <string> selected-group;
+        in property <string> proxy-testing-group;
+        in property <string> proxy-testing-node;
+        in property <[ProxyGroup]> proxy-groups;
+        in property <[ObservationRow]> proxy-nodes;
+        in-out property <string> proxy-search;
+        in-out property <length> proxy-active-node-position;
+        in-out property <bool> proxy-current-node-available;
 
-    // Settings
-    in property <string> product-version;
-    in property <string> core-version;
-    in property <NetworkMode> network-mode;
-    in property <string> network-mode-status;
-    in property <bool> network-mode-status-warning;
-    in property <bool> tun-capable;
-    in property <string> tun-capability-detail;
-    in property <string> lan-sharing-heading;
-    in property <string> lan-sharing-detail;
-    in property <int> app-settings-preview-section;
-    in property <bool> auto-start;
-    in property <bool> refresh-current-profile-on-start;
-    in property <ThemeMode> theme-mode;
-    in property <bool> invert-theme-foreground;
-    in property <string> theme-color-code;
-    in property <string> application-language;
-    in property <string> system-language;
-    in property <int> page-scale-percent;
-    in property <bool> hide-bottom-bar-on-scroll;
-    in property <bool> predictive-back-supported;
-    in property <bool> hide-background-card;
-    in property <bool> show-traffic-notification;
-    in property <bool> release-ui-when-background;
-    in property <bool> ignore-battery-optimizations;
-    in property <string> user-agent;
-    in property <[OverrideCard]> overrides;
-    in property <bool> override-importing;
-    in property <string> override-import-error;
-    in-out property <string> override-name;
-    in-out property <string> override-body;
-    in-out property <string> override-url;
-    in-out property <string> override-edit-id;
+        // Settings
+        in property <string> product-version;
+        in property <string> core-version;
+        in property <NetworkMode> network-mode;
+        in property <string> network-mode-status;
+        in property <bool> network-mode-status-warning;
+        in property <bool> tun-capable;
+        in property <string> tun-capability-detail;
+        in property <string> lan-sharing-heading;
+        in property <string> lan-sharing-detail;
+        in property <int> app-settings-preview-section;
+        in property <bool> auto-start;
+        in property <bool> refresh-current-profile-on-start;
+        in property <ThemeMode> theme-mode;
+        in property <bool> invert-theme-foreground;
+        in property <string> theme-color-code;
+        in property <string> application-language;
+        in property <string> system-language;
+        in property <int> page-scale-percent;
+        in property <bool> hide-bottom-bar-on-scroll;
+        in property <bool> predictive-back-supported;
+        in property <bool> hide-background-card;
+        in property <bool> show-traffic-notification;
+        in property <bool> release-ui-when-background;
+        in property <bool> ignore-battery-optimizations;
+        in property <string> user-agent;
+        in property <[OverrideCard]> overrides;
+        in property <bool> override-importing;
+        in property <string> override-import-error;
+        in-out property <string> override-name;
+        in-out property <string> override-body;
+        in-out property <string> override-url;
+        in-out property <string> override-edit-id;
 
-    // Observe
-    in property <bool> connection-show-closed;
-    in property <string> snapshot-window-warning;
-    in-out property <string> connection-search;
-    in-out property <ConnectionSort> connection-sort;
-    in property <[ObservationRow]> connections;
-    in property <string> connection-breaking-id;
-    in property <string> connection-detail-id;
-    in property <string> connection-detail-host;
-    in property <string> connection-detail-protocol;
-    in property <string> connection-detail-process;
-    in property <string> connection-detail-source;
-    in property <string> connection-detail-destination;
-    in property <string> connection-detail-start;
-    in property <string> connection-detail-duration;
-    in property <string> connection-detail-upload;
-    in property <string> connection-detail-download;
-    in property <string> connection-detail-rule;
-    in property <string> connection-detail-chains;
-    in property <string> connection-detail-providers;
-    in property <bool> connection-detail-active;
-    in property <string> log-stream-status;
-    in property <string> log-search-error;
-    in-out property <string> log-search;
-    in-out property <LogLevel> log-level;
-    in property <[ObservationRow]> logs;
-    in-out property <string> rule-search;
-    in property <string> rule-pending-index;
-    in property <[ObservationRow]> rules;
-    in property <[ObservationRow]> providers;
-    in property <string> traffic-stream-status;
-    in-out property <TrafficRange> traffic-range;
-    in-out property <string> traffic-selected-detail;
-    in property <string> traffic-week-down;
-    in property <string> traffic-week-up;
-    in property <string> traffic-week-average-down;
-    in property <string> traffic-week-average-up;
-    in property <bool> traffic-week-has-data;
-    in property <[TrafficBar]> traffic-week-bars;
+        // Observe
+        in property <bool> connection-show-closed;
+        in property <string> snapshot-window-warning;
+        in-out property <string> connection-search;
+        in-out property <ConnectionSort> connection-sort;
+        in property <[ObservationRow]> connections;
+        in property <[ConnectionRow]> home-connection-table;
+        in property <string> connection-breaking-id;
+        in property <string> connection-detail-id;
+        in property <string> connection-detail-host;
+        in property <string> connection-detail-protocol;
+        in property <string> connection-detail-process;
+        in property <string> connection-detail-source;
+        in property <string> connection-detail-destination;
+        in property <string> connection-detail-start;
+        in property <string> connection-detail-duration;
+        in property <string> connection-detail-upload;
+        in property <string> connection-detail-download;
+        in property <string> connection-detail-rule;
+        in property <string> connection-detail-chains;
+        in property <string> connection-detail-providers;
+        in property <bool> connection-detail-active;
+        in property <string> log-stream-status;
+        in property <string> log-search-error;
+        in-out property <string> log-search;
+        in-out property <LogLevel> log-level;
+        in property <[ObservationRow]> logs;
+        in-out property <string> rule-search;
+        in property <string> rule-pending-index;
+        in property <[ObservationRow]> rules;
+        in property <[ObservationRow]> providers;
+        in property <string> traffic-stream-status;
+        in-out property <TrafficRange> traffic-range;
+        in-out property <string> traffic-selected-detail;
+        in property <string> traffic-week-down;
+        in property <string> traffic-week-up;
+        in property <string> traffic-week-average-down;
+        in property <string> traffic-week-average-up;
+        in property <bool> traffic-week-has-data;
+        in property <[TrafficBar]> traffic-week-bars;
 
-    // Info
-    in property <length> window-height;
-    in property <length> safe-top;
-    in property <length> safe-bottom;
-    in property <string> content-preview;
-    in-out property <string> license-query;
-    in property <[LicenseRow]> license-rows;
-    in property <string> license-catalog-error;
-    in property <string> license-detail-name;
-    in property <string> license-detail-version;
-    in property <string> license-detail-identifier;
-    in property <string> license-detail-error;
-    in property <string> license-detail-text;
+        // Info
+        in property <length> window-height;
+        in property <length> safe-top;
+        in property <length> safe-bottom;
+        in property <string> content-preview;
+        in-out property <string> license-query;
+        in property <[LicenseRow]> license-rows;
+        in property <string> license-catalog-error;
+        in property <string> license-detail-name;
+        in property <string> license-detail-version;
+        in property <string> license-detail-identifier;
+        in property <string> license-detail-error;
+        in property <string> license-detail-text;
 
-    // Workbench pages
-    in property <[WorkbenchItem]> workbench-items;
-    in-out property <string> workbench-draft;
-    in-out property <string> workbench-draft-2;
-    in property <string> workbench-draft-id;
-    in property <string> workbench-draft-2-id;
-    in property <string> workbench-draft-placeholder;
-    in property <string> workbench-draft-2-placeholder;
+        // Workbench pages
+        in property <[WorkbenchItem]> workbench-items;
+        in-out property <string> workbench-draft;
+        in-out property <string> workbench-draft-2;
+        in property <string> workbench-draft-id;
+        in property <string> workbench-draft-2-id;
+        in property <string> workbench-draft-placeholder;
+        in property <string> workbench-draft-2-placeholder;
 
-    // Callbacks
-    callback start-runtime();
-    callback stop-runtime();
-    callback navigate(string);
-    callback cache-back-preview();
-    callback open-profile-add();
-    callback set-current-profile(string);
-    callback open-profile-action(string, string);
-    callback request-export(string, string);
-    callback request-delete(string, string);
-    callback cancel-profile-settings();
-    callback save-profile-settings(string, string, string, string);
-    callback clear-profile-age-key(string);
-    callback toggle-profile-override(string, bool);
-    callback move-profile-override(string, bool);
-    callback select-group(string);
-    callback select-proxy(string, string);
-    callback search-proxy-nodes(string);
-    callback test-proxy(string, string);
-    callback open-sort-menu();
-    callback set-route-mode(RouteMode);
-    callback request-network-mode-change(NetworkMode);
-    callback check-core();
-    callback set-auto-start(bool);
-    callback set-refresh-profile-on-start(bool);
-    callback set-invert-theme-foreground(bool);
-    callback set-hide-bottom-bar-on-scroll(bool);
-    callback set-predictive-back-enabled(bool);
-    callback set-hide-background-card(bool);
-    callback set-show-traffic-notification(bool);
-    callback set-release-ui-when-background(bool);
-    callback request-ignore-battery-optimization();
-    callback open-theme-menu(length, length);
-    callback open-language-menu(length, length);
-    callback open-theme-color-dialog();
-    callback open-page-scale-dialog();
-    callback open-user-agent-dialog();
-    callback show-message(string);
-    callback add-override(string, string);
-    callback save-override(string, string);
-    callback delete-override(string);
-    callback import-override-url(string);
-    callback choose-override-file();
-    callback export-override(string);
-    callback apply-override(string);
-    callback set-connection-view(bool);
-    callback refresh-observations();
-    callback search-connections(string);
-    callback set-connection-sort(ConnectionSort);
-    callback open-connection(string);
-    callback close-connection(string);
-    callback go-back();
-    callback search-logs(string);
-    callback set-log-level(LogLevel);
-    callback export-logs();
-    callback search-rules(string);
-    callback toggle-rule(string, bool);
-    callback update-provider(string);
-    callback open-clear-dialog();
-    callback search-licenses(string);
-    callback retry-license-catalog();
-    callback select-license(LicenseRow);
-    callback workbench-action(string, string);
-    callback workbench-draft-edited(string, string);
-    callback refresh-home-egress();
-    callback open-overview-order();
+        // Callbacks
+        callback start-runtime();
+        callback stop-runtime();
+        callback navigate(string);
+        callback cache-back-preview();
+        callback open-profile-add();
+        callback set-current-profile(string);
+        callback open-profile-action(string, string);
+        callback request-export(string, string);
+        callback request-delete(string, string);
+        callback cancel-profile-settings();
+        callback save-profile-settings(string, string, string, string);
+        callback clear-profile-age-key(string);
+        callback toggle-profile-override(string, bool);
+        callback move-profile-override(string, bool);
+        callback select-group(string);
+        callback select-proxy(string, string);
+        callback search-proxy-nodes(string);
+        callback test-proxy(string, string);
+        callback open-sort-menu();
+        callback set-route-mode(RouteMode);
+        callback request-network-mode-change(NetworkMode);
+        callback check-core();
+        callback set-auto-start(bool);
+        callback set-refresh-profile-on-start(bool);
+        callback set-invert-theme-foreground(bool);
+        callback set-hide-bottom-bar-on-scroll(bool);
+        callback set-predictive-back-enabled(bool);
+        callback set-hide-background-card(bool);
+        callback set-show-traffic-notification(bool);
+        callback set-release-ui-when-background(bool);
+        callback request-ignore-battery-optimization();
+        callback open-theme-menu(length, length);
+        callback open-language-menu(length, length);
+        callback open-theme-color-dialog();
+        callback open-page-scale-dialog();
+        callback open-user-agent-dialog();
+        callback show-message(string);
+        callback add-override(string, string);
+        callback save-override(string, string);
+        callback delete-override(string);
+        callback import-override-url(string);
+        callback choose-override-file();
+        callback export-override(string);
+        callback apply-override(string);
+        callback set-connection-view(bool);
+        callback refresh-observations();
+        callback search-connections(string);
+        callback set-connection-sort(ConnectionSort);
+        callback open-connection(string);
+        callback close-connection(string);
+        callback go-back();
+        callback search-logs(string);
+        callback set-log-level(LogLevel);
+        callback export-logs();
+        callback search-rules(string);
+        callback toggle-rule(string, bool);
+        callback update-provider(string);
+        callback open-clear-dialog();
+        callback search-licenses(string);
+        callback retry-license-catalog();
+        callback select-license(LicenseRow);
+        callback workbench-action(string, string);
+        callback workbench-draft-edited(string, string);
+        callback refresh-home-egress();
+        callback open-overview-order();
 
-    width: 100%;
-    alignment: start;
+        width: 100%;
+        alignment: start;
 
-    if root.page == "AppRouting": PageAppRouting {
+        if root.page == "AppRouting": PageAppRouting {
         items: root.workbench-items;
         draft <=> root.workbench-draft; draft-2 <=> root.workbench-draft-2;
         draft-id: root.workbench-draft-id; draft-2-id: root.workbench-draft-2-id;
         draft-placeholder: root.workbench-draft-placeholder; draft-2-placeholder: root.workbench-draft-2-placeholder;
         action(id, row) => { root.workbench-action(id, row); }
         draft-edited(id, value) => { root.workbench-draft-edited(id, value); }
-    }
+        }
 
-    if root.page == "Doctor": PageDoctor {
+        if root.page == "Doctor": PageDoctor {
         items: root.workbench-items;
         draft <=> root.workbench-draft; draft-2 <=> root.workbench-draft-2;
         draft-id: root.workbench-draft-id; draft-2-id: root.workbench-draft-2-id;
         draft-placeholder: root.workbench-draft-placeholder; draft-2-placeholder: root.workbench-draft-2-placeholder;
         action(id, row) => { root.workbench-action(id, row); }
         draft-edited(id, value) => { root.workbench-draft-edited(id, value); }
-    }
+        }
 
-    if root.page == "Dns": PageDns {
+        if root.page == "Dns": PageDns {
         items: root.workbench-items;
         draft <=> root.workbench-draft; draft-2 <=> root.workbench-draft-2;
         draft-id: root.workbench-draft-id; draft-2-id: root.workbench-draft-2-id;
         draft-placeholder: root.workbench-draft-placeholder; draft-2-placeholder: root.workbench-draft-2-placeholder;
         action(id, row) => { root.workbench-action(id, row); }
         draft-edited(id, value) => { root.workbench-draft-edited(id, value); }
-    }
+        }
 
-    if root.page == "Sync": PageSync {
+        if root.page == "Sync": PageSync {
         items: root.workbench-items;
         draft <=> root.workbench-draft; draft-2 <=> root.workbench-draft-2;
         draft-id: root.workbench-draft-id; draft-2-id: root.workbench-draft-2-id;
         draft-placeholder: root.workbench-draft-placeholder; draft-2-placeholder: root.workbench-draft-2-placeholder;
         action(id, row) => { root.workbench-action(id, row); }
         draft-edited(id, value) => { root.workbench-draft-edited(id, value); }
-    }
+        }
 
-    if root.page == "Editor": PageEditor {
+        if root.page == "Editor": PageEditor {
         items: root.workbench-items;
         draft <=> root.workbench-draft; draft-2 <=> root.workbench-draft-2;
         draft-id: root.workbench-draft-id; draft-2-id: root.workbench-draft-2-id;
         draft-placeholder: root.workbench-draft-placeholder; draft-2-placeholder: root.workbench-draft-2-placeholder;
         action(id, row) => { root.workbench-action(id, row); }
         draft-edited(id, value) => { root.workbench-draft-edited(id, value); }
-    }
+        }
 
-    if root.page == "Filters": PageFilters {
+        if root.page == "Filters": PageFilters {
         items: root.workbench-items;
         draft <=> root.workbench-draft; draft-2 <=> root.workbench-draft-2;
         draft-id: root.workbench-draft-id; draft-2-id: root.workbench-draft-2-id;
         draft-placeholder: root.workbench-draft-placeholder; draft-2-placeholder: root.workbench-draft-2-placeholder;
         action(id, row) => { root.workbench-action(id, row); }
         draft-edited(id, value) => { root.workbench-draft-edited(id, value); }
-    }
+        }
 
-    if root.page == "ConnectionsWorkbench" || root.page == "LogsWorkbench" || root.page == "RuntimeWorkbench" || root.page == "ProxiesWorkbench" || root.page == "RulesWorkbench" || root.page == "SettingsWorkbench" || root.page == "ShellWorkbench" || root.page == "OverviewWorkbench": PageWorkbench {
+        if root.page == "ConnectionsWorkbench" || root.page == "LogsWorkbench" || root.page == "RuntimeWorkbench" || root.page == "ProxiesWorkbench" || root.page == "RulesWorkbench" || root.page == "SettingsWorkbench" || root.page == "ShellWorkbench" || root.page == "OverviewWorkbench": PageWorkbench {
         items: root.workbench-items;
         draft <=> root.workbench-draft; draft-2 <=> root.workbench-draft-2;
         draft-id: root.workbench-draft-id; draft-2-id: root.workbench-draft-2-id;
         draft-placeholder: root.workbench-draft-placeholder; draft-2-placeholder: root.workbench-draft-2-placeholder;
         action(id, row) => { root.workbench-action(id, row); }
         draft-edited(id, value) => { root.workbench-draft-edited(id, value); }
-    }
+        }
 
-    PagesMain {
+        PagesMain {
         page: root.page; android-platform: root.android-platform; compact-layout: root.compact-layout;
         application-dark-mode: root.application-dark-mode; layout-debug-bounds: root.layout-debug-bounds;
         layout-debug-tools-enabled: root.layout-debug-tools-enabled;
@@ -319,15 +319,17 @@ export component PagesRouter inherits VerticalLayout {
         home-data-upload-gap: root.home-data-upload-gap; home-before-node-gap: root.home-before-node-gap;
         home-node-egress-gap: root.home-node-egress-gap; runtime-status: root.runtime-status;
         active-profile: root.active-profile; has-current-profile: root.has-current-profile;
-        network-mode-label: root.network-mode-label; home-current-node: root.home-current-node;
+        home-current-node: root.home-current-node;
+        network-mode: root.network-mode; tun-capable: root.tun-capable;
         home-current-accessible: root.home-current-accessible; home-current-flag-code: root.home-current-flag-code;
         home-current-flag-index: root.home-current-flag-index; home-current-delay: root.home-current-delay;
         home-exit-ip: root.home-exit-ip; home-exit-country-code: root.home-exit-country-code;
         home-exit-flag-index: root.home-exit-flag-index; home-exit-status: root.home-exit-status;
+        dashboard-facts: root.dashboard-facts;
+        home-connection-table: root.home-connection-table;
         home-traffic-points: root.home-traffic-points; home-traffic-has-data: root.home-traffic-has-data;
         stat-down: root.stat-down; stat-up: root.stat-up; stat-down-value: root.stat-down-value;
         stat-down-unit: root.stat-down-unit; stat-up-compact: root.stat-up-compact; stat-connections: root.stat-connections;
-        stat-total-down: root.stat-total-down; stat-total-up: root.stat-total-up;
         traffic-today-has-data: root.traffic-today-has-data; traffic-today-down: root.traffic-today-down;
         traffic-today-up: root.traffic-today-up; traffic-today-bars: root.traffic-today-bars;
         profiles: root.profiles; profile-settings-id: root.profile-settings-id;
@@ -355,11 +357,12 @@ export component PagesRouter inherits VerticalLayout {
         select-group(g) => { root.select-group(g); } select-proxy(g, n) => { root.select-proxy(g, n); }
         search-proxy-nodes(q) => { root.search-proxy-nodes(q); } test-proxy(g, n) => { root.test-proxy(g, n); }
         open-sort-menu => { root.open-sort-menu(); } set-route-mode(m) => { root.set-route-mode(m); }
+        set-network-mode(m) => { root.request-network-mode-change(m); }
         refresh-home-egress => { root.refresh-home-egress(); }
         open-overview-order => { root.open-overview-order(); }
-    }
+        }
 
-    PagesSettings {
+        PagesSettings {
         page: root.page; android-platform: root.android-platform; compact-layout: root.compact-layout;
         route-mode: root.route-mode; runtime-status: root.runtime-status; has-current-profile: root.has-current-profile;
         network-mode: root.network-mode; network-mode-label: root.network-mode-label;
@@ -403,9 +406,9 @@ export component PagesRouter inherits VerticalLayout {
         delete-override(id) => { root.delete-override(id); } import-override-url(u) => { root.import-override-url(u); }
         choose-override-file => { root.choose-override-file(); } export-override(id) => { root.export-override(id); }
         apply-override(id) => { root.apply-override(id); }
-    }
+        }
 
-    PagesObserve {
+        PagesObserve {
         page: root.page; android-platform: root.android-platform; predictive-back-enabled: root.predictive-back-enabled;
         runtime-status: root.runtime-status; connection-show-closed: root.connection-show-closed;
         snapshot-window-warning: root.snapshot-window-warning; connection-search <=> root.connection-search;
@@ -437,9 +440,9 @@ export component PagesRouter inherits VerticalLayout {
         set-log-level(l) => { root.set-log-level(l); } export-logs => { root.export-logs(); }
         search-rules(q) => { root.search-rules(q); } toggle-rule(i, en) => { root.toggle-rule(i, en); }
         update-provider(id) => { root.update-provider(id); } open-clear-dialog => { root.open-clear-dialog(); }
-    }
+        }
 
-    PagesInfo {
+        PagesInfo {
         page: root.page; android-platform: root.android-platform; predictive-back-enabled: root.predictive-back-enabled;
         window-height: root.window-height; safe-top: root.safe-top; safe-bottom: root.safe-bottom;
         content-preview: root.content-preview; product-version: root.product-version; core-version: root.core-version;
@@ -450,5 +453,5 @@ export component PagesRouter inherits VerticalLayout {
         navigate(t) => { root.navigate(t); } cache-back-preview => { root.cache-back-preview(); }
         search-licenses(q) => { root.search-licenses(q); } retry-license-catalog => { root.retry-license-catalog(); }
         select-license(item) => { root.select-license(item); }
-    }
+        }
 }

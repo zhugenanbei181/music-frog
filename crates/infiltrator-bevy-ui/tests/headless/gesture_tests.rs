@@ -331,6 +331,25 @@ fn shell_host_reduce_motion_preference_maps_to_scroll_physics() {
 }
 
 #[test]
+fn shell_reduced_motion_default_seeds_the_shared_preference_at_startup() {
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    app.add_plugins((AssetPlugin::default(), ScenePlugin));
+    app.add_plugins(ShellPlugin::new(ThemePreference::Fixed(ThemeSkin::Dark)));
+    app.world_mut().insert_resource(HostPreferences {
+        motion: MotionPreference::Reduced,
+        ..Default::default()
+    });
+    app.update();
+
+    assert_eq!(
+        *app.world().resource::<ScrollMotionPreference>(),
+        ScrollMotionPreference::Reduced,
+        "a capture/demo host that inserts reduced motion never animates decorative travel"
+    );
+}
+
+#[test]
 fn a_pull_to_refresh_under_threshold_smoothly_rebounds_with_spring() {
     let mut app = gesture_app();
     app.add_plugins((AssetPlugin::default(), ScenePlugin));

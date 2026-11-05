@@ -3,6 +3,7 @@ use crate::command::{CommandSinkHandle, UiCommand};
 use crate::command_events::CommandExecutedEvent;
 use crate::surface::{LatestCoreLifecycle, LatestSurfaceSnapshot};
 use bevy::app::{App, Plugin, Update};
+use bevy::color::{Alpha, Color};
 use bevy::ecs::change_detection::DetectChanges;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
@@ -14,19 +15,23 @@ use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::widget::Text;
-use bevy::ui::{BackgroundColor, BorderRadius, Display, FlexDirection, Node, UiRect, percent, px};
+use bevy::ui::{
+    AlignItems, BackgroundColor, BorderRadius, Display, FlexDirection, JustifyContent, Node,
+    percent, px,
+};
 use bevy::ui_widgets::{Activate, Button};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::capability::Availability;
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::core_control::{
     CoreControlAction, CoreControlLabel, CoreControlProjection,
 };
+use infiltrator_contract::design_resources;
 use infiltrator_presentation::core_control_projection::project_core_control;
 use lurker_core_contract::capability::Capability;
 use lurker_core_contract::error::{ErrorCode, Failure};
@@ -36,9 +41,15 @@ use lurker_core_contract::page::SurfaceOrigin;
 /// One-off layout value (not a ladder rung): the widest the core-control
 /// column may grow inside the overview grid.
 const CORE_CONTROL_MAX_WIDTH_PX: f32 = 320.0;
+/// The organic control's breathing halo diameter, in baseline pixels.
+const CORE_CONTROL_ORB_PX: f32 = 64.0;
+/// The touchable circular core inside that halo, in baseline pixels.
+const CORE_CONTROL_ORB_INNER_PX: f32 = 48.0;
 
 #[derive(Component, Clone, Copy, Debug, Default)]
 pub struct CoreControlButton;
+#[derive(Component, Clone, Copy, Debug, Default)]
+pub struct CoreControlHalo;
 #[derive(Component, Clone, Copy, Debug, Default)]
 pub struct CoreControlCaption;
 #[derive(Component, Clone, Copy, Debug, Default)]
@@ -100,21 +111,42 @@ fn projection(
 }
 
 pub fn core_control_scene(palette: &UiPalette) -> impl Scene + use<> {
+    let halo = palette.accent.with_alpha(0.18);
     bsn! {
-        Node { min_width: px(0.0), max_width: rem(CORE_CONTROL_MAX_WIDTH_PX), flex_direction: FlexDirection::Column, row_gap: rem(space::S4) }
-        Children [
             Node {
-                min_height: rem(palette.control_height_px), padding: UiRect::horizontal(rem(space::S12)),
-                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
+                min_width: px(0.0),
+                max_width: rem(CORE_CONTROL_MAX_WIDTH_PX),
+                flex_direction: FlexDirection::Column,
+                align_items: AlignItems::Center,
+                row_gap: rem(space::S4),
             }
-            BackgroundColor({ palette.accent })
-            CoreControlButton Button ButtonDisabled(true)
-            Children [ LocalizedText::plain("start_core") CoreControlCaption TextRole(Role::BodyStrong) ]
-            --
+            Children [
+                Node {
+                    width: rem(CORE_CONTROL_ORB_PX),
+                    height: rem(CORE_CONTROL_ORB_PX),
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::Center,
+                    border_radius: BorderRadius::MAX,
+                }
+                BackgroundColor({ halo })
+                CoreControlHalo
+                Children [
+                    Node {
+                        width: rem(CORE_CONTROL_ORB_INNER_PX),
+                        height: rem(CORE_CONTROL_ORB_INNER_PX),
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::Center,
+                        border_radius: BorderRadius::MAX,
+                    }
+                    BackgroundColor({ palette.accent })
+                    CoreControlButton Button ButtonDisabled(true)
+                    Children [ LocalizedText::plain("start_core") CoreControlCaption TextRole(design_resources::TextRole::Caption) ]
+                ]
+                --
             Node { width: percent(100), min_width: px(0.0), display: Display::None }
             CoreControlIssue
-            Children [ LocalizedText::plain("common_message") CoreControlIssueText TextRole(Role::Caption) ]
-        ]
+            Children [ LocalizedText::plain("common_message") CoreControlIssueText TextRole(design_resources::TextRole::Caption) ]
+            ]
     }
 }
 
@@ -229,6 +261,7 @@ pub struct CoreControlViews {
     node: Option<&'static mut Node>,
     disabled: Option<&'static mut ButtonDisabled>,
     button: Option<&'static CoreControlButton>,
+    halo: Option<&'static CoreControlHalo>,
     fill: Option<&'static mut BackgroundColor>,
 }
 type CoreControlFilter = Or<(
@@ -236,6 +269,7 @@ type CoreControlFilter = Or<(
     With<CoreControlIssue>,
     With<CoreControlIssueText>,
     With<CoreControlButton>,
+    With<CoreControlHalo>,
 )>;
 
 fn sync_core_control(
@@ -289,6 +323,24 @@ fn sync_core_control(
             if let Some(disabled) = &mut view.disabled {
                 disabled.0 = control.action.is_none();
             }
+        } else if view.halo.is_some()
+            && let Some(fill) = &mut view.fill
+        {
+            if let Some(node) = &mut view.node {
+                let wanted = if control.action.is_some() {
+                    Display::Flex
+                } else {
+                    Display::None
+                };
+                if node.display != wanted {
+                    node.display = wanted;
+                }
+            }
+            fill.0 = match control.action {
+                Some(CoreControlAction::Stop) => palette.danger.with_alpha(0.18),
+                Some(CoreControlAction::Start) => palette.accent.with_alpha(0.18),
+                None => Color::NONE,
+            };
         } else if view.issue_text.is_some()
             && let (Some(copy), Some(text)) = (&mut view.copy, &mut view.text)
         {

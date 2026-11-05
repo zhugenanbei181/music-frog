@@ -8,10 +8,11 @@ use crate::types::options::{SyncDiffKeyKind, SyncDiffState};
 use crate::view::component_card::card;
 use crate::view::component_forms::{style_accent, style_ghost};
 use crate::view::components::{BadgeKind, badge, segmented_control};
+use crate::view::scrollbar::auto_hide_scrollable;
 use crate::view::theme;
-use crate::view::theme::{MONO, tokens};
+use crate::view::theme::tokens;
 use crate::view_root::interaction_regions::InteractionRegion;
-use iced::widget::{Space, button, column, container, row, scrollable, text};
+use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_presentation::profiles_page_model::ProfilesOperation;
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -27,15 +28,12 @@ fn kind_badge(lang: &Lang<'_>, kind: SyncDiffKeyKind) -> Element<'static, Messag
 
 fn mono_value<'a>(label: String, value: &'a str) -> Element<'a, Message> {
     column![
-        text(label).size(10).style(|t: &Theme| text::Style {
+        theme::role_body_text(label).style(|t: &Theme| text::Style {
             color: Some(tokens(t).text_tertiary),
         }),
-        text(value.to_string())
-            .size(10)
-            .font(MONO)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_secondary),
-            }),
+        theme::role_body_text(value.to_string()).style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_secondary),
+        }),
     ]
     .spacing(1)
     .into()
@@ -60,7 +58,7 @@ fn key_row<'a>(
 
     let mut body = column![
         row![
-            text(key.clone()).size(12).font(MONO),
+            theme::role_body_text(key.clone()),
             Space::new().width(theme::SP_SM),
             kind_badge(lang, kind),
         ]
@@ -107,15 +105,11 @@ pub fn diff_panel(state: &AppState) -> Option<Element<'_, Message>> {
     }
 
     let mut actions = row![
-        button(
-            text(format!(
-                "{}（{adopted}/{total} {}）",
-                lang.tr("sync_diff_save"),
-                lang.tr("sync_diff_keys_remote")
-            ))
-            .size(12)
-            .font(theme::FONT_MEDIUM),
-        )
+        button(theme::role_body_text(format!(
+            "{}（{adopted}/{total} {}）",
+            lang.tr("sync_diff_save"),
+            lang.tr("sync_diff_keys_remote")
+        )),)
         .padding([7, 14])
         .style(style_accent)
         .on_press_maybe(
@@ -125,20 +119,26 @@ pub fn diff_panel(state: &AppState) -> Option<Element<'_, Message>> {
             .then_some(Message::ApplySyncDiffMerge),
         ),
         Space::new().width(theme::SP_SM),
-        button(text(lang.tr("sync_diff_all_local").to_string()).size(12))
-            .padding([7, 10])
-            .style(style_ghost)
-            .on_press(Message::SetSyncDiffPicks(false)),
+        button(theme::role_body_text(
+            lang.tr("sync_diff_all_local").to_string()
+        ))
+        .padding([7, 10])
+        .style(style_ghost)
+        .on_press(Message::SetSyncDiffPicks(false)),
         Space::new().width(theme::SP_SM),
-        button(text(lang.tr("sync_diff_all_remote").to_string()).size(12))
-            .padding([7, 10])
-            .style(style_ghost)
-            .on_press(Message::SetSyncDiffPicks(true)),
+        button(theme::role_body_text(
+            lang.tr("sync_diff_all_remote").to_string()
+        ))
+        .padding([7, 10])
+        .style(style_ghost)
+        .on_press(Message::SetSyncDiffPicks(true)),
         Space::new().width(Length::Fill),
-        button(text(lang.tr("sync_diff_close").to_string()).size(12))
-            .padding([7, 10])
-            .style(style_ghost)
-            .on_press(Message::CloseSyncDiff),
+        button(theme::role_body_text(
+            lang.tr("sync_diff_close").to_string()
+        ))
+        .padding([7, 10])
+        .style(style_ghost)
+        .on_press(Message::CloseSyncDiff),
     ]
     .align_y(Alignment::Center);
 
@@ -146,7 +146,9 @@ pub fn diff_panel(state: &AppState) -> Option<Element<'_, Message>> {
         .profile
         .operation_running(ProfilesOperation::LoadSyncDiff)
     {
-        actions = row![text(lang.tr("sync_diff_computing").to_string()).size(12)];
+        actions = row![theme::role_body_text(
+            lang.tr("sync_diff_computing").to_string()
+        )];
     }
 
     Some(
@@ -157,12 +159,14 @@ pub fn diff_panel(state: &AppState) -> Option<Element<'_, Message>> {
                 diff.bundle.profile
             )),
             column![
-                text(lang.tr("sync_diff_desc").to_string())
-                    .size(11)
-                    .style(|t: &Theme| text::Style {
+                theme::role_body_text(lang.tr("sync_diff_desc").to_string()).style(|t: &Theme| {
+                    text::Style {
                         color: Some(tokens(t).text_secondary),
-                    }),
-                scrollable(rows).height(Length::Shrink).width(Length::Fill),
+                    }
+                }),
+                auto_hide_scrollable(rows)
+                    .height(Length::Shrink)
+                    .width(Length::Fill),
                 actions,
             ]
             .spacing(theme::SP_MD),

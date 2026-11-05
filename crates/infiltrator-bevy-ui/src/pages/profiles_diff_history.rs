@@ -9,6 +9,7 @@
 #[path = "profiles_diff_history_query_access.rs"]
 pub mod query_access;
 use self::query_access::{HistoryAppearance, SnapshotHistorySelectionControls};
+use infiltrator_contract::design_resources;
 use infiltrator_shared::locales::Lang;
 
 use crate::command::{CommandSinkHandle, UiCommand};
@@ -32,7 +33,7 @@ use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::{radius, space};
 use infiltrator_contract::snapshot_history::{SnapshotEntry, SnapshotHistorySnapshot};
 use infiltrator_contract::snapshot_restore::SnapshotRestoreTarget;
@@ -90,7 +91,7 @@ pub(super) fn backup_button(palette: &UiPalette) -> Box<dyn Scene> {
             Button
             BackupSnapshotButton
             Children [
-                LocalizedText::plain("sync_backup_now_action") TextRole(Role::Caption)
+                LocalizedText::plain("sync_backup_now_action") TextRole(design_resources::TextRole::Caption)
             ]
     })
 }
@@ -109,7 +110,7 @@ pub(super) fn history_refresh_button(palette: &UiPalette) -> Box<dyn Scene> {
             Button
             RefreshSnapshotHistoryButton
             Children [
-                LocalizedText::plain("editor_history_refresh") TextRole(Role::Caption)
+                LocalizedText::plain("editor_history_refresh") TextRole(design_resources::TextRole::Caption)
             ]
     })
 }
@@ -130,7 +131,7 @@ pub(super) fn prune_keep_row(palette: &UiPalette) -> Box<dyn Scene> {
                     Button
                     SnapshotPruneKeepButton { keep }
                     Children [
-                        Text({ format!("{keep}") }) TextRole(Role::Caption)
+                        Text({ format!("{keep}") }) TextRole(design_resources::TextRole::Caption)
                     ]
         }));
     }
@@ -140,7 +141,7 @@ pub(super) fn prune_keep_row(palette: &UiPalette) -> Box<dyn Scene> {
                 column_gap: rem(space::S2),
             }
             Children [
-                LocalizedText::plain("common_keep") TextRole(Role::Caption)
+                LocalizedText::plain("common_keep") TextRole(design_resources::TextRole::Caption)
                 --
                 { chips }
             ]
@@ -161,7 +162,7 @@ pub(super) fn prune_button(palette: &UiPalette) -> Box<dyn Scene> {
             Button
             PruneSnapshotsButton
             Children [
-                LocalizedText::plain("editor_prune_now") TextRole(Role::Caption)
+                LocalizedText::plain("editor_prune_now") TextRole(design_resources::TextRole::Caption)
             ]
     })
 }
@@ -197,7 +198,7 @@ fn history_row_scene(entry: &SnapshotEntry, selected: bool, palette: &UiPalette)
                 Button
                 SnapshotHistoryEntryButton { id }
                 Children [
-                    Text({ label }) identity TextRole(Role::Mono) TextColor({ color })
+                    Text({ label }) identity TextRole(design_resources::TextRole::Mono) TextColor({ color })
                 ]
                 --
                 Node {
@@ -211,7 +212,7 @@ fn history_row_scene(entry: &SnapshotEntry, selected: bool, palette: &UiPalette)
                 Button
                 SnapshotHistoryRestoreButton { id: restore_id }
                 Children [
-                    restore_label TextRole(Role::Caption)
+                    restore_label TextRole(design_resources::TextRole::Caption)
                 ]
             ]
     })

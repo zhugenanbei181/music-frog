@@ -18,8 +18,9 @@ use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::interaction_block::InteractionBlocked;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::multiline_editor::{MultilineEditor, MultilineReadOnly};
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
+use infiltrator_contract::design_resources;
 use infiltrator_presentation::script_console_projection::report_rows;
 use infiltrator_presentation::script_export_projection::project_script_export;
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -198,7 +199,7 @@ pub fn render(mut view: ScriptView, mut commands: Commands) {
             for (index, value) in rows.iter().enumerate() {
                 let row = bsn! {
                     Node { width: percent(100) }
-                    Children [ Text({value.clone()}) ScriptResultRow(index) TextRole(Role::Mono) ]
+                    Children [ Text({value.clone()}) ScriptResultRow(index) TextRole(design_resources::TextRole::Mono) ]
                 };
                 commands.spawn_scene(row).insert(ChildOf(body));
             }

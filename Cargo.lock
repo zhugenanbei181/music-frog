@@ -6187,6 +6187,7 @@ dependencies = [
  "accesskit",
  "bevy",
  "blake3",
+ "infiltrator-contract",
  "infiltrator-shared",
  "unicode-segmentation",
  "zhuge-ui-core",

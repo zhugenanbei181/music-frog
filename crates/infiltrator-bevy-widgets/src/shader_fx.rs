@@ -415,7 +415,7 @@ impl ModernSurfaceElevation {
     pub const fn params(&self) -> (f32, f32, f32, f32, f32) {
         match self {
             Self::None => (0.0, 0.0, 0.0, 0.0, 0.0),
-            Self::Low => (2.0, 4.0, 0.0, 0.04, 0.08),
+            Self::Low => (3.0, 8.0, 0.0, 0.055, 0.110),
             Self::Medium => (6.0, 12.0, 1.0, 0.06, 0.12),
             Self::High => (16.0, 32.0, 2.0, 0.08, 0.20),
         }

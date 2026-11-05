@@ -28,6 +28,7 @@ use infiltrator_contract::proxies::ProxyGroupClassification;
 use infiltrator_contract::resources::{CoreResourceSnapshot, ResourceAvailability};
 use infiltrator_contract::uwp::UwpLoopbackSnapshot;
 use infiltrator_presentation::app_routing_page_model::AppRoutingPageModel;
+use infiltrator_presentation::dashboard_hero_projection::PolicyGroupGridProjection;
 use infiltrator_presentation::dns_page_model::DnsPageModel;
 use infiltrator_presentation::overview_page_model::OverviewPageModel;
 use infiltrator_presentation::profiles_page_model::ProfilesPageModel;
@@ -70,6 +71,14 @@ pub(super) fn overview_projection(
             CoreResourceSnapshot::NotObserved => ResourceAvailability::NotObserved,
             CoreResourceSnapshot::Observed { memory, .. } => memory.clone(),
         },
+        memory_limit_bytes: match &snapshot.resources {
+            CoreResourceSnapshot::NotObserved => None,
+            CoreResourceSnapshot::Observed {
+                memory_soft_limit_bytes: limit,
+                ..
+            } if *limit > 0 => Some(*limit),
+            CoreResourceSnapshot::Observed { .. } => None,
+        },
         sampled_at: core
             .sampled_at_epoch_ms
             .and_then(|value| u64::try_from(value).ok())
@@ -105,6 +114,7 @@ pub(super) fn overview_projection(
         system_toggles: model.toggles().clone(),
         routing_intent: model.routing_intent().clone(),
         speedtest: snapshot.speedtest.clone(),
+        policy_groups: PolicyGroupGridProjection::from_snapshot(snapshot),
         cpu_percent: match &snapshot.resources {
             CoreResourceSnapshot::NotObserved => ResourceAvailability::NotObserved,
             CoreResourceSnapshot::Observed { cpu_percent, .. } => cpu_percent.clone(),

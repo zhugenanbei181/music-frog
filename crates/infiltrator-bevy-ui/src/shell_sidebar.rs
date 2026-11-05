@@ -43,9 +43,10 @@ use infiltrator_bevy_widgets::palette::{UiPalette, rem};
 use infiltrator_bevy_widgets::switch::{
     SwitchColors, SwitchKnob, SwitchPosition, SwitchTrack, switch_control_scene,
 };
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::a11y::ShellA11yNode;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::surface_snapshot::PageId;
 use infiltrator_contract::system_toggle::SystemToggleSnapshot;
 use infiltrator_presentation::routing_intent_projection::routing_intent_copy_key;
@@ -80,9 +81,9 @@ pub fn identity_scene(palette: &UiPalette) -> impl Scene + use<> {
                 SidebarIdentityText
                 SidebarExpandedOnly
                 Children [
-                    Text({ "MusicFrog".to_owned() }) TextRole(Role::BodyStrong)
+                    Text({ "MusicFrog".to_owned() }) TextRole(design_resources::TextRole::BodyStrong)
                     --
-                    Text({ version.to_owned() }) TextRole(Role::Caption)
+                    Text({ version.to_owned() }) TextRole(design_resources::TextRole::Caption)
                 ]
             ]
     }
@@ -214,7 +215,7 @@ fn system_toggle_card_scene<C: Component + Clone + Unpin, T: Component + Clone +
                 ]
                 --
                 LocalizedText::plain(copy)
-                TextRole(Role::Caption)
+                TextRole(design_resources::TextRole::Caption)
                 ThemeTextColor({ Token::Ink })
             ]
     }
@@ -276,9 +277,9 @@ pub fn sidebar_profile_card_scene(palette: &UiPalette) -> impl Scene + use<> {
                         row_gap: rem(space::S2),
                     }
                     Children [
-                        Text({ String::new() }) ShellReadoutText::ProfileName TextRole(Role::BodyStrong)
+                        Text({ String::new() }) ShellReadoutText::ProfileName TextRole(design_resources::TextRole::BodyStrong)
                         --
-                        Text({ String::new() }) ShellReadoutText::ProfileKind TextRole(Role::Caption)
+                        Text({ String::new() }) ShellReadoutText::ProfileKind TextRole(design_resources::TextRole::Caption)
                         ThemeTextColor({ Token::InkDim })
                     ]
                 ]
@@ -306,11 +307,11 @@ pub fn sidebar_profile_card_scene(palette: &UiPalette) -> impl Scene + use<> {
                 }
                 Children [
                     Text({ String::new() }) ShellReadoutText::ProfileUsage
-                    TextRole(Role::Caption)
+                    TextRole(design_resources::TextRole::Caption)
                     ThemeTextColor({ Token::InkDim })
                     --
                     Text({ String::new() }) ShellReadoutText::ProfilePercent
-                    TextRole(Role::Caption)
+                    TextRole(design_resources::TextRole::Caption)
                     ThemeTextColor({ Token::InkDim })
                 ]
             ]
@@ -391,7 +392,7 @@ fn shortcut_tile_scene(
                 ]
                 --
                 LocalizedText::plain(label)
-                TextRole(Role::Caption)
+                TextRole(design_resources::TextRole::Caption)
                 ThemeTextColor({ Token::Ink })
             ]
     }
@@ -411,7 +412,7 @@ fn count_chip_scene(page: PageId) -> impl Scene + use<> {
             ThemeBackgroundColor({ Token::SurfaceElevated })
             Children [
                 Text({ String::new() }) ShellReadoutText::Count(page)
-                TextRole(Role::Caption)
+                TextRole(design_resources::TextRole::Caption)
                 ThemeTextColor({ Token::InkDim })
             ]
     }
@@ -534,7 +535,7 @@ pub fn sidebar_speed_footer_scene(palette: &UiPalette) -> impl Scene + use<> {
                         @{ icon_scene(IconId::ArrowUp, RATE_ICON_PX, palette.success) }
                         --
                         Text({ String::new() }) ShellReadoutText::Upload
-                        TextRole(Role::Mono)
+                        TextRole(design_resources::TextRole::Mono)
                         ThemeTextColor({ Token::Success })
                     ]
                     --
@@ -546,7 +547,7 @@ pub fn sidebar_speed_footer_scene(palette: &UiPalette) -> impl Scene + use<> {
                         @{ icon_scene(IconId::ArrowDown, RATE_ICON_PX, palette.accent) }
                         --
                         Text({ String::new() }) ShellReadoutText::Download
-                        TextRole(Role::Mono)
+                        TextRole(design_resources::TextRole::Mono)
                         ThemeTextColor({ Token::Accent })
                     ]
                 ]
@@ -556,7 +557,7 @@ pub fn sidebar_speed_footer_scene(palette: &UiPalette) -> impl Scene + use<> {
 
                 ]
                 --
-                Text({ String::new() }) ShellReadoutText::RateStatus TextRole(Role::Caption) ThemeTextColor({ Token::Danger })
+                Text({ String::new() }) ShellReadoutText::RateStatus TextRole(design_resources::TextRole::Caption) ThemeTextColor({ Token::Danger })
                 ]
             ]
     }

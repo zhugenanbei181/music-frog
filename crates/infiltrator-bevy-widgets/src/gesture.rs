@@ -7,6 +7,7 @@ use bevy::ecs::component::Component;
 use bevy::ecs::event::Event;
 use bevy::ecs::resource::Resource;
 use bevy::math::Vec2;
+use infiltrator_contract::design_resources;
 
 /// Safe-area insets in logical pixels (status bar, navigation bar, display cutouts/notches).
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq)]
@@ -303,7 +304,7 @@ pub struct GestureEvent(pub GestureOutcome);
 use crate::localization::LocalizedText;
 use crate::motion::Spring;
 use crate::palette::UiPalette;
-use crate::text::{Role, TextRole};
+use crate::text::TextRole;
 use bevy::ecs::hierarchy::Children;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{AlignItems, JustifyContent, Node, Overflow, percent, px};
@@ -349,7 +350,7 @@ pub fn pull_to_refresh_scene(state: &PullToRefreshState, _palette: &UiPalette) -
             PullToRefreshSpring { spring }
             Children [
                 LocalizedText::plain(key)
-                TextRole(Role::Caption)
+                TextRole(design_resources::TextRole::Caption)
                 PullToRefreshText
             ]
     })

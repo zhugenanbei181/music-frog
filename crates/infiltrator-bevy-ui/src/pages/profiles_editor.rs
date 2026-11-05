@@ -17,6 +17,7 @@
 #[path = "profiles_editor_query_access.rs"]
 pub mod query_access;
 use self::query_access::EditorVisualTargets;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::profile_document::DocumentInspection;
 use infiltrator_contract::profile_document::DocumentInspectionUnavailableReason;
 use infiltrator_contract::yaml_snippets::column_of_byte_offset;
@@ -70,7 +71,7 @@ use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::{metrics, radius, space};
 use infiltrator_contract::yaml_snippets::YAML_SNIPPETS;
 use infiltrator_presentation::profile_edit_session::{
@@ -215,11 +216,11 @@ pub fn profile_editor_scene(
                                         row_gap: rem(space::S4),
                                     }
                                     Children [
-                                        Text({ profile_editor_projection::title(buffer_lines, &Lang(UiLocale::default().code())) }) ProfileEditorTitle TextRole(Role::BodyStrong)
+                                        Text({ profile_editor_projection::title(buffer_lines, &Lang(UiLocale::default().code())) }) ProfileEditorTitle TextRole(design_resources::TextRole::BodyStrong)
                                         --
-                                        Text(status) ProfileEditorStatusText TextRole(Role::Caption)
+                                        Text(status) ProfileEditorStatusText TextRole(design_resources::TextRole::Caption)
                                         --
-                                        Text({ profile_editor_projection::protection_label(protection, &Lang(UiLocale::default().code())) }) ProfileEditorProtectionText TextRole(Role::Caption)
+                                        Text({ profile_editor_projection::protection_label(protection, &Lang(UiLocale::default().code())) }) ProfileEditorProtectionText TextRole(design_resources::TextRole::Caption)
                                     ]
                                 ]
                                 --
@@ -263,7 +264,7 @@ pub fn profile_editor_scene(
                             Children [
                                 @{ diagnostic_pill(state.validation_source, validation_status, palette) }
                                 --
-                                Text(diagnostic_text) ProfileEditorDiagnosticText TextRole(Role::Mono)
+                                Text(diagnostic_text) ProfileEditorDiagnosticText TextRole(design_resources::TextRole::Mono)
                             ]
             }),
             Box::new(bsn! {
@@ -276,7 +277,7 @@ pub fn profile_editor_scene(
                             }
                             ProfileEditorPaneArea { pane: ProfileEditorPane::Profile }
                             Children [
-                                LocalizedText::plain("profiles_snippet_quick_insert") TextRole(Role::Caption)
+                                LocalizedText::plain("profiles_snippet_quick_insert") TextRole(design_resources::TextRole::Caption)
                                 --
                                 { snippet_buttons(palette) }
                             ]
@@ -355,7 +356,7 @@ fn snippet_buttons(palette: &UiPalette) -> Vec<Box<dyn Scene>> {
                             EditorMutationControl
                             ProfileEditorSnippetButton { index }
                             Children [
-                                label TextRole(Role::Caption)
+                                label TextRole(design_resources::TextRole::Caption)
                             ]
             }) as Box<dyn Scene>
         })
@@ -379,7 +380,7 @@ fn action_button(label: &'static str, background: Color) -> Box<dyn Scene> {
             EditorMutationControl
             ProfileEditorFocusButton
             Children [
-                label TextRole(Role::Caption)
+                label TextRole(design_resources::TextRole::Caption)
             ]
     })
 }
@@ -403,7 +404,7 @@ fn protection_toggle(protection: ProfileWriteProtection, palette: &UiPalette) ->
             EditorMutationControl
             ProfileEditorProtectionToggle
             Children [
-                Text({ label }) ProfileEditorProtectionToggleLabel TextRole(Role::Caption)
+                Text({ label }) ProfileEditorProtectionToggleLabel TextRole(design_resources::TextRole::Caption)
             ]
     })
 }
@@ -426,7 +427,7 @@ fn reload_button(palette: &UiPalette) -> Box<dyn Scene> {
             Button
             ProfileEditorReloadButton
             Children [
-                LocalizedText::plain("common_reload") TextRole(Role::Caption)
+                LocalizedText::plain("common_reload") TextRole(design_resources::TextRole::Caption)
             ]
     })
 }
@@ -446,7 +447,7 @@ fn format_button(palette: &UiPalette) -> Box<dyn Scene> {
             EditorMutationControl
             ProfileEditorFormatButton
             Children [
-                LocalizedText::plain("profiles_format_action") TextRole(Role::Caption)
+                LocalizedText::plain("profiles_format_action") TextRole(design_resources::TextRole::Caption)
             ]
     })
 }
@@ -466,7 +467,7 @@ fn save_button(palette: &UiPalette) -> Box<dyn Scene> {
             EditorMutationControl
             ProfileEditorSaveButton
             Children [
-                LocalizedText::plain("dns_save") TextRole(Role::Body)
+                LocalizedText::plain("dns_save") TextRole(design_resources::TextRole::Body)
             ]
     })
 }
@@ -485,7 +486,7 @@ fn diagnostic_pill(
             }
             BackgroundColor({ background })
             Children [
-                Text({ label.to_owned() }) ProfileEditorDiagnosticPill TextRole(Role::Caption)
+                Text({ label.to_owned() }) ProfileEditorDiagnosticPill TextRole(design_resources::TextRole::Caption)
             ]
     })
 }

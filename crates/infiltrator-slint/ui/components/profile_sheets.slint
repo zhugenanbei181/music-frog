@@ -1,3 +1,4 @@
+import { DesignType } from "./design-type.slint";
 import { CheckBox, ScrollView } from "std-widgets.slint";
 import { ModalBottomSheet } from "@material";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
@@ -56,7 +57,7 @@ export component ProfileAddSheet inherits ModalBottomSheet {
                     min-pill-width: 64 * LumenUiScale.unit;
                     clicked => { root.dismiss(); }
                 }
-                Text { text: @tr("添加配置文件"); color: LumenTheme.text-primary; font-size: 18 * LumenUiScale.unit; font-weight: 600; horizontal-stretch: 1; horizontal-alignment: center; vertical-alignment: center; }
+                Text { text: @tr("添加配置文件"); color: LumenTheme.text-primary; font-size: DesignType.subheading-size; font-weight: DesignType.subheading-weight; horizontal-stretch: 1; horizontal-alignment: center; vertical-alignment: center; }
                 PillButton {
                     label: @tr("添加");
                     selected: true;
@@ -72,13 +73,13 @@ export component ProfileAddSheet inherits ModalBottomSheet {
                 border-radius: 25 * LumenUiScale.unit; background: LumenTheme.surface-muted;
                 HorizontalLayout {
                     x: 18 * LumenUiScale.unit; width: root.profile-sheet-content-width - 36 * LumenUiScale.unit; height: parent.height; spacing: LumenTheme.space-2;
-                    Text { text: @tr("配置类型"); color: LumenTheme.text-secondary; font-size: 18 * LumenUiScale.unit; vertical-alignment: center; }
+                    Text { text: @tr("配置类型"); color: LumenTheme.text-secondary; font-size: DesignType.subheading-size; vertical-alignment: center; }
                     Rectangle { horizontal-stretch: 1; background: transparent; }
                     Text {
                         text: root.profile-add-kind-index == 0 ? @tr("订阅链接") : root.profile-add-kind-index == 1 ? @tr("本地文件") : @tr("扫码添加");
-                        color: LumenTheme.text-primary; font-size: 18 * LumenUiScale.unit; vertical-alignment: center;
+                        color: LumenTheme.text-primary; font-size: DesignType.subheading-size; vertical-alignment: center;
                     }
-                    Image { source: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/chevron-expand.svg"); width: 20 * LumenUiScale.unit; height: 20 * LumenUiScale.unit; y: (parent.height - self.height) / 2; image-fit: contain; }
+                    Image { source: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/chevron-down.svg"); width: 20 * LumenUiScale.unit; height: 20 * LumenUiScale.unit; y: (parent.height - self.height) / 2; image-fit: contain; }
                 }
                 TouchArea {
                     width: parent.width; height: parent.height;
@@ -99,7 +100,7 @@ export component ProfileAddSheet inherits ModalBottomSheet {
                 RoundedInputField { width: root.profile-sheet-content-width; label: @tr("配置名称（可选）"); text <=> root.profile-name; }
                 Rectangle {
                     width: root.profile-sheet-content-width; height: 50 * LumenUiScale.unit; border-radius: 25 * LumenUiScale.unit; background: LumenTheme.surface-muted;
-                    Text { x: 20 * LumenUiScale.unit; width: parent.width - 40 * LumenUiScale.unit; height: parent.height; text: @tr("选择 YAML / YML 文件"); color: LumenTheme.text-secondary; font-size: 18 * LumenUiScale.unit; vertical-alignment: center; }
+                    Text { x: 20 * LumenUiScale.unit; width: parent.width - 40 * LumenUiScale.unit; height: parent.height; text: @tr("选择 YAML / YML 文件"); color: LumenTheme.text-secondary; font-size: DesignType.subheading-size; vertical-alignment: center; }
                     TouchArea { width: parent.width; height: parent.height; clicked => { root.choose-file(); } }
                 }
                 RoundedInputField { width: root.profile-sheet-content-width; label: @tr("Age 私钥（可选）"); password: true; text <=> root.profile-age-key; }
@@ -111,8 +112,8 @@ export component ProfileAddSheet inherits ModalBottomSheet {
                 background: LumenTheme.surface;
                 VerticalLayout {
                     x: 18 * LumenUiScale.unit; width: root.profile-sheet-content-width - 36 * LumenUiScale.unit; height: parent.height; spacing: 6 * LumenUiScale.unit; alignment: center;
-                    Text { text: @tr("扫码添加"); color: LumenTheme.text-primary; font-size: 18 * LumenUiScale.unit; font-weight: 550; }
-                    Text { text: @tr("扫描二维码以导入配置订阅地址"); color: LumenTheme.text-secondary; font-size: 14 * LumenUiScale.unit; wrap: word-wrap; horizontal-alignment: center; }
+                    Text { text: @tr("扫码添加"); color: LumenTheme.text-primary; font-size: DesignType.subheading-size; font-weight: DesignType.subheading-weight; }
+                    Text { text: @tr("扫描二维码以导入配置订阅地址"); color: LumenTheme.text-secondary; font-size: DesignType.label-size; wrap: word-wrap; horizontal-alignment: center; }
                     PillButton { label: @tr("开始扫描"); clicked => { root.scan-qr(); } }
                 }
             }
@@ -120,7 +121,7 @@ export component ProfileAddSheet inherits ModalBottomSheet {
                 width: root.profile-sheet-content-width;
                 text: root.notice;
                 color: root.notice == "请输入订阅链接" ? LumenTheme.error : LumenTheme.text-secondary;
-                font-size: 13 * LumenUiScale.unit;
+                font-size: DesignType.mono-size;
                 wrap: word-wrap;
             }
             Rectangle { vertical-stretch: 1; background: transparent; }
@@ -154,7 +155,7 @@ export component ProfileActionSheet inherits ModalBottomSheet {
         VerticalLayout {
             x: 16 * LumenUiScale.unit; width: parent.width - 32 * LumenUiScale.unit; height: parent.height;
             padding-top: LumenTheme.space-2; padding-bottom: LumenTheme.space-2; spacing: LumenTheme.space-3;
-            Text { text: @tr("编辑配置"); color: LumenTheme.text-primary; font-size: 20 * LumenUiScale.unit; font-weight: 550; horizontal-alignment: center; vertical-alignment: center; height: 32 * LumenUiScale.unit; }
+            Text { text: @tr("编辑配置"); color: LumenTheme.text-primary; font-size: DesignType.title-size; font-weight: DesignType.title-weight; horizontal-alignment: center; vertical-alignment: center; height: 32 * LumenUiScale.unit; }
             SheetActionButton {
                 width: parent.width;
                 label: @tr("编辑器打开");
@@ -199,12 +200,12 @@ export component ProfileShareSheet inherits ModalBottomSheet {
         VerticalLayout {
             x: 16 * LumenUiScale.unit; width: parent.width - 32 * LumenUiScale.unit; height: parent.height;
             padding-top: LumenTheme.space-2; padding-bottom: LumenTheme.space-2; spacing: LumenTheme.space-3;
-            Text { text: @tr("分享配置"); color: LumenTheme.text-primary; font-size: 20 * LumenUiScale.unit; font-weight: 550; horizontal-alignment: center; vertical-alignment: center; height: 32 * LumenUiScale.unit; }
+            Text { text: @tr("分享配置"); color: LumenTheme.text-primary; font-size: DesignType.title-size; font-weight: DesignType.title-weight; horizontal-alignment: center; vertical-alignment: center; height: 32 * LumenUiScale.unit; }
             Text {
                 width: parent.width;
                 text: @tr("来源配置可能包含节点认证信息；导出仅包含来源 YAML，不含订阅凭据或绑定的覆写。");
                 color: LumenTheme.text-secondary;
-                font-size: 13 * LumenUiScale.unit;
+                font-size: DesignType.mono-size;
                 wrap: word-wrap;
                 horizontal-alignment: center;
             }
@@ -247,12 +248,12 @@ export component ProfileDeleteSheet inherits ModalBottomSheet {
         VerticalLayout {
             x: 16 * LumenUiScale.unit; width: parent.width - 32 * LumenUiScale.unit; height: parent.height;
             padding-top: LumenTheme.space-2; padding-bottom: LumenTheme.space-2; spacing: LumenTheme.space-3;
-            Text { text: @tr("删除配置"); color: LumenTheme.text-primary; font-size: 20 * LumenUiScale.unit; font-weight: 550; horizontal-alignment: center; vertical-alignment: center; height: 32 * LumenUiScale.unit; }
+            Text { text: @tr("删除配置"); color: LumenTheme.text-primary; font-size: DesignType.title-size; font-weight: DesignType.title-weight; horizontal-alignment: center; vertical-alignment: center; height: 32 * LumenUiScale.unit; }
             Text {
                 width: parent.width;
                 text: @tr("确定要删除「") + root.pending-delete-name + @tr("」吗？如果该配置正在运行，会先停止代理。");
                 color: LumenTheme.text-secondary;
-                font-size: 16 * LumenUiScale.unit;
+                font-size: DesignType.bodyLarge-size;
                 wrap: word-wrap;
                 horizontal-alignment: center;
                 vertical-alignment: center;
@@ -326,10 +327,10 @@ export component ProfileSettingsSheet inherits ModalBottomSheet {
                 width: parent.width; height: 50 * LumenUiScale.unit; border-radius: 25 * LumenUiScale.unit; background: LumenTheme.surface-muted;
                 HorizontalLayout {
                     x: 18 * LumenUiScale.unit; width: parent.width - 36 * LumenUiScale.unit; height: parent.height; spacing: LumenTheme.space-2;
-                    Text { text: @tr("设置类型"); color: LumenTheme.text-secondary; font-size: 17 * LumenUiScale.unit; vertical-alignment: center; }
+                    Text { text: @tr("设置类型"); color: LumenTheme.text-secondary; font-size: DesignType.subheading-size; vertical-alignment: center; }
                     Rectangle { horizontal-stretch: 1; background: transparent; }
-                    Text { text: root.profile-settings-type-index == 0 ? @tr("订阅信息") : @tr("覆写配置"); color: LumenTheme.text-primary; font-size: 17 * LumenUiScale.unit; vertical-alignment: center; }
-                    Image { source: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/chevron-expand.svg"); width: 20 * LumenUiScale.unit; height: 20 * LumenUiScale.unit; image-fit: contain; vertical-alignment: center; }
+                    Text { text: root.profile-settings-type-index == 0 ? @tr("订阅信息") : @tr("覆写配置"); color: LumenTheme.text-primary; font-size: DesignType.subheading-size; vertical-alignment: center; }
+                    Image { source: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/chevron-down.svg"); width: 20 * LumenUiScale.unit; height: 20 * LumenUiScale.unit; image-fit: contain; vertical-alignment: center; }
                 }
                 TouchArea {
                     width: parent.width; height: parent.height;
@@ -362,13 +363,13 @@ export component ProfileSettingsSheet inherits ModalBottomSheet {
                                 clicked => { root.clear-age-key(); }
                             }
                         }
-                        if root.profile-settings-kind != "remote_subscription": Text { text: @tr("本地来源配置保持只读；名称可在此修改。"); color: LumenTheme.text-secondary; font-size: 13 * LumenUiScale.unit; wrap: word-wrap; }
+                        if root.profile-settings-kind != "remote_subscription": Text { text: @tr("本地来源配置保持只读；名称可在此修改。"); color: LumenTheme.text-secondary; font-size: DesignType.mono-size; wrap: word-wrap; }
                     }
                     if root.profile-settings-type-index == 1: VerticalLayout {
                         width: parent.width; spacing: LumenTheme.space-2;
-                        Text { text: @tr("覆写配置"); color: LumenTheme.text-primary; font-size: 18 * LumenUiScale.unit; font-weight: 600; }
-                        Text { text: @tr("选中的覆写会按列表顺序合并；更改先保存为 Profile 绑定。"); color: LumenTheme.text-secondary; font-size: 13 * LumenUiScale.unit; wrap: word-wrap; }
-                        if root.profile-settings-overrides.length == 0: Text { text: @tr("暂无可绑定的 YAML 覆写"); color: LumenTheme.text-secondary; font-size: 14 * LumenUiScale.unit; }
+                        Text { text: @tr("覆写配置"); color: LumenTheme.text-primary; font-size: DesignType.subheading-size; font-weight: DesignType.subheading-weight; }
+                        Text { text: @tr("选中的覆写会按列表顺序合并；更改先保存为 Profile 绑定。"); color: LumenTheme.text-secondary; font-size: DesignType.mono-size; wrap: word-wrap; }
+                        if root.profile-settings-overrides.length == 0: Text { text: @tr("暂无可绑定的 YAML 覆写"); color: LumenTheme.text-secondary; font-size: DesignType.label-size; }
                         for option in root.profile-settings-overrides: HorizontalLayout {
                             width: parent.width; height: 56 * LumenUiScale.unit; spacing: LumenTheme.space-1;
                             CheckBox { text: option.name + " · " + option.format; checked: option.selected; horizontal-stretch: 1; toggled => { root.toggle-override(option.id, self.checked); } }

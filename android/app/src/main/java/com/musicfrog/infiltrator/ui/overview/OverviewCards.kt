@@ -14,17 +14,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ArrowDropDown
-import androidx.compose.material.icons.outlined.Description
-import androidx.compose.material.icons.outlined.Memory
-import androidx.compose.material.icons.outlined.Public
-import androidx.compose.material.icons.outlined.Speed
-import androidx.compose.material.icons.outlined.Tune
-import androidx.compose.material.icons.outlined.Warning
-import androidx.compose.material.icons.rounded.ArrowDownward
-import androidx.compose.material.icons.rounded.ArrowUpward
-import androidx.compose.material.icons.rounded.PowerSettingsNew
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -52,13 +41,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.musicfrog.infiltrator.AndroidVpnAuthorizationUiState
 import com.musicfrog.infiltrator.R
 import com.musicfrog.infiltrator.VpnOwnerDataPlaneState
+import com.musicfrog.infiltrator.ui.common.AppIcon
+import com.musicfrog.infiltrator.ui.common.AppIconSemantic
 import com.musicfrog.infiltrator.ui.common.LogEntry
 import com.musicfrog.infiltrator.ui.common.LogLevel
 import com.musicfrog.infiltrator.ui.common.OwnerVpnObservation
@@ -235,7 +223,7 @@ internal fun VpnHeroCard(
                 Column {
                     Text(
                         text = stringResource(R.string.status_tun_service),
-                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                        style = MaterialTheme.typography.headlineSmall,
                     )
                     Text(
                         text = statusText,
@@ -262,7 +250,7 @@ internal fun VpnHeroCard(
                     ),
                 ) {
                     Icon(
-                        Icons.Rounded.PowerSettingsNew,
+                        AppIcon.image(AppIconSemantic.Start),
                         contentDescription = stringResource(
                             if (vpnRunning) R.string.action_stop else R.string.action_start,
                         ),
@@ -275,16 +263,17 @@ internal fun VpnHeroCard(
 }
 
 @Composable
-internal fun RoutingModeCard(
-    routingIntent: RoutingIntentUiState,
-    onRoutingIntentChange: (RoutingIntentOption) -> Unit,
-) {
+internal fun RoutingModeCard(routingIntent: RoutingIntentUiState, onRoutingIntentChange: (RoutingIntentOption) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     val currentIntent = when (routingIntent) {
         is RoutingIntentUiState.Ready -> routingIntent.current
+
         is RoutingIntentUiState.Updating -> routingIntent.current
+
         is RoutingIntentUiState.Pending -> routingIntent.snapshot.current
+
         is RoutingIntentUiState.Unsupported -> routingIntent.snapshot.current
+
         is RoutingIntentUiState.Failed,
         RoutingIntentUiState.Unobserved,
         RoutingIntentUiState.Loading,
@@ -320,7 +309,7 @@ internal fun RoutingModeCard(
     StatusCard(
         title = sharedRoutingIntentCopy(infiltrator_android.AndroidRoutingIntentCopyKey.TITLE),
         subtitle = subtitle,
-        icon = Icons.Outlined.Tune,
+        icon = AppIcon.image(AppIconSemantic.Settings),
         actions = {
             Box {
                 FilledTonalButton(
@@ -330,7 +319,7 @@ internal fun RoutingModeCard(
                 ) {
                     Text(sharedRoutingIntentCopy(infiltrator_android.AndroidRoutingIntentCopyKey.CHANGE_ACTION))
                     Spacer(Modifier.width(8.dp))
-                    Icon(Icons.Outlined.ArrowDropDown, null, modifier = Modifier.size(18.dp))
+                    Icon(AppIcon.image(AppIconSemantic.ChevronDown), null, modifier = Modifier.size(18.dp))
                 }
                 DropdownMenu(
                     expanded = expanded,
@@ -353,17 +342,13 @@ internal fun RoutingModeCard(
 }
 
 @Composable
-internal fun CoreRuntimeCard(
-    observation: ObservationState<AndroidCoreLifecycle>,
-    onResumeCore: () -> Unit,
-    onRestartCore: () -> Unit,
-) {
+internal fun CoreRuntimeCard(observation: ObservationState<AndroidCoreLifecycle>, onResumeCore: () -> Unit, onRestartCore: () -> Unit) {
     val title = stringResource(R.string.status_core_runtime)
     when (observation) {
         is ObservationState.Loading -> StatusCard(
             title = title,
             subtitle = stringResource(R.string.text_loading),
-            icon = Icons.Outlined.Memory,
+            icon = AppIcon.image(AppIconSemantic.Target),
         )
 
         ObservationState.Empty,
@@ -371,7 +356,7 @@ internal fun CoreRuntimeCard(
         -> StatusCard(
             title = title,
             subtitle = stringResource(R.string.status_unknown),
-            icon = Icons.Outlined.Warning,
+            icon = AppIcon.image(AppIconSemantic.Shield),
         )
 
         is ObservationState.Observed -> when (observation.value) {
@@ -380,19 +365,19 @@ internal fun CoreRuntimeCard(
             -> StatusCard(
                 title = title,
                 subtitle = stringResource(R.string.status_running),
-                icon = Icons.Outlined.Memory,
+                icon = AppIcon.image(AppIconSemantic.Target),
             )
 
             AndroidCoreLifecycle.STARTING -> StatusCard(
                 title = title,
                 subtitle = stringResource(R.string.status_starting),
-                icon = Icons.Outlined.Memory,
+                icon = AppIcon.image(AppIconSemantic.Target),
             )
 
             AndroidCoreLifecycle.STOPPING -> StatusCard(
                 title = title,
                 subtitle = stringResource(R.string.status_stopping),
-                icon = Icons.Outlined.Memory,
+                icon = AppIcon.image(AppIconSemantic.Target),
             )
 
             AndroidCoreLifecycle.STOPPED -> StoppedCoreCard(
@@ -423,12 +408,11 @@ internal fun StoppedCoreCard(statusLabel: Int, actionLabel: Int, onAction: () ->
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.Warning, contentDescription = null)
+                Icon(AppIcon.image(AppIconSemantic.Shield), contentDescription = null)
                 Spacer(Modifier.width(8.dp))
                 Text(
                     stringResource(R.string.status_core_runtime),
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
                 )
             }
             Text(stringResource(statusLabel))
@@ -446,12 +430,10 @@ internal fun StoppedCoreCard(statusLabel: Int, actionLabel: Int, onAction: () ->
 }
 
 @Composable
-internal fun EgressIpCard(
-    egressIp: ObservationState<EgressIpObservation>,
-    onRefreshIp: () -> Unit,
-) {
+internal fun EgressIpCard(egressIp: ObservationState<EgressIpObservation>, onRefreshIp: () -> Unit) {
     val subtitle = when (egressIp) {
         is ObservationState.Loading -> stringResource(R.string.text_loading)
+
         ObservationState.Empty,
         is ObservationState.Unavailable,
         -> stringResource(R.string.text_ip_unavailable)
@@ -461,6 +443,7 @@ internal fun EgressIpCard(
                 R.string.label_exit_ip,
                 egressIp.value.ip,
             )
+
             else -> "${stringResource(R.string.label_exit_ip, egressIp.value.ip)}\n" +
                 stringResource(R.string.label_ip_location, egressIp.value.location)
         }
@@ -468,7 +451,7 @@ internal fun EgressIpCard(
     StatusCard(
         title = stringResource(R.string.card_network_diagnostics),
         subtitle = subtitle,
-        icon = Icons.Outlined.Public,
+        icon = AppIcon.image(AppIconSemantic.Globe),
         actions = {
             FilledTonalButton(onClick = onRefreshIp) {
                 Text(stringResource(R.string.action_refresh_ip))
@@ -491,14 +474,14 @@ internal fun TrafficCard(observation: ObservationState<TrafficSnapshot>) {
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    Icons.Outlined.Speed,
+                    AppIcon.image(AppIconSemantic.Zap),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     text = stringResource(R.string.card_traffic),
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                    style = MaterialTheme.typography.titleMedium,
                 )
             }
 
@@ -539,7 +522,7 @@ private fun TrafficSnapshotContent(snapshot: TrafficSnapshot) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        Icons.Rounded.ArrowUpward,
+                        AppIcon.image(AppIconSemantic.ArrowUp),
                         null,
                         tint = MaterialTheme.colorScheme.secondary,
                         modifier = Modifier.size(16.dp),
@@ -552,7 +535,7 @@ private fun TrafficSnapshotContent(snapshot: TrafficSnapshot) {
                 }
                 Text(
                     text = formatSpeed(snapshot.upRate.toLong()),
-                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                    style = MaterialTheme.typography.headlineSmall,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
@@ -568,7 +551,7 @@ private fun TrafficSnapshotContent(snapshot: TrafficSnapshot) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        Icons.Rounded.ArrowDownward,
+                        AppIcon.image(AppIconSemantic.ArrowDown),
                         null,
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(16.dp),
@@ -581,7 +564,7 @@ private fun TrafficSnapshotContent(snapshot: TrafficSnapshot) {
                 }
                 Text(
                     text = formatSpeed(snapshot.downRate.toLong()),
-                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                    style = MaterialTheme.typography.headlineSmall,
                     color = MaterialTheme.colorScheme.primary,
                 )
                 Text(
@@ -608,10 +591,7 @@ private fun TrafficSnapshotContent(snapshot: TrafficSnapshot) {
 }
 
 @Composable
-internal fun LogPreviewCard(
-    observation: ObservationState<List<LogEntry>>,
-    onNavigateToLogs: () -> Unit,
-) {
+internal fun LogPreviewCard(observation: ObservationState<List<LogEntry>>, onNavigateToLogs: () -> Unit) {
     ElevatedCard(
         modifier = Modifier.fillMaxWidth().animateContentSize(),
         colors = CardDefaults.elevatedCardColors(
@@ -629,14 +609,14 @@ internal fun LogPreviewCard(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        Icons.Outlined.Description,
+                        AppIcon.image(AppIconSemantic.FileText),
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
                         text = stringResource(R.string.card_recent_logs),
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                        style = MaterialTheme.typography.titleMedium,
                     )
                 }
                 TextButton(onClick = onNavigateToLogs) {
@@ -646,8 +626,11 @@ internal fun LogPreviewCard(
 
             when (observation) {
                 is ObservationState.Loading -> ObservationLabel(R.string.text_loading)
+
                 ObservationState.Empty -> ObservationLabel(R.string.text_no_logs)
+
                 is ObservationState.Unavailable -> ObservationLabel(R.string.status_unknown)
+
                 is ObservationState.Observed -> Column(modifier = Modifier.padding(start = 36.dp)) {
                     observation.value.reversed().take(3).forEach { entry ->
                         val levelColor = when (entry.level) {
@@ -658,8 +641,6 @@ internal fun LogPreviewCard(
                         Text(
                             text = entry.message,
                             style = MaterialTheme.typography.bodySmall,
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 11.sp,
                             color = levelColor,
                             maxLines = 1,
                         )
@@ -681,12 +662,7 @@ private fun ObservationLabel(resourceId: Int) {
 }
 
 @Composable
-internal fun StatusCard(
-    title: String,
-    subtitle: String,
-    icon: ImageVector? = null,
-    actions: @Composable (() -> Unit)? = null,
-) {
+internal fun StatusCard(title: String, subtitle: String, icon: ImageVector? = null, actions: @Composable (() -> Unit)? = null) {
     ElevatedCard(
         modifier = Modifier.fillMaxWidth().animateContentSize(),
         colors = CardDefaults.elevatedCardColors(
@@ -715,7 +691,7 @@ internal fun StatusCard(
                     )
                     Text(
                         text = subtitle,
-                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
+                        style = MaterialTheme.typography.titleLarge,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                 }

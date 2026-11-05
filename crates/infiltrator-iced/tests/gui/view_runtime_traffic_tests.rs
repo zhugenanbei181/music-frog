@@ -149,25 +149,13 @@ fn test_dimension_rankings_dispatch() {
 
 #[test]
 fn test_traffic_dimension_labels_and_icons() {
-    assert_eq!(
-        TrafficDimension::Domains.label(&Lang("zh-CN")),
-        "域名 (Domains)"
-    );
+    assert_eq!(TrafficDimension::Domains.label(&Lang("zh-CN")), "域名");
     assert_eq!(TrafficDimension::Domains.label(&Lang("en-US")), "Domains");
-    assert_eq!(
-        TrafficDimension::Devices.label(&Lang("zh-CN")),
-        "设备 (Devices)"
-    );
+    assert_eq!(TrafficDimension::Devices.label(&Lang("zh-CN")), "设备");
     assert_eq!(TrafficDimension::Devices.label(&Lang("en-US")), "Devices");
-    assert_eq!(
-        TrafficDimension::Proxies.label(&Lang("zh-CN")),
-        "代理 (Proxies)"
-    );
+    assert_eq!(TrafficDimension::Proxies.label(&Lang("zh-CN")), "代理");
     assert_eq!(TrafficDimension::Proxies.label(&Lang("en-US")), "Proxies");
-    assert_eq!(
-        TrafficDimension::Processes.label(&Lang("zh-CN")),
-        "进程 (Processes)"
-    );
+    assert_eq!(TrafficDimension::Processes.label(&Lang("zh-CN")), "进程");
     assert_eq!(
         TrafficDimension::Processes.label(&Lang("en-US")),
         "Processes"

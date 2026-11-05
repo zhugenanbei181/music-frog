@@ -28,9 +28,10 @@ use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::picking;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::{radius, space};
 use infiltrator_contract::a11y::ShellA11yNode;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::mini_hud::{MiniHudReadModel, MiniHudWaveformStrip};
 use infiltrator_contract::system_toggle::SystemToggle;
 use infiltrator_presentation::routing_intent_projection::routing_intent_status_copy;
@@ -279,7 +280,7 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
                         Children [
                             @{ icon_tile_scene(IconId::Activity, 16.0, palette) }
                             --
-                            Text({ "Mini HUD".to_owned() }) TextRole(Role::Caption)
+                            Text({ "Mini HUD".to_owned() }) TextRole(design_resources::TextRole::Caption)
                             --
                             Node {
                                 padding: UiRect::axes(rem(space::S6), rem(space::S2)),
@@ -289,7 +290,7 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
                             MiniHudText(MiniHudTextKind::RoutingIntent)
                             Children [
                                 Text({ routing_intent_label })
-                                TextRole(Role::Caption)
+                                TextRole(design_resources::TextRole::Caption)
                                 MiniHudRoutingIntentLabel
                             ]
                         ]
@@ -312,7 +313,7 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
                             Button
                             MiniHudPinButton MiniHudText(MiniHudTextKind::Pin)
                             Children [
-                                Text(pin_label) TextRole(Role::Caption)
+                                Text(pin_label) TextRole(design_resources::TextRole::Caption)
                             ]
                             --
                             Node {
@@ -326,7 +327,7 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
                             Button
                             MiniHudExpandButton
                             Children [
-                                LocalizedText::plain("rules_expand") TextRole(Role::Caption)
+                                LocalizedText::plain("rules_expand") TextRole(design_resources::TextRole::Caption)
                             ]
                         ]
                     ]
@@ -348,7 +349,7 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
                             @{ icon_tile_scene(IconId::ArrowDown, 16.0, palette) }
                             --
                             Node MiniHudText(MiniHudTextKind::DownRate)
-                            Children [ Text(down_rate) TextRole(Role::BodyStrong) ]
+                            Children [ Text(down_rate) TextRole(design_resources::TextRole::BodyStrong) ]
                             --
                             @{ down_waveform_slot_scene() }
                         ]
@@ -361,7 +362,7 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
                             @{ icon_tile_scene(IconId::ArrowUp, 16.0, palette) }
                             --
                             Node MiniHudText(MiniHudTextKind::UpRate)
-                            Children [ Text(up_rate) TextRole(Role::BodyStrong) ]
+                            Children [ Text(up_rate) TextRole(design_resources::TextRole::BodyStrong) ]
                             --
                             @{ up_waveform_slot_scene() }
                         ]
@@ -377,7 +378,7 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
                     }
                     Children [
                         Node MiniHudPipReadout Children [
-                            Text(String::new()) TextRole(Role::Caption)
+                            Text(String::new()) TextRole(design_resources::TextRole::Caption)
                         ]
                         --
                         Node {
@@ -411,7 +412,7 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
                         MiniHudText(MiniHudTextKind::Node)
                         Children [
                             Text(node_label)
-                            TextRole(Role::Caption)
+                            TextRole(design_resources::TextRole::Caption)
                             MiniHudNodeLabel
                         ]
                         --
@@ -431,7 +432,7 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
                             tun_node
                             --
                             Node MiniHudText(MiniHudTextKind::ToggleLine)
-                            Children [ Text(toggle_line) TextRole(Role::Caption) MiniHudToggleLabel ]
+                            Children [ Text(toggle_line) TextRole(design_resources::TextRole::Caption) MiniHudToggleLabel ]
                         ]
                     ]
                 ]
@@ -533,7 +534,7 @@ mod tests {
                 .iter(world)
                 .next()
                 .map(|(text, _)| text.0.clone()),
-            Some("遵循分流规则".to_owned())
+            Some("规则模式".to_owned())
         );
         let mut node_labels = world.query::<(&Text, &MiniHudNodeLabel)>();
         assert_eq!(

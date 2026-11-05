@@ -21,8 +21,9 @@ use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::modal::{ModalDialogCard, ModalScrim};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 /// The confirmation dialog's fixed width in baseline pixels.
@@ -117,9 +118,9 @@ pub fn confirmation_scene(palette: &UiPalette) -> impl Scene + use<> {
             ModalDialog
             ScrollArea
             Children [
-                Text(title) TextRole(Role::Heading)
+                Text(title) TextRole(design_resources::TextRole::Heading)
                 --
-                Text(detail) TextRole(Role::Body)
+                Text(detail) TextRole(design_resources::TextRole::Body)
                 --
                 Node {
                     width: percent(100), column_gap: rem(space::S12),
@@ -143,7 +144,7 @@ pub fn confirmation_scene(palette: &UiPalette) -> impl Scene + use<> {
                     on(|activate: On<Activate>, mut commands: Commands| {
                         commands.trigger(RequestClose { source: activate.entity });
                     })
-                    Children [ Text(cancel) TextRole(Role::Body) ]
+                    Children [ Text(cancel) TextRole(design_resources::TextRole::Body) ]
                     --
                     Node {
                         min_height: rem(palette.control_height_px),
@@ -152,7 +153,7 @@ pub fn confirmation_scene(palette: &UiPalette) -> impl Scene + use<> {
                     }
                     ThemeBackgroundColor({ Token::Danger })
                     Button CloseAllConfirmationAction::Confirm
-                    Children [ Text(confirm) TextRole(Role::BodyStrong) ]
+                    Children [ Text(confirm) TextRole(design_resources::TextRole::BodyStrong) ]
                 ]
             ]
         ]

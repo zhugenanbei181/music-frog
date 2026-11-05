@@ -14,8 +14,8 @@ use crate::history::{
 use crate::pages::overview::{
     AccentContainerFill, AccentFill, BorderFill, LastOverviewProjection, OverviewCardState,
     OverviewChipKind, OverviewLineKind, OverviewProjectionUpdated, OverviewScrubberStatus,
-    OverviewTrafficChart, StatusDot, SurfaceElevatedFill, SurfaceFill, banner_note,
-    banner_state_text, card_fill, chart_dims, chip_label, format_cpu, format_memory, format_scale,
+    OverviewStatusCard, OverviewTrafficChart, StatusDot, SurfaceElevatedFill, SurfaceFill,
+    banner_note, banner_state_text, card_fill, chart_dims, chip_label, format_cpu, format_memory,
     format_total_traffic, state_ink, status_dot_color,
 };
 use crate::pages::overview_cards::quota_status_color;
@@ -30,7 +30,7 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::{Has, QueryData, With};
 use bevy::ecs::system::SystemParam;
 use bevy::ecs::system::{Query, Res, ResMut};
-use bevy::ui::prelude::{BackgroundColor, Display, percent};
+use bevy::ui::prelude::{BackgroundColor, BorderColor, Display, percent};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
 use infiltrator_bevy_widgets::chart::ChartPlate;
@@ -38,10 +38,12 @@ use infiltrator_bevy_widgets::chart::ChartSpec;
 use infiltrator_bevy_widgets::chart::bezier::ScaleMode;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::waveform::{WaveformPlate, WaveformSeries};
 use infiltrator_contract::active_exit::{ActiveExitSnapshot, ActiveExitStatus};
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::public_ip::PublicIpProbeStatus;
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot, SystemToggleState};
+use infiltrator_presentation::dashboard_hero_projection::TrafficWaveformProjection;
 use infiltrator_presentation::shell_readout::{rate_copy, rate_status};
 use infiltrator_presentation::subscription_quota_projection::{QuotaPresentation, project_quota};
 use infiltrator_presentation::system_toggle_projection;
@@ -325,7 +327,34 @@ pub(crate) fn apply_overview_projection(
                 text.0 = failure_copy(&projection.lifecycle, projection.failure(), &Lang(language))
             }
             OverviewLineKind::BannerNote => text.0 = banner_note(projection, language),
-            OverviewLineKind::Scale => text.0 = format_scale(&projection.traffic_scale),
+            OverviewLineKind::UploadPeak => {
+                let waveform =
+                    TrafficWaveformProjection::from_waveform(&projection.traffic_waveform, 0, 0);
+                text.0 = waveform.peak_up_formatted;
+            }
+            OverviewLineKind::DownloadPeak => {
+                let waveform =
+                    TrafficWaveformProjection::from_waveform(&projection.traffic_waveform, 0, 0);
+                text.0 = waveform.peak_down_formatted;
+            }
+            OverviewLineKind::UploadTotal => {
+                let total = projection.total_traffic_bytes.unwrap_or(0);
+                let waveform = TrafficWaveformProjection::from_waveform(
+                    &projection.traffic_waveform,
+                    total / 2,
+                    total / 2,
+                );
+                text.0 = waveform.total_up_formatted;
+            }
+            OverviewLineKind::DownloadTotal => {
+                let total = projection.total_traffic_bytes.unwrap_or(0);
+                let waveform = TrafficWaveformProjection::from_waveform(
+                    &projection.traffic_waveform,
+                    total / 2,
+                    total / 2,
+                );
+                text.0 = waveform.total_down_formatted;
+            }
         }
     }
     for mut card in &mut cards {
@@ -531,6 +560,32 @@ pub(crate) fn sync_overview_replay(
     }
 }
 
+/// Keep the independent live waveform cards on the authoritative series.
+/// They are a live-monitor projection, so scrubbing the detail chart does
+/// not rewrite their live samples.
+pub(crate) fn sync_overview_waveforms(
+    last: Res<LastOverviewProjection>,
+    history: Res<TrafficHistory>,
+    mut plates: Query<&mut WaveformPlate>,
+) {
+    if !last.is_changed() && !history.is_changed() {
+        return;
+    }
+    let Some(projection) = &last.0 else {
+        return;
+    };
+    let (upload, download, _, _) = chart_inputs(projection, &history);
+    for mut plate in &mut plates {
+        let samples = match plate.series {
+            WaveformSeries::Upload => upload.clone(),
+            WaveformSeries::Download => download.clone(),
+        };
+        if plate.samples != samples {
+            plate.samples = samples;
+        }
+    }
+}
+
 /// The scrubber status line: a localized live/unavailable/empty word, or the
 /// numeric historical position. Symbols and digits are locale-neutral data.
 fn scrubber_status_copy(state: ReplayState, locale: &UiLocale) -> String {
@@ -588,6 +643,27 @@ pub(crate) fn reskin_overview_tokens(
         };
         if row.fill.0 != want {
             row.fill.0 = want;
+        }
+    }
+}
+
+/// The status banner's hairline follows the live palette like every other
+/// overview fill: compare-and-set, no remount.
+pub(crate) fn sync_overview_status_border(
+    palette: Res<UiPalette>,
+    mut banners: Query<&mut BorderColor, With<OverviewStatusCard>>,
+) {
+    let border = palette.border;
+    for mut stroke in &mut banners {
+        if stroke.top != border
+            || stroke.right != border
+            || stroke.bottom != border
+            || stroke.left != border
+        {
+            stroke.top = border;
+            stroke.right = border;
+            stroke.bottom = border;
+            stroke.left = border;
         }
     }
 }

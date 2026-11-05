@@ -1,3 +1,4 @@
+import { DesignType } from "../components/design-type.slint";
 import { ScrollView } from "std-widgets.slint";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "../components/theme.slint";
@@ -21,8 +22,8 @@ export component PagePreview inherits VerticalLayout {
         Text {
             text: @tr("有效配置");
             color: LumenTheme.text-primary;
-            font-size: 16 * LumenUiScale.unit;
-            font-weight: 600;
+            font-size: DesignType.bodyLarge-size;
+            font-weight: DesignType.bodyLarge-weight;
             vertical-alignment: center;
         }
         Rectangle {
@@ -39,7 +40,7 @@ export component PagePreview inherits VerticalLayout {
                 width: parent.width;
                 height: parent.height;
                 color: LumenTheme.text-secondary;
-                font-size: 12 * LumenUiScale.unit;
+                font-size: DesignType.caption-size;
                 horizontal-alignment: center;
                 vertical-alignment: center;
             }
@@ -48,7 +49,7 @@ export component PagePreview inherits VerticalLayout {
     Text {
         text: @tr("敏感字段已遮蔽 · 修改行为请使用覆写配置");
         color: LumenTheme.text-secondary;
-        font-size: 12 * LumenUiScale.unit;
+        font-size: DesignType.caption-size;
         wrap: word-wrap;
     }
     Rectangle {
@@ -66,8 +67,8 @@ export component PagePreview inherits VerticalLayout {
             Text {
                 text: root.content-preview;
                 color: LumenTheme.text-primary;
-                font-family: LumenTheme.mono-family;
-                font-size: 12 * LumenUiScale.unit;
+                font-family: DesignType.mono-family;
+                font-size: DesignType.caption-size;
                 wrap: word-wrap;
             }
         }
@@ -90,30 +91,30 @@ export component PageAbout inherits VerticalLayout {
         Text {
             text: @tr("跨平台 Mihomo 客户端，使用 Rust + Slint。");
             color: LumenTheme.text-secondary;
-            font-size: 13 * LumenUiScale.unit;
+            font-size: DesignType.mono-size;
         }
         Text {
             text: @tr("界面改编自 Lumen；上游 README 声明采用 MIT，导入归档未附独立许可证文本。");
             color: LumenTheme.text-secondary;
-            font-size: 13 * LumenUiScale.unit;
+            font-size: DesignType.mono-size;
             wrap: word-wrap;
         }
         Text {
             text: @tr("代理节点旗帜图形使用 Twemoji，© Twitter, Inc. 和贡献者，CC BY 4.0。");
             color: LumenTheme.text-secondary;
-            font-size: 13 * LumenUiScale.unit;
+            font-size: DesignType.mono-size;
             wrap: word-wrap;
         }
         if root.android-platform: Text {
             text: @tr("Mihomo v1.19.33 是独立 GPL-3.0 核心进程，随本 ABI APK 提供；在依赖许可列表中搜索 Mihomo Core 可查看许可证和源码标签。");
             color: LumenTheme.text-secondary;
-            font-size: 13 * LumenUiScale.unit;
+            font-size: DesignType.mono-size;
             wrap: word-wrap;
         }
         if !root.android-platform: Text {
             text: @tr("Mihomo 核心由用户安装在 PATH 中。第三方依赖许可正文随应用离线提供。");
             color: LumenTheme.text-secondary;
-            font-size: 13 * LumenUiScale.unit;
+            font-size: DesignType.mono-size;
         }
         PillButton {
             label: @tr("查看第三方依赖许可");
@@ -150,7 +151,7 @@ export component PageLicenses inherits VerticalLayout {
         Text {
             text: @tr("匹配 ") + root.license-rows.length + @tr(" 项");
             color: LumenTheme.text-secondary;
-            font-size: 12 * LumenUiScale.unit;
+            font-size: DesignType.caption-size;
         }
         if root.license-catalog-error != "": Rectangle {
             border-radius: LumenTheme.radius-control;
@@ -161,11 +162,11 @@ export component PageLicenses inherits VerticalLayout {
                 padding: LumenTheme.space-2;
                 spacing: LumenTheme.space-2;
                 cross-axis-alignment: center;
-                Text { text: "⚠"; color: LumenTheme.error; font-size: 14 * LumenUiScale.unit; }
+                Text { text: "⚠"; color: LumenTheme.error; font-size: DesignType.label-size; }
                 Text {
                     text: @tr("无法读取内置许可证清单：") + root.license-catalog-error;
                     color: LumenTheme.error;
-                    font-size: 12 * LumenUiScale.unit;
+                    font-size: DesignType.caption-size;
                     wrap: word-wrap;
                     horizontal-stretch: 1;
                 }
@@ -186,7 +187,7 @@ export component PageLicenses inherits VerticalLayout {
                 Text {
                     text: root.license-query == "" ? @tr("当前许可证清单为空") : (@tr("没有匹配到依赖：") + root.license-query);
                     color: LumenTheme.text-secondary;
-                    font-size: 13 * LumenUiScale.unit;
+                    font-size: DesignType.mono-size;
                     horizontal-alignment: center;
                 }
             }
@@ -212,14 +213,14 @@ export component PageLicenses inherits VerticalLayout {
                 Text {
                     text: item.name + "  " + item.version;
                     color: LumenTheme.text-primary;
-                    font-size: 13 * LumenUiScale.unit;
-                    font-weight: 600;
+                    font-size: DesignType.mono-size;
+                    font-weight: DesignType.mono-weight;
                     overflow: elide;
                 }
                 Text {
                     text: item.identifier;
                     color: LumenTheme.text-secondary;
-                    font-size: 11 * LumenUiScale.unit;
+                    font-size: DesignType.micro-size;
                     wrap: word-wrap;
                 }
             }
@@ -259,12 +260,12 @@ export component PageLicenseDetail inherits VerticalLayout {
                 padding-bottom: 8 * LumenUiScale.unit;
                 spacing: 8 * LumenUiScale.unit;
                 cross-axis-alignment: center;
-                Text { text: "⚠"; color: LumenTheme.error; font-size: 16 * LumenUiScale.unit; }
+                Text { text: "⚠"; color: LumenTheme.error; font-size: DesignType.bodyLarge-size; }
                 Text {
                     text: root.license-detail-error;
                     color: LumenTheme.error;
-                    font-size: 13 * LumenUiScale.unit;
-                    font-weight: 500;
+                    font-size: DesignType.mono-size;
+                    font-weight: DesignType.mono-weight;
                     wrap: word-wrap;
                     horizontal-stretch: 1;
                 }
@@ -277,7 +278,7 @@ export component PageLicenseDetail inherits VerticalLayout {
         Text {
             text: @tr("许可证全文可选择并复制；Windows/Linux 可使用 Ctrl+C。");
             color: LumenTheme.text-secondary;
-            font-size: 12 * LumenUiScale.unit;
+            font-size: DesignType.caption-size;
         }
         Rectangle {
             height: 560 * LumenUiScale.unit;
@@ -292,8 +293,8 @@ export component PageLicenseDetail inherits VerticalLayout {
                     Text {
                         text: root.license-detail-text;
                         color: LumenTheme.text-primary;
-                        font-family: LumenTheme.mono-family;
-                        font-size: 12 * LumenUiScale.unit;
+                        font-family: DesignType.mono-family;
+                        font-size: DesignType.caption-size;
                         wrap: word-wrap;
                     }
                 }

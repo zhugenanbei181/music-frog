@@ -1,3 +1,4 @@
+import { DesignType } from "./design-type.slint";
 import { ScrollView } from "std-widgets.slint";
 import { ModalBottomSheet } from "@material";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
@@ -41,7 +42,7 @@ export component OverviewOrderSheet inherits ModalBottomSheet {
             padding-top: LumenTheme.space-2; padding-bottom: LumenTheme.space-2; spacing: LumenTheme.space-2;
             Text {
                 text: @tr("概览卡片顺序");
-                color: LumenTheme.text-primary; font-size: 20 * LumenUiScale.unit; font-weight: 550;
+                color: LumenTheme.text-primary; font-size: DesignType.title-size; font-weight: DesignType.title-weight;
                 horizontal-alignment: center; vertical-alignment: center; height: 32 * LumenUiScale.unit;
             }
             ScrollView {
@@ -70,7 +71,7 @@ export component OverviewOrderSheet inherits ModalBottomSheet {
                                 background: LumenTheme.accent;
                             }
                             Text {
-                                text: slot.title; color: LumenTheme.text-primary; font-size: 15 * LumenUiScale.unit; font-weight: 500;
+                                text: slot.title; color: LumenTheme.text-primary; font-size: DesignType.body-size; font-weight: DesignType.body-weight;
                                 horizontal-stretch: 1; vertical-alignment: center; overflow: elide;
                             }
                             PillButton {

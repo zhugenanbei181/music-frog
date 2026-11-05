@@ -12,14 +12,16 @@ use bevy::picking::backend::HitData;
 use bevy::picking::events::{Pointer, PointerDrag, PointerDragStart};
 use bevy::picking::pointer::{Location, PointerButton, PointerId};
 use bevy::scene::{CommandsSceneExt, ScenePlugin};
+use bevy::time::Time;
 use bevy::ui::ScrollPosition;
 use bevy::ui::prelude::{ComputedNode, Node, Overflow};
 use bevy::ui_widgets::{Checkbox, ScrollArea};
 use infiltrator_bevy_widgets::WidgetsPlugin;
 use infiltrator_bevy_widgets::checkbox::checkbox_scene;
 use infiltrator_bevy_widgets::palette::UiPalette;
-use infiltrator_bevy_widgets::scrollarea::{clamp_scroll, scrollarea_scene};
+use infiltrator_bevy_widgets::scrollarea::{ScrollMotionState, clamp_scroll, scrollarea_scene};
 use infiltrator_bevy_widgets::theme::Theme;
+use std::time::Duration;
 fn headless_app() -> App {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
@@ -211,6 +213,61 @@ fn pointer_drag_started_on_a_descendant_scrolls_its_scrollarea_ancestor() {
     app.update();
 
     assert_eq!(app.world().get::<ScrollPosition>(root).unwrap().y, 100.0);
+}
+
+#[test]
+fn inertial_coasting_scroll_decelerates_smoothly_under_damping() {
+    let mut app = headless_app();
+    let root = app
+        .world_mut()
+        .spawn((
+            Node {
+                overflow: Overflow::scroll_y(),
+                ..Default::default()
+            },
+            ScrollArea,
+            ScrollPosition::default(),
+        ))
+        .id();
+
+    {
+        let mut entity_mut = app.world_mut().entity_mut(root);
+        let computed = ComputedNode {
+            size: Vec2::new(300.0, 400.0),
+            content_size: Vec2::new(300.0, 1000.0),
+            inverse_scale_factor: 1.0,
+            ..Default::default()
+        };
+        entity_mut.insert(computed);
+    }
+    app.update();
+
+    // Seed an initial inertial coasting velocity (e.g. 500 px/s downward)
+    app.world_mut()
+        .resource_mut::<ScrollMotionState>()
+        .seed_coasting(root, Vec2::new(0.0, 500.0));
+
+    // Advance time and update
+    app.world_mut()
+        .resource_mut::<Time>()
+        .advance_by(Duration::from_millis(50));
+    app.update();
+
+    let pos_y = app.world().get::<ScrollPosition>(root).unwrap().y;
+    assert!(pos_y > 0.0, "inertial scroll advances scroll position");
+    assert!(pos_y < 100.0, "advances smoothly without teleporting");
+
+    // Advance multiple frames until settled
+    for _ in 0..30 {
+        app.world_mut()
+            .resource_mut::<Time>()
+            .advance_by(Duration::from_millis(50));
+        app.update();
+    }
+
+    let final_y = app.world().get::<ScrollPosition>(root).unwrap().y;
+    assert!(final_y >= pos_y, "motion decelerated to rest monotonically");
+    assert!(final_y <= 600.0, "stays clamped within max_scroll");
 }
 
 #[test]

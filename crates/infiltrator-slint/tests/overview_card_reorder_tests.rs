@@ -76,8 +76,6 @@ fn the_card_list_renders_the_order_the_owner_published() {
     let owner_order = vec![
         OverviewCardKind::Metrics,
         OverviewCardKind::Traffic,
-        OverviewCardKind::RoutingIntentSegment,
-        OverviewCardKind::MasterSwitches,
         OverviewCardKind::ActiveExit,
         OverviewCardKind::PublicIp,
         OverviewCardKind::Topology,

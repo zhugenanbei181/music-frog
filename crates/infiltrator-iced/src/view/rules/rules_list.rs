@@ -21,7 +21,7 @@ use crate::view::rules_window::{
 };
 use crate::view::subrules_builder::subrules_panel;
 use crate::view::svg_icons::Icon;
-use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, SP_MD, tokens};
+use crate::view::theme::{SP_MD, tokens};
 use crate::view::{svg_icons, theme};
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::lazy;
@@ -81,23 +81,20 @@ fn target_group_pill<'a>(target: String, is_enabled: bool) -> Element<'a, Messag
                 }
             }),
             Space::new().width(4.0),
-            text(target)
-                .size(11)
-                .font(FONT_SEMIBOLD)
-                .style(move |t: &Theme| {
-                    let tk = tokens(t);
-                    text::Style {
-                        color: Some(if !is_enabled {
-                            tk.text_tertiary
-                        } else if is_reject {
-                            tk.danger
-                        } else if is_direct {
-                            tk.success
-                        } else {
-                            tk.text_primary
-                        }),
-                    }
-                }),
+            theme::role_body_text(target).style(move |t: &Theme| {
+                let tk = tokens(t);
+                text::Style {
+                    color: Some(if !is_enabled {
+                        tk.text_tertiary
+                    } else if is_reject {
+                        tk.danger
+                    } else if is_direct {
+                        tk.success
+                    } else {
+                        tk.text_primary
+                    }),
+                }
+            }),
         ]
         .align_y(Alignment::Center),
     )
@@ -243,13 +240,11 @@ fn rule_row_element(band: &RuleRowBand) -> Element<'static, Message> {
             badge(band.display_type.clone(), band.badge_kind()),
             Space::new().width(theme::SP_MD),
             column![
-                text(if band.payload.is_empty() {
+                theme::role_body_text(if band.payload.is_empty() {
                     "—".to_owned()
                 } else {
                     band.payload.clone()
                 })
-                .size(13)
-                .font(MONO)
                 .style(move |t: &Theme| text::Style {
                     color: Some(if is_enabled {
                         tokens(t).text_primary
@@ -257,22 +252,22 @@ fn rule_row_element(band: &RuleRowBand) -> Element<'static, Message> {
                         tokens(t).text_tertiary
                     }),
                 }),
-                text(band.detail.clone()).size(11),
+                theme::role_body_text(band.detail.clone()),
                 if !band.target.is_empty() {
                     Element::from(
                         row![
-                            text("➔ ").size(11).style(|t: &Theme| text::Style {
+                            theme::role_body_text("➔ ").style(|t: &Theme| text::Style {
                                 color: Some(tokens(t).text_tertiary)
                             }),
-                            text(band.target.clone()).size(11).font(FONT_MEDIUM).style(
-                                move |t: &Theme| text::Style {
+                            theme::role_body_text(band.target.clone()).style(move |t: &Theme| {
+                                text::Style {
                                     color: Some(if is_enabled {
                                         tokens(t).text_secondary
                                     } else {
                                         tokens(t).text_tertiary
                                     }),
                                 }
-                            ),
+                            }),
                         ]
                         .align_y(Alignment::Center),
                     )
@@ -281,7 +276,7 @@ fn rule_row_element(band: &RuleRowBand) -> Element<'static, Message> {
                 },
             ]
             .width(Length::Fill),
-            text(band.hits.clone()).size(11),
+            theme::role_body_text(band.hits.clone()),
             Space::new().width(theme::SP_MD),
             target_group_pill(target_label, is_enabled),
             Space::new().width(theme::SP_SM),
@@ -348,8 +343,6 @@ fn add_rule_panel<'a>(
             text_input("e.g. google.com", &state.editor.new_rule_payload)
                 .on_input(Message::UpdateNewRulePayload)
                 .padding([8, 12])
-                .size(12)
-                .font(MONO)
                 .style(form_input_style),
         ]
         .width(Length::FillPortion(2)),
@@ -384,9 +377,7 @@ fn add_rule_panel<'a>(
                                 tokens(t).on_accent
                             }
                         }),
-                        text(lang.tr("rules_add_btn").to_string())
-                            .size(12)
-                            .font(FONT_MEDIUM),
+                        theme::role_body_text(lang.tr("rules_add_btn").to_string()),
                     ]
                     .spacing(theme::SP_SM)
                 )
@@ -424,13 +415,12 @@ fn add_rule_panel<'a>(
         Some(lang.tr("rules_add_custom").to_string()),
         column![
             fields,
-            text(
+            theme::role_body_text(
                 state
                     .editor
                     .rule_form_binding
                     .status(&state.editor.rule_list, &Lang(&state.shell.lang))
-            )
-            .size(12),
+            ),
             reset,
         ]
         .spacing(theme::SP_SM),
@@ -457,8 +447,7 @@ pub fn publish_truncation_line(state: &AppState, lang: &Lang<'_>) -> Option<Stri
 
 fn publish_truncation_note<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
     match publish_truncation_line(state, lang) {
-        Some(line) => text(line)
-            .size(11)
+        Some(line) => theme::role_body_text(line)
             .style(|t: &Theme| text::Style {
                 color: Some(tokens(t).warning),
             })
@@ -568,7 +557,7 @@ pub(super) fn rules_list_view<'a>(
 
     let pager = row![
         row![
-            text(interpolate(
+            theme::role_body_text(interpolate(
                 &lang.tr("rule_rules_showing"),
                 &[
                     ("start", &first_shown.to_string()),
@@ -576,7 +565,6 @@ pub(super) fn rules_list_view<'a>(
                     ("total", &total_count.to_string()),
                 ],
             ))
-            .size(12)
             .style(|t: &Theme| text::Style {
                 color: Some(tokens(t).text_secondary)
             }),

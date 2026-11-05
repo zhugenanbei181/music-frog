@@ -23,8 +23,9 @@ use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_presentation::network_status_projection::{
     roaming_interfaces, roaming_route, roaming_status,
 };
@@ -57,7 +58,7 @@ pub(super) fn scene(_projection: &SettingsProjection, palette: &UiPalette) -> Bo
                         row_gap: rem(space::S6),
                     }
                     Children [
-                        LocalizedText::plain("settings_network_roaming_title") TextRole(Role::BodyStrong)
+                        LocalizedText::plain("settings_network_roaming_title") TextRole(design_resources::TextRole::BodyStrong)
                         --
                         Node {
                             width: percent(100),
@@ -68,11 +69,11 @@ pub(super) fn scene(_projection: &SettingsProjection, palette: &UiPalette) -> Bo
                         }
                         ThemeBackgroundColor({ Token::SurfaceElevated })
                         Children [
-                            Text({ String::new() }) NetworkRoamingStatusLine TextRole(Role::Mono)
+                            Text({ String::new() }) NetworkRoamingStatusLine TextRole(design_resources::TextRole::Mono)
                             --
-                            Text({ String::new() }) NetworkRoamingInterfacesLine TextRole(Role::Caption)
+                            Text({ String::new() }) NetworkRoamingInterfacesLine TextRole(design_resources::TextRole::Caption)
                             --
-                            Text({ String::new() }) NetworkRoamingRouteLine TextRole(Role::Mono)
+                            Text({ String::new() }) NetworkRoamingRouteLine TextRole(design_resources::TextRole::Mono)
                             --
                             Node {
                                 width: percent(100),
@@ -92,7 +93,7 @@ pub(super) fn scene(_projection: &SettingsProjection, palette: &UiPalette) -> Bo
                                 NetworkRoamingRefreshButton
                                 Button
                                 Children [
-                                    LocalizedText::plain("settings_network_refresh_action") TextRole(Role::Body)
+                                    LocalizedText::plain("settings_network_refresh_action") TextRole(design_resources::TextRole::Body)
                                 ]
                                 --
                                 Node {
@@ -106,7 +107,7 @@ pub(super) fn scene(_projection: &SettingsProjection, palette: &UiPalette) -> Bo
                                 NetworkRoamingRepairButton
                                 Button
                                 Children [
-                                    LocalizedText::plain("settings_tun_repair_action") TextRole(Role::BodyStrong)
+                                    LocalizedText::plain("settings_tun_repair_action") TextRole(design_resources::TextRole::BodyStrong)
                                 ]
                             ]
                         ]

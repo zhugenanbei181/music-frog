@@ -4,10 +4,12 @@
 use crate::state::runtime::ProxyGroupOrderDialogState;
 use crate::view::component_forms::style_ghost;
 use crate::view::svg_icons::{Icon, icon_themed};
-use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, SP_MD, SP_SM, tokens};
+use crate::view::theme;
+use crate::view::theme::{SP_MD, SP_SM, tokens};
 use infiltrator_contract::responsive_viewport::ViewportTier;
+use infiltrator_contract::shared_copy::SharedCopyKey;
 use infiltrator_contract::window_chrome::WindowChrome;
-use infiltrator_shared::locales::Lang;
+use infiltrator_shared::locales::{Lang, Localizer};
 use modals::add_node;
 use modals::confirmation::confirmation_modal;
 use modals::dns_cache::cache_modal;
@@ -49,7 +51,6 @@ use crate::view::theme::{HAIRLINE, R_CHIP, R_CONTROL};
 use iced::advanced::widget::Id;
 use iced::widget::{Space, button, column, container, row, stack, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
-use infiltrator_shared::locales::Localizer;
 use std::time::Instant;
 
 impl AppState {
@@ -152,11 +153,9 @@ impl AppState {
 
                 let toast_row = row![
                     icon_themed(icon, 14.0, color),
-                    text(content.clone())
-                        .size(13)
-                        .style(|theme: &Theme| text::Style {
-                            color: Some(tokens(theme).overlay_text),
-                        }),
+                    theme::role_body_text(content.clone()).style(|theme: &Theme| text::Style {
+                        color: Some(tokens(theme).overlay_text),
+                    }),
                 ]
                 .spacing(10)
                 .align_y(Alignment::Center);
@@ -201,16 +200,16 @@ impl AppState {
                             icon_themed(Icon::Shield, 16.0, |theme: &Theme| tokens(theme).danger,),
                             Space::new().width(SP_SM),
                             column![
-                                text(title).size(12).font(FONT_SEMIBOLD),
-                                text(error.clone())
-                                    .size(11)
-                                    .style(|theme: &Theme| text::Style {
-                                        color: Some(tokens(theme).overlay_text_muted,),
-                                    })
+                                theme::role_body_text(title),
+                                theme::role_body_text(error.clone()).style(|theme: &Theme| {
+                                    text::Style {
+                                        color: Some(tokens(theme).overlay_text_muted),
+                                    }
+                                })
                             ]
                             .spacing(2),
                             Space::new().width(SP_MD),
-                            button(text(dismiss).size(11).font(FONT_MEDIUM))
+                            button(theme::role_body_text(dismiss))
                                 .padding([4, 10])
                                 .style(style_ghost)
                                 .on_press(Message::ClearError),
@@ -271,12 +270,13 @@ impl AppState {
                     }),
                 };
 
-            let mut info_col = column![text(title).size(12).font(FONT_SEMIBOLD)];
+            let mut info_col = column![theme::role_body_text(title)];
             if !detail.is_empty() {
-                info_col =
-                    info_col.push(text(detail).size(11).style(|theme: &Theme| text::Style {
+                info_col = info_col.push(theme::role_body_text(detail).style(|theme: &Theme| {
+                    text::Style {
                         color: Some(tokens(theme).overlay_text_muted),
-                    }));
+                    }
+                }));
             }
             info_col = info_col.spacing(2);
 
@@ -359,36 +359,35 @@ impl AppState {
         }
 
         if self.diag.perf_panel_visible {
+            let perf_title = Localizer::tr(
+                &Lang(&self.shell.lang),
+                SharedCopyKey::PerformanceSnapshot.key(),
+            );
             layers.push(
                 container(
                     container(
                         column![
-                            text("Performance Snapshot").size(13).font(FONT_SEMIBOLD),
-                            text(format!(
+                            theme::role_body_text(perf_title),
+                            theme::role_body_text(format!(
                                 "Navigate->FirstPaint: {:?}",
                                 self.diag.perf_snapshot.navigate_to_first_paint_ms
-                            ))
-                            .size(11),
-                            text(format!(
+                            )),
+                            theme::role_body_text(format!(
                                 "Rules cache build: {} ms",
                                 self.diag.perf_snapshot.rules_cache_build_ms
-                            ))
-                            .size(11),
-                            text(format!(
+                            )),
+                            theme::role_body_text(format!(
                                 "Rules editor apply: {} ms",
                                 self.diag.perf_snapshot.rules_with_text_apply_ms
-                            ))
-                            .size(11),
-                            text(format!(
+                            )),
+                            theme::role_body_text(format!(
                                 "DNS editor apply: {} ms",
                                 self.diag.perf_snapshot.dns_with_text_apply_ms
-                            ))
-                            .size(11),
-                            text(format!(
+                            )),
+                            theme::role_body_text(format!(
                                 "Rules visible rows: {}",
                                 self.diag.perf_snapshot.rules_visible_rows
-                            ))
-                            .size(11),
+                            )),
                         ]
                         .spacing(6),
                     )

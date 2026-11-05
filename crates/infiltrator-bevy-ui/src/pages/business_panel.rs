@@ -21,8 +21,9 @@ use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::modal::{ModalDialogCard, ModalScrim};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use lurker_core_contract::page::PageStatus;
 
 /// One-off layout value (not a ladder rung): the widest the business panel
@@ -88,10 +89,10 @@ pub fn launcher_scene(kind: PanelKind, palette: &UiPalette) -> impl Scene + use<
         }
         Button OpenBusinessPanel(kind)
         Children [
-            title TextRole(Role::BodyStrong)
+            title TextRole(design_resources::TextRole::BodyStrong)
             --
             Text({ "›".to_owned() })
-            TextRole(Role::BodyStrong)
+            TextRole(design_resources::TextRole::BodyStrong)
             ThemeTextColor({ Token::InkDim })
         ]
     }
@@ -158,7 +159,7 @@ pub fn panel_scene(
             Children [
                 Node { width: percent(100), align_items: AlignItems::Center, justify_content: JustifyContent::SpaceBetween }
                 Children [
-                    title TextRole(Role::Heading)
+                    title TextRole(design_resources::TextRole::Heading)
                     --
                     Node { padding: UiRect::axes(rem(space::S12), rem(space::S8)), min_height: rem(palette.control_height_px) }
                     Button CloseBusinessPanel(kind)
@@ -172,7 +173,7 @@ pub fn panel_scene(
                     on(|activate: On<Activate>, mut commands: Commands| {
                         commands.trigger(RequestClose { source: activate.entity });
                     })
-                    Children [ close TextRole(Role::Body) ]
+                    Children [ close TextRole(design_resources::TextRole::Body) ]
                 ]
                 --
                 Node {

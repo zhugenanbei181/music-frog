@@ -13,7 +13,7 @@ use crate::view::component_forms::style_ghost;
 use crate::view::components::{BadgeKind, badge, card_surface, modern_scrollable};
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme;
-use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
+use crate::view::theme::tokens;
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_contract::apply_transaction::ApplyTransactionStage;
@@ -35,12 +35,11 @@ pub(super) fn history_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element
 
     let mut history_header = row![
         icon_themed(Icon::RefreshCw, 14.0, |t: &Theme| tokens(t).text_secondary),
-        text(lang.tr("editor_history").to_string())
-            .font(FONT_SEMIBOLD)
-            .size(13)
-            .style(|t: &Theme| text::Style {
+        theme::role_body_text(lang.tr("editor_history").to_string()).style(|t: &Theme| {
+            text::Style {
                 color: Some(tokens(t).text_primary),
-            }),
+            }
+        }),
     ]
     .spacing(theme::SP_SM)
     .align_y(Alignment::Center);
@@ -56,22 +55,20 @@ pub(super) fn history_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element
     let mut prune_facts = row![].spacing(theme::SP_SM).align_y(Alignment::Center);
     if pending > 0 {
         prune_facts = prune_facts.push(
-            text(interpolate(
+            theme::role_body_text(interpolate(
                 &lang.tr("editor_prune_pending"),
                 &[("count", &pending.to_string())],
             ))
-            .size(10)
             .style(|t: &Theme| text::Style {
                 color: Some(tokens(t).warning),
             }),
         );
         if duplicates > 0 {
             prune_facts = prune_facts.push(
-                text(interpolate(
+                theme::role_body_text(interpolate(
                     &lang.tr("editor_prune_duplicates"),
                     &[("count", &duplicates.to_string())],
                 ))
-                .size(10)
                 .style(|t: &Theme| text::Style {
                     color: Some(tokens(t).text_tertiary),
                 }),
@@ -79,7 +76,7 @@ pub(super) fn history_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element
         }
     } else {
         prune_facts = prune_facts.push(
-            text(match history.and_then(|h| h.last_prune) {
+            theme::role_body_text(match history.and_then(|h| h.last_prune) {
                 Some(report) => interpolate(
                     &lang.tr("editor_prune_last"),
                     &[
@@ -92,7 +89,6 @@ pub(super) fn history_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element
                 ),
                 None => lang.tr("editor_prune_never").to_string(),
             })
-            .size(10)
             .style(|t: &Theme| text::Style {
                 color: Some(tokens(t).text_tertiary),
             }),
@@ -100,7 +96,7 @@ pub(super) fn history_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element
     }
 
     let keep_button = |option: usize, selected: usize| {
-        button(text(format!("{option}")).size(10).font(MONO))
+        button(theme::role_body_text(format!("{option}")))
             .padding([2, 7])
             .style(move |t: &Theme, status| {
                 let tk = tokens(t);
@@ -124,11 +120,11 @@ pub(super) fn history_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element
             .on_press(Message::SetSnapshotPruneKeep(option))
     };
     let keep_row = row![
-        text(lang.tr("editor_prune_keep").to_string())
-            .size(10)
-            .style(|t: &Theme| text::Style {
+        theme::role_body_text(lang.tr("editor_prune_keep").to_string()).style(|t: &Theme| {
+            text::Style {
                 color: Some(tokens(t).text_tertiary),
-            }),
+            }
+        }),
         Space::new().width(theme::SP_XS),
     ]
     .align_y(Alignment::Center);
@@ -142,14 +138,13 @@ pub(super) fn history_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element
     let actions_row = row![
         // DUAL-09-14: explicit list refresh (the Bevy history card has the
         // same button); the panel no longer depends on an incidental reload.
-        button(
-            text(if state.editor.snapshots_load_phase.is_loading() {
+        button(theme::role_body_text(
+            if state.editor.snapshots_load_phase.is_loading() {
                 "...".to_string()
             } else {
                 lang.tr("editor_history_refresh").to_string()
-            })
-            .size(10),
-        )
+            }
+        ),)
         .padding([3, 8])
         .style(style_ghost)
         .on_press_maybe(
@@ -157,14 +152,13 @@ pub(super) fn history_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element
                 .then_some(Message::LoadProfileSnapshots),
         ),
         Space::new().width(theme::SP_XS),
-        button(
-            text(if state.editor.snapshot_backup_phase.is_backing_up() {
+        button(theme::role_body_text(
+            if state.editor.snapshot_backup_phase.is_backing_up() {
                 "...".to_string()
             } else {
                 lang.tr("editor_backup_now").to_string()
-            })
-            .size(10),
-        )
+            }
+        ),)
         .padding([3, 8])
         .style(style_ghost)
         .on_press_maybe(
@@ -172,14 +166,13 @@ pub(super) fn history_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element
                 .then_some(Message::BackupProfileSnapshot),
         ),
         Space::new().width(theme::SP_XS),
-        button(
-            text(if state.editor.snapshot_prune_phase.is_pruning() {
+        button(theme::role_body_text(
+            if state.editor.snapshot_prune_phase.is_pruning() {
                 "...".to_string()
             } else {
                 lang.tr("editor_prune_now").to_string()
-            })
-            .size(10),
-        )
+            }
+        ),)
         .padding([3, 8])
         .style(style_ghost)
         .on_press_maybe(
@@ -193,31 +186,28 @@ pub(super) fn history_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element
 
     if state.editor.snapshots_load_phase.is_loading() {
         items_col = items_col.push(
-            text(lang.tr("editor_history_loading").to_string())
-                .size(11)
-                .style(|t: &Theme| text::Style {
+            theme::role_body_text(lang.tr("editor_history_loading").to_string()).style(
+                |t: &Theme| text::Style {
                     color: Some(tokens(t).text_tertiary),
-                }),
+                },
+            ),
         );
     } else if entry_count == 0 {
         items_col = items_col.push(
-            text(lang.tr("editor_history_empty").to_string())
-                .size(11)
-                .style(|t: &Theme| text::Style {
+            theme::role_body_text(lang.tr("editor_history_empty").to_string()).style(
+                |t: &Theme| text::Style {
                     color: Some(tokens(t).text_tertiary),
-                }),
+                },
+            ),
         );
     } else if let Some(history) = history {
         for entry in &history.entries {
             let short_hash = entry.short_hash().to_string();
             let hash_pill =
                 container(
-                    text(short_hash)
-                        .size(10)
-                        .font(MONO)
-                        .style(|t: &Theme| text::Style {
-                            color: Some(tokens(t).text_secondary),
-                        }),
+                    theme::role_body_text(short_hash).style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_secondary),
+                    }),
                 )
                 .padding([2, 6])
                 .style(|t: &Theme| {
@@ -235,28 +225,25 @@ pub(super) fn history_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element
 
             let stamp = entry.stamp_label();
             let mut meta = column![
-                text(stamp)
-                    .size(11)
-                    .font(FONT_MEDIUM)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_primary),
-                    }),
+                theme::role_body_text(stamp).style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_primary),
+                }),
                 hash_pill,
             ]
             .spacing(3)
             .width(Length::Fill);
             if entry.is_duplicate {
                 meta = meta.push(
-                    text(lang.tr("snapshot_history_duplicate").to_string())
-                        .size(9)
-                        .style(|t: &Theme| text::Style {
+                    theme::role_body_text(lang.tr("snapshot_history_duplicate").to_string()).style(
+                        |t: &Theme| text::Style {
                             color: Some(tokens(t).warning),
-                        }),
+                        },
+                    ),
                 );
             }
 
             let snapshot_path = PathBuf::from(&entry.id);
-            let restore_btn = button(text(lang.tr("editor_restore")).size(11).font(FONT_MEDIUM))
+            let restore_btn = button(theme::role_body_text(lang.tr("editor_restore")))
                 .padding([4, 10])
                 .style(style_ghost)
                 .on_press_maybe(
@@ -264,11 +251,9 @@ pub(super) fn history_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element
                         .then_some(Message::RestoreProfileSnapshot(snapshot_path)),
                 );
 
-            let diff_btn = button(
-                text(lang.tr("snapshot_diff_open").to_string())
-                    .size(11)
-                    .font(FONT_MEDIUM),
-            )
+            let diff_btn = button(theme::role_body_text(
+                lang.tr("snapshot_diff_open").to_string(),
+            ))
             .padding([4, 10])
             .style(style_ghost)
             .on_press(Message::OpenSnapshotDiff(entry.id.clone()));
@@ -300,11 +285,11 @@ pub(super) fn history_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element
         }
     }
     items_col = items_col.push(
-        text(lang.tr("editor_apply_snapshot_hint").to_string())
-            .size(10)
-            .style(|t: &Theme| text::Style {
+        theme::role_body_text(lang.tr("editor_apply_snapshot_hint").to_string()).style(
+            |t: &Theme| text::Style {
                 color: Some(tokens(t).text_tertiary),
-            }),
+            },
+        ),
     );
 
     let panel_body = column![
@@ -350,33 +335,25 @@ pub(super) fn apply_banner<'a>(
         ApplyTransactionStage::RolledBack => "editor_apply_stage_rolled_back",
         ApplyTransactionStage::RollbackFailed => "editor_apply_stage_rollback_failed",
     };
-    let mut body = column![
-        text(lang.tr(key).to_string())
-            .size(12)
-            .font(FONT_SEMIBOLD)
-            .style(move |t: &Theme| text::Style {
+    let mut body =
+        column![
+            theme::role_body_text(lang.tr(key).to_string()).style(move |t: &Theme| text::Style {
                 color: Some(apply_stage_color(t, stage)),
             }),
-    ]
-    .spacing(theme::SP_XS);
+        ]
+        .spacing(theme::SP_XS);
     if !record.detail.is_empty() {
         body = body.push(
-            text(record.detail.clone())
-                .size(11)
-                .font(MONO)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_secondary),
-                }),
+            theme::role_body_text(record.detail.clone()).style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary),
+            }),
         );
     }
     if let Some(rollback) = &record.rollback_error {
         body = body.push(
-            text(rollback.clone())
-                .size(11)
-                .font(MONO)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).danger),
-                }),
+            theme::role_body_text(rollback.clone()).style(|t: &Theme| text::Style {
+                color: Some(tokens(t).danger),
+            }),
         );
     }
     Some(

@@ -1,4 +1,5 @@
 use super::*;
+use crate::view::theme;
 use iced::widget;
 use infiltrator_presentation::proxies_page_model::proxy_protocol_chip;
 use lurker_core_contract::outbound::preferences::OutboundLayout;
@@ -223,7 +224,7 @@ fn node_card<'a>(
     };
 
     let body = row![
-        text(meta.flag).size(16),
+        theme::role_body_text(meta.flag),
         Space::new().width(theme::SP_XS),
         widget::column![
             row![
@@ -297,7 +298,7 @@ fn node_compact_row<'a>(
     };
 
     let body = row![
-        text(meta.flag).size(14),
+        theme::role_body_text(meta.flag),
         Space::new().width(theme::SP_XS),
         node_name(state, member_name, 12),
         active_pill,

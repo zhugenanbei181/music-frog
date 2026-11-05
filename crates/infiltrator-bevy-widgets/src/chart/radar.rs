@@ -301,7 +301,7 @@ mod tests {
         assert_eq!(english, ["Latency", "Jitter", "Packet loss", "Uptime"]);
         assert_eq!(chinese, ["延迟", "抖动", "丢包", "可用率"]);
         assert_eq!(assessment.grade.label("en-US"), "Excellent");
-        assert_eq!(assessment.grade.label("zh-CN"), "优异 (Excellent)");
+        assert_eq!(assessment.grade.label("zh-CN"), "优异");
         let custom = RadarMetric::new("自定义 {value}", 45.0, 500.0, false);
         assert_eq!(custom.name.label("en-US"), "自定义 {value}");
         assert_eq!(custom.name.label("zh-CN"), "自定义 {value}");

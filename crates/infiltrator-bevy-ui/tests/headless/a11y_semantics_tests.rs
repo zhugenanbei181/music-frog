@@ -15,6 +15,7 @@ use infiltrator_bevy_ui::mini_hud::ToggleMiniHud;
 use infiltrator_bevy_ui::toast::ShellToast;
 use infiltrator_contract::a11y::{A11yRole, ShellA11yNode};
 use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
+use infiltrator_shared::locales::{Lang, Localizer};
 
 /// Everything the mounted shell publishes: role, label and (for switches) the
 /// announced state.
@@ -62,16 +63,18 @@ fn the_mounted_shell_publishes_every_shared_semantic_row() {
 
     let mut app = mounted_everything();
     let nodes = published_nodes(app.world_mut());
+    let lang = Lang("zh-CN");
     for spec in shell_a11y_specs() {
         let role = accesskit_role(spec.role);
+        let label = lang.tr(spec.label_key).to_string();
         let found = nodes
             .iter()
-            .find(|(node_role, label, _)| *node_role == role && label == spec.label_zh);
+            .find(|(node_role, mounted, _)| *node_role == role && *mounted == label);
         assert!(
             found.is_some(),
             "{:?} must mount as {role:?} with the shared label {:?}; mounted labels: {:?}",
             spec.node,
-            spec.label_zh,
+            label,
             nodes.iter().map(|(_, label, _)| label).collect::<Vec<_>>()
         );
         if spec.node.is_switch() {
@@ -98,7 +101,7 @@ fn a_switch_node_announces_its_live_state_and_a_status_node_its_value() {
 
     let readout = value_node(ShellA11yNode::TrafficReadout, "↑ 1.2 MB/s");
     assert_eq!(readout.0.role(), accesskit::Role::Label);
-    assert_eq!(readout.0.label(), Some("上下行实时速率: ↑ 1.2 MB/s"));
+    assert_eq!(readout.0.label(), Some("上下行实时速率：↑ 1.2 MB/s"));
 
     let dialog = semantic_node(ShellA11yNode::CommandPaletteDialog);
     assert_eq!(dialog.0.role(), accesskit::Role::Dialog);

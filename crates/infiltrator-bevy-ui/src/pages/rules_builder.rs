@@ -31,10 +31,11 @@ use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_bevy_widgets::theme::{radius, space};
+use infiltrator_contract::design_resources;
 use infiltrator_contract::rule_edit::RuleDraft;
 use infiltrator_domain::rules::edit;
 use infiltrator_presentation::rule_form_binding::{RuleFormBinding, default_form_target};
@@ -116,7 +117,9 @@ pub fn rules_builder_scene(palette: &UiPalette) -> impl Scene + use<> {
 
     surface_scene(
         vec![
-            Box::new(bsn! { Text(String::new()) RuleFormStatus TextRole(Role::Caption) }),
+            Box::new(
+                bsn! { Text(String::new()) RuleFormStatus TextRole(design_resources::TextRole::Caption) },
+            ),
             Box::new((
                 localized_button_scene(
                     LocalizedText::plain("rules_form_discard"),
@@ -144,7 +147,7 @@ pub fn rules_builder_scene(palette: &UiPalette) -> impl Scene + use<> {
                                 Children [
                                     @{ icon_tile_scene(IconId::Zap, 24.0, palette) }
                                     --
-                                    LocalizedText::plain("rules_add_custom_title") TextRole(Role::BodyStrong)
+                                    LocalizedText::plain("rules_add_custom_title") TextRole(design_resources::TextRole::BodyStrong)
                                 ]
                                 --
                                 Node {
@@ -166,7 +169,7 @@ pub fn rules_builder_scene(palette: &UiPalette) -> impl Scene + use<> {
                                     InjectGamePresetsButton RuleDraftMutationButton RuleFormMutationButton ButtonDisabled(true)
                                     preset_node LocalizedLabel::plain("rules_inject_game_presets")
                                     Children [
-                                        LocalizedText::plain("rules_inject_game_presets") TextRole(Role::BodyStrong)
+                                        LocalizedText::plain("rules_inject_game_presets") TextRole(design_resources::TextRole::BodyStrong)
                                     ]
                                     --
                                     Node {
@@ -181,7 +184,7 @@ pub fn rules_builder_scene(palette: &UiPalette) -> impl Scene + use<> {
                                     AddCustomRuleButton RuleDraftMutationButton RuleFormMutationButton ButtonDisabled(true)
                                     add_node LocalizedLabel::plain("rules_add_confirm_action")
                                     Children [
-                                        LocalizedText::plain("rules_add_confirm_action") TextRole(Role::BodyStrong)
+                                        LocalizedText::plain("rules_add_confirm_action") TextRole(design_resources::TextRole::BodyStrong)
                                     ]
                                 ]
                             ]
@@ -211,7 +214,7 @@ pub fn rules_builder_scene(palette: &UiPalette) -> impl Scene + use<> {
                                     { type_chips }
                                 ]
                                 --
-                                LocalizedText::new("rules_builder_selection", vec![("type", "DOMAIN-SUFFIX".to_owned())]) RuleBuilderSelection TextRole(Role::Caption)
+                                LocalizedText::new("rules_builder_selection", vec![("type", "DOMAIN-SUFFIX".to_owned())]) RuleBuilderSelection TextRole(design_resources::TextRole::Caption)
                             ]
             }),
             Box::new(bsn! {
@@ -268,7 +271,7 @@ fn rule_type_chip(index: usize, rule_type: String, _palette: &UiPalette) -> impl
             RuleDraftMutationButton RuleFormMutationButton ButtonDisabled(true)
             semantic
             Children [
-                Text(rule_type) TextRole(Role::Caption)
+                Text(rule_type) TextRole(design_resources::TextRole::Caption)
             ]
     }
 }

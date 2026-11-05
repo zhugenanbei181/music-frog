@@ -5,6 +5,7 @@ pub mod query_access;
 use self::query_access::{
     ApplyProjectionNamesFilter, ApplyProjectionStatesFilter, ApplyProjectionStatusLinesFilter,
 };
+use infiltrator_contract::design_resources;
 
 use super::app_routing::{AppRoutingProjection, AppRoutingProjectionUpdated};
 use crate::command::{CommandSinkHandle, UiCommand};
@@ -28,7 +29,7 @@ use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::{radius, space};
 use infiltrator_contract::uwp::UwpPackageSnapshot;
 use infiltrator_presentation::routing_projection::{uwp_empty, uwp_state_key, uwp_summary};
@@ -90,7 +91,7 @@ pub fn uwp_exemption_scene(
                         padding: UiRect::vertical(rem(space::S4)),
                     }
                     Children [
-                        Text({ uwp_empty(&projection.uwp_loopback.availability, &Lang("en-US")) }) UwpEmptyLine TextRole(Role::Caption)
+                        Text({ uwp_empty(&projection.uwp_loopback.availability, &Lang("en-US")) }) UwpEmptyLine TextRole(design_resources::TextRole::Caption)
                     ]
         }) as Box<dyn Scene>]
     } else {
@@ -132,7 +133,7 @@ pub fn uwp_exemption_scene(
                                     Children [
                                         @{ icon_tile_scene(IconId::Settings, 24.0, palette) }
                                         --
-                                        LocalizedText::plain("settings_uwp_loopback_title") TextRole(Role::BodyStrong)
+                                        LocalizedText::plain("settings_uwp_loopback_title") TextRole(design_resources::TextRole::BodyStrong)
                                     ]
                                     --
                                     Node {
@@ -148,7 +149,7 @@ pub fn uwp_exemption_scene(
                                     ]
                                 ]
                                 --
-                                Text(status) UwpStatusLine TextRole(Role::Caption)
+                                Text(status) UwpStatusLine TextRole(design_resources::TextRole::Caption)
                             ]
             }),
             Box::new(bsn! {
@@ -170,7 +171,7 @@ pub fn uwp_exemption_scene(
                                 padding: UiRect::top(rem(space::S4)),
                             }
                             Children [
-                                LocalizedText::plain("settings_uwp_loopback_hint") TextRole(Role::Caption)
+                                LocalizedText::plain("settings_uwp_loopback_hint") TextRole(design_resources::TextRole::Caption)
                             ]
             }),
         ],
@@ -195,7 +196,7 @@ fn action_button(
             UwpActionButton(action)
             Button
             Children [
-                LocalizedText::plain(label) TextRole(Role::Caption)
+                LocalizedText::plain(label) TextRole(design_resources::TextRole::Caption)
             ]
     }
 }
@@ -226,7 +227,7 @@ fn package_row_scene(
             }
             Button
             Children [
-                Text({ package.display_name.clone() }) UwpPackageName(index) TextRole(Role::Caption)
+                Text({ package.display_name.clone() }) UwpPackageName(index) TextRole(design_resources::TextRole::Caption)
                 --
                 Node {
                     padding: UiRect::axes(rem(space::S6), rem(space::S2)),
@@ -234,7 +235,7 @@ fn package_row_scene(
                 }
                 BackgroundColor({ color })
                 Children [
-                    Text({ state.to_owned() }) UwpPackageState(index) ThemeTextColor({ Token::OnAccent }) TextRole(Role::Caption)
+                    Text({ state.to_owned() }) UwpPackageState(index) ThemeTextColor({ Token::OnAccent }) TextRole(design_resources::TextRole::Caption)
                 ]
             ]
     }

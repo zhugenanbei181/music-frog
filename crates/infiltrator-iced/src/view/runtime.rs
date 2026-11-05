@@ -27,7 +27,7 @@ use crate::view::component_forms::{
 use crate::view::components::{empty_state, icon_button, modern_scrollable, toggle_switch};
 use crate::view::svg_icons::Icon;
 use crate::view::theme;
-use crate::view::theme::{FONT_SEMIBOLD, SP_LG, SP_MD, tokens};
+use crate::view::theme::{SP_LG, SP_MD, tokens};
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Space, column, container, pick_list, row, text};
 use iced::{Alignment, Element, Length, Theme};
@@ -158,18 +158,17 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         };
 
     let header = row![
-        text(lang.tr("runtime_title").to_string())
-            .size(24)
-            .font(FONT_SEMIBOLD)
-            .style(|t: &Theme| text::Style {
+        theme::role_body_text(lang.tr("runtime_title").to_string()).style(|t: &Theme| {
+            text::Style {
                 color: Some(tokens(t).text_primary),
-            }),
+            }
+        }),
         Space::new().width(Length::Fill),
-        text(lang.tr("routing_intent_title").to_string())
-            .size(12)
-            .style(|t: &Theme| text::Style {
+        theme::role_body_text(lang.tr("routing_intent_title").to_string()).style(|t: &Theme| {
+            text::Style {
                 color: Some(tokens(t).text_secondary),
-            }),
+            }
+        }),
         Space::new().width(theme::SP_SM),
         if state.runtime.routing_intent_state.status == RoutingIntentStatus::Ready
             && !state.runtime.runtime_patch_stage.is_applying()
@@ -185,20 +184,17 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 .style(form_pick_style),
             )
         } else {
-            Element::from(
-                text(routing_intent_status_copy(
-                    &state.runtime.routing_intent_state,
-                    &Lang(&state.shell.lang),
-                ))
-                .size(12),
-            )
+            Element::from(theme::role_body_text(routing_intent_status_copy(
+                &state.runtime.routing_intent_state,
+                &Lang(&state.shell.lang),
+            )))
         },
         Space::new().width(theme::SP_LG),
-        text(lang.tr("runtime_auto_refresh").to_string())
-            .size(12)
-            .style(|t: &Theme| text::Style {
+        theme::role_body_text(lang.tr("runtime_auto_refresh").to_string()).style(|t: &Theme| {
+            text::Style {
                 color: Some(tokens(t).text_secondary),
-            }),
+            }
+        }),
         Space::new().width(theme::SP_SM),
         toggle_switch(
             state.runtime.runtime_auto_refresh,
@@ -226,11 +222,11 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let selector_body: Element<'_, Message> = if state.shell.viewport.tier.is_compact() {
         column![
             column![
-                text(lang.tr("runtime_proxy_group").to_string())
-                    .size(11)
-                    .style(|t: &Theme| text::Style {
+                theme::role_body_text(lang.tr("runtime_proxy_group").to_string()).style(
+                    |t: &Theme| text::Style {
                         color: Some(tokens(t).text_secondary),
-                    }),
+                    }
+                ),
                 Space::new().height(theme::SP_XS),
                 pick_list(
                     runtime_group_options,
@@ -242,11 +238,11 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 .style(form_pick_style),
             ],
             column![
-                text(lang.tr("runtime_proxy_node").to_string())
-                    .size(11)
-                    .style(|t: &Theme| text::Style {
+                theme::role_body_text(lang.tr("runtime_proxy_node").to_string()).style(
+                    |t: &Theme| text::Style {
                         color: Some(tokens(t).text_secondary),
-                    }),
+                    }
+                ),
                 Space::new().height(theme::SP_XS),
                 pick_list(runtime_proxy_options, selected_runtime_proxy, |outbound| {
                     state
@@ -267,11 +263,11 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     } else {
         row![
             column![
-                text(lang.tr("runtime_proxy_group").to_string())
-                    .size(11)
-                    .style(|t: &Theme| text::Style {
+                theme::role_body_text(lang.tr("runtime_proxy_group").to_string()).style(
+                    |t: &Theme| text::Style {
                         color: Some(tokens(t).text_secondary),
-                    }),
+                    }
+                ),
                 Space::new().height(theme::SP_XS),
                 pick_list(
                     runtime_group_options,
@@ -285,11 +281,11 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             .width(Length::FillPortion(1)),
             Space::new().width(theme::SP_MD),
             column![
-                text(lang.tr("runtime_proxy_node").to_string())
-                    .size(11)
-                    .style(|t: &Theme| text::Style {
+                theme::role_body_text(lang.tr("runtime_proxy_node").to_string()).style(
+                    |t: &Theme| text::Style {
                         color: Some(tokens(t).text_secondary),
-                    }),
+                    }
+                ),
                 Space::new().height(theme::SP_XS),
                 pick_list(runtime_proxy_options, selected_runtime_proxy, |outbound| {
                     state

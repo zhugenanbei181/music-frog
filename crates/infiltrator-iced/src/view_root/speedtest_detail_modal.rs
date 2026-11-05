@@ -9,9 +9,11 @@ use crate::state::AppState;
 use crate::types::message::Message;
 use crate::view::component_forms::style_ghost;
 use crate::view::components::{BadgeKind, badge};
-use crate::view::theme::{FONT_SEMIBOLD, HAIRLINE, MONO, R_SM, tokens};
+use crate::view::scrollbar::auto_hide_scrollable;
+use crate::view::theme;
+use crate::view::theme::{HAIRLINE, R_SM, tokens};
 use crate::view_root::interaction_regions::InteractionRegion;
-use iced::widget::{Space, button, column, container, row, scrollable, text};
+use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Element, Length, Theme, border};
 use infiltrator_contract::speedtest::{SpeedtestPhase, SpeedtestResultState, SpeedtestSnapshot};
 use infiltrator_contract::speedtest_details::{SpeedtestDetailRow, SpeedtestDetails};
@@ -21,10 +23,10 @@ use infiltrator_shared::locales::{Lang, Localizer};
 
 fn metric(label: String, value: String) -> Element<'static, Message> {
     column![
-        text(label).size(10).style(|t: &Theme| text::Style {
+        theme::role_body_text(label).style(|t: &Theme| text::Style {
             color: Some(tokens(t).text_secondary)
         }),
-        text(value).size(12).font(MONO),
+        theme::role_body_text(value),
     ]
     .width(Length::Fill)
     .into()
@@ -39,15 +41,10 @@ fn node_row(node: &SpeedtestDetailRow, lang: &Lang<'_>) -> Element<'static, Mess
     container(
         column![
             row![
-                text(name.to_owned())
-                    .size(12)
-                    .font(FONT_SEMIBOLD)
-                    .width(Length::Fill),
-                text(protocol.to_owned())
-                    .size(10)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_secondary)
-                    }),
+                theme::role_body_text(name.to_owned()).width(Length::Fill),
+                theme::role_body_text(protocol.to_owned()).style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_secondary)
+                }),
             ]
             .align_y(Alignment::Center),
             Space::new().height(2),
@@ -121,19 +118,20 @@ fn body(snapshot: &SpeedtestDetails, lang: &Lang<'_>, height: f32) -> Element<'s
             failure.message.clone()
         }
     };
-    content = content.push(text(phase_label).size(11).style(|t: &Theme| text::Style {
-        color: Some(tokens(t).text_secondary),
-    }));
+    content = content.push(
+        theme::role_body_text(phase_label).style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_secondary),
+        }),
+    );
 
     let nodes = &snapshot.rows;
     if nodes.is_empty() {
         content = content.push(
-            text(lang.tr("speedtest_detail_empty").to_string())
-                .size(12)
-                .font(MONO)
-                .style(|t: &Theme| text::Style {
+            theme::role_body_text(lang.tr("speedtest_detail_empty").to_string()).style(
+                |t: &Theme| text::Style {
                     color: Some(tokens(t).text_secondary),
-                }),
+                },
+            ),
         );
     } else {
         for node in nodes {
@@ -141,7 +139,9 @@ fn body(snapshot: &SpeedtestDetails, lang: &Lang<'_>, height: f32) -> Element<'s
         }
     }
 
-    scrollable(content).height(Length::Fixed(height)).into()
+    auto_hide_scrollable(content)
+        .height(Length::Fixed(height))
+        .into()
 }
 
 fn history_section(snapshot: &SpeedtestSnapshot, lang: &Lang<'_>) -> Element<'static, Message> {
@@ -149,25 +149,24 @@ fn history_section(snapshot: &SpeedtestSnapshot, lang: &Lang<'_>) -> Element<'st
     // owner recorded, and an empty history stays an explicit empty state.
     let lines = history_lines(snapshot, &Lang(lang.0));
     let mut content = column![
-        text(lang.tr("speedtest_history_title").to_string())
-            .size(11)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_secondary)
-            })
+        theme::role_body_text(lang.tr("speedtest_history_title").to_string()).style(|t: &Theme| {
+            text::Style {
+                color: Some(tokens(t).text_secondary),
+            }
+        })
     ]
     .spacing(2);
     if lines.is_empty() {
         content = content.push(
-            text(lang.tr("speedtest_history_empty").to_string())
-                .size(11)
-                .font(MONO)
-                .style(|t: &Theme| text::Style {
+            theme::role_body_text(lang.tr("speedtest_history_empty").to_string()).style(
+                |t: &Theme| text::Style {
                     color: Some(tokens(t).text_secondary),
-                }),
+                },
+            ),
         );
     } else {
         for line in lines {
-            content = content.push(text(line).size(11).font(MONO));
+            content = content.push(theme::role_body_text(line));
         }
     }
     container(content)
@@ -182,22 +181,18 @@ pub(crate) fn speedtest_detail_modal(state: &AppState) -> Element<'_, Message> {
 
     let header = row![
         column![
-            text(lang.tr("speedtest_detail_title").to_string())
-                .size(14)
-                .font(FONT_SEMIBOLD),
-            text(format!(
+            theme::role_body_text(lang.tr("speedtest_detail_title").to_string()),
+            theme::role_body_text(format!(
                 "{} {}",
                 snapshot.rows.len(),
                 lang.tr("speedtest_detail_targets")
             ))
-            .size(11)
-            .font(MONO)
             .style(|t: &Theme| text::Style {
                 color: Some(tokens(t).text_secondary)
             }),
         ]
         .width(Length::Fill),
-        button(text(lang.tr("modal_close").to_string()).size(11))
+        button(theme::role_body_text(lang.tr("modal_close").to_string()))
             .padding([4, 10])
             .style(style_ghost)
             .on_press(Message::CloseSpeedtestDetail),

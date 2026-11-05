@@ -22,8 +22,9 @@ use bevy::ui::prelude::{AlignItems, BackgroundColor, BorderRadius, Display, Node
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::surface_snapshot::ConnectionSnapshot;
 use infiltrator_domain::connection_rate;
 
@@ -72,7 +73,7 @@ pub fn connection_pulse_scene(
             BackgroundColor({ glow })
             ConnHighThroughputPulse(row)
             Children [
-                LocalizedText::plain("conn_pulse_high_throughput") TextRole(Role::Caption) TextColor({ ink })
+                LocalizedText::plain("conn_pulse_high_throughput") TextRole(design_resources::TextRole::Caption) TextColor({ ink })
             ]
     }
 }

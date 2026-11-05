@@ -29,7 +29,7 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
 
         // Category 1a: STUN UDP-egress probe (DUAL-14-09, re-scoped)
         "dns_stun_probe_title" => "STUN UDP 出网映射探测".into(),
-        "dns_stun_probe_desc" => "经外部 STUN 服务器观测本机/本进程的 UDP 出网映射（公网 IP:端口），并与期望的代理出网比较；这不是浏览器 WebRTC 探测".into(),
+        "dns_stun_probe_desc" => "经外部 STUN 观测 UDP 出网映射，并与期望的代理出网比较。".into(),
         "dns_stun_btn_run" => "发起 STUN 探测".into(),
         "dns_stun_probing" => "STUN 探测中…".into(),
         "dns_stun_server" => "STUN 服务器：{server}".into(),
@@ -75,7 +75,7 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "dns_latency_title" => "逐 Nameserver 延迟测速".into(),
         "dns_latency_ready" => "宿主提供真实延迟事实".into(),
         "dns_latency_unsupported" => "宿主未提供逐 Nameserver 延迟事实，不填充假延迟".into(),
-        "dns_latency_run" => "测速 (Probe)".into(),
+        "dns_latency_run" => "测速".into(),
         "dns_latency_probing" => "测速中…".into(),
         "dns_latency_not_probed_yet" => "本次会话尚未测速".into(),
         "dns_latency_all_measured" => "全部 {count} 个上游均应答 ({best_ms}-{worst_ms} ms)".into(),
@@ -104,7 +104,7 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "dns_hosts_address" => "地址 (IP / lan / 别名域名)".into(),
         "dns_hosts_domain" => "域名".into(),
         "dns_hosts_add" => "添加映射".into(),
-        "dns_hosts_apply" => "应用 Hosts (Apply)".into(),
+        "dns_hosts_apply" => "应用 Hosts".into(),
         "dns_hosts_empty" => "尚未配置任何静态域名映射".into(),
         "dns_hosts_saving" => "正在提交 Hosts 映射".into(),
         "dns_hosts_pending" => "有未应用的 Hosts 修改".into(),
@@ -115,7 +115,7 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         // Category 2: Custom Node Editor & Universal URI Codec
         "custom_node_title" => "自定义节点表单与 URI 编解码".into(),
         "custom_node_btn_add" => "添加自建节点".into(),
-        "custom_node_btn_import_uri" => "从分享链接导入 (URI)".into(),
+        "custom_node_btn_import_uri" => "从分享链接导入".into(),
         "custom_node_btn_export_uri" => "导出分享链接".into(),
         "custom_node_type" => "节点协议类型".into(),
         "custom_node_name" => "节点名称".into(),
@@ -306,9 +306,14 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "pcap_btn_export" => "导出 .pcap".into(),
         "pcap_capturing" => "抓包中 ({count} 个数据包 / {bytes})".into(),
         "pcap_idle" => "未开启抓包".into(),
+        "pcap_status_capturing" => "抓包中".into(),
+        "pcap_status_idle" => "空闲".into(),
+        "pcap_stats" => "数据包 {count} · {bytes}".into(),
+        "rule_diff_added" => "新增".into(),
+        "rule_diff_removed" => "删除".into(),
 
         // Category 2: Logical Sub-Rules Builder
-        "subrules_title" => "复合逻辑规则构建器 (Sub-Rules)".into(),
+        "subrules_title" => "复合逻辑规则".into(),
         "subrules_operator" => "逻辑操作符 (AND / OR / NOT)".into(),
         "subrules_btn_add_leaf" => "添加子条件".into(),
         "subrules_target" => "目标策略".into(),
@@ -323,7 +328,7 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "speedtest_btn_start" => "开始多轮探测".into(),
         "speedtest_measuring" => "探测中...".into(),
         "speedtest_latency" => "延迟".into(),
-        "speedtest_jitter" => "网络抖动 (Jitter)".into(),
+        "speedtest_jitter" => "网络抖动".into(),
         "speedtest_packet_loss" => "丢包率".into(),
         "speedtest_stability" => "节点稳定性等级".into(),
         "speedtest_cancel" => "取消探测".into(),
@@ -375,15 +380,15 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
 
         // Category 5: UWP Loopback Utility
         "uwp_title" => "Windows UWP 本地回环隔离管理".into(),
-        "uwp_desc" => "一键解除微软商店应用 (UWP) 的本地代理回环限制".into(),
+        "uwp_desc" => "解除 UWP 应用的本地代理回环限制".into(),
         "uwp_btn_scan" => "扫描 UWP 应用".into(),
-        "uwp_btn_exempt_all" => "全选豁免 (Exempt All)".into(),
-        "uwp_btn_clear_all" => "重置隔离 (Clear All)".into(),
+        "uwp_btn_exempt_all" => "全选豁免".into(),
+        "uwp_btn_clear_all" => "重置隔离".into(),
         "uwp_search" => "搜索 UWP 应用名称或 PackageId...".into(),
         "uwp_exempted_count" => "已豁免 {count} 个应用".into(),
 
         // Category 6: Encrypted Backup (.encpkg)
-        "encpkg_title" => "端到端加密备份包 (.encpkg)".into(),
+        "encpkg_title" => "加密备份包 (.encpkg)".into(),
         "encpkg_desc" => "使用强密码基于 AES-256 算法加密打包所有订阅、自定义规则与 Mixin".into(),
         "encpkg_pass_placeholder" => "输入备份保护密码 (至少 6 位)...".into(),
         "encpkg_btn_export" => "导出加密备份包".into(),
@@ -452,7 +457,7 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "crash_watchdog_recovered" => "已成功清退孤儿状态并恢复系统网络".into(),
 
         // Category 3: External Web Dashboard
-        "web_dash_title" => "外部 Web 仪表盘 (Web Dashboard)".into(),
+        "web_dash_title" => "Web 仪表盘".into(),
         "web_dash_desc" => {
             "内置 Metacubexd、Yacd 与 Razord 控制台，免密携带 Token 自动握手拉起".into()
         }
@@ -476,7 +481,7 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
 
         // Category 6: PAC Auto-Proxy & Bypass CIDR Manager
         "pac_title" => "PAC 自动代理与绕过网段管理".into(),
-        "pac_desc" => "生成浏览器通用的 PAC (Proxy Auto-Config) 脚本，精准旁路局域网".into(),
+        "pac_desc" => "生成浏览器 PAC 脚本，旁路局域网".into(),
         "pac_url_label" => "本地 PAC 服务地址".into(),
         "pac_bypass_cidrs" => "自定义绕过网段列表 (逗号或分号分隔)".into(),
         "pac_btn_compile" => "编译并验证 PAC".into(),
@@ -501,7 +506,7 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "latency_radar_title" => "节点时序延迟与稳定性雷达".into(),
         "latency_radar_desc" => "多点时序采样分析节点往返延迟波动、抖动率与可用性评级".into(),
         "latency_radar_avg" => "平均延迟".into(),
-        "latency_radar_min_max" => "波动区间 (Min/Max)".into(),
+        "latency_radar_min_max" => "波动区间".into(),
         "latency_radar_score" => "稳定性评分".into(),
 
         // Wave 5 Category 3: TUN Multi-Stack & MTU Negotiator
@@ -538,15 +543,15 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "apply_guard_status_rolled_back" => "探活失败，已自动安全回滚".into(),
 
         // Wave 5 Category 6: LAN Proxy Sharing & Client Access Whitelist
-        "lan_sharing_title" => "局域网共享代理与访问控制列表 (ACL)".into(),
+        "lan_sharing_title" => "局域网共享 (ACL)".into(),
         "lan_sharing_desc" => {
             "允许局域网设备接入当前代理连接，并严格基于 IP/CIDR 白名单授权".into()
         }
-        "lan_sharing_enable" => "开启局域网共享 (Allow LAN)".into(),
+        "lan_sharing_enable" => "开启局域网共享".into(),
         "lan_sharing_port" => "局域网混合代理端口".into(),
-        "lan_sharing_bind" => "局域网绑定地址 (Bind Address)".into(),
+        "lan_sharing_bind" => "绑定地址".into(),
         "lan_sharing_apply" => "应用局域网监听设置".into(),
-        "lan_sharing_acl" => "允许接入的客户端 IP 白名单 (CIDR)".into(),
+        "lan_sharing_acl" => "客户端白名单 (CIDR)".into(),
         "lan_security_title" => "局域网 ACL 与 HTTP 基本认证".into(),
         "lan_security_desc" => {
             "仅允许白名单网段接入，并可为 HTTP/SOCKS/Mixed 代理启用账号认证".into()
@@ -577,11 +582,11 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "profiles_user_agent_placeholder" => {
             "User-Agent (例如 Clash.Meta / ClashVerge / Shadowrocket)".into()
         }
-        "profiles_insecure_skip_verify" => "跳过 TLS 证书校验 (Insecure Skip Verify)".into(),
+        "profiles_insecure_skip_verify" => "跳过 TLS 证书校验".into(),
         "profiles_insecure_skip_verify_hint" => {
             "仅对当前订阅生效；跳过证书校验会降低安全性，请仅在自签证书源站使用".into()
         }
-        "profiles_auto_reload_core" => "更新后自动重载内核 (Auto Reload Core)".into(),
+        "profiles_auto_reload_core" => "更新后自动重载内核".into(),
         "profiles_auto_reload_core_hint" => {
             "仅对当前生效配置生效。运行中的内核会在订阅更新成功后重载；停止的内核保持停止且只保存更新。"
                 .into()
@@ -600,7 +605,7 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         }
         "profiles_conditional_request" => "条件请求已缓存".into(),
         "profiles_conditional_request_empty" => "条件请求：尚无 ETag / Last-Modified 缓存".into(),
-        "sub_update_not_modified" => "订阅未变更 (304 Not Modified)".into(),
+        "sub_update_not_modified" => "订阅未变更 (304)".into(),
         "sub_update_quota_warning" => "配额或到期预警".into(),
         "profiles_update_all" => "一键更新全部订阅".into(),
         "profiles_backup_available" => "安全备份已就绪：保存订阅配置时自动生成 .bak".into(),
@@ -781,7 +786,7 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "logs_wrap_single" => "单行显示".into(),
         // The editor's own diagnostics: the widget kit names the fact, the
         // shared table owns the words.
-        "editor_diagnostic_unclosed_quote" => "字符串引号未闭合 (Unclosed quotation mark)".into(),
+        "editor_diagnostic_unclosed_quote" => "字符串引号未闭合".into(),
         "editor_diagnostic_rule_without_target" => "分流规则缺少目标策略组: {rule}".into(),
         _ => key.to_string().into(),
     }

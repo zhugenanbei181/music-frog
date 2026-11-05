@@ -17,8 +17,9 @@ use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::system_proxy::{SystemProxyRecoverySnapshot, SystemProxySnapshot};
 use infiltrator_presentation::network_status_projection::system_proxy_status;
 use infiltrator_shared::locales::Lang;
@@ -54,9 +55,9 @@ pub(super) fn status_row(
             }
             ThemeBackgroundColor({ Token::SurfaceElevated })
             Children [
-                LocalizedText::plain("settings_system_proxy_status_title") TextRole(Role::Body)
+                LocalizedText::plain("settings_system_proxy_status_title") TextRole(design_resources::TextRole::Body)
                 --
-                Text({ system_proxy_status(snapshot, recovery, &Lang("zh-CN")) }) SettingsLine(SettingsLineKind::SystemProxy) TextRole(Role::Mono)
+                Text({ system_proxy_status(snapshot, recovery, &Lang("zh-CN")) }) SettingsLine(SettingsLineKind::SystemProxy) TextRole(design_resources::TextRole::Mono)
             ]
     })
 }

@@ -30,12 +30,13 @@ use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::command::RequestId;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::rule_trace_run::RuleTraceOperationId;
 use infiltrator_contract::rule_tracer::RuleTracerSnapshot;
 use infiltrator_contract::rules_workspace::RulesTab;
@@ -482,26 +483,35 @@ pub fn rules_tracer_scene(palette: &UiPalette, tracer: &RuleTracerSnapshot) -> i
     // The tracer card keeps a fixed set of text slots (headline + 5 stages +
     // honest empty line) so the in-place projection patch can rewrite them
     // without re-mounting the page.
-    let tracer_slot = |slot: u8, content: String, role: Role| -> Box<dyn Scene> {
-        Box::new(bsn! {
-                    Node {
-                        width: percent(100),
-                    }
-                    Children [
-                        Text({ content }) TracerText({ slot }) TextRole(role)
-                    ]
-        })
-    };
+    let tracer_slot =
+        |slot: u8, content: String, role: design_resources::TextRole| -> Box<dyn Scene> {
+            Box::new(bsn! {
+                        Node {
+                            width: percent(100),
+                        }
+                        Children [
+                            Text({ content }) TracerText({ slot }) TextRole(role)
+                        ]
+            })
+        };
 
     let mut decision_rows: Vec<Box<dyn Scene>> = vec![tracer_slot(
         TRACER_HEADLINE_SLOT,
         String::new(),
-        Role::BodyStrong,
+        design_resources::TextRole::BodyStrong,
     )];
     for stage in 0..TRACER_STAGE_SLOTS {
-        decision_rows.push(tracer_slot(stage + 1, String::new(), Role::Caption));
+        decision_rows.push(tracer_slot(
+            stage + 1,
+            String::new(),
+            design_resources::TextRole::Caption,
+        ));
     }
-    decision_rows.push(tracer_slot(TRACER_EMPTY_SLOT, String::new(), Role::Caption));
+    decision_rows.push(tracer_slot(
+        TRACER_EMPTY_SLOT,
+        String::new(),
+        design_resources::TextRole::Caption,
+    ));
 
     let mut tracer_children: Vec<Box<dyn Scene>> = vec![
         Box::new(rules_tracer_sandbox::scene(palette)),
@@ -521,7 +531,7 @@ pub fn rules_tracer_scene(palette: &UiPalette, tracer: &RuleTracerSnapshot) -> i
                         Children [
                             @{ icon_tile_scene(IconId::Activity, 24.0, palette) }
                             --
-                            LocalizedText::plain("rules_tracer_title") TextRole(Role::BodyStrong)
+                            LocalizedText::plain("rules_tracer_title") TextRole(design_resources::TextRole::BodyStrong)
                         ]
                         --
                         @{ (localized_button_scene(LocalizedText::plain("rules_tracer_run_action"), ButtonVariant::Primary, palette),
@@ -592,7 +602,7 @@ pub fn rules_tracer_scene(palette: &UiPalette, tracer: &RuleTracerSnapshot) -> i
                 padding: UiRect::vertical(rem(space::S6)),
             }
             Children [
-                LocalizedText::plain("tracer_override_apply") TextRole(Role::Caption)
+                LocalizedText::plain("tracer_override_apply") TextRole(design_resources::TextRole::Caption)
                 --
                 Node { flex_grow: 1.0 }
                 TracerOverrideTargetField

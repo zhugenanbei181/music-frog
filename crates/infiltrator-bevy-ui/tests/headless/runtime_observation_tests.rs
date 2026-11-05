@@ -220,7 +220,7 @@ fn native_routing_and_tun_controls_remain_unknown_until_observed_and_failed_read
         .trigger(SurfaceSnapshotUpdated(snapshot.clone()));
     app.update();
     app.update();
-    assert_eq!(caption(&app, capsule), "全部流量经代理");
+    assert_eq!(caption(&app, capsule), "全局模式");
     let global = app
         .world_mut()
         .query::<(Entity, &OverviewRoutingIntentPill)>()
@@ -266,7 +266,7 @@ fn native_routing_and_tun_controls_remain_unknown_until_observed_and_failed_read
     assert!(app.world().get::<ButtonDisabled>(tun).unwrap().0);
     assert!(app.world().get::<ControlVisual>(global).unwrap().0);
     assert!(app.world().get::<InteractionDisabled>(global).is_none());
-    assert_eq!(caption(&app, capsule), "全部流量经代理");
+    assert_eq!(caption(&app, capsule), "全局模式");
     assert_eq!(
         app.world()
             .resource::<LatestSurfaceSnapshot>()
@@ -298,7 +298,7 @@ fn native_routing_and_tun_controls_remain_unknown_until_observed_and_failed_read
     assert!(!app.world().get::<ControlVisual>(global).unwrap().0);
     assert!(app.world().get::<InteractionDisabled>(global).is_some());
     assert!(app.world().get::<ButtonDisabled>(global).unwrap().0);
-    assert_ne!(caption(&app, capsule), "全部流量经代理");
+    assert_ne!(caption(&app, capsule), "全局模式");
     assert_eq!(
         app.world()
             .resource::<LatestSurfaceSnapshot>()
@@ -325,7 +325,7 @@ fn native_routing_and_tun_controls_remain_unknown_until_observed_and_failed_read
     assert!(app.world().get::<ControlVisual>(global).unwrap().0);
     assert!(app.world().get::<InteractionDisabled>(global).is_none());
     assert!(!app.world().get::<ButtonDisabled>(global).unwrap().0);
-    assert_eq!(caption(&app, capsule), "全部流量经代理");
+    assert_eq!(caption(&app, capsule), "全局模式");
 }
 
 #[test]

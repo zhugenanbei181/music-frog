@@ -9,9 +9,12 @@
 //! `crates/infiltrator-bevy-ui/docs/BEVY_020_UI_CAPABILITIES.md` ②.
 
 use crate::palette::UiPalette;
-use bevy::color::Color;
+use bevy::color::{Alpha, Color, Luminance};
 use bevy::ecs::change_detection::DetectChanges;
-use bevy::feathers::theme::{SemanticToken, SurfaceLevel, ThemeProps, ThemeToken, UiTheme};
+use bevy::feathers::dark_theme::create_dark_theme;
+use bevy::feathers::theme::ThemeToken;
+use bevy::feathers::theme::{SemanticToken, SurfaceLevel, ThemeProps, UiTheme};
+use bevy::feathers::tokens::semantic;
 use bevy::platform::collections::HashMap;
 
 /// One design token of this widget layer, as stamped by the `Theme*` paint
@@ -154,7 +157,15 @@ pub const ALL_TOKENS: [Token; 22] = [
 /// toasts, popovers) lift surface-class tokens so overlays visibly sit above
 /// the base, the feathers [`SurfaceLevel`] mechanism applied to our ladder.
 pub fn build_ui_theme(palette: &UiPalette) -> UiTheme {
-    let mut token_assignments = HashMap::default();
+    // The official themed controls (`bevy_feathers::controls`) look up their
+    // own `feathers.*` design tokens. Their token→semantic assignment is a
+    // fact owned upstream, so start from the official theme rather than
+    // restating 122 pairs here. Only the resolved colors are ours.
+    let ThemeProps {
+        mut token_assignments,
+        semantic_overrides: mut official_overrides,
+        ..
+    } = create_dark_theme();
     let mut semantic_base = HashMap::default();
     let mut semantic_overrides: HashMap<SurfaceLevel, HashMap<SemanticToken, Color>> =
         HashMap::default();
@@ -164,26 +175,111 @@ pub fn build_ui_theme(palette: &UiPalette) -> UiTheme {
         semantic_base.insert(token.semantic_token(), token.base_color(palette));
     }
 
+    // Product palette is the single color authority: every semantic role the
+    // official controls read resolves from the same `UiPalette` fields as the
+    // `mf.*` tokens. Hover/pressed/disabled are derived luminance/alpha
+    // variants of those same roles, never a second hard-coded palette.
+    let accent_disabled = palette.disabled_ink.with_alpha(0.7);
+    let solid_disabled = palette.surface_elevated.with_alpha(0.7);
+    let text_disabled = palette.ink.with_alpha(0.4);
+    let fill_none = Color::NONE;
+    semantic_base.extend([
+        (semantic::SURFACE_WINDOW, palette.window_clear),
+        (semantic::SURFACE_PANE_BODY, palette.surface),
+        (semantic::SURFACE_PANE_HEADER, palette.window_clear),
+        (semantic::SURFACE_SUBPANE_BODY, palette.surface),
+        (semantic::SURFACE_SUBPANE_HEADER, palette.surface_elevated),
+        (semantic::SURFACE_GROUP, palette.surface_elevated),
+        (semantic::SURFACE_DIALOG, palette.surface),
+        (semantic::SURFACE_MENU, palette.surface_elevated),
+        (semantic::BORDER_DEFAULT, palette.border),
+        (semantic::TEXT_DEFAULT, palette.ink),
+        (semantic::TEXT_DIM, palette.ink_dim),
+        (semantic::TEXT_ON_ACCENT, palette.on_accent),
+        (semantic::TEXT_DISABLED, text_disabled),
+        (semantic::FILL_ACCENT_DEFAULT, palette.accent),
+        (semantic::FILL_ACCENT_HOVER, palette.accent.lighter(0.05)),
+        (semantic::FILL_ACCENT_PRESSED, palette.accent.lighter(0.1)),
+        (semantic::FILL_ACCENT_DISABLED, accent_disabled),
+        (semantic::FILL_SOLID_DEFAULT, palette.surface_elevated),
+        (semantic::FILL_SOLID_HOVER, palette.hover_bg),
+        (semantic::FILL_SOLID_PRESSED, palette.pressed_bg),
+        (semantic::FILL_SOLID_DISABLED, solid_disabled),
+        (semantic::FILL_ITEM_DEFAULT, fill_none),
+        (semantic::FILL_ITEM_HOVER, palette.hover_bg),
+        (semantic::FILL_ITEM_PRESSED, palette.pressed_bg),
+        (semantic::FILL_FIELD_DEFAULT, palette.surface_elevated),
+        (semantic::FILL_FIELD_HOVER, palette.hover_bg),
+        (semantic::FILL_FIELD_PRESSED, palette.pressed_bg),
+        (semantic::FILL_NONE, fill_none),
+        (semantic::AXIS_X, palette.danger),
+        (semantic::AXIS_Y, palette.success),
+        (semantic::AXIS_Z, palette.accent),
+        (semantic::AXIS_W, palette.warning),
+        (semantic::FOCUS_RING, palette.focus_ring),
+    ]);
+
+    // Keep the official contextual lifts, but re-resolve their colors from
+    // our palette so the four SurfaceLevel rungs stay single-sourced: the
+    // recessed field and solid control fills climb to `icon_tile`, while
+    // item fills stay transparent-ish washes from `hover_bg`/`pressed_bg`.
+    for (level, overrides) in official_overrides.drain() {
+        let mut resolved = HashMap::default();
+        for (semantic_token, _) in overrides {
+            let color = themed_lift(&semantic_token, &semantic_base, level, palette);
+            resolved.insert(semantic_token, color);
+        }
+        semantic_overrides.insert(level, resolved);
+    }
+
     // Contextual level: surface-class tokens lift one rung per level using the
     // palette's own elevation vocabulary (surface → surface_elevated →
     // icon_tile rung); ink-class tokens stay shared across levels.
-    let mut floating = HashMap::default();
-    floating.insert(Token::Surface.semantic_token(), palette.surface_elevated);
-    floating.insert(Token::SurfaceElevated.semantic_token(), palette.icon_tile);
-    let mut higher = HashMap::default();
-    higher.insert(Token::Surface.semantic_token(), palette.surface_elevated);
-    let mut highest = HashMap::default();
-    highest.insert(Token::Surface.semantic_token(), palette.icon_tile);
-
-    semantic_overrides.insert(SurfaceLevel::Higher, higher);
-    semantic_overrides.insert(SurfaceLevel::Highest, highest);
-    semantic_overrides.insert(SurfaceLevel::Floating, floating);
+    // Product `mf.*` tokens share the same contextual ladder. Insert into the
+    // existing per-level maps so neither vocabulary displaces the other.
+    semantic_overrides
+        .entry(SurfaceLevel::Higher)
+        .or_default()
+        .insert(Token::Surface.semantic_token(), palette.surface_elevated);
+    semantic_overrides
+        .entry(SurfaceLevel::Highest)
+        .or_default()
+        .insert(Token::Surface.semantic_token(), palette.icon_tile);
+    semantic_overrides
+        .entry(SurfaceLevel::Floating)
+        .or_default()
+        .insert(Token::Surface.semantic_token(), palette.surface_elevated);
+    semantic_overrides
+        .entry(SurfaceLevel::Floating)
+        .or_default()
+        .insert(Token::SurfaceElevated.semantic_token(), palette.icon_tile);
 
     UiTheme(ThemeProps {
         token_assignments,
         semantic_base,
         semantic_overrides,
     })
+}
+
+/// Resolve an official contextual override to the palette's elevation rung.
+/// Falling back to the base color is deliberate: no second color vocabulary.
+fn themed_lift(
+    semantic_token: &SemanticToken,
+    semantic_base: &HashMap<SemanticToken, Color>,
+    level: SurfaceLevel,
+    palette: &UiPalette,
+) -> Color {
+    let lifted = matches!(level, SurfaceLevel::Highest | SurfaceLevel::Floating);
+    if lifted
+        && (*semantic_token == semantic::FILL_FIELD_DEFAULT
+            || *semantic_token == semantic::FILL_SOLID_DEFAULT)
+    {
+        return palette.icon_tile;
+    }
+    semantic_base
+        .get(semantic_token)
+        .copied()
+        .unwrap_or(palette.surface_elevated)
 }
 
 /// Rebuild the [`UiTheme`] whenever the palette resource changes (skin
@@ -201,7 +297,9 @@ use bevy::ecs::system::{Res, ResMut};
 mod tests {
     use super::*;
     use crate::theme::Theme;
+    use bevy::feathers::dark_theme::create_dark_theme;
     use bevy::feathers::theme::ThemeBackgroundColor;
+    use bevy::feathers::tokens;
 
     #[test]
     fn every_token_assigns_to_itself_and_resolves_base_color() {
@@ -236,5 +334,57 @@ mod tests {
     fn theme_background_component_stamps_the_token() {
         let bg = ThemeBackgroundColor(Token::Accent.theme_token());
         assert_eq!(bg.0, ThemeToken::new_static("mf.accent"));
+    }
+
+    #[test]
+    fn official_control_tokens_resolve_from_the_product_palette() {
+        let palette = UiPalette::new(&Theme::dark());
+        let theme = build_ui_theme(&palette);
+        let official = create_dark_theme();
+        assert_eq!(
+            theme.0.token_assignments.len(),
+            official.token_assignments.len() + ALL_TOKENS.len(),
+            "every official token assignment survives the product merge"
+        );
+        for (token, semantic_token) in &official.token_assignments {
+            assert_eq!(
+                theme.0.token_assignments.get(token),
+                Some(semantic_token),
+                "official token {token:?} keeps its upstream semantic role"
+            );
+        }
+        assert_eq!(theme.color(&tokens::WINDOW_BG), palette.window_clear);
+        assert_eq!(theme.color(&tokens::BUTTON_PRIMARY_BG), palette.accent);
+        assert_eq!(theme.color(&tokens::TEXT_MAIN), palette.ink);
+        assert_eq!(theme.color(&tokens::FOCUS_RING), palette.focus_ring);
+        assert_eq!(
+            theme.context_color(&tokens::BUTTON_BG, SurfaceLevel::Floating),
+            palette.icon_tile,
+            "floating contexts still lift the official solid fill"
+        );
+    }
+
+    #[test]
+    fn official_switch_and_scrollbar_tokens_share_the_product_semantics() {
+        let palette = UiPalette::new(&Theme::dark());
+        let theme = build_ui_theme(&palette);
+        let official = create_dark_theme();
+        let resolve = |token: &ThemeToken| {
+            let semantic_token = official
+                .token_assignments
+                .get(token)
+                .expect("official token is assigned");
+            theme
+                .0
+                .semantic_base
+                .get(semantic_token)
+                .copied()
+                .expect("product theme resolves the semantic role")
+        };
+        assert_eq!(resolve(&tokens::SWITCH_BG_CHECKED), palette.accent);
+        assert_eq!(resolve(&tokens::SWITCH_BG), palette.surface_elevated);
+        assert_eq!(resolve(&tokens::SCROLLBAR_THUMB), palette.accent);
+        assert_eq!(resolve(&tokens::CHECKBOX_MARK), palette.on_accent);
+        assert_eq!(resolve(&tokens::MENUITEM_BG), Color::NONE);
     }
 }

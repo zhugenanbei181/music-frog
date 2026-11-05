@@ -13,8 +13,9 @@ use bevy::ui::widget::Text;
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_presentation::connection_grouping::ConnectionGroupRow;
 
 #[derive(Component, Clone, Copy, Default)]
@@ -52,11 +53,11 @@ fn row_scene(row: &ConnectionGroupRow, palette: &UiPalette) -> impl Scene + use<
         ConnectionGroupCard({row.key.clone()})
         Children [
             Node {flex_grow:1.0,min_width:px(0.0)}
-            Text({row.key.clone()}) TextRole(Role::BodyStrong)
+            Text({row.key.clone()}) TextRole(design_resources::TextRole::BodyStrong)
             --
-            LocalizedText::new("conn_aggregate_count",vec![("count",row.count.to_string())]) TextRole(Role::Caption)
+            LocalizedText::new("conn_aggregate_count",vec![("count",row.count.to_string())]) TextRole(design_resources::TextRole::Caption)
             --
-            Text({row.traffic.clone()}) TextRole(Role::Mono)
+            Text({row.traffic.clone()}) TextRole(design_resources::TextRole::Mono)
         ]
     }
 }

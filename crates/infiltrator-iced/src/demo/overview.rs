@@ -31,7 +31,7 @@ pub(super) fn activate(state: &mut AppState, feature: FeatureId) -> Task<Message
             // The move is the owner's business, so the demo gives the
             // surface an owner that answers the shared intent.
             attach_overview_layout_owner(state);
-            state.update(Message::MoveOverviewCardUp(OverviewCardKind::Traffic))
+            state.update(Message::MoveOverviewCardUp(OverviewCardKind::Metrics))
         }
         FeatureId::OverviewTopologyDrilldown => activate_topology_drilldown(state),
         FeatureId::OverviewReconnectMask => attach_watchdog_capture_owner(state),

@@ -25,8 +25,9 @@ use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::switch::{
     SwitchKnob, SwitchPosition, switch_knob_scene, switch_track_scene,
 };
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_shared::locales::Lang;
 use lurker_core_contract::page::PageStatus;
 use lurker_ui_presentation::settings_preference_projection::project;
@@ -113,12 +114,12 @@ pub fn preference_row_scene(
         }
         ThemeBackgroundColor({ Token::SurfaceElevated }) PreferenceRow
         Children [
-            LocalizedText::plain(kind.label_key()) TextRole(Role::Body)
+            LocalizedText::plain(kind.label_key()) TextRole(design_resources::TextRole::Body)
             --
             Node { align_items: AlignItems::Center, column_gap: rem(space::S8) }
             Children [
                 LocalizedText { key: { copy.key }, params: { copy.params } }
-                PreferenceStatus(kind) TextRole(Role::Caption) TextColor(status_color)
+                PreferenceStatus(kind) TextRole(design_resources::TextRole::Caption) TextColor(status_color)
                 --
                 @{ switch_track_scene(palette, fill, edge) }
                 PreferenceTrack(kind) Button ButtonDisabled({ !observed.editable })

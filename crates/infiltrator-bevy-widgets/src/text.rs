@@ -1,6 +1,6 @@
 //! Typographic roles: the one seam between scene text and theme typography.
 //!
-//! Scenes emit `TextRole(Role::…)` next to a `Text` node and never touch
+//! Scenes emit `TextRole(TextRole::…)` next to a `Text` node and never touch
 //! font sizes, faces or ink literals; [`role_typography`] is the pure
 //! projection from role to (size, face, ink), and the [`style_text_roles`]
 //! observer stamps it the moment the role lands. This is the
@@ -21,34 +21,14 @@ use bevy::ecs::lifecycle::Add;
 use bevy::ecs::observer::On;
 use bevy::ecs::system::{Query, Res};
 use bevy::text::{FontSize, FontSource, TextColor, TextFont};
-
-/// Which typographic role a text node plays.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum Role {
-    /// One rung above [`Role::Heading`]: the status banner's state word
-    /// (the iced reference draws it ~22px, larger than a panel title).
-    /// Display size, full ink, SemiBold face.
-    Display,
-    /// Page/panel titles: heading size, full ink, SemiBold face.
-    Heading,
-    /// Primary reading text and control labels: body size, full ink,
-    /// Regular face.
-    #[default]
-    Body,
-    /// Emphasized reading text (identity titles, stop-button copy): body
-    /// size, full ink, SemiBold face.
-    BodyStrong,
-    /// Captions and idle labels: caption size, dim ink, Medium face.
-    Caption,
-    /// Aligned telemetry values: mono size, full ink, JetBrains Mono face.
-    Mono,
-}
+use infiltrator_contract::design_resources;
+use infiltrator_contract::design_resources::typeface;
 
 /// Marker stamped onto text nodes inside `bsn!` trees. The `Default` seed
 /// only exists for the bsn! template mechanism; spawned values always carry
 /// an explicit role.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct TextRole(pub Role);
+pub struct TextRole(pub design_resources::TextRole);
 
 /// The full typography one role resolves to: scale size, face source and
 /// ink. Pure data — headless-testable without any app.
@@ -62,17 +42,19 @@ pub struct Typography {
 /// [`FontSources`] in scope the face falls back to the default
 /// [`FontSource::Handle`] — the cosmic-text system fallback — so a host
 /// that skips font embedding degrades instead of panicking.
-pub fn role_typography(role: Role, palette: &UiPalette, fonts: Option<&FontSources>) -> Typography {
-    let (size, ink) = match role {
-        Role::Display => (palette.display_font_px, palette.ink),
-        Role::Heading => (palette.heading_font_px, palette.ink),
-        Role::Body | Role::BodyStrong => (palette.body_font_px, palette.ink),
-        Role::Caption => (palette.caption_font_px, palette.ink_dim),
-        Role::Mono => (palette.mono_font_px, palette.ink),
+pub fn role_typography(
+    role: design_resources::TextRole,
+    palette: &UiPalette,
+    fonts: Option<&FontSources>,
+) -> Typography {
+    let spec = typeface(role);
+    let ink = match role {
+        design_resources::TextRole::Caption | design_resources::TextRole::Micro => palette.ink_dim,
+        _ => palette.ink,
     };
     Typography {
         // Rem channel: sizes scale with the RemSize root; baseline 1.0 = BODY.
-        size: FontSize::Rem(size / REM_BASE),
+        size: FontSize::Rem(spec.size_px / REM_BASE),
         font: fonts
             .map(|sources| FontSource::Handle(sources.face(role)))
             .unwrap_or_default(),
@@ -118,13 +100,13 @@ pub enum RichTextKind {
 #[derive(Clone, Debug, PartialEq)]
 pub struct RichTextSpan {
     pub text: String,
-    pub role: Role,
+    pub role: design_resources::TextRole,
     pub color_override: Option<Color>,
     pub kind: RichTextKind,
 }
 
 impl RichTextSpan {
-    pub fn new(text: impl Into<String>, role: Role) -> Self {
+    pub fn new(text: impl Into<String>, role: design_resources::TextRole) -> Self {
         Self {
             text: text.into(),
             role,
@@ -136,7 +118,7 @@ impl RichTextSpan {
     pub fn badge(text: impl Into<String>, color: Color) -> Self {
         Self {
             text: text.into(),
-            role: Role::Caption,
+            role: design_resources::TextRole::Caption,
             color_override: Some(color),
             kind: RichTextKind::Badge,
         }
@@ -166,7 +148,7 @@ pub fn rich_text_line_scene(spans: Vec<RichTextSpan>, palette: &UiPalette) -> Bo
     let span_list = bsn_list! { { span_scenes } };
     Box::new(bsn! {
             Text({ String::new() })
-            TextRole(Role::Body)
+            TextRole(design_resources::TextRole::Body)
             Children [
                 { span_list }
             ]

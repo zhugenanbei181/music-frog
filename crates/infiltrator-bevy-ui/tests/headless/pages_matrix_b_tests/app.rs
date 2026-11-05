@@ -18,15 +18,15 @@ fn test_app_routing_page_mounting_and_default_state() {
         "应用分流 · 仅代理选中应用 (已配置 6 个应用)"
     ));
     assert!(subtree_has_text(app.world(), root, "Google Chrome"));
-    assert!(subtree_has_text(app.world(), root, "代理 (Proxy)"));
+    assert!(subtree_has_text(app.world(), root, "代理"));
     assert!(subtree_has_text(app.world(), root, "Steam"));
-    assert!(subtree_has_text(app.world(), root, "直连 (Direct)"));
+    assert!(subtree_has_text(app.world(), root, "直连"));
     assert!(subtree_has_text(
         app.world(),
         root,
         "Windows UWP 回环隔离豁免工具 (UWP Loopback Exemption)"
     ));
-    assert!(subtree_has_text(app.world(), root, "全选豁免 (Exempt All)"));
+    assert!(subtree_has_text(app.world(), root, "全选豁免"));
     assert!(subtree_has_text(
         app.world(),
         root,
@@ -131,5 +131,5 @@ fn test_app_routing_projection_in_place_update() {
         root,
         "应用分流 · 选中应用直连，其余代理 (已配置 6 个应用)"
     ));
-    assert!(subtree_has_text(app.world(), root, "拦截 (Block)"));
+    assert!(subtree_has_text(app.world(), root, "拦截"));
 }

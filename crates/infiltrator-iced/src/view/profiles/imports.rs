@@ -11,7 +11,7 @@ use crate::view::component_forms::{
 };
 use crate::view::components::BadgeKind;
 use crate::view::svg_icons::Icon;
-use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, tokens};
+use crate::view::theme::tokens;
 use crate::view::{svg_icons, theme};
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Space, button, column, container, row, text, text_input};
@@ -60,12 +60,11 @@ pub(super) fn header<'a>(state: &'a AppState) -> Element<'a, Message> {
     };
 
     let header = row![
-        text(lang.tr("profiles_title").to_string())
-            .size(24)
-            .font(FONT_SEMIBOLD)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_primary)
-            }),
+        theme::role_body_text(lang.tr("profiles_title").to_string()).style(|t: &Theme| {
+            text::Style {
+                color: Some(tokens(t).text_primary),
+            }
+        }),
         Space::new().width(theme::SP_LG),
         search_box,
         Space::new().width(theme::SP_SM),
@@ -78,7 +77,7 @@ pub(super) fn header<'a>(state: &'a AppState) -> Element<'a, Message> {
                 svg_icons::icon_themed(Icon::LayoutGrid, 13.0, |t: &Theme| tokens(t)
                     .text_secondary),
                 Space::new().width(theme::SP_XS),
-                text(lang.tr("aggregator_title").to_string()).size(12),
+                theme::role_body_text(lang.tr("aggregator_title").to_string()),
             ]
             .align_y(Alignment::Center)
         )
@@ -177,9 +176,7 @@ pub(super) fn import_section<'a>(state: &'a AppState) -> Element<'a, Message> {
     let paste_btn = button(
         row![
             svg_icons::icon_themed(Icon::Copy, 13.0, |t: &Theme| tokens(t).text_secondary),
-            text(lang.tr("profiles_paste").to_string())
-                .size(12)
-                .font(FONT_MEDIUM)
+            theme::role_body_text(lang.tr("profiles_paste").to_string())
         ]
         .spacing(theme::SP_XS)
         .align_y(Alignment::Center),
@@ -199,9 +196,7 @@ pub(super) fn import_section<'a>(state: &'a AppState) -> Element<'a, Message> {
             button(
                 row![
                     svg_icons::icon_themed(Icon::Plus, 14.0, |t: &Theme| tokens(t).on_accent),
-                    text(lang.tr("profiles_import_btn").to_string())
-                        .size(12)
-                        .font(FONT_MEDIUM)
+                    theme::role_body_text(lang.tr("profiles_import_btn").to_string())
                 ]
                 .spacing(theme::SP_SM)
                 .align_y(Alignment::Center),
@@ -225,7 +220,6 @@ pub(super) fn import_section<'a>(state: &'a AppState) -> Element<'a, Message> {
                     )
                     .on_input(Message::UpdateImportName)
                     .padding([8, 12])
-                    .size(13)
                     .style(form_input_style)
                 ]
                 .width(Length::FillPortion(1))
@@ -241,7 +235,6 @@ pub(super) fn import_section<'a>(state: &'a AppState) -> Element<'a, Message> {
                         )
                         .on_input(Message::UpdateImportUrl)
                         .padding([8, 12])
-                        .size(13)
                         .width(Length::Fill)
                         .style(form_input_style),
                         Space::new().width(theme::SP_XS),
@@ -280,9 +273,7 @@ pub(super) fn local_import_section<'a>(state: &'a AppState) -> Element<'a, Messa
             button(
                 row![
                     svg_icons::icon_themed(Icon::Plus, 14.0, |t: &Theme| tokens(t).on_accent),
-                    text(lang.tr("profiles_import_local_btn").to_string())
-                        .size(12)
-                        .font(FONT_MEDIUM)
+                    theme::role_body_text(lang.tr("profiles_import_local_btn").to_string())
                 ]
                 .spacing(theme::SP_SM),
             )
@@ -305,7 +296,6 @@ pub(super) fn local_import_section<'a>(state: &'a AppState) -> Element<'a, Messa
                     )
                     .on_input(Message::UpdateLocalImportPath)
                     .padding([8, 12])
-                    .size(13)
                     .style(form_input_style)
                 ]
                 .width(Length::FillPortion(2))
@@ -330,7 +320,6 @@ pub(super) fn local_import_section<'a>(state: &'a AppState) -> Element<'a, Messa
                     )
                     .on_input(Message::UpdateLocalImportName)
                     .padding([8, 12])
-                    .size(13)
                     .style(form_input_style)
                 ]
                 .width(Length::FillPortion(1))

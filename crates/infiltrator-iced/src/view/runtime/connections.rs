@@ -18,7 +18,7 @@ use crate::view::components::{
     segmented_control, status_dot,
 };
 use crate::view::svg_icons::Icon;
-use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, SP_MD, tokens};
+use crate::view::theme::{SP_MD, tokens};
 use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme};
@@ -119,9 +119,7 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
         row![
             svg_icons::icon_themed(Icon::Trash2, 13.0, |t: &Theme| tokens(t).danger),
             Space::new().width(4),
-            text(lang.tr("btn_close_all").to_string())
-                .size(12)
-                .font(FONT_MEDIUM),
+            theme::role_body_text(lang.tr("btn_close_all").to_string()),
         ]
         .align_y(Alignment::Center),
     )
@@ -189,9 +187,7 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
         row![
             svg_icons::icon_themed(Icon::X, 13.0, |t: &Theme| tokens(t).warning),
             Space::new().width(4),
-            text(lang.tr("conn_close_filtered_btn").to_string())
-                .size(12)
-                .font(FONT_MEDIUM),
+            theme::role_body_text(lang.tr("conn_close_filtered_btn").to_string()),
         ]
         .align_y(Alignment::Center),
     )
@@ -248,9 +244,7 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
         row![
             svg_icons::icon_themed(Icon::Activity, 13.0, |t: &Theme| tokens(t).text_secondary),
             Space::new().width(4),
-            text(lang.tr("conn_idle_sweep_btn").to_string())
-                .size(12)
-                .font(FONT_MEDIUM),
+            theme::role_body_text(lang.tr("conn_idle_sweep_btn").to_string()),
         ]
         .align_y(Alignment::Center),
     )
@@ -261,21 +255,19 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
     );
 
     let idle_bar = row![
-        text(lang.tr("conn_idle_timeout_label").to_string())
-            .size(11)
-            .style(|t: &Theme| text::Style {
+        theme::role_body_text(lang.tr("conn_idle_timeout_label").to_string()).style(|t: &Theme| {
+            text::Style {
                 color: Some(tokens(t).text_tertiary),
-            }),
+            }
+        }),
         Space::new().width(theme::SP_SM),
         idle_timeout_control,
         Space::new().width(theme::SP_MD),
         idle_sweep_btn,
         Space::new().width(theme::SP_MD),
-        text(idle_status_label)
-            .size(11)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_secondary),
-            }),
+        theme::role_body_text(idle_status_label).style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_secondary),
+        }),
     ]
     .align_y(Alignment::Center)
     .width(Length::Fill);
@@ -348,17 +340,14 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
                         row![
                             svg_icons::icon_themed(icon, 16.0, icon_color),
                             Space::new().width(theme::SP_MD),
-                            text(aggregate.key.clone())
-                                .size(13)
-                                .font(FONT_SEMIBOLD)
-                                .width(Length::Fill),
+                            theme::role_body_text(aggregate.key.clone()).width(Length::Fill),
                             badge(count_label, BadgeKind::Neutral),
                             Space::new().width(theme::SP_MD),
-                            text(aggregate.traffic.clone()).size(11).font(MONO).style(
-                                |t: &Theme| text::Style {
-                                    color: Some(tokens(t).text_secondary)
+                            theme::role_body_text(aggregate.traffic.clone()).style(|t: &Theme| {
+                                text::Style {
+                                    color: Some(tokens(t).text_secondary),
                                 }
-                            ),
+                            }),
                         ]
                         .align_y(Alignment::Center),
                     )
@@ -423,7 +412,7 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
                 let host_text = if let Some(search) = search {
                     connection_search::connection_text(state, &search.endpoint, 13)
                 } else {
-                    text(host).size(13).into()
+                    theme::role_body_text(host).into()
                 };
                 headline_items.push(
                     container(host_text)
@@ -446,13 +435,11 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
                 }
                 headline_items.push(Space::new().width(theme::SP_MD).into());
                 headline_items.push(
-                    text(format!(
+                    theme::role_body_text(format!(
                         "↑ {} / ↓ {}",
                         format_bytes(conn.upload),
                         format_bytes(conn.download)
                     ))
-                    .size(11)
-                    .font(MONO)
                     .style(|t: &Theme| text::Style {
                         color: Some(tokens(t).text_secondary),
                     })
@@ -478,16 +465,13 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
 
                 // Subline row: rule payload, destination host:port, optional chains, source:port
                 let mut subline_items: Vec<Element<'_, Message>> = vec![
-                    text(rule_str)
-                        .size(11)
+                    theme::role_body_text(rule_str)
                         .style(|t: &Theme| text::Style {
                             color: Some(tokens(t).accent),
                         })
                         .into(),
                     Space::new().width(theme::SP_MD).into(),
-                    text(payload_str)
-                        .size(11)
-                        .font(MONO)
+                    theme::role_body_text(payload_str)
                         .style(|t: &Theme| text::Style {
                             color: Some(tokens(t).text_secondary),
                         })
@@ -502,9 +486,7 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
                     for (hop_idx, hop) in route_chain.hops().iter().enumerate() {
                         if hop_idx > 0 {
                             subline_items.push(
-                                text(" → ")
-                                    .size(11)
-                                    .font(MONO)
+                                theme::role_body_text(" → ")
                                     .style(|t: &Theme| text::Style {
                                         color: Some(tokens(t).text_tertiary),
                                     })
@@ -512,9 +494,7 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
                             );
                         }
                         subline_items.push(
-                            text(hop.clone())
-                                .size(11)
-                                .font(MONO)
+                            theme::role_body_text(hop.clone())
                                 .style(|t: &Theme| text::Style {
                                     color: Some(tokens(t).text_tertiary),
                                 })
@@ -529,13 +509,11 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
                 if rate.peak_bps() > 0.0 {
                     subline_items.push(Space::new().width(theme::SP_MD).into());
                     subline_items.push(
-                        text(format!(
+                        theme::role_body_text(format!(
                             "⚡ ↑ {} ↓ {}",
                             format_rate(rate.upload_bps),
                             format_rate(rate.download_bps)
                         ))
-                        .size(11)
-                        .font(MONO)
                         .style(|t: &Theme| text::Style {
                             color: Some(tokens(t).success),
                         })
@@ -545,9 +523,7 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
 
                 subline_items.push(Space::new().width(Length::Fill).into());
                 subline_items.push(
-                    text(source_str)
-                        .size(11)
-                        .font(MONO)
+                    theme::role_body_text(source_str)
                         .style(|t: &Theme| text::Style {
                             color: Some(tokens(t).text_secondary),
                         })
@@ -596,12 +572,11 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
                             (page > 0).then_some(Message::ConnectionsPrevPage),
                         ),
                         Space::new().width(theme::SP_SM),
-                        text(format!("{}–{} / {}", start + 1, end, total))
-                            .size(11)
-                            .font(MONO)
-                            .style(|t: &Theme| text::Style {
+                        theme::role_body_text(format!("{}–{} / {}", start + 1, end, total)).style(
+                            |t: &Theme| text::Style {
                                 color: Some(tokens(t).text_secondary),
-                            }),
+                            }
+                        ),
                         Space::new().width(theme::SP_SM),
                         text_btn(
                             "›".to_string(),
@@ -651,7 +626,7 @@ fn high_throughput_pulse<'a>(label: String, intensity: f32) -> Element<'a, Messa
                 }
             }),
             Space::new().width(theme::SP_XS),
-            text(label).size(11).font(FONT_MEDIUM),
+            theme::role_body_text(label),
         ]
         .align_y(Alignment::Center),
     )

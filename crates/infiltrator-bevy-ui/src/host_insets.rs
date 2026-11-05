@@ -24,6 +24,7 @@ use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Res, ResMut};
 use bevy::text::RemSize;
 use infiltrator_bevy_widgets::responsive::{ResponsiveContext, SafeAreaInsets};
+use infiltrator_bevy_widgets::scrollarea::SoftKeyboardState;
 use infiltrator_bevy_widgets::theme::REM_BASE;
 use infiltrator_contract::shell_gesture;
 use std::sync::Mutex;
@@ -370,6 +371,7 @@ fn apply_window_insets(
         Option<ResMut<GestureHostReport>>,
     ),
     mut keyboard: ResMut<KeyboardAvoidance>,
+    mut soft_keyboard_state: Option<ResMut<SoftKeyboardState>>,
     mut responsive: Option<ResMut<ResponsiveContext>>,
     mut rem_size: Option<ResMut<RemSize>>,
     mut commands: Commands,
@@ -401,6 +403,16 @@ fn apply_window_insets(
     if keyboard.bottom_px != bottom {
         keyboard.bottom_px = bottom;
     }
+    let soft_kb = if bottom > 0.0 {
+        SoftKeyboardState::Open { height_px: bottom }
+    } else {
+        SoftKeyboardState::Closed
+    };
+    if let Some(ref mut kb_state) = soft_keyboard_state
+        && **kb_state != soft_kb
+    {
+        **kb_state = soft_kb;
+    }
     if let Some(metrics) = insets.metrics() {
         commands.trigger(WindowMetricsInput(metrics));
         if let Some(responsive) = responsive.as_deref_mut() {
@@ -419,6 +431,7 @@ impl Plugin for HostInsetsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<HostWindowInsets>()
             .init_resource::<KeyboardAvoidance>()
+            .init_resource::<SoftKeyboardState>()
             .add_observer(apply_window_insets)
             .add_systems(PreUpdate, forward_host_window_insets);
     }
@@ -542,6 +555,10 @@ mod tests {
         assert_eq!(report.insets.top, 24.0);
         assert_eq!(report.insets.bottom, 48.0);
         assert_eq!(app.world().resource::<KeyboardAvoidance>().bottom_px, 0.0);
+        assert_eq!(
+            *app.world().resource::<SoftKeyboardState>(),
+            SoftKeyboardState::Closed
+        );
 
         // Keyboard opens: the permanent safe area is unchanged, the transient
         // avoidance grows to the IME height only.
@@ -557,6 +574,10 @@ mod tests {
         app.update();
         assert_eq!(app.world().resource::<SafeAreaInsets>().bottom_px, 48.0);
         assert_eq!(app.world().resource::<KeyboardAvoidance>().bottom_px, 300.0);
+        assert_eq!(
+            *app.world().resource::<SoftKeyboardState>(),
+            SoftKeyboardState::Open { height_px: 300.0 }
+        );
 
         // Rotation: the cutout moves to the horizontal edges live.
         let landscape = WindowInsets::physical(
@@ -573,6 +594,10 @@ mod tests {
         assert_eq!(safe.left_px, 60.0);
         assert_eq!(safe.right_px, 60.0);
         assert_eq!(app.world().resource::<KeyboardAvoidance>().bottom_px, 0.0);
+        assert_eq!(
+            *app.world().resource::<SoftKeyboardState>(),
+            SoftKeyboardState::Closed
+        );
     }
 
     #[test]

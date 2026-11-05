@@ -2,7 +2,7 @@
 use crate::localized_widgets::localized_pill_scene;
 use crate::pages::profiles_filter_form::{self, FilterFormState};
 use crate::pages::profiles_import_channels::SaveSubscriptionFilterButton;
-use accesskit::{Role, Toggled};
+use accesskit::Toggled;
 use bevy::a11y::AccessibilityNode;
 use bevy::app::{App, Plugin, PostUpdate, Update};
 use bevy::ecs::component::Component;
@@ -19,10 +19,10 @@ use infiltrator_bevy_widgets::button::{sync_control_labels, sync_control_visuals
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text;
 use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::text_input::render::sync_text_fields;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::subscription_import::SubscriptionFilterDedup;
 
 #[derive(Component, Clone, Copy, Default)]
@@ -52,7 +52,7 @@ pub(super) fn scene(index: usize, palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
         Node { flex_wrap: FlexWrap::Wrap, column_gap: rem(space::S4), row_gap: rem(space::S4) }
         FilterFormRoot
-        AccessibilityNode({ accesskit::Node::new(Role::RadioGroup) })
+        AccessibilityNode({ accesskit::Node::new(accesskit::Role::RadioGroup) })
         LocalizedLabel::plain("profiles_filter_deduplicate")
         Children [
             { choices }
@@ -61,7 +61,7 @@ pub(super) fn scene(index: usize, palette: &UiPalette) -> impl Scene + use<> {
             --
             Node { display: Display::None }
             FilterDedupSourceIssue
-            Children [ LocalizedText::plain("subscription_filter_source_changed") TextRole(text::Role::Caption) ]
+            Children [ LocalizedText::plain("subscription_filter_source_changed") TextRole(design_resources::TextRole::Caption) ]
         ]
     }
 }
@@ -150,7 +150,7 @@ fn sync(
             control.disabled.0 = blocked;
         }
         if let Some(mut node) = control.accessibility {
-            node.set_role(Role::RadioButton);
+            node.set_role(accesskit::Role::RadioButton);
             node.set_toggled(if selected {
                 Toggled::True
             } else {

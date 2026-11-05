@@ -7,7 +7,7 @@ use crate::view::component_card::card;
 use crate::view::component_forms::{style_accent, style_ghost, text_btn};
 use crate::view::components::modern_scrollable;
 use crate::view::theme;
-use crate::view::theme::{FONT_SEMIBOLD, MONO, SP_MD, tokens};
+use crate::view::theme::{SP_MD, tokens};
 use iced::widget::{Space, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_shared::assets::{
@@ -20,17 +20,14 @@ pub fn about_view(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
 
     let header = column![
-        text(lang.tr("nav_about").into_owned())
-            .size(24)
-            .font(FONT_SEMIBOLD)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_primary),
-            }),
-        text(lang.tr("about_app_subtitle").into_owned())
-            .size(12)
-            .style(|t: &Theme| text::Style {
+        theme::role_body_text(lang.tr("nav_about").into_owned()).style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_primary),
+        }),
+        theme::role_body_text(lang.tr("about_app_subtitle").into_owned()).style(|t: &Theme| {
+            text::Style {
                 color: Some(tokens(t).text_secondary),
-            }),
+            }
+        }),
     ]
     .spacing(theme::SP_XS);
 
@@ -38,19 +35,15 @@ pub fn about_view(state: &AppState) -> Element<'_, Message> {
         Some(lang.tr("about_app_info").into_owned()),
         column![
             row![
-                text(lang.tr("about_version_label").into_owned())
-                    .size(13)
-                    .font(FONT_SEMIBOLD),
-                text(format!("v{}", env!("CARGO_PKG_VERSION")))
-                    .size(13)
-                    .font(MONO),
+                theme::role_body_text(lang.tr("about_version_label").into_owned()),
+                theme::role_body_text(format!("v{}", env!("CARGO_PKG_VERSION"))),
             ]
             .spacing(theme::SP_SM),
-            text(lang.tr("app_description").into_owned())
-                .size(12)
-                .style(|t: &Theme| text::Style {
+            theme::role_body_text(lang.tr("app_description").into_owned()).style(|t: &Theme| {
+                text::Style {
                     color: Some(tokens(t).text_secondary),
-                }),
+                }
+            }),
             Space::new().height(theme::SP_SM),
             row![
                 text_btn(
@@ -86,12 +79,11 @@ pub fn disclaimer_view(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
 
     let header = row![
-        text(lang.tr("nav_disclaimer").into_owned())
-            .size(24)
-            .font(FONT_SEMIBOLD)
-            .style(|t: &Theme| text::Style {
+        theme::role_body_text(lang.tr("nav_disclaimer").into_owned()).style(|t: &Theme| {
+            text::Style {
                 color: Some(tokens(t).text_primary),
-            }),
+            }
+        }),
         Space::new().width(Length::Fill),
         text_btn(
             lang.tr("nav_about").into_owned(),
@@ -103,11 +95,9 @@ pub fn disclaimer_view(state: &AppState) -> Element<'_, Message> {
 
     let disclaimer_body = disclaimer_text(&state.shell.lang);
     let card_content = column![
-        text(disclaimer_body)
-            .size(13)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_primary),
-            }),
+        theme::role_body_text(disclaimer_body).style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_primary),
+        }),
         Space::new().height(theme::SP_MD),
         text_btn(
             lang.tr("nav_about").into_owned(),
@@ -133,12 +123,11 @@ pub fn licenses_view(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
 
     let header = row![
-        text(lang.tr("nav_licenses").into_owned())
-            .size(24)
-            .font(FONT_SEMIBOLD)
-            .style(|t: &Theme| text::Style {
+        theme::role_body_text(lang.tr("nav_licenses").into_owned()).style(|t: &Theme| {
+            text::Style {
                 color: Some(tokens(t).text_primary),
-            }),
+            }
+        }),
         Space::new().width(Length::Fill),
         text_btn(
             lang.tr("nav_about").into_owned(),
@@ -151,14 +140,13 @@ pub fn licenses_view(state: &AppState) -> Element<'_, Message> {
     let font_card = card(
         Some(lang.tr("settings_font_attribution_title").into_owned()),
         column![
-            text(lang.tr("settings_font_attribution_copy").into_owned())
-                .size(12)
-                .style(|t: &Theme| text::Style {
+            theme::role_body_text(lang.tr("settings_font_attribution_copy").into_owned()).style(
+                |t: &Theme| text::Style {
                     color: Some(tokens(t).text_secondary),
-                }),
+                }
+            ),
             container(
-                modern_scrollable(text(harmonyos_font_license_text()).size(10).font(MONO))
-                    .height(180)
+                modern_scrollable(theme::role_body_text(harmonyos_font_license_text())).height(180)
             )
             .padding(theme::SP_SM)
             .style(|t: &Theme| container::Style {
@@ -173,7 +161,7 @@ pub fn licenses_view(state: &AppState) -> Element<'_, Message> {
         Some(lang.tr("about_third_party_title").into_owned()),
         column![
             container(
-                modern_scrollable(text(third_party_notices_text()).size(10).font(MONO)).height(300)
+                modern_scrollable(theme::role_body_text(third_party_notices_text())).height(300)
             )
             .padding(theme::SP_SM)
             .style(|t: &Theme| container::Style {
@@ -202,17 +190,14 @@ pub fn tools_view(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
 
     let header = column![
-        text(lang.tr("nav_tools").into_owned())
-            .size(24)
-            .font(FONT_SEMIBOLD)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_primary),
-            }),
-        text(lang.tr("tools_subtitle").into_owned())
-            .size(12)
-            .style(|t: &Theme| text::Style {
+        theme::role_body_text(lang.tr("nav_tools").into_owned()).style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_primary),
+        }),
+        theme::role_body_text(lang.tr("tools_subtitle").into_owned()).style(|t: &Theme| {
+            text::Style {
                 color: Some(tokens(t).text_secondary),
-            }),
+            }
+        }),
     ]
     .spacing(theme::SP_XS);
 
@@ -283,8 +268,8 @@ fn tool_row<'a>(
 ) -> Element<'a, Message> {
     row![
         column![
-            text(title).size(14).font(FONT_SEMIBOLD),
-            text(desc).size(12).style(|t: &Theme| text::Style {
+            theme::role_body_text(title),
+            theme::role_body_text(desc).style(|t: &Theme| text::Style {
                 color: Some(tokens(t).text_secondary),
             }),
         ]

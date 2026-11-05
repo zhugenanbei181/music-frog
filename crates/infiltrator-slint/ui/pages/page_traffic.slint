@@ -1,3 +1,4 @@
+import { DesignType } from "../components/design-type.slint";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "../components/theme.slint";
 import { TrafficBar } from "../components/models.slint";
@@ -32,7 +33,7 @@ export component PageTraffic inherits VerticalLayout {
     SectionCard {
         heading: @tr("实时流量");
         detail: root.traffic-stream-status == "已连接" ? @tr("Mihomo /traffic 实时流已连接。") : (root.traffic-stream-status == "正在重连" ? @tr("实时流重连中；速率显示为 0，保留的统计仍可查看。") : (root.runtime-status == RuntimeStatus.running ? @tr("Runtime 已启动，正在连接流量采样。") : @tr("Runtime 未运行；实时采样已停止，保留的统计仍可查看。")));
-        Text { text: "↓ " + @tr("下载 ") + root.stat-down + "   ·   ↑ " + @tr("上传 ") + root.stat-up; color: LumenTheme.status-info; font-size: 16 * LumenUiScale.unit; font-family: LumenTheme.mono-family; font-weight: 600; wrap: word-wrap; }
+        Text { text: "↓ " + @tr("下载 ") + root.stat-down + "   ·   ↑ " + @tr("上传 ") + root.stat-up; color: LumenTheme.status-info; font-size: DesignType.bodyLarge-size; font-family: DesignType.mono-family; font-weight: DesignType.bodyLarge-weight; wrap: word-wrap; }
     }
     SectionCard {
         heading: @tr("累计统计");
@@ -61,12 +62,12 @@ export component PageTraffic inherits VerticalLayout {
             spacing: LumenTheme.space-2;
             cross-axis-alignment: center;
             Rectangle { width: 10 * LumenUiScale.unit; height: 10 * LumenUiScale.unit; border-radius: 5 * LumenUiScale.unit; background: LumenTheme.accent; }
-            Text { text: @tr("下载"); color: LumenTheme.text-secondary; font-size: 11 * LumenUiScale.unit; vertical-alignment: center; }
+            Text { text: @tr("下载"); color: LumenTheme.text-secondary; font-size: DesignType.micro-size; vertical-alignment: center; }
             Rectangle { width: 10 * LumenUiScale.unit; height: 10 * LumenUiScale.unit; border-radius: 5 * LumenUiScale.unit; background: LumenTheme.status-info; }
-            Text { text: @tr("上传"); color: LumenTheme.text-secondary; font-size: 11 * LumenUiScale.unit; vertical-alignment: center; }
+            Text { text: @tr("上传"); color: LumenTheme.text-secondary; font-size: DesignType.micro-size; vertical-alignment: center; }
         }
         if root.traffic-range == TrafficRange.today: VerticalLayout {
-            Text { text: "↓ " + @tr("下载 ") + root.traffic-today-down + "   ·   ↑ " + @tr("上传 ") + root.traffic-today-up; color: LumenTheme.text-secondary; font-size: 13 * LumenUiScale.unit; font-family: LumenTheme.mono-family; font-weight: 500; wrap: word-wrap; }
+            Text { text: "↓ " + @tr("下载 ") + root.traffic-today-down + "   ·   ↑ " + @tr("上传 ") + root.traffic-today-up; color: LumenTheme.text-secondary; font-size: DesignType.mono-size; font-family: DesignType.mono-family; font-weight: DesignType.mono-weight; wrap: word-wrap; }
             if root.traffic-today-has-data: HorizontalLayout {
                 height: 148 * LumenUiScale.unit; spacing: 2 * LumenUiScale.unit;
                 for bar in root.traffic-today-bars: VerticalLayout {
@@ -77,14 +78,14 @@ export component PageTraffic inherits VerticalLayout {
                         Rectangle { x: parent.width / 2; y: parent.height - parent.height * bar.upload-fraction; width: parent.width / 2 - 1 * LumenUiScale.unit; height: parent.height * bar.upload-fraction; border-radius: 2 * LumenUiScale.unit; background: LumenTheme.status-info; }
                         TouchArea { width: parent.width; height: parent.height; clicked => { root.traffic-selected-detail = bar.detail-label + " · 下载 " + bar.download + " · 上传 " + bar.upload; } }
                     }
-                    Text { text: bar.label; color: LumenTheme.text-secondary; font-size: 9 * LumenUiScale.unit; font-family: LumenTheme.mono-family; horizontal-alignment: center; }
+                    Text { text: bar.label; color: LumenTheme.text-secondary; font-size: DesignType.tag-size; font-family: DesignType.mono-family; horizontal-alignment: center; }
                 }
             }
-            if !root.traffic-today-has-data: Text { text: @tr("暂无统计数据；运行 Mihomo 后开始记录。"); color: LumenTheme.text-secondary; font-size: 13 * LumenUiScale.unit; }
+            if !root.traffic-today-has-data: Text { text: @tr("暂无统计数据；运行 Mihomo 后开始记录。"); color: LumenTheme.text-secondary; font-size: DesignType.mono-size; }
         }
         if root.traffic-range == TrafficRange.week: VerticalLayout {
-            Text { text: "↓ " + @tr("下载 ") + root.traffic-week-down + "   ·   ↑ " + @tr("上传 ") + root.traffic-week-up; color: LumenTheme.text-secondary; font-size: 13 * LumenUiScale.unit; font-family: LumenTheme.mono-family; font-weight: 500; wrap: word-wrap; }
-            Text { text: @tr("日均下载 ") + root.traffic-week-average-down + "   ·   " + @tr("日均上传 ") + root.traffic-week-average-up; color: LumenTheme.text-secondary; font-size: 12 * LumenUiScale.unit; font-family: LumenTheme.mono-family; wrap: word-wrap; }
+            Text { text: "↓ " + @tr("下载 ") + root.traffic-week-down + "   ·   ↑ " + @tr("上传 ") + root.traffic-week-up; color: LumenTheme.text-secondary; font-size: DesignType.mono-size; font-family: DesignType.mono-family; font-weight: DesignType.mono-weight; wrap: word-wrap; }
+            Text { text: @tr("日均下载 ") + root.traffic-week-average-down + "   ·   " + @tr("日均上传 ") + root.traffic-week-average-up; color: LumenTheme.text-secondary; font-size: DesignType.caption-size; font-family: DesignType.mono-family; wrap: word-wrap; }
             if root.traffic-week-has-data: HorizontalLayout {
                 height: 166 * LumenUiScale.unit; spacing: LumenTheme.space-2;
                 for bar in root.traffic-week-bars: VerticalLayout {
@@ -95,12 +96,12 @@ export component PageTraffic inherits VerticalLayout {
                         Rectangle { x: parent.width / 2; y: parent.height - parent.height * bar.upload-fraction; width: parent.width / 2 - 4 * LumenUiScale.unit; height: parent.height * bar.upload-fraction; border-radius: 2 * LumenUiScale.unit; background: LumenTheme.status-info; }
                         TouchArea { width: parent.width; height: parent.height; clicked => { root.traffic-selected-detail = bar.detail-label + " · 下载 " + bar.download + " · 上传 " + bar.upload; } }
                     }
-                    Text { text: bar.label; color: LumenTheme.text-secondary; font-size: 11 * LumenUiScale.unit; font-family: LumenTheme.mono-family; horizontal-alignment: center; }
+                    Text { text: bar.label; color: LumenTheme.text-secondary; font-size: DesignType.micro-size; font-family: DesignType.mono-family; horizontal-alignment: center; }
                 }
             }
-            if !root.traffic-week-has-data: Text { text: @tr("本周暂无统计数据；运行 Mihomo 后开始记录。"); color: LumenTheme.text-secondary; font-size: 13 * LumenUiScale.unit; }
+            if !root.traffic-week-has-data: Text { text: @tr("本周暂无统计数据；运行 Mihomo 后开始记录。"); color: LumenTheme.text-secondary; font-size: DesignType.mono-size; }
         }
-        Text { text: root.traffic-selected-detail; color: LumenTheme.text-secondary; font-size: 12 * LumenUiScale.unit; wrap: word-wrap; }
-        if root.android-platform: Text { text: @tr("Android 应用级流量统计待接入；此处仅显示 Mihomo 核心总量。"); color: LumenTheme.text-secondary; font-size: 12 * LumenUiScale.unit; wrap: word-wrap; }
+        Text { text: root.traffic-selected-detail; color: LumenTheme.text-secondary; font-size: DesignType.caption-size; wrap: word-wrap; }
+        if root.android-platform: Text { text: @tr("Android 应用级流量统计待接入；此处仅显示 Mihomo 核心总量。"); color: LumenTheme.text-secondary; font-size: DesignType.caption-size; wrap: word-wrap; }
     }
 }

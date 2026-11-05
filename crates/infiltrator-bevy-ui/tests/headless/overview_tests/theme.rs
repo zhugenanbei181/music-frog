@@ -91,7 +91,7 @@ fn theme_flip_repaints_every_page_surface_in_place() {
 
     let (_, banner_fill, _) = card(world);
     assert_eq!(
-        banner_fill, light.accent_container,
+        banner_fill, light.surface,
         "banner fill re-derived from the light tokens"
     );
 
@@ -124,10 +124,9 @@ fn theme_flip_repaints_every_page_surface_in_place() {
 
 /// A `ThemeSwitch` must not paint role ink over state semantics: after the
 /// switch and the page's same-frame replay of its last projection, the
-/// unavailable banner keeps the danger fill, the state word its readable
-/// `on_accent` ink (not the `Display` role's plain ink a bare `apply_theme`
-/// restamp would leave behind) and the uplink its success ink — with every
-/// entity id intact.
+/// unavailable state word keeps its readable danger ink (not the `Display`
+/// role's plain ink a bare `apply_theme` restamp would leave behind) and the
+/// uplink its success ink — with every entity id intact.
 #[test]
 fn theme_switch_keeps_the_unavailable_state_inks_and_ids() {
     let dark = UiPalette::new(&Theme::dark());
@@ -135,7 +134,7 @@ fn theme_switch_keeps_the_unavailable_state_inks_and_ids() {
     let ids_before = overview_entity_ids(app.world_mut());
     let (state_id, state_text, ink) = line(app.world_mut(), OverviewLineKind::State);
     assert_eq!(state_text, "运行出错");
-    assert_eq!(ink.0, dark.on_accent, "precondition: the danger ink is on");
+    assert_eq!(ink.0, dark.danger, "precondition: the danger ink is on");
 
     app.world_mut()
         .commands()
@@ -153,7 +152,7 @@ fn theme_switch_keeps_the_unavailable_state_inks_and_ids() {
     assert_eq!(state_id_after, state_id, "the state line keeps its id");
     assert_eq!(state_text, "运行出错", "the verdict survives the switch");
     assert_eq!(
-        ink.0, light.on_accent,
+        ink.0, light.danger,
         "the state ink stays semantic after the switch"
     );
     assert_ne!(ink.0, light.ink, "role ink must not win over state ink");
@@ -165,12 +164,9 @@ fn theme_switch_keeps_the_unavailable_state_inks_and_ids() {
         "the uplink ink stays the success token"
     );
 
-    let (_, fill, stored) = card(world);
+    let (_, banner_fill, stored) = card(world);
     assert_eq!(stored, CoreLifecycle::Failed);
-    assert_eq!(
-        fill, light.danger,
-        "the banner fill re-derives from the new palette"
-    );
+    assert_eq!(banner_fill, light.surface);
 }
 
 /// Same contract for the stopped state: the state word's dim ink survives

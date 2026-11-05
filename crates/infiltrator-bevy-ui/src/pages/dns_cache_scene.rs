@@ -20,8 +20,9 @@ use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText};
 use infiltrator_bevy_widgets::modal::{ModalDialogCard, ModalScrim};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 
 /// One-off layout value (not a ladder rung): the widest the DNS cache modal
 /// card may grow on a wide viewport.
@@ -79,15 +80,15 @@ fn modal(palette: &UiPalette) -> impl Scene + use<> {
             ModalDialog
             AccessibilityNode(semantic) LocalizedLabel::plain("dns_cache_title")
             Children [
-                LocalizedText::plain("dns_cache_title") TextRole(Role::Heading)
+                LocalizedText::plain("dns_cache_title") TextRole(design_resources::TextRole::Heading)
                 --
-                Text(String::new()) CacheLine::Status TextRole(Role::Body)
+                Text(String::new()) CacheLine::Status TextRole(design_resources::TextRole::Body)
                 --
-                Text(String::new()) CacheLine::ReportLabel TextRole(Role::Caption)
+                Text(String::new()) CacheLine::ReportLabel TextRole(design_resources::TextRole::Caption)
                 --
-                Text(String::new()) CacheLine::FakeIp TextRole(Role::Caption)
+                Text(String::new()) CacheLine::FakeIp TextRole(design_resources::TextRole::Caption)
                 --
-                Text(String::new()) CacheLine::System TextRole(Role::Caption)
+                Text(String::new()) CacheLine::System TextRole(design_resources::TextRole::Caption)
                 --
                 Node { width: percent(100), column_gap: rem(space::S12), justify_content: JustifyContent::FlexEnd }
                 Children [

@@ -4,9 +4,9 @@ import android.content.Context
 import android.os.SystemClock
 import android.util.Log
 import infiltrator_android.AndroidHostReply
+import org.json.JSONObject
 import java.io.File
 import java.io.IOException
-import org.json.JSONObject
 
 private const val TAG = "CoreHost"
 

@@ -46,7 +46,7 @@
     <string name="title_import_local_profile">导入本地配置</string>
     <string name="title_delete_profile">删除配置</string>
     <string name="label_name">名称</string>
-    <string name="label_url">订阅链接 (URL)</string>
+    <string name="label_url">订阅链接</string>
     <string name="label_profile_content">配置内容</string>
     <string name="label_activate_after_save">保存后激活</string>
     <string name="label_subscription_url">订阅链接</string>
@@ -177,7 +177,7 @@
     <string name="action_remove">移除</string>
     <string name="action_save_rules">保存规则</string>
     <string name="section_providers">规则提供者</string>
-    <string name="label_providers_json">提供者配置 (JSON)</string>
+    <string name="label_providers_json">提供者配置</string>
     <string name="action_save_providers">保存配置</string>
     <string name="action_reload_all">全部重载</string>
     <string name="text_providers_saved">配置已保存</string>
@@ -207,7 +207,7 @@
     <!-- Sync / WebDAV -->
     <string name="title_webdav_sync">WebDAV 同步</string>
     <string name="label_enable_webdav">启用 WebDAV 同步</string>
-    <string name="label_webdav_url">WebDAV 地址 (URL)</string>
+    <string name="label_webdav_url">WebDAV 地址</string>
     <string name="label_username">用户名</string>
     <string name="label_password">密码</string>
     <string name="label_sync_interval">同步间隔 (分钟)</string>
@@ -273,4 +273,16 @@
     <string name="owner_health_unhealthy">异常</string>
     <string name="owner_outbound_selected">已选择：%1$s</string>
     <string name="owner_outbound_preferences_unavailable">Owner 暂未提供节点偏好设置。</string>
+    <string name="brand_name">MusicFrog</string>
+    <string name="app_display_name">MusicFrog Infiltrator</string>
+    <string name="configuration_saving">保存配置</string>
+    <string name="configuration_saved">已保存</string>
+    <string name="configuration_failed">保存失败</string>
+    <string name="performance_snapshot">性能快照</string>
+    <string name="performance_navigate_to_first_paint">导航至首帧：%1$s</string>
+    <string name="common_close">关闭</string>
+    <string name="common_retry">重试</string>
+    <string name="dismiss_probe_batch">关闭</string>
+    <string name="layout_density">布局密度</string>
+    <string name="a11y_value_prefix">%1$s：%2$s</string>
 </resources>

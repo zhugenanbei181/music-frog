@@ -1,8 +1,12 @@
 import { MaterialSchemes } from "@material";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
-// EFFECTS-041 / SLINTUI-007 #31: the tabular-figure family for live
-// numerals; registered at compile time from the shared asset bundle.
+import { DesignType } from "./design-type.slint";
+// The five shipped physical faces are registered once from the shared owner.
+import "../../../infiltrator-shared/assets/fonts/Inter-Regular.ttf";
+import "../../../infiltrator-shared/assets/fonts/Inter-Medium.ttf";
+import "../../../infiltrator-shared/assets/fonts/Inter-SemiBold.ttf";
 import "../../../infiltrator-shared/assets/fonts/JetBrainsMono-Regular.ttf";
+import "../../../infiltrator-shared/assets/fonts/CJK-Regular.ttf";
 
 export global LumenTheme {
     in-out property <bool> dark-mode: false;
@@ -143,7 +147,7 @@ export global LumenTheme {
     out property <color> preference-off: root.amoled-mode ? #282828 : (root.forest-mode ? #D5E0CC : (root.dark-mode ? #383838 : #D8D8DC));
     out property <color> preference-accent: root.accent;
     out property <length> preference-card-radius: 28 * LumenUiScale.unit;
-    out property <length> preference-text-size: 18 * LumenUiScale.unit;
+    out property <length> preference-text-size: DesignType.subheading-size;
     out property <length> space-1: 4 * LumenUiScale.unit;
     out property <length> space-2: 8 * LumenUiScale.unit;
     out property <length> space-3: 12 * LumenUiScale.unit;
@@ -170,19 +174,23 @@ export global LumenTheme {
     out property <color> shadow-ambient-color: root.dark-mode || root.amoled-mode ? #00000055 : #0F172A22;
     out property <length> shadow-ambient-blur: 24 * LumenUiScale.unit;
     out property <length> shadow-ambient-offset-y: 6 * LumenUiScale.unit;
-    out property <color> shadow-key-color: root.dark-mode || root.amoled-mode ? #00000070 : #0F172A38;
-    out property <length> shadow-key-blur: 8 * LumenUiScale.unit;
-    out property <length> shadow-key-offset-y: 2 * LumenUiScale.unit;
+    out property <color> shadow-key-color: root.dark-mode || root.amoled-mode ? #000000A0 : #0F172A38;
+    out property <length> shadow-key-blur: 16 * LumenUiScale.unit;
+    out property <length> shadow-key-offset-y: 4 * LumenUiScale.unit;
     // EFFECTS-037 #152: the 1px semi-transparent inner hairline of cards.
-    out property <color> hairline-glow: root.dark-mode || root.amoled-mode ? #FFFFFF14 : #0F172A0F;
+    out property <color> hairline-glow: root.dark-mode || root.amoled-mode ? #FFFFFF1E : #0F172A0F;
     out property <length> hairline-width: LumenUiScale.unit;
+    // Semantic status colors matching contract OUTBOUND_STATUS_PALETTE (TODO-003)
+    out property <color> status-running: #10B981;
+    out property <color> status-running-soft: #10B98126;
         // SLINTUI-007 #31: the mono family for live-updating numerals — fixed
     // advance widths keep counters from jittering as digits change.
-    out property <string> mono-family: "JetBrains Mono";
+    out property <string> mono-family: DesignType.mono-family;
+    out property <string> default-family: DesignType.body-family;
         out property <length> min-touch-target: 48 * LumenUiScale.unit;
     out property <length> page-padding: 16 * LumenUiScale.unit;
     out property <length> navigation-height: 56 * LumenUiScale.unit;
-    out property <length> title-size: 28 * LumenUiScale.unit;
-    out property <length> body-size: 16 * LumenUiScale.unit;
-    out property <length> supporting-size: 14 * LumenUiScale.unit;
+    out property <length> title-size: DesignType.display-size;
+    out property <length> body-size: DesignType.bodyLarge-size;
+    out property <length> supporting-size: DesignType.label-size;
 }

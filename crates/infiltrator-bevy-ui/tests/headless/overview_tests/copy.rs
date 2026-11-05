@@ -121,7 +121,11 @@ fn pending_lifecycles_are_visible_without_fabricated_errors_and_their_ink_surviv
             line(app.world_mut(), OverviewLineKind::State).2.0,
             palette.warning
         );
-        assert_eq!(card(app.world_mut()).1, palette.accent_container);
+        assert_eq!(
+            card(app.world_mut()).1,
+            palette.surface,
+            "the banner keeps the standard surface after a Light re-skin"
+        );
         let dot = app
             .world_mut()
             .query::<(&StatusDot, &BackgroundColor)>()

@@ -1,21 +1,17 @@
 package com.musicfrog.infiltrator.ui
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CloudSync
-import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.outlined.Shield
-import androidx.compose.material.icons.outlined.Storage
-import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.musicfrog.infiltrator.R
+import com.musicfrog.infiltrator.ui.common.AppIcon
+import com.musicfrog.infiltrator.ui.common.AppIconSemantic
 
 internal enum class AppSection(val titleRes: Int, val icon: ImageVector) {
-    Overview(R.string.nav_overview, Icons.Outlined.Shield),
-    Profiles(R.string.nav_profiles, Icons.Outlined.Storage),
-    Proxies(R.string.nav_proxies, Icons.Outlined.Tune),
-    AppRouting(R.string.nav_settings, Icons.Outlined.Settings),
-    Sync(R.string.nav_sync, Icons.Outlined.CloudSync),
+    Overview(R.string.nav_overview, AppIcon.image(AppIconSemantic.Shield)),
+    Profiles(R.string.nav_profiles, AppIcon.image(AppIconSemantic.Server)),
+    Proxies(R.string.nav_proxies, AppIcon.image(AppIconSemantic.Settings)),
+    AppRouting(R.string.nav_settings, AppIcon.image(AppIconSemantic.Settings)),
+    Sync(R.string.nav_sync, AppIcon.image(AppIconSemantic.Refresh)),
 }
 
 internal enum class SettingsDestination(val titleRes: Int) {

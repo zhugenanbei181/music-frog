@@ -1,103 +1,105 @@
 import {
-    FilledButton, IconButton, LargeAppBar, MaterialPalette, MaterialSchemes,
-    NavigationBar, PopupMenu, SmallAppBar, Switch, TextField, TonalButton,
-    ModalBottomSheet, MaterialWindow
+        FilledButton, IconButton, LargeAppBar, MaterialPalette, MaterialSchemes,
+        NavigationBar, PopupMenu, SmallAppBar, Switch, TextField, TonalButton,
+        ModalBottomSheet, MaterialWindow
 } from "@material";
 export { Palette } from "std-widgets.slint";
 export { MaterialWindowAdapter } from "@material";
 import { LumenTheme } from "components/theme.slint";
 export { LumenTheme }
+import { DesignType } from "components/design-type.slint";
 
 import { LumenUiScale } from "lumen-ui-scale.slint";
-import { ProfileCard, OverrideCard, ProfileOverrideChoice, ObservationRow, ProxyGroup, TrafficBar, HomeTrafficPoint, LicenseRow, WorkbenchItem, OverviewCardSlot } from "components/models.slint";
+import { ProfileCard, OverrideCard, ProfileOverrideChoice, ObservationRow, ConnectionRow, ProxyGroup, TrafficBar, HomeTrafficPoint, LicenseRow, WorkbenchItem, OverviewCardSlot, DashboardFacts, DashboardFactsDefaults } from "components/models.slint";
 import { ProfileOverlays } from "components/profile_overlays.slint";
 import { OverviewOrderOverlay } from "components/overview_order.slint";
 import { SettingsOverlays } from "components/settings_overlays.slint";
 import { AppBottomBar, ClearTrafficDialog, DesktopTitleBar, NoticeBanner, SettingsMessageBanner, ProfileSettingsTypeMenu, ProfileAddTypeMenu, ProxySortMenu } from "components/app_chrome.slint";
 import { AppBody } from "components/app_body.slint";
+import { PageTitles } from "components/page_titles.slint";
 import { PageWorkbench } from "pages/page_workbench.slint";
 import { ConnectionSort, LogLevel, NetworkMode, RouteMode, RuntimeStatus, ThemeMode, TrafficRange } from "components/domain_enums.slint";
 
 export component AppWindow inherits MaterialWindow {
-    title: "MusicFrog Infiltrator";
-    no-frame: root.frameless;
-    background: LumenTheme.canvas;
-    disable-hover: root.android-platform;
-    default-font-family: root.android-platform ? "Noto Sans CJK SC" : "";
-    property <bool> compact-layout: root.android-platform || root.width < 760 * LumenUiScale.unit;
-    property <bool> platform-dark-mode: MaterialPalette.color-scheme == ColorScheme.dark;
-    in-out property <bool> frameless: false;
-    // EFFECTS-041 #167: the frameless desktop chrome's window controls.
-    callback window-minimize(); callback window-toggle-maximize(); callback window-close();
-    in-out property <bool> is-maximized: false; in-out property <bool> window-focused: true; callback window-focus-changed(bool);
-    in-out property <string> title-bar-upload: "0 B/s"; in-out property <string> title-bar-download: "0 B/s"; callback title-bar-search-clicked();
-    in-out property <color> sidebar-background: LumenTheme.zinc-2;
-    in-out property <bool> android-platform: false;
-    in-out property <string> product-version: "0.68.2";
-    in-out property <bool> layout-debug-tools-enabled: false;
-    in-out property <bool> layout-debug-bounds: false;
-    in-out property <bool> application-dark-mode: false;
-    in-out property <ThemeMode> theme-mode: ThemeMode.system;
-    in-out property <bool> auto-start: false;
-    in-out property <bool> refresh-current-profile-on-start: false;
-    in-out property <bool> invert-theme-foreground: false;
-    in-out property <color> theme-color: #016888;
-    in-out property <bool> theme-accent-light-foreground: true;
-    in-out property <string> theme-color-code: "#016888"; in-out property <string> theme-color-input-code: "##016888";
-    in-out property <float> theme-hue: 198; in-out property <float> theme-saturation: 0.66; in-out property <float> theme-value: 0.50;
-    in-out property <string> application-language: "system"; in-out property <string> system-language: "zh-CN"; in-out property <string> current-translated-language: "";
-    in-out property <int> page-scale-percent: 100;
-    in-out property <bool> hide-bottom-bar-on-scroll: false;
-    in-out property <bool> bottom-bar-visible: true;
-    in-out property <bool> predictive-back-enabled: false;
-    in-out property <bool> predictive-back-supported: false;
-    in-out property <bool> hide-background-card: false;
-    in-out property <bool> show-traffic-notification: false;
-    in-out property <bool> release-ui-when-background: false;
-    in-out property <bool> ignore-battery-optimizations: false;
-    in-out property <int> app-settings-preview-section: -1;
-    in-out property <string> app-settings-message: "";
-    in-out property <bool> theme-color-dialog-open: false;
-    in-out property <string> theme-color-draft: "#016888"; in-out property <string> theme-color-code-draft: "##016888";
-    in-out property <float> theme-hue-draft: 198; in-out property <float> theme-saturation-draft: 0.66; in-out property <float> theme-value-draft: 0.50;
-    in-out property <string> theme-color-error: ""; in-out property <bool> theme-color-saving: false; in-out property <bool> theme-color-code-edited: false;
-    in-out property <int> theme-color-result-revision: 0;
-    in-out property <int> page-scale-draft: 100;
-    in-out property <bool> page-scale-dialog-open: false;
-    in-out property <bool> page-scale-committing: false;
-    in-out property <length> app-language-anchor-x: 0 * LumenUiScale.unit;
-    in-out property <length> app-language-anchor-y: 0 * LumenUiScale.unit;
-    in-out property <length> app-theme-anchor-x: 0 * LumenUiScale.unit;
-    in-out property <length> app-theme-anchor-y: 0 * LumenUiScale.unit;
-    in-out property <length> last-page-scroll-y: 0 * LumenUiScale.unit;
-    in-out property <bool> profile-add-open: false;
-    in-out property <int> profile-add-kind-index: 0;
-    in-out property <int> profile-count-at-open: 0;
+        title: "MusicFrog Infiltrator";
+        no-frame: root.frameless;
+        background: LumenTheme.canvas;
+        disable-hover: root.android-platform;
+        default-font-family: DesignType.body-family;
+        property <bool> compact-layout: root.android-platform || root.width < 760 * LumenUiScale.unit;
+        property <bool> platform-dark-mode: MaterialPalette.color-scheme == ColorScheme.dark;
+        in-out property <bool> frameless: false;
+        // EFFECTS-041 #167: the frameless desktop chrome's window controls.
+        callback window-minimize(); callback window-toggle-maximize(); callback window-close();
+        in-out property <bool> is-maximized: false; in-out property <bool> window-focused: true; callback window-focus-changed(bool);
+        in-out property <string> title-bar-upload: "0 B/s"; in-out property <string> title-bar-download: "0 B/s"; callback title-bar-search-clicked();
+        in-out property <color> sidebar-background: LumenTheme.zinc-2;
+        in-out property <bool> android-platform: false;
+        in-out property <string> product-version: "0.68.2";
+        in-out property <bool> layout-debug-tools-enabled: false;
+        in-out property <bool> layout-debug-bounds: false;
+        in-out property <bool> application-dark-mode: false;
+        in-out property <ThemeMode> theme-mode: ThemeMode.system;
+        in-out property <bool> auto-start: false;
+        in-out property <bool> refresh-current-profile-on-start: false;
+        in-out property <bool> invert-theme-foreground: false;
+        in-out property <color> theme-color: #016888;
+        in-out property <bool> theme-accent-light-foreground: true;
+        in-out property <string> theme-color-code: "#016888"; in-out property <string> theme-color-input-code: "##016888";
+        in-out property <float> theme-hue: 198; in-out property <float> theme-saturation: 0.66; in-out property <float> theme-value: 0.50;
+        in-out property <string> application-language: "system"; in-out property <string> system-language: "zh-CN"; in-out property <string> current-translated-language: "";
+        in-out property <int> page-scale-percent: 100;
+        in-out property <bool> hide-bottom-bar-on-scroll: false;
+        in-out property <bool> bottom-bar-visible: true;
+        in-out property <bool> predictive-back-enabled: false;
+        in-out property <bool> predictive-back-supported: false;
+        in-out property <bool> hide-background-card: false;
+        in-out property <bool> show-traffic-notification: false;
+        in-out property <bool> release-ui-when-background: false;
+        in-out property <bool> ignore-battery-optimizations: false;
+        in-out property <int> app-settings-preview-section: -1;
+        in-out property <string> app-settings-message: "";
+        in-out property <bool> theme-color-dialog-open: false;
+        in-out property <string> theme-color-draft: "#016888"; in-out property <string> theme-color-code-draft: "##016888";
+        in-out property <float> theme-hue-draft: 198; in-out property <float> theme-saturation-draft: 0.66; in-out property <float> theme-value-draft: 0.50;
+        in-out property <string> theme-color-error: ""; in-out property <bool> theme-color-saving: false; in-out property <bool> theme-color-code-edited: false;
+        in-out property <int> theme-color-result-revision: 0;
+        in-out property <int> page-scale-draft: 100;
+        in-out property <bool> page-scale-dialog-open: false;
+        in-out property <bool> page-scale-committing: false;
+        in-out property <length> app-language-anchor-x: 0 * LumenUiScale.unit;
+        in-out property <length> app-language-anchor-y: 0 * LumenUiScale.unit;
+        in-out property <length> app-theme-anchor-x: 0 * LumenUiScale.unit;
+        in-out property <length> app-theme-anchor-y: 0 * LumenUiScale.unit;
+        in-out property <length> last-page-scroll-y: 0 * LumenUiScale.unit;
+        in-out property <bool> profile-add-open: false;
+        in-out property <int> profile-add-kind-index: 0;
+        in-out property <int> profile-count-at-open: 0;
 
-    // The real on-screen geometry of the sheet the surface opened. The parity
-    // capture path publishes these bounds with its activation marker, so a
-    // pixel receipt is bound to the surface that was actually activated.
-    out property <bool> capture-page-open: root.page == "Dns" || root.page == "Editor" || root.page == "Filters" || root.page == "Doctor" || root.page == "Sync" || root.page == "AppRouting" || root.page == "Rules" || root.page == "Logs" || root.page == "Connections" || root.page == "Proxy" || root.page == "ConnectionsWorkbench" || root.page == "LogsWorkbench" || root.page == "RuntimeWorkbench" || root.page == "ProxiesWorkbench" || root.page == "RulesWorkbench" || root.page == "SettingsWorkbench" || root.page == "ShellWorkbench" || root.page == "OverviewWorkbench";
-    out property <bool> capture-sheet-open: root.profile-add-open || root.pending-delete-id != "" || root.overview-order-open || root.capture-page-open;
-    out property <length> capture-bounds-x: root.capture-page-open ? 0 * LumenUiScale.unit : root.profile-add-open ? profile-overlays.add-sheet-x : root.overview-order-open ? overview-order-overlay.order-sheet-x : profile-overlays.delete-sheet-x;
-    out property <length> capture-bounds-y: root.capture-page-open ? 0 * LumenUiScale.unit : root.profile-add-open ? profile-overlays.add-sheet-y : root.overview-order-open ? overview-order-overlay.order-sheet-y : profile-overlays.delete-sheet-y;
-    out property <length> capture-bounds-width: root.capture-page-open ? root.width : root.profile-add-open ? profile-overlays.add-sheet-width : root.overview-order-open ? overview-order-overlay.order-sheet-width : profile-overlays.delete-sheet-width;
-    out property <length> capture-bounds-height: root.capture-page-open ? root.height : root.profile-add-open ? profile-overlays.add-sheet-height : root.overview-order-open ? overview-order-overlay.order-sheet-height : profile-overlays.delete-sheet-height;
-    in-out property <int> back-request-revision: 0;
-    property <length> profile-sheet-width: min(640 * LumenUiScale.unit, max(0 * LumenUiScale.unit, root.width - 48 * LumenUiScale.unit));
-    property <length> app-settings-bottom-inset: max(root.safe-area-insets.bottom, root.virtual-keyboard-size.height > 0 * LumenUiScale.unit ? max(0 * LumenUiScale.unit, root.height - root.virtual-keyboard-position.y) : 0 * LumenUiScale.unit);
-    property <length> profile-sheet-content-width: max(0 * LumenUiScale.unit, root.profile-sheet-width - 16 * LumenUiScale.unit);
-    property <length> profile-dialog-width: min(640 * LumenUiScale.unit, max(0 * LumenUiScale.unit, root.width - 24 * LumenUiScale.unit));
-    property <length> profile-dialog-content-width: max(0 * LumenUiScale.unit, root.profile-dialog-width - 16 * LumenUiScale.unit);
-    property <length> profile-sheet-content-height: 364 * LumenUiScale.unit;
-    property <length> profile-settings-sheet-height: min(root.profile-settings-type-index == 1 ? 640 * LumenUiScale.unit : root.profile-settings-kind == "remote_subscription" ? 520 * LumenUiScale.unit : 340 * LumenUiScale.unit, max(0 * LumenUiScale.unit, root.height - root.safe-area-insets.top - root.safe-area-insets.bottom - 52 * LumenUiScale.unit));
-    property <length> home-title-gap: root.height < 760 * LumenUiScale.unit ? 32 * LumenUiScale.unit : root.height < 840 * LumenUiScale.unit ? 64 * LumenUiScale.unit : 74 * LumenUiScale.unit;
-    property <length> home-data-upload-gap: root.height < 760 * LumenUiScale.unit ? 24 * LumenUiScale.unit : root.height < 840 * LumenUiScale.unit ? 24 * LumenUiScale.unit : 40 * LumenUiScale.unit;
-    property <length> home-before-node-gap: root.height < 760 * LumenUiScale.unit ? 16 * LumenUiScale.unit : root.height < 840 * LumenUiScale.unit ? 16 * LumenUiScale.unit : 28 * LumenUiScale.unit;
-    property <length> home-node-egress-gap: 8 * LumenUiScale.unit;
-    property <bool> primary-page: root.page == "Home" || root.page == "Proxy" || root.page == "Config" || root.page == "Settings" || root.page == "SettingsWorkbench";
+        // The real on-screen geometry of the sheet the surface opened. The parity
+        // capture path publishes these bounds with its activation marker, so a
+        // pixel receipt is bound to the surface that was actually activated.
+        out property <bool> capture-page-open: root.page == "Dns" || root.page == "Editor" || root.page == "Filters" || root.page == "Doctor" || root.page == "Sync" || root.page == "AppRouting" || root.page == "Rules" || root.page == "Logs" || root.page == "Connections" || root.page == "Proxy" || root.page == "ConnectionsWorkbench" || root.page == "LogsWorkbench" || root.page == "RuntimeWorkbench" || root.page == "ProxiesWorkbench" || root.page == "RulesWorkbench" || root.page == "SettingsWorkbench" || root.page == "ShellWorkbench" || root.page == "OverviewWorkbench";
+        out property <bool> capture-sheet-open: root.profile-add-open || root.pending-delete-id != "" || root.overview-order-open || root.capture-page-open;
+        out property <length> capture-bounds-x: root.capture-page-open ? 0 * LumenUiScale.unit : root.profile-add-open ? profile-overlays.add-sheet-x : root.overview-order-open ? overview-order-overlay.order-sheet-x : profile-overlays.delete-sheet-x;
+        out property <length> capture-bounds-y: root.capture-page-open ? 0 * LumenUiScale.unit : root.profile-add-open ? profile-overlays.add-sheet-y : root.overview-order-open ? overview-order-overlay.order-sheet-y : profile-overlays.delete-sheet-y;
+        out property <length> capture-bounds-width: root.capture-page-open ? root.width : root.profile-add-open ? profile-overlays.add-sheet-width : root.overview-order-open ? overview-order-overlay.order-sheet-width : profile-overlays.delete-sheet-width;
+        out property <length> capture-bounds-height: root.capture-page-open ? root.height : root.profile-add-open ? profile-overlays.add-sheet-height : root.overview-order-open ? overview-order-overlay.order-sheet-height : profile-overlays.delete-sheet-height;
+        in-out property <int> back-request-revision: 0;
+        property <length> profile-sheet-width: min(640 * LumenUiScale.unit, max(0 * LumenUiScale.unit, root.width - 48 * LumenUiScale.unit));
+        property <length> app-settings-bottom-inset: max(root.safe-area-insets.bottom, root.virtual-keyboard-size.height > 0 * LumenUiScale.unit ? max(0 * LumenUiScale.unit, root.height - root.virtual-keyboard-position.y) : 0 * LumenUiScale.unit);
+        property <length> profile-sheet-content-width: max(0 * LumenUiScale.unit, root.profile-sheet-width - 16 * LumenUiScale.unit);
+        property <length> profile-dialog-width: min(640 * LumenUiScale.unit, max(0 * LumenUiScale.unit, root.width - 24 * LumenUiScale.unit));
+        property <length> profile-dialog-content-width: max(0 * LumenUiScale.unit, root.profile-dialog-width - 16 * LumenUiScale.unit);
+        property <length> profile-sheet-content-height: 364 * LumenUiScale.unit;
+        property <length> profile-settings-sheet-height: min(root.profile-settings-type-index == 1 ? 640 * LumenUiScale.unit : root.profile-settings-kind == "remote_subscription" ? 520 * LumenUiScale.unit : 340 * LumenUiScale.unit, max(0 * LumenUiScale.unit, root.height - root.safe-area-insets.top - root.safe-area-insets.bottom - 52 * LumenUiScale.unit));
+        property <length> home-title-gap: root.height < 760 * LumenUiScale.unit ? 32 * LumenUiScale.unit : root.height < 840 * LumenUiScale.unit ? 64 * LumenUiScale.unit : 74 * LumenUiScale.unit;
+        property <length> home-data-upload-gap: root.height < 760 * LumenUiScale.unit ? 24 * LumenUiScale.unit : root.height < 840 * LumenUiScale.unit ? 24 * LumenUiScale.unit : 40 * LumenUiScale.unit;
+        property <length> home-before-node-gap: root.height < 760 * LumenUiScale.unit ? 16 * LumenUiScale.unit : root.height < 840 * LumenUiScale.unit ? 16 * LumenUiScale.unit : 28 * LumenUiScale.unit;
+        property <length> home-node-egress-gap: 8 * LumenUiScale.unit;
+        property <bool> primary-page: root.page == "Home" || root.page == "Proxy" || root.page == "Config" || root.page == "Settings" || root.page == "SettingsWorkbench";
 
-    init => {
+        init => {
         MaterialPalette.schemes = LumenTheme.material-schemes;
         LumenTheme.show-layout-bounds = root.layout-debug-bounds;
         LumenUiScale.unit = 1px * (root.page-scale-percent / 100.0);
@@ -108,253 +110,256 @@ export component AppWindow inherits MaterialWindow {
         if root.theme-mode == ThemeMode.system { root.application-dark-mode = root.platform-dark-mode; }
         LumenTheme.accent-foreground = root.theme-accent-light-foreground ? #FFFFFF : #000000;
         LumenTheme.invert-semantic-foreground = root.invert-theme-foreground;
-    }
+        }
 
-    in-out property <string> page: "Home"; in-out property <string> page-origin: "Settings";
-    in-out property <RuntimeStatus> runtime-status: RuntimeStatus.stopped; in-out property <string> runtime-detail: @tr("尚未启动 Mihomo");
-    in-out property <string> active-profile: @tr("未选择配置"); in-out property <bool> has-current-profile: false;
-    in-out property <RouteMode> route-mode: RouteMode.rule; in-out property <NetworkMode> network-mode: NetworkMode.system-proxy;
-    property <string> network-mode-label: root.network-mode == NetworkMode.system-proxy ? @tr("系统代理") : root.network-mode == NetworkMode.tun ? "TUN" : root.network-mode == NetworkMode.vpn ? "VPN" : root.network-mode == NetworkMode.core-only ? @tr("仅核心") : @tr("状态未知");
-    property <string> runtime-status-label: root.runtime-status == RuntimeStatus.running ? @tr("运行中") : root.runtime-status == RuntimeStatus.starting ? @tr("正在启动") : root.runtime-status == RuntimeStatus.stopping ? @tr("正在停止") : root.runtime-status == RuntimeStatus.failed ? @tr("启动失败") : @tr("已停止");
-    in-out property <string> network-mode-status: @tr("Runtime 未运行");
-    in-out property <bool> network-mode-status-warning: false;
-    in-out property <bool> tun-capable: false;
-    in-out property <string> tun-capability-detail: @tr("TUN 平台适配未验证");
-    in-out property <string> lan-sharing-heading: ""; in-out property <string> lan-sharing-detail: "";
-    // The network-mode confirmation is the toolkit's popup window, so the
-    // popup owns the open/close lifecycle and this property only reads it.
-    out property <bool> network-mode-dialog-open: settings-overlays.network-mode-dialog-open;
-    in-out property <string> notice: "";
-    in-out property <string> snapshot-window-warning: "";
-    in-out property <string> profile-name: ""; in-out property <string> profile-url: ""; in-out property <string> profile-age-key: "";
-    in-out property <string> proxy-search: ""; in-out property <string> override-name: "";
-    in-out property <string> override-body: ""; in-out property <string> override-url: "";
-    in-out property <bool> override-importing: false; in-out property <string> override-import-error: "";
-    in-out property <string> search-text: ""; in-out property <string> connection-search: "";
-    in-out property <ConnectionSort> connection-sort: ConnectionSort.time; in-out property <bool> connection-show-closed: false;
-    in-out property <string> connection-detail-host: ""; in-out property <string> connection-detail-id: "";
-    in-out property <string> connection-detail-protocol: ""; in-out property <string> connection-detail-process: "";
-    in-out property <string> connection-detail-source: ""; in-out property <string> connection-detail-destination: "";
-    in-out property <string> connection-detail-rule: ""; in-out property <string> connection-detail-chains: "";
-    in-out property <string> connection-detail-providers: ""; in-out property <string> connection-detail-start: "";
-    in-out property <string> connection-detail-duration: ""; in-out property <string> connection-detail-upload: "";
-    in-out property <string> connection-detail-download: "";
-    in-out property <bool> connection-detail-active: false;
-    in-out property <string> connection-breaking-id: "";
-    in-out property <string> log-search: "";
-    in-out property <LogLevel> log-level: LogLevel.all;
-    in-out property <string> log-stream-status: "未运行";
-    // The reason the shared log search could not apply the typed query. The
-    // shared model owns the outcome, so the page shows its own reason.
-    in-out property <string> log-search-error: "";
-    in-out property <string> rule-search: "";
-    in-out property <string> rule-pending-index: "";
-    in-out property <string> stat-down: "0 B/s";
-    in-out property <string> stat-up: "0 B/s";
-    in-out property <string> stat-down-value: "0";
-    in-out property <string> stat-down-unit: "B/s";
-    in-out property <string> stat-up-compact: "0 B";
-    in-out property <string> home-current-node: @tr("未知");
-    in-out property <string> home-current-accessible: @tr("未知");
-    in-out property <string> home-current-flag-code: "";
-    in-out property <int> home-current-flag-index: -1;
-    in-out property <string> home-current-delay: "—";
-    in-out property <string> home-exit-ip: "—";
-    in-out property <string> home-exit-country-code: "";
-    in-out property <int> home-exit-flag-index: -1;
-    in-out property <string> home-exit-status: "";
-    // The Overview cards in the order the shared owner published. The surface
-    // never keeps an order of its own, so the list is the owner's readback.
-    in-out property <[OverviewCardSlot]> overview-cards: [];
-    in-out property <bool> overview-order-open: false;
-    in-out property <[HomeTrafficPoint]> home-traffic-points: [];
-    in-out property <bool> home-traffic-has-data: false;
-    in-out property <string> traffic-stream-status: @tr("未运行");
-    in-out property <string> stat-connections: "0";
-    in-out property <string> stat-total-down: "0 B";
-    in-out property <string> stat-total-up: "0 B";
-    in-out property <string> traffic-today-down: "0 B";
-    in-out property <string> traffic-today-up: "0 B";
-    in-out property <string> traffic-week-down: "0 B";
-    in-out property <string> traffic-week-up: "0 B";
-    in-out property <string> traffic-week-average-down: "0 B";
-    in-out property <string> traffic-week-average-up: "0 B";
-    in-out property <[TrafficBar]> traffic-today-bars: [];
-    in-out property <[TrafficBar]> traffic-week-bars: [];
-    in-out property <bool> traffic-today-has-data: false;
-    in-out property <bool> traffic-week-has-data: false;
-    in-out property <TrafficRange> traffic-range: TrafficRange.today;
-    in-out property <string> traffic-selected-detail: "";
-    // The clear-traffic confirmation is the toolkit's popup window, so the
-    // popup owns the open/close lifecycle and this property only reads it.
-    out property <bool> clear-traffic-dialog-open: clear-traffic-dialog.is-open;
-    in-out property <[ObservationRow]> traffic-samples: [];
-    in-out property <[ObservationRow]> rules: [];
-    in-out property <[ObservationRow]> providers: [];
-    in-out property <[ObservationRow]> logs: [];
-    in-out property <[ObservationRow]> connections: [];
-    in-out property <[ProxyGroup]> proxy-groups: [];
-    in-out property <[ObservationRow]> proxy-nodes: [];
-    in-out property <bool> proxy-recovery-pending: false;
-    in-out property <string> proxy-sort-mode: "name_asc";
-    in-out property <string> proxy-testing-group: "";
-    in-out property <string> proxy-testing-node: "";
-    in-out property <string> selected-group: "";
-    in-out property <length> proxy-active-node-position: 0 * LumenUiScale.unit;
-    in-out property <bool> proxy-current-node-available: false;
-    in-out property <[ProfileCard]> profiles: [];
-    in-out property <string> profile-action-id: "";
-    in-out property <string> profile-action-name: "";
-    in-out property <bool> profile-action-open: false;
-    in-out property <string> pending-delete-id: "";
-    in-out property <string> pending-delete-name: "";
-    in-out property <string> pending-profile-export-id: "";
-    in-out property <string> pending-profile-export-name: "";
-    in-out property <string> profile-settings-id: "";
-    in-out property <string> profile-settings-name: "";
-    in-out property <string> profile-settings-url: "";
-    in-out property <string> profile-settings-location: "";
-    in-out property <string> profile-settings-kind: "";
-    in-out property <string> profile-settings-age-key: "";
-    in-out property <bool> profile-settings-age-configured: false;
-    in-out property <bool> profile-settings-saving: false;
-    in-out property <int> profile-settings-type-index: 0;
-    in-out property <length> profile-settings-type-anchor-x: 0 * LumenUiScale.unit; in-out property <length> profile-settings-type-anchor-y: 0 * LumenUiScale.unit; in-out property <length> profile-add-type-anchor-x: 0 * LumenUiScale.unit; in-out property <length> profile-add-type-anchor-y: 0 * LumenUiScale.unit;
-    in-out property <[ProfileOverrideChoice]> profile-settings-overrides: [];
-    in-out property <string> user-agent: "";
-    in-out property <string> user-agent-draft: "";
-    in-out property <string> user-agent-error: "";
-    in-out property <bool> user-agent-dialog-open: false;
-    in-out property <bool> user-agent-saving: false;
-    in-out property <int> user-agent-save-revision: 0;
-    in-out property <int> user-agent-result-revision: 0;
-    in-out property <[OverrideCard]> overrides: [];
-    in-out property <string> override-edit-id: "";
-    in-out property <string> content-preview: "";
-    in-out property <string> content-preview-profile: "";
-    in-out property <string> core-version: "";
-    in-out property <[LicenseRow]> license-rows: []; in-out property <int> license-rows-revision: 0;
-    in-out property <string> license-query: ""; in-out property <string> license-catalog-error: "";
-    in-out property <string> license-detail-name: ""; in-out property <string> license-detail-version: "";
-    in-out property <string> license-detail-identifier: ""; in-out property <string> license-detail-text: "";
-    in-out property <string> license-detail-error: ""; in-out property <int> license-detail-revision: 0;
-    in-out property <[WorkbenchItem]> workbench-items: []; in-out property <string> workbench-draft: "";
-    in-out property <string> workbench-draft-2: ""; in-out property <string> workbench-draft-id: "";
-    in-out property <string> workbench-draft-2-id: ""; in-out property <string> workbench-draft-placeholder: "";
-    in-out property <string> workbench-draft-2-placeholder: "";
+        in-out property <string> page: "Home"; in-out property <string> page-origin: "Settings";
+        in-out property <RuntimeStatus> runtime-status: RuntimeStatus.stopped; in-out property <string> runtime-detail: @tr("尚未启动 Mihomo");
+        in-out property <string> active-profile: @tr("未选择配置"); in-out property <bool> has-current-profile: false;
+        in-out property <RouteMode> route-mode: RouteMode.rule; in-out property <NetworkMode> network-mode: NetworkMode.system-proxy;
+        // The one copy source for the takeover mode: the sidebar and the settings
+        // page read this, and it now derives from the typed enum through the same
+        // pure function the rest of the surface uses.
+        property <string> network-mode-label: PageTitles.network-mode-title(root.network-mode);
+        property <string> runtime-status-label: root.runtime-status == RuntimeStatus.running ? @tr("运行中") : root.runtime-status == RuntimeStatus.starting ? @tr("正在启动") : root.runtime-status == RuntimeStatus.stopping ? @tr("正在停止") : root.runtime-status == RuntimeStatus.failed ? @tr("启动失败") : @tr("已停止");
+        in-out property <string> network-mode-status: @tr("Runtime 未运行");
+        in-out property <bool> network-mode-status-warning: false;
+        in-out property <bool> tun-capable: false;
+        in-out property <string> tun-capability-detail: @tr("TUN 平台适配未验证");
+        in-out property <string> lan-sharing-heading: ""; in-out property <string> lan-sharing-detail: "";
+        // The network-mode confirmation is the toolkit's popup window, so the
+        // popup owns the open/close lifecycle and this property only reads it.
+        out property <bool> network-mode-dialog-open: settings-overlays.network-mode-dialog-open;
+        in-out property <string> notice: "";
+        in-out property <string> snapshot-window-warning: "";
+        in-out property <string> profile-name: ""; in-out property <string> profile-url: ""; in-out property <string> profile-age-key: "";
+        in-out property <string> proxy-search: ""; in-out property <string> override-name: "";
+        in-out property <string> override-body: ""; in-out property <string> override-url: "";
+        in-out property <bool> override-importing: false; in-out property <string> override-import-error: "";
+        in-out property <string> search-text: ""; in-out property <string> connection-search: "";
+        in-out property <ConnectionSort> connection-sort: ConnectionSort.time; in-out property <bool> connection-show-closed: false;
+        in-out property <string> connection-detail-host: ""; in-out property <string> connection-detail-id: "";
+        in-out property <string> connection-detail-protocol: ""; in-out property <string> connection-detail-process: "";
+        in-out property <string> connection-detail-source: ""; in-out property <string> connection-detail-destination: "";
+        in-out property <string> connection-detail-rule: ""; in-out property <string> connection-detail-chains: "";
+        in-out property <string> connection-detail-providers: ""; in-out property <string> connection-detail-start: "";
+        in-out property <string> connection-detail-duration: ""; in-out property <string> connection-detail-upload: "";
+        in-out property <string> connection-detail-download: "";
+        in-out property <bool> connection-detail-active: false;
+        in-out property <string> connection-breaking-id: "";
+        in-out property <string> log-search: "";
+        in-out property <LogLevel> log-level: LogLevel.all;
+        in-out property <string> log-stream-status: "未运行";
+        // The reason the shared log search could not apply the typed query. The
+        // shared model owns the outcome, so the page shows its own reason.
+        in-out property <string> log-search-error: "";
+        in-out property <string> rule-search: "";
+        in-out property <string> rule-pending-index: "";
+        in-out property <string> stat-down: "0 B/s";
+        in-out property <string> stat-up: "0 B/s";
+        in-out property <string> stat-down-value: "0";
+        in-out property <string> stat-down-unit: "B/s";
+        in-out property <string> stat-up-compact: "0 B";
+        in-out property <string> home-current-node: @tr("未知");
+        in-out property <string> home-current-accessible: @tr("未知");
+        in-out property <string> home-current-flag-code: "";
+        in-out property <int> home-current-flag-index: -1;
+        in-out property <string> home-current-delay: "—";
+        in-out property <string> home-exit-ip: "—";
+        in-out property <string> home-exit-country-code: "";
+        in-out property <int> home-exit-flag-index: -1;
+        in-out property <string> home-exit-status: "";
+        in-out property <DashboardFacts> dashboard-facts: DashboardFactsDefaults.value;
+        // The Overview cards in the order the shared owner published. The surface
+        // never keeps an order of its own, so the list is the owner's readback.
+        in-out property <[OverviewCardSlot]> overview-cards: [];
+        in-out property <bool> overview-order-open: false;
+        in-out property <[HomeTrafficPoint]> home-traffic-points: [];
+        in-out property <bool> home-traffic-has-data: false;
+        in-out property <string> traffic-stream-status: @tr("未运行");
+        in-out property <string> stat-connections: "0";
+        in-out property <string> traffic-today-down: "0 B";
+        in-out property <string> traffic-today-up: "0 B";
+        in-out property <string> traffic-week-down: "0 B";
+        in-out property <string> traffic-week-up: "0 B";
+        in-out property <string> traffic-week-average-down: "0 B";
+        in-out property <string> traffic-week-average-up: "0 B";
+        in-out property <[TrafficBar]> traffic-today-bars: [];
+        in-out property <[TrafficBar]> traffic-week-bars: [];
+        in-out property <bool> traffic-today-has-data: false;
+        in-out property <bool> traffic-week-has-data: false;
+        in-out property <TrafficRange> traffic-range: TrafficRange.today;
+        in-out property <string> traffic-selected-detail: "";
+        // The clear-traffic confirmation is the toolkit's popup window, so the
+        // popup owns the open/close lifecycle and this property only reads it.
+        out property <bool> clear-traffic-dialog-open: clear-traffic-dialog.is-open;
+        in-out property <[ObservationRow]> traffic-samples: [];
+        in-out property <[ObservationRow]> rules: [];
+        in-out property <[ObservationRow]> providers: [];
+        in-out property <[ObservationRow]> logs: [];
+        in-out property <[ObservationRow]> connections: [];
+        in-out property <[ConnectionRow]> home-connection-table: [];
+        in-out property <[ProxyGroup]> proxy-groups: [];
+        in-out property <[ObservationRow]> proxy-nodes: [];
+        in-out property <bool> proxy-recovery-pending: false;
+        in-out property <string> proxy-sort-mode: "name_asc";
+        in-out property <string> proxy-testing-group: "";
+        in-out property <string> proxy-testing-node: "";
+        in-out property <string> selected-group: "";
+        in-out property <length> proxy-active-node-position: 0 * LumenUiScale.unit;
+        in-out property <bool> proxy-current-node-available: false;
+        in-out property <[ProfileCard]> profiles: [];
+        in-out property <string> profile-action-id: "";
+        in-out property <string> profile-action-name: "";
+        in-out property <bool> profile-action-open: false;
+        in-out property <string> pending-delete-id: "";
+        in-out property <string> pending-delete-name: "";
+        in-out property <string> pending-profile-export-id: "";
+        in-out property <string> pending-profile-export-name: "";
+        in-out property <string> profile-settings-id: "";
+        in-out property <string> profile-settings-name: "";
+        in-out property <string> profile-settings-url: "";
+        in-out property <string> profile-settings-location: "";
+        in-out property <string> profile-settings-kind: "";
+        in-out property <string> profile-settings-age-key: "";
+        in-out property <bool> profile-settings-age-configured: false;
+        in-out property <bool> profile-settings-saving: false;
+        in-out property <int> profile-settings-type-index: 0;
+        in-out property <length> profile-settings-type-anchor-x: 0 * LumenUiScale.unit; in-out property <length> profile-settings-type-anchor-y: 0 * LumenUiScale.unit; in-out property <length> profile-add-type-anchor-x: 0 * LumenUiScale.unit; in-out property <length> profile-add-type-anchor-y: 0 * LumenUiScale.unit;
+        in-out property <[ProfileOverrideChoice]> profile-settings-overrides: [];
+        in-out property <string> user-agent: "";
+        in-out property <string> user-agent-draft: "";
+        in-out property <string> user-agent-error: "";
+        in-out property <bool> user-agent-dialog-open: false;
+        in-out property <bool> user-agent-saving: false;
+        in-out property <int> user-agent-save-revision: 0;
+        in-out property <int> user-agent-result-revision: 0;
+        in-out property <[OverrideCard]> overrides: [];
+        in-out property <string> override-edit-id: "";
+        in-out property <string> content-preview: "";
+        in-out property <string> content-preview-profile: "";
+        in-out property <string> core-version: "";
+        in-out property <[LicenseRow]> license-rows: []; in-out property <int> license-rows-revision: 0;
+        in-out property <string> license-query: ""; in-out property <string> license-catalog-error: "";
+        in-out property <string> license-detail-name: ""; in-out property <string> license-detail-version: "";
+        in-out property <string> license-detail-identifier: ""; in-out property <string> license-detail-text: "";
+        in-out property <string> license-detail-error: ""; in-out property <int> license-detail-revision: 0;
+        in-out property <[WorkbenchItem]> workbench-items: []; in-out property <string> workbench-draft: "";
+        in-out property <string> workbench-draft-2: ""; in-out property <string> workbench-draft-id: "";
+        in-out property <string> workbench-draft-2-id: ""; in-out property <string> workbench-draft-placeholder: "";
+        in-out property <string> workbench-draft-2-placeholder: "";
 
-    callback navigate(string); callback color-scheme-changed(bool);
-    callback start-runtime(); callback stop-runtime();
-    callback set-route-mode(RouteMode); callback set-network-mode(NetworkMode);
-    callback check-core(); callback retry-proxy-restore();
-    callback add-override(string, string); callback import-override-url(string);
-    callback choose-override-file(); callback save-override(string, string);
-    callback delete-override(string); callback export-override(string);
-    callback edit-override(string);
-    callback apply-override(string);
-    callback add-url-profile(string, string, string);
-    callback choose-profile-file(string, string);
-    callback set-current-profile(string);
-    callback move-profile(string, bool);
-    callback delete-profile(string);
-    callback refresh-profile(string);
-    callback open-profile-settings(string);
-    callback clear-profile-age-key(string);
-    callback show-profile-preview(string);
-    callback save-profile-settings(string, string, string, string);
-    callback cancel-profile-settings();
-    callback toggle-profile-override(string, bool);
-    callback move-profile-override(string, bool);
-    callback select-proxy-group(string);
-    callback select-proxy(string, string);
-    callback search-proxy-nodes(string);
-    callback set-proxy-sort(string);
-    callback test-proxy(string, string);
-    callback refresh-home-egress();
-    callback move-overview-card(string, bool);
-    callback reset-overview-card-order();
-    callback close-connection(string);
-    callback open-connection(string);
-    callback search-connections(string);
-    callback set-connection-view(bool);
-    callback set-connection-sort(ConnectionSort);
-    callback search-logs(string);
-    callback set-log-level(LogLevel);
-    callback search-rules(string);
-    callback set-rule-enabled(string, bool);
-    callback update-provider(string);
-    callback export-logs();
-    callback refresh-observations();
-    callback save-user-agent(string);
-    callback set-refresh-profile-on-start(bool);
-    callback set-auto-start(bool);
-    callback set-theme-mode(ThemeMode);
-    callback set-invert-theme-foreground(bool);
-    callback preview-theme-color(float, float, float);
-    callback cancel-theme-color-preview();
-    callback set-theme-color(string);
-    callback set-application-language(string);
-    callback set-page-scale(int);
-    callback set-hide-bottom-bar-on-scroll(bool);
-    callback set-predictive-back-enabled(bool);
-    callback set-hide-background-card(bool);
-    callback set-show-traffic-notification(bool);
-    callback set-release-ui-when-background(bool);
-    callback request-ignore-battery-optimization();
-    callback cache-back-preview();
-    callback commit-back-preview();
-    callback confirm-delete-profile(string);
-    callback export-profile(string);
-    callback scan-profile-qr();
-    callback clear-traffic-history();
-    callback search-licenses(string);
-    callback open-license(string);
-    callback retry-license-catalog();
-    callback workbench-action(string, string); callback workbench-draft-edited(string, string);
+        callback navigate(string); callback color-scheme-changed(bool);
+        callback start-runtime(); callback stop-runtime();
+        callback set-route-mode(RouteMode); callback set-network-mode(NetworkMode);
+        callback check-core(); callback retry-proxy-restore();
+        callback add-override(string, string); callback import-override-url(string);
+        callback choose-override-file(); callback save-override(string, string);
+        callback delete-override(string); callback export-override(string);
+        callback edit-override(string);
+        callback apply-override(string);
+        callback add-url-profile(string, string, string);
+        callback choose-profile-file(string, string);
+        callback set-current-profile(string);
+        callback move-profile(string, bool);
+        callback delete-profile(string);
+        callback refresh-profile(string);
+        callback open-profile-settings(string);
+        callback clear-profile-age-key(string);
+        callback show-profile-preview(string);
+        callback save-profile-settings(string, string, string, string);
+        callback cancel-profile-settings();
+        callback toggle-profile-override(string, bool);
+        callback move-profile-override(string, bool);
+        callback select-proxy-group(string);
+        callback select-proxy(string, string);
+        callback search-proxy-nodes(string);
+        callback set-proxy-sort(string);
+        callback test-proxy(string, string);
+        callback refresh-home-egress();
+        callback move-overview-card(string, bool);
+        callback reset-overview-card-order();
+        callback close-connection(string);
+        callback open-connection(string);
+        callback search-connections(string);
+        callback set-connection-view(bool);
+        callback set-connection-sort(ConnectionSort);
+        callback search-logs(string);
+        callback set-log-level(LogLevel);
+        callback search-rules(string);
+        callback set-rule-enabled(string, bool);
+        callback update-provider(string);
+        callback export-logs();
+        callback refresh-observations();
+        callback save-user-agent(string);
+        callback set-refresh-profile-on-start(bool);
+        callback set-auto-start(bool);
+        callback set-theme-mode(ThemeMode);
+        callback set-invert-theme-foreground(bool);
+        callback preview-theme-color(float, float, float);
+        callback cancel-theme-color-preview();
+        callback set-theme-color(string);
+        callback set-application-language(string);
+        callback set-page-scale(int);
+        callback set-hide-bottom-bar-on-scroll(bool);
+        callback set-predictive-back-enabled(bool);
+        callback set-hide-background-card(bool);
+        callback set-show-traffic-notification(bool);
+        callback set-release-ui-when-background(bool);
+        callback request-ignore-battery-optimization();
+        callback cache-back-preview();
+        callback commit-back-preview();
+        callback confirm-delete-profile(string);
+        callback export-profile(string);
+        callback scan-profile-qr();
+        callback clear-traffic-history();
+        callback search-licenses(string);
+        callback open-license(string);
+        callback retry-license-catalog();
+        callback workbench-action(string, string); callback workbench-draft-edited(string, string);
 
-    changed page => { if root.page != "Proxy" && root.selected-group != "" { root.selected-group = ""; } app-body.scroll-to-top(); root.bottom-bar-visible = true; root.update-color-scheme(); }
-    changed selected-group => { root.proxy-active-node-position = 0 * LumenUiScale.unit; root.proxy-current-node-available = false; root.update-color-scheme(); root.select-proxy-group(root.selected-group); }
-    changed proxy-nodes => { root.proxy-active-node-position = 0 * LumenUiScale.unit; }
-    changed profile-add-open => { root.update-color-scheme(); profile-add-type-menu.close(); if root.profile-add-open { profile-overlays.show-add(); } else { profile-overlays.close-add(); } }
-    changed layout-debug-bounds => { LumenTheme.show-layout-bounds = root.layout-debug-bounds; }
-    changed user-agent-dialog-open => { if root.user-agent-dialog-open { settings-overlays.show-user-agent(); } else { settings-overlays.close-user-agent-sheet(); } }
-    changed profile-action-open => { if root.profile-action-open { profile-overlays.show-action(); } else { profile-overlays.close-action(); } }
-    changed pending-delete-id => { if root.pending-delete-id != "" { profile-overlays.show-delete(); } else { profile-overlays.close-delete(); } }
-    changed pending-profile-export-id => { if root.pending-profile-export-id != "" { profile-overlays.show-share(); } else { profile-overlays.close-share(); } }
-    changed profile-settings-id => { if root.profile-settings-id != "" { root.profile-settings-type-index = 0; profile-settings-type-menu.close(); profile-overlays.show-settings(); } else { profile-settings-type-menu.close(); profile-overlays.close-settings(); } }
-    changed back-request-revision => { root.go-back(); }
-    changed application-dark-mode => { root.update-color-scheme(); }
-    changed platform-dark-mode => { if root.theme-mode == ThemeMode.system { root.application-dark-mode = root.platform-dark-mode; } }
-    changed theme-mode => { LumenTheme.forest-mode = root.theme-mode == ThemeMode.forest; LumenTheme.amoled-mode = root.theme-mode == ThemeMode.amoled; if root.theme-mode == ThemeMode.system { root.application-dark-mode = root.platform-dark-mode; } else if root.theme-mode == ThemeMode.dark || root.theme-mode == ThemeMode.amoled { root.application-dark-mode = true; } else { root.application-dark-mode = false; } root.update-color-scheme(); }
-    changed page-scale-percent => { LumenUiScale.unit = 1px * (root.page-scale-percent / 100.0); }
-    changed theme-color => { LumenTheme.user-accent = root.theme-color; MaterialPalette.schemes = LumenTheme.material-schemes; }
-    changed theme-color-code => { if root.theme-color-dialog-open && !root.theme-color-code-edited { root.theme-color-code-draft = root.theme-color-input-code; root.theme-color-draft = root.theme-color-input-code; } }
-    changed theme-color-input-code => { if root.theme-color-dialog-open && !root.theme-color-code-edited { root.theme-color-code-draft = root.theme-color-input-code; root.theme-color-draft = root.theme-color-input-code; } }
-    changed theme-accent-light-foreground => { LumenTheme.accent-foreground = root.theme-accent-light-foreground ? #FFFFFF : #000000; MaterialPalette.schemes = LumenTheme.material-schemes; }
-    changed invert-theme-foreground => { LumenTheme.invert-semantic-foreground = root.invert-theme-foreground; MaterialPalette.schemes = LumenTheme.material-schemes; }
-    changed theme-color-dialog-open => { if root.theme-color-dialog-open { settings-overlays.show-theme-color(); } else { settings-overlays.close-theme-color-sheet(); } }
-    changed page-scale-dialog-open => { if root.page-scale-dialog-open { settings-overlays.show-page-scale(); } else { settings-overlays.close-page-scale-sheet(); if root.page-scale-committing { root.page-scale-committing = false; } else { LumenUiScale.unit = 1px * (root.page-scale-percent / 100.0); } } }
-    changed page-scale-draft => { LumenUiScale.unit = 1px * (root.page-scale-draft / 100.0); }
-    changed profiles => { if root.profile-add-open && root.profiles.length > root.profile-count-at-open { root.close-profile-add(); } }
-    changed overview-order-open => { if root.overview-order-open { overview-order-overlay.show-order(); } else { overview-order-overlay.close-order(); } }
+        changed page => { if root.page != "Proxy" && root.selected-group != "" { root.selected-group = ""; } app-body.scroll-to-top(); root.bottom-bar-visible = true; root.update-color-scheme(); }
+        changed selected-group => { root.proxy-active-node-position = 0 * LumenUiScale.unit; root.proxy-current-node-available = false; root.update-color-scheme(); root.select-proxy-group(root.selected-group); }
+        changed proxy-nodes => { root.proxy-active-node-position = 0 * LumenUiScale.unit; }
+        changed profile-add-open => { root.update-color-scheme(); profile-add-type-menu.close(); if root.profile-add-open { profile-overlays.show-add(); } else { profile-overlays.close-add(); } }
+        changed layout-debug-bounds => { LumenTheme.show-layout-bounds = root.layout-debug-bounds; }
+        changed user-agent-dialog-open => { if root.user-agent-dialog-open { settings-overlays.show-user-agent(); } else { settings-overlays.close-user-agent-sheet(); } }
+        changed profile-action-open => { if root.profile-action-open { profile-overlays.show-action(); } else { profile-overlays.close-action(); } }
+        changed pending-delete-id => { if root.pending-delete-id != "" { profile-overlays.show-delete(); } else { profile-overlays.close-delete(); } }
+        changed pending-profile-export-id => { if root.pending-profile-export-id != "" { profile-overlays.show-share(); } else { profile-overlays.close-share(); } }
+        changed profile-settings-id => { if root.profile-settings-id != "" { root.profile-settings-type-index = 0; profile-settings-type-menu.close(); profile-overlays.show-settings(); } else { profile-settings-type-menu.close(); profile-overlays.close-settings(); } }
+        changed back-request-revision => { root.go-back(); }
+        changed application-dark-mode => { root.update-color-scheme(); }
+        changed platform-dark-mode => { if root.theme-mode == ThemeMode.system { root.application-dark-mode = root.platform-dark-mode; } }
+        changed theme-mode => { LumenTheme.forest-mode = root.theme-mode == ThemeMode.forest; LumenTheme.amoled-mode = root.theme-mode == ThemeMode.amoled; if root.theme-mode == ThemeMode.system { root.application-dark-mode = root.platform-dark-mode; } else if root.theme-mode == ThemeMode.dark || root.theme-mode == ThemeMode.amoled { root.application-dark-mode = true; } else { root.application-dark-mode = false; } root.update-color-scheme(); }
+        changed page-scale-percent => { LumenUiScale.unit = 1px * (root.page-scale-percent / 100.0); }
+        changed theme-color => { LumenTheme.user-accent = root.theme-color; MaterialPalette.schemes = LumenTheme.material-schemes; }
+        changed theme-color-code => { if root.theme-color-dialog-open && !root.theme-color-code-edited { root.theme-color-code-draft = root.theme-color-input-code; root.theme-color-draft = root.theme-color-input-code; } }
+        changed theme-color-input-code => { if root.theme-color-dialog-open && !root.theme-color-code-edited { root.theme-color-code-draft = root.theme-color-input-code; root.theme-color-draft = root.theme-color-input-code; } }
+        changed theme-accent-light-foreground => { LumenTheme.accent-foreground = root.theme-accent-light-foreground ? #FFFFFF : #000000; MaterialPalette.schemes = LumenTheme.material-schemes; }
+        changed invert-theme-foreground => { LumenTheme.invert-semantic-foreground = root.invert-theme-foreground; MaterialPalette.schemes = LumenTheme.material-schemes; }
+        changed theme-color-dialog-open => { if root.theme-color-dialog-open { settings-overlays.show-theme-color(); } else { settings-overlays.close-theme-color-sheet(); } }
+        changed page-scale-dialog-open => { if root.page-scale-dialog-open { settings-overlays.show-page-scale(); } else { settings-overlays.close-page-scale-sheet(); if root.page-scale-committing { root.page-scale-committing = false; } else { LumenUiScale.unit = 1px * (root.page-scale-percent / 100.0); } } }
+        changed page-scale-draft => { LumenUiScale.unit = 1px * (root.page-scale-draft / 100.0); }
+        changed profiles => { if root.profile-add-open && root.profiles.length > root.profile-count-at-open { root.close-profile-add(); } }
+        changed overview-order-open => { if root.overview-order-open { overview-order-overlay.show-order(); } else { overview-order-overlay.close-order(); } }
 
-    function update-color-scheme() { LumenTheme.dark-mode = root.application-dark-mode; MaterialPalette.schemes = LumenTheme.material-schemes; root.color-scheme-changed(root.application-dark-mode); }
+        function update-color-scheme() { LumenTheme.dark-mode = root.application-dark-mode; MaterialPalette.schemes = LumenTheme.material-schemes; root.color-scheme-changed(root.application-dark-mode); }
 
-    // The window's own gesture entry points for the toolkit popups it owns.
-    // The popups own their open state, so these functions are the only way in.
-    public function open-clear-traffic-dialog() { clear-traffic-dialog.show(); }
-    public function open-network-mode-dialog(draft: NetworkMode) { settings-overlays.show-network-mode(draft); }
-    public function open-profile-type-menu(x: length, y: length) { root.profile-settings-type-anchor-x = x; root.profile-settings-type-anchor-y = y; profile-settings-type-menu.show(); }
-    public function open-profile-add-type-menu(x: length, y: length) { root.profile-add-type-anchor-x = x; root.profile-add-type-anchor-y = y; profile-add-type-menu.show(); }
-    function locate-current-node() { app-body.locate-current-node(root.proxy-active-node-position, root.proxy-current-node-available); }
-    public function scroll-page-to(pos: length) { app-body.scroll-to-y(pos); }
-    public function open-profile-add() { root.profile-name = ""; root.profile-url = ""; root.profile-age-key = ""; root.notice = ""; root.profile-add-kind-index = 0; profile-add-type-menu.close(); root.profile-count-at-open = root.profiles.length; root.profile-add-open = true; }
-    // Opens the Overview card order sheet. The sheet lists the cards in the
-    // order the shared owner published, so opening it dispatches no command.
-    public function open-overview-order() { root.overview-order-open = true; }
-    function close-profile-add() { root.profile-add-open = false; profile-add-type-menu.close(); root.profile-name = ""; root.profile-url = ""; root.profile-age-key = ""; root.notice = ""; }
+        // The window's own gesture entry points for the toolkit popups it owns.
+        // The popups own their open state, so these functions are the only way in.
+        public function open-clear-traffic-dialog() { clear-traffic-dialog.show(); }
+        public function open-network-mode-dialog(draft: NetworkMode) { settings-overlays.show-network-mode(draft); }
+        public function open-profile-type-menu(x: length, y: length) { root.profile-settings-type-anchor-x = x; root.profile-settings-type-anchor-y = y; profile-settings-type-menu.show(); }
+        public function open-profile-add-type-menu(x: length, y: length) { root.profile-add-type-anchor-x = x; root.profile-add-type-anchor-y = y; profile-add-type-menu.show(); }
+        function locate-current-node() { app-body.locate-current-node(root.proxy-active-node-position, root.proxy-current-node-available); }
+        public function scroll-page-to(pos: length) { app-body.scroll-to-y(pos); }
+        public function open-profile-add() { root.profile-name = ""; root.profile-url = ""; root.profile-age-key = ""; root.notice = ""; root.profile-add-kind-index = 0; profile-add-type-menu.close(); root.profile-count-at-open = root.profiles.length; root.profile-add-open = true; }
+        // Opens the Overview card order sheet. The sheet lists the cards in the
+        // order the shared owner published, so opening it dispatches no command.
+        public function open-overview-order() { root.overview-order-open = true; }
+        function close-profile-add() { root.profile-add-open = false; profile-add-type-menu.close(); root.profile-name = ""; root.profile-url = ""; root.profile-age-key = ""; root.notice = ""; }
 
-    public function go-back() {
+        public function go-back() {
         if app-theme-menu.is-open { app-theme-menu.close(); return; }
         if app-language-menu.is-open { app-language-menu.close(); return; }
         proxy-sort-menu.close();
@@ -379,9 +384,9 @@ export component AppWindow inherits MaterialWindow {
         else if root.page == "Network" || root.page == "AppSettings" || root.page == "Overrides" || root.page == "Providers" || root.page == "Meta" || root.page == "Connections" || root.page == "Logs" || root.page == "Rules" || root.page == "Traffic" { if root.predictive-back-enabled { root.commit-back-preview(); } root.page = root.page-origin; root.navigate(root.page-origin); }
         else if root.page == "Home" || root.page == "Proxy" || root.page == "Config" || root.page == "Settings" { }
         else { if root.predictive-back-enabled { root.commit-back-preview(); } root.page = "Settings"; root.navigate("Settings"); }
-    }
+        }
 
-    if !root.android-platform: DesktopTitleBar {
+        if !root.android-platform: DesktopTitleBar {
         // EFFECTS-041 #167: the frameless chrome; callbacks land on the
         // real window via lib.rs's installer.
         x: root.safe-area-insets.left; y: root.safe-area-insets.top;
@@ -392,8 +397,8 @@ export component AppWindow inherits MaterialWindow {
         has-traffic-capsule: true;
         search-clicked => { root.title-bar-search-clicked(); }
         window-minimize => { root.window-minimize(); } window-toggle-maximize => { root.window-toggle-maximize(); } window-close => { root.window-close(); }
-    }
-    app-body := AppBody {
+        }
+        app-body := AppBody {
         x: root.safe-area-insets.left; y: root.safe-area-insets.top + (!root.android-platform ? 40 * LumenUiScale.unit : 0 * LumenUiScale.unit); width: max(0 * LumenUiScale.unit, root.width - root.safe-area-insets.left - root.safe-area-insets.right); height: max(0 * LumenUiScale.unit, root.height - root.safe-area-insets.top - root.safe-area-insets.bottom - (!root.android-platform ? 40 * LumenUiScale.unit : 0 * LumenUiScale.unit));
         page: root.page; page-origin: root.page-origin; compact-layout: root.compact-layout; primary-page: root.primary-page; android-platform: root.android-platform; application-dark-mode: root.application-dark-mode; layout-debug-bounds: root.layout-debug-bounds;
         sidebar-background: root.sidebar-background;
@@ -403,8 +408,9 @@ export component AppWindow inherits MaterialWindow {
         home-data-upload-gap: root.home-data-upload-gap; home-before-node-gap: root.home-before-node-gap; home-node-egress-gap: root.home-node-egress-gap; runtime-status: root.runtime-status; runtime-status-label: root.runtime-status-label; runtime-detail: root.runtime-detail;
         active-profile: root.active-profile; has-current-profile: root.has-current-profile; network-mode-label: root.network-mode-label; home-current-node: root.home-current-node; home-current-accessible: root.home-current-accessible; home-current-flag-code: root.home-current-flag-code;
         home-current-flag-index: root.home-current-flag-index; home-current-delay: root.home-current-delay; home-exit-ip: root.home-exit-ip; home-exit-country-code: root.home-exit-country-code; home-exit-flag-index: root.home-exit-flag-index; home-exit-status: root.home-exit-status;
+        dashboard-facts: root.dashboard-facts;
         home-traffic-points: root.home-traffic-points; home-traffic-has-data: root.home-traffic-has-data; stat-down: root.stat-down; stat-up: root.stat-up; stat-down-value: root.stat-down-value; stat-down-unit: root.stat-down-unit; stat-up-compact: root.stat-up-compact; stat-connections: root.stat-connections;
-        stat-total-down: root.stat-total-down; stat-total-up: root.stat-total-up; traffic-today-has-data: root.traffic-today-has-data; traffic-today-down: root.traffic-today-down; traffic-today-up: root.traffic-today-up; traffic-today-bars: root.traffic-today-bars;
+        traffic-today-has-data: root.traffic-today-has-data; traffic-today-down: root.traffic-today-down; traffic-today-up: root.traffic-today-up; traffic-today-bars: root.traffic-today-bars;
         profiles: root.profiles; profile-settings-id: root.profile-settings-id; profile-settings-kind: root.profile-settings-kind; profile-settings-location: root.profile-settings-location;
         profile-settings-name <=> root.profile-settings-name; profile-settings-url <=> root.profile-settings-url;
         profile-settings-age-key <=> root.profile-settings-age-key; profile-settings-age-configured: root.profile-settings-age-configured;
@@ -419,6 +425,7 @@ export component AppWindow inherits MaterialWindow {
         override-body <=> root.override-body; override-url <=> root.override-url; override-edit-id <=> root.override-edit-id;
         connection-show-closed: root.connection-show-closed; snapshot-window-warning: root.snapshot-window-warning;
         connection-search <=> root.connection-search; connection-sort <=> root.connection-sort; connections: root.connections;
+        home-connection-table: root.home-connection-table;
         connection-breaking-id: root.connection-breaking-id; connection-detail-id: root.connection-detail-id; connection-detail-host: root.connection-detail-host; connection-detail-protocol: root.connection-detail-protocol; connection-detail-process: root.connection-detail-process; connection-detail-source: root.connection-detail-source;
         connection-detail-destination: root.connection-detail-destination; connection-detail-start: root.connection-detail-start; connection-detail-duration: root.connection-detail-duration; connection-detail-upload: root.connection-detail-upload; connection-detail-download: root.connection-detail-download; connection-detail-rule: root.connection-detail-rule;
         connection-detail-chains: root.connection-detail-chains; connection-detail-providers: root.connection-detail-providers; connection-detail-active: root.connection-detail-active; log-stream-status: root.log-stream-status; log-search-error: root.log-search-error;
@@ -491,16 +498,16 @@ export component AppWindow inherits MaterialWindow {
         workbench-draft-edited(id, value) => { root.workbench-draft-edited(id, value); }
         refresh-home-egress => { root.refresh-home-egress(); }
         open-overview-order => { root.open-overview-order(); }
-    }
+        }
 
-    proxy-sort-menu := ProxySortMenu {
+        proxy-sort-menu := ProxySortMenu {
         window-width: root.width; safe-left: root.safe-area-insets.left; safe-right: root.safe-area-insets.right; safe-top: root.safe-area-insets.top;
         layout-debug-bounds: root.layout-debug-bounds; proxy-current-node-available: root.proxy-current-node-available; proxy-sort-mode: root.proxy-sort-mode;
         locate-current-node => { root.locate-current-node(); }
         set-sort(m) => { root.proxy-sort-mode = m; root.set-proxy-sort(m); }
-    }
+        }
 
-    profile-overlays := ProfileOverlays {
+        profile-overlays := ProfileOverlays {
         width: root.width; height: root.height; safe-bottom: root.safe-area-insets.bottom; profile-dialog-content-width: root.profile-dialog-content-width; profile-sheet-content-width: root.profile-sheet-content-width; profile-sheet-content-height: root.profile-sheet-content-height; profile-settings-sheet-height: root.profile-settings-sheet-height;
         application-dark-mode: root.application-dark-mode; layout-debug-bounds: root.layout-debug-bounds; profile-add-kind-index: root.profile-add-kind-index; notice: root.notice; pending-delete-name: root.pending-delete-name; profile-settings-id: root.profile-settings-id;
         profile-settings-kind: root.profile-settings-kind; profile-settings-age-configured: root.profile-settings-age-configured; profile-settings-overrides: root.profile-settings-overrides;
@@ -531,17 +538,17 @@ export component AppWindow inherits MaterialWindow {
         clear-profile-age-key => { root.clear-profile-age-key(root.profile-settings-id); }
         toggle-override(id, en) => { root.toggle-profile-override(id, en); } move-override(id, up) => { root.move-profile-override(id, up); }
         open-type-menu(x, y) => { root.open-profile-type-menu(x, y); }
-    }
+        }
 
-    overview-order-overlay := OverviewOrderOverlay {
+        overview-order-overlay := OverviewOrderOverlay {
         width: root.width; height: root.height;
         cards: root.overview-cards;
         dismissed => { root.overview-order-open = false; }
         move-card(id, up) => { root.move-overview-card(id, up); }
         reset-order => { root.reset-overview-card-order(); }
-    }
+        }
 
-    if root.compact-layout && root.primary-page && root.bottom-bar-visible: AppBottomBar {
+        if root.compact-layout && root.primary-page && root.bottom-bar-visible: AppBottomBar {
         page: root.page; window-width: root.width; window-height: root.height;
         safe-left: root.safe-area-insets.left; safe-right: root.safe-area-insets.right; safe-bottom: root.safe-area-insets.bottom;
         layout-debug-bounds: root.layout-debug-bounds;
@@ -550,47 +557,47 @@ export component AppWindow inherits MaterialWindow {
             if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); }
             root.page = p; root.navigate(p);
         }
-    }
+        }
 
-    clear-traffic-dialog := ClearTrafficDialog {
+        clear-traffic-dialog := ClearTrafficDialog {
         width: root.width;
         height: root.height;
         compact-layout: root.compact-layout;
         cancel => { clear-traffic-dialog.close(); }
         confirm => { root.clear-traffic-history(); clear-traffic-dialog.close(); root.traffic-selected-detail = ""; }
-    }
+        }
 
-    app-theme-menu := PopupMenu {
+        app-theme-menu := PopupMenu {
         x: max(root.safe-area-insets.left + 12 * LumenUiScale.unit, min(root.width - root.safe-area-insets.right - self.width - 12 * LumenUiScale.unit, root.app-theme-anchor-x - self.width));
         y: max(root.safe-area-insets.top, min(root.app-theme-anchor-y, root.height - root.safe-area-insets.bottom - self.height - 12 * LumenUiScale.unit));
         available_width: root.width; show_layout_bounds: root.layout-debug-bounds;
-        items: [{ text: @tr("跟随系统"), enabled: true }, { text: @tr("浅色"), enabled: true }, { text: @tr("深色"), enabled: true }, { text: @tr("护眼森林"), enabled: true }, { text: "AMOLED", enabled: true }];
+        items: [{ text: @tr("跟随系统"), enabled: true }, { text: @tr("浅色"), enabled: true }, { text: @tr("深色"), enabled: true }, { text: @tr("护眼森林"), enabled: true }, { text: @tr("AMOLED"), enabled: true }];
         current_index: root.theme-mode == ThemeMode.light ? 1 : root.theme-mode == ThemeMode.dark ? 2 : root.theme-mode == ThemeMode.forest ? 3 : root.theme-mode == ThemeMode.amoled ? 4 : 0;
         activated(index) => { root.set-theme-mode(index == 0 ? ThemeMode.system : index == 1 ? ThemeMode.light : index == 2 ? ThemeMode.dark : index == 3 ? ThemeMode.forest : ThemeMode.amoled); self.close(); }
-    }
+        }
 
-    app-language-menu := PopupMenu {
+        app-language-menu := PopupMenu {
         x: max(root.safe-area-insets.left + 12 * LumenUiScale.unit, min(root.width - root.safe-area-insets.right - self.width - 12 * LumenUiScale.unit, root.app-language-anchor-x - self.width));
         y: max(root.safe-area-insets.top, min(root.app-language-anchor-y, root.height - root.safe-area-insets.bottom - self.height - 12 * LumenUiScale.unit));
         available_width: root.width; show_layout_bounds: root.layout-debug-bounds;
-        items: [{ text: @tr("跟随系统"), enabled: true }, { text: @tr("简体中文"), enabled: true }, { text: "English", enabled: true }];
+        items: [{ text: @tr("跟随系统"), enabled: true }, { text: @tr("简体中文"), enabled: true }, { text: @tr("English"), enabled: true }];
         current_index: root.application-language == "en" || (root.application-language == "system" && root.system-language == "en") ? 2 : root.application-language == "zh-CN" ? 1 : 0;
         activated(index) => { root.set-application-language(index == 0 ? "system" : index == 1 ? "zh-CN" : "en"); self.close(); }
-    }
+        }
 
-    // The settings sheet's type dropdown is the same toolkit popup menu as
-    // the theme, language and proxy-sort menus of the window.
-    profile-settings-type-menu := ProfileSettingsTypeMenu {
+        // The settings sheet's type dropdown is the same toolkit popup menu as
+        // the theme, language and proxy-sort menus of the window.
+        profile-settings-type-menu := ProfileSettingsTypeMenu {
         window-width: root.width; window-height: root.height; safe-left: root.safe-area-insets.left; safe-right: root.safe-area-insets.right; safe-top: root.safe-area-insets.top; safe-bottom: root.safe-area-insets.bottom; anchor-x: root.profile-settings-type-anchor-x; anchor-y: root.profile-settings-type-anchor-y; selected-index: root.profile-settings-type-index; layout-debug-bounds: root.layout-debug-bounds; select(index) => { root.profile-settings-type-index = index; }
-    }
+        }
 
-    // The add sheet's type dropdown: the same toolkit popup as the settings
-    // sheet's, anchored where the sheet's trigger sits.
-    profile-add-type-menu := ProfileAddTypeMenu {
+        // The add sheet's type dropdown: the same toolkit popup as the settings
+        // sheet's, anchored where the sheet's trigger sits.
+        profile-add-type-menu := ProfileAddTypeMenu {
         window-width: root.width; window-height: root.height; safe-left: root.safe-area-insets.left; safe-right: root.safe-area-insets.right; safe-top: root.safe-area-insets.top; safe-bottom: root.safe-area-insets.bottom; anchor-x: root.profile-add-type-anchor-x; anchor-y: root.profile-add-type-anchor-y; selected-index: root.profile-add-kind-index; layout-debug-bounds: root.layout-debug-bounds; select(index) => { root.profile-add-kind-index = index; root.notice = ""; }
-    }
+        }
 
-    settings-overlays := SettingsOverlays {
+        settings-overlays := SettingsOverlays {
         width: root.width; height: root.height; app-settings-bottom-inset: root.app-settings-bottom-inset; profile-dialog-content-width: root.profile-dialog-content-width; theme-sheet-height: min(540 * LumenUiScale.unit, max(0 * LumenUiScale.unit, root.height - root.safe-area-insets.top - root.app-settings-bottom-inset - 40 * LumenUiScale.unit));
         user-agent-sheet-height: min(root.user-agent-error == "" ? 260 * LumenUiScale.unit : 320 * LumenUiScale.unit, max(0 * LumenUiScale.unit, root.height - root.safe-area-insets.top - root.app-settings-bottom-inset - 60 * LumenUiScale.unit)); android-platform: root.android-platform; layout-debug-bounds: root.layout-debug-bounds; compact-layout: root.compact-layout; product-version: root.product-version; theme-color-error: root.theme-color-error; theme-color-saving: root.theme-color-saving;
         user-agent-error: root.user-agent-error; user-agent-saving: root.user-agent-saving;
@@ -607,31 +614,31 @@ export component AppWindow inherits MaterialWindow {
         save-user-agent(draft) => { root.user-agent-saving = true; root.user-agent-error = ""; root.save-user-agent(draft); }
         cancel-network-mode => { settings-overlays.close-network-mode(); }
         confirm-network-mode(mode) => { root.set-network-mode(mode); settings-overlays.close-network-mode(); }
-    }
+        }
 
-    if root.notice != "" && !root.profile-add-open: NoticeBanner {
+        if root.notice != "" && !root.profile-add-open: NoticeBanner {
         notice: root.notice; window-width: root.width; window-height: root.height;
         safe-left: root.safe-area-insets.left; safe-right: root.safe-area-insets.right;
         safe-top: root.safe-area-insets.top; safe-bottom: root.safe-area-insets.bottom;
         compact-layout: root.compact-layout; primary-page: root.primary-page; bottom-bar-visible: root.bottom-bar-visible;
         close => { root.notice = ""; }
-    }
+        }
 
-    if root.page == "AppSettings" && root.app-settings-message != "" && root.notice == "" && !root.user-agent-dialog-open && !root.theme-color-dialog-open && !root.page-scale-dialog-open && !app-language-menu.is-open && !app-theme-menu.is-open: SettingsMessageBanner {
+        if root.page == "AppSettings" && root.app-settings-message != "" && root.notice == "" && !root.user-agent-dialog-open && !root.theme-color-dialog-open && !root.page-scale-dialog-open && !app-language-menu.is-open && !app-theme-menu.is-open: SettingsMessageBanner {
         message: root.app-settings-message; window-width: root.width;
         safe-left: root.safe-area-insets.left; safe-right: root.safe-area-insets.right;
         safe-top: root.safe-area-insets.top; safe-bottom: root.safe-area-insets.bottom;
         close => { root.app-settings-message = ""; }
-    }
+        }
 
-    if root.layout-debug-bounds: Rectangle {
+        if root.layout-debug-bounds: Rectangle {
         x: root.safe-area-insets.left; y: root.safe-area-insets.top;
         width: max(0 * LumenUiScale.unit, root.width - root.safe-area-insets.left - root.safe-area-insets.right);
         height: max(0 * LumenUiScale.unit, root.height - root.safe-area-insets.top - root.safe-area-insets.bottom);
         background: transparent; border-width: 1 * LumenUiScale.unit; border-color: #FF2D55; z: 1000;
-    }
-    app-settings-message-timeout := Timer {
+        }
+        app-settings-message-timeout := Timer {
         interval: 5s; running: root.app-settings-message != "";
         triggered => { root.app-settings-message = ""; }
-    }
+        }
 }

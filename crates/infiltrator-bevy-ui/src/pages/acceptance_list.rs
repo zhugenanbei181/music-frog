@@ -33,8 +33,9 @@ use infiltrator_bevy_widgets::list::scrollbar::scroll_item_into_view;
 use infiltrator_bevy_widgets::list::{ScrollOffsetOutcome, SelectionOutcome, VirtualListState};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_shared::i18n_interpolator::localize;
 
 /// Scenario identifier shared with Compose and automated test walkthroughs (BANDROID-025/026).
@@ -271,9 +272,9 @@ pub fn acceptance_row_scene(item: &AcceptanceItem) -> impl Scene + use<> {
         }
         AcceptanceRowItem({ index })
         Children [
-            Text({ title }) TextRole(Role::Body)
+            Text({ title }) TextRole(design_resources::TextRole::Body)
             --
-            Text({ subtitle }) TextRole(Role::Caption)
+            Text({ subtitle }) TextRole(design_resources::TextRole::Caption)
         ]
     }
 }
@@ -325,9 +326,9 @@ pub fn acceptance_list_scene(
                 row_gap: rem(space::S4),
             }
             Children [
-                Text({ title_text }) TextRole(Role::Heading)
+                Text({ title_text }) TextRole(design_resources::TextRole::Heading)
                 --
-                Text({ desc_text }) TextRole(Role::Caption)
+                Text({ desc_text }) TextRole(design_resources::TextRole::Caption)
             ]
             --
             // Three navigation buttons + Menu button
@@ -343,7 +344,7 @@ pub fn acceptance_list_scene(
                     border_radius: BorderRadius::all(radius),
                 }
                 AcceptanceScrollToTopButton Button
-                Children [ Text({ btn_top_text }) TextRole(Role::BodyStrong) ]
+                Children [ Text({ btn_top_text }) TextRole(design_resources::TextRole::BodyStrong) ]
                 --
                 // Button 2: reveal the middle row
                 Node {
@@ -351,7 +352,7 @@ pub fn acceptance_list_scene(
                     border_radius: BorderRadius::all(radius),
                 }
                 AcceptanceScrollToRevealButton Button
-                Children [ Text({ btn_reveal_text }) TextRole(Role::BodyStrong) ]
+                Children [ Text({ btn_reveal_text }) TextRole(design_resources::TextRole::BodyStrong) ]
                 --
                 // Button 3: reveal the last row (the list's bottom)
                 Node {
@@ -359,7 +360,7 @@ pub fn acceptance_list_scene(
                     border_radius: BorderRadius::all(radius),
                 }
                 AcceptanceScrollToBottomButton Button
-                Children [ Text({ btn_bottom_text }) TextRole(Role::BodyStrong) ]
+                Children [ Text({ btn_bottom_text }) TextRole(design_resources::TextRole::BodyStrong) ]
                 --
                 // Action Menu button
                 Node {
@@ -367,7 +368,7 @@ pub fn acceptance_list_scene(
                     border_radius: BorderRadius::all(radius),
                 }
                 AcceptanceMenuButton Button
-                Children [ Text({ btn_menu_text }) TextRole(Role::BodyStrong) ]
+                Children [ Text({ btn_menu_text }) TextRole(design_resources::TextRole::BodyStrong) ]
             ]
             --
             // The official scroll area over the mounted rows

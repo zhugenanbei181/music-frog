@@ -27,8 +27,9 @@ use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLo
 use infiltrator_bevy_widgets::modal::{ModalDialogCard, ModalScrim};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::rule_location::RuleLocation;
 use infiltrator_presentation::rule_condition_projection::location_text;
 use infiltrator_shared::locales::Lang;
@@ -79,9 +80,9 @@ fn scene(palette: &UiPalette) -> impl Scene + use<> {
             Node { width: percent(90), max_width: rem(TRACE_CONFIRMATION_MODAL_MAX_WIDTH_PX), padding: UiRect::all(rem(space::S16)), flex_direction: FlexDirection::Column, row_gap: rem(space::S12), border_radius: BorderRadius::all(rem(palette.modal_radius_px)) }
             ModalDialogCard TraceConfirmationCard ThemeBackgroundColor({ Token::Surface }) ModalDialog AccessibilityNode(semantic) LocalizedLabel::plain("rule_trace_confirm_title")
             Children [
-                LocalizedText::plain("rule_trace_confirm_title") TextRole(Role::Heading)
+                LocalizedText::plain("rule_trace_confirm_title") TextRole(design_resources::TextRole::Heading)
                 --
-                Text(String::new()) TraceConfirmationCopy TextRole(Role::Body)
+                Text(String::new()) TraceConfirmationCopy TextRole(design_resources::TextRole::Body)
                 --
                 Node { width: percent(100), column_gap: rem(space::S12) }
                 Children [

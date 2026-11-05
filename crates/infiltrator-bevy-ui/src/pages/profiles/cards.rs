@@ -14,11 +14,13 @@ use bevy::ecs::hierarchy::Children;
 use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, percent,
+    AlignItems, BackgroundColor, BorderRadius, FlexDirection, FlexWrap, JustifyContent, Node,
+    UiRect, percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
 use infiltrator_bevy_widgets::button::ControlVisual;
+use infiltrator_bevy_widgets::button::{ButtonSize, ButtonVariant, button_with_label_scene};
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
@@ -26,8 +28,9 @@ use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLo
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_presentation::profile_editor_projection::protection_label;
 use infiltrator_presentation::profile_metadata_projection;
 use infiltrator_shared::locales::Lang;
@@ -48,12 +51,16 @@ pub(super) fn header_card_scene(
                         align_items: AlignItems::Center,
                         justify_content: JustifyContent::SpaceBetween,
                         column_gap: rem(space::S16),
+                        flex_wrap: FlexWrap::Wrap,
+                        row_gap: rem(space::S8),
                     }
                     AccessibilityNode(header_a11y) label
                     Children [
                         Node {
                             align_items: AlignItems::Center,
                             column_gap: rem(space::S12),
+                            flex_grow: 1.0,
+                            min_width: px(0.0),
                         }
                         Children [
                             @{ icon_tile_scene(IconId::FileText, 36.0, palette) }
@@ -63,47 +70,37 @@ pub(super) fn header_card_scene(
                                 row_gap: rem(space::S4),
                             }
                             Children [
-                                Text(summary) ProfilesLine(ProfilesLineKind::Summary) TextRole(Role::Heading)
+                                Text(summary) ProfilesLine(ProfilesLineKind::Summary) TextRole(design_resources::TextRole::Heading)
                                 --
-                                Text(auto_update) ProfilesLine(ProfilesLineKind::AutoUpdate) TextRole(Role::Caption)
+                                Text(auto_update) ProfilesLine(ProfilesLineKind::AutoUpdate) TextRole(design_resources::TextRole::Caption)
                                 --
-                                Text({ String::new() }) ProfileDeleteOutcomeText TextRole(Role::Mono)
+                                Text({ String::new() }) ProfileDeleteOutcomeText TextRole(design_resources::TextRole::Mono)
                                 --
-                                Text({ String::new() }) ProfileImportOutcomeText TextRole(Role::Mono)
+                                Text({ String::new() }) ProfileImportOutcomeText TextRole(design_resources::TextRole::Mono)
                             ]
                         ]
                         --
                         Node {
                             align_items: AlignItems::Center,
                             column_gap: rem(space::S8),
+                            flex_wrap: FlexWrap::Wrap,
+                            row_gap: rem(space::S6),
                         }
                         Children [
-                            Node {
-                                min_height: rem(palette.control_height_px),
-                                padding: UiRect::horizontal(rem(space::S12)),
-                                align_items: AlignItems::Center,
-                                justify_content: JustifyContent::Center,
-                                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
-                            }
-                            ThemeBackgroundColor({ Token::SurfaceElevated })
-                            Button
+                            @{ button_with_label_scene(
+                                bsn! { LocalizedText::plain("profiles_update_all") TextRole(design_resources::TextRole::Body) },
+                                ButtonVariant::Default,
+                                ButtonSize::Md,
+                                palette,
+                            ) }
                             UpdateAllSubscriptionsButton
-                            Children [
-                                LocalizedText::plain("profiles_update_all") TextRole(Role::Body)
-                            ]
                             --
-                            Node {
-                                min_height: rem(palette.control_height_px),
-                                padding: UiRect::horizontal(rem(space::S12)),
-                                align_items: AlignItems::Center,
-                                justify_content: JustifyContent::Center,
-                                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
-                            }
-                            ThemeBackgroundColor({ Token::Accent })
-                            Button
-                            Children [
-                                LocalizedText::plain("profiles_import_subscription_action") TextRole(Role::BodyStrong)
-                            ]
+                            @{ button_with_label_scene(
+                                bsn! { LocalizedText::plain("profiles_import_subscription_action") TextRole(design_resources::TextRole::BodyStrong) },
+                                ButtonVariant::Primary,
+                                ButtonSize::Md,
+                                palette,
+                            ) }
                         ]
                     ]
         })],
@@ -161,22 +158,22 @@ pub(super) fn profile_card_scene(
                                 column_gap: rem(space::S8),
                             }
                             Children [
-                                Text(name) ProfileNameText(idx) TextRole(Role::BodyStrong)
+                                Text(name) ProfileNameText(idx) TextRole(design_resources::TextRole::BodyStrong)
                                 --
-                                Text(updated) ProfileTimeText(idx) TextRole(Role::Caption)
+                                Text(updated) ProfileTimeText(idx) TextRole(design_resources::TextRole::Caption)
                             ]
                             --
-                            Text(url) TextRole(Role::Caption)
+                            Text(url) TextRole(design_resources::TextRole::Caption)
                             --
                             Text({ protection_label(profile.write_protection, &Lang(locale.code())) })
                             ProfileProtectionText(idx)
-                            TextRole(Role::Caption)
+                            TextRole(design_resources::TextRole::Caption)
                             --
-                            Text(traffic_str) ProfileTrafficText(idx) TextRole(Role::Mono)
+                            Text(traffic_str) ProfileTrafficText(idx) TextRole(design_resources::TextRole::Mono)
                             --
-                            Text(schedule_str) ProfileScheduleText(idx) TextRole(Role::Caption)
+                            Text(schedule_str) ProfileScheduleText(idx) TextRole(design_resources::TextRole::Caption)
                             --
-                            Text({ failure_str }) ProfileRefreshText(idx) TextRole(Role::Mono)
+                            Text({ failure_str }) ProfileRefreshText(idx) TextRole(design_resources::TextRole::Mono)
                         ]
                         --
                         Node {
@@ -195,7 +192,7 @@ pub(super) fn profile_card_scene(
                             Button
                             UpdateProfileButton(idx)
                             Children [
-                                LocalizedText::plain("profiles_update_now") TextRole(Role::Body)
+                                LocalizedText::plain("profiles_update_now") TextRole(design_resources::TextRole::Body)
                             ]
                             --
                             Node {
@@ -213,7 +210,7 @@ pub(super) fn profile_card_scene(
                             }
                             Button
                             Children [
-                                Text(status_str) ProfileStatusText(idx) TextRole(Role::Body)
+                                Text(status_str) ProfileStatusText(idx) TextRole(design_resources::TextRole::Body)
                             ]
                             --
                             Node {
@@ -231,7 +228,7 @@ pub(super) fn profile_card_scene(
                                 profile_idx: { idx },
                             }
                             Children [
-                                LocalizedText::plain("profiles_delete_action") TextRole(Role::Body)
+                                LocalizedText::plain("profiles_delete_action") TextRole(design_resources::TextRole::Body)
                             ]
                         ]
                     ]

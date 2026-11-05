@@ -2,7 +2,7 @@
 use crate::bidi::LayoutDirection;
 use crate::fonts::FontSources;
 use crate::palette::UiPalette;
-use crate::text::{Role, TextRole, role_typography};
+use crate::text::{TextRole, role_typography};
 use bevy::app::{App, Plugin, Update};
 use bevy::color::Color;
 use bevy::ecs::component::Component;
@@ -15,6 +15,7 @@ use bevy::scene::{CommandsSceneExt, bsn};
 use bevy::text::{Justify, TextColor, TextFont, TextLayout, TextSpan};
 use bevy::ui::prelude::{Display, FlexDirection, Node};
 use bevy::ui::widget::Text;
+use infiltrator_contract::design_resources;
 use zhuge_ui_core::text::SearchTextRun;
 
 #[derive(Component, Clone, Debug, Default, PartialEq, Eq)]
@@ -116,7 +117,8 @@ fn replay_runs(
         }
         let plain = root.ink.map(|ink| ink.0).unwrap_or_else(|| {
             role_typography(
-                root.role.map_or(Role::Body, |role| role.0),
+                root.role
+                    .map_or(design_resources::TextRole::Body, |role| role.0),
                 &palette,
                 fonts.as_deref(),
             )

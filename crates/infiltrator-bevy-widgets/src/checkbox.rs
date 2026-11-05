@@ -13,7 +13,7 @@
 use crate::feathers_theme::Token;
 use crate::palette::UiPalette;
 use crate::palette::rem;
-use crate::text::{Role, TextRole};
+use crate::text::TextRole;
 use crate::theme::space;
 use bevy::camera::visibility::Visibility;
 use bevy::color::Color;
@@ -29,6 +29,7 @@ use bevy::ui::prelude::{
 use bevy::ui::widget::Text;
 use bevy::ui::{BorderColor, Checked};
 use bevy::ui_widgets::Checkbox;
+use infiltrator_contract::design_resources;
 
 /// Tri-state checkbox value representation.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -140,7 +141,7 @@ pub fn checkbox_border(checked: bool, palette: &UiPalette) -> Color {
 /// Declarative scene constructor for a tri-state checkbox row.
 pub fn tri_checkbox_scene(label: String, state: TriState, palette: &UiPalette) -> Box<dyn Scene> {
     tri_checkbox_with_label_scene(
-        Box::new(bsn! { Text(label) TextRole(Role::Body) }),
+        Box::new(bsn! { Text(label) TextRole(design_resources::TextRole::Body) }),
         state,
         palette,
     )

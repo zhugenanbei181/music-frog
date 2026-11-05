@@ -25,8 +25,9 @@ use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_presentation::sync_projection;
 use infiltrator_shared::locales::Lang;
 
@@ -65,14 +66,14 @@ fn field_scenes(conflict: Option<&SyncConflictInfo>, locale: &UiLocale) -> Vec<B
         .unwrap_or_default();
     if fields.is_empty() {
         return vec![Box::new(bsn! {
-            LocalizedText::plain("sync_observation_fields_unobserved") TextRole(Role::Body)
+            LocalizedText::plain("sync_observation_fields_unobserved") TextRole(design_resources::TextRole::Body)
         })];
     }
     fields.iter().enumerate().map(|(index, field)| {
         let copy = sync_projection::conflict_field(&field.key, &field.local_value, &field.remote_value, &Lang(locale.code()));
         Box::new(bsn! {
             Node { width: percent(100), min_width: px(0.0), padding: UiRect::vertical(rem(space::S4)) }
-            Text(copy) SyncMergeRow(index) TextRole(Role::Body)
+            Text(copy) SyncMergeRow(index) TextRole(design_resources::TextRole::Body)
         }) as Box<dyn Scene>
     }).collect()
 }
@@ -102,7 +103,7 @@ pub fn sync_three_way_merge_scene(
                                 Children [
                                     @{ icon_tile_scene(IconId::Network, 24.0, palette) }
                                     --
-                                    LocalizedText::plain("sync_conflict_resolver_title") TextRole(Role::BodyStrong)
+                                    LocalizedText::plain("sync_conflict_resolver_title") TextRole(design_resources::TextRole::BodyStrong)
                                 ]
                             ]
             }),
@@ -138,7 +139,7 @@ pub fn sync_three_way_merge_scene(
                                 Button
                                 AcceptLocalButton SyncMergeChoice ButtonDisabled(unavailable)
                                 Children [
-                                    LocalizedText::plain("sync_prefer_local_action") TextRole(Role::Body)
+                                    LocalizedText::plain("sync_prefer_local_action") TextRole(design_resources::TextRole::Body)
                                 ]
                                 --
                                 Node {
@@ -152,7 +153,7 @@ pub fn sync_three_way_merge_scene(
                                 Button
                                 AcceptCloudButton SyncMergeChoice ButtonDisabled(unavailable)
                                 Children [
-                                    LocalizedText::plain("sync_prefer_remote_action") TextRole(Role::Body)
+                                    LocalizedText::plain("sync_prefer_remote_action") TextRole(design_resources::TextRole::Body)
                                 ]
                                 --
                                 Node {
@@ -166,7 +167,7 @@ pub fn sync_three_way_merge_scene(
                                 Button
                                 MergeBothButton SyncMergeChoice ButtonDisabled(unavailable)
                                 Children [
-                                    LocalizedText::plain("sync_merge_both_action") TextRole(Role::BodyStrong)
+                                    LocalizedText::plain("sync_merge_both_action") TextRole(design_resources::TextRole::BodyStrong)
                                 ]
                             ]
             }),
@@ -176,7 +177,7 @@ pub fn sync_three_way_merge_scene(
                                 padding: UiRect::top(rem(space::S4)),
                             }
                             Children [
-                                LocalizedText::plain("sync_merge_hint") TextRole(Role::Caption)
+                                LocalizedText::plain("sync_merge_hint") TextRole(design_resources::TextRole::Caption)
                             ]
             }),
         ],

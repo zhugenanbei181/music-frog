@@ -13,7 +13,7 @@
 
 use crate::feathers_theme::Token;
 use crate::palette::{UiPalette, rem};
-use crate::text::{Role, TextRole};
+use crate::text::TextRole;
 use crate::theme::space;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
@@ -24,6 +24,7 @@ use bevy::feathers::theme::{ThemeBackgroundColor, ThemeTextColor};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{AlignItems, BorderRadius, Node, UiRect};
 use bevy::ui::widget::Text;
+use infiltrator_contract::design_resources;
 
 /// Marker on the item root; [`sync_nav_visuals`] re-projects its fill and
 /// its label's ink from [`NavActive`] and the live palette.
@@ -71,7 +72,7 @@ pub fn nav_item_scene(label: String, active: bool, palette: &UiPalette) -> impl 
             NavItem
             NavActive(active)
             Children [
-                Text(label) TextRole(Role::Body) NavLabel
+                Text(label) TextRole(design_resources::TextRole::Body) NavLabel
             ]
     }
 }

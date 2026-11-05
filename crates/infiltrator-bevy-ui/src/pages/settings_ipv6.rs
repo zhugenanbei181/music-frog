@@ -21,8 +21,9 @@ use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_presentation::settings_status_projection::format_ipv6;
 use infiltrator_shared::locales::Lang;
 
@@ -54,7 +55,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                             @{ localized_checkbox_scene(LocalizedText::plain("settings_allow_ipv6_traffic"), projection.ipv6_routing.is_some_and(|snapshot| snapshot.enabled), palette) }
                 ButtonDisabled({ projection.ipv6_routing.is_none() })
                             --
-                            Text(status) SettingsLine(SettingsLineKind::Ipv6Routing) TextRole(Role::Mono)
+                            Text(status) SettingsLine(SettingsLineKind::Ipv6Routing) TextRole(design_resources::TextRole::Mono)
                         ]
                     ]
         })],

@@ -121,6 +121,10 @@ overview-dark	overview	dark	1180x780
 overview-light	overview	light	1180x780
 overview-forest	overview	forest	1180x780
 overview-amoled	overview	amoled	1180x780
+overview-mobile-dark	overview	dark	400x800
+overview-compact-dark	overview	dark	720x480
+overview-tablet-dark	overview	dark	720x800
+proxies-mobile-dark	proxies	dark	400x800
 proxies-dark	proxies	dark	1180x780
 proxies-light	proxies	light	1180x780
 proxies-forest	proxies	forest	1180x780

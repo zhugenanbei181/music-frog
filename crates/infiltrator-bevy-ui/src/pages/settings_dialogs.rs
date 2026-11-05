@@ -32,8 +32,9 @@ use infiltrator_bevy_widgets::modal::{
     ModalDialogCard, ModalKind, ModalScrim, ModalStage, ModalState,
 };
 use infiltrator_bevy_widgets::palette::{UiPalette, rem};
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_shared::assets::harmonyos_font_license_text;
 
 /// Marker for the control that opens the full font licence.
@@ -121,7 +122,7 @@ pub(super) fn font_license_dialog_scene(palette: &UiPalette) -> impl Scene + use
                 AccessibilityNode(semantic) LocalizedLabel::plain("settings_font_attribution_title")
                 ThemeBackgroundColor({ Token::Surface })
                 Children [
-                    LocalizedText::plain("settings_font_attribution_title") TextRole(Role::Heading)
+                    LocalizedText::plain("settings_font_attribution_title") TextRole(design_resources::TextRole::Heading)
                     --
                     Node {
                         width: percent(100), flex_grow: 1.0, min_height: px(0.0),
@@ -132,7 +133,7 @@ pub(super) fn font_license_dialog_scene(palette: &UiPalette) -> impl Scene + use
                     }
                     ScrollArea
                     Children [
-                        Text({ harmonyos_font_license_text().to_owned() }) TextRole(Role::Mono)
+                        Text({ harmonyos_font_license_text().to_owned() }) TextRole(design_resources::TextRole::Mono)
                     ]
                     --
                     Node { width: percent(100), justify_content: JustifyContent::FlexEnd }
@@ -194,9 +195,9 @@ pub(super) fn core_rollback_dialog_scene(palette: &UiPalette) -> impl Scene + us
                 LocalizedLabel::plain("settings_core_rollback_title")
                 ThemeBackgroundColor({ Token::Surface })
                 Children [
-                    LocalizedText::plain("settings_core_rollback_title") TextRole(Role::Heading)
+                    LocalizedText::plain("settings_core_rollback_title") TextRole(design_resources::TextRole::Heading)
                     --
-                    Text(String::new()) CoreRollbackDialogMessage TextRole(Role::Body)
+                    Text(String::new()) CoreRollbackDialogMessage TextRole(design_resources::TextRole::Body)
                     --
                     Node {
                         width: percent(100),

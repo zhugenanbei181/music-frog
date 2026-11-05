@@ -3,7 +3,8 @@ use super::card::{modal_backdrop, modal_card};
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::view::component_forms::{style_accent, style_ghost};
-use crate::view::theme::{FONT_SEMIBOLD, tokens};
+use crate::view::theme;
+use crate::view::theme::tokens;
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Element, Length, Theme};
@@ -21,11 +22,9 @@ pub fn probe_settings_modal(state: &AppState) -> Element<'_, Message> {
         .unwrap_or_default();
     let editable = editor.applied().is_some() && !pending;
     let content = column![
-        text(lang.tr("proxy_probe_settings_title"))
-            .size(16)
-            .font(FONT_SEMIBOLD),
-        text(lang.tr("proxy_probe_settings_description")).size(12),
-        text(lang.tr("runtime_probe_url_label")).size(12),
+        theme::role_body_text(lang.tr("proxy_probe_settings_title")),
+        theme::role_body_text(lang.tr("proxy_probe_settings_description")),
+        theme::role_body_text(lang.tr("runtime_probe_url_label")),
         text_input(
             "https://example.test/204",
             &state.runtime.runtime_probe_url_draft
@@ -33,7 +32,7 @@ pub fn probe_settings_modal(state: &AppState) -> Element<'_, Message> {
         .on_input_maybe(editable.then_some(Message::UpdateRuntimeProbeUrlDraft))
         .padding(10)
         .width(Length::Fill),
-        text(lang.tr("runtime_probe_timeout_label")).size(12),
+        theme::role_body_text(lang.tr("runtime_probe_timeout_label")),
         container(
             text_input("5000 ms", &state.runtime.runtime_probe_timeout_draft)
                 .on_input_maybe(editable.then_some(Message::UpdateRuntimeProbeTimeoutDraft))
@@ -41,15 +40,15 @@ pub fn probe_settings_modal(state: &AppState) -> Element<'_, Message> {
                 .width(Length::Fill)
         )
         .id(InteractionRegion::ProxyProbeTimeout.id()),
-        text(failure).size(12).style(|theme: &Theme| text::Style {
+        theme::role_body_text(failure).style(|theme: &Theme| text::Style {
             color: Some(tokens(theme).danger)
         }),
         row![
-            button(text(lang.tr("modal_cancel")))
+            button(theme::role_body_text(lang.tr("modal_cancel")))
                 .style(style_ghost)
                 .on_press_maybe((!pending).then_some(Message::CancelRuntimeProbeSettings)),
             Space::new().width(Length::Fill),
-            button(text(lang.tr(if pending {
+            button(theme::role_body_text(lang.tr(if pending {
                 "proxy_probe_settings_pending"
             } else {
                 "proxy_probe_settings_apply"

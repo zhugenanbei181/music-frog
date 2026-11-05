@@ -12,7 +12,7 @@ use crate::icon::IconId;
 use crate::icon_tile::icon_tile_scene;
 use crate::palette::UiPalette;
 use crate::palette::rem;
-use crate::text::{Role, TextRole};
+use crate::text::TextRole;
 use crate::theme::space;
 use bevy::color::Color;
 use bevy::ecs::component::Component;
@@ -29,6 +29,7 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
+use infiltrator_contract::design_resources;
 
 /// Expansion behavior mode for an accordion.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -205,7 +206,7 @@ pub fn collapse_scene(
                 Button
                 AccordionHeader(0)
                 Children [
-                    Text(title) TextRole(Role::BodyStrong)
+                    Text(title) TextRole(design_resources::TextRole::BodyStrong)
                     --
                     @{ icon_tile_scene(IconId::ArrowDown, 16.0, palette) }
                 ]
@@ -267,7 +268,7 @@ pub fn accordion_scene(
                                 Button
                                 AccordionHeader(idx)
                                 Children [
-                                    Text(title) TextRole(Role::BodyStrong)
+                                    Text(title) TextRole(design_resources::TextRole::BodyStrong)
                                     --
                                     @{ icon_tile_scene(IconId::ArrowDown, 16.0, palette) }
                                 ]

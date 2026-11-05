@@ -1,5 +1,5 @@
 pub(crate) fn index_for_code(code: &str) -> Option<i32> {
-    match code {
+    match code.to_ascii_lowercase().as_str() {
         "ac" => Some(0),
         "ad" => Some(1),
         "ae" => Some(2),
@@ -259,5 +259,18 @@ pub(crate) fn index_for_code(code: &str) -> Option<i32> {
         "zm" => Some(256),
         "zw" => Some(257),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::index_for_code;
+
+    #[test]
+    fn owner_country_codes_are_case_insensitive() {
+        assert_eq!(index_for_code("hk"), Some(99));
+        assert_eq!(index_for_code("HK"), Some(99));
+        assert_eq!(index_for_code("Hk"), Some(99));
+        assert_eq!(index_for_code(""), None);
     }
 }

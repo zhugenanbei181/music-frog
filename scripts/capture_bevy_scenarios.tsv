@@ -121,6 +121,14 @@ overview-dark	overview	dark	1180x780
 overview-light	overview	light	1180x780
 overview-forest	overview	forest	1180x780
 overview-amoled	overview	amoled	1180x780
+overview-mobile-dark	overview	dark	400x800
+overview-service-health-dark	service-health	dark	400x800
+overview-resource-gauges-dark	resource-gauges	dark	400x800
+overview-policy-groups-dark	policy-groups	dark	400x800
+overview-policy-picker-dark	policy-picker	dark	400x800
+overview-tablet-dark	overview	dark	720x800
+proxies-mobile-dark	proxies	dark	400x800
+profiles-mobile-dark	profiles	dark	400x800
 proxies-dark	proxies	dark	1180x780
 proxies-light	proxies	light	1180x780
 proxies-forest	proxies	forest	1180x780

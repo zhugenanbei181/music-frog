@@ -8,7 +8,7 @@ use crate::view::component_card::card;
 use crate::view::component_forms::{style_accent, style_ghost};
 use crate::view::components::{BadgeKind, badge};
 use crate::view::svg_icons::Icon;
-use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
+use crate::view::theme::tokens;
 use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
@@ -21,9 +21,7 @@ pub fn geodata_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Mes
         row![
             svg_icons::icon_themed(Icon::Search, 12.0, |t: &Theme| tokens(t).text_secondary),
             Space::new().width(theme::SP_XS),
-            text(lang.tr("geodata_btn_check").to_string())
-                .size(11)
-                .font(FONT_MEDIUM),
+            theme::role_body_text(lang.tr("geodata_btn_check").to_string()),
         ]
         .align_y(Alignment::Center),
     )
@@ -35,13 +33,11 @@ pub fn geodata_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Mes
         row![
             svg_icons::icon_themed(Icon::RefreshCw, 12.0, |t: &Theme| tokens(t).on_accent),
             Space::new().width(theme::SP_XS),
-            text(if geo.phase.is_updating() {
+            theme::role_body_text(if geo.phase.is_updating() {
                 lang.tr("geodata_updating").to_string()
             } else {
                 lang.tr("geodata_btn_update").to_string()
-            })
-            .size(11)
-            .font(FONT_MEDIUM),
+            }),
         ]
         .align_y(Alignment::Center),
     )
@@ -75,37 +71,27 @@ pub fn geodata_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Mes
 
     let databases_row = row![
         column![
-            text(lang.tr("geodata_geoip_status").to_string())
-                .size(12)
-                .font(FONT_SEMIBOLD),
+            theme::role_body_text(lang.tr("geodata_geoip_status").to_string()),
             Space::new().height(2.0),
             row![
                 badge(geoip_ver.to_string(), BadgeKind::Accent),
                 Space::new().width(theme::SP_XS),
-                text(geoip_size_label)
-                    .size(11)
-                    .font(MONO)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_secondary)
-                    }),
+                theme::role_body_text(geoip_size_label).style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_secondary)
+                }),
             ]
             .align_y(Alignment::Center),
         ]
         .width(Length::Fill),
         column![
-            text(lang.tr("geodata_geosite_status").to_string())
-                .size(12)
-                .font(FONT_SEMIBOLD),
+            theme::role_body_text(lang.tr("geodata_geosite_status").to_string()),
             Space::new().height(2.0),
             row![
                 badge(geosite_ver.to_string(), BadgeKind::Success),
                 Space::new().width(theme::SP_XS),
-                text(geosite_size_label)
-                    .size(11)
-                    .font(MONO)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_secondary)
-                    }),
+                theme::role_body_text(geosite_size_label).style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_secondary)
+                }),
             ]
             .align_y(Alignment::Center),
         ]
@@ -118,7 +104,7 @@ pub fn geodata_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Mes
             row![
                 svg_icons::icon_themed(Icon::ListChecks, 14.0, |t: &Theme| tokens(t).success),
                 Space::new().width(theme::SP_XS),
-                text(msg.clone()).size(11).style(|t: &Theme| text::Style {
+                theme::role_body_text(msg.clone()).style(|t: &Theme| text::Style {
                     color: Some(tokens(t).success)
                 }),
             ]

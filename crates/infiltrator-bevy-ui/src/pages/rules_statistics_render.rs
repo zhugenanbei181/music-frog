@@ -15,8 +15,9 @@ use bevy::ui::{Display, FlexDirection, Node, percent};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_presentation::rule_statistics_inspector_projection::{
     StatisticsRowKey, StatisticsRowProjection, project_inspector,
 };
@@ -183,11 +184,11 @@ fn row_scene(row: &StatisticsRowProjection) -> impl Scene + use<> {
     bsn! {
         Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(space::S4) }
         Children [
-            Text(count) StatisticsRow({key.clone()}) StatisticsRowLine::Count TextRole(Role::Caption)
+            Text(count) StatisticsRow({key.clone()}) StatisticsRowLine::Count TextRole(design_resources::TextRole::Caption)
             --
-            Text(raw) StatisticsRow({key.clone()}) StatisticsRowLine::Raw TextRole(Role::Body)
+            Text(raw) StatisticsRow({key.clone()}) StatisticsRowLine::Raw TextRole(design_resources::TextRole::Body)
             --
-            Text(detail) StatisticsRow(key) StatisticsRowLine::Detail TextRole(Role::Caption)
+            Text(detail) StatisticsRow(key) StatisticsRowLine::Detail TextRole(design_resources::TextRole::Caption)
         ]
     }
 }

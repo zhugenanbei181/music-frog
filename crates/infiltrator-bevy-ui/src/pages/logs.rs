@@ -51,9 +51,10 @@ use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::switch::{
     SwitchKnob, SwitchPosition, switch_knob_scene, switch_track_scene,
 };
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::text_runs::TextRuns;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 #[cfg(any(feature = "capture-tools", test))]
 use infiltrator_contract::fixture_identities::{HK_PRIMARY, PROXIES, US};
 use infiltrator_contract::logs::LogLevel;
@@ -260,7 +261,7 @@ pub fn header_card_scene(total_entries: usize, palette: &UiPalette) -> impl Scen
                         Children [
                             @{ icon_tile_scene(IconId::FileText, 36.0, palette) }
                             --
-                            LocalizedText::new("logs_buffer_summary", vec![("count", total_entries.to_string())]) LogsLine(LogsLineKind::Summary) TextRole(Role::Heading)
+                            LocalizedText::new("logs_buffer_summary", vec![("count", total_entries.to_string())]) LogsLine(LogsLineKind::Summary) TextRole(design_resources::TextRole::Heading)
                         ]
                         --
                         Node {
@@ -285,7 +286,7 @@ pub fn header_card_scene(total_entries: usize, palette: &UiPalette) -> impl Scen
 fn scroll_lock_button_scene(palette: &UiPalette) -> Box<dyn Scene> {
     Box::new(bsn! {
             @{ button_with_label_scene(
-                bsn! { LocalizedText::plain("logs_scroll_lock") TextRole(Role::Body) ButtonLabel LogFollowLabel },
+                bsn! { LocalizedText::plain("logs_scroll_lock") TextRole(design_resources::TextRole::Body) ButtonLabel LogFollowLabel },
                 ButtonVariant::Ghost,
                 ButtonSize::Md,
                 palette,
@@ -298,7 +299,7 @@ fn scroll_lock_button_scene(palette: &UiPalette) -> Box<dyn Scene> {
 fn export_button_scene(palette: &UiPalette) -> Box<dyn Scene> {
     Box::new(bsn! {
             @{ button_with_label_scene(
-                bsn! { LocalizedText::plain("logs_export_action") TextRole(Role::Body) ButtonLabel },
+                bsn! { LocalizedText::plain("logs_export_action") TextRole(design_resources::TextRole::Body) ButtonLabel },
                 ButtonVariant::Secondary,
                 ButtonSize::Md,
                 palette,
@@ -311,7 +312,7 @@ fn export_button_scene(palette: &UiPalette) -> Box<dyn Scene> {
 fn clear_button_scene(palette: &UiPalette) -> Box<dyn Scene> {
     Box::new(bsn! {
             @{ button_with_label_scene(
-                bsn! { LocalizedText::plain("common_clear") TextRole(Role::Body) ButtonLabel },
+                bsn! { LocalizedText::plain("common_clear") TextRole(design_resources::TextRole::Body) ButtonLabel },
                 ButtonVariant::Outline,
                 ButtonSize::Md,
                 palette,
@@ -415,7 +416,7 @@ pub fn logs_stream_scene(
                                     row_gap: rem(space::S4),
                                 }
                                 Children [
-                                    LocalizedText::plain("logs_stream_title") TextRole(Role::BodyStrong)
+                                    LocalizedText::plain("logs_stream_title") TextRole(design_resources::TextRole::BodyStrong)
                                     --
                                     @{ soft_wrap_switch_scene(palette) }
                                 ]
@@ -449,7 +450,7 @@ fn soft_wrap_switch_scene(palette: &UiPalette) -> Box<dyn Scene> {
             AccessibilityNode(semantic)
             Children [
                 @{ switch_knob_scene(palette.accent, SwitchPosition::On) }
-                SwitchKnob({ SwitchPosition::On })
+                SwitchKnob(SwitchPosition::On)
             ]
     })
 }

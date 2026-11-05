@@ -21,6 +21,7 @@ zhuge-ui-core.workspace = true
 accesskit = { workspace = true }
 bevy = { workspace = true, features = ["bevy_feathers"] }
 unicode-segmentation = { workspace = true }
+infiltrator-contract = { path = "../infiltrator-contract" }
 infiltrator-shared = { path = "../infiltrator-shared" }
 
 # Feature closure (minimal for a bevy_ui surface), locked `=0.20.1`:

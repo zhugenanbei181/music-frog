@@ -63,11 +63,12 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::picking;
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_bevy_widgets::text_input::{TextField, text_field_with_placeholder_scene};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::connection::ConnectionStreamPhase;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::surface_snapshot::ConnectionSnapshot;
 use infiltrator_domain::connection_view;
 use infiltrator_domain::connection_view::{ConnectionGroupingMode, ConnectionSortKey};
@@ -349,9 +350,9 @@ fn header_card_scene(
                                         row_gap: rem(space::S4),
                                     }
                                     Children [
-                                        LocalizedText { .. { summary } } ConnectionsLine(ConnectionsLineKind::Summary) TextRole(Role::Heading)
+                                        LocalizedText { .. { summary } } ConnectionsLine(ConnectionsLineKind::Summary) TextRole(design_resources::TextRole::Heading)
                                         --
-                                        LocalizedText { .. { traffic } } ConnectionsLine(ConnectionsLineKind::TrafficSummary) TextRole(Role::Body)
+                                        LocalizedText { .. { traffic } } ConnectionsLine(ConnectionsLineKind::TrafficSummary) TextRole(design_resources::TextRole::Body)
                                         --
                                         @{ stream_phase_line_scene(palette) }
                                     ]
@@ -388,7 +389,7 @@ fn header_card_scene(
 fn close_all_button_scene(palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
             @{ button_with_label_scene(
-                bsn! { LocalizedText::plain("connections_close_all_action") TextRole(Role::Body) },
+                bsn! { LocalizedText::plain("connections_close_all_action") TextRole(design_resources::TextRole::Body) },
                 ButtonVariant::Outline,
                 ButtonSize::Sm,
                 palette,
@@ -419,7 +420,7 @@ fn stream_phase_line_scene(palette: &UiPalette) -> impl Scene + use<> {
                 BackgroundColor({ palette.success })
                 ConnStreamPhaseDot
                 --
-                Text({ label }) ConnStreamPhaseLabel TextRole(Role::Caption)
+                Text({ label }) ConnStreamPhaseLabel TextRole(design_resources::TextRole::Caption)
             ]
     }
 }
@@ -479,9 +480,9 @@ fn connections_table_scene(
                                     column_gap: rem(space::S8),
                                 }
                                 Children [
-                                    LocalizedText::plain("connections_sessions_title") TextRole(Role::BodyStrong)
+                                    LocalizedText::plain("connections_sessions_title") TextRole(design_resources::TextRole::BodyStrong)
                                     --
-                                    LocalizedText::plain("connections_sessions_hint") TextRole(Role::Caption)
+                                    LocalizedText::plain("connections_sessions_hint") TextRole(design_resources::TextRole::Caption)
                                 ]
                                 --
                                 @{ sort_strip_scene(ConnectionSortKey::default(), palette) }
@@ -513,11 +514,11 @@ fn connections_table_scene(
                             ]
             }),
             Box::new(bsn! {
-                LocalizedText::plain("conn_search_results") ConnectionsSearchSummary TextRole(Role::Caption)
+                LocalizedText::plain("conn_search_results") ConnectionsSearchSummary TextRole(design_resources::TextRole::Caption)
             }),
             Box::new(bsn! {
                 Node { width: percent(100), display: Display::None, padding: UiRect::all(rem(space::S16)) } ConnectionsSearchEmpty
-                Children [ LocalizedText::plain("runtime_no_matching_connections") TextRole(Role::Body) ]
+                Children [ LocalizedText::plain("runtime_no_matching_connections") TextRole(design_resources::TextRole::Body) ]
             }),
             Box::new(bsn! {
                             Node {
@@ -528,7 +529,7 @@ fn connections_table_scene(
                             }
                             ConnAggregationSummaryContainer
                             Children [
-                                LocalizedText::plain("conn_aggregate_empty") ConnAggregationSummary TextRole(Role::Caption)
+                                LocalizedText::plain("conn_aggregate_empty") ConnAggregationSummary TextRole(design_resources::TextRole::Caption)
                                 --
                                 Node {width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(space::S8)} ConnectionGroupsRoot
                             ]
@@ -548,7 +549,7 @@ fn quiet_button_scene<M: Component + Clone + Unpin>(
 ) -> impl Scene + use<M> {
     bsn! {
             @{ button_with_label_scene(
-                bsn! { LocalizedText::plain(key) TextRole(Role::Caption) },
+                bsn! { LocalizedText::plain(key) TextRole(design_resources::TextRole::Caption) },
                 ButtonVariant::Ghost,
                 ButtonSize::Sm,
                 palette,

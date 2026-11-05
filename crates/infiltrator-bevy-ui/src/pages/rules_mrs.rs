@@ -27,8 +27,9 @@ use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot;
 use infiltrator_contract::provider_cache::RuleProviderCacheSnapshot;
 use infiltrator_presentation::rule_mrs_projection::{
@@ -100,7 +101,7 @@ pub fn rules_mrs_scene(
                             }
                             ThemeBackgroundColor({ Token::SurfaceElevated })
                             Children [
-                                Text({ label }) MrsItemText(idx) TextRole(Role::Body)
+                                Text({ label }) MrsItemText(idx) TextRole(design_resources::TextRole::Body)
                             ]
             }) as Box<dyn Scene>
         })
@@ -124,7 +125,7 @@ pub fn rules_mrs_scene(
                                 Children [
                                     @{ icon_tile_scene(IconId::Activity, 24.0, palette) }
                                     --
-                                    LocalizedText::plain("rules_mrs_engine_title") TextRole(Role::BodyStrong)
+                                    LocalizedText::plain("rules_mrs_engine_title") TextRole(design_resources::TextRole::BodyStrong)
                                 ]
                                 --
                                 Node {
@@ -143,7 +144,7 @@ pub fn rules_mrs_scene(
                                     Button
                                     UpgradeGeoDatabasesButton
                                     Children [
-                                        LocalizedText::plain("rules_update_geo_btn") TextRole(Role::Body)
+                                        LocalizedText::plain("rules_update_geo_btn") TextRole(design_resources::TextRole::Body)
                                     ]
                                     --
                                     Node {
@@ -157,7 +158,7 @@ pub fn rules_mrs_scene(
                                     Button
                                     PurgeRuleProviderCacheButton
                                     Children [
-                                        LocalizedText::plain("provider_btn_purge_cache") TextRole(Role::Body)
+                                        LocalizedText::plain("provider_btn_purge_cache") TextRole(design_resources::TextRole::Body)
                                     ]
                                     --
                                     Node {
@@ -171,7 +172,7 @@ pub fn rules_mrs_scene(
                                     Button
                                     UnpackRuleProviderButton
                                     Children [
-                                        LocalizedText::plain("rules_mrs_import_action") TextRole(Role::BodyStrong)
+                                        LocalizedText::plain("rules_mrs_import_action") TextRole(design_resources::TextRole::BodyStrong)
                                     ]
                                 ]
                             ]
@@ -182,9 +183,9 @@ pub fn rules_mrs_scene(
                                 padding: UiRect::vertical(rem(space::S4)),
                             }
                             Children [
-                                Text({ status_line }) MrsStatusText TextRole(Role::Caption)
+                                Text({ status_line }) MrsStatusText TextRole(design_resources::TextRole::Caption)
                                 --
-                                Text({ cache_line }) ProviderCacheText TextRole(Role::Caption)
+                                Text({ cache_line }) ProviderCacheText TextRole(design_resources::TextRole::Caption)
                             ]
             }),
             Box::new(bsn! {

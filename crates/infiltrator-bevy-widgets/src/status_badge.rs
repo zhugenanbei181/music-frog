@@ -14,7 +14,7 @@
 use crate::feathers_theme::Token;
 use crate::palette::UiPalette;
 use crate::palette::rem;
-use crate::text::{Role, TextRole};
+use crate::text::TextRole;
 use crate::theme::space;
 use bevy::color::Color;
 use bevy::ecs::component::Component;
@@ -25,6 +25,7 @@ use bevy::feathers::theme::ThemeTextColor;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{AlignItems, BackgroundColor, BorderRadius, JustifyContent, Node, UiRect};
 use bevy::ui::widget::Text;
+use infiltrator_contract::design_resources;
 
 /// The badge's height in baseline pixels: the pill the label is centred in.
 ///
@@ -118,7 +119,7 @@ pub fn status_badge_scene(
         StatusBadge
         StatusBadgeToneStyle(tone)
         Children [
-            Text({ text }) TextRole(Role::Caption) ThemeTextColor({ ink.theme_token() })
+            Text({ text }) TextRole(design_resources::TextRole::Caption) ThemeTextColor({ ink.theme_token() })
         ]
     })
 }

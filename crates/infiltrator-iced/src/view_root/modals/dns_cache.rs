@@ -3,7 +3,8 @@ use super::card::{modal_backdrop, modal_card};
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::view::component_forms::{style_accent, style_danger, style_ghost};
-use crate::view::theme::{FONT_SEMIBOLD, tokens};
+use crate::view::theme;
+use crate::view::theme::tokens;
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Element, Length, Theme};
@@ -13,25 +14,20 @@ pub fn cache_modal(state: &AppState) -> Element<'_, Message> {
     let model = &state.diag.dns_cache_actions;
     let view = project_cache(model, &Lang(&state.shell.lang));
     let lang = Lang(&state.shell.lang);
-    let status = text(view.status)
-        .size(12)
-        .style(move |theme: &Theme| text::Style {
-            color: Some(if view.error {
-                tokens(theme).danger
-            } else {
-                tokens(theme).text_secondary
-            }),
-        });
+    let status = theme::role_body_text(view.status).style(move |theme: &Theme| text::Style {
+        color: Some(if view.error {
+            tokens(theme).danger
+        } else {
+            tokens(theme).text_secondary
+        }),
+    });
     let mut actions = row![
         container(
-            button(
-                text(lang.tr(if model.is_confirmed() {
-                    "dns_cache_close"
-                } else {
-                    "dns_cache_cancel"
-                }))
-                .size(12)
-            )
+            button(theme::role_body_text(lang.tr(if model.is_confirmed() {
+                "dns_cache_close"
+            } else {
+                "dns_cache_cancel"
+            })))
             .style(style_ghost)
             .on_press_maybe(view.close.then_some(Message::CancelDnsCacheFlush))
         )
@@ -42,7 +38,7 @@ pub fn cache_modal(state: &AppState) -> Element<'_, Message> {
     if view.confirm {
         actions = actions.push(
             container(
-                button(text(lang.tr("dns_cache_confirm")).size(12))
+                button(theme::role_body_text(lang.tr("dns_cache_confirm")))
                     .style(style_danger)
                     .on_press(Message::ConfirmDnsCacheFlush),
             )
@@ -51,19 +47,17 @@ pub fn cache_modal(state: &AppState) -> Element<'_, Message> {
     }
     if view.retry {
         actions = actions.push(
-            button(text(lang.tr("dns_cache_retry")).size(12))
+            button(theme::role_body_text(lang.tr("dns_cache_retry")))
                 .style(style_accent)
                 .on_press(Message::RetryDnsCacheFlush),
         );
     }
     let content = column![
-        text(lang.tr("dns_cache_title"))
-            .size(17)
-            .font(FONT_SEMIBOLD),
+        theme::role_body_text(lang.tr("dns_cache_title")),
         status,
-        text(view.results_label).size(11),
-        text(view.fake_ip).size(12),
-        text(view.system).size(12),
+        theme::role_body_text(view.results_label),
+        theme::role_body_text(view.fake_ip),
+        theme::role_body_text(view.system),
         actions,
     ]
     .spacing(12);

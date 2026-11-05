@@ -6,6 +6,7 @@
 //! published log window a second time.
 
 use super::super::snapshot_language;
+use super::super::token_ink::unobserved_ink;
 use crate::widget_vocabulary;
 use crate::{AppWindow, ObservationRow, refresh_model};
 use infiltrator_contract::logs::LogStreamState;
@@ -57,7 +58,7 @@ pub(super) fn project_logs(window: &AppWindow, snapshot: &SurfaceSnapshot) {
                 accessible_title: message.into(),
                 flag_code: "".into(),
                 flag_index: -1,
-                delay_ms: -1,
+                latency_ink: unobserved_ink(),
                 subtitle: format!("{timestamp} · {level}").into(),
                 trailing: tag.into(),
                 active: false,

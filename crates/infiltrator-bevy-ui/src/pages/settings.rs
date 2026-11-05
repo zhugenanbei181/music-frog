@@ -12,6 +12,7 @@ use self::query_access::{
     LogLevelControlItem, SettingsActionControls, SettingsProjectionTargets, SettingsTextOutputItem,
     TunStackControlItem,
 };
+use infiltrator_contract::design_resources;
 use infiltrator_shared::locales::Lang;
 
 use crate::appearance::{refresh_tonal_ladder_preview, tonal_ladder_preview_scene};
@@ -48,7 +49,7 @@ use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::service_mode::ServiceModeState;
@@ -193,9 +194,9 @@ pub fn settings_page(projection: &SettingsProjection, palette: &UiPalette) -> im
                 }
                 ThemeBackgroundColor({ Token::SurfaceElevated })
                 Children [
-                    LocalizedText::plain("settings_font_attribution_title") TextRole(Role::BodyStrong)
+                    LocalizedText::plain("settings_font_attribution_title") TextRole(design_resources::TextRole::BodyStrong)
                     --
-                    LocalizedText::plain("settings_font_attribution_copy") TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
+                    LocalizedText::plain("settings_font_attribution_copy") TextRole(design_resources::TextRole::Caption) ThemeTextColor({ Token::InkDim })
                     --
                     Node {
                         width: percent(100),
@@ -252,7 +253,7 @@ pub fn tun_permission_alert_banner_scene(palette: &UiPalette) -> impl Scene + us
                 Children [
                     @{ icon_tile_scene(IconId::Activity, 28.0, palette) }
                     --
-                    LocalizedText::plain("settings_tun_permission_hint") TextRole(Role::Body)
+                    LocalizedText::plain("settings_tun_permission_hint") TextRole(design_resources::TextRole::Body)
                 ]
                 --
                 Node {
@@ -266,7 +267,7 @@ pub fn tun_permission_alert_banner_scene(palette: &UiPalette) -> impl Scene + us
                 PrepareTunPermissionButton
                 Button
                 Children [
-                    LocalizedText::plain("settings_tun_prepare_perm_btn") TextRole(Role::BodyStrong)
+                    LocalizedText::plain("settings_tun_prepare_perm_btn") TextRole(design_resources::TextRole::BodyStrong)
                 ]
             ]
     }
@@ -293,7 +294,7 @@ fn header_card_scene(summary: String, palette: &UiPalette) -> impl Scene + use<>
                         Children [
                             @{ icon_tile_scene(IconId::Settings, 36.0, palette) }
                             --
-                            Text(summary) SettingsLine(SettingsLineKind::Summary) TextRole(Role::Heading)
+                            Text(summary) SettingsLine(SettingsLineKind::Summary) TextRole(design_resources::TextRole::Heading)
                         ]
                         --
                         Node {
@@ -312,7 +313,7 @@ fn header_card_scene(summary: String, palette: &UiPalette) -> impl Scene + use<>
                             SaveSettingsButton
                             Button
                             Children [
-                                LocalizedText::plain("common_save_apply") TextRole(Role::BodyStrong)
+                                LocalizedText::plain("common_save_apply") TextRole(design_resources::TextRole::BodyStrong)
                             ]
                         ]
                     ]
@@ -359,7 +360,7 @@ pub fn general_card_scene(
                                 padding: UiRect::bottom(rem(space::S8)),
                             }
                             Children [
-                                LocalizedText::plain("settings_general_title") TextRole(Role::BodyStrong)
+                                LocalizedText::plain("settings_general_title") TextRole(design_resources::TextRole::BodyStrong)
                             ]
             }),
             Box::new(bsn! {
@@ -398,9 +399,9 @@ pub fn general_card_scene(
                                 }
                                 ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Children [
-                                    LocalizedText::plain("settings_core_channel_title") TextRole(Role::Body)
+                                    LocalizedText::plain("settings_core_channel_title") TextRole(design_resources::TextRole::Body)
                                     --
-                                    Text(core_channel_str) SettingsLine(SettingsLineKind::CoreChannel) TextRole(Role::BodyStrong)
+                                    Text(core_channel_str) SettingsLine(SettingsLineKind::CoreChannel) TextRole(design_resources::TextRole::BodyStrong)
                                 ]
                                 --
                                 @{ settings_core::core_rollback_row_scene(projection, palette) }
@@ -424,9 +425,9 @@ pub fn general_card_scene(
                                 }
                                 ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Children [
-                                    LocalizedText::plain("settings_artifact_integrity_title") TextRole(Role::Body)
+                                    LocalizedText::plain("settings_artifact_integrity_title") TextRole(design_resources::TextRole::Body)
                                     --
-                                    Text(core_integrity_str) SettingsLine(SettingsLineKind::CoreIntegrity) TextRole(Role::Mono)
+                                    Text(core_integrity_str) SettingsLine(SettingsLineKind::CoreIntegrity) TextRole(design_resources::TextRole::Mono)
                                 ]
                                 --
                                 Node {
@@ -438,9 +439,9 @@ pub fn general_card_scene(
                                 }
                                 ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Children [
-                                    LocalizedText::plain("settings_channel_probe_title") TextRole(Role::Body)
+                                    LocalizedText::plain("settings_channel_probe_title") TextRole(design_resources::TextRole::Body)
                                     --
-                                    Text(core_versions_str) SettingsLine(SettingsLineKind::CoreVersions) TextRole(Role::Mono)
+                                    Text(core_versions_str) SettingsLine(SettingsLineKind::CoreVersions) TextRole(design_resources::TextRole::Mono)
                                 ]
                                 --
                                 Node {
@@ -452,9 +453,9 @@ pub fn general_card_scene(
                                 }
                                 ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Children [
-                                    LocalizedText::plain("settings_mixed_port_label") TextRole(Role::Body)
+                                    LocalizedText::plain("settings_mixed_port_label") TextRole(design_resources::TextRole::Body)
                                     --
-                                    Text(mixed_port_str) SettingsLine(SettingsLineKind::MixedPort) TextRole(Role::Mono)
+                                    Text(mixed_port_str) SettingsLine(SettingsLineKind::MixedPort) TextRole(design_resources::TextRole::Mono)
                                 ]
                                 --
                                 Node {
@@ -464,7 +465,7 @@ pub fn general_card_scene(
                                     padding: UiRect::top(rem(space::S4)),
                                 }
                                 Children [
-                                    LocalizedText::plain("settings_interface_theme_title") TextRole(Role::Caption)
+                                    LocalizedText::plain("settings_interface_theme_title") TextRole(design_resources::TextRole::Caption)
                                     --
                                     @{ localized_segmented_scene(
                                             &["theme_light", "theme_dark", "theme_forest", "theme_amoled"],

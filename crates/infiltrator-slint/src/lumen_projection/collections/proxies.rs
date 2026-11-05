@@ -12,6 +12,7 @@
 
 use super::super::flag_assets;
 use super::super::snapshot_language;
+use super::super::token_ink::latency_ink;
 use crate::widget_vocabulary;
 use crate::{AppWindow, ObservationRow, ProxyGroup, refresh_model};
 use infiltrator_contract::active_exit::ActiveExitStatus;
@@ -179,7 +180,17 @@ pub(super) fn project_proxies(window: &AppWindow, snapshot: &SurfaceSnapshot) {
                 collection.id.clone(),
                 ProxyGroup {
                     name: collection.id.value().to_owned().into(),
-                    icon_emoji: "".into(),
+                    // A one-character avatar, owned by the projection. An
+                    // empty glyph made the tile badge print the whole group
+                    // name a second time next to its own title.
+                    icon_emoji: collection
+                        .id
+                        .value()
+                        .chars()
+                        .next()
+                        .map(|first| first.to_ascii_uppercase().to_string())
+                        .unwrap_or_default()
+                        .into(),
                     kind: kind.into(),
                     current: current.clone().into(),
                     current_flag_code: group_flag_code.to_ascii_lowercase().into(),
@@ -311,9 +322,10 @@ fn node_row(node: ProxyNodeView) -> ObservationRow {
         accessible_title: name.into(),
         flag_code: flag_iso.to_ascii_lowercase().into(),
         flag_index: flag_assets::index_for_code(flag_iso).unwrap_or(-1),
-        delay_ms: latency_ms
-            .map(|value| value.min(i32::MAX as u32) as i32)
-            .unwrap_or(-1),
+        // The ladder decides the colour once, here, from the owner's probe.
+        // `PingBadge` used to re-grade the same number against private
+        // thresholds, so a 158 ms node read green here and amber there.
+        latency_ink: latency_ink(latency_ms),
         subtitle: proxy_protocol_chip(&protocol).into(),
         trailing: latency_ms
             .map(|value| format!("{value} ms"))

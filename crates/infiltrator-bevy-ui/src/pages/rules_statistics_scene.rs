@@ -25,8 +25,9 @@ use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText};
 use infiltrator_bevy_widgets::modal::{ModalDialogCard, ModalScrim};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_presentation::rule_statistics_workbench::StatisticsTab;
 
 /// The metric column's minimum width in baseline pixels.
@@ -72,7 +73,7 @@ fn dismiss_control(
 fn metric(key: &'static str, line: StatisticsLine) -> impl Scene + use<> {
     bsn! {
         Node { min_width: rem(STATISTICS_METRIC_MIN_WIDTH_PX), flex_grow: 1.0, flex_direction: FlexDirection::Column, row_gap: rem(space::S4) }
-        Children [ LocalizedText::plain(key) TextRole(Role::Caption) -- Text(String::new()) StatisticsLine { .. { line } } TextRole(Role::BodyStrong) ]
+        Children [ LocalizedText::plain(key) TextRole(design_resources::TextRole::Caption) -- Text(String::new()) StatisticsLine { .. { line } } TextRole(design_resources::TextRole::BodyStrong) ]
     }
 }
 pub fn scene(palette: &UiPalette) -> impl Scene + use<> {
@@ -81,9 +82,9 @@ pub fn scene(palette: &UiPalette) -> impl Scene + use<> {
             padding: UiRect::all(rem(space::S12)), flex_direction: FlexDirection::Column, row_gap: rem(space::S8) }
         StatisticsCard ThemeBackgroundColor({Token::SurfaceElevated})
         Children [
-            LocalizedText::plain("rule_hit_title") TextRole(Role::BodyStrong)
+            LocalizedText::plain("rule_hit_title") TextRole(design_resources::TextRole::BodyStrong)
             --
-            Text(String::new()) StatisticsLine::Status TextRole(Role::Caption)
+            Text(String::new()) StatisticsLine::Status TextRole(design_resources::TextRole::Caption)
             --
             Node { flex_wrap: FlexWrap::Wrap, column_gap: rem(space::S8), row_gap: rem(space::S4), flex_shrink: 0.0 }
             Children [
@@ -98,24 +99,24 @@ pub fn scene(palette: &UiPalette) -> impl Scene + use<> {
                 flex_direction: FlexDirection::Column, row_gap: rem(space::S8), overflow: Overflow::scroll_y() }
             ScrollArea
             Children [
-                LocalizedText::plain("rule_hit_desc") TextRole(Role::Caption)
+                LocalizedText::plain("rule_hit_desc") TextRole(design_resources::TextRole::Caption)
                 --
-                Text(String::new()) StatisticsLine::Source TextRole(Role::Caption)
+                Text(String::new()) StatisticsLine::Source TextRole(design_resources::TextRole::Caption)
                 --
                 Node { width: percent(100), flex_wrap: FlexWrap::Wrap, column_gap: rem(space::S8), row_gap: rem(space::S8) }
                 Children [ @{metric("rule_hit_total_hits", StatisticsLine::Total)} -- @{metric("rule_hit_dead_count", StatisticsLine::Dead)} -- @{metric("rule_hit_cidr_conflicts", StatisticsLine::Cidr)} -- @{metric("rule_hit_match_latency", StatisticsLine::Latency)} ]
                 --
-                Text(String::new()) StatisticsLine::Last TextRole(Role::Body)
+                Text(String::new()) StatisticsLine::Last TextRole(design_resources::TextRole::Body)
                 --
                 Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(space::S8) }
                 StatisticsRows
                 --
-                Text(String::new()) StatisticsLine::Empty TextRole(Role::Caption)
+                Text(String::new()) StatisticsLine::Empty TextRole(design_resources::TextRole::Caption)
             ]
             --
-            Text(String::new()) StatisticsLine::Page TextRole(Role::Caption)
+            Text(String::new()) StatisticsLine::Page TextRole(design_resources::TextRole::Caption)
             --
-            Text(String::new()) StatisticsLine::Feedback TextRole(Role::Caption)
+            Text(String::new()) StatisticsLine::Feedback TextRole(design_resources::TextRole::Caption)
             --
             Node { width: percent(100), flex_wrap: FlexWrap::Wrap, column_gap: rem(space::S8), row_gap: rem(space::S4), flex_shrink: 0.0 }
             Children [
@@ -160,13 +161,13 @@ pub fn spawn_confirmation(mut commands: Commands, palette: Res<UiPalette>) {
                 flex_direction: FlexDirection::Column, row_gap: rem(space::S12) }
             StatisticsConfirmationCard ModalDialogCard ModalDialog AccessibilityNode(semantic) LocalizedLabel::plain("rules_stats_cleanup_title") ThemeBackgroundColor({Token::Surface})
             Children [
-                LocalizedText::plain("rules_stats_cleanup_title") TextRole(Role::Heading)
+                LocalizedText::plain("rules_stats_cleanup_title") TextRole(design_resources::TextRole::Heading)
                 --
-                LocalizedText::plain("rules_stats_cleanup_description") TextRole(Role::Caption)
+                LocalizedText::plain("rules_stats_cleanup_description") TextRole(design_resources::TextRole::Caption)
                 --
                 Node { width: percent(100), min_height: px(0.0), flex_shrink: 1.0, overflow: Overflow::scroll_y() }
                 ScrollArea
-                Children [ Text(String::new()) StatisticsLine::Confirmation TextRole(Role::Body) ]
+                Children [ Text(String::new()) StatisticsLine::Confirmation TextRole(design_resources::TextRole::Body) ]
                 --
                 Node { flex_wrap: FlexWrap::Wrap, column_gap: rem(space::S12), row_gap: rem(space::S8), flex_shrink: 0.0 }
                 Children [ @{dismiss_control("modal_cancel", StatisticsControl::CancelCleanup, &palette)} -- @{control("rules_stats_cleanup_confirm", StatisticsControl::ConfirmCleanup, &palette)} ]

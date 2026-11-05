@@ -65,8 +65,9 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::tabs::{SegmentedTab, segmented_control_scene};
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::{radius, space};
+use infiltrator_contract::design_resources;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 /// Raster width of the mounted globe plate.
@@ -302,12 +303,12 @@ fn header_scene(data: &GlobeData) -> impl Scene + use<> {
                     }
                     ThemeBackgroundColor({ Token::Accent })
                     --
-                    Text({ title }) TextRole(Role::Heading)
+                    Text({ title }) TextRole(design_resources::TextRole::Heading)
                 ]
                 --
-                Text({ summary }) TextRole(Role::BodyStrong)
+                Text({ summary }) TextRole(design_resources::TextRole::BodyStrong)
                 --
-                Text({ pick_hint }) TextRole(Role::Body) GlobePickedDetail
+                Text({ pick_hint }) TextRole(design_resources::TextRole::Body) GlobePickedDetail
             ]
     }
 }
@@ -353,11 +354,11 @@ fn empty_state_scene(data: &GlobeData, palette: &UiPalette) -> impl Scene + use<
                     @{ skeleton_scene(palette) }
                     --
                     Text({ empty_label })
-                    TextRole(Role::BodyStrong)
+                    TextRole(design_resources::TextRole::BodyStrong)
                     --
                     Text(detail)
                     GlobeEmptyStateDetail
-                    TextRole(Role::Caption)
+                    TextRole(design_resources::TextRole::Caption)
                 ]
             ]
     }

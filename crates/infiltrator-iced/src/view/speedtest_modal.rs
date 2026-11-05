@@ -10,7 +10,7 @@ use crate::view::component_card::card;
 use crate::view::component_forms::style_accent;
 use crate::view::components::{BadgeKind, badge};
 use crate::view::svg_icons::Icon;
-use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
+use crate::view::theme::tokens;
 use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, row, text};
 use iced::{Alignment, Element, Length, Theme};
@@ -70,13 +70,11 @@ pub fn speedtest_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
         row![
             svg_icons::icon_themed(Icon::Zap, 14.0, |t: &Theme| tokens(t).on_accent),
             Space::new().width(theme::SP_SM),
-            text(if is_running {
+            theme::role_body_text(if is_running {
                 lang.tr("speedtest_measuring").to_string()
             } else {
                 lang.tr("speedtest_btn_start").to_string()
-            })
-            .size(12)
-            .font(FONT_MEDIUM),
+            }),
         ]
         .align_y(Alignment::Center),
     )
@@ -91,21 +89,21 @@ pub fn speedtest_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
     // The live concurrency bound is read from the shared snapshot
     // and written back through the port; the UI never owns the effective fact.
     let concurrency = snapshot.concurrency.get();
-    let concurrency_down = button(text("−").size(14))
+    let concurrency_down = button(theme::role_body_text("−"))
         .padding([2, 10])
         .on_press(Message::AdjustSpeedtestConcurrency(-1));
-    let concurrency_up = button(text("+").size(14))
+    let concurrency_up = button(theme::role_body_text("+"))
         .padding([2, 10])
         .on_press(Message::AdjustSpeedtestConcurrency(1));
     let controls_row = row![
-        text(lang.tr("speedtest_concurrency_label").to_string())
-            .size(11)
-            .style(|t: &Theme| text::Style {
+        theme::role_body_text(lang.tr("speedtest_concurrency_label").to_string()).style(
+            |t: &Theme| text::Style {
                 color: Some(tokens(t).text_secondary)
-            }),
+            }
+        ),
         Space::new().width(theme::SP_XS),
         concurrency_down,
-        text(concurrency.to_string()).size(13).font(MONO),
+        theme::role_body_text(concurrency.to_string()),
         concurrency_up,
     ]
     .align_y(Alignment::Center);
@@ -131,51 +129,49 @@ pub fn speedtest_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
         let loss_text = metrics.loss;
         row![
             column![
-                text(lang.tr("speedtest_latency").to_string())
-                    .size(11)
-                    .style(|t: &Theme| text::Style {
+                theme::role_body_text(lang.tr("speedtest_latency").to_string()).style(
+                    |t: &Theme| text::Style {
                         color: Some(tokens(t).text_secondary)
-                    }),
-                text(
+                    }
+                ),
+                theme::role_body_text(
                     res.delay_ms()
                         .map(|delay| format!("{delay} ms"))
                         .unwrap_or_else(|| "—".to_owned())
                 )
-                .size(16)
-                .font(FONT_SEMIBOLD)
                 .style(|t: &Theme| text::Style {
                     color: Some(tokens(t).accent)
                 }),
             ]
             .width(Length::Fill),
             column![
-                text(lang.tr("speedtest_jitter").to_string())
-                    .size(11)
-                    .style(|t: &Theme| text::Style {
+                theme::role_body_text(lang.tr("speedtest_jitter").to_string()).style(
+                    |t: &Theme| text::Style {
                         color: Some(tokens(t).text_secondary)
-                    }),
-                text(jitter_text).size(14).font(MONO),
+                    }
+                ),
+                theme::role_body_text(jitter_text),
             ]
             .width(Length::Fill),
             column![
-                text(lang.tr("speedtest_packet_loss").to_string())
-                    .size(11)
-                    .style(|t: &Theme| text::Style {
+                theme::role_body_text(lang.tr("speedtest_packet_loss").to_string()).style(
+                    |t: &Theme| text::Style {
                         color: Some(tokens(t).text_secondary)
-                    }),
-                text(loss_text).size(14).font(MONO),
+                    }
+                ),
+                theme::role_body_text(loss_text),
             ]
             .width(Length::Fill),
             column![
-                text(lang.tr("speedtest_stability").to_string())
-                    .size(11)
-                    .style(|t: &Theme| text::Style {
+                theme::role_body_text(lang.tr("speedtest_stability").to_string()).style(
+                    |t: &Theme| text::Style {
                         color: Some(tokens(t).text_secondary)
-                    }),
+                    }
+                ),
                 row![
                     loss_badge(metrics.rating, lang),
                     Space::new().width(theme::SP_XS),
-                    text(metrics.stars).size(13),
+                    theme::role_body_text(metrics.stars),
                 ]
                 .align_y(Alignment::Center),
             ],
@@ -184,22 +180,20 @@ pub fn speedtest_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
         .into()
     } else {
         row![
-            text(format!(
+            theme::role_body_text(format!(
                 "Node: {}",
                 if target_label.is_empty() {
                     "No node selected"
                 } else {
                     &target_label
                 }
-            ))
-            .size(12)
-            .font(FONT_MEDIUM),
+            )),
             Space::new().width(Length::Fill),
-            text(lang.tr("speedtest_benchmark_hint").into_owned())
-                .size(11)
-                .style(|t: &Theme| text::Style {
+            theme::role_body_text(lang.tr("speedtest_benchmark_hint").into_owned()).style(
+                |t: &Theme| text::Style {
                     color: Some(tokens(t).text_secondary)
-                }),
+                }
+            ),
         ]
         .align_y(Alignment::Center)
         .into()
@@ -213,18 +207,15 @@ pub fn speedtest_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
         row![
             badge(archive.count.to_string(), BadgeKind::Danger),
             Space::new().width(theme::SP_XS),
-            text(lang.tr("speedtest_dead_archive").to_string())
-                .size(11)
-                .style(|t: &Theme| text::Style {
+            theme::role_body_text(lang.tr("speedtest_dead_archive").to_string()).style(
+                |t: &Theme| text::Style {
                     color: Some(tokens(t).text_secondary)
-                }),
+                }
+            ),
             Space::new().width(theme::SP_XS),
-            text(archive.names)
-                .size(11)
-                .font(MONO)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).danger)
-                }),
+            theme::role_body_text(archive.names).style(|t: &Theme| text::Style {
+                color: Some(tokens(t).danger)
+            }),
         ]
         .align_y(Alignment::Center)
         .into()
@@ -234,25 +225,24 @@ pub fn speedtest_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
     // never a UI-local record.
     let history_lines = history_lines(snapshot, &Lang(lang.0));
     let mut history_column = column![
-        text(lang.tr("speedtest_history_title").to_string())
-            .size(11)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_secondary)
-            })
+        theme::role_body_text(lang.tr("speedtest_history_title").to_string()).style(|t: &Theme| {
+            text::Style {
+                color: Some(tokens(t).text_secondary),
+            }
+        })
     ]
     .spacing(2);
     if history_lines.is_empty() {
         history_column = history_column.push(
-            text(lang.tr("speedtest_history_empty").to_string())
-                .size(11)
-                .font(MONO)
-                .style(|t: &Theme| text::Style {
+            theme::role_body_text(lang.tr("speedtest_history_empty").to_string()).style(
+                |t: &Theme| text::Style {
                     color: Some(tokens(t).text_secondary),
-                }),
+                },
+            ),
         );
     } else {
         for line in history_lines {
-            history_column = history_column.push(text(line).size(11).font(MONO));
+            history_column = history_column.push(theme::role_body_text(line));
         }
     }
     let history_section: Element<'_, Message> = history_column.into();
@@ -261,7 +251,7 @@ pub fn speedtest_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
         Some(lang.tr("speedtest_title").to_string()),
         column![
             row![
-                text(format!(
+                theme::role_body_text(format!(
                     "Target: {}",
                     if target_label.is_empty() {
                         "None"
@@ -269,16 +259,12 @@ pub fn speedtest_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
                         &target_label
                     }
                 ))
-                .size(12)
-                .font(MONO)
                 .width(Length::Fill),
                 // Open the typed outbound detail modal over the shared
                 // snapshot; the modal owns no metrics of its own.
-                button(
-                    text(lang.tr("speedtest_detail_open").to_string())
-                        .size(11)
-                        .font(FONT_MEDIUM)
-                )
+                button(theme::role_body_text(
+                    lang.tr("speedtest_detail_open").to_string()
+                ))
                 .padding([6, 12])
                 .style(style_accent)
                 .on_press(Message::OpenSpeedtestDetail),

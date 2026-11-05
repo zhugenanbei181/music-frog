@@ -6,7 +6,7 @@ use crate::view::component_card::card;
 use crate::view::component_forms::{form_input_style, style_accent};
 use crate::view::components::{BadgeKind, badge, toggle_switch};
 use crate::view::svg_icons::Icon;
-use crate::view::theme::{FONT_MEDIUM, MONO, tokens};
+use crate::view::theme::tokens;
 use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
@@ -28,9 +28,7 @@ pub fn pac_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message
         row![
             svg_icons::icon_themed(Icon::Code2, 12.0, |t: &Theme| tokens(t).on_accent),
             Space::new().width(theme::SP_XS),
-            text(lang.tr("pac_btn_compile").to_string())
-                .size(11)
-                .font(FONT_MEDIUM),
+            theme::role_body_text(lang.tr("pac_btn_compile").to_string()),
         ]
         .align_y(Alignment::Center),
     )
@@ -48,8 +46,6 @@ pub fn pac_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message
     )
     .on_input(Message::UpdatePacBypassSubnets)
     .padding([6, 10])
-    .size(12)
-    .font(MONO)
     .width(Length::Fill)
     .style(form_input_style);
 
@@ -59,7 +55,7 @@ pub fn pac_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message
             row![
                 svg_icons::icon_themed(Icon::ListChecks, 14.0, |t: &Theme| tokens(t).success),
                 Space::new().width(theme::SP_XS),
-                text(st.clone()).size(11).style(|t: &Theme| text::Style {
+                theme::role_body_text(st.clone()).style(|t: &Theme| text::Style {
                     color: Some(tokens(t).success)
                 }),
             ]
@@ -74,8 +70,7 @@ pub fn pac_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message
         Some(lang.tr("pac_title").to_string()),
         column![
             row![
-                text(lang.tr("pac_desc").to_string())
-                    .size(12)
+                theme::role_body_text(lang.tr("pac_desc").to_string())
                     .style(|t: &Theme| text::Style {
                         color: Some(tokens(t).text_secondary)
                     })
@@ -85,18 +80,15 @@ pub fn pac_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message
             .align_y(Alignment::Center),
             Space::new().height(theme::SP_XS),
             row![
-                text(format!("{}:", lang.tr("pac_url_label")))
-                    .size(11)
-                    .style(|t: &Theme| text::Style {
+                theme::role_body_text(format!("{}:", lang.tr("pac_url_label"))).style(
+                    |t: &Theme| text::Style {
                         color: Some(tokens(t).text_secondary)
-                    }),
+                    }
+                ),
                 Space::new().width(theme::SP_SM),
-                text(status.clone())
-                    .size(12)
-                    .font(MONO)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_primary)
-                    }),
+                theme::role_body_text(status.clone()).style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_primary)
+                }),
                 Space::new().width(Length::Fill),
                 badge(
                     status,
@@ -109,11 +101,11 @@ pub fn pac_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message
             ]
             .align_y(Alignment::Center),
             Space::new().height(theme::SP_XS),
-            text(lang.tr("pac_bypass_cidrs").to_string())
-                .size(11)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_secondary)
-                }),
+            theme::role_body_text(lang.tr("pac_bypass_cidrs").to_string()).style(|t: &Theme| {
+                text::Style {
+                    color: Some(tokens(t).text_secondary),
+                }
+            }),
             bypass_input,
             Space::new().height(theme::SP_XS),
             row![

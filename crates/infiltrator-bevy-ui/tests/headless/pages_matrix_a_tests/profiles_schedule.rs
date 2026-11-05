@@ -23,7 +23,7 @@ fn test_profiles_schedule_policy_restamps_and_submits_shared_command() {
     app.update();
 
     assert!(
-        subtree_has_text(app.world(), root, "订阅更新策略 (Update Policy)"),
+        subtree_has_text(app.world(), root, "订阅更新策略"),
         "the policy card mounts on the profiles page"
     );
     assert!(

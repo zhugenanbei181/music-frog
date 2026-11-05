@@ -26,7 +26,7 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
 
         // Category 1a: STUN UDP-egress probe (DUAL-14-09, re-scoped)
         "dns_stun_probe_title" => "STUN UDP Egress Mapping Probe".into(),
-        "dns_stun_probe_desc" => "Observes this host/process's UDP egress mapping (public IP:port) through an external STUN server and compares it against the expected proxied egress; this is not a browser WebRTC measurement".into(),
+        "dns_stun_probe_desc" => "Observes UDP egress via STUN and compares it with the expected proxied egress.".into(),
         "dns_stun_btn_run" => "Run STUN Probe".into(),
         "dns_stun_probing" => "STUN probing...".into(),
         "dns_stun_server" => "STUN server: {server}".into(),
@@ -298,6 +298,11 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "pcap_btn_export" => "Export .pcap".into(),
         "pcap_capturing" => "Capturing ({count} packets / {bytes})".into(),
         "pcap_idle" => "Packet capture is idle".into(),
+        "pcap_status_capturing" => "Capturing".into(),
+        "pcap_status_idle" => "Idle".into(),
+        "pcap_stats" => "{count} packets · {bytes}".into(),
+        "rule_diff_added" => "Added".into(),
+        "rule_diff_removed" => "Removed".into(),
 
         // Category 2: Logical Sub-Rules Builder
         "subrules_title" => "Logical Sub-Rules Visual Builder".into(),

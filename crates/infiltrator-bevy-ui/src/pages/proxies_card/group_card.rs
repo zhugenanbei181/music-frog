@@ -12,23 +12,22 @@ use bevy::feathers::theme::{ThemeBackgroundColor, ThemeTextColor};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
     AlignItems, BorderRadius, Display, FlexDirection, FlexWrap, JustifyContent, Node, UiRect,
-    percent,
+    percent, px,
 };
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::Button;
+use infiltrator_bevy_widgets::button::{ButtonSize, ButtonVariant, button_with_label_scene};
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::{IconId, icon_scene};
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::{radius, space};
+use infiltrator_contract::design_resources;
 use infiltrator_contract::proxies::ProxyGroupClassification;
 
 /// The group header action button's minimum height in baseline pixels.
-const GROUP_HEADER_ACTION_MIN_HEIGHT_PX: f32 = 28.0;
-
 /// The group header's reorder icon plate size, in baseline pixels.
 const GROUP_HEADER_ICON_SIZE_PX: f32 = 14.0;
 
@@ -126,6 +125,8 @@ fn group_card_scene_impl(
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::SpaceBetween,
                                 padding: UiRect::bottom(rem(space::S8)),
+                                flex_wrap: FlexWrap::Wrap,
+                                row_gap: rem(space::S8),
                             }
                             ProxyGroupIdentity({ group.name.clone() })
                             ProxyGroupOutboundIdentity({ group.collection_id.clone() })
@@ -133,9 +134,11 @@ fn group_card_scene_impl(
                                 Node {
                                     align_items: AlignItems::Center,
                                     column_gap: rem(space::S8),
+                                    flex_grow: 1.0,
+                                    min_width: px(0.0),
                                 }
                                 Children [
-                                    Text(title) TextRole(Role::BodyStrong)
+                                    Text(title) TextRole(design_resources::TextRole::BodyStrong)
                                     --
                                     Node {
                                         padding: UiRect::axes(rem(space::S6), rem(space::S2)),
@@ -146,7 +149,7 @@ fn group_card_scene_impl(
                                     }
                                     ThemeBackgroundColor({ Token::AccentContainer })
                                     Children [
-                                        LocalizedText { .. { kind_label } } TextRole(Role::Caption) ThemeTextColor({ Token::Ink })
+                                        LocalizedText { .. { kind_label } } TextRole(design_resources::TextRole::Caption) ThemeTextColor({ Token::Ink })
                                     ]
                                 ]
                                 --
@@ -155,82 +158,54 @@ fn group_card_scene_impl(
                                     column_gap: rem(space::S8),
                                 }
                                 Children [
-                                    LocalizedText { .. { current_label } } GroupCurrentText(g_idx) TextRole(Role::Caption)
+                                    LocalizedText { .. { current_label } } GroupCurrentText(g_idx) TextRole(design_resources::TextRole::Caption)
                                     --
-                                    Node {
-                                        min_height: rem(GROUP_HEADER_ACTION_MIN_HEIGHT_PX),
-                                        padding: UiRect::axes(rem(space::S8), rem(space::S4)),
-                                        align_items: AlignItems::Center,
-                                        justify_content: JustifyContent::Center,
-                                        border_radius: BorderRadius::all(rem(palette.control_radius_px)),
-                                    }
-                                    ThemeBackgroundColor({ Token::SurfaceElevated })
+                                    @{ button_with_label_scene(
+                                        bsn! { LocalizedText::plain("proxies_test_group") TextRole(design_resources::TextRole::Caption) },
+                                        ButtonVariant::Default,
+                                        ButtonSize::Sm,
+                                        palette,
+                                    ) }
                                     TestProxyGroupButton {
                                         group_idx: { g_idx },
                                         collection_id: { group.collection_id.clone() },
                                     }
-                                    Button
-                                    Children [
-                                        LocalizedText::plain("proxies_test_group") TextRole(Role::Caption)
-                                    ]
                                     --
-                                    Node {
-                                        min_height: rem(GROUP_HEADER_ACTION_MIN_HEIGHT_PX),
-                                        min_width: rem(GROUP_HEADER_ACTION_MIN_HEIGHT_PX),
-                                        padding: UiRect::axes(rem(space::S6), rem(space::S4)),
-                                        align_items: AlignItems::Center,
-                                        justify_content: JustifyContent::Center,
-                                        border_radius: BorderRadius::all(rem(palette.control_radius_px)),
-                                        flex_shrink: 0.0,
-                                    }
-                                    ThemeBackgroundColor({ Token::SurfaceElevated })
+                                    @{ button_with_label_scene(
+                                        icon_scene(IconId::ArrowUp, GROUP_HEADER_ICON_SIZE_PX, palette.ink_dim),
+                                        ButtonVariant::Default,
+                                        ButtonSize::Sm,
+                                        palette,
+                                    ) }
                                     ProxyGroupMoveUpButton {
                                         group_idx: { g_idx },
                                         group_name: { group_name.clone() },
                                         collection_id: { group.collection_id.clone() },
                                     }
-                                    Button
-                                    Children [
-                                        @{ icon_scene(IconId::ArrowUp, GROUP_HEADER_ICON_SIZE_PX, palette.ink_dim) }
-                                    ]
                                     --
-                                    Node {
-                                        min_height: rem(GROUP_HEADER_ACTION_MIN_HEIGHT_PX),
-                                        min_width: rem(GROUP_HEADER_ACTION_MIN_HEIGHT_PX),
-                                        padding: UiRect::axes(rem(space::S6), rem(space::S4)),
-                                        align_items: AlignItems::Center,
-                                        justify_content: JustifyContent::Center,
-                                        border_radius: BorderRadius::all(rem(palette.control_radius_px)),
-                                        flex_shrink: 0.0,
-                                    }
-                                    ThemeBackgroundColor({ Token::SurfaceElevated })
+                                    @{ button_with_label_scene(
+                                        icon_scene(IconId::ArrowDown, GROUP_HEADER_ICON_SIZE_PX, palette.ink_dim),
+                                        ButtonVariant::Default,
+                                        ButtonSize::Sm,
+                                        palette,
+                                    ) }
                                     ProxyGroupMoveDownButton {
                                         group_idx: { g_idx },
                                         group_name: { group_name.clone() },
                                         collection_id: { group.collection_id.clone() },
                                     }
-                                    Button
-                                    Children [
-                                        @{ icon_scene(IconId::ArrowDown, GROUP_HEADER_ICON_SIZE_PX, palette.ink_dim) }
-                                    ]
                                     --
-                                    Node {
-                                        min_height: rem(GROUP_HEADER_ACTION_MIN_HEIGHT_PX),
-                                        padding: UiRect::axes(rem(space::S8), rem(space::S4)),
-                                        align_items: AlignItems::Center,
-                                        justify_content: JustifyContent::Center,
-                                        border_radius: BorderRadius::all(rem(palette.control_radius_px)),
-                                    }
-                                    ThemeBackgroundColor({ Token::SurfaceElevated })
+                                    @{ button_with_label_scene(
+                                        bsn! { LocalizedText { .. { fold_label } } GroupFoldText(g_idx) TextRole(design_resources::TextRole::Caption) },
+                                        ButtonVariant::Default,
+                                        ButtonSize::Sm,
+                                        palette,
+                                    ) }
                                     ProxyGroupFoldButton {
                                         group_idx: { g_idx },
                                         group_name: { group.name.clone() },
                                         collection_id: { group.collection_id.clone() },
                                     }
-                                    Button
-                                    Children [
-                                        LocalizedText { .. { fold_label } } GroupFoldText(g_idx) TextRole(Role::Caption)
-                                    ]
                                 ]
                             ]
             }),

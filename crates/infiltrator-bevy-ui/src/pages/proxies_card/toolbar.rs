@@ -29,6 +29,7 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Button, ControlOrientation, Tab, TabActivation, TabList};
+use infiltrator_bevy_widgets::button::{ButtonSize, ButtonVariant, button_with_label_scene};
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::{IconId, icon_scene};
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
@@ -40,8 +41,9 @@ use infiltrator_bevy_widgets::tabs::{
     SegmentedControl, SegmentedPillIndicator, SegmentedSelectionSeed, SegmentedTab,
     SegmentedTabLabel, capsule_metrics,
 };
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::{radius, space};
+use infiltrator_contract::design_resources;
 use infiltrator_presentation::proxies_page_model::sort_option_index;
 use lurker_core_contract::outbound::preferences::OutboundSortOrder;
 
@@ -152,7 +154,7 @@ fn alive_only_filter(palette: &UiPalette) -> impl Scene + use<> {
         FilterAliveToggle
         Button
         Children [
-            LocalizedText::plain("proxies_filter_alive") TextRole(Role::Caption)
+            LocalizedText::plain("proxies_filter_alive") TextRole(design_resources::TextRole::Caption)
             --
             Node {
                 width: rem(FILTER_ALIVE_INDICATOR_WIDTH_PX),
@@ -203,7 +205,7 @@ fn sort_strip_scene(sort_order: OutboundSortOrder, palette: &UiPalette) -> impl 
                 ProxySortPill(mode)
                 Children [
                     LocalizedText { key: { copy.key }, params: { copy.params } }
-                    TextRole(Role::Caption)
+                    TextRole(design_resources::TextRole::Caption)
                     SegmentedTabLabel
                 ]
             }) as Box<dyn Scene>
@@ -269,6 +271,8 @@ pub fn header_card_scene(
                         align_items: AlignItems::Center,
                         justify_content: JustifyContent::SpaceBetween,
                         column_gap: rem(space::S16),
+                        flex_wrap: FlexWrap::Wrap,
+                        row_gap: rem(space::S8),
                     }
                     AccessibilityNode(header_a11y)
                     LocalizedLabel::plain("proxies_title")
@@ -278,6 +282,7 @@ pub fn header_card_scene(
                             column_gap: rem(space::S12),
                             flex_shrink: 1.0,
                             min_width: px(0.0),
+                            flex_grow: 1.0,
                         }
                         Children [
                             @{ icon_tile_scene(IconId::Globe, 36.0, palette) }
@@ -288,16 +293,16 @@ pub fn header_card_scene(
                                 min_width: px(0.0),
                             }
                             Children [
-                                LocalizedText { .. { summary } } ProxiesLine(ProxiesLineKind::Summary) TextRole(Role::Heading)
+                                LocalizedText { .. { summary } } ProxiesLine(ProxiesLineKind::Summary) TextRole(design_resources::TextRole::Heading)
                                 --
                                 Node {
                                     align_items: AlignItems::Center,
                                     column_gap: rem(space::S8),
                                 }
                                 Children [
-                                    LocalizedText::plain("proxies_active_exit_label") TextRole(Role::Caption)
+                                    LocalizedText::plain("proxies_active_exit_label") TextRole(design_resources::TextRole::Caption)
                                     --
-                                    Text(active_exit) ProxiesLine(ProxiesLineKind::ActiveExit) TextRole(Role::BodyStrong)
+                                    Text(active_exit) ProxiesLine(ProxiesLineKind::ActiveExit) TextRole(design_resources::TextRole::BodyStrong)
                                 ]
                             ]
                         ]
@@ -321,6 +326,10 @@ fn action_group(test_status: LocalizedText, palette: &UiPalette) -> impl Scene +
             column_gap: rem(space::S4),
             row_gap: rem(space::S4),
             flex_wrap: FlexWrap::Wrap,
+            // The group never shrinks its buttons, but it also never grows
+            // past its container: the wrap point is the container edge, so
+            // the trailing latency pill cannot clip on a phone viewport.
+            max_width: percent(100),
             padding: UiRect::all(rem(space::S4)),
             border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             flex_shrink: 0.0,
@@ -333,81 +342,57 @@ fn action_group(test_status: LocalizedText, palette: &UiPalette) -> impl Scene +
             left: { palette.border },
         }
         Children [
-            Node {
-                min_height: rem(palette.control_height_px),
-                padding: UiRect::horizontal(rem(space::S12)),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                border: UiRect::all(Val::Px(palette.hairline_px)),
-                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
-                column_gap: rem(space::S4),
-                flex_shrink: 0.0,
-            }
-            ThemeBackgroundColor({ Token::SurfaceElevated })
+            @{ button_with_label_scene(
+                bsn! {
+                    Node {
+                        align_items: AlignItems::Center,
+                        column_gap: rem(space::S4),
+                    }
+                    Children [
+                        @{ icon_scene(IconId::Plus, 14.0, palette.ink) }
+                        --
+                        LocalizedText::plain("proxies_add_node_btn") TextRole(design_resources::TextRole::Caption)
+                    ]
+                },
+                ButtonVariant::Default,
+                ButtonSize::Md,
+                palette,
+            ) }
             AddCustomNodeButton
-            Button
-            Children [
-                @{ icon_scene(IconId::Plus, 14.0, palette.ink) }
-                --
-                LocalizedText::plain("proxies_add_node_btn") TextRole(Role::Caption)
-            ]
             --
-            Node {
-                min_height: rem(palette.control_height_px),
-                padding: UiRect::horizontal(rem(space::S12)),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                border: UiRect::all(Val::Px(palette.hairline_px)),
-                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
-                flex_shrink: 0.0,
-            }
-            ThemeBackgroundColor({ Token::SurfaceElevated })
+            @{ button_with_label_scene(
+                bsn! { LocalizedText::plain("proxies_reorder_reset") TextRole(design_resources::TextRole::Caption) },
+                ButtonVariant::Default,
+                ButtonSize::Md,
+                palette,
+            ) }
             ResetProxyGroupOrderButton
-            Button
-            Children [
-                LocalizedText::plain("proxies_reorder_reset") TextRole(Role::Caption)
-            ]
             --
-            Node {
-                min_height: rem(palette.control_height_px),
-                padding: UiRect::horizontal(rem(space::S12)),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                border: UiRect::all(Val::Px(palette.hairline_px)),
-                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
-                flex_shrink: 0.0,
-            }
-            ThemeBackgroundColor({ Token::SurfaceElevated })
+            @{ button_with_label_scene(
+                bsn! {
+                    Node {
+                        align_items: AlignItems::Center,
+                        column_gap: rem(space::S4),
+                    }
+                    Children [
+                        @{ icon_scene(IconId::Activity, 14.0, palette.ink) }
+                        --
+                        LocalizedText::plain("proxies_grid_view") ProxyViewLabel TextRole(design_resources::TextRole::Caption)
+                    ]
+                },
+                ButtonVariant::Default,
+                ButtonSize::Md,
+                palette,
+            ) }
             ToggleViewModeButton
-            Button
-            Children [
-                @{ icon_scene(IconId::Activity, 14.0, palette.ink) }
-                --
-                LocalizedText::plain("proxies_grid_view") ProxyViewLabel TextRole(Role::Caption)
-            ]
             --
-            Node {
-                min_height: rem(palette.control_height_px),
-                padding: UiRect::horizontal(rem(space::S12)),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                border: UiRect::all(Val::Px(palette.hairline_px)),
-                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
-                column_gap: rem(space::S4),
-                flex_shrink: 0.0,
-            }
-            ThemeBackgroundColor({ Token::SurfaceElevated })
-            BorderColor {
-                top: { palette.accent },
-                right: { palette.accent },
-                bottom: { palette.accent },
-                left: { palette.accent },
-            }
+            @{ button_with_label_scene(
+                bsn! { LocalizedText::plain("runtime_delay_test_all") TextRole(design_resources::TextRole::Caption) },
+                ButtonVariant::Primary,
+                ButtonSize::Md,
+                palette,
+            ) }
             TestAllProxiesButton
-            Button
-            Children [
-                LocalizedText::plain("runtime_delay_test_all") TextRole(Role::Caption) ThemeTextColor({ Token::Accent })
-            ]
             --
             Node {
                 min_height: rem(palette.control_height_px),
@@ -419,7 +404,7 @@ fn action_group(test_status: LocalizedText, palette: &UiPalette) -> impl Scene +
             }
             ThemeBackgroundColor({ Token::Surface })
             Children [
-                LocalizedText { .. { test_status } } ProxiesLine(ProxiesLineKind::TestStatus) TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
+                LocalizedText { .. { test_status } } ProxiesLine(ProxiesLineKind::TestStatus) TextRole(design_resources::TextRole::Caption) ThemeTextColor({ Token::InkDim })
             ]
         ]
     }

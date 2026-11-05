@@ -40,7 +40,38 @@ fn captions_use_the_shared_typed_intent_and_status() {
     );
     assert_eq!(
         routing_intent_status_copy(&snapshot, &Lang("zh-CN")),
-        "全部流量经代理（已失效）"
+        "全局模式（已失效）"
+    );
+}
+
+#[test]
+fn compact_state_qualifiers_do_not_repeat_the_visible_choice() {
+    let mut snapshot = RoutingIntentSnapshot::default();
+    assert_eq!(
+        routing_intent_state_copy(&snapshot, &Lang("zh-CN")),
+        "未观测"
+    );
+
+    snapshot.current = Some(RoutingIntent::RouteAllThroughProxy);
+    snapshot.status = RoutingIntentStatus::Ready;
+    assert!(routing_intent_state_copy(&snapshot, &Lang("zh-CN")).is_empty());
+
+    snapshot.status = RoutingIntentStatus::Pending;
+    assert_eq!(
+        routing_intent_state_copy(&snapshot, &Lang("zh-CN")),
+        "更新中"
+    );
+
+    snapshot.status = RoutingIntentStatus::Failed;
+    assert_eq!(
+        routing_intent_state_copy(&snapshot, &Lang("zh-CN")),
+        "已失效"
+    );
+
+    snapshot.status = RoutingIntentStatus::Unsupported;
+    assert_eq!(
+        routing_intent_state_copy(&snapshot, &Lang("en-US")),
+        "Unsupported"
     );
 }
 

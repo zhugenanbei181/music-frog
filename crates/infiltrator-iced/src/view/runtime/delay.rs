@@ -11,7 +11,7 @@ use crate::view::component_forms::{
 use crate::view::components::{chip, empty_state, icon_button, section_header, segmented_control};
 use crate::view::proxy_latency::latency_badge;
 use crate::view::svg_icons::Icon;
-use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, SP_MD, tokens};
+use crate::view::theme::{SP_MD, tokens};
 use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Border, Element, Length, Theme, border};
@@ -178,10 +178,10 @@ pub(super) fn delay_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<
             let flag = node_flag_emoji(&name);
 
             let card_content = row![
-                text(flag).size(16),
+                theme::role_body_text(flag),
                 Space::new().width(theme::SP_SM),
                 column![
-                    text(name).size(13).font(FONT_SEMIBOLD).style(|t: &Theme| {
+                    theme::role_body_text(name).style(|t: &Theme| {
                         text::Style {
                             color: Some(tokens(t).text_primary),
                         }
@@ -231,7 +231,6 @@ pub(super) fn delay_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<
         )
         .on_input(Message::UpdateRuntimeProbeUrlDraft)
         .padding([8, 12])
-        .size(12)
         .width(Length::Fill)
         .style(form_input_style),
         Space::new().width(theme::SP_MD),
@@ -243,8 +242,6 @@ pub(super) fn delay_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<
         )
         .on_input(Message::UpdateRuntimeProbeTimeoutDraft)
         .padding([8, 12])
-        .size(12)
-        .font(MONO)
         .width(Length::Fixed(140.0))
         .style(form_input_style),
     ]
@@ -337,7 +334,7 @@ fn compact_test_btn<'a, Message: 'a + Clone>(
     label: impl Into<String>,
     on_press: Option<Message>,
 ) -> Element<'a, Message> {
-    button(text(label.into()).size(11).font(FONT_MEDIUM))
+    button(theme::role_body_text(label.into()))
         .padding([4, 10])
         .style(style_ghost)
         .on_press_maybe(on_press)

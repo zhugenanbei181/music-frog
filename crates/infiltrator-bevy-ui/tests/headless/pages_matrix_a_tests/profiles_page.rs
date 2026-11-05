@@ -27,26 +27,14 @@ fn test_profiles_page_mounting_and_default_state() {
     assert!(subtree_has_text(app.world(), root, "选择文件"));
     assert!(subtree_has_text(app.world(), root, "+ 导入本地文件"));
     assert!(subtree_has_text(app.world(), root, "导入后立即激活"));
-    assert!(subtree_has_text(
-        app.world(),
-        root,
-        "订阅请求设置 (Subscription User-Agent)"
-    ));
+    assert!(subtree_has_text(app.world(), root, "订阅请求设置"));
     assert!(subtree_has_text(app.world(), root, "保存请求设置"));
-    assert!(subtree_has_text(
-        app.world(),
-        root,
-        "多订阅节点聚合器 (Profile Aggregator)"
-    ));
+    assert!(subtree_has_text(app.world(), root, "订阅聚合器"));
     assert!(subtree_has_text(app.world(), root, "预览聚合结果"));
     assert!(subtree_has_text(app.world(), root, "保存为新配置"));
-    assert!(subtree_has_text(
-        app.world(),
-        root,
-        "配置历史快照比对 (Snapshot Visual Diff)"
-    ));
+    assert!(subtree_has_text(app.world(), root, "历史快照比对"));
     assert!(subtree_has_text(app.world(), root, "一键安全还原此快照"));
-    assert!(subtree_has_text(app.world(), root, "脚本指令 DSL 控制台"));
+    assert!(subtree_has_text(app.world(), root, "脚本控制台"));
     assert!(subtree_has_text(app.world(), root, "预设:"));
     assert!(
         app.world_mut()

@@ -14,7 +14,7 @@ use crate::view::component_forms::{
 use crate::view::components::{BadgeKind, badge, kbd_badge, status_dot};
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme;
-use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
+use crate::view::theme::tokens;
 use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_presentation::network_status_projection::system_proxy_status;
@@ -42,8 +42,7 @@ pub(super) const CORE_CHANNEL_OPTIONS: &[SettingsChoice] = &[
     SettingsChoice { value: "meta-core" },
 ];
 pub(super) fn secondary_text(value: impl Into<String>) -> Element<'static, Message> {
-    text(value.into())
-        .size(12)
+    theme::role_body_text(value.into())
         .style(|t: &Theme| text::Style {
             color: Some(tokens(t).text_secondary),
         })
@@ -66,9 +65,7 @@ pub(super) fn shell_export_row<'a>(
         row![
             icon_themed(Icon::Copy, 12.0, |t| tokens(t).text_secondary),
             Space::new().width(theme::SP_XS),
-            text(lang.tr("settings_copy").to_string())
-                .size(11)
-                .font(FONT_MEDIUM),
+            theme::role_body_text(lang.tr("settings_copy").to_string()),
         ]
         .align_y(Alignment::Center),
     )
@@ -80,9 +77,7 @@ pub(super) fn shell_export_row<'a>(
         row![
             kbd_badge(shell_name),
             Space::new().width(theme::SP_SM),
-            text(command)
-                .size(11)
-                .font(MONO)
+            theme::role_body_text(command)
                 .width(Length::Fill)
                 .style(|t: &Theme| text::Style {
                     color: Some(tokens(t).text_primary)
@@ -132,12 +127,9 @@ fn inbound_port_tile<'a>(
             row![
                 status_dot(running),
                 Space::new().width(theme::SP_SM),
-                text(title)
-                    .size(13)
-                    .font(FONT_SEMIBOLD)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_primary)
-                    }),
+                theme::role_body_text(title).style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_primary)
+                }),
                 Space::new().width(Length::Fill),
                 badge(badge_label, badge_kind),
             ]
@@ -146,12 +138,9 @@ fn inbound_port_tile<'a>(
             row![
                 kbd_badge(proto_tag),
                 Space::new().width(theme::SP_SM),
-                text(endpoint)
-                    .size(13)
-                    .font(MONO)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_primary)
-                    }),
+                theme::role_body_text(endpoint).style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_primary)
+                }),
             ]
             .align_y(Alignment::Center),
         ]
@@ -224,26 +213,23 @@ pub(super) fn system_proxy_card<'a>(
                 Message::SetSystemProxy,
             ),
             row![
-                text(lang.tr("settings_proxy_host").to_string())
-                    .size(13)
-                    .style(|t: &Theme| text::Style {
+                theme::role_body_text(lang.tr("settings_proxy_host").to_string()).style(
+                    |t: &Theme| text::Style {
                         color: Some(tokens(t).text_primary)
-                    }),
+                    }
+                ),
                 Space::new().width(Length::Fill),
-                text("127.0.0.1")
-                    .size(13)
-                    .font(MONO)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_primary)
-                    }),
+                theme::role_body_text("127.0.0.1").style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_primary)
+                }),
             ]
             .align_y(Alignment::Center),
             row![
-                text(lang.tr("settings_port_conflict_title").into_owned())
-                    .size(13)
-                    .style(|t: &Theme| text::Style {
+                theme::role_body_text(lang.tr("settings_port_conflict_title").into_owned()).style(
+                    |t: &Theme| text::Style {
                         color: Some(tokens(t).text_primary)
-                    }),
+                    }
+                ),
                 Space::new().width(Length::Fill),
                 secondary_text(port_status),
                 Space::new().width(theme::SP_SM),
@@ -269,8 +255,6 @@ pub(super) fn system_proxy_card<'a>(
                 text_input(DEFAULT_BYPASS, &state.shell.system_proxy_bypass)
                     .on_input(Message::UpdateSystemProxyBypass)
                     .padding([7, 11])
-                    .size(12)
-                    .font(MONO)
                     .style(form_input_style),
             ]
             .spacing(theme::SP_XS),

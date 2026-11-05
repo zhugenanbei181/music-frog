@@ -276,4 +276,16 @@
     <string name="owner_health_unhealthy">Unhealthy</string>
     <string name="owner_outbound_selected">Selected: %1$s</string>
     <string name="owner_outbound_preferences_unavailable">Outbound preferences are not available from the owner.</string>
+    <string name="brand_name">MusicFrog</string>
+    <string name="app_display_name">MusicFrog Infiltrator</string>
+    <string name="configuration_saving">Saving configuration</string>
+    <string name="configuration_saved">Saved</string>
+    <string name="configuration_failed">Save failed</string>
+    <string name="performance_snapshot">Performance snapshot</string>
+    <string name="performance_navigate_to_first_paint">Navigate → first paint: %1$s</string>
+    <string name="common_close">Close</string>
+    <string name="common_retry">Retry</string>
+    <string name="dismiss_probe_batch">Close</string>
+    <string name="layout_density">Layout density</string>
+    <string name="a11y_value_prefix">%1$s: %2$s</string>
 </resources>

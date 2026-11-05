@@ -6,7 +6,7 @@ use crate::view::component_card::card;
 use crate::view::component_forms::{style_accent, style_ghost};
 use crate::view::components::{BadgeKind, badge};
 use crate::view::svg_icons::Icon;
-use crate::view::theme::{FONT_MEDIUM, MONO, tokens};
+use crate::view::theme::tokens;
 use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
@@ -21,9 +21,7 @@ pub fn tun_stack_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
         row![
             svg_icons::icon_themed(Icon::Activity, 12.0, |t: &Theme| tokens(t).on_accent),
             Space::new().width(theme::SP_XS),
-            text(lang.tr("tun_mtu_probe_btn").to_string())
-                .size(11)
-                .font(FONT_MEDIUM),
+            theme::role_body_text(lang.tr("tun_mtu_probe_btn").to_string()),
         ]
         .align_y(Alignment::Center),
     )
@@ -34,41 +32,49 @@ pub fn tun_stack_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
     let active_stack = TunStack::parse(&tun_cfg.active_stack).unwrap_or_default();
 
     let stack_pills = row![
-        button(text(lang.tr("tun_stack_gvisor").to_string()).size(11))
-            .padding([4, 8])
-            .style(if active_stack == TunStack::Gvisor {
-                style_accent
-            } else {
-                style_ghost
-            })
-            .on_press(Message::SetTunStack(TunStack::Gvisor.as_str().to_owned())),
+        button(theme::role_body_text(
+            lang.tr("tun_stack_gvisor").to_string()
+        ))
+        .padding([4, 8])
+        .style(if active_stack == TunStack::Gvisor {
+            style_accent
+        } else {
+            style_ghost
+        })
+        .on_press(Message::SetTunStack(TunStack::Gvisor.as_str().to_owned())),
         Space::new().width(theme::SP_XS),
-        button(text(lang.tr("tun_stack_system").to_string()).size(11))
-            .padding([4, 8])
-            .style(if active_stack == TunStack::System {
-                style_accent
-            } else {
-                style_ghost
-            })
-            .on_press(Message::SetTunStack(TunStack::System.as_str().to_owned())),
+        button(theme::role_body_text(
+            lang.tr("tun_stack_system").to_string()
+        ))
+        .padding([4, 8])
+        .style(if active_stack == TunStack::System {
+            style_accent
+        } else {
+            style_ghost
+        })
+        .on_press(Message::SetTunStack(TunStack::System.as_str().to_owned())),
         Space::new().width(theme::SP_XS),
-        button(text(lang.tr("tun_stack_mixed").to_string()).size(11))
-            .padding([4, 8])
-            .style(if active_stack == TunStack::Mixed {
-                style_accent
-            } else {
-                style_ghost
-            })
-            .on_press(Message::SetTunStack(TunStack::Mixed.as_str().to_owned())),
+        button(theme::role_body_text(
+            lang.tr("tun_stack_mixed").to_string()
+        ))
+        .padding([4, 8])
+        .style(if active_stack == TunStack::Mixed {
+            style_accent
+        } else {
+            style_ghost
+        })
+        .on_press(Message::SetTunStack(TunStack::Mixed.as_str().to_owned())),
         Space::new().width(theme::SP_XS),
-        button(text(lang.tr("settings_lwip_reference").into_owned()).size(11))
-            .padding([4, 8])
-            .style(style_ghost)
-            .on_press_maybe(
-                TunStack::Lwip
-                    .is_live_supported()
-                    .then_some(Message::SetTunStack(TunStack::Lwip.as_str().to_owned()))
-            ),
+        button(theme::role_body_text(
+            lang.tr("settings_lwip_reference").into_owned()
+        ))
+        .padding([4, 8])
+        .style(style_ghost)
+        .on_press_maybe(
+            TunStack::Lwip
+                .is_live_supported()
+                .then_some(Message::SetTunStack(TunStack::Lwip.as_str().to_owned()))
+        ),
     ]
     .align_y(Alignment::Center);
 
@@ -80,10 +86,7 @@ pub fn tun_stack_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
     let mtu_status = format_mtu_status(&state.runtime.mtu);
 
     let mtu_row = row![
-        text(format!("Negotiated MTU: {mtu_val} bytes"))
-            .size(12)
-            .font(MONO)
-            .width(Length::Fill),
+        theme::role_body_text(format!("Negotiated MTU: {mtu_val} bytes")).width(Length::Fill),
         badge(
             format!("Driver: {}", active_stack.as_str()),
             BadgeKind::Accent
@@ -97,7 +100,7 @@ pub fn tun_stack_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
             row![
                 svg_icons::icon_themed(Icon::ListChecks, 14.0, |t: &Theme| tokens(t).success),
                 Space::new().width(theme::SP_XS),
-                text(msg.clone()).size(11).style(|t: &Theme| text::Style {
+                theme::role_body_text(msg.clone()).style(|t: &Theme| text::Style {
                     color: Some(tokens(t).success)
                 }),
             ]
@@ -111,11 +114,11 @@ pub fn tun_stack_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
     card(
         Some(lang.tr("tun_stack_title").to_string()),
         column![
-            text(lang.tr("tun_stack_desc").to_string())
-                .size(12)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_secondary)
-                }),
+            theme::role_body_text(lang.tr("tun_stack_desc").to_string()).style(|t: &Theme| {
+                text::Style {
+                    color: Some(tokens(t).text_secondary),
+                }
+            }),
             Space::new().height(theme::SP_XS),
             stack_pills,
             Space::new().height(theme::SP_XS),

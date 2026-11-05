@@ -1,3 +1,4 @@
+import { DesignType } from "./design-type.slint";
 import { IconButton, Switch } from "@material";
 import { FlagIcon } from "../lumen-flags.slint";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
@@ -27,15 +28,18 @@ export component SectionCard inherits Rectangle {
         padding-top: root.vertical-padding; padding-bottom: root.vertical-padding;
         spacing: root.content-spacing;
         alignment: start;
-        if heading != "": Text { text: heading; color: LumenTheme.text-primary; font-size: 19 * LumenUiScale.unit; font-weight: 650; wrap: word-wrap; vertical-stretch: 0; }
-        if detail != "": Text { text: detail; color: LumenTheme.text-secondary; font-size: 14 * LumenUiScale.unit; wrap: word-wrap; vertical-stretch: 0; }
+        if heading != "": Text { text: heading; color: LumenTheme.text-primary; font-size: DesignType.subheading-size; font-weight: DesignType.subheading-weight; wrap: word-wrap; vertical-stretch: 0; }
+        if detail != "": Text { text: detail; color: LumenTheme.text-secondary; font-size: DesignType.label-size; wrap: word-wrap; vertical-stretch: 0; }
         @children
     }
     if LumenTheme.show-layout-bounds: LayoutOutline { outline-color: #FF2D55; }
 }
 
 export component SurfaceCard inherits Rectangle {
-    in property <length> inset: root.width < 500 * LumenUiScale.unit ? 12 * LumenUiScale.unit : LumenTheme.space-4;
+    // A constant inset: deriving it from `root.width` would make the
+    // card's own content padding depend on the width the card's content
+    // helped to compute — a layout binding loop.
+    in property <length> inset: LumenTheme.space-4;
     vertical-stretch: 0;
     min-height: content.min-height;
     preferred-height: content.min-height;
@@ -50,12 +54,17 @@ export component SurfaceCard inherits Rectangle {
     border-color: LumenTheme.hairline-glow;
 
     content := VerticalLayout {
-        x: root.inset;
-        width: parent.width - 2 * root.inset;
+        // The inset is applied by the layout's own padding, so the content
+        // box is inset on BOTH sides. Binding `width` by hand only ever
+        // moved the content to the right of the card, which let a trailing
+        // control (a switch) cross the card's own border.
+        width: parent.width;
+        padding-left: root.inset;
+        padding-right: root.inset;
         padding-top: root.inset;
         padding-bottom: root.inset;
         spacing: LumenTheme.space-3;
-        alignment: start;
+        alignment: stretch;
         @children
     }
     if LumenTheme.show-layout-bounds: LayoutOutline { outline-color: #FF2D55; }
@@ -94,8 +103,8 @@ export component SummaryRow inherits Rectangle {
             color: root.value == "" ? LumenTheme.text-muted : (root.emphasized ? LumenTheme.accent : LumenTheme.text-primary);
             font-size: LumenTheme.body-size;
             // SLINTUI-007 #31: metric values ride the mono family.
-            font-family: LumenTheme.mono-family;
-            font-weight: root.emphasized ? 600 : 450;
+            font-family: DesignType.mono-family;
+            font-weight: root.emphasized ? 600 : 400;
             min-width: 0 * LumenUiScale.unit;
             horizontal-stretch: 1;
             horizontal-alignment: right;
@@ -118,12 +127,12 @@ export component StatusBadge inherits Rectangle {
     width: badge-width;
     height: 32 * LumenUiScale.unit;
     border-radius: 16 * LumenUiScale.unit;
-    background: active ? LumenTheme.accent-soft : LumenTheme.surface-muted;
+    background: active ? LumenTheme.status-running-soft : LumenTheme.surface-muted;
     HorizontalLayout {
         x: 11 * LumenUiScale.unit; width: parent.width - 22 * LumenUiScale.unit; height: parent.height; spacing: 7 * LumenUiScale.unit;
         alignment: center;
-        Rectangle { width: 8 * LumenUiScale.unit; height: 8 * LumenUiScale.unit; y: (parent.height - self.height) / 2; border-radius: 4 * LumenUiScale.unit; background: root.active ? LumenTheme.accent : LumenTheme.text-secondary; }
-        Text { text: root.label; color: root.active ? LumenTheme.accent : LumenTheme.text-secondary; font-size: 13 * LumenUiScale.unit; height: parent.height; vertical-alignment: center; overflow: elide; }
+        Rectangle { width: 8 * LumenUiScale.unit; height: 8 * LumenUiScale.unit; y: (parent.height - self.height) / 2; border-radius: 4 * LumenUiScale.unit; background: root.active ? LumenTheme.status-running : LumenTheme.text-secondary; }
+        Text { text: root.label; color: root.active ? LumenTheme.status-running : LumenTheme.text-secondary; font-size: DesignType.caption-size; font-weight: DesignType.labelStrong-weight; font-family: DesignType.caption-family; height: parent.height; vertical-alignment: center; overflow: elide; }
     }
     if LumenTheme.show-layout-bounds: LayoutOutline { outline-color: #FF2D55; }
 }
@@ -132,27 +141,20 @@ export component HomeProfileBadge inherits Rectangle {
     in property <string> profile-name;
     in property <RouteMode> route-mode;
     in property <length> badge-width;
-    width: badge-width;
-    height: 32 * LumenUiScale.unit;
-    border-radius: 16 * LumenUiScale.unit;
-    background: LumenTheme.accent-soft;
+    width: badge-width; height: 32 * LumenUiScale.unit; border-radius: 16 * LumenUiScale.unit;
+    background: LumenTheme.surface-raised; border-width: 1 * LumenUiScale.unit; border-color: LumenTheme.hairline-glow;
     HorizontalLayout {
-        x: 12 * LumenUiScale.unit;
-        width: parent.width - 24 * LumenUiScale.unit;
-        height: parent.height;
-        spacing: 6 * LumenUiScale.unit;
+        padding-left: 12 * LumenUiScale.unit; padding-right: 12 * LumenUiScale.unit;
+        height: parent.height; spacing: 6 * LumenUiScale.unit; cross-axis-alignment: center;
         Text {
-            text: root.profile-name;
-            color: LumenTheme.accent;
-            font-size: 13 * LumenUiScale.unit;
-            horizontal-stretch: 1;
-            vertical-alignment: center;
-            overflow: elide;
+            text: root.profile-name; color: LumenTheme.text-primary;
+            font-size: DesignType.caption-size; font-weight: DesignType.caption-weight; font-family: DesignType.caption-family;
+            horizontal-stretch: 1; vertical-alignment: center; overflow: elide;
         }
-        Text { text: "•"; color: LumenTheme.accent; font-size: 13 * LumenUiScale.unit; vertical-alignment: center; }
+        Text { text: "•"; color: LumenTheme.accent-active; font-size: DesignType.caption-size; vertical-alignment: center; }
         Text {
             text: root.route-mode == RouteMode.rule ? @tr("规则") : root.route-mode == RouteMode.global ? @tr("全局") : @tr("直连");
-            color: LumenTheme.accent; font-size: 13 * LumenUiScale.unit; vertical-alignment: center;
+            color: LumenTheme.accent-active; font-size: DesignType.caption-size; font-weight: DesignType.labelStrong-weight; font-family: DesignType.caption-family; vertical-alignment: center;
         }
     }
     if LumenTheme.show-layout-bounds: LayoutOutline { outline-color: #FF2D55; }
@@ -176,7 +178,7 @@ export component HomeStatusChip inherits Rectangle {
         chip-label := Text {
             text: root.label;
             color: root.active ? LumenTheme.accent : LumenTheme.text-secondary;
-            font-size: 14 * LumenUiScale.unit;
+            font-size: DesignType.label-size;
             horizontal-stretch: 1;
             height: parent.height;
             vertical-alignment: center;
@@ -230,7 +232,8 @@ export component HomeActionButton inherits Rectangle {
     in property <bool> running;
     in property <bool> busy;
     callback clicked();
-    width: 100 * LumenUiScale.unit;
+    min-width: 120 * LumenUiScale.unit;
+    preferred-width: 136 * LumenUiScale.unit;
     height: 48 * LumenUiScale.unit;
     background: transparent;
     action := TouchArea {
@@ -256,8 +259,8 @@ export component HomeActionButton inherits Rectangle {
             cross-axis-alignment: center;
             action-icon := Image {
                 source: root.running
-                    ? (LumenTheme.dark-mode ? @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/stop-dark.svg") : @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/stop.svg"))
-                    : (LumenTheme.dark-mode ? @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/start-dark.svg") : @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/start.svg"));
+                    ? (LumenTheme.dark-mode ? @image-url("../../../infiltrator-shared/assets/ui/iced/svg/square.svg") : @image-url("../../../infiltrator-shared/assets/ui/iced/svg/square.svg"))
+                    : (LumenTheme.dark-mode ? @image-url("../../../infiltrator-shared/assets/ui/iced/svg/zap.svg") : @image-url("../../../infiltrator-shared/assets/ui/iced/svg/zap.svg"));
                 width: 16 * LumenUiScale.unit;
                 height: 16 * LumenUiScale.unit;
                 image-fit: contain;
@@ -265,7 +268,7 @@ export component HomeActionButton inherits Rectangle {
             action-label := Text {
                 text: root.label;
                 color: LumenTheme.accent;
-                font-size: 14 * LumenUiScale.unit;
+                font-size: DesignType.label-size;
                 horizontal-stretch: 1;
                 height: parent.height;
                 horizontal-alignment: center;
@@ -313,7 +316,7 @@ export component SheetActionButton inherits Rectangle {
         height: parent.height;
         text: root.label;
         color: (root.danger || root.primary) ? LumenTheme.accent-foreground : LumenTheme.text-primary;
-        font-size: 18 * LumenUiScale.unit;
+        font-size: DesignType.subheading-size;
         horizontal-alignment: center;
         vertical-alignment: center;
         overflow: elide;
@@ -338,15 +341,15 @@ export component ProfileSheetTitle inherits Rectangle {
         spacing: LumenTheme.space-1;
         IconButton {
             width: 44 * LumenUiScale.unit; height: 44 * LumenUiScale.unit;
-            icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/close.svg");
+            icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/x.svg");
             tooltip: @tr("关闭");
             clicked => { root.close(); }
         }
         Text {
             text: root.title;
             color: LumenTheme.text-primary;
-            font-size: 20 * LumenUiScale.unit;
-            font-weight: 550;
+            font-size: DesignType.title-size;
+            font-weight: DesignType.title-weight;
             horizontal-stretch: 1;
             horizontal-alignment: center;
             vertical-alignment: center;
@@ -354,7 +357,7 @@ export component ProfileSheetTitle inherits Rectangle {
         }
         IconButton {
             width: 44 * LumenUiScale.unit; height: 44 * LumenUiScale.unit;
-            icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/check.svg");
+            icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/square.svg");
             tooltip: @tr("保存");
             clicked => { root.confirm(); }
         }
@@ -392,7 +395,7 @@ export component ProxyGroupCard inherits Rectangle {
             vertical-stretch: 0;
             if root.group-icon-emoji != "": Text {
                 text: root.group-icon-emoji;
-                font-size: 20 * LumenUiScale.unit;
+                font-size: DesignType.title-size;
                 width: 24 * LumenUiScale.unit;
                 height: parent.height;
                 vertical-alignment: center;
@@ -400,8 +403,8 @@ export component ProxyGroupCard inherits Rectangle {
             Text {
                 text: root.group-name;
                 color: LumenTheme.text-primary;
-                font-size: 18 * LumenUiScale.unit;
-                font-weight: 450;
+                font-size: DesignType.subheading-size;
+                font-weight: DesignType.subheading-weight;
                 height: parent.height;
                 horizontal-stretch: 1;
                 vertical-alignment: center;
@@ -417,14 +420,14 @@ export component ProxyGroupCard inherits Rectangle {
                     alignment: center; cross-axis-alignment: center;
                     kind-label := Text {
                         text: root.group-kind; color: LumenTheme.accent;
-                        font-size: 12 * LumenUiScale.unit; font-weight: 500; vertical-alignment: center;
+                        font-size: DesignType.caption-size; font-weight: DesignType.caption-weight; vertical-alignment: center;
                     }
                 }
             }
             IconButton {
                 width: LumenTheme.min-touch-target;
                 height: LumenTheme.min-touch-target;
-                icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/speed.svg");
+                icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/zap.svg");
                 tooltip: root.testing ? @tr("正在测试组内节点…") : @tr("测试策略组全部节点");
                 enabled: root.has-nodes && !root.testing;
                 clicked => { root.test-current(); }
@@ -442,8 +445,8 @@ export component ProxyGroupCard inherits Rectangle {
                 spacing: LumenTheme.space-2;
                 cross-axis-alignment: center;
                 if root.current-flag-code != "": FlagIcon { country-code: root.current-flag-code; index: root.current-flag-index; }
-                Text { text: root.current-node == "" ? @tr("暂无可用节点") : root.current-node; accessible-label: root.current-accessible; color: LumenTheme.text-primary; font-size: 14 * LumenUiScale.unit; horizontal-stretch: 1; horizontal-alignment: left; vertical-alignment: center; overflow: elide; }
-                Image { source: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/chevron-right.svg"); width: 22 * LumenUiScale.unit; height: 22 * LumenUiScale.unit; image-fit: contain; vertical-alignment: center; }
+                Text { text: root.current-node == "" ? @tr("暂无可用节点") : root.current-node; accessible-label: root.current-accessible; color: LumenTheme.text-primary; font-size: DesignType.label-size; horizontal-stretch: 1; horizontal-alignment: left; vertical-alignment: center; overflow: elide; }
+                Image { source: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/chevron-right.svg"); width: 22 * LumenUiScale.unit; height: 22 * LumenUiScale.unit; image-fit: contain; vertical-alignment: center; }
             }
         }
     }
@@ -478,7 +481,7 @@ export component ProfileCardSurface inherits Rectangle {
         padding-top: LumenTheme.space-4; padding-bottom: LumenTheme.space-2;
         spacing: 0 * LumenUiScale.unit; alignment: start;
         HorizontalLayout { spacing: LumenTheme.space-3; vertical-stretch: 0; height: 34 * LumenUiScale.unit;
-            Text { text: root.profile-name; color: LumenTheme.text-primary; font-size: 20 * LumenUiScale.unit; font-weight: 600; horizontal-stretch: 1; vertical-alignment: center; overflow: elide; accessible-label: root.profile-name; }
+            Text { text: root.profile-name; color: LumenTheme.text-primary; font-size: DesignType.title-size; font-weight: DesignType.title-weight; horizontal-stretch: 1; vertical-alignment: center; overflow: elide; accessible-label: root.profile-name; }
             Switch {
                 checked: root.current;
                 width: 52 * LumenUiScale.unit;
@@ -508,7 +511,7 @@ export component ProfileCardSurface inherits Rectangle {
                     Text {
                         text: root.profile-kind;
                         color: LumenTheme.text-secondary;
-                        font-size: 11 * LumenUiScale.unit;
+                        font-size: DesignType.micro-size;
                         vertical-alignment: center;
                     }
                 }
@@ -517,7 +520,7 @@ export component ProfileCardSurface inherits Rectangle {
             Text {
                 text: root.profile-location;
                 color: LumenTheme.text-muted;
-                font-size: 13 * LumenUiScale.unit;
+                font-size: DesignType.mono-size;
                 horizontal-stretch: 1;
                 vertical-alignment: center;
                 overflow: elide;
@@ -552,15 +555,15 @@ export component ProfileCardSurface inherits Rectangle {
                 Text {
                     text: root.used-text + " / " + root.total-text;
                     color: LumenTheme.text-secondary;
-                    font-size: 12 * LumenUiScale.unit;
-                    font-weight: 500;
+                    font-size: DesignType.caption-size;
+                    font-weight: DesignType.caption-weight;
                     horizontal-stretch: 1;
                     vertical-alignment: center;
                 }
                 if root.expire-text != "": Text {
                     text: root.expire-text;
                     color: root.quota-grade == "danger" ? LumenTheme.error : LumenTheme.text-muted;
-                    font-size: 11 * LumenUiScale.unit;
+                    font-size: DesignType.micro-size;
                     horizontal-alignment: right;
                     vertical-alignment: center;
                 }
@@ -573,12 +576,12 @@ export component ProfileCardSurface inherits Rectangle {
             Rectangle {
                 width: 48 * LumenUiScale.unit; height: 48 * LumenUiScale.unit; background: transparent;
                 Rectangle { x: 4 * LumenUiScale.unit; y: 4 * LumenUiScale.unit; width: 40 * LumenUiScale.unit; height: 40 * LumenUiScale.unit; border-radius: 20 * LumenUiScale.unit; background: LumenTheme.surface-muted; }
-                IconButton { width: 48 * LumenUiScale.unit; height: 48 * LumenUiScale.unit; icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/share.svg"); tooltip: @tr("分享配置文件"); clicked => { root.share-profile(); } }
+                IconButton { width: 48 * LumenUiScale.unit; height: 48 * LumenUiScale.unit; icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/copy.svg"); tooltip: @tr("分享配置文件"); clicked => { root.share-profile(); } }
             }
             Rectangle {
                 width: 48 * LumenUiScale.unit; height: 48 * LumenUiScale.unit; background: transparent;
                 Rectangle { x: 4 * LumenUiScale.unit; y: 4 * LumenUiScale.unit; width: 40 * LumenUiScale.unit; height: 40 * LumenUiScale.unit; border-radius: 20 * LumenUiScale.unit; background: LumenTheme.surface-muted; }
-                IconButton { width: 48 * LumenUiScale.unit; height: 48 * LumenUiScale.unit; icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/delete.svg"); tooltip: @tr("删除配置"); clicked => { root.delete-profile(); } }
+                IconButton { width: 48 * LumenUiScale.unit; height: 48 * LumenUiScale.unit; icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/trash-2.svg"); tooltip: @tr("删除配置"); clicked => { root.delete-profile(); } }
             }
             Rectangle { horizontal-stretch: 1; background: transparent; }
             Rectangle {
@@ -590,11 +593,11 @@ export component ProfileCardSurface inherits Rectangle {
                     x: 0 * LumenUiScale.unit; y: 4 * LumenUiScale.unit; width: parent.width; height: 40 * LumenUiScale.unit;
                     spacing: LumenTheme.space-2; alignment: center; cross-axis-alignment: center;
                     edit-icon := Image {
-                        source: LumenTheme.dark-mode ? @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/edit-dark.svg") : @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/edit.svg");
+                        source: LumenTheme.dark-mode ? @image-url("../../../infiltrator-shared/assets/ui/iced/svg/pencil.svg") : @image-url("../../../infiltrator-shared/assets/ui/iced/svg/pencil.svg");
                         width: 22 * LumenUiScale.unit; height: 22 * LumenUiScale.unit; image-fit: contain;
                     }
                     edit-label := Text {
-                        text: @tr("编辑"); color: LumenTheme.text-primary; font-size: 15 * LumenUiScale.unit;
+                        text: @tr("编辑"); color: LumenTheme.text-primary; font-size: DesignType.body-size;
                         vertical-alignment: center;
                     }
                 }

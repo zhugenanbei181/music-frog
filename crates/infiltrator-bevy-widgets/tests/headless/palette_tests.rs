@@ -7,7 +7,9 @@
 
 use bevy::color::Color;
 use infiltrator_bevy_widgets::palette::{UiPalette, theme_color};
-use infiltrator_bevy_widgets::theme::{Theme, ThemeSkin, TokenColor, metrics, radius, type_scale};
+use infiltrator_bevy_widgets::theme::{Theme, ThemeSkin, TokenColor, metrics, radius};
+use infiltrator_contract::design_resources::{TextRole, typeface};
+use infiltrator_contract::design_tokens::type_scale;
 
 fn assert_same_color(bevy_color: Color, token: TokenColor) {
     let srgba = bevy_color.to_srgba();
@@ -73,10 +75,10 @@ fn palette_carries_every_token_and_scale() {
         assert_eq!(palette.card_radius_px, radius::CARD);
         assert_eq!(palette.control_radius_px, radius::CONTROL);
         assert_eq!(palette.control_height_px, metrics::CONTROL_HEIGHT);
-        assert_eq!(palette.heading_font_px, type_scale::HEADING);
-        assert_eq!(palette.body_font_px, type_scale::BODY);
-        assert_eq!(palette.caption_font_px, type_scale::CAPTION);
-        assert_eq!(palette.mono_font_px, type_scale::MONO);
+        assert_eq!(typeface(TextRole::Heading).size_px, type_scale::HEADING);
+        assert_eq!(typeface(TextRole::Body).size_px, type_scale::BODY);
+        assert_eq!(typeface(TextRole::Caption).size_px, type_scale::CAPTION);
+        assert_eq!(typeface(TextRole::Mono).size_px, type_scale::MONO);
     }
 }
 

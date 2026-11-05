@@ -5,6 +5,7 @@
 //! and writes the `CAPTURE_READY` marker for background virtual compositor screenshots.
 
 mod fixtures;
+mod outbound;
 mod owner;
 
 use super::*;
@@ -13,8 +14,14 @@ use infiltrator_contract::active_exit::ActiveExitSnapshot;
 use infiltrator_contract::connection::ConnectionRateObservation;
 use infiltrator_contract::lan::LanSharingSnapshot;
 use infiltrator_contract::logs::LogStreamState;
+use infiltrator_contract::public_ip::PublicIpProbeSnapshot;
+use infiltrator_contract::resources::{CoreGcStatus, CoreResourceSnapshot, ResourceAvailability};
 use infiltrator_contract::rule_snapshot::RuleSnapshot;
 use infiltrator_contract::shell_readout::{ShellObservation, ShellProfile};
+use infiltrator_contract::speedtest::{
+    SpeedtestConcurrency, SpeedtestOutboundResult, SpeedtestResultState, SpeedtestRunState,
+    SpeedtestSampleOutcome, SpeedtestSnapshot,
+};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{
     ConnectionSnapshot, ConnectionsPageSnapshot, LogSnapshot, LogsPageSnapshot,
@@ -27,29 +34,15 @@ use infiltrator_contract::theme_palette::{ResolvedThemePalette, SystemDynamicCol
 use infiltrator_contract::traffic_waveform::{TrafficSample, TrafficWaveformSnapshot};
 use infiltrator_contract::tray_status::TrayIconColorMode;
 use lurker_core_contract::error::Failure;
-use lurker_core_contract::identity::{
-    CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
-};
+use lurker_core_contract::identity::EngineId;
 use lurker_core_contract::lifecycle::CoreLifecycle;
-use lurker_core_contract::outbound::details::{
-    OutboundDetail, OutboundDetailsSnapshot, OutboundDetailsState, OutboundEndpoint,
-    OutboundFeature, OutboundHealthObservation, OutboundLatencySample, OutboundObservation,
-    OutboundProbeAvailability, OutboundProtocolObservation, OutboundSnapshot, OutboundUdpSupport,
-};
-use lurker_core_contract::outbound::identity::{OutboundId, OutboundProtocolId, SnapshotRevision};
-use lurker_core_contract::outbound::inventory::{
-    OutboundInventorySnapshot, OutboundInventoryState, OutboundSelectionSet,
-    OutboundSelectionState, SelectionAvailability,
-};
-use lurker_core_contract::outbound::preferences::{
-    OutboundHealthFilter, OutboundLayout, OutboundSortOrder, OutboundUiPreferencesSnapshot,
-    OutboundUiPreferencesValues,
-};
+use lurker_core_contract::outbound::identity::OutboundId;
 use lurker_core_contract::page::{PageData, SurfaceOrigin};
 use lurker_core_contract::profile_protection::ProfileWriteProtection;
 use lurker_core_contract::routing_intent::RoutingIntentSnapshot;
 use std::cell::Cell;
 use std::env;
+use std::f64::consts::TAU;
 use std::fs::{OpenOptions, create_dir_all};
 use std::io::Write as _;
 use std::path::PathBuf;
@@ -201,137 +194,6 @@ impl SlintProductHost for DemoProductHost {
     }
 }
 
-fn demo_core_scope() -> CoreScope {
-    CoreScope {
-        identity: CoreIdentity {
-            engine: EngineId::new("mihomo").expect("valid engine id"),
-            instance: CoreInstanceId::new("demo-1").expect("valid instance id"),
-            version: None,
-        },
-        generation: CoreGeneration::new(1),
-        session_token: None,
-    }
-}
-
-fn demo_outbound_inventory() -> (
-    OutboundInventorySnapshot,
-    OutboundDetailsSnapshot,
-    OutboundUiPreferencesSnapshot,
-) {
-    let scope = demo_core_scope();
-    let engine = scope.identity.engine.clone();
-    let id = |value: &str| OutboundId::new(engine.clone(), value).expect("valid outbound id");
-
-    let node_names = [
-        ("HK-01", "HK IPLC 01", "shadowsocks", 38),
-        ("HK-02", "HK BGP 02", "shadowsocks", 46),
-        ("JP-01", "Tokyo 01", "vmess", 62),
-        ("SG-01", "Singapore 01", "trojan", 75),
-        ("US-01", "Los Angeles 01", "hysteria2", 158),
-    ];
-
-    let entries = node_names
-        .iter()
-        .map(|(nid, name, _, _)| OutboundSnapshot {
-            id: id(nid),
-            display_name: Some((*name).to_owned()),
-        })
-        .collect();
-
-    let collection = |name: &str, members: &[&str], avail: SelectionAvailability, sel: &str| {
-        OutboundSelectionSet {
-            id: id(name),
-            member_ids: members.iter().map(|m| id(m)).collect(),
-            availability: avail,
-            selection: OutboundSelectionState::Ready { selected: id(sel) },
-        }
-    };
-
-    let inventory = OutboundInventorySnapshot::new(
-        scope.clone(),
-        SnapshotRevision::new(1),
-        OutboundInventoryState::Ready {
-            entries,
-            collections: vec![
-                collection(
-                    "PROXIES",
-                    &["HK-01", "HK-02", "JP-01", "SG-01", "US-01"],
-                    SelectionAvailability::Selectable,
-                    "HK-01",
-                ),
-                collection(
-                    "AUTO",
-                    &["HK-01", "HK-02", "JP-01"],
-                    SelectionAvailability::Automatic,
-                    "HK-01",
-                ),
-                // The global group is the one the published exit names, so the
-                // proxies page opens on the group the owner marked as active.
-                collection(
-                    "GLOBAL",
-                    &["HK-01", "HK-02", "JP-01", "SG-01", "US-01"],
-                    SelectionAvailability::Selectable,
-                    "HK-01",
-                ),
-            ],
-        },
-    )
-    .expect("valid demo inventory");
-
-    let details = node_names
-        .iter()
-        .map(|(nid, _name, proto, delay)| OutboundDetail {
-            id: id(nid),
-            protocol: OutboundProtocolObservation::Reported(
-                OutboundProtocolId::new(engine.clone(), *proto).expect("valid proto"),
-            ),
-            protocol_display_name: Some(proto.to_uppercase()),
-            cipher: OutboundObservation::Unknown,
-            cipher_display_name: None,
-            collection_kind: OutboundObservation::Unknown,
-            features: OutboundObservation::Observed(vec![OutboundFeature::Udp]),
-            endpoint: OutboundObservation::Observed(OutboundEndpoint {
-                host: format!("{nid}.node.example.com"),
-                port: OutboundObservation::Observed(443),
-            }),
-            udp: OutboundUdpSupport::Supported,
-            health: OutboundHealthObservation::Healthy,
-            current_latency_ms: OutboundObservation::Observed(*delay),
-            latency_history: OutboundObservation::Observed(vec![OutboundLatencySample {
-                observed_at: "2026-10-16T12:00:00Z".to_owned(),
-                delay_ms: *delay,
-            }]),
-            rtt: OutboundObservation::Unknown,
-            historical_egress: OutboundObservation::Unknown,
-            probe_availability: OutboundProbeAvailability::Supported,
-        })
-        .collect();
-
-    let details_snapshot = OutboundDetailsSnapshot::new(
-        scope.clone(),
-        SnapshotRevision::new(1),
-        OutboundDetailsState::Ready { details },
-    )
-    .expect("valid demo details");
-
-    let preferences = OutboundUiPreferencesSnapshot::new(
-        scope,
-        SnapshotRevision::new(1),
-        OutboundUiPreferencesValues {
-            search_query: String::new(),
-            favorite_outbound_ids: Vec::new(),
-            group_order: vec![id("PROXIES"), id("AUTO")],
-            collapsed_group_ids: Vec::new(),
-            sort_order: OutboundSortOrder::LatencyAscending,
-            health_filter: OutboundHealthFilter::All,
-            layout: OutboundLayout::CompactList,
-        },
-    )
-    .expect("valid demo preferences");
-
-    (inventory, details_snapshot, preferences)
-}
-
 fn build_demo_snapshot(settings: &DemoSettings) -> SurfaceSnapshot {
     let mut snapshot = SurfaceSnapshot::unavailable(
         SurfaceKind::SlintDesktop,
@@ -342,7 +204,7 @@ fn build_demo_snapshot(settings: &DemoSettings) -> SurfaceSnapshot {
     snapshot.failure = None;
     snapshot.core.failure = None;
     snapshot.core.lifecycle = CoreLifecycle::Running;
-    snapshot.core.identity = Some(demo_core_scope().identity);
+    snapshot.core.identity = Some(outbound::demo_core_scope().identity);
     snapshot.core.core_version = Some("v1.19.18".into());
     snapshot.core.active_connections = 8;
     snapshot.core.routing_intent = RoutingIntentSnapshot::demo_fixture();
@@ -358,6 +220,9 @@ fn build_demo_snapshot(settings: &DemoSettings) -> SurfaceSnapshot {
         total_bytes: Some(100 * 1024 * 1024 * 1024),
         usage_fraction: Some(0.08),
     });
+    // The profile card counts the engine's proxies; the fixture publishes the
+    // same readback the live composition would report.
+    snapshot.shell_readout.proxies = ShellObservation::Current(4);
     snapshot.system_proxy = SystemProxySnapshot::from_observation(
         1,
         SystemProxyObservation {
@@ -367,14 +232,19 @@ fn build_demo_snapshot(settings: &DemoSettings) -> SurfaceSnapshot {
         },
     );
 
+    // One readable slow sweep per direction, like the reference dashboard:
+    // a real waveform sample is a non-negative rate, so the old fixture's
+    // signed sine produced clipped plateaus instead of a continuous curve.
     let samples: Vec<TrafficSample> = (0..60u32)
         .map(|i| {
-            let up = 0.5 + (f64::from(i) * 0.35).sin() * 0.5 * 3.5;
-            let down = (f64::from(i) * 0.22 + 1.3).sin() * 0.5 * 11.0 + 1.0;
+            let phase = f64::from(i) / 59.0;
+            let up = 0.45 + 0.42 * (phase * TAU - 0.4).sin() + 0.14 * (phase * TAU * 2.7).sin();
+            let down =
+                0.52 + 0.39 * (phase * TAU - 1.1).sin() + 0.10 * (phase * TAU * 1.8 + 0.6).sin();
             TrafficSample {
                 sampled_at_epoch_ms: None,
-                upload_bps: up * MB,
-                download_bps: down * MB,
+                upload_bps: up.max(0.0) * 2.3 * MB,
+                download_bps: down.max(0.0) * 6.8 * MB,
             }
         })
         .collect();
@@ -383,10 +253,46 @@ fn build_demo_snapshot(settings: &DemoSettings) -> SurfaceSnapshot {
         revision: samples.len() as u64,
         samples,
     };
+    snapshot.traffic_history.today_upload_bytes = (1.6 * 1024.0 * 1024.0 * 1024.0) as u64;
+    snapshot.traffic_history.today_download_bytes = (504.8 * 1024.0 * 1024.0) as u64;
+    snapshot.traffic_history.today_has_data = true;
+
+    // Four common-service probes, in the reference dashboard's order. The
+    // fixture publishes real typed observations so the health, memory and CPU
+    // cards are exercised by the capture instead of rendering dashes.
+    snapshot.speedtest = SpeedtestSnapshot {
+        revision: 1,
+        state: SpeedtestRunState::Idle,
+        concurrency: SpeedtestConcurrency::default(),
+        results: ["Google", "GitHub", "YouTube", "ChatGPT"]
+            .iter()
+            .zip([951_u32, 1679, 4277, 1242])
+            .map(|(name, delay)| SpeedtestOutboundResult {
+                outbound_id: OutboundId::new(
+                    EngineId::new("mihomo").expect("valid engine id"),
+                    name.to_string(),
+                )
+                .expect("valid demo outbound id"),
+                display_name: Some((*name).to_string()),
+                protocol_display_name: None,
+                samples: vec![SpeedtestSampleOutcome::Measured { delay_ms: delay }],
+                state: SpeedtestResultState::Completed,
+                tested_at_epoch_ms: 0,
+            })
+            .collect(),
+        recent_history: Vec::new(),
+    };
+    snapshot.resources = CoreResourceSnapshot::Observed {
+        scope: Box::new(outbound::demo_core_scope()),
+        memory: ResourceAvailability::Available(208 * 1024 * 1024),
+        cpu_percent: ResourceAvailability::Available(24.6),
+        memory_soft_limit_bytes: 512 * 1024 * 1024,
+        gc: Box::new(CoreGcStatus::NotAttempted),
+    };
 
     snapshot.active_exit = ActiveExitSnapshot::demo_fixture();
 
-    let (inventory, details, preferences) = demo_outbound_inventory();
+    let (inventory, details, preferences) = outbound::demo_outbound_inventory();
     snapshot.outbound_inventory = PageData::ready(inventory);
     snapshot.outbound_details = PageData::ready(details);
     snapshot.outbound_ui_preferences = PageData::ready(preferences);
@@ -498,6 +404,7 @@ fn build_demo_snapshot(settings: &DemoSettings) -> SurfaceSnapshot {
     snapshot.dns_cache = fixtures::dns_cache_snapshot();
     snapshot.dns_query = fixtures::dns_query_snapshot();
     snapshot.dns_hosts = PageData::ready(fixtures::dns_hosts_profile());
+    snapshot.public_ip = PublicIpProbeSnapshot::demo_fixture();
     snapshot.pages.doctor = PageData::ready(fixtures::doctor_page());
     snapshot.pages.sync = PageData::ready(fixtures::sync_page());
     snapshot.pages.app_routing = PageData::ready(fixtures::app_routing_page());
@@ -506,7 +413,7 @@ fn build_demo_snapshot(settings: &DemoSettings) -> SurfaceSnapshot {
     snapshot.yaml_ast_diff = Some(fixtures::yaml_ast_diff());
 
     snapshot.pages.connections = PageData::ready(ConnectionsPageSnapshot {
-        total_connections: 4,
+        total_connections: 6,
         total_upload_bytes: 48 * 1024 * 1024,
         total_download_bytes: 380 * 1024 * 1024,
         connections: vec![
@@ -555,6 +462,98 @@ fn build_demo_snapshot(settings: &DemoSettings) -> SurfaceSnapshot {
                 download_bps: 4.3 * MB,
                 upload_total: 512 * 1024,
                 download_total: 14 * 1024 * 1024,
+            },
+            ConnectionSnapshot {
+                id: "conn-3".into(),
+                start: "2026-10-16T12:11:38Z".into(),
+                destination_host: "openapi.qoder.com.cn:443".into(),
+                host: "openapi.qoder.com.cn".into(),
+                process: "codex".into(),
+                rule: "DomainSuffix".into(),
+                rule_payload: "qoder.com.cn".into(),
+                chain: "AI -> SG-01".into(),
+                chains: vec!["AI".into(), "SG-01".into()],
+                network: "tcp".into(),
+                source_ip: "127.0.0.1".into(),
+                source_port: "54328".into(),
+                destination_ip: "104.18.12.7".into(),
+                destination_port: "443".into(),
+                destination_geo_ip: Some(vec!["SG".into()]),
+                destination_ip_asn: "13335 Cloudflare".into(),
+                rate_observation: ConnectionRateObservation::Unobserved,
+                upload_bps: 0.9 * MB,
+                download_bps: 3.1 * MB,
+                upload_total: 96 * 1024,
+                download_total: 320 * 1024,
+            },
+            ConnectionSnapshot {
+                id: "conn-4".into(),
+                start: "2026-10-16T12:11:42Z".into(),
+                destination_host: "snap-access.cn-north-4.myhuaweicloud.com:443".into(),
+                host: "snap-access.cn-north-4.myhuaweicloud.com".into(),
+                process: "snap".into(),
+                rule: "DomainSuffix".into(),
+                rule_payload: "myhuaweicloud.com".into(),
+                chain: "DIRECT".into(),
+                chains: vec!["DIRECT".into()],
+                network: "tcp".into(),
+                source_ip: "127.0.0.1".into(),
+                source_port: "54331".into(),
+                destination_ip: "121.36.10.22".into(),
+                destination_port: "443".into(),
+                destination_geo_ip: Some(vec!["CN".into()]),
+                destination_ip_asn: "55990 Huawei Cloud".into(),
+                rate_observation: ConnectionRateObservation::Unobserved,
+                upload_bps: 0.1 * MB,
+                download_bps: 1.8 * MB,
+                upload_total: 3 * 1024,
+                download_total: 6300 * 1024,
+            },
+            ConnectionSnapshot {
+                id: "conn-5".into(),
+                start: "2026-10-16T12:11:47Z".into(),
+                destination_host: "ab.chatgpt.com:443".into(),
+                host: "ab.chatgpt.com".into(),
+                process: "curl".into(),
+                rule: "GeoIP".into(),
+                rule_payload: "US".into(),
+                chain: "GLOBAL -> US-01".into(),
+                chains: vec!["GLOBAL".into(), "US-01".into()],
+                network: "tcp".into(),
+                source_ip: "127.0.0.1".into(),
+                source_port: "54336".into(),
+                destination_ip: "104.18.42.231".into(),
+                destination_port: "443".into(),
+                destination_geo_ip: Some(vec!["US".into()]),
+                destination_ip_asn: "13335 Cloudflare".into(),
+                rate_observation: ConnectionRateObservation::Unobserved,
+                upload_bps: 7.9 * MB,
+                download_bps: 3.0 * 1024.0,
+                upload_total: 7900 * 1024,
+                download_total: 3 * 1024,
+            },
+            ConnectionSnapshot {
+                id: "conn-6".into(),
+                start: "2026-10-16T12:11:51Z".into(),
+                destination_host: "opengw.developer.huaweicloud.com:443".into(),
+                host: "opengw.developer.huaweicloud.com".into(),
+                process: "node".into(),
+                rule: "DomainSuffix".into(),
+                rule_payload: "huaweicloud.com".into(),
+                chain: "DIRECT".into(),
+                chains: vec!["DIRECT".into()],
+                network: "tcp".into(),
+                source_ip: "127.0.0.1".into(),
+                source_port: "54340".into(),
+                destination_ip: "119.8.35.18".into(),
+                destination_port: "443".into(),
+                destination_geo_ip: Some(vec!["CN".into()]),
+                destination_ip_asn: "55990 Huawei Cloud".into(),
+                rate_observation: ConnectionRateObservation::Unobserved,
+                upload_bps: 3.0 * 1024.0,
+                download_bps: 974.0 * 1024.0,
+                upload_total: 3 * 1024,
+                download_total: 974 * 1024,
             },
         ],
     });

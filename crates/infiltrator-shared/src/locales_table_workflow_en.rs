@@ -101,7 +101,7 @@ pub(super) fn translate_workflow_en(key: &str) -> Cow<'static, str> {
 
         "field_filter_advanced" => "Advanced filter policy".into(),
         "filter_advanced_ph" => "{\"drop-private-ip\":true,\"sort-by\":\"name-asc\"}".into(),
-        "filter_advanced_help" => "YAML/JSON: normalize-country-code, remove-emojis, allowed-ports, blocked-ports, drop-private-ip, multiplier-rules, node-mutator, sort-by, content-dedup. Use {} to clear advanced policies.".into(),
+        "filter_advanced_help" => "YAML/JSON advanced policies; use {} to clear.".into(),
         "subscription_filter_invalid_policy" => "Stored filter policy is invalid: {reason}".into(),
 
         "filter_form_report" => "Filter applied: {passed}/{total} nodes passed, {renamed} renamed, {dedup} deduplicated".into(),
@@ -200,6 +200,10 @@ pub(super) fn translate_workflow_en(key: &str) -> Cow<'static, str> {
         "shell_rate_stale" => "Stale".into(),
         "shell_readout_stale" => "{value} (stale)".into(),
         "routing_intent_pending" => "{value} (updating)".into(),
+        "routing_intent_state_updating" => "Updating".into(),
+        "routing_intent_state_stale" => "Stale".into(),
+        "routing_intent_state_unobserved" => "Not observed".into(),
+        "routing_intent_state_unsupported" => "Unsupported".into(),
         "routing_intent_change_failed" => "Switch to {target} failed: {reason}".into(),
         "routing_intent_retry" => "Retry routing change".into(),
         "routing_intent_dismiss" => "Dismiss routing error".into(),

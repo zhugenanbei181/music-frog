@@ -35,6 +35,7 @@ use infiltrator_contract::system_toggle::SystemToggleSnapshot;
 use infiltrator_contract::traffic_scale::TrafficScaleSnapshot;
 use infiltrator_contract::traffic_topology::TrafficTopologySnapshot;
 use infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot;
+use infiltrator_presentation::dashboard_hero_projection::PolicyGroupGridProjection;
 use infiltrator_presentation::overview_page_model::OverviewRunState;
 #[cfg(any(feature = "capture-tools", test))]
 use infiltrator_presentation::shell_readout::observed_rate;
@@ -90,6 +91,8 @@ pub struct OverviewProjection {
     pub active_connections: u32,
     /// Core process memory in bytes with support and failure kept explicit.
     pub memory_bytes: ResourceAvailability<u64>,
+    /// The core's memory soft limit in bytes, if the resource owner observed it.
+    pub memory_limit_bytes: Option<u64>,
     /// When the source took this sample (its own monotonic clock origin).
     pub sampled_at: Duration,
     /// Which source produced this snapshot (capture fixture vs owner-backed
@@ -119,6 +122,8 @@ pub struct OverviewProjection {
     pub routing_intent: RoutingIntentSnapshot,
     /// Core-owned speedtest snapshot driving the Overview speedtest button.
     pub speedtest: SpeedtestSnapshot,
+    /// Authoritative outbound inventory reduced for the Overview policy grid.
+    pub policy_groups: PolicyGroupGridProjection,
     /// CPU utilization percentage, if observed.
     pub cpu_percent: ResourceAvailability<f32>,
     /// Cumulative session traffic in bytes, if observed.
@@ -141,6 +146,7 @@ impl OverviewProjection {
             download_bps: 0.0,
             active_connections: 0,
             memory_bytes: ResourceAvailability::NotObserved,
+            memory_limit_bytes: None,
             sampled_at: Duration::ZERO,
             origin,
             core_version: None,
@@ -156,6 +162,7 @@ impl OverviewProjection {
             system_toggles: Default::default(),
             routing_intent: Default::default(),
             speedtest: Default::default(),
+            policy_groups: PolicyGroupGridProjection::unavailable(),
             cpu_percent: ResourceAvailability::NotObserved,
             total_traffic_bytes: None,
         }
@@ -282,6 +289,7 @@ impl OverviewSource for DemoOverviewSource {
             download_bps,
             active_connections,
             memory_bytes,
+            memory_limit_bytes,
             cpu_percent,
             total_traffic_bytes,
         ) = match run_state {
@@ -290,6 +298,7 @@ impl OverviewSource for DemoOverviewSource {
                 DEMO_DOWNLOAD_BPS,
                 DEMO_CONNECTIONS,
                 ResourceAvailability::Available(DEMO_MEMORY_BYTES),
+                Some(DEMO_MEMORY_BYTES * 2),
                 ResourceAvailability::Available(2.4),
                 Some(1024 * 1024 * 1024 * 12 + 1024 * 1024 * 512),
             ),
@@ -298,6 +307,7 @@ impl OverviewSource for DemoOverviewSource {
                 0.0,
                 0,
                 ResourceAvailability::NotObserved,
+                None,
                 ResourceAvailability::NotObserved,
                 None,
             ),
@@ -334,6 +344,7 @@ impl OverviewSource for DemoOverviewSource {
             download_bps,
             active_connections,
             memory_bytes,
+            memory_limit_bytes,
             sampled_at: DEMO_SAMPLE,
             origin: OverviewOrigin::Demo,
             core_version: None,
@@ -349,6 +360,7 @@ impl OverviewSource for DemoOverviewSource {
             system_toggles: SystemToggleSnapshot::from_legacy(true, Some(false), 1),
             routing_intent: RoutingIntentSnapshot::demo_fixture(),
             speedtest: SpeedtestSnapshot::demo_fixture(),
+            policy_groups: PolicyGroupGridProjection::unavailable(),
             cpu_percent,
             total_traffic_bytes,
         }

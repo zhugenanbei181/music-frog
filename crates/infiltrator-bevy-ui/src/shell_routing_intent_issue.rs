@@ -23,8 +23,9 @@ use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_presentation::routing_intent_projection::routing_intent_failure_copy;
 use infiltrator_shared::locales::Lang;
 
@@ -49,7 +50,7 @@ pub fn scene(palette: &UiPalette) -> impl Scene + use<> {
         RoutingIntentIssueRoot ThemeBackgroundColor({ Token::SurfaceElevated })
         BorderColor::all(edge)
         Children [
-            Text({ String::new() }) TextRole(Role::Body) RoutingIntentIssueText
+            Text({ String::new() }) TextRole(design_resources::TextRole::Body) RoutingIntentIssueText
             ThemeTextColor({ Token::Ink }) AccessibilityNode(semantic)
             --
             Node { flex_wrap: FlexWrap::Wrap, column_gap: rem(space::S8), row_gap: rem(space::S4) }

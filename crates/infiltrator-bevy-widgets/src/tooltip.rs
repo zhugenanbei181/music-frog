@@ -2,7 +2,7 @@
 use crate::palette::UiPalette;
 use crate::palette::rem;
 use crate::popover::Rect;
-use crate::text::{Role, TextRole};
+use crate::text::TextRole;
 use crate::theme::space;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
@@ -14,6 +14,9 @@ use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, JustifyContent, Node, PositionType, UiRect, Val, px,
 };
 use bevy::ui::widget::Text;
+use infiltrator_contract::design_resources;
+
+use infiltrator_contract::design_resources::typeface;
 
 /// Preferred anchor direction for tooltip popover.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -103,7 +106,7 @@ pub fn tooltip_scene(
     position: TooltipPosition,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    let font_size = palette.caption_font_px;
+    let font_size = typeface(design_resources::TextRole::Caption).size_px;
     let estimated_w =
         (text.chars().count() as f32 * font_size * 0.65 + space::S16).clamp(60.0, 320.0);
     let estimated_h = palette.control_height_px * 0.75;
@@ -131,7 +134,7 @@ pub fn tooltip_scene(
             BorderColor { top: edge, right: edge, bottom: edge, left: edge }
             TooltipBubble
             Children [
-                Text(text) TextRole(Role::Caption)
+                Text(text) TextRole(design_resources::TextRole::Caption)
             ]
     }
 }

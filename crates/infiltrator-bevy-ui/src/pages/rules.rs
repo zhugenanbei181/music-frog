@@ -89,9 +89,12 @@ use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::switch::{SwitchPosition, switch_knob_scene, switch_track_scene};
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::switch::{
+    SwitchKnob, SwitchPosition, switch_knob_scene, switch_track_scene,
+};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::{radius, space};
+use infiltrator_contract::design_resources;
 use infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot;
 use infiltrator_contract::provider_cache::{
     KernelEtagSupportSnapshot, ProviderCacheFingerprint, RuleProviderCacheSnapshot,
@@ -379,9 +382,9 @@ fn header_card_scene(
                                 row_gap: rem(space::S4),
                             }
                             Children [
-                                Text(summary) RulesLine(RulesLineKind::Summary) TextRole(Role::Heading)
+                                Text(summary) RulesLine(RulesLineKind::Summary) TextRole(design_resources::TextRole::Heading)
                                 --
-                                Text(default_action) RulesLine(RulesLineKind::DefaultAction) TextRole(Role::Caption)
+                                Text(default_action) RulesLine(RulesLineKind::DefaultAction) TextRole(design_resources::TextRole::Caption)
                             ]
                         ]
                         --
@@ -396,7 +399,7 @@ fn header_card_scene(
                                     button_with_label_scene(
                                         bsn! {
                                             LocalizedText::plain("rules_refresh_providers_action")
-                                            TextRole(Role::Caption)
+                                            TextRole(design_resources::TextRole::Caption)
                                             ButtonLabel
                                         },
                                         ButtonVariant::Default,
@@ -415,7 +418,7 @@ fn header_card_scene(
                                     button_with_label_scene(
                                         bsn! {
                                             LocalizedText::plain("rule_hit_btn_clear")
-                                            TextRole(Role::Caption)
+                                            TextRole(design_resources::TextRole::Caption)
                                             ButtonLabel
                                         },
                                         ButtonVariant::Default,
@@ -483,9 +486,9 @@ fn rules_table_scene(
                                 padding: UiRect::bottom(rem(space::S8)),
                             }
                             Children [
-                                LocalizedText::plain("rules_flow_title") TextRole(Role::BodyStrong)
+                                LocalizedText::plain("rules_flow_title") TextRole(design_resources::TextRole::BodyStrong)
                                 --
-                                LocalizedText::plain("rules_flow_hint") TextRole(Role::Caption)
+                                LocalizedText::plain("rules_flow_hint") TextRole(design_resources::TextRole::Caption)
                             ]
             }),
             // The publish-window note belongs to the list it describes, not to
@@ -496,7 +499,7 @@ fn rules_table_scene(
                                 padding: UiRect::bottom(rem(space::S8)),
                             }
                             Children [
-                                Text({ truncation_line }) RulesLine(RulesLineKind::Truncation) TextRole(Role::Caption)
+                                Text({ truncation_line }) RulesLine(RulesLineKind::Truncation) TextRole(design_resources::TextRole::Caption)
                             ]
             }),
             // The keyword field owns its own row: the list's paging controls
@@ -541,10 +544,10 @@ fn rules_table_scene(
                                 Button
                                 RulesPagePrevButton
                                 Children [
-                                    LocalizedText::plain("common_previous_page") TextRole(Role::Caption)
+                                    LocalizedText::plain("common_previous_page") TextRole(design_resources::TextRole::Caption)
                                 ]
                                 --
-                                LocalizedText::plain("rules_empty_pagination") RulesPageIndicator TextRole(Role::Caption)
+                                LocalizedText::plain("rules_empty_pagination") RulesPageIndicator TextRole(design_resources::TextRole::Caption)
                                 --
                                 Node {
                                     min_height: rem(palette.control_height_px),
@@ -557,7 +560,7 @@ fn rules_table_scene(
                                 Button
                                 RulesPageNextButton
                                 Children [
-                                    LocalizedText::plain("common_next_page") TextRole(Role::Caption)
+                                    LocalizedText::plain("common_next_page") TextRole(design_resources::TextRole::Caption)
                                 ]
                             ]
             }),
@@ -644,7 +647,7 @@ pub(crate) fn rule_row_scene(
                         justify_content: JustifyContent::FlexEnd,
                     }
                     Children [
-                        Text(idx_str) RuleIndexText(idx) TextRole(Role::Mono)
+                        Text(idx_str) RuleIndexText(idx) TextRole(design_resources::TextRole::Mono)
                     ]
                     --
                     @type_chip
@@ -655,7 +658,7 @@ pub(crate) fn rule_row_scene(
                         flex_grow: 1.0,
                     }
                     Children [
-                        Text(payload) RulePayloadText(idx) TextRole(Role::Body)
+                        Text(payload) RulePayloadText(idx) TextRole(design_resources::TextRole::Body)
                     ]
                 ]
                 --
@@ -665,7 +668,7 @@ pub(crate) fn rule_row_scene(
                     column_gap: rem(space::S12),
                 }
                 Children [
-                    Text(proxy) RuleProxyText(idx) TextRole(Role::BodyStrong) ThemeTextColor({ target_ink })
+                    Text(proxy) RuleProxyText(idx) TextRole(design_resources::TextRole::BodyStrong) ThemeTextColor({ target_ink })
                     --
                     Node {
                         flex_shrink: 0.0,
@@ -675,7 +678,7 @@ pub(crate) fn rule_row_scene(
                     }
                     ThemeBackgroundColor({ Token::SurfaceElevated })
                     Children [
-                        LocalizedText { .. { hits } } RuleHitText(idx) TextRole(Role::Caption) ThemeTextColor({ hits_ink })
+                        LocalizedText { .. { hits } } RuleHitText(idx) TextRole(design_resources::TextRole::Caption) ThemeTextColor({ hits_ink })
                     ]
                     --
                     Node {
@@ -688,7 +691,7 @@ pub(crate) fn rule_row_scene(
                     ThemeBackgroundColor({ Token::SurfaceElevated })
                     RuleRowStatusChip(idx)
                     Children [
-                        LocalizedText { .. { status } } RuleRowStatusText(idx) TextRole(Role::Caption) ThemeTextColor({ status_ink })
+                        LocalizedText { .. { status } } RuleRowStatusText(idx) TextRole(design_resources::TextRole::Caption) ThemeTextColor({ status_ink })
                     ]
                     --
                     @{ rule_row_controls_scene(rule.edit_id, rule.is_enabled, idx, palette) }
@@ -716,7 +719,7 @@ fn rule_type_chip_scene(idx: usize, rule_type: &str) -> impl Scene + use<> {
             ThemeBackgroundColor({ Token::SurfaceElevated })
             RuleTypeBadge(idx)
             Children [
-                Text(label) RuleTypeText(idx) TextRole(Role::Caption) ThemeTextColor({ token })
+                Text(label) RuleTypeText(idx) TextRole(design_resources::TextRole::Caption) ThemeTextColor({ token })
             ]
     }
 }
@@ -752,6 +755,7 @@ fn rule_row_controls_scene(
                 Button
                 Children [
                     @{ switch_knob_scene(knob_fill, SwitchPosition::from_enabled(enabled)) }
+                    SwitchKnob(SwitchPosition::from_enabled(enabled))
                     RuleEnabledKnob(idx)
                 ]
                 --

@@ -2,7 +2,7 @@
 //!
 //! Validates:
 //! - State 1: Demo mode (Demo origin) -> "演示模式" / "Demo Mode", neutral accent dot, disabled start/stop.
-//! - State 2: Missing host (Failed) -> "运行出错" / "Failed", danger dot and fill.
+//! - State 2: Missing host (Failed) -> "运行出错" / "Failed", danger dot and state ink on the standard card.
 //! - State 3: Core stopped -> "已停止" / "Stopped", ink_dim dot, start action.
 //! - State 4: VPN unauthorized / untaken -> "VPN 未授权" / "内核运行 · 未接管", warning dot (never green!), stop action.
 //! - State 5: Real running -> "运行中" / "Running", success green dot, stop action.
@@ -58,7 +58,7 @@ fn five_states_banner_verdict_matrix() {
     );
     assert_eq!(
         card_fill(Some(&demo), &demo.lifecycle, &palette),
-        palette.accent_container
+        palette.surface
     );
     assert_eq!(
         state_ink(Some(&demo), &demo.lifecycle, &palette),
@@ -76,12 +76,8 @@ fn five_states_banner_verdict_matrix() {
     assert_eq!(banner_state_text(&missing, "en-US"), "Runtime Error");
     assert_eq!(status_dot_color(Some(&missing), &palette), palette.danger);
     assert_eq!(
-        card_fill(Some(&missing), &missing.lifecycle, &palette),
-        palette.danger
-    );
-    assert_eq!(
         state_ink(Some(&missing), &missing.lifecycle, &palette),
-        palette.on_accent
+        palette.danger
     );
 
     // 3. Core Stopped
@@ -96,7 +92,7 @@ fn five_states_banner_verdict_matrix() {
     assert_eq!(status_dot_color(Some(&stopped), &palette), palette.ink_dim);
     assert_eq!(
         card_fill(Some(&stopped), &stopped.lifecycle, &palette),
-        palette.accent_container
+        palette.surface
     );
     assert_eq!(
         state_ink(Some(&stopped), &stopped.lifecycle, &palette),
@@ -128,7 +124,7 @@ fn five_states_banner_verdict_matrix() {
     );
     assert_eq!(
         card_fill(Some(&unauthorized), &unauthorized.lifecycle, &palette),
-        palette.accent_container
+        palette.surface
     );
     assert_eq!(
         state_ink(Some(&unauthorized), &unauthorized.lifecycle, &palette),
@@ -170,7 +166,7 @@ fn five_states_banner_verdict_matrix() {
     );
     assert_eq!(
         card_fill(Some(&real_running), &real_running.lifecycle, &palette),
-        palette.accent_container
+        palette.surface
     );
     assert_eq!(
         state_ink(Some(&real_running), &real_running.lifecycle, &palette),

@@ -31,7 +31,9 @@ fn three_state_projections_are_visible() {
         let expected_ink = match state {
             OverviewRunState::Running => palette.ink,
             OverviewRunState::Stopped => palette.ink_dim,
-            OverviewRunState::Unavailable { .. } => palette.on_accent,
+            // The banner no longer turns into a danger block, so the state
+            // word itself carries the fault ink.
+            OverviewRunState::Unavailable { .. } => palette.danger,
         };
         assert_eq!(ink.0, expected_ink, "{state:?} ink is the token one");
 
@@ -43,15 +45,12 @@ fn three_state_projections_are_visible() {
             _ => assert_eq!(failure_text, "", "no fabricated status"),
         }
 
+        // The banner keeps one neutral surface in every state: the aggressive
+        // accent block is gone, and the state rides on the dot and the ink.
         let (_, fill, stored) = card(world);
-        let expected_fill = if matches!(state, OverviewRunState::Unavailable { .. }) {
-            palette.danger
-        } else {
-            palette.accent_container
-        };
         assert_eq!(
-            fill, expected_fill,
-            "{state:?} banner fill is the token one"
+            fill, palette.surface,
+            "{state:?} banner keeps the standard surface"
         );
         assert_eq!(
             stored, projection.lifecycle,

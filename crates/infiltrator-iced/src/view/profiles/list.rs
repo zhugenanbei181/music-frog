@@ -12,7 +12,7 @@ use crate::view::components::{
 };
 use crate::view::svg_icons::Icon;
 use crate::view::theme;
-use crate::view::theme::{FONT_SEMIBOLD, MONO, R_CARD, SP_MD, tokens};
+use crate::view::theme::{R_CARD, SP_MD, tokens};
 use iced::widget::{Space, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_domain::profiles::ProfileInfo;
@@ -108,11 +108,11 @@ pub(super) fn profiles_section<'a>(state: &'a AppState) -> Element<'a, Message> 
                         row![
                             column![
                                 row![
-                                    text(&profile.name).size(15).font(FONT_SEMIBOLD).style(
-                                        |t: &Theme| text::Style {
-                                            color: Some(tokens(t).text_primary)
+                                    theme::role_body_text(&profile.name).style(|t: &Theme| {
+                                        text::Style {
+                                            color: Some(tokens(t).text_primary),
                                         }
-                                    ),
+                                    }),
                                     Space::new().width(theme::SP_SM),
                                     source_badge,
                                     if is_active {
@@ -133,7 +133,7 @@ pub(super) fn profiles_section<'a>(state: &'a AppState) -> Element<'a, Message> 
                                 row![
                                     kbd_badge(if is_subscription { "SUB" } else { "YAML" }),
                                     Space::new().width(theme::SP_XS),
-                                    text(profile.path.clone()).size(11).font(MONO).style(
+                                    theme::role_body_text(profile.path.clone()).style(
                                         |t: &Theme| text::Style {
                                             color: Some(tokens(t).text_tertiary)
                                         }
@@ -153,13 +153,11 @@ pub(super) fn profiles_section<'a>(state: &'a AppState) -> Element<'a, Message> 
                             );
                             let mut sub_details = column![
                                 row![
-                                    text(format!(
+                                    theme::role_body_text(format!(
                                         "{} {}",
                                         lang.tr("profiles_last_updated"),
                                         last_up
                                     ))
-                                    .size(11)
-                                    .font(MONO)
                                     .style(|t: &Theme| {
                                         text::Style {
                                             color: Some(tokens(t).text_secondary),
@@ -214,9 +212,7 @@ pub(super) fn profiles_section<'a>(state: &'a AppState) -> Element<'a, Message> 
             section_header(
                 "PROFILES",
                 Some(
-                    text(format!("{}", state.profile.profiles.len()))
-                        .size(12)
-                        .font(MONO)
+                    theme::role_body_text(format!("{}", state.profile.profiles.len()))
                         .style(|t: &Theme| text::Style {
                             color: Some(tokens(t).text_tertiary)
                         })

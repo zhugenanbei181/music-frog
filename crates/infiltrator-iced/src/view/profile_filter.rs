@@ -5,12 +5,13 @@
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::view::component_forms::{form_input_style, style_accent, style_ghost};
+use crate::view::scrollbar::auto_hide_scrollable;
 use crate::view::theme;
 use crate::view::theme::tokens;
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::advanced::text::Renderer;
 use iced::advanced::widget::Id;
-use iced::widget::{Space, button, column, container, row, scrollable, text, text_input};
+use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Border, Element, Font, Length, Padding, Theme};
 use infiltrator_contract::subscription_import::SubscriptionFilterDedup;
 use infiltrator_presentation::subscription_filter_copy::status;
@@ -35,7 +36,7 @@ pub fn filter_pane<'a, R: Renderer<Font = Font> + 'a>(
 
     let lang = Lang(&state.shell.lang);
     let dedup_control = row(SubscriptionFilterDedup::ALL.into_iter().map(|mode| {
-        button(text(lang.tr(mode.label_key())).size(12))
+        button(theme::role_body_text(lang.tr(mode.label_key())))
             .padding([6, 8])
             .style(if draft.dedup_index == mode.index() {
                 style_accent
@@ -61,7 +62,6 @@ pub fn filter_pane<'a, R: Renderer<Font = Font> + 'a>(
             text_input(placeholder, value)
                 .on_input_maybe(state.editor.filter_editor.can_edit().then_some(on_input))
                 .padding([8, 12])
-                .size(13)
                 .width(Length::Fill)
                 .style(form_input_style),
         )
@@ -69,12 +69,11 @@ pub fn filter_pane<'a, R: Renderer<Font = Font> + 'a>(
     };
     let save_row = |context: &str| {
         row![
-            text(format!(
+            theme::role_body_text(format!(
                 "{}：{context} — {}",
                 lang.tr("filter_context_prefix"),
                 lang.tr("filter_context_hint")
             ))
-            .size(11)
             .width(Length::Fill)
             .style(|t: &Theme| text::Style {
                 color: Some(tokens(t).text_tertiary),
@@ -87,26 +86,23 @@ pub fn filter_pane<'a, R: Renderer<Font = Font> + 'a>(
         || state.editor.filter_editor.read_failure().is_some();
     let transaction = container(
         column![
-            text(lang.tr("field_filter_advanced")).size(13),
+            theme::role_body_text(lang.tr("field_filter_advanced")),
             text_field(
                 lang.tr("filter_advanced_ph").as_ref(),
                 draft.advanced_policy.as_deref().unwrap_or(""),
                 Message::UpdateFilterAdvancedPolicy,
                 InteractionRegion::FilterAdvanced,
             ),
-            text(lang.tr("filter_advanced_help"))
-                .size(11)
-                .width(Length::Fill),
+            theme::role_body_text(lang.tr("filter_advanced_help")).width(Length::Fill),
             container(
-                text(status(&state.editor.filter_editor, &Lang(lang.0)))
-                    .size(12)
+                theme::role_body_text(status(&state.editor.filter_editor, &Lang(lang.0)))
                     .width(Length::Fill)
             )
             .width(Length::Fill)
             .id(InteractionRegion::FilterStatus.id()),
             row![
                 container(
-                    button(text(lang.tr("filter_form_discard")).size(12))
+                    button(theme::role_body_text(lang.tr("filter_form_discard")))
                         .padding([6, 8])
                         .on_press_maybe(
                             state
@@ -119,7 +115,7 @@ pub fn filter_pane<'a, R: Renderer<Font = Font> + 'a>(
                 )
                 .id(InteractionRegion::FilterDiscard.id()),
                 container(
-                    button(text(lang.tr("editor_apply_filter")).size(12))
+                    button(theme::role_body_text(lang.tr("editor_apply_filter")))
                         .padding([6, 8])
                         .style(style_accent)
                         .on_press_maybe(
@@ -199,7 +195,7 @@ pub fn filter_pane<'a, R: Renderer<Font = Font> + 'a>(
     } else {
         Length::Fill
     };
-    scrollable(content)
+    auto_hide_scrollable(content)
         .id(Id::new("filter-scroll"))
         .height(form_height)
         .into()

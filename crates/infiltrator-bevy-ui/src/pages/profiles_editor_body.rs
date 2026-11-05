@@ -18,8 +18,9 @@ use infiltrator_bevy_widgets::editor::{SyntaxTokenKind, tokenize_yaml_line};
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::editor_viewport::EditorViewport;
 
 /// The line-number gutter's minimum width in baseline pixels.
@@ -94,7 +95,7 @@ pub(crate) fn editor_rows_scene_for(
                 };
                 Box::new(bsn! {
                                     Text({ token.text })
-                                    TextRole(Role::Mono)
+                                    TextRole(design_resources::TextRole::Mono)
                                     TextColor({ color })
                 }) as Box<dyn Scene>
             })
@@ -114,7 +115,7 @@ pub(crate) fn editor_rows_scene_for(
                         }
                         Children [
                             Text({ format!("{number}") })
-                            TextRole(Role::Mono)
+                            TextRole(design_resources::TextRole::Mono)
                             TextColor({ gutter_color })
                         ]
                         --
@@ -178,7 +179,7 @@ fn notice_row(label: LocalizedText, palette: &UiPalette) -> Box<dyn Scene> {
                 align_items: AlignItems::Center,
             }
             Children [
-                label TextRole(Role::Caption) TextColor({ color })
+                label TextRole(design_resources::TextRole::Caption) TextColor({ color })
             ]
     })
 }

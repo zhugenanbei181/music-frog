@@ -13,6 +13,8 @@ use crate::state::AppState;
 use crate::types::app::Route;
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
+use crate::view::theme::font_for;
+use infiltrator_contract::design_resources::TextRole;
 use infiltrator_contract::surface_snapshot::PageId;
 use infiltrator_presentation::routing_intent_projection::{
     routing_intent_copy_key, routing_intent_status_copy,
@@ -28,12 +30,13 @@ use crate::view::components::{
 };
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme;
-use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, R_CARD, R_CONTROL};
+use crate::view::theme::{R_CARD, R_CONTROL};
 use crate::view::waveform::{StripInk, hud_waveform};
 use iced::widget::{Space, button, column, container, progress_bar, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_contract::a11y::ShellA11yNode;
 use infiltrator_contract::responsive_viewport::{SidebarForm, ViewportTier};
+use infiltrator_contract::shared_copy::SharedCopyKey;
 use infiltrator_contract::sidebar_material::SidebarMaterialKind;
 use infiltrator_contract::window_chrome::DesktopPlatformKind;
 use infiltrator_presentation::sidebar_material_projection::{
@@ -133,7 +136,7 @@ fn sidebar_bottom_nav(state: &AppState) -> Element<'_, Message> {
         });
         bar = bar.push(
             button(
-                column![glyph, text(lang.tr(key).into_owned()).size(11.0),]
+                column![glyph, theme::role_body_text(lang.tr(key).into_owned()),]
                     .spacing(2)
                     .align_x(Alignment::Center),
             )
@@ -300,20 +303,17 @@ fn header(state: &AppState) -> Element<'_, Message> {
     });
 
     let version_str = infiltrator_contract::ProductVersion::DISPLAY;
+    let lang = Lang(&state.shell.lang);
 
     let title_col = column![
-        text("MusicFrog")
-            .size(15)
-            .font(FONT_SEMIBOLD)
-            .style(|t: &Theme| text::Style {
+        theme::role_body_text(Localizer::tr(&lang, SharedCopyKey::AppName.key())).style(
+            |t: &Theme| text::Style {
                 color: Some(theme::tokens(t).text_primary)
-            }),
-        text(version_str)
-            .size(10)
-            .font(MONO)
-            .style(|t: &Theme| text::Style {
-                color: Some(theme::tokens(t).text_tertiary),
-            }),
+            }
+        ),
+        theme::role_body_text(version_str).style(|t: &Theme| text::Style {
+            color: Some(theme::tokens(t).text_tertiary),
+        }),
     ]
     .spacing(1);
 
@@ -417,7 +417,7 @@ fn routing_intent_control<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, 
     });
 
     let caption = routing_intent_status_copy(&state.runtime.routing_intent_state, &Lang(lang.0));
-    container(column![control, text(caption).size(10)].spacing(theme::SP_XS))
+    container(column![control, theme::role_body_text(caption)].spacing(theme::SP_XS))
         .width(Length::Fill)
         .into()
 }
@@ -484,7 +484,7 @@ fn toggle_card<'a>(
             .align_y(Alignment::Center)
             .width(Length::Fill),
             Space::new().height(theme::SP_SM),
-            text(label).size(11).font(FONT_MEDIUM).style(|t: &Theme| {
+            theme::role_body_text(label).style(|t: &Theme| {
                 text::Style {
                     color: Some(theme::tokens(t).text_secondary),
                 }
@@ -522,12 +522,12 @@ fn profile_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
         icon_themed(Icon::FileText, 16.0, |t| theme::tokens(t).accent),
         Space::new().width(theme::SP_SM),
         column![
-            text(name).size(13).font(FONT_SEMIBOLD).style(|t: &Theme| {
+            theme::role_body_text(name).style(|t: &Theme| {
                 text::Style {
                     color: Some(theme::tokens(t).text_primary),
                 }
             }),
-            text(subtitle).size(10).style(|t: &Theme| {
+            theme::role_body_text(subtitle).style(|t: &Theme| {
                 text::Style {
                     color: Some(theme::tokens(t).text_tertiary),
                 }
@@ -553,13 +553,9 @@ fn profile_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
             column![
                 progress_bar(0.0..=1.0, fraction).length(Length::Fill),
                 row![
-                    text(profile_usage(readout, &Lang(&state.shell.lang)))
-                        .size(10)
-                        .font(MONO),
+                    theme::role_body_text(profile_usage(readout, &Lang(&state.shell.lang))),
                     Space::new().width(Length::Fill),
-                    text(profile_percent(readout, &Lang(&state.shell.lang)))
-                        .size(10)
-                        .font(MONO),
+                    theme::role_body_text(profile_percent(readout, &Lang(&state.shell.lang))),
                 ]
                 .align_y(Alignment::Center)
                 .width(Length::Fill),
@@ -655,12 +651,11 @@ fn shortcut_tile<'a>(
         .align_y(Alignment::Center)
         .width(Length::Fill),
         Space::new().height(theme::SP_XS),
-        text(label.to_string())
-            .size(11)
+        theme::role_body_text(label.to_string())
             .font(if is_active {
-                FONT_SEMIBOLD
+                font_for(TextRole::LabelStrong)
             } else {
-                FONT_MEDIUM
+                font_for(TextRole::Label)
             })
             .style(move |t: &Theme| text::Style {
                 color: Some(if is_active {
@@ -722,7 +717,9 @@ fn speed_footer<'a>(state: &AppState, _lang: &Lang<'a>) -> Element<'a, Message> 
     let content: Element<Message> = if failure.is_empty() {
         content.into()
     } else {
-        column![content, text(failure).size(10)].spacing(2).into()
+        column![content, theme::role_body_text(failure)]
+            .spacing(2)
+            .into()
     };
 
     // DUAL-15-10: the live rate readout carries the shared semantic label as a
@@ -746,12 +743,9 @@ fn speed_leg<'a>(
     row![
         icon_themed(glyph, 12.0, color),
         Space::new().width(theme::SP_XS),
-        text(formatted_rate)
-            .size(11)
-            .font(MONO)
-            .style(move |t: &Theme| text::Style {
-                color: Some(color(t))
-            }),
+        theme::role_body_text(formatted_rate).style(move |t: &Theme| text::Style {
+            color: Some(color(t))
+        }),
     ]
     .align_y(Alignment::Center)
     .into()

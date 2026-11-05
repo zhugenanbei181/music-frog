@@ -15,8 +15,9 @@ use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::offline_startup::OfflineStartupSnapshot;
 use infiltrator_presentation::settings_status_projection::format_offline_startup;
 use infiltrator_shared::locales::Lang;
@@ -36,9 +37,9 @@ pub(super) fn offline_startup_row_scene(
             }
             ThemeBackgroundColor({ Token::SurfaceElevated })
             Children [
-                LocalizedText::plain("settings_offline_startup_title") TextRole(Role::Body)
+                LocalizedText::plain("settings_offline_startup_title") TextRole(design_resources::TextRole::Body)
                 --
-                Text(status) SettingsLine(SettingsLineKind::OfflineStartup) TextRole(Role::Mono)
+                Text(status) SettingsLine(SettingsLineKind::OfflineStartup) TextRole(design_resources::TextRole::Mono)
             ]
     })
 }

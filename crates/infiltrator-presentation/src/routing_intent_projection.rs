@@ -119,6 +119,35 @@ pub fn routing_intent_status_copy(
     interpolate(catalog.text(key).as_ref(), &[("value", &value)])
 }
 
+/// The state qualifier shown beside a routing control whose current choice is
+/// already visible. It states only what is not ready, so the control does not
+/// repeat its own label.
+pub fn routing_intent_state_copy(
+    snapshot: &RoutingIntentSnapshot,
+    catalog: &dyn TextCatalog,
+) -> String {
+    let key = match snapshot.status {
+        RoutingIntentStatus::Ready if snapshot.current.is_some() => return String::new(),
+        RoutingIntentStatus::Ready | RoutingIntentStatus::Unobserved => {
+            if snapshot.current.is_some() {
+                "routing_intent_state_stale"
+            } else {
+                "routing_intent_state_unobserved"
+            }
+        }
+        RoutingIntentStatus::Pending => "routing_intent_state_updating",
+        RoutingIntentStatus::Unsupported => "routing_intent_state_unsupported",
+        RoutingIntentStatus::Failed => {
+            if snapshot.current.is_some() {
+                "routing_intent_state_stale"
+            } else {
+                "routing_intent_state_unobserved"
+            }
+        }
+    };
+    catalog.text(key).into_owned()
+}
+
 #[cfg(test)]
 #[path = "routing_intent_projection_tests.rs"]
 mod tests;

@@ -29,6 +29,7 @@ use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::chart::ChartPlate;
 use infiltrator_contract::resources::ResourceAvailability;
 use infiltrator_domain::traffic_waveform::display_series;
+use infiltrator_presentation::dashboard_hero_projection::PolicyGroupGridProjection;
 use infiltrator_presentation::overview_page_model::OverviewRunState;
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::lifecycle::CoreLifecycle;
@@ -431,6 +432,8 @@ fn banner_note_and_stop_slot_follow_the_projection_origin() {
                 subscription_quota: Default::default(),
                 system_toggles: Default::default(),
                 cpu_percent: ResourceAvailability::NotObserved,
+                memory_limit_bytes: None,
+                policy_groups: PolicyGroupGridProjection::unavailable(),
                 total_traffic_bytes: None,
                 routing_intent: RoutingIntentSnapshot {
                     current: Some(RoutingIntent::FollowRules),

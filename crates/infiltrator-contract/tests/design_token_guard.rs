@@ -27,9 +27,10 @@ use infiltrator_contract::design_tokens::space::{
 /// A font size is not a spatial length: the type ladder is its own channel,
 /// so these names are the only ones the token file may spend on a value that
 /// is not a spacing, radius, physical or chrome length.
-const TYPOGRAPHY_NAMES: [&str; 10] = [
+const TYPOGRAPHY_NAMES: [&str; 11] = [
     "DISPLAY",
     "TITLE",
+    "SUBHEADING",
     "HEADING",
     "BODY",
     "BODY_LARGE",

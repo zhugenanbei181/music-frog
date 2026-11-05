@@ -24,8 +24,9 @@ use infiltrator_bevy_widgets::chaos::{BoundedMonkeyExplorer, ChaosFaultConfig, D
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 
 /// The product surfaces the bounded monkey explorer can walk.
 pub const CHAOS_ROUTES: [&str; 11] = [
@@ -147,9 +148,9 @@ pub fn chaos_console_scene(console: &ChaosConsole, palette: &UiPalette) -> impl 
                 Node { width: percent(100), align_items: AlignItems::Center, justify_content: JustifyContent::SpaceBetween }
                 ChaosStateRow({ state.step })
                 Children [
-                    Text({ format!("#{} {}", state.step, state.route) }) TextRole(Role::Caption)
+                    Text({ format!("#{} {}", state.step, state.route) }) TextRole(design_resources::TextRole::Caption)
                     --
-                    Text(fault) TextRole(Role::Caption)
+                    Text(fault) TextRole(design_resources::TextRole::Caption)
                 ]
             }) as Box<dyn Scene>
         })
@@ -174,12 +175,12 @@ pub fn chaos_console_scene(console: &ChaosConsole, palette: &UiPalette) -> impl 
                     justify_content: JustifyContent::SpaceBetween,
                 }
                 Children [
-                    Text({ "Chaos Sandbox".to_owned() }) TextRole(Role::Heading)
+                    Text({ "Chaos Sandbox".to_owned() }) TextRole(design_resources::TextRole::Heading)
                     --
-                    Text({ gate.to_owned() }) TextRole(Role::Caption) ChaosConsoleGate
+                    Text({ gate.to_owned() }) TextRole(design_resources::TextRole::Caption) ChaosConsoleGate
                 ]
                 --
-                Text(seed) TextRole(Role::Caption)
+                Text(seed) TextRole(design_resources::TextRole::Caption)
                 --
                 Node {
                     width: percent(100),

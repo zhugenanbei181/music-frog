@@ -43,10 +43,11 @@ use infiltrator_bevy_widgets::editor::state::CodeEditorState;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_bevy_widgets::theme::{radius, space};
 use infiltrator_contract::command::RequestId;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::profile_mixin_studio::ProfileMixinStudioObservation;
 use infiltrator_contract::subscription_filter_form::{FilterField, FilterObservation};
 use infiltrator_contract::subscription_import::SubscriptionFilterDedup;
@@ -273,7 +274,7 @@ pub fn pane_switch_scene(state: &ProfileEditorOptionsState, palette: &UiPalette)
                             Button
                             ProfileEditorPaneButton { pane }
                             Children [
-                                label TextRole(Role::Caption)
+                                label TextRole(design_resources::TextRole::Caption)
                             ]
             }) as Box<dyn Scene>
         })
@@ -291,7 +292,7 @@ pub fn pane_switch_scene(state: &ProfileEditorOptionsState, palette: &UiPalette)
                 { buttons }
                 --
                 LocalizedText::plain("profiles_script_console_hint")
-                TextRole(Role::Caption)
+                TextRole(design_resources::TextRole::Caption)
                 TextColor({ note_color })
             ]
     })
@@ -326,9 +327,9 @@ pub fn mixin_pane_scene(state: &ProfileEditorOptionsState, palette: &UiPalette) 
                 MixinStudioBody
                 --
                 LocalizedText::plain("profiles_mixin_save_hint")
-                TextRole(Role::Caption)
+                TextRole(design_resources::TextRole::Caption)
                 --
-                Text(status) MixinEditorStatusText TextRole(Role::Caption)
+                Text(status) MixinEditorStatusText TextRole(design_resources::TextRole::Caption)
                 --
                 Node {
                     width: percent(100),
@@ -344,10 +345,10 @@ pub fn mixin_pane_scene(state: &ProfileEditorOptionsState, palette: &UiPalette) 
                     }
                     BackgroundColor({ error_color })
                     Children [
-                        Text({ pill_label.to_owned() }) MixinEditorDiagnosticPill TextRole(Role::Caption)
+                        Text({ pill_label.to_owned() }) MixinEditorDiagnosticPill TextRole(design_resources::TextRole::Caption)
                     ]
                     --
-                    Text(diagnostic_text) MixinEditorDiagnosticText TextRole(Role::Mono)
+                    Text(diagnostic_text) MixinEditorDiagnosticText TextRole(design_resources::TextRole::Mono)
                     --
                     @{ mixin_actions_scene(palette) }
                 ]
@@ -378,7 +379,7 @@ fn mixin_actions_scene(palette: &UiPalette) -> Box<dyn Scene> {
                 EditorMutationControl
                 MixinEditorFocusButton
                 Children [
-                    LocalizedText::plain("profiles_mixin_edit_action") TextRole(Role::Caption)
+                    LocalizedText::plain("profiles_mixin_edit_action") TextRole(design_resources::TextRole::Caption)
                 ]
                 --
                 Node {
@@ -392,7 +393,7 @@ fn mixin_actions_scene(palette: &UiPalette) -> Box<dyn Scene> {
                 Button
                 MixinEditorReloadButton
                 Children [
-                    LocalizedText::plain("profiles_mixin_reload_action") TextRole(Role::Caption)
+                    LocalizedText::plain("profiles_mixin_reload_action") TextRole(design_resources::TextRole::Caption)
                 ]
                 --
                 Node {
@@ -407,7 +408,7 @@ fn mixin_actions_scene(palette: &UiPalette) -> Box<dyn Scene> {
                 EditorMutationControl
                 MixinEditorSaveButton
                 Children [
-                    LocalizedText::plain("profiles_mixin_save_action") TextRole(Role::Caption)
+                    LocalizedText::plain("profiles_mixin_save_action") TextRole(design_resources::TextRole::Caption)
                 ]
                 --
                 @{ discard_scene(true, palette) }
@@ -435,7 +436,7 @@ fn mixin_snippet_bar(palette: &UiPalette) -> Box<dyn Scene> {
                             EditorMutationControl
                             MixinEditorSnippetButton { index }
                             Children [
-                                label TextRole(Role::Caption)
+                                label TextRole(design_resources::TextRole::Caption)
                             ]
             }) as Box<dyn Scene>
         })
@@ -449,7 +450,7 @@ fn mixin_snippet_bar(palette: &UiPalette) -> Box<dyn Scene> {
                 row_gap: rem(space::S4),
             }
             Children [
-                LocalizedText::plain("profiles_snippet_insert_action") TextRole(Role::Caption)
+                LocalizedText::plain("profiles_snippet_insert_action") TextRole(design_resources::TextRole::Caption)
                 --
                 { buttons }
             ]
@@ -479,7 +480,7 @@ pub fn filter_pane_scene(state: &ProfileEditorOptionsState, palette: &UiPalette)
             }
             Children [
                 LocalizedText::plain("profiles_filter_save_hint")
-                TextRole(Role::Caption)
+                TextRole(design_resources::TextRole::Caption)
                 --
                 { fields }
                 --
@@ -489,7 +490,7 @@ pub fn filter_pane_scene(state: &ProfileEditorOptionsState, palette: &UiPalette)
                 Children [
                     @{ filter_field_scene(FilterField::Advanced, FilterField::Advanced.value(&state.filter.draft), palette) }
                     --
-                LocalizedText::plain("filter_advanced_help") TextRole(Role::Caption)
+                LocalizedText::plain("filter_advanced_help") TextRole(design_resources::TextRole::Caption)
                 --
                 Node {
                     width: percent(100),
@@ -499,7 +500,7 @@ pub fn filter_pane_scene(state: &ProfileEditorOptionsState, palette: &UiPalette)
                     row_gap: rem(space::S4),
                 }
                 Children [
-                    LocalizedText::plain("profiles_filter_deduplicate") TextRole(Role::Caption)
+                    LocalizedText::plain("profiles_filter_deduplicate") TextRole(design_resources::TextRole::Caption)
                     --
                     { chips }
                 ]
@@ -511,7 +512,7 @@ pub fn filter_pane_scene(state: &ProfileEditorOptionsState, palette: &UiPalette)
                     column_gap: rem(space::S8),
                 }
                 Children [
-                    Text(status) EditorFilterStatusText TextRole(Role::Caption)
+                    Text(status) EditorFilterStatusText TextRole(design_resources::TextRole::Caption)
                     --
                     @{ localized_pill_scene(LocalizedText::plain("filter_form_discard"), false, palette) } EditorFilterDiscard ButtonDisabled(false)
                     --

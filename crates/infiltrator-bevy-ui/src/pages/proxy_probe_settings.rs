@@ -29,13 +29,14 @@ use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLo
 use infiltrator_bevy_widgets::modal::{ModalDialogCard, ModalScrim};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_bevy_widgets::text_input::{
     TextField, TextFieldFocused, text_field_with_placeholder_scene,
 };
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::command::RequestId;
+use infiltrator_contract::design_resources;
 use infiltrator_presentation::runtime_probe_settings_editor::{
     RuntimeProbeSettingsEditor, RuntimeProbeSettingsWriteOutcome,
 };
@@ -134,10 +135,10 @@ pub fn launcher(palette: &UiPalette) -> impl Scene + use<> {
             }
             Button OpenProbeSettings LocalizedLabel::plain("proxy_probe_settings_title")
             Children [
-                LocalizedText::plain("proxy_probe_settings_title") TextRole(Role::Caption)
+                LocalizedText::plain("proxy_probe_settings_title") TextRole(design_resources::TextRole::Caption)
             ]
             --
-            Text(String::new()) ProbeAppliedSummary TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
+            Text(String::new()) ProbeAppliedSummary TextRole(design_resources::TextRole::Caption) ThemeTextColor({ Token::InkDim })
         ]
     }
 }
@@ -168,24 +169,24 @@ pub fn modal(palette: &UiPalette) -> impl Scene + use<> {
             ThemeBackgroundColor({ Token::Surface }) ModalDialogCard ProbeSettingsCard ModalDialog
             AccessibilityNode(semantic) LocalizedLabel::plain("proxy_probe_settings_title")
             Children [
-                LocalizedText::plain("proxy_probe_settings_title") TextRole(Role::Heading)
+                LocalizedText::plain("proxy_probe_settings_title") TextRole(design_resources::TextRole::Heading)
                 --
                 Node { width: percent(100), min_height: px(0.0), flex_shrink: 1.0, flex_direction: FlexDirection::Column, row_gap: rem(space::S12), overflow: Overflow::scroll_y() }
                 ScrollArea ProbeSettingsScrollArea
                 Children [
-                LocalizedText::plain("proxy_probe_settings_description") TextRole(Role::Caption)
+                LocalizedText::plain("proxy_probe_settings_description") TextRole(design_resources::TextRole::Caption)
                 --
-                LocalizedText::plain("runtime_probe_url_label") TextRole(Role::Body)
+                LocalizedText::plain("runtime_probe_url_label") TextRole(design_resources::TextRole::Body)
                 --
                 Node { width: percent(100) } ProbeUrlField
                 Children [ @{ text_field_with_placeholder_scene(String::new(), "https://example.test/204".into(), palette) } ]
                 --
-                LocalizedText::plain("runtime_probe_timeout_label") TextRole(Role::Body)
+                LocalizedText::plain("runtime_probe_timeout_label") TextRole(design_resources::TextRole::Body)
                 --
                 Node { width: percent(100) } ProbeTimeoutField
                 Children [ @{ text_field_with_placeholder_scene(String::new(), "5000".into(), palette) } ]
                 --
-                Text(String::new()) ProbeSettingsStatus TextRole(Role::Caption)
+                Text(String::new()) ProbeSettingsStatus TextRole(design_resources::TextRole::Caption)
                 ]
                 --
                 Node { width: percent(100), justify_content: JustifyContent::SpaceBetween, flex_shrink: 0.0 }
@@ -198,11 +199,11 @@ pub fn modal(palette: &UiPalette) -> impl Scene + use<> {
                     on(|activate: On<Activate>, mut commands: Commands| {
                         commands.trigger(RequestClose { source: activate.entity });
                     })
-                    Children [ LocalizedText::plain("modal_cancel") TextRole(Role::Body) ]
+                    Children [ LocalizedText::plain("modal_cancel") TextRole(design_resources::TextRole::Body) ]
                     --
                     Node { min_height: rem(palette.control_height_px), padding: UiRect::axes(rem(space::S12), rem(space::S8)) }
                     Button ApplyProbeSettings ButtonDisabled(true)
-                    Children [ LocalizedText::plain("proxy_probe_settings_apply") TextRole(Role::BodyStrong) ]
+                    Children [ LocalizedText::plain("proxy_probe_settings_apply") TextRole(design_resources::TextRole::BodyStrong) ]
                 ]
             ]
         ]

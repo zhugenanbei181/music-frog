@@ -29,8 +29,9 @@ use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::palette::{UiPalette, rem};
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::{metrics, radius, space};
+use infiltrator_contract::design_resources;
 use infiltrator_contract::editor_viewport::EditorViewport;
 
 /// The control that opens the large-document window.
@@ -95,7 +96,7 @@ pub fn large_document_window_scene(
             ThemeBackgroundColor({ Token::SurfaceElevated })
             ProfileEditorLargeWindowPanel
             Children [
-                Text({ status }) ProfileEditorLargeWindowStatusText TextRole(Role::Mono)
+                Text({ status }) ProfileEditorLargeWindowStatusText TextRole(design_resources::TextRole::Mono)
                 --
                 Node {
                     width: percent(100),
@@ -137,7 +138,7 @@ pub fn large_window_button_scene(palette: &UiPalette) -> Box<dyn Scene> {
             Button
             ProfileEditorLargeWindowButton
             Children [
-                Text({ "⤢".to_owned() }) TextRole(Role::Caption)
+                Text({ "⤢".to_owned() }) TextRole(design_resources::TextRole::Caption)
             ]
     })
 }
@@ -161,7 +162,7 @@ fn scroll_button_scene(direction: LargeWindowScroll, palette: &UiPalette) -> Box
             Button
             ProfileEditorLargeWindowScrollButton({ direction })
             Children [
-                Text({ label.to_owned() }) TextRole(Role::Body)
+                Text({ label.to_owned() }) TextRole(design_resources::TextRole::Body)
             ]
     })
 }
@@ -190,7 +191,7 @@ fn close_button_scene(palette: &UiPalette) -> Box<dyn Scene> {
             Button
             ProfileEditorLargeWindowCloseButton
             Children [
-                Text({ "×".to_owned() }) TextRole(Role::Body)
+                Text({ "×".to_owned() }) TextRole(design_resources::TextRole::Body)
             ]
     })
 }

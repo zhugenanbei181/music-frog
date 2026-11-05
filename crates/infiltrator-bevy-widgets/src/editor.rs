@@ -1,6 +1,7 @@
 //! Lightweight multi-line code editor state machine with YAML/Rule syntax tokenization.
 
 use bevy::ecs::component::Component;
+use infiltrator_contract::design_resources;
 
 /// Syntax token classification for code highlighting.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -163,7 +164,7 @@ fn classify_yaml_value(value: &str) -> SyntaxTokenKind {
 use crate::feathers_theme::Token;
 use crate::palette::UiPalette;
 use crate::palette::rem;
-use crate::text::{Role, TextRole};
+use crate::text::TextRole;
 use crate::theme::space;
 use bevy::ecs::hierarchy::Children;
 use bevy::feathers::theme::{ThemeBackgroundColor, ThemeTextColor};
@@ -223,7 +224,7 @@ pub fn code_editor_scene(state: &CodeEditorState, palette: &UiPalette) -> Box<dy
                             }
                             Children [
                                 Text({ format!("{}", num) })
-                                TextRole(Role::Mono)
+                                TextRole(design_resources::TextRole::Mono)
                                 ThemeTextColor({ Token::InkDim })
                             ]
             }) as Box<dyn Scene>
@@ -241,7 +242,7 @@ pub fn code_editor_scene(state: &CodeEditorState, palette: &UiPalette) -> Box<dy
                     let ink = syntax_token_ink(tok.kind);
                     Box::new(bsn! {
                                             Text({ tok.text })
-                                            TextRole(Role::Mono)
+                                            TextRole(design_resources::TextRole::Mono)
                                             ThemeTextColor({ ink })
                     }) as Box<dyn Scene>
                 })

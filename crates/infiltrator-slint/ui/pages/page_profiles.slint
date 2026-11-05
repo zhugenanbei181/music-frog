@@ -1,3 +1,4 @@
+import { DesignType } from "../components/design-type.slint";
 import { CheckBox } from "std-widgets.slint";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "../components/theme.slint";
@@ -33,7 +34,7 @@ export component PageConfig inherits VerticalLayout {
         }
     }
     if root.profiles.length == 0: SurfaceCard {
-        Text { text: @tr("暂无配置文件"); color: LumenTheme.text-primary; font-size: 18 * LumenUiScale.unit; font-weight: 600; }
+        Text { text: @tr("暂无配置文件"); color: LumenTheme.text-primary; font-size: DesignType.subheading-size; font-weight: DesignType.subheading-weight; }
         Text { text: @tr("订阅或导入 YAML 配置后，可以选择当前配置并启动 Mihomo。"); color: LumenTheme.text-secondary; font-size: LumenTheme.body-size; wrap: word-wrap; }
     }
     for profile in root.profiles: ProfileCardSurface {
@@ -98,16 +99,16 @@ export component PageProfileSettings inherits VerticalLayout {
             Text {
                 text: root.profile-settings-age-configured ? @tr("当前已配置 Age 私钥；输入新私钥替换。") : @tr("输入新私钥以支持加密订阅；留空保留当前设置。");
                 color: LumenTheme.text-secondary;
-                font-size: 12 * LumenUiScale.unit;
+                font-size: DesignType.caption-size;
                 wrap: word-wrap;
             }
         }
-        if root.profile-settings-kind != "remote_subscription": Text { text: @tr("本地配置来源以解密后的 YAML 保存，无需继续保留 Age 私钥。"); color: LumenTheme.text-secondary; font-size: 12 * LumenUiScale.unit; wrap: word-wrap; }
+        if root.profile-settings-kind != "remote_subscription": Text { text: @tr("本地配置来源以解密后的 YAML 保存，无需继续保留 Age 私钥。"); color: LumenTheme.text-secondary; font-size: DesignType.caption-size; wrap: word-wrap; }
     }
     SectionCard {
         heading: @tr("覆写配置");
         detail: @tr("选中项按列表顺序应用。修改暂存到草稿，保存后生效。");
-        if root.profile-settings-overrides.length == 0: Text { text: @tr("暂无可绑定的用户 Override"); color: LumenTheme.text-secondary; font-size: 13 * LumenUiScale.unit; }
+        if root.profile-settings-overrides.length == 0: Text { text: @tr("暂无可绑定的用户 Override"); color: LumenTheme.text-secondary; font-size: DesignType.mono-size; }
         for option in root.profile-settings-overrides: HorizontalLayout {
             spacing: LumenTheme.space-2;
             cross-axis-alignment: center;

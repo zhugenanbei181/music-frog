@@ -23,8 +23,9 @@ use infiltrator_bevy_widgets::modal::{ModalDialogCard, ModalScrim};
 use infiltrator_bevy_widgets::multiline_editor::multiline_editor_scene;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::script_export::ScriptExportKind;
 use infiltrator_contract::script_run::ScriptEditorField;
 
@@ -57,8 +58,8 @@ pub fn workbench_scene(palette: &UiPalette) -> impl Scene + use<> {
         Node { width: percent(100), min_width: px(0), flex_direction: FlexDirection::Column, row_gap: rem(space::S12), padding: UiRect::all(rem(space::S16)) }
         ThemeBackgroundColor({Token::Surface}) ScriptWorkbenchCard
         Children [
-            LocalizedText::plain("script_sandbox_title") TextRole(Role::Heading)
-            -- LocalizedText::plain("script_sandbox_presets") TextRole(Role::Caption)
+            LocalizedText::plain("script_sandbox_title") TextRole(design_resources::TextRole::Heading)
+            -- LocalizedText::plain("script_sandbox_presets") TextRole(design_resources::TextRole::Caption)
             --
             Node { flex_wrap: FlexWrap::Wrap, column_gap: rem(space::S8), row_gap: rem(space::S8) }
             Children [
@@ -81,11 +82,11 @@ pub fn workbench_scene(palette: &UiPalette) -> impl Scene + use<> {
                 @{control("script_export_kind_package_json", ScriptControl::Export(ScriptExportKind::ExtensionPackageJson), palette)}
             ]
             --
-            LocalizedText::plain("script_sandbox_code_input") TextRole(Role::Caption)
+            LocalizedText::plain("script_sandbox_code_input") TextRole(design_resources::TextRole::Caption)
             --
             @{multiline_editor_scene("", "script_sandbox_code_input", 40, palette)} code_input
             --
-            LocalizedText::plain("script_sandbox_input_preview") TextRole(Role::Caption)
+            LocalizedText::plain("script_sandbox_input_preview") TextRole(design_resources::TextRole::Caption)
             --
             @{multiline_editor_scene("", "script_sandbox_input_preview", 41, palette)} yaml_input
             --
@@ -142,16 +143,16 @@ pub fn spawn_review(mut commands: Commands, palette: Res<UiPalette>) {
             ModalDialogCard AccessibilityNode(semantic) LocalizedLabel::plain("script_export_title") ThemeBackgroundColor({Token::Surface})
             ModalDialog
             Children [
-                LocalizedText::plain("script_export_title") TextRole(Role::Heading)
+                LocalizedText::plain("script_export_title") TextRole(design_resources::TextRole::Heading)
                 --
                 Node { width: percent(100), min_height: px(0), flex_shrink: 1.0, overflow: Overflow::scroll_y() }
                 ScrollArea
                 Children [
                     Node { width: percent(100), min_width: px(0), flex_direction: FlexDirection::Column, row_gap: rem(space::S8) }
-                    Children [ Text(String::new()) status TextRole(Role::Body)
-                        -- Text(String::new()) details TextRole(Role::Body)
-                        -- Text(String::new()) content TextRole(Role::Mono)
-                        -- Text(String::new()) path TextRole(Role::Body) ]
+                    Children [ Text(String::new()) status TextRole(design_resources::TextRole::Body)
+                        -- Text(String::new()) details TextRole(design_resources::TextRole::Body)
+                        -- Text(String::new()) content TextRole(design_resources::TextRole::Mono)
+                        -- Text(String::new()) path TextRole(design_resources::TextRole::Body) ]
                 ]
                 --
                 Node { flex_wrap: FlexWrap::Wrap, column_gap: rem(space::S8), row_gap: rem(space::S8), flex_shrink: 0.0 }

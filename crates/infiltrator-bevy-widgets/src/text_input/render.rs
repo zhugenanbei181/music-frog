@@ -1,6 +1,7 @@
 //! In-place single-line field rendering with explicit, disjoint ECS queries.
 
 use crate::palette::UiPalette;
+use crate::scrollarea::FocusedTextInput;
 use crate::text_input::ime::{
     ImeCursorArea, ImeCursorAreaParams, compute_ime_cursor_area, estimate_text_width,
 };
@@ -14,7 +15,7 @@ use crate::theme::space;
 use bevy::camera::visibility::Visibility;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
-use bevy::ecs::query::{Changed, Or, QueryData, QueryFilter, With, Without};
+use bevy::ecs::query::{Changed, Has, Or, QueryData, QueryFilter, With, Without};
 use bevy::ecs::system::{Commands, Local, Query, Res, SystemParam};
 use bevy::math::Vec2;
 use bevy::text::TextColor;
@@ -22,6 +23,8 @@ use bevy::time::{Time, Virtual};
 use bevy::transform::components::GlobalTransform;
 use bevy::ui::widget::Text;
 use bevy::ui::{BackgroundColor, BorderColor, ComputedNode, Display, Node};
+use infiltrator_contract::design_resources;
+use infiltrator_contract::design_resources::typeface;
 
 #[derive(QueryFilter)]
 pub struct PlaceholderFilter {
@@ -269,7 +272,7 @@ pub fn sync_ime_cursor_areas(
             .unwrap_or(Vec2::ZERO);
         let visual = field_visual(&field.0);
 
-        let font_size = palette.body_font_px;
+        let font_size = typeface(design_resources::TextRole::Body).size_px;
         let caret_offset_x = estimate_text_width(&visual.before, font_size);
         let preedit_width = estimate_text_width(field.0.preedit(), font_size);
 
@@ -290,6 +293,21 @@ pub fn sync_ime_cursor_areas(
             }
         } else {
             commands.entity(entity).insert(calculated);
+        }
+    }
+}
+
+/// Drive the [`FocusedTextInput`] marker from the controlled field focus bit
+/// so [`crate::scrollarea::focus_avoidance_auto_scroll_system`] reliably finds the active field.
+pub fn sync_focused_text_input(
+    mut commands: Commands,
+    fields: Query<(Entity, &TextFieldFocused, Has<FocusedTextInput>), Changed<TextFieldFocused>>,
+) {
+    for (entity, focused, has_marker) in &fields {
+        if focused.0 && !has_marker {
+            commands.entity(entity).insert(FocusedTextInput);
+        } else if !focused.0 && has_marker {
+            commands.entity(entity).remove::<FocusedTextInput>();
         }
     }
 }

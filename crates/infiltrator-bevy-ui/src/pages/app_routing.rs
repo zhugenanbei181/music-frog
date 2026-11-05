@@ -39,8 +39,9 @@ use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::uwp::UwpLoopbackSnapshot;
 #[cfg(any(feature = "capture-tools", test))]
 use infiltrator_contract::uwp::UwpPackageSnapshot;
@@ -267,7 +268,7 @@ fn header_card_scene(
                                 Children [
                                     @{ icon_tile_scene(IconId::Globe, 36.0, palette) }
                                     --
-                                    Text(summary) AppRoutingLine(AppRoutingLineKind::Summary) TextRole(Role::Heading)
+                                    Text(summary) AppRoutingLine(AppRoutingLineKind::Summary) TextRole(design_resources::TextRole::Heading)
                                 ]
                                 --
                                 Node {
@@ -286,7 +287,7 @@ fn header_card_scene(
                                     AddAppRouteButton
                                     Button
                                     Children [
-                                        LocalizedText::plain("app_routing_add_action") TextRole(Role::BodyStrong) ThemeTextColor({ Token::OnAccent })
+                                        LocalizedText::plain("app_routing_add_action") TextRole(design_resources::TextRole::BodyStrong) ThemeTextColor({ Token::OnAccent })
                                     ]
                                 ]
                             ]
@@ -320,9 +321,9 @@ fn apps_container_scene(
                                 padding: UiRect::bottom(rem(space::S8)),
                             }
                             Children [
-                                LocalizedText::plain("app_routing_rules_title") TextRole(Role::BodyStrong)
+                                LocalizedText::plain("app_routing_rules_title") TextRole(design_resources::TextRole::BodyStrong)
                                 --
-                                LocalizedText::plain("app_routing_rules_hint") TextRole(Role::Caption)
+                                LocalizedText::plain("app_routing_rules_hint") TextRole(design_resources::TextRole::Caption)
                             ]
             }),
             Box::new(bsn! {
@@ -361,9 +362,9 @@ fn app_row_scene(idx: usize, app: &AppItem, palette: &UiPalette) -> impl Scene +
                     row_gap: rem(space::S4),
                 }
                 Children [
-                    Text(name) AppNameText(idx) TextRole(Role::BodyStrong)
+                    Text(name) AppNameText(idx) TextRole(design_resources::TextRole::BodyStrong)
                     --
-                    Text(proc_str) AppProcessText(idx) TextRole(Role::Caption)
+                    Text(proc_str) AppProcessText(idx) TextRole(design_resources::TextRole::Caption)
                 ]
                 --
                 Node {
@@ -373,7 +374,7 @@ fn app_row_scene(idx: usize, app: &AppItem, palette: &UiPalette) -> impl Scene +
                 Children [
                     Text(rule_str)
                     AppRuleText(idx)
-                    TextRole(Role::BodyStrong)
+                    TextRole(design_resources::TextRole::BodyStrong)
                     TextColor(rule_col)
                     --
                     Node {
@@ -392,7 +393,7 @@ fn app_row_scene(idx: usize, app: &AppItem, palette: &UiPalette) -> impl Scene +
                     }
                     Button
                     Children [
-                        LocalizedText::plain("app_routing_switch_policy") TextRole(Role::Caption)
+                        LocalizedText::plain("app_routing_switch_policy") TextRole(design_resources::TextRole::Caption)
                     ]
                 ]
             ]

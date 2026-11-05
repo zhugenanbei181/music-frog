@@ -11,7 +11,7 @@ use crate::view::component_forms::{
 };
 use crate::view::components::segmented_control;
 use crate::view::theme;
-use crate::view::theme::{FONT_MEDIUM, MONO, tokens};
+use crate::view::theme::tokens;
 use iced::widget::{Space, column, pick_list, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_presentation::profiles_page_model::ProfilesOperation;
@@ -106,12 +106,11 @@ pub(super) fn subscription_section<'a>(state: &'a AppState) -> Element<'a, Messa
     });
 
     let ua_presets = row![
-        text(lang.tr("profiles_ua_preset").to_string())
-            .size(11)
-            .font(FONT_MEDIUM)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_secondary)
-            }),
+        theme::role_body_text(lang.tr("profiles_ua_preset").to_string()).style(|t: &Theme| {
+            text::Style {
+                color: Some(tokens(t).text_secondary),
+            }
+        }),
         Space::new().width(theme::SP_XS),
         ua_preset_chip("Clash.Meta", &state.profile.subscription_user_agent),
         Space::new().width(theme::SP_XS),
@@ -140,7 +139,6 @@ pub(super) fn subscription_section<'a>(state: &'a AppState) -> Element<'a, Messa
             )
             .on_input(Message::UpdateSubscriptionUrl)
             .padding([8, 12])
-            .size(13)
             .width(Length::Fill)
             .style(form_input_style),
             Space::new().height(theme::SP_SM),
@@ -150,8 +148,6 @@ pub(super) fn subscription_section<'a>(state: &'a AppState) -> Element<'a, Messa
             )
             .on_input(Message::UpdateSubscriptionUserAgent)
             .padding([8, 12])
-            .size(12)
-            .font(MONO)
             .width(Length::Fill)
             .style(form_input_style),
             Space::new().height(theme::SP_XS),
@@ -163,11 +159,11 @@ pub(super) fn subscription_section<'a>(state: &'a AppState) -> Element<'a, Messa
                 Message::UpdateSubscriptionInsecureSkipVerify
             ),
             Space::new().height(theme::SP_XS),
-            text(lang.tr("profiles_insecure_skip_verify_hint").to_string())
-                .size(11)
-                .style(|t: &Theme| text::Style {
+            theme::role_body_text(lang.tr("profiles_insecure_skip_verify_hint").to_string()).style(
+                |t: &Theme| text::Style {
                     color: Some(tokens(t).text_tertiary)
-                }),
+                }
+            ),
             Space::new().height(theme::SP_SM),
             form_toggle_row(
                 lang.tr("profiles_auto_reload_core").to_string(),
@@ -175,21 +171,21 @@ pub(super) fn subscription_section<'a>(state: &'a AppState) -> Element<'a, Messa
                 Message::UpdateSubscriptionAutoReload
             ),
             Space::new().height(theme::SP_XS),
-            text(lang.tr("profiles_auto_reload_core_hint").to_string())
-                .size(11)
-                .style(|t: &Theme| text::Style {
+            theme::role_body_text(lang.tr("profiles_auto_reload_core_hint").to_string()).style(
+                |t: &Theme| text::Style {
                     color: Some(tokens(t).text_tertiary)
-                }),
+                }
+            ),
             Space::new().height(theme::SP_SM),
             if let Some(profile) = selected_profile_meta {
                 let conditional =
                     conditional_request(profile.etag.as_deref(), profile.last_modified.as_deref())
                         .render(&Lang(lang.0));
-                Element::from(text(conditional).size(11).font(MONO).style(|t: &Theme| {
-                    text::Style {
+                Element::from(
+                    theme::role_body_text(conditional).style(|t: &Theme| text::Style {
                         color: Some(tokens(t).text_secondary),
-                    }
-                }))
+                    }),
+                )
             } else {
                 Element::from(Space::new().width(0))
             },
@@ -211,12 +207,9 @@ pub(super) fn subscription_section<'a>(state: &'a AppState) -> Element<'a, Messa
                 };
                 Element::from(
                     row![
-                        text(backup_text)
-                            .size(11)
-                            .font(MONO)
-                            .style(|t: &Theme| text::Style {
-                                color: Some(tokens(t).text_secondary)
-                            }),
+                        theme::role_body_text(backup_text).style(|t: &Theme| text::Style {
+                            color: Some(tokens(t).text_secondary)
+                        }),
                         Space::new().width(theme::SP_MD),
                         restore_action,
                         Space::new().width(Length::Fill),
@@ -265,20 +258,18 @@ pub(super) fn subscription_section<'a>(state: &'a AppState) -> Element<'a, Messa
             )
             .on_input(Message::UpdateSubscriptionCron)
             .padding([8, 12])
-            .size(12)
-            .font(MONO)
             .width(Length::Fill)
             .style(form_input_style),
             Space::new().height(theme::SP_XS),
-            text(lang.tr("profiles_cron_hint").to_string())
-                .size(11)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_tertiary)
-                }),
+            theme::role_body_text(lang.tr("profiles_cron_hint").to_string()).style(|t: &Theme| {
+                text::Style {
+                    color: Some(tokens(t).text_tertiary),
+                }
+            }),
             if let Some(profile) = selected_profile_meta {
                 Element::from(
                     row![
-                        text(format!(
+                        theme::role_body_text(format!(
                             "{} {}",
                             lang.tr("profiles_last_updated"),
                             format_datetime(
@@ -286,13 +277,11 @@ pub(super) fn subscription_section<'a>(state: &'a AppState) -> Element<'a, Messa
                                 lang.tr("profiles_never").as_ref()
                             )
                         ))
-                        .size(12)
-                        .font(MONO)
                         .style(|t: &Theme| text::Style {
                             color: Some(tokens(t).text_secondary)
                         }),
                         Space::new().width(theme::SP_MD),
-                        text(format!(
+                        theme::role_body_text(format!(
                             "{} {}",
                             lang.tr("profiles_next_update"),
                             format_datetime(
@@ -300,8 +289,6 @@ pub(super) fn subscription_section<'a>(state: &'a AppState) -> Element<'a, Messa
                                 lang.tr("profiles_not_scheduled").as_ref()
                             )
                         ))
-                        .size(12)
-                        .font(MONO)
                         .style(|t: &Theme| text::Style {
                             color: Some(tokens(t).text_secondary)
                         }),

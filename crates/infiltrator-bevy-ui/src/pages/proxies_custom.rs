@@ -26,9 +26,10 @@ use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::text_input::{TextField, text_field_with_placeholder_scene};
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::protocol_fidelity::ProtocolStudioSnapshot;
 use infiltrator_contract::protocol_form::ProtocolStudioSlot;
 use infiltrator_presentation::protocol_editor_operation::ProtocolEditorEffect;
@@ -122,7 +123,7 @@ fn studio_slot_scenes(studio: &ProtocolStudioSnapshot) -> impl SceneList + use<>
     let slots: Vec<Box<dyn Scene>> = ProtocolStudioSlot::ALL.iter().filter(|slot| **slot != ProtocolStudioSlot::UriPreview).map(|slot| {
         Box::new(bsn! {
             Node { width: percent(100), flex_shrink: 0.0 }
-            Children [ Text({ slot_initial(*slot, studio) }) CustomNodeText({ *slot }) ProtocolFormText({ ProtocolFormTextKind::Fact(*slot) }) TextRole(Role::Caption) ]
+            Children [ Text({ slot_initial(*slot, studio) }) CustomNodeText({ *slot }) ProtocolFormText({ ProtocolFormTextKind::Fact(*slot) }) TextRole(design_resources::TextRole::Caption) ]
         }) as Box<dyn Scene>
     }).collect();
     bsn_list! { { slots } }
@@ -140,7 +141,7 @@ pub fn custom_node_scene(
         CustomNodeEditorRoot
         Children [
             Node { width: percent(100), flex_shrink: 0.0 }
-            Children [ Text({ studio.last_error.clone().unwrap_or_default() }) CustomNodeFormError ProtocolFormText(ProtocolFormTextKind::Error) TextRole(Role::Body) ]
+            Children [ Text({ studio.last_error.clone().unwrap_or_default() }) CustomNodeFormError ProtocolFormText(ProtocolFormTextKind::Error) TextRole(design_resources::TextRole::Body) ]
             --
             Node { width: percent(100), flex_shrink: 0.0 }
             CustomNodeUriField CustomNodeInputField(CustomNodeInput::Uri)
@@ -150,19 +151,19 @@ pub fn custom_node_scene(
             Children [
                 Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(space::S8)) }
                 ThemeBackgroundColor({ Token::Accent }) Button ImportUriButton CustomNodeActionButton(CustomNodeAction::ImportUri)
-                Children [ Text({ lang.tr("custom_node_btn_import_uri").into_owned() }) TextRole(Role::Body) ]
+                Children [ Text({ lang.tr("custom_node_btn_import_uri").into_owned() }) TextRole(design_resources::TextRole::Body) ]
                 --
                 Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(space::S8)) }
                 ThemeBackgroundColor({ Token::SurfaceElevated }) Button CustomNodeActionButton(CustomNodeAction::ExportUri)
-                Children [ Text({ lang.tr("custom_node_btn_export_uri").into_owned() }) TextRole(Role::Body) ]
+                Children [ Text({ lang.tr("custom_node_btn_export_uri").into_owned() }) TextRole(design_resources::TextRole::Body) ]
                 --
                 Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(space::S8)) }
                 ThemeBackgroundColor({ Token::Success }) Button SaveCustomNodeButton CustomNodeActionButton(CustomNodeAction::SaveDraft)
-                Children [ Text({ lang.tr("btn_save").into_owned() }) TextRole(Role::BodyStrong) ]
+                Children [ Text({ lang.tr("btn_save").into_owned() }) TextRole(design_resources::TextRole::BodyStrong) ]
             ]
             --
             Node { width: percent(100), flex_shrink: 0.0 }
-            Children [ Text({ slot_initial(ProtocolStudioSlot::UriPreview, studio) }) CustomNodeText(ProtocolStudioSlot::UriPreview) ProtocolFormText(ProtocolFormTextKind::Fact(ProtocolStudioSlot::UriPreview)) TextRole(Role::Caption) ]
+            Children [ Text({ slot_initial(ProtocolStudioSlot::UriPreview, studio) }) CustomNodeText(ProtocolStudioSlot::UriPreview) ProtocolFormText(ProtocolFormTextKind::Fact(ProtocolStudioSlot::UriPreview)) TextRole(design_resources::TextRole::Caption) ]
             --
             @{ protocol_fields_scene(studio, palette) }
             --
@@ -172,11 +173,11 @@ pub fn custom_node_scene(
             Children [
                 Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(space::S8)) }
                 Button ScanDialerChainsButton CustomNodeActionButton(CustomNodeAction::ScanDialer)
-                Children [ Text({ lang.tr("custom_node_dialer_scan").into_owned() }) TextRole(Role::Body) ]
+                Children [ Text({ lang.tr("custom_node_dialer_scan").into_owned() }) TextRole(design_resources::TextRole::Body) ]
                 --
                 Node { min_height: rem(palette.control_height_px), padding: UiRect::all(rem(space::S8)) }
                 Button VerifyCustomNodeCaButton CustomNodeActionButton(CustomNodeAction::VerifyCa)
-                Children [ Text({ lang.tr("custom_node_ca_verify").into_owned() }) TextRole(Role::Body) ]
+                Children [ Text({ lang.tr("custom_node_ca_verify").into_owned() }) TextRole(design_resources::TextRole::Body) ]
             ]
         ]
     }

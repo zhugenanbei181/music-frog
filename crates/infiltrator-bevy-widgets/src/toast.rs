@@ -12,7 +12,7 @@ use crate::icon_tile::icon_tile_scene;
 use crate::palette::UiPalette;
 use crate::palette::rem;
 use crate::picking;
-use crate::text::{Role, TextRole};
+use crate::text::TextRole;
 use crate::theme::space;
 use bevy::color::Color;
 use bevy::ecs::component::Component;
@@ -32,6 +32,7 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
+use infiltrator_contract::design_resources;
 
 /// One-off layout value (not a ladder rung): the width of a single toast card
 /// in the notification stack.
@@ -232,7 +233,7 @@ pub fn toast_item_scene(toast: &ToastMessage, palette: &UiPalette) -> impl Scene
                     flex_direction: FlexDirection::Column,
                 }
                 Children [
-                    Text(content_text) TextRole(Role::Body)
+                    Text(content_text) TextRole(design_resources::TextRole::Body)
                 ]
                 --
                 Node {

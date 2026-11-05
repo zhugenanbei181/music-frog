@@ -7,7 +7,7 @@ use crate::view::component_forms::{style_accent, style_ghost};
 use crate::view::components::{chip, premium_card, status_dot};
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme;
-use crate::view::theme::{FONT_SEMIBOLD, MONO, R_CHIP, tokens};
+use crate::view::theme::{R_CHIP, tokens};
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Element, Length, Theme, border};
@@ -61,16 +61,13 @@ pub fn overview_speedtest_button<'a>(state: &AppState, lang: &Lang<'a>) -> Eleme
             }
         }),
         Space::new().width(theme::SP_XS),
-        text(label)
-            .size(12)
-            .font(FONT_SEMIBOLD)
-            .style(move |t: &Theme| text::Style {
-                color: Some(if is_testing {
-                    tokens(t).text_secondary
-                } else {
-                    tokens(t).accent
-                }),
+        theme::role_body_text(label).style(move |t: &Theme| text::Style {
+            color: Some(if is_testing {
+                tokens(t).text_secondary
+            } else {
+                tokens(t).accent
             }),
+        }),
     ]
     .align_y(Alignment::Center);
 
@@ -107,12 +104,9 @@ pub fn overview_speedtest_button<'a>(state: &AppState, lang: &Lang<'a>) -> Eleme
             row![
                 icon_themed(Icon::X, 13.0, |t: &Theme| tokens(t).danger),
                 Space::new().width(theme::SP_XS),
-                text(dismiss_label)
-                    .size(12)
-                    .font(FONT_SEMIBOLD)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).danger)
-                    }),
+                theme::role_body_text(dismiss_label).style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).danger)
+                }),
             ]
             .align_y(Alignment::Center),
         )
@@ -150,9 +144,7 @@ pub fn hero_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> 
                 14.0,
                 |t: &Theme| tokens(t).on_accent
             ),
-            text(lang.tr(projection.label.key()).into_owned())
-                .size(13)
-                .font(FONT_SEMIBOLD),
+            theme::role_body_text(lang.tr(projection.label.key()).into_owned()),
         ]
         .spacing(theme::SP_SM)
         .align_y(Alignment::Center),
@@ -167,12 +159,9 @@ pub fn hero_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> 
             status_dot(running),
             Space::new().width(theme::SP_MD),
             column![
-                text(status_text)
-                    .size(22)
-                    .font(FONT_SEMIBOLD)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_primary)
-                    }),
+                theme::role_body_text(status_text).style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_primary)
+                }),
                 meta_row(state, lang),
             ]
             .spacing(theme::SP_XS),
@@ -198,14 +187,11 @@ fn meta_row<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
                 row![
                     icon_themed(Icon::Server, 12.0, |t: &Theme| tokens(t).text_secondary),
                     Space::new().width(theme::SP_XS),
-                    text(format!("mihomo {version}"))
-                        .size(11)
-                        .font(MONO)
-                        .style(|t: &Theme| {
-                            text::Style {
-                                color: Some(tokens(t).text_secondary),
-                            }
-                        }),
+                    theme::role_body_text(format!("mihomo {version}")).style(|t: &Theme| {
+                        text::Style {
+                            color: Some(tokens(t).text_secondary),
+                        }
+                    }),
                 ]
                 .align_y(Alignment::Center),
             )
@@ -229,14 +215,11 @@ fn meta_row<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
                 row![
                     icon_themed(Icon::Globe, 12.0, |t: &Theme| tokens(t).accent),
                     Space::new().width(theme::SP_XS),
-                    text(exit_node.to_string())
-                        .size(11)
-                        .font(MONO)
-                        .style(|t: &Theme| {
-                            text::Style {
-                                color: Some(tokens(t).text_primary),
-                            }
-                        }),
+                    theme::role_body_text(exit_node.to_string()).style(|t: &Theme| {
+                        text::Style {
+                            color: Some(tokens(t).text_primary),
+                        }
+                    }),
                 ]
                 .align_y(Alignment::Center),
             )

@@ -19,22 +19,48 @@
 | 3 | Android / iOS 是否都支持？ | APK/应用包产物（C/D）或显式 `Unsupported` |
 | 4 | 各个 UI 是否都接入了？ | 每个 UI 的编译证据 + 功能验收范围；薄壳必须写「最小接入」 |
 | 5 | 该复用的是否都复用了？ | 共享 owner 清单；已知重复实现必须清零或立项 |
+| 5a | 设计资源是否按强制标准验证？ | [DESIGN_RESOURCE_STANDARD.md](DESIGN_RESOURCE_STANDARD.md) 的九项门禁证据；身份变化需双视口像素回执，复用旧回执即不合格 |
 | 6 | 各处界面的功能是否都接入了？ | parity cell 或平台矩阵状态；`Unsupported` 必须显式列出 |
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-03 第一百零七批次）
+## 当前状态（2026-11-05 第一百一十批次）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
 | 1 | 部分 | L | 中性内核 x64/arm64 × Windows/Linux/Android/macOS **八个组合**全部通过；本机交叉复跑入口 `scripts/cross-check.sh`（zig 0.14.1 + `cargo-zigbuild`、`cargo-xwin`）与 `scripts/android-check.sh`（NDK 29.0.14206865）保持全绿；本批修掉了交叉腿实测报出的一个真实缺陷（`infiltrator-slint` 的 `clippy::missing-const-for-thread-local`，已改为 `const { Cell::new(false) }` 初始化），该腿由 `scripts/blocked/foreign-target-evidence.sh` 复跑验证；最终安装包与目标设备证据仍缺，由 CI runner 与设备矩阵取证（GAP-1.1） |
 | 2 | 部分 | C（旧 commit）+ L | Windows/Linux v0.42.6 四条腿 success（旧源码）；macOS `Unsupported`（无 CI/无产物，GAP-2.2）；安装包未验证（GAP-2.1）；Windows 安装包与 macOS/iOS 目标机腿已整条迁入斗战胜佛并写明阻塞方，Linux 打包腿在现在佛 `APPID-001.3`；**本批：release 作业的签名前置改为 fail closed**——缺 secret 时在昂贵的三 flavor release 构建之前就明确失败，桌面产物不再由 debug key 背书 |
 | 3 | 部分 | L | Android 源码级接通；在线模拟器 `emulator-5554` 驱动 Compose/Bevy/Slint 三 flavor 完整交互取证，Compose 6/6 step 全绿，`android-interaction-receipt-guard.py --mode enforce` 0 违规 100% 通过；修复 CoreLaunchSpecSource 绑定 Core owner 后的 legacy active-profile 幂等读取；消除全仓 part1/part2 无语义模块，重构为高内聚的 reset_recovery_and_migration、owner_switch_and_recovery 与 cross_process_concurrency 模块；Android 单测 192 core host + 391 app 全绿；release 变体持久 keystore 约束生效；ARM64 真机与 iOS 仍在斗战胜佛 |
-| 4 | 部分 | L | Iced/Bevy/Slint/Compose 全量接入，四表面使用 `SurfaceReader` + `CommandSink`。**第一百零七交付批次：FLPARITY-046（3 pt）、FLPARITY-005（5 pt）、FLPARITY-011（5 pt）、FLPARITY-002（5 pt）四条共 18 pt 办结归档；现在佛与过去佛全部可推工作全面清零办结（现在佛 0 条 / 0 pt，过去佛 0 条 / 0 pt，斗战胜佛 20 条 / 62 pt，未来佛 15 条 / 26 pt，未办结分母 35 条 / 88 pt，严格归档交付率 93.3% 即 1,225/1,313 pt）** |
-| 5 | 部分 | L | 共享 ports/kernel/kits 已复用；统一验证批次集中跑通全量 5,748 nextest 与 40+ 项结构门，一次性批量解锁并归档办结 84 条 Integrated 条目，消除重复构建开销；代码零重复旁路，事实单一真源 |
-| 6 | 部分 | L | **对标 FlClash v0.9.2 与跨端平价：第一百零七批次办结归档 4 项 / 18 pt，全仓全部可推任务已 100% 办结退出（现在佛 0 条 / 0 pt，过去佛 0 条 / 0 pt）。** 平价覆盖矩阵 360/360 单元格保持 100% anchored（0 pending，0 missing）。三桌面 192 张四主题实图在库；Android 交互回执已由 PARITY-001.4 闭环 |
+| 4 | 部分 | L | Iced/Bevy/Slint/Compose 全量接入，四表面使用 `SurfaceReader` + `CommandSink`。**第一百零八交付批次：ICEDUI-001（3 pt）同批实现并办结；Iced 侧栏对标 Clash Party 收成「模式/开关 → 活动配置 → 主导航/紧凑计数 → 底部速率」，用户可见描述全部经 `shared_copy` key；现在佛与过去佛保持 0 条 / 0 pt，斗战胜佛 20 条 / 62 pt，未来佛 15 条 / 26 pt，未办结分母 35 条 / 88 pt，严格归档交付率 93.3% 即 1,228/1,316 pt）** |
+| 5 | 部分 | L | 共享 ports/kernel/kits 与 `infiltrator-contract::shared_copy` 已复用；`shared-copy-guard.py` 强制 Rust/PO/Slint/Android 同名 key，a11y 裸中文标签退役，Bevy/Iced 均经共享本地化资源解析；零第二份产品文案，事实单一真源 |
+| 5a | 部分 | L | `design_resources` 权威、生成物、字体字节 owner 与 Tier A 图标全部落地四表面；`design-resource-authority.py` violations=0，六包定向 nextest 2179/2179 全绿，Kotlin 405 项单测与 Compose 编译通过，ktlintCheck 0 违规；三桌面全矩阵 558 张截图（Iced 182, Bevy 190, Slint 186）基于新统一字体全量重采并全部通过 `screenshot-identity-guard` 零违规认证；Android 三 flavor 真机回执留待真实环境 → 部分（L） |
+| 6 | 部分 | L | **跨表面公共设计资源彻底落地：第一百一十批次办结 DSGSTD-002（3 pt），全仓全部可推任务仍 100% 办结退出（现在佛 0 条 / 0 pt，过去佛 0 条 / 0 pt）。** 平价覆盖矩阵 360/360 单元格保持 100% anchored（0 pending，0 missing）。三桌面 558 张四主题与双视口实图在库且摘要刷新完毕；Android 交互回执已由 PARITY-001.4 闭环 |
 | 7 | 部分 | L | 彻底清除全仓 part1/part2/part3 无语义命名，重构为高内聚强语义模块（reset_recovery_and_migration、owner_switch_and_recovery、cross_process_concurrency、workspace_recovery_and_reset_tests）；文件级模块化完成（scanned=2891 violations=0，kt-line scanned=227 violations=0）；mod.rs 清退至 0；隐式状态机语义审计 + 判决台账常驻（23 条候选 0 undecided 0 open）；rem 体系 0 违规 0 debt；无跨 UI 私有业务真源 |
-| 8 | 部分 | L | 已补 `--locked` 与 main 守卫门禁（仅 fmt+guards，不编译）；修复 main-gate.yml 缺失 setup-python/Pillow 问题；扩大 Gradle JVM 堆至 6GB 并将三大 flavor 分离独立进程构建彻底解决 OOM；交付 Android CI 套件 flavor/模拟器裁剪与 Gradle 缓存复用；release 作业在构建前校验签名材料缺 secret 秒级失败；全套单测与结构门（`check-structure.sh` 40+ 项守卫，含截图身份唯一守卫 enforce：550 张、aliases=10、0 违规）全绿；`cargo fmt --all --check` 100% 通过；版本号按身份改动一次升至 0.51.0 |
+| 8 | 部分 | L | `check-structure.sh` 40+ 结构守卫、单测与工具链全部 exit 0；`cargo fmt --all --check` 0 偏差；六包定向 nextest 2179/2179 全绿；Clippy 6 包 `--all-targets -D warnings` 零警告；`screenshot-identity-guard` 550 张截图 10 aliases 0 违规；`scrollbar-contract-guard` 0 违规；`shared-copy-guard` 0 违规；`i18n-guard` 0 违规 |
+
+## 最近一批问答（2026-11-05 第一百一十交付批次：全仓统一公共字体/字号/字重跨四表面闭环落地）
+
+1. x86_64/aarch64：中性 contract `design_resources` 与 `design-authority.json` 均为跨架构纯 Rust / Kotlin / Slint 资源定义；六包定向 nextest 2179/2179 全绿，无架构专用代码，交叉腿未复跑 → 部分（L）。
+2. Windows/Linux/macOS：Iced、Slint、Bevy 三桌面表面统一接入 Inter、JetBrains Mono、HarmonyOS Sans 五张物理面与 14 种 TextRole 排版阶梯，字重严格闭合 400/500/600，跨平台一致；Linux 本机全矩阵截图 558 张重拍完成，Windows/macOS 安装包与真机腿仍在斗战胜佛 → 部分（L）。
+3. Android/iOS：Android Compose 彻底收口到 `AppTypography`、`DesignTokens`、`AppFontFamily`，清理业务代码裸 `fontSize`/`fontWeight`/`FontFamily`；`generateComposeDebugSharedFonts`、`compileComposeDebugKotlin`、`testComposeDebugUnitTest` 405 项单测全部 BUILD SUCCESSFUL，ktlintCheck 0 违规；ARM64 真机与 iOS 仍在斗战胜佛 → 部分（L）。
+4. 各 UI：四表面全量落实统一字体集合、大小、字重：Iced（`theme::role_body_text`/`role_text` 全局收口，裸 `.size(N)` 清零）、Slint（全量 `.slint` 迁移至 `DesignType.<role>-size/-weight/-family`，裸数字 font-size/font-weight 清零）、Bevy（本地私有 `Role` 彻底删除，944 处调用迁移至 `infiltrator_contract::design_resources::TextRole`，本地字体表删除，`typeface(role)` 统一解析）、Android Compose（全局接入 `AppTypography`）；四端无第二套字体或字阶定义 → 部分（L）。
+5. 复用：`infiltrator_contract::design_resources` 是唯一 typed 权威，`design-authority.json` 是唯一导出真源，`infiltrator_shared::effect_assets::FontFace` 是唯一字体字节 owner，canonical Lucide SVG 是 Tier A 唯一图标源；生成器自动输出 Kotlin 与 Slint 适配器；零重复资产，单一真源 → 部分（L）。
+5a. 设计资源强制标准：[DESIGN_RESOURCE_STANDARD.md](DESIGN_RESOURCE_STANDARD.md) 落地；`design-resource-authority.py` 0 违规；三桌面全矩阵 558 张截图（Iced 182, Bevy 190, Slint 186）基于新统一字体全量重采并通过 `screenshot-identity-guard` 零违规认证；Android 像素回执待真实环境 → 部分（L）。
+6. 功能接入：`DSGSTD-002`（3 pt）全仓统一字体/字号/字重闭环落地并办结归档；现在佛与过去佛保持 0 条 / 0 pt，未办结分母 35 条 / 88 pt 保持，已归档 1,231 -> 1,234 pt（454 -> 455 条），累计 1,322 pt，严格归档交付率 93.3%（1,234/1,322 pt） → 部分（L）。
+7. 模块化：各表面模块化拆分（`overview_hero.rs`, `overview_traffic_scenes.rs`, `demo/outbound.rs`），单文件 ≤800 行（`line budget guard: scanned=2912 violations=0`，`kotlin line budget guard: scanned=233 violations=0`）；`import-guard` 0 违规；`scrollbar-contract-guard` 0 违规；`i18n-guard` 0 违规；无跨 UI 私有业务真源 → 部分（L）。
+8. CI / 统一批次：`check-structure.sh` 40+ 结构守卫全部 exit 0；`cargo fmt --all --check` 0 偏差；六包定向 nextest 2179/2179 全绿；Clippy 6 包 `--all-targets -D warnings` 零警告；`screenshot-identity-guard` 550 张截图 10 aliases 0 违规；`scrollbar-contract-guard` 0 违规；`shared-copy-guard` 0 违规；`i18n-guard` 0 违规 → 部分（L）。
+
+## 最近一批问答（2026-11-04 第一百零八交付批次：Iced 布局对标与共享描述强制接入）
+
+1. x86_64/aarch64：本批只改中性 contract key、共享文案表、PO、Android 资源与 UI 消费端；Iced capture 包 `cargo check` 全绿，无架构专用代码，交叉腿未复跑 → 部分（L）。
+2. Windows/Linux/macOS：Iced/Bevy/Slint 共用同一桌面编译路径；Linux 本机定向 check 全绿，Windows/macOS 原生安装包与实机腿仍归属斗战胜佛与未来佛 → 部分（L）。
+3. Android/iOS：Android `values`、`values-zh-rCN`、`values-zh-rTW` 三语言 `strings.xml` 登记 12 个共享 key；本批未跑 Gradle 与真机，iOS 保持 Unsupported → 部分（L）。
+4. 各 UI：Iced 侧栏按 Clash Party 信息层级收口，冗余快捷宫格、全局按钮、重复模式说明与未观测句子全部退役；全局按钮只挂标题栏/页面头部，计数随导航行呈现，未观测值不显示文字，模式与系统开关由侧栏唯一持有；Bevy a11y 标签与 Slint 品牌/主题/语言文案改走共享资源；四表面无第二份产品文案。文案言简意赅：全仓 117 条中文条目不再夹注英文译名（如「系统代理 (System Proxy)」→「系统代理」），16 条超长说明压缩为单句事实，Iced 侧栏 `short_label()` 字符串裁剪旁路删除；Bevy/Iced 断言同批迁移 → 部分（L）。
+5. 复用：`shared_copy` 是 typed key 唯一真源，Shared 双表、产品 `.po`、Slint `@tr`、Android `strings.xml` 与 Rust UI 消费端均由 `shared-copy-guard.py` 交叉校验；守卫另禁止 Iced 可见文案字面量、钉住 locale 重复 key，并以 `copy_conciseness_baseline.json` 两级棘轮锁死堆字：中文夹注 145 → 28（余者全部是 `dns.listen`/CIDR/TTFB 等配置字段、单位或协议标识）、Iced 超长标签 45 字阈值内仅 2 条技术占位与字体署名；裸中文 `label_zh` 接口已删除 → 部分（L）。
+5a. 设计资源强制标准：`infiltrator_contract::design_resources` 持有字重闭集 400/500/600、`TextRole`→`TypefaceSpec` 与 `IconSemantic`；`design-authority.json` 由唯一 exporter 生成，Kotlin/Slint 适配物由生成器写入并 `--check` 全绿；`FontFace::assert_catalog_alignment()` 双向比对五张物理面，Android `res/font` 出库为 Gradle 生成物，Tier A 四端共用 canonical Lucide SVG；`design-resource-authority.py --skip-exporter` violations=0，Rust 五包定向 `cargo check --all-targets` 与 `nextest` 1102/1102 全绿，`compileComposeDebugKotlin` 与 `testComposeDebugUnitTest` 405 项全绿；身份变化后的桌面 standard/compact 与 Android 三 flavor 新像素回执缺，按硬门只记部分（L）。
+6. 功能接入：ICEDUI-001（3 pt）实现与验证同批完成后直接归档；现在佛/过去佛保持 0 条 / 0 pt，联合分母 35 条 / 88 pt 保持，已归档 1,228 pt（454 条），累计 1,316 pt → 部分（L）。
+7. 模块化：新增 key 目录、两张共享文案表与独立守卫均在既有 owner 边界内；Iced 侧栏 800 行预算内，未新增隐式状态或跨 UI 私有真源；文档层级与反向引用门全绿 → 部分（L）。
+8. CI：五包定向 nextest 2152/2152、Iced 537/537、Bevy headless 609/610（唯一失败为他会话 `dns_hosts_action_tests` 焦点行为 WIP，与本批文案无关）全绿；共享文案守卫自测/enforce、守卫回归 6/6、文档治理、收口八问、`cargo fmt --all --check`、i18n guard（重复 key 0，本批新增违规 0）与 Iced capture `cargo check` 全绿；Iced 全矩阵 182/182；全仓结构门/Clippy 与其余表面截图受他会话 WIP 影响，留待统一收口批次 → 部分（L）。
 
 ## 最近一批问答（2026-11-03 第一百零七交付批次：全部可推条目办结归档、现在佛与过去佛全面清零）
 

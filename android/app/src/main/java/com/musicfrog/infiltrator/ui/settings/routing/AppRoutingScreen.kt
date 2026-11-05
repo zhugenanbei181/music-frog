@@ -11,8 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -43,6 +41,8 @@ import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.musicfrog.infiltrator.R
+import com.musicfrog.infiltrator.ui.common.AppIcon
+import com.musicfrog.infiltrator.ui.common.AppIconSemantic
 import com.musicfrog.infiltrator.ui.common.LocalizedFailureText
 import com.musicfrog.infiltrator.ui.common.StandardListItem
 import com.musicfrog.infiltrator.ui.common.toLocalizedFailure
@@ -100,7 +100,6 @@ internal fun AppRoutingScreen(viewModel: AppRoutingViewModel = viewModel()) {
                                 is AppRoutingModeState.Available -> getModeLabel(mode.mode)
                             },
                             style = MaterialTheme.typography.titleSmall,
-                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                         )
                         Text(
                             text = stringResource(R.string.label_selected_apps_count, selectedCount),
@@ -184,7 +183,7 @@ internal fun AppRoutingScreen(viewModel: AppRoutingViewModel = viewModel()) {
                                     AppRoutingModeState.Unavailable -> null
 
                                     is AppRoutingModeState.Available -> if (currentMode.mode == mode) {
-                                        { Icon(Icons.Default.Check, null) }
+                                        { Icon(AppIcon.image(AppIconSemantic.Check), null) }
                                     } else {
                                         null
                                     }

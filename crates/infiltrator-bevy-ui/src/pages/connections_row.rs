@@ -31,9 +31,10 @@ use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::responsive::TouchHitbox;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::text_runs::{TextRuns, TextRunsInk};
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::surface_snapshot::ConnectionSnapshot;
 use infiltrator_domain::connection_view;
 use zhuge_ui_core::text::SearchTextRun;
@@ -117,9 +118,9 @@ pub fn connection_row_scene(
                             column_gap: rem(space::S8),
                         }
                         Children [
-                            TextRuns(vec![SearchTextRun { text: host, highlighted: false }]) ConnHostText(idx) TextRole(Role::BodyStrong)
+                            TextRuns(vec![SearchTextRun { text: host, highlighted: false }]) ConnHostText(idx) TextRole(design_resources::TextRole::BodyStrong)
                             --
-                            TextRuns(vec![SearchTextRun { text: port, highlighted: false }]) ConnPortText(idx) TextRole(Role::Mono) TextRunsInk({ palette.ink_dim })
+                            TextRuns(vec![SearchTextRun { text: port, highlighted: false }]) ConnPortText(idx) TextRole(design_resources::TextRole::Mono) TextRunsInk({ palette.ink_dim })
                             --
                             @{ process_tag_scene(idx, process, palette) }
                         ]
@@ -139,7 +140,7 @@ pub fn connection_row_scene(
                                 justify_content: JustifyContent::FlexEnd,
                             }
                             Children [
-                                Text(speed_info) ConnSpeedText(idx) TextRole(Role::Mono)
+                                Text(speed_info) ConnSpeedText(idx) TextRole(design_resources::TextRole::Mono)
                             ]
                         ]
                     ]
@@ -161,7 +162,7 @@ pub fn connection_row_scene(
                             row_gap: rem(space::S4),
                         }
                         Children [
-                            TextRuns(vec![SearchTextRun { text: conn.rule.clone(), highlighted: false }]) ConnRuleText(idx) TextRole(Role::Caption) TextRunsInk({ palette.accent })
+                            TextRuns(vec![SearchTextRun { text: conn.rule.clone(), highlighted: false }]) ConnRuleText(idx) TextRole(design_resources::TextRole::Caption) TextRunsInk({ palette.accent })
                             --
                             Node {
                                 align_items: AlignItems::Center,
@@ -183,7 +184,7 @@ pub fn connection_row_scene(
                         ]
                     ]
                     --
-                    TextRuns(Vec::new()) ConnectionMatchTerm(idx) TextRole(Role::Caption)
+                    TextRuns(Vec::new()) ConnectionMatchTerm(idx) TextRole(design_resources::TextRole::Caption)
                 ]
                 --
                 Node {
@@ -210,7 +211,7 @@ pub fn connection_row_scene(
                     TouchHitbox::default()
                     conn_btn_drawer
                     Children [
-                        LocalizedText::plain("connections_cut_action") TextRole(Role::BodyStrong) ThemeTextColor({ Token::Surface })
+                        LocalizedText::plain("connections_cut_action") TextRole(design_resources::TextRole::BodyStrong) ThemeTextColor({ Token::Surface })
                     ]
                 ]
             ]
@@ -228,7 +229,7 @@ fn process_tag_scene(idx: usize, process: String, palette: &UiPalette) -> impl S
                 border_radius: BorderRadius::MAX,
             }
             BackgroundColor({ palette.surface_elevated })
-            TextRuns(vec![SearchTextRun { text: process, highlighted: false }]) ConnProcessTagText(idx) TextRole(Role::Caption)
+            TextRuns(vec![SearchTextRun { text: process, highlighted: false }]) ConnProcessTagText(idx) TextRole(design_resources::TextRole::Caption)
     }
 }
 
@@ -241,7 +242,7 @@ fn row_action_scene<M: Component + Clone + Unpin>(
 ) -> impl Scene + use<M> {
     bsn! {
             @{ button_with_label_scene(
-                bsn! { LocalizedText::plain(key) TextRole(Role::Caption) },
+                bsn! { LocalizedText::plain(key) TextRole(design_resources::TextRole::Caption) },
                 ButtonVariant::Ghost,
                 ButtonSize::Sm,
                 palette,
@@ -265,23 +266,23 @@ fn split_endpoint(endpoint: &str) -> (String, String) {
 fn connection_chain_scenes(idx: usize, conn: &ConnectionSnapshot) -> Vec<Box<dyn Scene>> {
     let chain = connection_view::route_chain(conn);
     let mut scenes: Vec<Box<dyn Scene>> = vec![Box::new(bsn! {
-            LocalizedText::plain("connections_chain_label") TextRole(Role::Caption)
+            LocalizedText::plain("connections_chain_label") TextRole(design_resources::TextRole::Caption)
     }) as Box<dyn Scene>];
     if chain.is_empty() {
         scenes.push(Box::new(bsn! {
-                    Text({ "DIRECT".to_owned() }) TextRole(Role::Caption)
+                    Text({ "DIRECT".to_owned() }) TextRole(design_resources::TextRole::Caption)
         }) as Box<dyn Scene>);
         return scenes;
     }
     for (hop, label) in chain.hops().iter().enumerate() {
         if hop > 0 {
             scenes.push(Box::new(bsn! {
-                            Text({ "→".to_owned() }) TextRole(Role::Caption)
+                            Text({ "→".to_owned() }) TextRole(design_resources::TextRole::Caption)
             }) as Box<dyn Scene>);
         }
         let hop_label = label.clone();
         scenes.push(Box::new(bsn! {
-                    Text(hop_label) ConnChainHopText { row: idx, hop } TextRole(Role::Caption)
+                    Text(hop_label) ConnChainHopText { row: idx, hop } TextRole(design_resources::TextRole::Caption)
         }) as Box<dyn Scene>);
     }
     scenes

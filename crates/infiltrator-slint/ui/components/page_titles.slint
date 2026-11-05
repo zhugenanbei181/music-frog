@@ -1,4 +1,4 @@
-import { RouteMode } from "domain_enums.slint";
+import { NetworkMode, RouteMode } from "domain_enums.slint";
 
 // The localized title of every product page route.
 //
@@ -45,6 +45,19 @@ export global PageTitles {
         if (mode == RouteMode.rule) { return @tr("规则"); }
         if (mode == RouteMode.global) { return @tr("全局"); }
         return @tr("直连");
+    }
+
+    // The shared localized label of the owner's takeover mode.
+    //
+    // The sidebar and the settings page used to read a `network-mode-label`
+    // string that no projection ever filled, so both showed "未获取模式"
+    // forever. The copy now comes from the typed enum the owner publishes.
+    public pure function network-mode-title(mode: NetworkMode) -> string {
+        if (mode == NetworkMode.system-proxy) { return @tr("系统代理"); }
+        if (mode == NetworkMode.tun) { return @tr("虚拟网卡"); }
+        if (mode == NetworkMode.vpn) { return @tr("系统 VPN"); }
+        if (mode == NetworkMode.core-only) { return @tr("仅核心转发"); }
+        return @tr("未获取模式");
     }
 
     // The mobile top bar only names the top-level tabs it hosts.

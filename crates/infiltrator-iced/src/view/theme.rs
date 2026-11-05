@@ -17,11 +17,16 @@
 //! - Forest: taskmanager-inspired eye-care forest green theme (EyeForest).
 //! - AMOLED: pitch-black OLED appearance with high-contrast surfaces.
 
-use iced::font::{Family, Weight};
+use iced::advanced::text::Renderer;
+use iced::font::Family;
+use iced::font::Weight;
 use iced::gradient::{ColorStop, Linear};
 use iced::theme::Palette;
+use iced::widget;
+use iced::widget::text::{Catalog, IntoFragment, Text};
 use iced::{Color, Gradient, Radians, Shadow, Theme};
 
+use infiltrator_contract::design_resources::{FontFamilyToken, FontWeightTier, TextRole, typeface};
 use infiltrator_contract::design_tokens::{metrics, radius, space};
 use infiltrator_contract::latency_display::LatencyBand;
 use infiltrator_contract::theme::ThemeSkin;
@@ -63,26 +68,52 @@ pub mod type_scale {
     pub const MONO: f32 = type_scale::MONO;
 }
 
-/// Font used for latency / bytes / speed numerals. JetBrains Mono has
-/// tabular (monospaced) digits by default, so live-updating values do not
-/// jitter horizontally. Bundled in `assets/fonts` (SIL OFL 1.1).
-pub const MONO: iced::Font = iced::Font {
-    family: Family::Name("JetBrains Mono"),
-    ..iced::Font::DEFAULT
-};
+/// Resolve one shared typographic role to Iced's font descriptor.
+pub const fn font_for(role: TextRole) -> iced::Font {
+    let spec = typeface(role);
+    let weight = match spec.weight() {
+        FontWeightTier::Regular => Weight::Normal,
+        FontWeightTier::Medium => Weight::Medium,
+        FontWeightTier::SemiBold => Weight::Semibold,
+    };
+    let family = match spec.family() {
+        FontFamilyToken::Mono => "JetBrains Mono",
+        FontFamilyToken::Cjk => "HarmonyOS Sans",
+        FontFamilyToken::Sans => "Inter",
+    };
+    iced::Font {
+        family: Family::Name(family),
+        weight,
+        ..iced::Font::DEFAULT
+    }
+}
 
-/// Semibold face of the bundled Inter family, for titles and emphasized
-/// labels. Prefer this over `Weight::Bold` for a Clash-Party-like hierarchy.
-pub const FONT_SEMIBOLD: iced::Font = iced::Font {
-    weight: Weight::Semibold,
-    ..iced::Font::DEFAULT
-};
+pub const FONT_SEMIBOLD: iced::Font = font_for(TextRole::BodyStrong);
+pub const FONT_MEDIUM: iced::Font = font_for(TextRole::Label);
+pub const MONO: iced::Font = font_for(TextRole::Mono);
 
-/// Medium face of the bundled Inter family, for buttons and controls.
-pub const FONT_MEDIUM: iced::Font = iced::Font {
-    weight: Weight::Medium,
-    ..iced::Font::DEFAULT
-};
+pub fn role_body_text<'a, TextRenderer>(
+    content: impl IntoFragment<'a>,
+) -> widget::Text<'a, Theme, TextRenderer>
+where
+    Theme: Catalog + 'a,
+    TextRenderer: Renderer<Font: From<iced::Font>>,
+{
+    role_text(content, TextRole::Body)
+}
+
+pub fn role_text<'a, TextRenderer>(
+    content: impl IntoFragment<'a>,
+    role: TextRole,
+) -> widget::Text<'a, Theme, TextRenderer>
+where
+    Theme: Catalog + 'a,
+    TextRenderer: Renderer<Font: From<iced::Font>>,
+{
+    Text::new(content)
+        .size(typeface(role).size_px)
+        .font(font_for(role))
+}
 
 /// The four skin constants, composed from the shared contract palettes.
 pub mod skins;

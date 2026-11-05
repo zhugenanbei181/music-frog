@@ -249,10 +249,8 @@ fn moved_order_snapshot() -> SurfaceSnapshot {
     let mut snapshot = capture_snapshot();
     snapshot.overview_layout = OverviewLayoutSnapshot::new(vec![
         OverviewCardKind::Traffic,
-        OverviewCardKind::RoutingIntentSegment,
-        OverviewCardKind::Metrics,
-        OverviewCardKind::MasterSwitches,
         OverviewCardKind::ActiveExit,
+        OverviewCardKind::Metrics,
         OverviewCardKind::PublicIp,
         OverviewCardKind::Topology,
         OverviewCardKind::Quota,

@@ -4,9 +4,9 @@ use crate::types::app::Route;
 use crate::types::message::Message;
 use crate::view::component_card::card;
 use crate::view::component_forms::style_accent;
-use crate::view::theme::FONT_MEDIUM;
+use crate::view::theme;
 use iced::Element;
-use iced::widget::{button, column, text};
+use iced::widget::{button, column};
 use infiltrator_presentation::profile_editor_projection::transaction;
 use infiltrator_shared::locales::{Lang, Localizer};
 pub fn apply_guard_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
@@ -19,12 +19,10 @@ pub fn apply_guard_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a,
     card(
         Some(lang.tr("apply_guard_title").into_owned()),
         column![
-            text(status).size(12),
-            button(
-                text(lang.tr("configuration_open_editor_action"))
-                    .size(11)
-                    .font(FONT_MEDIUM)
-            )
+            theme::role_body_text(status),
+            button(theme::role_body_text(
+                lang.tr("configuration_open_editor_action")
+            ))
             .style(style_accent)
             .on_press(Message::Navigate(Route::Editor))
         ]

@@ -37,8 +37,9 @@ use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLo
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::doctor::{DoctorCheckKind, DoctorStatus};
 use infiltrator_contract::snapshot::CoreWatchdogSnapshot;
 use infiltrator_presentation::doctor_projection::{summary, watchdog_status_text};
@@ -340,11 +341,11 @@ fn header_card_scene(
                                     row_gap: rem(space::S4),
                                 }
                                 Children [
-                                    Text(summary) DoctorLine(DoctorLineKind::Summary) TextRole(Role::Heading)
+                                    Text(summary) DoctorLine(DoctorLineKind::Summary) TextRole(design_resources::TextRole::Heading)
                                     --
-                                    Text(last_run) DoctorLine(DoctorLineKind::LastRun) TextRole(Role::Caption)
+                                    Text(last_run) DoctorLine(DoctorLineKind::LastRun) TextRole(design_resources::TextRole::Caption)
                                     --
-                                    Text(watchdog) DoctorLine(DoctorLineKind::Watchdog) TextRole(Role::Caption)
+                                    Text(watchdog) DoctorLine(DoctorLineKind::Watchdog) TextRole(design_resources::TextRole::Caption)
                                 ]
                             ]
                             --
@@ -374,7 +375,7 @@ fn header_card_scene(
                 Children [
                     @{ spinner::spinner_scene(palette) }
                     --
-                    Text::default() DoctorFeedbackText TextRole(Role::Caption)
+                    Text::default() DoctorFeedbackText TextRole(design_resources::TextRole::Caption)
                 ]
             }),
         ],
@@ -396,9 +397,9 @@ fn checks_container_scene(
                                 padding: UiRect::bottom(rem(space::S8)),
                             }
                             Children [
-                                LocalizedText::plain("doctor_suite_title") TextRole(Role::BodyStrong)
+                                LocalizedText::plain("doctor_suite_title") TextRole(design_resources::TextRole::BodyStrong)
                                 --
-                                LocalizedText::plain("doctor_suite_hint") TextRole(Role::Caption)
+                                LocalizedText::plain("doctor_suite_hint") TextRole(design_resources::TextRole::Caption)
                             ]
             }),
             Box::new(bsn! {

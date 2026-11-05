@@ -6,7 +6,7 @@ use crate::view::component_card::card;
 use crate::view::component_forms::{form_input_style, style_ghost, text_btn};
 use crate::view::components::{BadgeKind, badge, toggle_switch_with_actions};
 use crate::view::theme;
-use crate::view::theme::{FONT_SEMIBOLD, MONO, tokens};
+use crate::view::theme::tokens;
 use iced::widget::{Space, column, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -49,16 +49,12 @@ pub fn lan_sharing_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a,
             }
         }))
         .padding([4, 8])
-        .size(12)
-        .font(MONO)
         .width(90)
         .style(form_input_style);
 
     let bind_input = text_input("* or 192.168.1.10 or [::1]", &lan.bind_address)
         .on_input_maybe(available.then_some(Message::UpdateLanBindAddress))
         .padding([6, 10])
-        .size(12)
-        .font(MONO)
         .width(Length::Fill)
         .style(form_input_style);
 
@@ -66,8 +62,7 @@ pub fn lan_sharing_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a,
         Some(lang.tr("lan_sharing_title").to_string()),
         column![
             row![
-                text(lang.tr("lan_sharing_desc").to_string())
-                    .size(12)
+                theme::role_body_text(lang.tr("lan_sharing_desc").to_string())
                     .style(|t: &Theme| text::Style {
                         color: Some(tokens(t).text_secondary)
                     })
@@ -77,9 +72,7 @@ pub fn lan_sharing_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a,
             .align_y(Alignment::Center),
             Space::new().height(theme::SP_XS),
             row![
-                text(lang.tr("lan_sharing_port").to_string())
-                    .size(12)
-                    .font(FONT_SEMIBOLD),
+                theme::role_body_text(lang.tr("lan_sharing_port").to_string()),
                 Space::new().width(theme::SP_SM),
                 port_input,
                 Space::new().width(theme::SP_LG),
@@ -88,9 +81,7 @@ pub fn lan_sharing_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a,
             .align_y(Alignment::Center),
             Space::new().height(theme::SP_XS),
             row![
-                text(lang.tr("lan_sharing_bind").to_string())
-                    .size(11)
-                    .font(FONT_SEMIBOLD),
+                theme::role_body_text(lang.tr("lan_sharing_bind").to_string()),
                 Space::new().width(theme::SP_SM),
                 bind_input,
             ]

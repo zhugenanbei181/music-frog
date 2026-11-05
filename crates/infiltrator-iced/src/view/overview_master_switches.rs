@@ -5,7 +5,7 @@ use crate::types::message::Message;
 use crate::view::components::card_surface;
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme;
-use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, tokens};
+use crate::view::theme::tokens;
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot, SystemToggleState};
@@ -76,7 +76,7 @@ fn switch_card<'a>(
 
     let control = button(
         row![
-            text(action).size(11).font(FONT_MEDIUM),
+            theme::role_body_text(action),
             Space::new().width(theme::SP_XS),
             icon_themed(Icon::ChevronRight, 12.0, status_color),
         ]
@@ -91,30 +91,21 @@ fn switch_card<'a>(
                 row![
                     icon_themed(icon, 16.0, |t: &Theme| tokens(t).accent),
                     Space::new().width(theme::SP_SM),
-                    text(title)
-                        .size(13)
-                        .font(FONT_SEMIBOLD)
-                        .style(|t: &Theme| text::Style {
-                            color: Some(tokens(t).text_primary),
-                        }),
+                    theme::role_body_text(title).style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_primary),
+                    }),
                 ]
                 .align_y(Alignment::Center),
                 Space::new().width(Length::Fill),
-                text(status)
-                    .size(11)
-                    .font(FONT_MEDIUM)
-                    .style(move |t: &Theme| text::Style {
-                        color: Some(status_color(t)),
-                    }),
+                theme::role_body_text(status).style(move |t: &Theme| text::Style {
+                    color: Some(status_color(t)),
+                }),
             ]
             .align_y(Alignment::Center),
             row![
-                text(description)
-                    .size(10)
-                    .font(FONT_MEDIUM)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_tertiary),
-                    }),
+                theme::role_body_text(description).style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_tertiary),
+                }),
                 Space::new().width(Length::Fill),
                 control,
             ]

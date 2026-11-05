@@ -9,7 +9,7 @@ use crate::view::component_forms::{style_accent, style_danger, style_ghost};
 use crate::view::components::{chip, modern_scrollable};
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme;
-use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
+use crate::view::theme::tokens;
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_application::connection_rate_application::project_connection;
@@ -42,15 +42,10 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
         icon_themed(Icon::Activity, 20.0, |t: &Theme| tokens(t).accent),
         Space::new().width(theme::SP_SM),
         column![
-            text(lang.tr("conn_drawer_title"))
-                .size(15)
-                .font(FONT_SEMIBOLD),
-            text(target_host.clone())
-                .size(12)
-                .font(MONO)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_secondary),
-                }),
+            theme::role_body_text(lang.tr("conn_drawer_title")),
+            theme::role_body_text(target_host.clone()).style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary),
+            }),
         ]
         .spacing(2)
         .width(Length::Fill),
@@ -76,13 +71,11 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
         row![
             icon_themed(Icon::Zap, 14.0, |t: &Theme| tokens(t).warning),
             Space::new().width(theme::SP_XS),
-            text(lang.tr("conn_drawer_section_lifecycle"))
-                .size(13)
-                .font(FONT_SEMIBOLD),
+            theme::role_body_text(lang.tr("conn_drawer_section_lifecycle")),
         ]
         .align_y(Alignment::Center),
         Space::new().height(theme::SP_XS),
-        text(timing_notice).size(11).style(|t: &Theme| text::Style {
+        theme::role_body_text(timing_notice).style(|t: &Theme| text::Style {
             color: Some(tokens(t).text_tertiary),
         }),
     ]
@@ -110,11 +103,11 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
             ),
         ],
         ConnectionRateObservation::Unobserved => row![
-            text(lang.tr("conn_drawer_rate_pending"))
-                .size(11)
-                .style(|t: &Theme| text::Style {
+            theme::role_body_text(lang.tr("conn_drawer_rate_pending")).style(|t: &Theme| {
+                text::Style {
                     color: Some(tokens(t).text_tertiary),
-                })
+                }
+            })
         ],
     };
 
@@ -122,9 +115,7 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
         row![
             icon_themed(Icon::Network, 14.0, |t: &Theme| tokens(t).accent),
             Space::new().width(theme::SP_XS),
-            text(lang.tr("conn_drawer_section_throughput"))
-                .size(13)
-                .font(FONT_SEMIBOLD),
+            theme::role_body_text(lang.tr("conn_drawer_section_throughput")),
         ]
         .align_y(Alignment::Center),
         Space::new().height(theme::SP_XS),
@@ -157,9 +148,7 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
         row![
             icon_themed(Icon::Target, 14.0, |t: &Theme| tokens(t).accent),
             Space::new().width(theme::SP_XS),
-            text(lang.tr("conn_drawer_section_routing"))
-                .size(13)
-                .font(FONT_SEMIBOLD),
+            theme::role_body_text(lang.tr("conn_drawer_section_routing")),
         ]
         .align_y(Alignment::Center),
         Space::new().height(theme::SP_XS),
@@ -201,9 +190,7 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
         row![
             icon_themed(Icon::Server, 14.0, |t: &Theme| tokens(t).accent),
             Space::new().width(theme::SP_XS),
-            text(lang.tr("conn_drawer_section_process"))
-                .size(13)
-                .font(FONT_SEMIBOLD),
+            theme::role_body_text(lang.tr("conn_drawer_section_process")),
         ]
         .align_y(Alignment::Center),
         Space::new().height(theme::SP_XS),
@@ -239,9 +226,7 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
             row![
                 icon_themed(Icon::Trash2, 14.0, |t: &Theme| tokens(t).danger),
                 Space::new().width(theme::SP_XS),
-                text(lang.tr("conn_drawer_close_conn_btn"))
-                    .size(12)
-                    .font(FONT_MEDIUM),
+                theme::role_body_text(lang.tr("conn_drawer_close_conn_btn")),
             ]
             .align_y(Alignment::Center)
         )
@@ -253,7 +238,7 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
             row![
                 icon_themed(Icon::Plus, 14.0, |t: &Theme| tokens(t).on_accent),
                 Space::new().width(theme::SP_XS),
-                text(lang.tr("quick_rule_btn")).size(12).font(FONT_MEDIUM),
+                theme::role_body_text(lang.tr("quick_rule_btn")),
             ]
             .align_y(Alignment::Center)
         )
@@ -270,9 +255,7 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
             row![
                 icon_themed(Icon::Copy, 14.0, |t: &Theme| tokens(t).text_secondary),
                 Space::new().width(theme::SP_XS),
-                text(lang.tr("conn_drawer_copy_host_btn"))
-                    .size(12)
-                    .font(FONT_MEDIUM),
+                theme::role_body_text(lang.tr("conn_drawer_copy_host_btn")),
             ]
             .align_y(Alignment::Center)
         )
@@ -283,13 +266,9 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
     .align_y(Alignment::Center);
 
     let close_drawer_btn = button(
-        container(
-            text(lang.tr("conn_drawer_close"))
-                .size(12)
-                .font(FONT_MEDIUM),
-        )
-        .width(Length::Fill)
-        .align_x(Alignment::Center),
+        container(theme::role_body_text(lang.tr("conn_drawer_close")))
+            .width(Length::Fill)
+            .align_x(Alignment::Center),
     )
     .width(Length::Fill)
     .style(style_ghost)
@@ -368,15 +347,12 @@ fn stat_card<'a, Message: 'a>(
             icon_themed(icon, 16.0, color),
             Space::new().width(theme::SP_SM),
             column![
-                text(label_s).size(10).style(|t: &Theme| text::Style {
+                theme::role_body_text(label_s).style(|t: &Theme| text::Style {
                     color: Some(tokens(t).text_tertiary),
                 }),
-                text(val_s)
-                    .size(14)
-                    .font(FONT_SEMIBOLD)
-                    .style(move |t: &Theme| text::Style {
-                        color: Some(color(t)),
-                    }),
+                theme::role_body_text(val_s).style(move |t: &Theme| text::Style {
+                    color: Some(color(t)),
+                }),
             ]
             .spacing(2),
         ]
@@ -408,17 +384,14 @@ fn route_chain_row<'a>(
         color: Some(tokens(t).text_tertiary),
     };
     let mut items: Vec<Element<'a, Message>> = vec![
-        text(label_s)
-            .size(11)
+        theme::role_body_text(label_s)
             .width(Length::Fixed(120.0))
             .style(tertiary)
             .into(),
     ];
     if chain.is_empty() {
         items.push(
-            text("DIRECT")
-                .size(11)
-                .font(MONO)
+            theme::role_body_text("DIRECT")
                 .style(|t: &Theme| text::Style {
                     color: Some(tokens(t).text_primary),
                 })
@@ -427,7 +400,7 @@ fn route_chain_row<'a>(
     } else {
         for (hop_idx, hop) in chain.hops().iter().enumerate() {
             if hop_idx > 0 {
-                items.push(text(" ➔ ").size(11).font(MONO).style(tertiary).into());
+                items.push(theme::role_body_text(" ➔ ").style(tertiary).into());
             }
             items.push(chip(hop.clone()));
         }
@@ -442,15 +415,12 @@ fn meta_field_row<'a, Message: 'a>(
     let label_s = label.into();
     let val_s = val.into();
     row![
-        text(label_s)
-            .size(11)
+        theme::role_body_text(label_s)
             .width(Length::Fixed(120.0))
             .style(|t: &Theme| text::Style {
                 color: Some(tokens(t).text_tertiary),
             }),
-        text(val_s)
-            .size(11)
-            .font(MONO)
+        theme::role_body_text(val_s)
             .width(Length::Fill)
             .style(|t: &Theme| text::Style {
                 color: Some(tokens(t).text_primary),

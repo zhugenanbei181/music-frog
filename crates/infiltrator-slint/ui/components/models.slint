@@ -49,10 +49,28 @@ export struct ObservationRow {
     accessible-title: string,
     flag-code: string,
     flag-index: int,
-    delay-ms: int,
+    // The graded latency: the value text and the colour the contract's
+    // `LatencyGrade` ladder names for it, both decided once in the projection.
+    // Raw milliseconds deliberately do not travel with the row — a widget that
+    // can see them can start grading them again, which is how `PingBadge` came
+    // to disagree with the shared ladder.
+    latency-ink: color,
     subtitle: string,
     trailing: string,
     active: bool,
+}
+
+// One row of the dashboard's live-connection table. Every field is
+// preformatted by the shared projection from owner facts; the widget only
+// places text, so no column can re-derive its own value.
+export struct ConnectionRow {
+    source: string,
+    destination: string,
+    protocol: string,
+    outbound: string,
+    download: string,
+    upload: string,
+    duration: string,
 }
 
 export struct TrafficBar {
@@ -85,6 +103,101 @@ export struct OverviewCardSlot {
     title: string,
     can-move-up: bool,
     can-move-down: bool,
+}
+
+// High-density dashboard facts projected from the shared owner snapshots
+// (DashboardHeroProjection, QuickSwitchesProjection, ServiceHealthMatrixProjection,
+// MemoryInfoCardProjection, ProfileQuickCardProjection). The UI surfaces
+// bind exclusively to these typed fields; no component may hardcode facts.
+export struct DashboardFacts {
+    // Hero card facts
+    organization: string,
+    quality-tag: string,
+    uptime: string,
+    // Traffic card facts
+    traffic-peak-up: string,
+    traffic-peak-down: string,
+    // Cumulative traffic, formatted once by the owner projection.
+    traffic-total-up: string,
+    traffic-total-down: string,
+    // Live connection mini table counters
+    connection-count: string,
+    request-count: string,
+    dns-query-count: string,
+    // LAN share facts
+    lan-ip: string,
+    lan-shared: bool,
+    // Profile quick card facts
+    profile-groups-count: int,
+    profile-proxies-count: int,
+    profile-rules-count: int,
+    profile-updated-relative: string,
+    // Service health latencies (empty/dash when unobserved)
+    latency-google: string,
+    latency-github: string,
+    latency-youtube: string,
+    latency-openai: string,
+    // One honest summary of the four probes: never a hardcoded "全部可用".
+    services-summary: string,
+    // One owner-graded color per service, from the shared latency ladder.
+    latency-google-color: color,
+    latency-github-color: color,
+    latency-youtube-color: color,
+    latency-openai-color: color,
+    // Memory consumption
+    memory-total: string,
+    // The owner publishes one core memory reading plus its soft limit, so the
+    // card shows that pair. An app/kernel split would be a second, invented
+    // truth: no owner readback reports one.
+    memory-limit: string,
+    memory-fraction: float,
+    // Observed CPU load, formatted once by the owner projection.
+    cpu-text: string,
+    cpu-fraction: float,
+    // SVG path commands for the two speed sparklines, derived from the
+    // owner's waveform samples. Empty while no sample has arrived.
+    upload-wave: string,
+    download-wave: string,
+}
+
+// The dashboard facts before the owner's first readback. Every field is an
+// explicit "not observed" placeholder: the surface never opens with a
+// fabricated number, a fabricated address or a fabricated latency.
+export global DashboardFactsDefaults {
+    out property <DashboardFacts> value: {
+        organization: "—",
+        quality-tag: "—",
+        uptime: "—",
+        traffic-peak-up: "—",
+        traffic-peak-down: "—",
+        traffic-total-up: "—",
+        traffic-total-down: "—",
+        connection-count: "—",
+        request-count: "—",
+        dns-query-count: "—",
+        lan-ip: "—",
+        lan-shared: false,
+        profile-groups-count: 0,
+        profile-proxies-count: 0,
+        profile-rules-count: 0,
+        profile-updated-relative: "—",
+        latency-google: "—",
+        latency-github: "—",
+        latency-youtube: "—",
+        latency-openai: "—",
+        services-summary: "未观测",
+        latency-google-color: #6B7280,
+        latency-github-color: #6B7280,
+        latency-youtube-color: #6B7280,
+        latency-openai-color: #6B7280,
+        memory-total: "—",
+        memory-limit: "—",
+        memory-fraction: 0,
+        cpu-text: "—",
+        cpu-fraction: 0,
+        upload-wave: "",
+        download-wave: "",
+    };
 }
 
 // One rendered cell of a workbench page. The surface renders a flat list of

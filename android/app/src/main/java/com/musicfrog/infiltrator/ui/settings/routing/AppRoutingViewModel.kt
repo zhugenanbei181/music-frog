@@ -36,10 +36,12 @@ internal class AppRoutingViewModel internal constructor(
         .map { snap ->
             when (snap) {
                 is AppRoutingSnapshotState.Observed -> snap.observation.selectedPackages.size
+
                 is AppRoutingSnapshotState.Loading -> when (val last = snap.lastAccepted) {
                     is AcceptedAppRoutingSnapshot.Present -> last.observation.selectedPackages.size
                     AcceptedAppRoutingSnapshot.Missing -> 0
                 }
+
                 is AppRoutingSnapshotState.Unavailable -> when (val last = snap.lastAccepted) {
                     is AcceptedAppRoutingSnapshot.Present -> last.observation.selectedPackages.size
                     AcceptedAppRoutingSnapshot.Missing -> 0

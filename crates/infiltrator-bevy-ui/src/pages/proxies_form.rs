@@ -16,11 +16,12 @@ use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::text_input::state::{TextFieldInput, ValidationStatus};
 use infiltrator_bevy_widgets::text_input::text_field_with_placeholder_scene;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::protocol_fidelity::{ProtocolDraft, ProtocolStudioSnapshot};
 use infiltrator_contract::protocol_form::{ProtocolField, ProtocolStudioSlot};
 use infiltrator_presentation::protocol_editor_operation::{
@@ -106,13 +107,13 @@ fn protocol_field_scenes(
                 Node { width: percent(100), min_height: rem(palette.control_height_px), flex_shrink: 0.0,
                     padding: UiRect::all(rem(space::S8)), align_items: AlignItems::Center }
                 ThemeBackgroundColor({ Token::SurfaceElevated }) Button ProtocolToggle(id)
-                Children [ Text({ format!("{label}: {}", field.value) }) ProtocolFormText(ProtocolFormTextKind::Toggle(id)) TextRole(Role::Body) ]
+                Children [ Text({ format!("{label}: {}", field.value) }) ProtocolFormText(ProtocolFormTextKind::Toggle(id)) TextRole(design_resources::TextRole::Body) ]
             })
         } else {
             Box::new(bsn! {
                 Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(space::S4), flex_shrink: 0.0 }
                 Children [
-                    Text(label) TextRole(Role::Caption)
+                    Text(label) TextRole(design_resources::TextRole::Caption)
                     --
                     Node { width: percent(100), flex_shrink: 0.0 }
                     Children [ @{ text_field_with_placeholder_scene(field.value.clone(), String::new(), palette) } ]
@@ -122,7 +123,7 @@ fn protocol_field_scenes(
         if id == ProtocolField::Dialer {
             scene = Box::new(bsn! {
                 Node { width: percent(100), flex_direction: FlexDirection::Column, flex_shrink: 0.0, row_gap: rem(space::S4) }
-                Children [ Text({ lang.tr("custom_node_dialer_proxy").into_owned() }) TextRole(Role::Caption)
+                Children [ Text({ lang.tr("custom_node_dialer_proxy").into_owned() }) TextRole(design_resources::TextRole::Caption)
                     --
                     Node { width: percent(100), flex_shrink: 0.0 } CustomNodeDialerField CustomNodeInputField(CustomNodeInput::Dialer)
                     Children [ @{ text_field_with_placeholder_scene(field.value.clone(), String::new(), palette) } ]
@@ -131,7 +132,7 @@ fn protocol_field_scenes(
         } else if id == ProtocolField::CaPath {
             scene = Box::new(bsn! {
                 Node { width: percent(100), flex_direction: FlexDirection::Column, flex_shrink: 0.0, row_gap: rem(space::S4) }
-                Children [ Text({ lang.tr("custom_node_ca_path").into_owned() }) TextRole(Role::Caption)
+                Children [ Text({ lang.tr("custom_node_ca_path").into_owned() }) TextRole(design_resources::TextRole::Caption)
                     --
                     Node { width: percent(100), flex_shrink: 0.0 } CustomNodeCaField CustomNodeInputField(CustomNodeInput::Ca)
                     Children [ @{ text_field_with_placeholder_scene(field.value.clone(), String::new(), palette) } ]

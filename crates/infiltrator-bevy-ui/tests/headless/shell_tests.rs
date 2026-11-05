@@ -24,7 +24,7 @@ use infiltrator_bevy_ui::app::{
     BottomNavActive, BottomNavBar, BottomNavItem, ContentSlot, ContentTitleLabel, DensityToggle,
     GlobalStatusDot, HistoryBackButton, HistoryForwardButton, LayoutMode,
     RoutingIntentStatusCapsule, ShellHeader, ShellLayoutState, ShellPlugin, ShellRoot,
-    SidebarActiveProfileCard, SidebarNavItem, SidebarPanel, SidebarShortcutMatrix,
+    SidebarActiveProfileCard, SidebarFoot, SidebarNavItem, SidebarPanel, SidebarShortcutMatrix,
     SidebarShortcutTile, SidebarSpeedFooter, SidebarSystemProxyCard, SidebarSystemProxyToggle,
     SidebarTunCard, SidebarTunToggle, ThemeToggle,
 };
@@ -37,9 +37,10 @@ use infiltrator_bevy_widgets::nav::{NavActive, NavItem};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::responsive::{Density, ResponsiveContext};
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::REM_BASE;
 use infiltrator_bevy_widgets::theme::{Breakpoint, Theme, ThemeSkin};
+use infiltrator_contract::design_resources;
 use infiltrator_contract::theme::ThemePreference;
 use lurker_core_contract::routing_intent::RoutingIntent;
 
@@ -56,7 +57,7 @@ fn heading_entity(world: &mut World) -> Entity {
     let mut headings = world.query::<(Entity, &TextRole)>();
     headings
         .iter(world)
-        .find(|(_, role)| role.0 == Role::Heading)
+        .find(|(_, role)| role.0 == design_resources::TextRole::Heading)
         .expect("title row heading text mounted")
         .0
 }

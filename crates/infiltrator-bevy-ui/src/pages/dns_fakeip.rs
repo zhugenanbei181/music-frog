@@ -22,10 +22,11 @@ use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_presentation::dns_mapping_projection::project_mappings;
 use infiltrator_shared::locales::Lang;
 
@@ -61,9 +62,9 @@ pub fn dns_fakeip_pool_card_scene(
                             }
                             Children [
                                 LocalizedText::plain("dns_fakeip_pool_title")
-                                TextRole(Role::BodyStrong)
+                                TextRole(design_resources::TextRole::BodyStrong)
                                 --
-                                Text(count) DnsLine(DnsLineKind::FakeIpMappingCount) TextRole(Role::Caption)
+                                Text(count) DnsLine(DnsLineKind::FakeIpMappingCount) TextRole(design_resources::TextRole::Caption)
                             ]
             }),
             Box::new(bsn! {
@@ -87,7 +88,7 @@ pub fn dns_fakeip_pool_card_scene(
                             Children [
                                 Text(listing)
                                 DnsLine(DnsLineKind::FakeIpMapping)
-                                TextRole(Role::Mono)
+                                TextRole(design_resources::TextRole::Mono)
                             ]
             }),
         ],

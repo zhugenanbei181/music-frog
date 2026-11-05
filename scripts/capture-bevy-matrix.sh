@@ -223,7 +223,7 @@ while IFS=$'\t' read -r name page skin window_size; do
     exit 2
   }
   case "$page" in
-  overview | proxies | profiles | rules | connections | logs | dns | doctor | app_routing | app-routing | sync | settings | editor | mixin | filter | about) ;;
+  overview | globe | service-health | service_health | resource-gauges | resource_gauges | policy-groups | policy_groups | policy-picker | policy_picker | proxies | profiles | rules | connections | logs | dns | doctor | app_routing | app-routing | sync | settings | editor | mixin | filter | about) ;;
   *)
     printf 'invalid scenario row (bad page): %s -> %s\n' "$name" "$page" >&2
     exit 2
@@ -468,6 +468,13 @@ capture_one() {
     marker_page="profiles"
   elif [ "$marker_page" = "about" ]; then
     marker_page="settings"
+  elif [ "$marker_page" = "globe" ]; then
+    marker_page="overview"
+  elif [ "$marker_page" = "service-health" ] || [ "$marker_page" = "service_health" ] ||
+       [ "$marker_page" = "resource-gauges" ] || [ "$marker_page" = "resource_gauges" ] ||
+       [ "$marker_page" = "policy-groups" ] || [ "$marker_page" = "policy_groups" ] ||
+       [ "$marker_page" = "policy-picker" ] || [ "$marker_page" = "policy_picker" ]; then
+    marker_page="overview"
   fi
   local scenario_dir="$RUN_DIR/$name"
   local log="$scenario_dir/app.log"

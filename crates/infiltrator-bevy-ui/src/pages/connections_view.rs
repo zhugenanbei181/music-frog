@@ -38,9 +38,10 @@ use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::surface_snapshot::ConnectionSnapshot;
 use infiltrator_domain::connection_activity::{IDLE_TIMEOUT_CHOICES, idle_timeout_minutes_label};
 use infiltrator_domain::connection_view;
@@ -211,10 +212,10 @@ fn strip_tab_scene(
     };
     let label_scene: Box<dyn Scene> = match label {
         ConnStripLabel::Key(key) => Box::new(bsn! {
-            LocalizedText::plain(key) TextRole(Role::Caption) ThemeTextColor({ ink }) ConnStripTabLabel
+            LocalizedText::plain(key) TextRole(design_resources::TextRole::Caption) ThemeTextColor({ ink }) ConnStripTabLabel
         }),
         ConnStripLabel::Plain(text) => Box::new(bsn! {
-            Text({ text }) TextRole(Role::Caption) ThemeTextColor({ ink }) ConnStripTabLabel
+            Text({ text }) TextRole(design_resources::TextRole::Caption) ThemeTextColor({ ink }) ConnStripTabLabel
         }),
     };
 

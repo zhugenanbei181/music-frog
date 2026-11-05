@@ -6,7 +6,7 @@ use crate::view::component_card::card;
 use crate::view::component_forms::{form_input_style, style_ghost, text_btn};
 use crate::view::components::{BadgeKind, badge, toggle_switch_with_actions};
 use crate::view::theme;
-use crate::view::theme::{FONT_SEMIBOLD, MONO, tokens};
+use crate::view::theme::tokens;
 use iced::widget::{Space, column, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_contract::runtime_control::RuntimeControlStatus;
@@ -27,8 +27,6 @@ pub fn lan_security_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a
     )
     .on_input_maybe(available.then_some(Message::UpdateLanAllowedIps))
     .padding([6, 10])
-    .size(12)
-    .font(MONO)
     .width(Length::Fill)
     .style(form_input_style);
     let disallowed = text_input(
@@ -37,8 +35,6 @@ pub fn lan_security_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a
     )
     .on_input_maybe(available.then_some(Message::UpdateLanDisallowedIps))
     .padding([6, 10])
-    .size(12)
-    .font(MONO)
     .width(Length::Fill)
     .style(form_input_style);
     let skip_auth = text_input(
@@ -47,42 +43,34 @@ pub fn lan_security_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a
     )
     .on_input_maybe(available.then_some(Message::UpdateLanSkipAuthPrefixes))
     .padding([6, 10])
-    .size(12)
-    .font(MONO)
     .width(Length::Fill)
     .style(form_input_style);
     let username = text_input("musicfrog", &security.auth_username)
         .on_input_maybe(available.then_some(Message::UpdateLanAuthUsername))
         .padding([6, 10])
-        .size(12)
-        .font(MONO)
         .width(Length::Fill)
         .style(form_input_style);
     let password = text_input("required when enabled", &security.auth_password)
         .on_input_maybe(available.then_some(Message::UpdateLanAuthPassword))
         .secure(true)
         .padding([6, 10])
-        .size(12)
-        .font(MONO)
         .width(Length::Fill)
         .style(form_input_style);
 
     card(
         Some(lang.tr("lan_security_title").to_string()),
         column![
-            text(lang.tr("lan_security_desc").to_string())
-                .size(12)
-                .style(|theme: &Theme| text::Style {
+            theme::role_body_text(lang.tr("lan_security_desc").to_string()).style(
+                |theme: &Theme| text::Style {
                     color: Some(tokens(theme).text_secondary),
-                }),
+                }
+            ),
             Space::new().height(theme::SP_XS),
             security_row(lang.tr("lan_security_allowed").to_string(), allowed),
             security_row(lang.tr("lan_security_disallowed").to_string(), disallowed),
             security_row(lang.tr("lan_security_skip_auth").to_string(), skip_auth),
             row![
-                text(lang.tr("lan_security_auth").to_string())
-                    .size(12)
-                    .font(FONT_SEMIBOLD),
+                theme::role_body_text(lang.tr("lan_security_auth").to_string()),
                 Space::new().width(Length::Fill),
                 badge(
                     auth_status,
@@ -118,7 +106,7 @@ fn security_row<'a>(
     control: impl Into<Element<'a, Message>>,
 ) -> Element<'a, Message> {
     row![
-        text(label).size(11).font(FONT_SEMIBOLD),
+        theme::role_body_text(label),
         Space::new().width(theme::SP_SM),
         control.into(),
     ]

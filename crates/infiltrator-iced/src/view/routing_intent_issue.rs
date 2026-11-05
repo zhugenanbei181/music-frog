@@ -17,11 +17,10 @@ pub fn routing_intent_issue(state: &AppState) -> Element<'_, Message> {
     container(card(
         None,
         column![
-            text(routing_intent_failure_copy(
+            theme::role_body_text(routing_intent_failure_copy(
                 &state.runtime.routing_intent_actions,
                 &Lang(lang.0),
             ))
-            .size(12)
             .style(|theme: &Theme| text::Style {
                 color: Some(theme::tokens(theme).text_primary)
             }),
@@ -38,11 +37,9 @@ pub fn controls<'a, R: Renderer<Font = Font> + 'a>(
     state: &'a AppState,
 ) -> Element<'a, Message, Theme, R> {
     let lang = Lang(&state.shell.lang);
-    let retry = button(
-        text(lang.tr("routing_intent_retry").into_owned())
-            .size(12)
-            .font(theme::FONT_MEDIUM),
-    )
+    let retry = button(theme::role_body_text(
+        lang.tr("routing_intent_retry").into_owned(),
+    ))
     .padding([7, 14])
     .style(style_ghost)
     .on_press_maybe(
@@ -52,11 +49,9 @@ pub fn controls<'a, R: Renderer<Font = Font> + 'a>(
             .retry_target()
             .map(|_| Message::RetryRoutingIntent),
     );
-    let dismiss = button(
-        text(lang.tr("routing_intent_dismiss").into_owned())
-            .size(12)
-            .font(theme::FONT_MEDIUM),
-    )
+    let dismiss = button(theme::role_body_text(
+        lang.tr("routing_intent_dismiss").into_owned(),
+    ))
     .padding([7, 14])
     .style(style_ghost)
     .on_press_maybe(
@@ -80,10 +75,12 @@ pub fn controls<'a, R: Renderer<Font = Font> + 'a>(
     {
         actions = actions.push(
             container(
-                button(text(lang.tr("routing_intent_settings").into_owned()).size(12))
-                    .padding([7, 14])
-                    .style(style_ghost)
-                    .on_press(Message::Navigate(Route::Settings)),
+                button(theme::role_body_text(
+                    lang.tr("routing_intent_settings").into_owned(),
+                ))
+                .padding([7, 14])
+                .style(style_ghost)
+                .on_press(Message::Navigate(Route::Settings)),
             )
             .id(InteractionRegion::RoutingIntentSettings.id()),
         );

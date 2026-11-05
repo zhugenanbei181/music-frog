@@ -116,7 +116,8 @@ fn the_overview_card_order_moves_one_real_card() {
     // intent and the owner's published order is what the page renders.
     drain(&mut state, task);
     let order = &state.diag.overview_card_order;
-    assert_eq!(order.first(), Some(&OverviewCardKind::Traffic));
+    assert_eq!(order.first(), Some(&OverviewCardKind::Metrics));
+    assert_eq!(order.get(1), Some(&OverviewCardKind::Traffic));
     assert_ne!(order, &OverviewCardKind::DEFAULT_ORDER.to_vec());
 }
 

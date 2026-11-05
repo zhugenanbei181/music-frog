@@ -1,7 +1,8 @@
-import { IconButton, NavigationBar, PopupMenu } from "@material";
+import { DesignType } from "./design-type.slint";
+import { IconButton, PopupMenu } from "@material";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "./theme.slint";
-import { PillButton } from "./base_widgets.slint";
+import { NavButton, PillButton } from "./base_widgets.slint";
 
 export component AppBottomBar inherits Rectangle {
     in property <string> page;
@@ -19,26 +20,57 @@ export component AppBottomBar inherits Rectangle {
     y: root.window-height - root.safe-bottom - LumenTheme.navigation-height - LumenTheme.space-1;
     height: LumenTheme.navigation-height;
     border-width: 1 * LumenUiScale.unit;
-    border-color: LumenTheme.border;
+    border-color: LumenTheme.hairline-glow;
     border-radius: LumenTheme.navigation-height / 2;
-    background: LumenTheme.surface;
+    background: LumenTheme.is-dark ? #14171CE6 : #FFFFFFE6;
+    drop-shadow-blur: 16 * LumenUiScale.unit;
+    drop-shadow-offset-y: 4 * LumenUiScale.unit;
+    drop-shadow-color: LumenTheme.is-dark ? #00000099 : #00000028;
     clip: true;
 
-    NavigationBar {
+    // The product's own theme-aware nav button: the material NavigationBar
+    // painted its light `surface_container` over the dark capsule, so the
+    // phone's bottom bar stayed white in the dark theme.
+    HorizontalLayout {
         width: parent.width;
         height: parent.height;
-        compact: true;
-        show-layout-bounds: root.layout-debug-bounds;
-        border-radius: LumenTheme.navigation-height / 2;
-        items: [
-            { icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/home.svg"), selected_icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/home-active.svg"), text: @tr("首页") },
-            { icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/proxy.svg"), selected_icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/proxy-active.svg"), text: @tr("代理") },
-            { icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/config.svg"), selected_icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/config-active.svg"), text: @tr("配置") },
-            { icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/settings.svg"), selected_icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/settings-active.svg"), text: @tr("设置") },
-        ];
-        current-index: root.page == "Home" ? 0 : root.page == "Proxy" ? 1 : root.page == "Config" ? 2 : 3;
-        index-changed(index) => {
-            root.select-page(index == 0 ? "Home" : index == 1 ? "Proxy" : index == 2 ? "Config" : "Settings");
+        padding-left: 8 * LumenUiScale.unit;
+        padding-right: 8 * LumenUiScale.unit;
+        NavButton {
+            label: @tr("首页");
+            target: "Home";
+            active: root.page == "Home";
+            compact: true;
+            icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/layout-grid.svg");
+            active-icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/layout-grid.svg");
+            clicked => { root.select-page("Home"); }
+        }
+        NavButton {
+            label: @tr("代理");
+            target: "Proxy";
+            active: root.page == "Proxy";
+            compact: true;
+            icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/globe.svg");
+            active-icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/globe.svg");
+            clicked => { root.select-page("Proxy"); }
+        }
+        NavButton {
+            label: @tr("配置");
+            target: "Config";
+            active: root.page == "Config";
+            compact: true;
+            icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/file-text.svg");
+            active-icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/file-text.svg");
+            clicked => { root.select-page("Config"); }
+        }
+        NavButton {
+            label: @tr("设置");
+            target: "Settings";
+            active: root.page != "Home" && root.page != "Proxy" && root.page != "Config";
+            compact: true;
+            icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/settings.svg");
+            active-icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/settings.svg");
+            clicked => { root.select-page("Settings"); }
         }
     }
 }
@@ -102,10 +134,10 @@ export component ClearTrafficDialog inherits PopupWindow {
                 HorizontalLayout {
                     spacing: 8 * LumenUiScale.unit;
                     cross-axis-alignment: center;
-                    Text { text: "⚠"; color: LumenTheme.error; font-size: 18 * LumenUiScale.unit; }
-                    Text { text: @tr("清空流量统计？"); color: LumenTheme.text-primary; font-size: 17 * LumenUiScale.unit; font-weight: 650; }
+                    Text { text: "⚠"; color: LumenTheme.error; font-size: DesignType.subheading-size; }
+                    Text { text: @tr("清空流量统计？"); color: LumenTheme.text-primary; font-size: DesignType.subheading-size; font-weight: DesignType.subheading-weight; }
                 }
-                Text { text: @tr("将删除今日与本周本地统计记录，并清空当前已关闭连接历史。正在运行的连接不受影响。"); color: LumenTheme.text-secondary; font-size: 13 * LumenUiScale.unit; wrap: word-wrap; }
+                Text { text: @tr("将删除今日与本周本地统计记录，并清空当前已关闭连接历史。正在运行的连接不受影响。"); color: LumenTheme.text-secondary; font-size: DesignType.mono-size; wrap: word-wrap; }
                 Rectangle { vertical-stretch: 1; background: transparent; }
                 HorizontalLayout {
                     spacing: LumenTheme.space-2;
@@ -152,7 +184,7 @@ export component NoticeBanner inherits Rectangle {
         Text {
             text: root.notice;
             color: LumenTheme.text-primary;
-            font-size: 13 * LumenUiScale.unit;
+            font-size: DesignType.mono-size;
             wrap: word-wrap;
             horizontal-stretch: 1;
             vertical-alignment: center;
@@ -160,7 +192,7 @@ export component NoticeBanner inherits Rectangle {
         IconButton {
             width: 44 * LumenUiScale.unit;
             height: 44 * LumenUiScale.unit;
-            icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/close.svg");
+            icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/x.svg");
             tooltip: @tr("关闭提示");
             clicked => { root.close(); }
         }
@@ -192,14 +224,14 @@ export component SettingsMessageBanner inherits Rectangle {
         Text {
             text: root.message;
             color: LumenTheme.text-primary;
-            font-size: 14 * LumenUiScale.unit;
+            font-size: DesignType.label-size;
             wrap: word-wrap;
             horizontal-stretch: 1;
         }
         IconButton {
             width: 48 * LumenUiScale.unit;
             height: 48 * LumenUiScale.unit;
-            icon: @image-url("../../../infiltrator-shared/assets/ui/lumen/svg/close.svg");
+            icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/x.svg");
             tooltip: @tr("关闭提示");
             clicked => { root.close(); }
         }
@@ -344,13 +376,13 @@ export component DesktopTitleBar inherits Rectangle {
         x: 14 * LumenUiScale.unit;
         y: 0 * LumenUiScale.unit;
         height: parent.height;
-        text: "MusicFrog Infiltrator";
+        text: @tr("MusicFrog Infiltrator");
         color: LumenTheme.text-secondary;
-        font-size: 12 * LumenUiScale.unit;
+        font-size: DesignType.caption-size;
         vertical-alignment: center;
     }
 
-    if root.has-traffic-capsule: Rectangle {
+    if root.has-traffic-capsule && root.width > 600 * LumenUiScale.unit: Rectangle {
         x: max(160 * LumenUiScale.unit, parent.width - title-buttons.width - search-btn.width - self.width - 16 * LumenUiScale.unit);
         y: (parent.height - self.height) / 2;
         width: traffic-layout.min-width + 16 * LumenUiScale.unit;
@@ -369,7 +401,7 @@ export component DesktopTitleBar inherits Rectangle {
             Text {
                 text: "↑ " + root.upload-rate + "  ↓ " + root.download-rate;
                 color: LumenTheme.text-secondary;
-                font-size: 11 * LumenUiScale.unit;
+                font-size: DesignType.micro-size;
                 vertical-alignment: center;
             }
         }
@@ -379,6 +411,7 @@ export component DesktopTitleBar inherits Rectangle {
         x: parent.width - title-buttons.width - self.width - 8 * LumenUiScale.unit;
         y: (parent.height - self.height) / 2;
         width: search-layout.min-width + 16 * LumenUiScale.unit;
+        visible: root.width > 480 * LumenUiScale.unit;
         height: 24 * LumenUiScale.unit;
         border-radius: 6 * LumenUiScale.unit;
         background: search-touch.has-hover ? LumenTheme.zinc-3 : transparent;
@@ -399,7 +432,7 @@ export component DesktopTitleBar inherits Rectangle {
             Text {
                 text: @tr("搜索 (Ctrl+K)");
                 color: LumenTheme.text-secondary;
-                font-size: 11 * LumenUiScale.unit;
+                font-size: DesignType.micro-size;
                 vertical-alignment: center;
             }
         }

@@ -23,11 +23,12 @@ use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedPlaceholder, LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_bevy_widgets::text_input::{TextField, text_field_with_placeholder_scene};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::command::RequestId;
+use infiltrator_contract::design_resources;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::outbound::preferences::OutboundUiPreferenceIntent;
 
@@ -92,7 +93,7 @@ pub fn search_input_scene(query: &str, palette: &UiPalette) -> impl Scene + use<
                 Children [ @{ text_field_with_placeholder_scene(query.into(), String::new(), palette) } ]
             ]
             --
-            Text(String::new()) ProxySearchStatus TextRole(Role::Caption)
+            Text(String::new()) ProxySearchStatus TextRole(design_resources::TextRole::Caption)
         ]
     }
 }
@@ -125,7 +126,7 @@ pub fn search_actions_scene(palette: &UiPalette) -> impl Scene + use<> {
                 align_items: AlignItems::Center,
             }
             Button ClearProxySearch
-            Children [ LocalizedText::plain("proxies_search_clear") TextRole(Role::Caption) ]
+            Children [ LocalizedText::plain("proxies_search_clear") TextRole(design_resources::TextRole::Caption) ]
             --
             Node {
                 min_height: rem(palette.control_height_px),
@@ -133,7 +134,7 @@ pub fn search_actions_scene(palette: &UiPalette) -> impl Scene + use<> {
                 align_items: AlignItems::Center,
             }
             Button RetryProxySearch
-            Children [ LocalizedText::plain("proxies_search_retry") TextRole(Role::Caption) ]
+            Children [ LocalizedText::plain("proxies_search_retry") TextRole(design_resources::TextRole::Caption) ]
         ]
     }
 }

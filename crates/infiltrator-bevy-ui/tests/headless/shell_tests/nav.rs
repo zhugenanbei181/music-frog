@@ -4,7 +4,7 @@
 use super::*;
 use infiltrator_contract::a11y::ShellA11yNode;
 use infiltrator_presentation::routing_intent_projection::routing_intent_copy;
-use infiltrator_shared::locales::Lang;
+use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::routing_intent::RoutingIntent;
 
 #[test]
@@ -58,8 +58,6 @@ fn nav_entries_mode_pills_and_content_region_carry_semantics() {
     let mut slots = world.query::<(&ContentSlot, &AccessibilityNode)>();
     let (_, region) = slots.single(world).expect("content region semantic node");
     assert_eq!(region.role(), accesskit::Role::Region);
-    assert_eq!(
-        region.label(),
-        Some(ShellA11yNode::ContentRegion.label_zh())
-    );
+    let region_label = Lang("zh-CN").tr(ShellA11yNode::ContentRegion.label_key());
+    assert_eq!(region.label(), Some(region_label.as_ref()));
 }

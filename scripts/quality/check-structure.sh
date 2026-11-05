@@ -68,6 +68,12 @@ python3 scripts/quality/verify-packaging.py
 python3 -m unittest discover -s scripts/packaging_tests -p 'test_*.py'
 python3 -m unittest discover -s scripts/quality/tests -p 'test_*.py'
 python3 scripts/quality/i18n-guard.py --mode enforce
+python3 scripts/quality/design-resource-authority.py --self-test
+python3 scripts/quality/design-resource-authority.py --skip-exporter
+python3 scripts/quality/shared-copy-guard.py --mode enforce
+python3 scripts/quality/shared-copy-guard.py --self-test
+python3 scripts/quality/scrollbar-contract-guard.py --mode enforce
+python3 scripts/quality/scrollbar-contract-guard.py --self-test
 python3 scripts/quality/android-product-identity-guard.py
 python3 scripts/quality/release-build-target-guard.py --self-test
 python3 scripts/quality/release-build-target-guard.py

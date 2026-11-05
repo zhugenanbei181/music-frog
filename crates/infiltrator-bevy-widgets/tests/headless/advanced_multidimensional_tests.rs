@@ -14,7 +14,8 @@ use infiltrator_bevy_widgets::palette::{
     UiPalette, calculate_contrast_ratio, calculate_relative_luminance, satisfies_wcag_aa,
 };
 use infiltrator_bevy_widgets::shader_fx::{ShimmerWaveSpec, skeleton_card_scene};
-use infiltrator_bevy_widgets::text::{RichTextSpan, Role, rich_text_line_scene};
+use infiltrator_bevy_widgets::text::{RichTextSpan, rich_text_line_scene};
+use infiltrator_contract::design_resources;
 
 #[test]
 fn test_staggered_enter_animation_and_spring_animator() {
@@ -98,9 +99,9 @@ fn test_rich_text_spans_and_scene_mounting() {
         Startup,
         move |mut commands: Commands, palette: Res<UiPalette>| {
             let spans = vec![
-                RichTextSpan::new("协议: ", Role::Body),
+                RichTextSpan::new("协议: ", design_resources::TextRole::Body),
                 RichTextSpan::badge("Shadowsocks", green_badge),
-                RichTextSpan::new(" 状态正常", Role::Body),
+                RichTextSpan::new(" 状态正常", design_resources::TextRole::Body),
             ];
             commands.spawn_scene(rich_text_line_scene(spans, &palette));
         },

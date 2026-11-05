@@ -14,6 +14,7 @@
 - 同一契约以非格式化、zeroizing 的 armored/decrypted 内容类型表达 Core 内订阅解密的瞬时载荷；解密结果不是 UI wire/read model。
 - Profile 二维码分享与手机到电视导入由 [`profile_share`](../src/profile_share.rs) 统一定义脱敏 `ProfileSharePayload` 与一次性 `PairingToken` 生命周期状态机，敏感参数自动掩码并提供 TV 导入阶段机（FLPARITY-002）。
 - 跨端 docked search、弹性 sheet、长按排序与 hover 交互基线由 [`shell_interaction`](../src/shell_interaction.rs) 统一定义 `DockedSearchState`、`SheetSizingSpec`、`LongPressReorderState`、`SwitchInteractionState` 与 `ButtonLiftFeedback`（FLPARITY-011）。
+- Overview 与 shell 控制区归属由 [`overview_layout`](../src/overview_layout.rs) 裁决：`DEFAULT_ORDER` 只发布概览页可排序卡片，`SHELL_SIDEBAR_ORDER` 声明分流模式与系统开关的唯一侧栏挂载点；表面不得用本地过滤创建第二份布局真源。
 - 包职责见 [crate README](../README.md)。
 
 ## 契约权威性与自底向上裁决铁律

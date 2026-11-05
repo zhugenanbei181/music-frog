@@ -54,6 +54,7 @@ pub mod rules_window;
 pub mod runtime;
 pub mod script_console;
 pub mod script_export;
+pub mod scrollbar;
 pub mod settings;
 pub mod shader;
 pub mod sidebar;

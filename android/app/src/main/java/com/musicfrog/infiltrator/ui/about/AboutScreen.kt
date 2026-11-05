@@ -15,7 +15,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.musicfrog.infiltrator.BuildConfig
 import com.musicfrog.infiltrator.R
@@ -33,7 +32,6 @@ fun AboutScreen() {
         Text(
             text = stringResource(R.string.app_name),
             style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface,
         )
         Text(
@@ -54,11 +52,11 @@ fun AboutScreen() {
                 Text(
                     text = stringResource(R.string.setting_about_title),
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "MusicFrog Infiltrator is engineered for network protocol research, compliance diagnostics, and secure traffic analysis.",
+                    text = "MusicFrog Infiltrator is engineered for network protocol research, " +
+                        "compliance diagnostics, and secure traffic analysis.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -77,11 +75,11 @@ fun AboutScreen() {
                 Text(
                     text = "Disclaimer",
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "This software is provided for network protocol testing, technical research, and compliant diagnostic purposes only. Users must comply with applicable local laws.",
+                    text = "This software is provided for network protocol testing, technical research, " +
+                        "and compliant diagnostic purposes only. Users must comply with applicable local laws.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

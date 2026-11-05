@@ -29,8 +29,9 @@ use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::stat_chip::StatChipValue;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::{radius, space};
+use infiltrator_contract::design_resources;
 use infiltrator_contract::speedtest::{
     SpeedtestConcurrency, SpeedtestPhase, SpeedtestRounds, SpeedtestTarget,
 };
@@ -45,6 +46,16 @@ use lurker_core_contract::outbound::probe::OutboundProbeBatchScope;
 
 /// The concurrency step button's minimum width in baseline pixels.
 const SPEEDTEST_CONCURRENCY_STEP_MIN_WIDTH_PX: f32 = 26.0;
+
+/// The probe group's widest band in baseline pixels. The group rides the
+/// hero's action column: bounding it keeps the measured facts readable on
+/// two wrapped lines instead of stretching one line across the whole card
+/// and squeezing the exit address next to it.
+pub(crate) const SPEEDTEST_GROUP_MAX_WIDTH_PX: f32 = 320.0;
+
+/// Marker component for the speedtest control group inside the overview hero banner.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct OverviewSpeedtestSection;
 
 /// Marker on the speedtest detail's scroll area.
 #[derive(Component, Clone, Copy, Debug, Default)]
@@ -106,13 +117,14 @@ pub struct OverviewSpeedtestDetailBodyText;
 pub(crate) fn speedtest_button_scene(palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
             Node {
-                max_width: percent(100),
+                max_width: rem(SPEEDTEST_GROUP_MAX_WIDTH_PX),
                 min_width: px(0.0),
                 flex_direction: FlexDirection::Column,
                 row_gap: rem(space::S6),
                 align_items: AlignItems::FlexEnd,
-                flex_shrink: 1.0,
+                flex_shrink: 0.0,
             }
+            OverviewSpeedtestSection
             Children [
                 Node {
                     align_items: AlignItems::Center,
@@ -141,17 +153,17 @@ pub(crate) fn speedtest_button_scene(palette: &UiPalette) -> impl Scene + use<> 
                     Text({ "—".to_owned() })
                     OverviewSpeedtestMetricsText
                     TextLayout { linebreak: LineBreak::WordOrCharacter, ..TextLayout::default() }
-                    TextRole(Role::Caption)
+                    TextRole(design_resources::TextRole::Caption)
                     --
                     Text({ "—".to_owned() })
                     OverviewSpeedtestDeadText
                     TextLayout { linebreak: LineBreak::WordOrCharacter, ..TextLayout::default() }
-                    TextRole(Role::Caption)
+                    TextRole(design_resources::TextRole::Caption)
                     --
                     Text({ "—".to_owned() })
                     OverviewSpeedtestHistoryText
                     TextLayout { linebreak: LineBreak::WordOrCharacter, ..TextLayout::default() }
-                    TextRole(Role::Caption)
+                    TextRole(design_resources::TextRole::Caption)
                 ]
             ]
     }
@@ -175,7 +187,7 @@ fn speedtest_start_scene(palette: &UiPalette) -> impl Scene + use<> {
             Children [
                 @{ icon_scene(IconId::Zap, 14.0, palette.accent) }
                 --
-                LocalizedText::plain("speedtest_start_action") OverviewSpeedtestText TextRole(Role::BodyStrong) ThemeTextColor({ Token::Accent })
+                LocalizedText::plain("speedtest_start_action") OverviewSpeedtestText TextRole(design_resources::TextRole::BodyStrong) ThemeTextColor({ Token::Accent })
             ]
     }
 }
@@ -189,7 +201,7 @@ fn speedtest_concurrency_scene() -> impl Scene + use<> {
                 flex_shrink: 0.0,
             }
             Children [
-                LocalizedText::plain("speedtest_concurrency_label") TextRole(Role::Caption)
+                LocalizedText::plain("speedtest_concurrency_label") TextRole(design_resources::TextRole::Caption)
                 --
                 Node {
                     min_width: rem(SPEEDTEST_CONCURRENCY_STEP_MIN_WIDTH_PX),
@@ -203,12 +215,12 @@ fn speedtest_concurrency_scene() -> impl Scene + use<> {
                 Button
                 OverviewSpeedtestConcurrencyStep(-5)
                 Children [
-                    Text({ "-".to_owned() }) TextRole(Role::Body)
+                    Text({ "-".to_owned() }) TextRole(design_resources::TextRole::Body)
                 ]
                 --
                 Text({ "30".to_owned() })
                 OverviewSpeedtestConcurrencyText
-                TextRole(Role::Caption)
+                TextRole(design_resources::TextRole::Caption)
                 --
                 Node {
                     min_width: rem(SPEEDTEST_CONCURRENCY_STEP_MIN_WIDTH_PX),
@@ -222,7 +234,7 @@ fn speedtest_concurrency_scene() -> impl Scene + use<> {
                 Button
                 OverviewSpeedtestConcurrencyStep(5)
                 Children [
-                    Text({ "+".to_owned() }) TextRole(Role::Body)
+                    Text({ "+".to_owned() }) TextRole(design_resources::TextRole::Body)
                 ]
             ]
     }
@@ -243,7 +255,7 @@ fn speedtest_details_scene(palette: &UiPalette) -> impl Scene + use<> {
             Button
             OverviewSpeedtestDetailButton
             Children [
-                LocalizedText::plain("common_details") TextRole(Role::Caption)
+                LocalizedText::plain("common_details") TextRole(design_resources::TextRole::Caption)
             ]
     }
 }
@@ -264,7 +276,7 @@ pub fn overview_speedtest_detail_modal_scene(palette: &UiPalette) -> Box<dyn Sce
             Children [
                 Text({ "—".to_owned() })
                 OverviewSpeedtestDetailBodyText
-                TextRole(Role::Caption)
+                TextRole(design_resources::TextRole::Caption)
             ]
     });
     let language = UiLocale::default().code().to_string();

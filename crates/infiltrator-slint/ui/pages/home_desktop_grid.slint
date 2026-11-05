@@ -1,0 +1,550 @@
+import { DesignType } from "../components/design-type.slint";
+import { AppPreferenceSwitch } from "../components/base_widgets.slint";
+import { LumenUiScale } from "../lumen-ui-scale.slint";
+import { LumenTheme } from "../components/theme.slint";
+import { NetworkMode, RouteMode, RuntimeStatus } from "../components/domain_enums.slint";
+import { FlagIcon } from "../lumen-flags.slint";
+import { ProfileCard, ProxyGroup } from "../components/models.slint";
+import { StatusBadge, SurfaceCard } from "../components/cards.slint";
+import {
+    AppCardHeader, HomeConnectionMiniTable, HomeHeroActionButton, HomeLatencyChip, HomePolicyGroupGrid,
+    HomeMetaChip, HomeRouteModePills, HomeWaveBand,
+} from "home_widgets.slint";
+import { ConnectionRow, DashboardFacts } from "../components/models.slint";
+
+export component HomeDesktopGrid inherits VerticalLayout {
+    in property <RuntimeStatus> runtime-status;
+    in property <string> home-exit-status;
+    in property <string> home-exit-country-code;
+    in property <int> home-exit-flag-index: -1;
+    in property <string> home-exit-ip;
+    in property <string> stat-up;
+    in property <string> stat-down;
+    in property <RouteMode> route-mode;
+    // The owner's typed takeover mode: the two quick switches read their
+    // checked state from this enum. Comparing the localized label string
+    // against "TUN 模式" could never match (the label says "TUN"), so the
+    // virtual-NIC switch showed "off" even while TUN was running.
+    in property <NetworkMode> network-mode;
+    in property <bool> tun-capable: true;
+    in property <string> active-profile;
+    in property <[ProxyGroup]> proxy-groups;
+    in property <DashboardFacts> dashboard-facts;
+    in property <[ConnectionRow]> home-connection-table;
+
+    callback start-runtime();
+    callback stop-runtime();
+    callback navigate(string);
+    callback set-route-mode(RouteMode);
+    callback set-network-mode(NetworkMode);
+    callback select-group(string);
+
+    width: 100%;
+    spacing: root.dense ? LumenTheme.space-3 : LumenTheme.space-4;
+    alignment: start;
+
+    // A 720px compact window is still too narrow for the full standard card
+    // metrics. This is a viewport fact, not a second page state.
+    property <bool> dense: root.width < 800 * LumenUiScale.unit;
+
+    // Row 1: Hero Card (50%) + Upload Card (25%) + Download Card (25%)
+    HorizontalLayout {
+        width: parent.width;
+        spacing: root.dense ? LumenTheme.space-3 : LumenTheme.space-4;
+
+        // Hero Card (FlClash Style)
+        SurfaceCard {
+            horizontal-stretch: 2;
+            HorizontalLayout {
+                horizontal-stretch: 1;
+                spacing: root.dense ? LumenTheme.space-3 : LumenTheme.space-4;
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    spacing: LumenTheme.space-2;
+                    HorizontalLayout {
+                        spacing: LumenTheme.space-2;
+                        StatusBadge {
+                            label: root.runtime-status == RuntimeStatus.running ? @tr("运行中") : @tr("已停止");
+                            active: root.runtime-status == RuntimeStatus.running;
+                            badge-width: 82 * LumenUiScale.unit;
+                        }
+                        if root.home-exit-status != "": Text {
+                            text: root.home-exit-status;
+                            color: LumenTheme.text-secondary;
+                            font-size: DesignType.caption-size;
+                            vertical-alignment: center;
+                        }
+                    }
+                    HorizontalLayout {
+                        spacing: LumenTheme.space-3;
+                        Rectangle {
+                            width: 38 * LumenUiScale.unit;
+                            height: 38 * LumenUiScale.unit;
+                            border-radius: 19 * LumenUiScale.unit;
+                            background: LumenTheme.zinc-4;
+                            // The reference shows a round flag here. Use the
+                            // owner's flag asset, and keep the country code as
+                            // the honest fallback when no flag resolved.
+                            if root.home-exit-flag-index >= 0: FlagIcon {
+                                index: root.home-exit-flag-index;
+                                country-code: root.home-exit-country-code;
+                                diameter: 38 * LumenUiScale.unit;
+                            }
+                            if root.home-exit-flag-index < 0: Text {
+                                text: root.home-exit-country-code != "" ? root.home-exit-country-code.to_uppercase() : "—";
+                                color: LumenTheme.text-primary;
+                                font-size: DesignType.label-size;
+                                font-weight: DesignType.label-weight;
+                                x: (parent.width - self.width) / 2;
+                                y: (parent.height - self.height) / 2;
+                            }
+                        }
+                        Text {
+                            text: root.home-exit-ip;
+                            font-family: DesignType.mono-family;
+                            color: LumenTheme.text-primary;
+                            font-size: root.dense ? 22 * LumenUiScale.unit : 26 * LumenUiScale.unit;
+                            font-weight: DesignType.label-weight;
+                            vertical-alignment: center;
+                        }
+                    }
+                    HorizontalLayout {
+                        spacing: LumenTheme.space-2;
+                        HomeMetaChip {
+                            label: @tr("机房");
+                            chip-font-size: DesignType.caption-size;
+                        }
+                        HomeMetaChip {
+                            value: root.dashboard-facts.quality-tag;
+                            chip-font-size: DesignType.caption-size;
+                        }
+                        Rectangle { horizontal-stretch: 1; background: transparent; }
+                    }
+                    Text {
+                        text: @tr("运行时长 ") + root.dashboard-facts.uptime + "   " + @tr("组织 ") + root.dashboard-facts.organization;
+                        color: LumenTheme.text-secondary;
+                        font-size: DesignType.caption-size;
+                    }
+                }
+                // Floating organic run/stop control shared with mobile.
+                HomeHeroActionButton {
+                    button-size: 64 * LumenUiScale.unit;
+                    runtime-status: root.runtime-status;
+                    y: (parent.height - self.height) / 2;
+                    start-runtime => { root.start-runtime(); }
+                    stop-runtime => { root.stop-runtime(); }
+                }
+            }
+        }
+
+        // Upload Card
+        SurfaceCard {
+            horizontal-stretch: 1;
+            HorizontalLayout {
+                AppCardHeader {
+                    title: @tr("上传");
+                    glyph: "↑";
+                    icon-color: LumenTheme.status-info;
+                    horizontal-stretch: 1;
+                }
+                Rectangle { horizontal-stretch: 1; background: transparent; }
+                Text { text: root.dashboard-facts.traffic-peak-up; color: LumenTheme.text-secondary; font-size: DesignType.micro-size; }
+            }
+            Text {
+                text: root.stat-up;
+                font-family: DesignType.mono-family;
+                color: LumenTheme.text-primary;
+                font-size: root.dense ? 22 * LumenUiScale.unit : 28 * LumenUiScale.unit;
+                font-weight: DesignType.micro-weight;
+            }
+            Text {
+                text: root.dashboard-facts.traffic-total-up;
+                color: LumenTheme.text-secondary;
+                font-size: DesignType.caption-size;
+            }
+            HomeWaveBand {
+                commands: root.dashboard-facts.upload-wave;
+                ink: LumenTheme.status-info;
+                band-height: 34 * LumenUiScale.unit;
+            }
+        }
+
+        // Download Card
+        SurfaceCard {
+            horizontal-stretch: 1;
+            HorizontalLayout {
+                AppCardHeader {
+                    title: @tr("下载");
+                    glyph: "↓";
+                    icon-color: LumenTheme.accent;
+                    horizontal-stretch: 1;
+                }
+                Rectangle { horizontal-stretch: 1; background: transparent; }
+                Text { text: root.dashboard-facts.traffic-peak-down; color: LumenTheme.text-secondary; font-size: DesignType.micro-size; }
+            }
+            Text {
+                text: root.stat-down;
+                font-family: DesignType.mono-family;
+                color: LumenTheme.accent;
+                font-size: root.dense ? 22 * LumenUiScale.unit : 28 * LumenUiScale.unit;
+                font-weight: DesignType.micro-weight;
+            }
+            Text {
+                text: root.dashboard-facts.traffic-total-down;
+                color: LumenTheme.text-secondary;
+                font-size: DesignType.caption-size;
+            }
+            HomeWaveBand {
+                commands: root.dashboard-facts.download-wave;
+                ink: LumenTheme.accent;
+                band-height: 34 * LumenUiScale.unit;
+            }
+        }
+    }
+
+    // Row 2: Outbound Mode Selector (50%) + System Proxy (25%) + TUN (25%)
+    HorizontalLayout {
+        width: parent.width;
+        spacing: root.dense ? LumenTheme.space-3 : LumenTheme.space-4;
+
+        // Outbound Mode Selector Card
+        SurfaceCard {
+            horizontal-stretch: 2;
+            HorizontalLayout {
+                horizontal-stretch: 1;
+                spacing: LumenTheme.space-3;
+                Text {
+                    text: @tr("出站模式");
+                    color: LumenTheme.text-secondary;
+                    font-size: DesignType.label-size;
+                    font-weight: DesignType.label-weight;
+                    vertical-alignment: center;
+                }
+                Rectangle { horizontal-stretch: 1; background: transparent; }
+                HomeRouteModePills {
+                    route-mode: root.route-mode;
+                    pill-width: root.dense ? 58 * LumenUiScale.unit : 72 * LumenUiScale.unit;
+                    pill-height: root.dense ? 28 * LumenUiScale.unit : 32 * LumenUiScale.unit;
+                    font-size: root.dense ? 12 * LumenUiScale.unit : 13 * LumenUiScale.unit;
+                    select(mode) => { root.set-route-mode(mode); }
+                }
+            }
+        }
+
+        // System Proxy Switch Card
+        SurfaceCard {
+            horizontal-stretch: 1;
+            HorizontalLayout {
+                horizontal-stretch: 1;
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    spacing: 2 * LumenUiScale.unit;
+                    HorizontalLayout {
+                        spacing: LumenTheme.space-2;
+                        Image {
+                            source: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/globe.svg");
+                            width: 16 * LumenUiScale.unit;
+                            height: 16 * LumenUiScale.unit;
+                            image-fit: contain;
+                            colorize: root.network-mode == NetworkMode.system-proxy ? LumenTheme.accent : LumenTheme.text-muted;
+                            vertical-alignment: center;
+                        }
+                        Text { text: @tr("系统代理"); color: LumenTheme.text-primary; font-size: DesignType.label-size; font-weight: DesignType.label-weight; }
+                    }
+                    Text { text: root.network-mode == NetworkMode.system-proxy ? @tr("已开启") : root.network-mode == NetworkMode.vpn ? @tr("由系统 VPN 托管") : @tr("已关闭"); color: LumenTheme.text-secondary; font-size: DesignType.caption-size; }
+                }
+                AppPreferenceSwitch {
+                    checked: root.network-mode == NetworkMode.system-proxy;
+                    label: @tr("系统代理");
+                    enabled: root.network-mode != NetworkMode.vpn;
+                    toggled(enabled) => { root.set-network-mode(enabled ? NetworkMode.system-proxy : NetworkMode.core-only); }
+                }
+            }
+        }
+
+        // TUN Virtual Network Card Switch
+        SurfaceCard {
+            horizontal-stretch: 1;
+            HorizontalLayout {
+                horizontal-stretch: 1;
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    spacing: 2 * LumenUiScale.unit;
+                    HorizontalLayout {
+                        spacing: LumenTheme.space-2;
+                        Image {
+                            source: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/shield.svg");
+                            width: 16 * LumenUiScale.unit;
+                            height: 16 * LumenUiScale.unit;
+                            image-fit: contain;
+                            colorize: root.network-mode == NetworkMode.tun ? LumenTheme.accent : LumenTheme.text-muted;
+                            vertical-alignment: center;
+                        }
+                        Text { text: @tr("虚拟网卡"); color: LumenTheme.text-primary; font-size: DesignType.label-size; font-weight: DesignType.label-weight; }
+                    }
+                    Text { text: root.network-mode == NetworkMode.tun ? @tr("已开启") : root.network-mode == NetworkMode.vpn ? @tr("由系统 VPN 托管") : @tr("已关闭"); color: LumenTheme.text-secondary; font-size: DesignType.caption-size; }
+                }
+                AppPreferenceSwitch {
+                    checked: root.network-mode == NetworkMode.tun;
+                    label: @tr("虚拟网卡");
+                    enabled: root.tun-capable && root.network-mode != NetworkMode.vpn;
+                    toggled(enabled) => { root.set-network-mode(enabled ? NetworkMode.tun : NetworkMode.core-only); }
+                }
+            }
+        }
+    }
+
+    // Row 3: LAN IP (25%) + Config (25%) + Service Health (25%) + Memory (25%)
+    // The four information cards do not all need a row. A non-wrapping
+    // HorizontalLayout squeezed them into ~159px each at 720px, and the
+    // availability pill then starved the 服务状态 title down to "服…". The
+    // reference keeps these cards wide, so the dense tier takes two of them
+    // per row instead of shrinking type to make a broken row fit.
+    GridLayout {
+        width: parent.width;
+        spacing: root.dense ? LumenTheme.space-3 : LumenTheme.space-4;
+
+        // LAN IP Card
+        SurfaceCard {
+            col: 0;
+            row: 0;
+            min-width: root.dense ? 150 * LumenUiScale.unit : 200 * LumenUiScale.unit;
+            horizontal-stretch: 1;
+            HorizontalLayout {
+                AppCardHeader {
+                    title: @tr("内网 IP");
+                    icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/network.svg");
+                    horizontal-stretch: 1;
+                }
+            }
+            Text {
+                text: root.dashboard-facts.lan-ip;
+                font-family: DesignType.mono-family;
+                color: LumenTheme.text-primary;
+                font-size: DesignType.subheading-size;
+                font-weight: DesignType.subheading-weight;
+                max-width: 170 * LumenUiScale.unit;
+                overflow: elide;
+            }
+            HorizontalLayout {
+                Text { text: root.dashboard-facts.lan-shared ? @tr("局域网代理 已开启") : @tr("局域网代理 已关闭"); color: LumenTheme.text-secondary; font-size: DesignType.caption-size; vertical-alignment: center; }
+                Rectangle { horizontal-stretch: 1; background: transparent; }
+                // The owner's readback drives the switch. The toggle intent
+                // belongs to the single LAN draft on the network settings
+                // page, so the card reads the state and does not fake a
+                // second writer for it.
+                AppPreferenceSwitch {
+                    checked: root.dashboard-facts.lan-shared;
+                    enabled: false;
+                    label: @tr("局域网代理");
+                }
+            }
+        }
+
+        // Config Profile Card
+        SurfaceCard {
+            col: 1;
+            row: 0;
+            min-width: root.dense ? 150 * LumenUiScale.unit : 200 * LumenUiScale.unit;
+            horizontal-stretch: 1;
+            HorizontalLayout {
+                AppCardHeader {
+                    title: @tr("配置");
+                    icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/file-text.svg");
+                    chevron: true;
+                    actionable: true;
+                    horizontal-stretch: 1;
+                    clicked => { root.navigate("Config"); }
+                }
+            }
+            Text {
+                text: root.active-profile;
+                color: LumenTheme.text-primary;
+                font-size: DesignType.body-size;
+                font-weight: DesignType.body-weight;
+                max-width: 172 * LumenUiScale.unit;
+                overflow: elide;
+            }
+            Text { text: root.dashboard-facts.profile-updated-relative; color: LumenTheme.text-secondary; font-size: DesignType.micro-size; }
+            HorizontalLayout {
+                spacing: LumenTheme.space-2;
+                Text { text: root.dashboard-facts.profile-groups-count + " " + @tr("策略组"); color: LumenTheme.text-primary; font-size: DesignType.caption-size; font-weight: DesignType.caption-weight; }
+                Rectangle { horizontal-stretch: 1; background: transparent; }
+                Text { text: root.dashboard-facts.profile-proxies-count + " " + @tr("代理"); color: LumenTheme.text-primary; font-size: DesignType.caption-size; font-weight: DesignType.caption-weight; }
+                Rectangle { horizontal-stretch: 1; background: transparent; }
+                Text { text: root.dashboard-facts.profile-rules-count + " " + @tr("规则"); color: LumenTheme.text-primary; font-size: DesignType.caption-size; font-weight: DesignType.caption-weight; }
+            }
+        }
+
+        // Service Health Card
+        SurfaceCard {
+            col: root.dense ? 0 : 2;
+            row: root.dense ? 1 : 0;
+            // This card carries four latency chips, so it needs the most room
+            // of the four. Sharing one 330px column left every chip ~145px and
+            // four-digit probes elided to "1679…"; in the dense tier it takes
+            // the whole row instead, which is also how the reference keeps the
+            // service matrix legible.
+            colspan: root.dense ? 2 : 1;
+            min-width: root.dense ? 150 * LumenUiScale.unit : 200 * LumenUiScale.unit;
+            horizontal-stretch: 1;
+            HorizontalLayout {
+                spacing: LumenTheme.space-2;
+                AppCardHeader {
+                    title: @tr("服务状态");
+                    icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/activity.svg");
+                    horizontal-stretch: 1;
+                }
+                // A Rectangle sized only by absolutely-positioned children has
+                // no content width, so the pill used to collapse to zero and
+                // the availability summary never appeared. Layout children give
+                // it a real preferred width.
+                // The header already takes the slack, so no spacer is needed:
+                // a second stretch-1 Rectangle split the slack in half and left
+                // the title with two characters ("服…") in the dense tier.
+                Rectangle {
+                    height: 20 * LumenUiScale.unit;
+                    horizontal-stretch: 0;
+                    border-radius: 10 * LumenUiScale.unit;
+                    background: LumenTheme.accent-soft;
+                    min-width: summary-row.min-width + 12 * LumenUiScale.unit;
+                    summary-row := HorizontalLayout {
+                        x: 6 * LumenUiScale.unit;
+                        y: 0 * LumenUiScale.unit;
+                        height: parent.height;
+                        alignment: center;
+                        Text {
+                            text: root.dashboard-facts.services-summary;
+                            color: LumenTheme.accent;
+                            font-size: DesignType.micro-size;
+                            font-weight: DesignType.micro-weight;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+            }
+            HorizontalLayout {
+                horizontal-stretch: 1;
+                spacing: LumenTheme.space-2;
+                HomeLatencyChip {
+                    label: "G";
+                    value: root.dashboard-facts.latency-google;
+                    pulse-ink: root.dashboard-facts.latency-google-color;
+                }
+                HomeLatencyChip {
+                    label: "GH";
+                    value: root.dashboard-facts.latency-github;
+                    pulse-ink: root.dashboard-facts.latency-github-color;
+                }
+            }
+            HorizontalLayout {
+                horizontal-stretch: 1;
+                spacing: LumenTheme.space-2;
+                HomeLatencyChip {
+                    label: "YT";
+                    value: root.dashboard-facts.latency-youtube;
+                    pulse-ink: root.dashboard-facts.latency-youtube-color;
+                }
+                HomeLatencyChip {
+                    label: "AI";
+                    value: root.dashboard-facts.latency-openai;
+                    pulse-ink: root.dashboard-facts.latency-openai-color;
+                }
+            }
+        }
+
+        // Memory Info Card
+        SurfaceCard {
+            col: root.dense ? 0 : 3;
+            row: root.dense ? 2 : 0;
+            colspan: root.dense ? 2 : 1;
+            min-width: root.dense ? 150 * LumenUiScale.unit : 200 * LumenUiScale.unit;
+            horizontal-stretch: 1;
+            HorizontalLayout {
+                AppCardHeader {
+                    title: @tr("内存信息");
+                    icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/settings.svg");
+                    horizontal-stretch: 1;
+                }
+            }
+            Text {
+                text: root.dashboard-facts.memory-total;
+                font-family: DesignType.mono-family;
+                color: LumenTheme.text-primary;
+                font-size: DesignType.display-size;
+                font-weight: DesignType.display-weight;
+            }
+            Rectangle {
+                horizontal-stretch: 1;
+                height: 6 * LumenUiScale.unit;
+                border-radius: 3 * LumenUiScale.unit;
+                background: LumenTheme.zinc-4;
+                Rectangle {
+                    x: 0;
+                    // A percentage of the track, not a product of the
+                    // track's width: multiplying the parent width made the
+                    // bar's own preferred width depend on itself, and the
+                    // row then handed the card its full width.
+                    width: parent.width * root.dashboard-facts.memory-fraction;
+                    height: parent.height;
+                    border-radius: 3 * LumenUiScale.unit;
+                    background: LumenTheme.accent;
+                }
+            }
+            HorizontalLayout {
+                spacing: LumenTheme.space-2;
+                Text { text: @tr("已用"); color: LumenTheme.text-secondary; font-size: DesignType.micro-size; }
+                Rectangle { horizontal-stretch: 1; background: transparent; }
+                Text { text: @tr("软限 ") + root.dashboard-facts.memory-limit; color: LumenTheme.text-secondary; font-size: DesignType.micro-size; max-width: 96 * LumenUiScale.unit; overflow: elide; }
+            }
+            HorizontalLayout {
+                spacing: LumenTheme.space-2;
+                Text { text: @tr("CPU"); color: LumenTheme.text-secondary; font-size: DesignType.micro-size; font-weight: DesignType.micro-weight; }
+                Rectangle { horizontal-stretch: 1; background: transparent; }
+                Text { text: root.dashboard-facts.cpu-text; color: LumenTheme.text-primary; font-family: DesignType.mono-family; font-size: DesignType.micro-size; }
+            }
+            Rectangle {
+                horizontal-stretch: 1;
+                height: 4 * LumenUiScale.unit;
+                border-radius: 2 * LumenUiScale.unit;
+                background: LumenTheme.zinc-4;
+                Rectangle {
+                    width: parent.width * root.dashboard-facts.cpu-fraction;
+                    height: parent.height;
+                    border-radius: 2 * LumenUiScale.unit;
+                    background: LumenTheme.ping-good;
+                }
+            }
+        }
+    }
+
+    // Row 4: Realtime Connections Mini Table (~62%) + Policy Groups Grid (~38%)
+    // The reference devotes roughly two-thirds of the row to the connection
+    // table so its 7 columns breathe without truncation, while policy groups
+    // tile neatly in the remaining space.
+    HorizontalLayout {
+        width: parent.width;
+        spacing: root.dense ? LumenTheme.space-3 : LumenTheme.space-4;
+
+        // Realtime Connections Card
+        SurfaceCard {
+            horizontal-stretch: root.dense ? 1 : 13;
+            HomeConnectionMiniTable {
+                dashboard-facts: root.dashboard-facts;
+                connections: root.home-connection-table;
+                // Row 4 split: Connections (13) vs Policy Groups (8).
+                // Seven columns have 48 weight units plus six 8px gaps and 20px inner padding.
+                column-unit: ((root.width - (root.dense ? LumenTheme.space-3 : LumenTheme.space-4)) * 13 / 21
+                    - 2 * 16 * LumenUiScale.unit - 20 * LumenUiScale.unit - 6 * LumenTheme.space-2) / 48;
+            }
+        }
+
+        // Policy Groups Card
+        SurfaceCard {
+            horizontal-stretch: root.dense ? 1 : 8;
+            HomePolicyGroupGrid {
+                proxy-groups: root.proxy-groups;
+            }
+        }
+    }
+}

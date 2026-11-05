@@ -14,7 +14,7 @@ use crate::view::components::{BadgeKind, icon_button, modern_scrollable, segment
 use crate::view::rules_tracer::{TRACER_SCROLL_ID, tracer_view};
 use crate::view::svg_icons::Icon;
 use crate::view::theme;
-use crate::view::theme::{FONT_SEMIBOLD, MONO, SP_LG, tokens};
+use crate::view::theme::{SP_LG, tokens};
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Id, Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
@@ -54,7 +54,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
     let filtered_count = state.editor.rules_filtered_count();
     let save_rules_action = container(
-        button(text(lang.tr("rules_save_btn").to_string())).on_press_maybe(
+        button(theme::role_body_text(lang.tr("rules_save_btn").to_string())).on_press_maybe(
             state
                 .editor
                 .rule_list
@@ -64,7 +64,10 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     )
     .id(InteractionRegion::RuleListSave.id());
     let discard = container(
-        button(text(lang.tr("rules_draft_discard").to_string())).on_press_maybe(
+        button(theme::role_body_text(
+            lang.tr("rules_draft_discard").to_string(),
+        ))
+        .on_press_maybe(
             (!state.editor.rule_list.is_pending()
                 && !state.editor.rule_list.is_awaiting_readback()
                 && (state.editor.rule_list.dirty() || state.editor.rule_list.source_changed()))
@@ -74,20 +77,15 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     .id(InteractionRegion::RuleListDiscard.id());
 
     let header = row![
-        text(lang.tr("rules_title").to_string())
-            .size(24)
-            .font(FONT_SEMIBOLD)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_primary)
-            }),
+        theme::role_body_text(lang.tr("rules_title").to_string()).style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_primary)
+        }),
         Space::new().width(theme::SP_MD),
-        text(format!(
+        theme::role_body_text(format!(
             "{} / {}",
             filtered_count,
             state.editor.rule_list.draft.len()
         ))
-        .size(13)
-        .font(MONO)
         .style(|t: &Theme| text::Style {
             color: Some(tokens(t).text_tertiary)
         }),
@@ -98,7 +96,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             .operation(RulesOperation::Load)
             .is_running()
         {
-            Element::from(text("...").size(12).style(|t: &Theme| text::Style {
+            Element::from(theme::role_body_text("...").style(|t: &Theme| text::Style {
                 color: Some(tokens(t).text_tertiary),
             }))
         } else {
@@ -112,7 +110,10 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let controls = row![
         save_rules_action,
         discard,
-        button(text(lang.tr("dns_query_settings").to_string())).on_press_maybe(
+        button(theme::role_body_text(
+            lang.tr("dns_query_settings").to_string()
+        ))
+        .on_press_maybe(
             state
                 .editor
                 .rule_list
@@ -124,15 +125,12 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     .wrap();
     let draft_panel = container(
         column![
-            container(
-                text(editor_status(
-                    &state.editor.rule_list,
-                    &Lang(&state.shell.lang)
-                ))
-                .size(12)
-            )
+            container(theme::role_body_text(editor_status(
+                &state.editor.rule_list,
+                &Lang(&state.shell.lang)
+            )))
             .id(InteractionRegion::RuleListStatus.id()),
-            container(text(preview).size(12)).id(InteractionRegion::RuleListPreview.id()),
+            container(theme::role_body_text(preview)).id(InteractionRegion::RuleListPreview.id()),
             controls
         ]
         .spacing(8),
@@ -159,14 +157,12 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             card(
                 None,
                 column![
-                    text(lang.tr("page_controls_loading").into_owned())
-                        .size(14)
-                        .font(FONT_SEMIBOLD)
-                        .style(|t: &Theme| text::Style {
+                    theme::role_body_text(lang.tr("page_controls_loading").into_owned()).style(
+                        |t: &Theme| text::Style {
                             color: Some(tokens(t).text_primary)
-                        }),
-                    text(lang.tr("page_controls_loading_hint").into_owned())
-                        .size(12)
+                        }
+                    ),
+                    theme::role_body_text(lang.tr("page_controls_loading_hint").into_owned())
                         .style(|t: &Theme| text::Style {
                             color: Some(tokens(t).text_secondary)
                         }),

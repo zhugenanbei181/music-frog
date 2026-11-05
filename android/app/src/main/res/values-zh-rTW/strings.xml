@@ -48,7 +48,7 @@
     <string name="title_import_local_profile">匯入本地配置</string>
     <string name="title_delete_profile">刪除配置</string>
     <string name="label_name">名稱</string>
-    <string name="label_url">訂閱連結 (URL)</string>
+    <string name="label_url">訂閱連結</string>
     <string name="label_profile_content">配置內容</string>
     <string name="label_activate_after_save">保存後啟用</string>
     <string name="label_subscription_url">訂閱連結</string>
@@ -179,7 +179,7 @@
     <string name="action_remove">移除</string>
     <string name="action_save_rules">保存規則</string>
     <string name="section_providers">規則提供者</string>
-    <string name="label_providers_json">提供者配置 (JSON)</string>
+    <string name="label_providers_json">提供者配置</string>
     <string name="action_save_providers">保存配置</string>
     <string name="action_reload_all">全部重載</string>
     <string name="text_providers_saved">配置已保存</string>
@@ -259,4 +259,16 @@
     <string name="owner_health_unhealthy">異常</string>
     <string name="owner_outbound_selected">已選擇：%1$s</string>
     <string name="owner_outbound_preferences_unavailable">Owner 尚未提供節點偏好設定。</string>
+    <string name="brand_name">MusicFrog</string>
+    <string name="app_display_name">MusicFrog Infiltrator</string>
+    <string name="configuration_saving">儲存設定</string>
+    <string name="configuration_saved">已儲存</string>
+    <string name="configuration_failed">儲存失敗</string>
+    <string name="performance_snapshot">效能快照</string>
+    <string name="performance_navigate_to_first_paint">導覽至首幀：%1$s</string>
+    <string name="common_close">關閉</string>
+    <string name="common_retry">重試</string>
+    <string name="dismiss_probe_batch">關閉</string>
+    <string name="layout_density">版面密度</string>
+    <string name="a11y_value_prefix">%1$s：%2$s</string>
 </resources>

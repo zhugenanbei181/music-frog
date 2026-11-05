@@ -26,10 +26,11 @@ use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::{UiPalette, rem};
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::controller::ControllerAuthSnapshot;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::ipv6::Ipv6RoutingSnapshot;
 use infiltrator_contract::lan::{LanSecuritySnapshot, LanSharingSnapshot};
 use infiltrator_contract::mini_hud::MiniHudPlacement;
@@ -200,7 +201,7 @@ pub(super) fn controller_settings_card(
                                 padding: UiRect::bottom(rem(space::S8)),
                             }
                             Children [
-                                LocalizedText::plain("settings_controller_title") TextRole(Role::BodyStrong)
+                                LocalizedText::plain("settings_controller_title") TextRole(design_resources::TextRole::BodyStrong)
                             ]
             }),
             Box::new(bsn! {
@@ -219,15 +220,15 @@ pub(super) fn controller_settings_card(
                                 }
                                 ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Children [
-                                    LocalizedText::plain("settings_controller_port_label") TextRole(Role::Body)
+                                    LocalizedText::plain("settings_controller_port_label") TextRole(design_resources::TextRole::Body)
                                     --
-                                    Text(ctrl_port_str) SettingsLine(SettingsLineKind::ControllerPort) TextRole(Role::Mono)
+                                    Text(ctrl_port_str) SettingsLine(SettingsLineKind::ControllerPort) TextRole(design_resources::TextRole::Mono)
                                 ]
                                 --
                                 @{ core_log_level_row_scene(projection, palette) }
                                 --
                                 Text({ format_runtime_status(&projection.runtime_status, &Lang(UiLocale::default().code())) })
-                                SettingsLine(SettingsLineKind::RuntimeStatus) TextRole(Role::Caption)
+                                SettingsLine(SettingsLineKind::RuntimeStatus) TextRole(design_resources::TextRole::Caption)
                             ]
             }),
         ],
@@ -260,7 +261,7 @@ pub(super) fn core_rollback_row_scene(
             CoreRollbackAvailability(rollback_available)
             Button
             Children [
-                Text({ LocalizedText::plain(if rollback_available { "core_rollback_action" } else { "common_unavailable" }).render(&UiLocale::default()) }) CoreRollbackButtonLabel TextRole(Role::BodyStrong)
+                Text({ LocalizedText::plain(if rollback_available { "core_rollback_action" } else { "common_unavailable" }).render(&UiLocale::default()) }) CoreRollbackButtonLabel TextRole(design_resources::TextRole::BodyStrong)
             ]
     });
 
@@ -270,9 +271,9 @@ pub(super) fn core_rollback_row_scene(
                 row_gap: rem(space::S4),
             }
             Children [
-                LocalizedText::plain("settings_core_rollback_title") TextRole(Role::Body)
+                LocalizedText::plain("settings_core_rollback_title") TextRole(design_resources::TextRole::Body)
                 --
-                Text(rollback_text) SettingsLine(SettingsLineKind::CoreRollback) TextRole(Role::Mono)
+                Text(rollback_text) SettingsLine(SettingsLineKind::CoreRollback) TextRole(design_resources::TextRole::Mono)
             ]
     });
     let children = vec![label, action];
@@ -307,9 +308,9 @@ pub(super) fn controller_auth_row_scene(
             }
             ThemeBackgroundColor({ Token::SurfaceElevated })
             Children [
-                LocalizedText::plain("settings_controller_auth_title") TextRole(Role::Body)
+                LocalizedText::plain("settings_controller_auth_title") TextRole(design_resources::TextRole::Body)
                 --
-                Text(status) SettingsLine(SettingsLineKind::ControllerAuth) TextRole(Role::Mono)
+                Text(status) SettingsLine(SettingsLineKind::ControllerAuth) TextRole(design_resources::TextRole::Mono)
             ]
     })
 }
@@ -343,9 +344,9 @@ pub(super) fn core_log_level_row_scene(
                 row_gap: rem(space::S4),
             }
             Children [
-                LocalizedText::plain("settings_core_log_level_label") TextRole(Role::Body)
+                LocalizedText::plain("settings_core_log_level_label") TextRole(design_resources::TextRole::Body)
                 --
-                LocalizedText::new("settings_log_level_value", vec![("level", current)]) SettingsLine(SettingsLineKind::LogLevel) TextRole(Role::Mono)
+                LocalizedText::new("settings_log_level_value", vec![("level", current)]) SettingsLine(SettingsLineKind::LogLevel) TextRole(design_resources::TextRole::Mono)
             ]
     });
     let controls: Box<dyn Scene> = Box::new(bsn! {
@@ -392,7 +393,7 @@ fn core_log_level_button_scene(
             CoreLogLevelButton { level }
             Button
             Children [
-                Text({ level.as_key().to_uppercase() }) TextRole(Role::Caption)
+                Text({ level.as_key().to_uppercase() }) TextRole(design_resources::TextRole::Caption)
             ]
     }
 }
@@ -424,7 +425,7 @@ pub(super) fn tun_stack_selector_scene(
                 row_gap: rem(space::S4),
             }
             Children [
-                LocalizedText::plain("settings_tun_protocol_label") TextRole(Role::Body)
+                LocalizedText::plain("settings_tun_protocol_label") TextRole(design_resources::TextRole::Body)
                 --
                 @{ controls }
             ]
@@ -451,9 +452,9 @@ pub(super) fn mtu_row_scene(
                     row_gap: rem(space::S4),
                 }
                 Children [
-                    LocalizedText::plain("settings_mtu_title") TextRole(Role::Body)
+                    LocalizedText::plain("settings_mtu_title") TextRole(design_resources::TextRole::Body)
                     --
-                    Text(status) SettingsLine(SettingsLineKind::Mtu) TextRole(Role::Mono)
+                    Text(status) SettingsLine(SettingsLineKind::Mtu) TextRole(design_resources::TextRole::Mono)
                 ]
                 --
                 Node {
@@ -467,7 +468,7 @@ pub(super) fn mtu_row_scene(
                 ProbeTunMtuButton
                 Button
                 Children [
-                    LocalizedText::plain("settings_mtu_probe_action") TextRole(Role::BodyStrong)
+                    LocalizedText::plain("settings_mtu_probe_action") TextRole(design_resources::TextRole::BodyStrong)
                 ]
             ]
     })
@@ -601,7 +602,7 @@ fn tun_stack_button_scene(
             TunStackButtonAvailability(available)
             Button
             Children [
-                Text(label) TextRole(Role::Caption) TunStackLabel({ stack })
+                Text(label) TextRole(design_resources::TextRole::Caption) TunStackLabel({ stack })
             ]
     }
 }
@@ -632,9 +633,9 @@ pub(super) fn service_mode_row_scene(
                     row_gap: rem(space::S4),
                 }
                 Children [
-                    LocalizedText::plain("settings_service_mode_title") TextRole(Role::Body)
+                    LocalizedText::plain("settings_service_mode_title") TextRole(design_resources::TextRole::Body)
                     --
-                    Text(status) SettingsLine(SettingsLineKind::ServiceMode) TextRole(Role::Mono)
+                    Text(status) SettingsLine(SettingsLineKind::ServiceMode) TextRole(design_resources::TextRole::Mono)
                 ]
                 --
                 Node {
@@ -649,7 +650,7 @@ pub(super) fn service_mode_row_scene(
                 ServiceModeAvailability({ !ready })
                 Button
                 Children [
-                    Text({ LocalizedText::plain(label).render(&UiLocale::default()) }) ServiceModeButtonLabel TextRole(Role::BodyStrong)
+                    Text({ LocalizedText::plain(label).render(&UiLocale::default()) }) ServiceModeButtonLabel TextRole(design_resources::TextRole::BodyStrong)
                 ]
             ]
     })
@@ -675,11 +676,11 @@ pub(super) fn port_conflicts_row_scene(
                     row_gap: rem(space::S4),
                 }
                 Children [
-                    LocalizedText::plain("settings_port_conflict_title") TextRole(Role::Body)
+                    LocalizedText::plain("settings_port_conflict_title") TextRole(design_resources::TextRole::Body)
                     --
-                    Text(status) SettingsLine(SettingsLineKind::PortConflicts) TextRole(Role::Mono)
+                    Text(status) SettingsLine(SettingsLineKind::PortConflicts) TextRole(design_resources::TextRole::Mono)
                     --
-                    Text({ String::new() }) PortConflictOutcomeText TextRole(Role::Mono)
+                    Text({ String::new() }) PortConflictOutcomeText TextRole(design_resources::TextRole::Mono)
                 ]
                 --
                 Node {
@@ -693,7 +694,7 @@ pub(super) fn port_conflicts_row_scene(
                 PortConflictButton
                 Button
                 Children [
-                    LocalizedText::plain("settings_port_conflict_probe_action") TextRole(Role::BodyStrong)
+                    LocalizedText::plain("settings_port_conflict_probe_action") TextRole(design_resources::TextRole::BodyStrong)
                 ]
             ]
     })
@@ -714,9 +715,9 @@ pub(super) fn core_resources_row_scene(
             }
             ThemeBackgroundColor({ Token::SurfaceElevated })
             Children [
-                LocalizedText::plain("settings_core_resources_title") TextRole(Role::Body)
+                LocalizedText::plain("settings_core_resources_title") TextRole(design_resources::TextRole::Body)
                 --
-                Text(status) SettingsLine(SettingsLineKind::CoreResources) TextRole(Role::Mono)
+                Text(status) SettingsLine(SettingsLineKind::CoreResources) TextRole(design_resources::TextRole::Mono)
             ]
     })
 }

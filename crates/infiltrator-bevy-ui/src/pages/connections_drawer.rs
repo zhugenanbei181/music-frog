@@ -10,6 +10,7 @@
 #[path = "connections_drawer_query_access.rs"]
 pub mod query_access;
 use self::query_access::ConnectionDrawerControls;
+use infiltrator_contract::design_resources;
 
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::pages::connections::{
@@ -48,7 +49,7 @@ use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::capability::Availability;
 use infiltrator_contract::connection::ConnectionRateObservation;
@@ -271,7 +272,7 @@ fn connection_drawer_content(palette: &UiPalette) -> impl Scene + use<> {
                 }
                 ConnDrawerHopSlot(hop)
                 Children [
-                    Text({ String::new() }) ConnDrawerHopText(hop) TextRole(Role::Caption)
+                    Text({ String::new() }) ConnDrawerHopText(hop) TextRole(design_resources::TextRole::Caption)
                 ]
 }) as Box<dyn Scene>
         })
@@ -301,7 +302,7 @@ fn connection_drawer_content(palette: &UiPalette) -> impl Scene + use<> {
                     Children [
                         @{ icon_tile_scene(IconId::Activity, 24.0, palette) }
                         --
-                        Text(title) TextRole(Role::BodyStrong)
+                        Text(title) TextRole(design_resources::TextRole::BodyStrong)
                     ]
                     --
                     Node {
@@ -311,21 +312,21 @@ fn connection_drawer_content(palette: &UiPalette) -> impl Scene + use<> {
                     Button
                     DrawerCloseButton
                     Children [
-                        Text(close) TextRole(Role::Caption)
+                        Text(close) TextRole(design_resources::TextRole::Caption)
                     ]
                 ]
                 --
-                Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::Host) TextRole(Role::BodyStrong)
+                Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::Host) TextRole(design_resources::TextRole::BodyStrong)
                 --
-                Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::Process) TextRole(Role::Caption)
+                Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::Process) TextRole(design_resources::TextRole::Caption)
                 --
-                Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::Rule) TextRole(Role::Caption)
+                Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::Rule) TextRole(design_resources::TextRole::Caption)
                 --
-                Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::RulePayload) TextRole(Role::Caption)
+                Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::RulePayload) TextRole(design_resources::TextRole::Caption)
                 --
-                Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::Endpoints) TextRole(Role::Mono)
+                Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::Endpoints) TextRole(design_resources::TextRole::Mono)
                 --
-                Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::Network) TextRole(Role::Caption)
+                Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::Network) TextRole(design_resources::TextRole::Caption)
                 --
                 Node {
                     width: percent(100),
@@ -334,20 +335,20 @@ fn connection_drawer_content(palette: &UiPalette) -> impl Scene + use<> {
                     column_gap: rem(space::S4),
                 }
                 Children [
-                    Text(chain_label) TextRole(Role::Caption)
+                    Text(chain_label) TextRole(design_resources::TextRole::Caption)
                     --
                     { hop_slots }
                 ]
                 --
-                Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::Traffic) TextRole(Role::Mono)
+                Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::Traffic) TextRole(design_resources::TextRole::Mono)
                 --
-                Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::Rate) TextRole(Role::Mono)
+                Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::Rate) TextRole(design_resources::TextRole::Mono)
                 --
-                Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::KernelAsn) TextRole(Role::Mono)
+                Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::KernelAsn) TextRole(design_resources::TextRole::Mono)
                 --
-                Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::KernelGeo) TextRole(Role::Mono)
+                Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::KernelGeo) TextRole(design_resources::TextRole::Mono)
                 --
-                Text(timing_notice) TextRole(Role::Caption)
+                Text(timing_notice) TextRole(design_resources::TextRole::Caption)
                 --
                 Node {
                     width: percent(100),
@@ -367,7 +368,7 @@ fn connection_drawer_content(palette: &UiPalette) -> impl Scene + use<> {
                     Button
                     DrawerAddRuleButton
                     Children [
-                        Text(add_rule) TextRole(Role::BodyStrong)
+                        Text(add_rule) TextRole(design_resources::TextRole::BodyStrong)
                     ]
                     --
                     Node {
@@ -381,15 +382,15 @@ fn connection_drawer_content(palette: &UiPalette) -> impl Scene + use<> {
                     Button
                     DrawerCloseConnectionButton
                     Children [
-                        Text(disconnect) TextRole(Role::BodyStrong)
+                        Text(disconnect) TextRole(design_resources::TextRole::BodyStrong)
                     ]
                 ]
                 --
                 Node { min_height: rem(palette.control_height_px), padding: UiRect::horizontal(rem(space::S12)), align_items: AlignItems::Center }
                 Button CopyConnectionHostButton
-                Children [ Text(copy_label) TextRole(Role::BodyStrong) ]
+                Children [ Text(copy_label) TextRole(design_resources::TextRole::BodyStrong) ]
                 --
-                Text(draft_empty) ConnDrawerRuleDraft TextRole(Role::Caption)
+                Text(draft_empty) ConnDrawerRuleDraft TextRole(design_resources::TextRole::Caption)
             ]
     }
 }

@@ -1558,3 +1558,33 @@ msgstr "Enter a private key for encrypted subscriptions; leave empty to keep the
 
 msgid "运行时"
 msgstr "Runtime"
+
+msgid "MusicFrog Infiltrator"
+msgstr "MusicFrog Infiltrator"
+
+msgid "AMOLED"
+msgstr "AMOLED"
+
+msgid "English"
+msgstr "English"
+
+msgid "布局密度"
+msgstr "Layout density"
+
+msgid "来源"
+msgstr "Source"
+
+msgid "目标"
+msgstr "Destination"
+
+msgid "协议"
+msgstr "Protocol"
+
+msgid "出口"
+msgstr "Outbound"
+
+msgid "时长"
+msgstr "Duration"
+
+msgid "暂无实时连接"
+msgstr "No live connections"

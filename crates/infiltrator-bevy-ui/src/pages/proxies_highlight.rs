@@ -9,6 +9,8 @@ use bevy::ui::prelude::{Node, Val};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::smart_truncate::truncate_tail;
 use infiltrator_bevy_widgets::text_runs::TextRuns;
+use infiltrator_contract::design_resources;
+use infiltrator_contract::design_resources::typeface;
 use zhuge_ui_core::text::SearchTextRun;
 
 /// The card's own chrome around the node name: the card's padding, the
@@ -56,7 +58,7 @@ fn name_budget(
     entity: Entity,
     parents: &Query<&ChildOf>,
     cards: &Query<&Node, With<ProxyNodeButton>>,
-    palette: &UiPalette,
+    _palette: &UiPalette,
 ) -> Option<usize> {
     let mut current = entity;
     let card = loop {
@@ -73,7 +75,7 @@ fn name_budget(
     let Val::Px(item_width_px) = card.width else {
         return None;
     };
-    let unit_px = palette.body_font_px / 2.0;
+    let unit_px = typeface(design_resources::TextRole::Body).size_px / 2.0;
     let units = (item_width_px - NODE_NAME_CHROME_PX) / unit_px;
     if units <= 0.0 {
         return None;

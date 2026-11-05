@@ -401,9 +401,12 @@ internal data class VpnOwnerSnapshotWire(
     fun isTerminalStopped(): Boolean {
         val terminalReadiness = when (vpnState) {
             VpnOwnerLifecycleWire.Stopped -> readiness == VpnOwnerReadinessWire.Stopped
+
             VpnOwnerLifecycleWire.Revoked -> readiness == VpnOwnerReadinessWire.Revoked
+
             VpnOwnerLifecycleWire.PermissionRequired ->
                 readiness == VpnOwnerReadinessWire.PermissionRequired
+
             else -> false
         }
         return terminalReadiness && resourcesReleased()

@@ -10,16 +10,46 @@
 //! process, so the shared reduction groups it under the honest "unknown"
 //! bucket instead of inventing a process name.
 
+use super::super::token_ink::unobserved_ink;
 use crate::widget_vocabulary;
-use crate::{AppWindow, ObservationRow, refresh_model};
+use crate::{AppWindow, ConnectionRow, ObservationRow, refresh_model};
 use infiltrator_contract::surface_snapshot::{ConnectionSnapshot, SurfaceSnapshot};
 use infiltrator_contract::traffic_history::ClosedConnectionSnapshot;
 use infiltrator_domain::connection_view::ConnectionView;
 use infiltrator_presentation::connection_page_model::ConnectionsPageModel;
+use infiltrator_presentation::connection_table_projection::connection_table_rows;
 use infiltrator_shared::byte_units::format_bytes;
+
+/// How many live rows the dashboard's connection table renders. The card is
+/// a preview of the full connections page, not a second copy of it.
+const DASHBOARD_TABLE_ROWS: usize = 7;
 
 /// Projects the connections page from the shared page model.
 pub(super) fn project_connections(window: &AppWindow, snapshot: &SurfaceSnapshot) {
+    // The dashboard table reads the owner's live page directly, so its rows
+    // exist whenever the page does and vanish with it — no second model.
+    let dashboard_rows = snapshot
+        .pages
+        .connections
+        .data
+        .as_ref()
+        .map(|page| connection_table_rows(page, DASHBOARD_TABLE_ROWS))
+        .unwrap_or_default();
+    window.set_home_connection_table(refresh_model(
+        &window.get_home_connection_table(),
+        dashboard_rows
+            .into_iter()
+            .map(|row| ConnectionRow {
+                source: row.source.into(),
+                destination: row.destination.into(),
+                protocol: row.protocol.into(),
+                outbound: row.outbound.into(),
+                download: row.download.into(),
+                upload: row.upload.into(),
+                duration: row.duration.into(),
+            })
+            .collect::<Vec<_>>(),
+    ));
     if window.get_connection_show_closed() {
         window.set_connections(refresh_model(
             &window.get_connections(),
@@ -56,8 +86,26 @@ fn connection_row(connection: ConnectionSnapshot) -> ObservationRow {
         accessible_title: connection.host.clone().into(),
         flag_code: "".into(),
         flag_index: -1,
-        delay_ms: -1,
-        subtitle: format!("{} · {}", connection.network, connection.process).into(),
+        latency_ink: unobserved_ink(),
+        // The dashboard preview names the route the traffic actually took.
+        // The process remains available on the full Connections detail page;
+        // turning the card into a mini table without an outbound column would
+        // just move the same text around.
+        subtitle: format!(
+            "{} · {}",
+            connection.network,
+            connection
+                .chains
+                .last()
+                .cloned()
+                .or_else(|| if connection.chain.is_empty() {
+                    None
+                } else {
+                    Some(connection.chain.clone())
+                })
+                .unwrap_or_else(|| "—".to_string())
+        )
+        .into(),
         trailing: format!(
             "↑ {} · ↓ {}",
             format_bytes(connection.upload_total),
@@ -100,7 +148,7 @@ fn closed_connection_row(connection: ClosedConnectionSnapshot) -> ObservationRow
         accessible_title: connection.view_host().to_owned().into(),
         flag_code: "".into(),
         flag_index: -1,
-        delay_ms: -1,
+        latency_ink: unobserved_ink(),
         subtitle: format!(
             "{} · {}",
             connection.view_joined_chain(),

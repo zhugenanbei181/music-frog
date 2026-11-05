@@ -8,6 +8,8 @@ Iced 产品入口见 [crate README](../README.md)。
 
 Iced 表面严格作为纯被动消费端：只消费 `SurfaceSnapshot` 权威快照并向底层发送 typed `CommandIntent`；禁止在 `Message`、`update()` 或视图组件中派生私有业务真源或暂存未决生命周期状态。
 
+用户可见文案统一从 `infiltrator-contract::shared_copy` 的 key 经共享本地化资源解析；Iced 不持有第二份产品文案，也不得对 locale 字符串做裁剪派生（原 `short_label()` 已退役）。文案言简意赅：中文条目不夹注英文译名，括号只留配置字段、单位或协议标识。侧栏按 Clash Party 的信息层级收口：模式切换、系统开关、活动配置、带实时计数的主导航、底部速率；导航目的地在侧栏只出现一次（计数随导航行呈现，不再另设快捷宫格）；全局按钮只挂标题栏与页面头部，不观测的值不显示说明文字。模式与系统开关由侧栏唯一持有，概览页不得重复挂载。导航与速率底栏固定可见，仅控制区在极短视口内滚动。滚动条统一走 `infiltrator-contract::scrollbar` 的悬浮自动隐退规范：静止不可见、仅被指针悬停或拖拽的对应轴显影，并为内容保留 16px 安全槽。`scrollbar-contract-guard.py` 强制 Iced 所有滚动区域经 `auto_hide_scrollable`/`modern_scrollable` 构造。
+
 - `screenshots/`：Iced 页面截图及 manifest。
 
 ## 截图与像素证据

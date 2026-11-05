@@ -283,6 +283,7 @@ impl CornerCurvature {
 pub mod type_scale {
     pub const DISPLAY: f32 = 22.0;
     pub const TITLE: f32 = 20.0;
+    pub const SUBHEADING: f32 = 18.0;
     pub const HEADING: f32 = 20.0;
     pub const BODY: f32 = 15.0;
     /// Large reading / prominent body text (16px).
@@ -383,6 +384,217 @@ pub const fn mobile_theme_tokens(skin: ThemeSkin) -> MobileThemeTokens {
             swipe_action: core.accent,
             swipe_destructive: core.danger,
         },
+    }
+}
+
+/// Four-tier surface elevation model (TODO-001).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SurfaceElevation {
+    /// Layer 0: Root window canvas/backdrop.
+    Background,
+    /// Layer 1: Resting card surface.
+    CardSurface,
+    /// Layer 2: Elevated card or nested interactive tile.
+    CardElevated,
+    /// Layer 3: Floating modal, dropdown, or popover.
+    FloatingModal,
+}
+
+impl SurfaceElevation {
+    /// Returns the RGBA token for this elevation tier under the given skin.
+    pub const fn color(self, skin: ThemeSkin) -> RgbaToken {
+        match skin {
+            ThemeSkin::Dark => match self {
+                Self::Background => RgbaToken::rgb(0.040, 0.045, 0.055),
+                Self::CardSurface => RgbaToken::rgb(0.086, 0.098, 0.125),
+                Self::CardElevated => RgbaToken::rgb(0.120, 0.137, 0.169),
+                Self::FloatingModal => RgbaToken::rgb(0.160, 0.180, 0.220),
+            },
+            ThemeSkin::Amoled => match self {
+                Self::Background => RgbaToken::rgb(0.0, 0.0, 0.0),
+                Self::CardSurface => RgbaToken::rgb(0.031, 0.039, 0.047),
+                Self::CardElevated => RgbaToken::rgb(0.075, 0.098, 0.125),
+                Self::FloatingModal => RgbaToken::rgb(0.120, 0.145, 0.180),
+            },
+            ThemeSkin::Light => match self {
+                Self::Background => RgbaToken::rgb(0.973, 0.976, 0.980),
+                Self::CardSurface => RgbaToken::rgb(1.0, 1.0, 1.0),
+                Self::CardElevated => RgbaToken::rgb(0.945, 0.953, 0.961),
+                Self::FloatingModal => RgbaToken::rgb(1.0, 1.0, 1.0),
+            },
+            ThemeSkin::Forest => match self {
+                Self::Background => RgbaToken::rgb(0.945, 0.965, 0.937),
+                Self::CardSurface => RgbaToken::rgb(1.0, 1.0, 1.0),
+                Self::CardElevated => RgbaToken::rgb(0.851, 0.910, 0.843),
+                Self::FloatingModal => RgbaToken::rgb(1.0, 1.0, 1.0),
+            },
+        }
+    }
+}
+
+/// Micro-border specification for subtle hairline lighting (TODO-002).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct MicroBorderSpec {
+    pub normal: RgbaToken,
+    pub hover_or_focused: RgbaToken,
+    pub accent: RgbaToken,
+    pub width_px: f32,
+}
+
+impl MicroBorderSpec {
+    pub const fn of(skin: ThemeSkin) -> Self {
+        let accent = skin_core(skin).accent;
+        match skin {
+            ThemeSkin::Dark | ThemeSkin::Amoled => Self {
+                normal: RgbaToken::rgba(1.0, 1.0, 1.0, 0.06),
+                hover_or_focused: RgbaToken::rgba(1.0, 1.0, 1.0, 0.12),
+                accent,
+                width_px: 1.0,
+            },
+            ThemeSkin::Light => Self {
+                normal: RgbaToken::rgba(0.0, 0.0, 0.0, 0.06),
+                hover_or_focused: RgbaToken::rgba(0.0, 0.0, 0.0, 0.12),
+                accent,
+                width_px: 1.0,
+            },
+            ThemeSkin::Forest => Self {
+                normal: RgbaToken::rgba(0.341, 0.439, 0.353, 0.15),
+                hover_or_focused: RgbaToken::rgba(0.341, 0.439, 0.353, 0.25),
+                accent,
+                width_px: 1.0,
+            },
+        }
+    }
+}
+
+/// Outbound connection status semantic colors (TODO-003).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct OutboundStatusPalette {
+    pub running: RgbaToken,
+    pub paused: RgbaToken,
+    pub error: RgbaToken,
+    pub offline: RgbaToken,
+}
+
+pub const OUTBOUND_STATUS_PALETTE: OutboundStatusPalette = OutboundStatusPalette {
+    running: RgbaToken::rgb(0.063, 0.725, 0.506),
+    paused: RgbaToken::rgb(0.961, 0.620, 0.043),
+    error: RgbaToken::rgb(0.937, 0.267, 0.267),
+    offline: RgbaToken::rgb(0.420, 0.447, 0.502),
+};
+
+/// Network traffic waveform and rate semantic colors (TODO-004).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct TrafficRateSemanticPalette {
+    pub upload: RgbaToken,
+    pub download: RgbaToken,
+    pub peak_alert: RgbaToken,
+}
+
+pub const TRAFFIC_RATE_PALETTE: TrafficRateSemanticPalette = TrafficRateSemanticPalette {
+    upload: RgbaToken::rgb(0.220, 0.741, 0.973),
+    download: RgbaToken::rgb(0.231, 0.510, 0.965),
+    peak_alert: RgbaToken::rgb(0.545, 0.361, 0.965),
+};
+
+/// Latency quality grading ladder colors (TODO-005).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct LatencyGradePalette {
+    pub excellent: RgbaToken,
+    pub good: RgbaToken,
+    pub medium: RgbaToken,
+    pub poor: RgbaToken,
+    pub timeout: RgbaToken,
+}
+
+pub const LATENCY_GRADE_PALETTE: LatencyGradePalette = LatencyGradePalette {
+    excellent: RgbaToken::rgb(0.063, 0.725, 0.506),
+    good: RgbaToken::rgb(0.024, 0.714, 0.831),
+    medium: RgbaToken::rgb(0.961, 0.620, 0.043),
+    poor: RgbaToken::rgb(0.937, 0.267, 0.267),
+    timeout: RgbaToken::rgb(0.420, 0.447, 0.502),
+};
+
+/// The latency quality ladder (TODO-005) as an explicit typed grade.
+///
+/// The thresholds used to live only in prose, so every surface graded the
+/// same measurement on its own and a 4-second probe could be drawn green.
+/// One classifier now owns the ladder; a surface asks for the grade and reads
+/// the palette entry it names.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LatencyGrade {
+    /// No measurement arrived: the card shows an honest unknown.
+    Unobserved,
+    /// ≤80 ms.
+    Excellent,
+    /// ≤160 ms.
+    Good,
+    /// ≤300 ms.
+    Medium,
+    /// >300 ms.
+    Poor,
+}
+
+impl LatencyGrade {
+    /// Grades one millisecond probe, or reports `Unobserved` for none.
+    pub const fn from_millis(delay_ms: Option<u32>) -> Self {
+        match delay_ms {
+            None => Self::Unobserved,
+            Some(ms) if ms <= 80 => Self::Excellent,
+            Some(ms) if ms <= 160 => Self::Good,
+            Some(ms) if ms <= 300 => Self::Medium,
+            Some(_) => Self::Poor,
+        }
+    }
+
+    /// The palette entry this grade names.
+    pub const fn token(self, palette: &'static LatencyGradePalette) -> RgbaToken {
+        match self {
+            Self::Unobserved => palette.timeout,
+            Self::Excellent => palette.excellent,
+            Self::Good => palette.good,
+            Self::Medium => palette.medium,
+            Self::Poor => palette.poor,
+        }
+    }
+}
+
+/// Unified corner-radius continuity tokens (TODO-007).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct CornerRadiusTokens {
+    pub micro: f32,
+    pub control: f32,
+    pub card: f32,
+    pub hero: f32,
+    pub round: f32,
+}
+
+pub const CORNER_RADIUS_TOKENS: CornerRadiusTokens = CornerRadiusTokens {
+    micro: 4.0,
+    control: 8.0,
+    card: 14.0,
+    hero: 18.0,
+    round: 9999.0,
+};
+
+/// Outer glow / breathing aura token (TODO-008).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct GlowToken {
+    pub blur_radius_px: f32,
+    pub spread_px: f32,
+    pub color: RgbaToken,
+    pub breathing_period_ms: u32,
+}
+
+impl GlowToken {
+    pub const fn active_action(color: RgbaToken) -> Self {
+        Self {
+            blur_radius_px: 16.0,
+            spread_px: 2.0,
+            color,
+            breathing_period_ms: 2400,
+        }
     }
 }
 
@@ -559,5 +771,28 @@ mod tests {
         assert!(elevation::MEDIUM.blur_radius < elevation::HIGH.blur_radius);
         assert!(elevation::LOW.key_alpha <= elevation::MEDIUM.key_alpha);
         assert!(elevation::MEDIUM.key_alpha <= elevation::HIGH.key_alpha);
+    }
+
+    /// The ladder is exhaustive and monotonic: one probe cannot grade two
+    /// ways, and a slow probe can never select the fast ink.
+    #[test]
+    fn latency_grade_ladder_is_exhaustive_and_ordered() {
+        assert_eq!(LatencyGrade::from_millis(None), LatencyGrade::Unobserved);
+        assert_eq!(LatencyGrade::from_millis(Some(80)), LatencyGrade::Excellent);
+        assert_eq!(LatencyGrade::from_millis(Some(81)), LatencyGrade::Good);
+        assert_eq!(LatencyGrade::from_millis(Some(160)), LatencyGrade::Good);
+        assert_eq!(LatencyGrade::from_millis(Some(161)), LatencyGrade::Medium);
+        assert_eq!(LatencyGrade::from_millis(Some(300)), LatencyGrade::Medium);
+        assert_eq!(LatencyGrade::from_millis(Some(301)), LatencyGrade::Poor);
+        assert_eq!(LatencyGrade::from_millis(Some(4277)), LatencyGrade::Poor);
+        // An unobserved probe takes the dead ink, never the success ink.
+        assert_eq!(
+            LatencyGrade::Unobserved.token(&LATENCY_GRADE_PALETTE),
+            LATENCY_GRADE_PALETTE.timeout
+        );
+        assert_ne!(
+            LatencyGrade::Poor.token(&LATENCY_GRADE_PALETTE),
+            LATENCY_GRADE_PALETTE.excellent
+        );
     }
 }

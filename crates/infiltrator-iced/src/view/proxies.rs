@@ -22,6 +22,7 @@ use crate::view::{proxies_controls, svg_icons, theme};
 use iced::advanced::widget::Id;
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Shadow, Theme, Vector, border};
+use infiltrator_contract::shared_copy::SharedCopyKey;
 use infiltrator_shared::country_flags::node_flag_emoji;
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::outbound::details::OutboundCollectionKind;
@@ -44,11 +45,11 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     // ------------------------------------------------------------------
     let test_all_btn: Element<'_, Message> = if state.runtime.outbound_probe_batch.is_running() {
         container(
-            text(lang.tr("runtime_delay_testing_all"))
-                .size(12)
-                .style(|t: &Theme| text::Style {
+            theme::role_body_text(lang.tr("runtime_delay_testing_all")).style(|t: &Theme| {
+                text::Style {
                     color: Some(tokens(t).text_secondary),
-                }),
+                }
+            }),
         )
         .padding([7, 12])
         .style(pill_surface)
@@ -57,11 +58,11 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         button(
             row![
                 svg_icons::icon_themed(Icon::Zap, 13.0, |t: &Theme| tokens(t).text_secondary),
-                text(lang.tr("runtime_delay_test_all"))
-                    .size(12)
-                    .style(|t: &Theme| text::Style {
+                theme::role_body_text(lang.tr("runtime_delay_test_all")).style(|t: &Theme| {
+                    text::Style {
                         color: Some(tokens(t).text_secondary),
-                    }),
+                    }
+                }),
             ]
             .spacing(6)
             .align_y(Alignment::Center),
@@ -81,11 +82,9 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let add_node_btn = button(
         row![
             svg_icons::icon_themed(Icon::Plus, 13.0, |t: &Theme| tokens(t).text_secondary),
-            text(lang.tr("proxies_add_node_btn"))
-                .size(12)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_secondary),
-                }),
+            theme::role_body_text(lang.tr("proxies_add_node_btn")).style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary),
+            }),
         ]
         .spacing(4)
         .align_y(Alignment::Center),
@@ -226,13 +225,10 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         let group_header = row![
             icon_tile,
             column![
-                text(group_name)
-                    .size(15)
-                    .font(theme::FONT_SEMIBOLD)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_primary),
-                    }),
-                text(subtitle).size(12).style(|t: &Theme| text::Style {
+                theme::role_body_text(group_name).style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_primary),
+                }),
+                theme::role_body_text(subtitle).style(|t: &Theme| text::Style {
                     color: Some(tokens(t).text_secondary),
                 }),
             ]
@@ -315,6 +311,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 }
 
 fn outbound_probe_batch_card(state: &AppState) -> Option<Element<'_, Message>> {
+    let lang = Lang(&state.shell.lang);
     let close = icon_button(Icon::X, 13.0, Message::DismissOutboundProbeBatch);
     let card = match &state.runtime.outbound_probe_batch {
         OutboundProbeBatchState::Idle => return None,
@@ -331,7 +328,7 @@ fn outbound_probe_batch_card(state: &AppState) -> Option<Element<'_, Message>> {
             };
             container(
                 row![
-                    text(title).size(13),
+                    theme::role_body_text(title),
                     Space::new().width(Length::Fill),
                     close,
                 ]
@@ -381,12 +378,12 @@ fn outbound_probe_batch_card(state: &AppState) -> Option<Element<'_, Message>> {
                         format!("{name}: {}", failure.message)
                     }
                 };
-                rows = rows.push(text(result).size(12));
+                rows = rows.push(theme::role_body_text(result));
             }
             container(
                 column![
                     row![
-                        text(title).size(13),
+                        theme::role_body_text(title),
                         Space::new().width(Length::Fill),
                         close
                     ]
@@ -400,12 +397,13 @@ fn outbound_probe_batch_card(state: &AppState) -> Option<Element<'_, Message>> {
             request, failure, ..
         } => {
             let retry = state.outbound_probe_batch_message(request.target_scope().clone());
-            let retry_button = button(text("Retry").size(12))
+            let retry_label = Localizer::tr(&lang, SharedCopyKey::CommonRetry.key());
+            let retry_button = button(theme::role_body_text(retry_label))
                 .padding([5, 10])
                 .on_press_maybe(retry);
             container(
                 row![
-                    text(failure.message.clone()).size(12),
+                    theme::role_body_text(failure.message.clone()),
                     Space::new().width(Length::Fill),
                     retry_button,
                     close,

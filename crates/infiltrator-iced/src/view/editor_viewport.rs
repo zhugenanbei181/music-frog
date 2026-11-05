@@ -17,7 +17,7 @@
 
 use crate::types::message::Message;
 use crate::view::theme;
-use crate::view::theme::{MONO, tokens};
+use crate::view::theme::tokens;
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::advanced::text::{LineHeight, Wrapping};
 use iced::border::Radius;
@@ -114,8 +114,6 @@ pub fn editor_element<'a>(
         editor
     };
     editor
-        .font(MONO)
-        .size(12.0)
         .line_height(LineHeight::Absolute(Pixels(EDITOR_LINE_HEIGHT_PX)))
         .padding(EDITOR_PADDING_PX as u16)
         .wrapping(Wrapping::None)
@@ -143,9 +141,7 @@ fn gutter_row<'a>(line: usize, indent_level: usize) -> Element<'a, Message> {
     container(
         row![
             container(
-                text(format!("{line:>3}"))
-                    .size(10)
-                    .font(MONO)
+                theme::role_body_text(format!("{line:>3}"))
                     .line_height(LineHeight::Absolute(Pixels(EDITOR_LINE_HEIGHT_PX)))
                     .style(number_style),
             )
@@ -219,7 +215,7 @@ pub fn viewport_label(
         color: Some(tokens(t).text_tertiary),
     };
     Some(
-        container(text(label).size(10).font(MONO).style(style))
+        container(theme::role_body_text(label).style(style))
             .padding([3, 8])
             .style(|t: &Theme| {
                 let tk = tokens(t);

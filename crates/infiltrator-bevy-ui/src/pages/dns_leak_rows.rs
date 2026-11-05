@@ -13,8 +13,9 @@ use bevy::ui::{Display, FlexDirection, Node, percent};
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_presentation::dns_leak_projection::{LeakDisplay, LeakRow, project_leak};
 use infiltrator_shared::locales::Lang;
 use std::collections::HashMap;
@@ -47,7 +48,7 @@ pub fn rows_scene(display: &LeakDisplay, palette: &UiPalette) -> impl Scene + us
         Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(space::S8) }
         LeakRows
         Children [
-            Text({ display.empty.clone() }) LeakEmpty TextRole(Role::Caption)
+            Text({ display.empty.clone() }) LeakEmpty TextRole(design_resources::TextRole::Caption)
             --
             { rows }
         ]
@@ -60,9 +61,9 @@ fn row_scene(row: &LeakRow, palette: &UiPalette) -> impl Scene + use<> {
         Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(space::S4) }
         LeakRowIdentity({ id.0.clone() }, { id.1.clone() }, { id.2.clone() })
         Children [
-            Text(source) LeakRowLabel({ id.clone() }, false) TextRole(Role::Mono)
+            Text(source) LeakRowLabel({ id.clone() }, false) TextRole(design_resources::TextRole::Mono)
             --
-            Text({ row.outcome.clone() }) LeakRowLabel(id, true) TextRole(Role::Body)
+            Text({ row.outcome.clone() }) LeakRowLabel(id, true) TextRole(design_resources::TextRole::Body)
             TextColor({ tone_color(row.tone, palette) })
         ]
     }

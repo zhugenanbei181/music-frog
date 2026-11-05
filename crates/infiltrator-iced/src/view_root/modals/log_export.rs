@@ -3,10 +3,11 @@ use super::card::{modal_backdrop, modal_card};
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::view::component_forms::{style_accent, style_ghost};
-use crate::view::theme::{FONT_SEMIBOLD, tokens};
+use crate::view::theme;
+use crate::view::theme::tokens;
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::advanced::text::{Renderer, Wrapping};
-use iced::widget::{Scrollable, Space, button, column, container, row, text};
+use iced::widget::{Scrollable, Space, button, column, container, row};
 use iced::{Border, Element, Font, Length, Theme};
 use infiltrator_presentation::log_export_projection::project_log_export;
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -17,7 +18,7 @@ pub(crate) fn content<'a, R: Renderer<Font = Font> + 'a>(
     let model = &state.diag.log_export;
     let view = project_log_export(model, &Lang(&state.shell.lang));
     let lang = Lang(&state.shell.lang);
-    let status = container(text(view.status).size(12).width(Length::Fill))
+    let status = container(theme::role_body_text(view.status).width(Length::Fill))
         .padding(8)
         .width(Length::Fill)
         .style(move |theme: &Theme| container::Style {
@@ -31,11 +32,10 @@ pub(crate) fn content<'a, R: Renderer<Font = Font> + 'a>(
         .id(InteractionRegion::LogExportStatus.id());
     let body = column![
         status,
-        container(text(view.details).size(12).width(Length::Fill))
+        container(theme::role_body_text(view.details).width(Length::Fill))
             .id(InteractionRegion::LogExportDetails.id()),
         container(
-            text(view.path)
-                .size(12)
+            theme::role_body_text(view.path)
                 .width(Length::Fill)
                 .wrapping(Wrapping::Glyph)
         )
@@ -45,14 +45,13 @@ pub(crate) fn content<'a, R: Renderer<Font = Font> + 'a>(
     .width(Length::Fill);
     let mut actions = row![
         container(
-            button(
-                text(lang.tr(if model.receipt().is_some() {
+            button(theme::role_body_text(lang.tr(
+                if model.receipt().is_some() {
                     "logs_export_close"
                 } else {
                     "logs_export_cancel"
-                }))
-                .size(12)
-            )
+                }
+            )))
             .style(style_ghost)
             .on_press_maybe(view.close.then_some(Message::CancelLogExport))
         )
@@ -63,7 +62,7 @@ pub(crate) fn content<'a, R: Renderer<Font = Font> + 'a>(
     if view.confirm {
         actions = actions.push(
             container(
-                button(text(lang.tr("logs_export_confirm")).size(12))
+                button(theme::role_body_text(lang.tr("logs_export_confirm")))
                     .style(style_accent)
                     .on_press(Message::ConfirmLogExport),
             )
@@ -73,7 +72,7 @@ pub(crate) fn content<'a, R: Renderer<Font = Font> + 'a>(
     if view.retry {
         actions = actions.push(
             container(
-                button(text(lang.tr("logs_export_retry")).size(12))
+                button(theme::role_body_text(lang.tr("logs_export_retry")))
                     .style(style_accent)
                     .on_press(Message::RetryLogExport),
             )
@@ -81,9 +80,7 @@ pub(crate) fn content<'a, R: Renderer<Font = Font> + 'a>(
         );
     }
     column![
-        text(lang.tr("logs_export_title"))
-            .size(17)
-            .font(FONT_SEMIBOLD),
+        theme::role_body_text(lang.tr("logs_export_title")),
         Scrollable::new(body).height(Length::Fixed(
             (state.shell.viewport.height_px - 210.0).clamp(90.0, 240.0)
         )),

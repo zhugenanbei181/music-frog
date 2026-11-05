@@ -1,17 +1,24 @@
-/// Headless integration tests for the 4-tier responsive breakpoint and multi-end adaptive layout engine.
 use bevy::MinimalPlugins;
 use bevy::app::{App, Startup, Update};
 use bevy::asset::AssetPlugin;
+use bevy::camera::NormalizedRenderTarget;
+use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::query::With;
 use bevy::ecs::system::{Commands, Res};
+use bevy::math::Vec2;
+use bevy::picking::events::{Pointer, PointerDrag, PointerDragEnd};
+use bevy::picking::pointer::{Location, PointerButton, PointerId};
 use bevy::scene::{CommandsSceneExt, Scene, ScenePlugin, bsn};
-use bevy::ui::prelude::{Display, FlexDirection, JustifyContent, Node, Val, percent};
+use bevy::ui::prelude::{
+    Display, FlexDirection, JustifyContent, Node, UiTransform, Val, Val2, percent,
+};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
 use infiltrator_bevy_widgets::WidgetsPlugin;
 use infiltrator_bevy_widgets::adaptive_modal::{
-    AdaptiveModalRoot, CloseModal, ModalCard, OpenModal, adaptive_modal_scene,
+    AdaptiveModalRoot, CloseModal, ModalCard, ModalState, ModalSwipeHandle, OpenModal,
+    adaptive_modal_scene,
 };
 use infiltrator_bevy_widgets::fluid_grid::{
     FluidCardGrid, FluidGridConfig, FluidGridItem, fluid_card_grid_scene, sync_fluid_grid_layout,
@@ -20,6 +27,8 @@ use infiltrator_bevy_widgets::master_detail::{
     DetailPane, MasterDetailState, MasterDetailView, MasterItemButton, MasterItemSelected,
     MasterPane, master_back_button_scene, master_detail_scene,
 };
+/// Headless integration tests for the 4-tier responsive breakpoint and multi-end adaptive layout engine.
+use infiltrator_bevy_widgets::modal::ModalStage;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::responsive::{
@@ -533,6 +542,86 @@ fn adaptive_modal_morphology_actionsheet_and_dialog() {
         let world = app.world_mut();
         let mut roots = world.query_filtered::<&Node, With<AdaptiveModalRoot>>();
         assert_eq!(roots.iter(world).next().unwrap().display, Display::None);
+    }
+}
+
+#[test]
+fn action_sheet_swipe_down_uses_the_official_close_path() {
+    let mut app = headless_app();
+    app.world_mut()
+        .insert_resource(ResponsiveContext::new(375.0, 667.0));
+
+    app.world_mut().commands().spawn_scene(adaptive_modal_scene(
+        "Test Modal".to_owned(),
+        "Close".to_owned(),
+        Box::new(bsn! {
+            Text({ "Modal Body Content".to_owned() })
+        }),
+        Vec::<Box<dyn Scene>>::new(),
+        &UiPalette::new(&Theme::dark()),
+    ));
+    app.update();
+    app.world_mut().commands().trigger(OpenModal);
+    app.update();
+
+    let handle = app
+        .world_mut()
+        .query_filtered::<Entity, With<ModalSwipeHandle>>()
+        .single(app.world())
+        .expect("compact ActionSheet mounts its drag handle");
+    let pointer = Pointer::new(
+        PointerId::Mouse,
+        Location {
+            target: NormalizedRenderTarget::None {
+                width: 0,
+                height: 0,
+            },
+            position: Vec2::ZERO,
+        },
+    );
+
+    // A small drag follows the finger, then springs back without dismissing.
+    app.world_mut().trigger(PointerDrag {
+        entity: handle,
+        pointer: pointer.clone(),
+        button: PointerButton::Primary,
+        distance: Vec2::new(0.0, 32.0),
+        delta: Vec2::new(0.0, 32.0),
+    });
+    app.update();
+    {
+        let world = app.world_mut();
+        let mut cards = world.query_filtered::<&UiTransform, With<ModalCard>>();
+        let card = cards.iter(world).next().unwrap();
+        assert_eq!(card.translation, Val2::new(Val::ZERO, rem(32.0)));
+    }
+    app.world_mut().trigger(PointerDragEnd {
+        entity: handle,
+        pointer: pointer.clone(),
+        button: PointerButton::Primary,
+        distance: Vec2::new(0.0, 32.0),
+    });
+    app.update();
+    assert_eq!(app.world().resource::<ModalState>().stage, ModalStage::Open);
+
+    // A dominant downward drag past the threshold asks the official dialog
+    // layer to close; the card returns to its resting transform.
+    app.world_mut().trigger(PointerDragEnd {
+        entity: handle,
+        pointer,
+        button: PointerButton::Primary,
+        distance: Vec2::new(0.0, 96.0),
+    });
+    app.update();
+    assert_eq!(
+        app.world().resource::<ModalState>().stage,
+        ModalStage::Dismissed
+    );
+    {
+        let world = app.world_mut();
+        let mut cards = world.query_filtered::<&UiTransform, With<ModalCard>>();
+        let card = cards.iter(world).next().unwrap();
+        assert_eq!(card.translation, Val2::ZERO);
     }
 }
 

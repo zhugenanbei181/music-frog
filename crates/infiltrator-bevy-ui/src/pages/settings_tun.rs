@@ -23,8 +23,9 @@ use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_presentation::settings_status_projection::optional_copy;
 use infiltrator_shared::locales::Lang;
 
@@ -42,7 +43,7 @@ pub(super) fn card(projection: &SettingsProjection, palette: &UiPalette) -> impl
                                 padding: UiRect::bottom(rem(space::S8)),
                             }
                             Children [
-                                LocalizedText::plain("settings_tun_mode_title") TextRole(Role::BodyStrong)
+                                LocalizedText::plain("settings_tun_mode_title") TextRole(design_resources::TextRole::BodyStrong)
                             ]
             }),
             Box::new(bsn! {
@@ -72,9 +73,9 @@ pub(super) fn card(projection: &SettingsProjection, palette: &UiPalette) -> impl
                                 }
                                 ThemeBackgroundColor({ Token::SurfaceElevated })
                                 Children [
-                                    LocalizedText::plain("settings_tun_stack_title") TextRole(Role::Body)
+                                    LocalizedText::plain("settings_tun_stack_title") TextRole(design_resources::TextRole::Body)
                                     --
-                                    Text(stack_str) SettingsLine(SettingsLineKind::TunStack) TextRole(Role::Body)
+                                    Text(stack_str) SettingsLine(SettingsLineKind::TunStack) TextRole(design_resources::TextRole::Body)
                                 ]
                             ]
             }),

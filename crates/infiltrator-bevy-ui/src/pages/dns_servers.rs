@@ -20,8 +20,9 @@ use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::dns_latency::DnsLatencyReport;
 use infiltrator_presentation::dns_latency_projection::{project_dns_latency, server_tags_text};
 use infiltrator_presentation::latency_projection::project_measured_latency;
@@ -58,9 +59,9 @@ pub(crate) fn servers_card_scene(
                                 padding: UiRect::bottom(rem(space::S8)),
                             }
                             Children [
-                                LocalizedText::plain("dns_nameservers_title") TextRole(Role::BodyStrong)
+                                LocalizedText::plain("dns_nameservers_title") TextRole(design_resources::TextRole::BodyStrong)
                                 --
-                                LocalizedText::plain("dns_nameservers_hint") TextRole(Role::Caption)
+                                LocalizedText::plain("dns_nameservers_hint") TextRole(design_resources::TextRole::Caption)
                             ]
             }),
             Box::new(bsn! {
@@ -72,7 +73,7 @@ pub(crate) fn servers_card_scene(
                             Children [
                                 Text(latency_label)
                                 DnsLine(DnsLineKind::LatencyPolicy)
-                                TextRole(Role::Caption)
+                                TextRole(design_resources::TextRole::Caption)
                             ]
             }),
             Box::new(bsn! {
@@ -85,7 +86,7 @@ pub(crate) fn servers_card_scene(
                             Children [
                                 Text(latency_results)
                                 DnsLine(DnsLineKind::LatencyResults)
-                                TextRole(Role::Mono)
+                                TextRole(design_resources::TextRole::Mono)
                             ]
             }),
             Box::new(bsn! {
@@ -136,16 +137,16 @@ pub(crate) fn server_row_scene(
                     row_gap: rem(space::S4),
                 }
                 Children [
-                    Text(addr) DnsServerAddress(idx) TextRole(Role::BodyStrong)
+                    Text(addr) DnsServerAddress(idx) TextRole(design_resources::TextRole::BodyStrong)
                     --
-                    Text(proto_str) DnsServerProto(idx) TextRole(Role::Caption)
+                    Text(proto_str) DnsServerProto(idx) TextRole(design_resources::TextRole::Caption)
                     --
-                    Text(tag_str) DnsLine(DnsLineKind::ServerTags(idx)) TextRole(Role::Caption)
+                    Text(tag_str) DnsLine(DnsLineKind::ServerTags(idx)) TextRole(design_resources::TextRole::Caption)
                 ]
                 --
                 LocalizedText::new(caption.key,caption.params)
                 DnsServerLatency(idx)
-                TextRole(Role::Mono)
+                TextRole(design_resources::TextRole::Mono)
                 TextColor(lat_col)
             ]
     }

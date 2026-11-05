@@ -38,6 +38,41 @@ fn overview_public_ip_probe_card_mounts_and_updates_in_place() {
     }));
 }
 
+/// The hero's exit facts are another projection consumer, not a second
+/// business source: the same typed public-IP refresh updates them in place.
+#[test]
+fn overview_hero_exit_facts_restamp_with_public_ip_snapshot() {
+    let mut app = mounted_default();
+    let mut projection = DemoOverviewSource::running().current();
+    projection.public_ip = PublicIpProbeSnapshot::failed(1, 2, "network timeout");
+    app.world_mut()
+        .commands()
+        .trigger(OverviewProjectionUpdated(projection));
+    app.update();
+
+    let world = app.world_mut();
+    let mut texts = world.query::<(&PublicIpText, &Text)>();
+    let values: Vec<_> = texts
+        .iter(world)
+        .map(|(marker, text)| (marker.0, text.0.clone()))
+        .collect();
+    assert!(
+        values
+            .iter()
+            .any(|(kind, text)| { *kind == PublicIpTextKind::Ip && text == "—" })
+    );
+    assert!(
+        values
+            .iter()
+            .any(|(kind, text)| { *kind == PublicIpTextKind::Location && text == "—" })
+    );
+    assert!(
+        values
+            .iter()
+            .any(|(kind, text)| { *kind == PublicIpTextKind::Isp && text == "—" })
+    );
+}
+
 #[test]
 fn overview_public_ip_refresh_button_submits_refresh_command() {
     let sink = Arc::new(DemoCommandSink::accepting());
@@ -66,4 +101,38 @@ fn overview_public_ip_refresh_button_submits_refresh_command() {
     app.update();
 
     assert!(sink.submitted().contains(&UiCommand::RefreshPublicIpProbe));
+}
+
+/// The hero's exit address rides the same marker as the probe card's, so the
+/// page's one refresh pass restamps the banner too. A hero that keeps the
+/// address it read at mount is a second, staler copy of one fact.
+#[test]
+fn overview_hero_exit_address_restamps_with_the_public_ip_snapshot() {
+    let mut app = mounted_default();
+    let banner = {
+        let world = app.world_mut();
+        let mut banners = world.query::<(Entity, &OverviewStatusCard)>();
+        banners.iter(world).next().expect("the hero band mounts").0
+    };
+
+    let mut projection = DemoOverviewSource::running().current();
+    projection.public_ip = PublicIpProbeSnapshot::failed(1, 2, "network timeout");
+    app.world_mut()
+        .commands()
+        .trigger(OverviewProjectionUpdated(projection));
+    app.update();
+
+    let world = app.world_mut();
+    let inside = descendants(world, banner);
+    let mut facts = world.query::<(Entity, &PublicIpText, &Text)>();
+    let hero: Vec<(PublicIpTextKind, String)> = facts
+        .iter(world)
+        .filter(|(entity, ..)| inside.contains(entity))
+        .map(|(_, marker, text)| (marker.0, text.0.clone()))
+        .collect();
+    assert!(
+        hero.iter()
+            .any(|(kind, text)| { *kind == PublicIpTextKind::Ip && text == "—" }),
+        "the hero must follow the failed probe, got {hero:?}"
+    );
 }

@@ -26,7 +26,7 @@
 
 use crate::button::{ButtonVariant, button_scene};
 use crate::palette::{UiPalette, rem};
-use crate::text::{Role, TextRole};
+use crate::text::TextRole;
 use crate::theme::space;
 use bevy::app::{App, Plugin, Update};
 use bevy::camera::visibility::Visibility;
@@ -57,6 +57,7 @@ use bevy::ui_widgets::popover::{
 use bevy::ui_widgets::{
     MenuAction, MenuButton, MenuEvent, MenuFocusState, MenuItem, MenuLayout, MenuPlugin, MenuPopup,
 };
+use infiltrator_contract::design_resources;
 
 /// Panel width (px) — a context menu is a word-scale surface, not a card.
 pub const MENU_WIDTH: f32 = 220.0;
@@ -282,7 +283,11 @@ fn menu_row_scene(entry: &MenuEntry, index: usize, palette: &UiPalette) -> Box<d
             let label = label.clone();
             // Dim ink for the honest unavailable state; body ink otherwise.
             // The role marker drives the ink — no literal color here.
-            let role = if *enabled { Role::Body } else { Role::Caption };
+            let role = if *enabled {
+                design_resources::TextRole::Body
+            } else {
+                design_resources::TextRole::Caption
+            };
             let fill = menu_row_fill(false, palette);
             Box::new(bsn! {
                             Node {

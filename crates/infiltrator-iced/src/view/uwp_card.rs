@@ -7,7 +7,7 @@ use crate::view::component_card::card;
 use crate::view::component_forms::{style_accent, style_ghost};
 use crate::view::components::{BadgeKind, badge, modern_scrollable};
 use crate::view::svg_icons::Icon;
-use crate::view::theme::{FONT_MEDIUM, tokens};
+use crate::view::theme::tokens;
 use crate::view::{svg_icons, theme};
 use iced::widget::{Column, Space, button, column, container, row, text};
 use iced::{Alignment, Border, Element, Length, Theme, border};
@@ -52,9 +52,7 @@ pub fn uwp_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message
         row![
             svg_icons::icon_themed(Icon::Search, 12.0, |t: &Theme| tokens(t).text_secondary),
             Space::new().width(theme::SP_XS),
-            text(lang.tr("uwp_btn_scan").to_string())
-                .size(11)
-                .font(FONT_MEDIUM),
+            theme::role_body_text(lang.tr("uwp_btn_scan").to_string()),
         ]
         .align_y(Alignment::Center),
     )
@@ -66,9 +64,7 @@ pub fn uwp_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message
         row![
             svg_icons::icon_themed(Icon::ListChecks, 12.0, |t: &Theme| tokens(t).on_accent),
             Space::new().width(theme::SP_XS),
-            text(lang.tr("uwp_btn_exempt_all").to_string())
-                .size(11)
-                .font(FONT_MEDIUM),
+            theme::role_body_text(lang.tr("uwp_btn_exempt_all").to_string()),
         ]
         .align_y(Alignment::Center),
     )
@@ -80,9 +76,7 @@ pub fn uwp_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message
         row![
             svg_icons::icon_themed(Icon::Trash2, 12.0, |t: &Theme| tokens(t).danger),
             Space::new().width(theme::SP_XS),
-            text(lang.tr("uwp_btn_clear_all").to_string())
-                .size(11)
-                .font(FONT_MEDIUM),
+            theme::role_body_text(lang.tr("uwp_btn_clear_all").to_string()),
         ]
         .align_y(Alignment::Center),
     )
@@ -142,8 +136,7 @@ pub fn uwp_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message
         Some(lang.tr("uwp_title").to_string()),
         column![
             row![
-                text(lang.tr("uwp_desc").to_string())
-                    .size(12)
+                theme::role_body_text(lang.tr("uwp_desc").to_string())
                     .style(|t: &Theme| text::Style {
                         color: Some(tokens(t).text_secondary)
                     })
@@ -155,7 +148,7 @@ pub fn uwp_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message
                 clear_all_btn,
             ]
             .align_y(Alignment::Center),
-            text(availability).size(11).style(|t: &Theme| text::Style {
+            theme::role_body_text(availability).style(|t: &Theme| text::Style {
                 color: Some(tokens(t).text_secondary),
             }),
             Space::new().height(theme::SP_XS),

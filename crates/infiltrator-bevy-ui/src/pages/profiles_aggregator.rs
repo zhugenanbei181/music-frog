@@ -8,6 +8,7 @@
 //! synthesizes groups locally.
 
 use bevy::feathers::theme::ThemeBackgroundColor;
+use infiltrator_contract::design_resources;
 use infiltrator_presentation::aggregation_preview_projection::{
     aggregation_counters, aggregation_custom_groups, aggregation_groups, aggregation_regions,
     aggregation_templates, aggregation_yaml_preview,
@@ -37,7 +38,7 @@ use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::{UiPalette, rem};
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::aggregator::{
     AggregationDraft, AggregationRenameRule, AggregationReport,
@@ -301,7 +302,7 @@ pub fn profiles_aggregator_scene(
                                 Children [
                                     @{ icon_tile_scene(IconId::FileText, 24.0, palette) }
                                     --
-                                    LocalizedText::plain("profiles_aggregator_title") TextRole(Role::BodyStrong)
+                                    LocalizedText::plain("profiles_aggregator_title") TextRole(design_resources::TextRole::BodyStrong)
                                 ]
                                 --
                                 Node {
@@ -320,7 +321,7 @@ pub fn profiles_aggregator_scene(
                                     Button
                                     PreviewAggregationButton
                                     Children [
-                                        LocalizedText::plain("aggregator_btn_preview") TextRole(Role::Body)
+                                        LocalizedText::plain("aggregator_btn_preview") TextRole(design_resources::TextRole::Body)
                                     ]
                                     --
                                     Node {
@@ -334,7 +335,7 @@ pub fn profiles_aggregator_scene(
                                     Button
                                     SaveAggregatedProfileButton
                                     Children [
-                                        LocalizedText::plain("aggregator_btn_save") TextRole(Role::BodyStrong)
+                                        LocalizedText::plain("aggregator_btn_save") TextRole(design_resources::TextRole::BodyStrong)
                                     ]
                                 ]
                             ]
@@ -393,7 +394,7 @@ pub fn profiles_aggregator_scene(
                                 Button
                                 AddAggregatorCustomGroupButton
                                 Children [
-                                    LocalizedText::plain("profiles_aggregator_add_group") TextRole(Role::Body)
+                                    LocalizedText::plain("profiles_aggregator_add_group") TextRole(design_resources::TextRole::Body)
                                 ]
                                 --
                                 Node {
@@ -407,7 +408,7 @@ pub fn profiles_aggregator_scene(
                                 Button
                                 ClearAggregatorCustomGroupsButton
                                 Children [
-                                    LocalizedText::plain("profiles_aggregator_clear_groups") TextRole(Role::Body)
+                                    LocalizedText::plain("profiles_aggregator_clear_groups") TextRole(design_resources::TextRole::Body)
                                 ]
                             ]
             }),
@@ -449,7 +450,7 @@ pub fn profiles_aggregator_scene(
                                 Button
                                 SaveAggregationTemplateButton
                                 Children [
-                                    LocalizedText::plain("aggregator_template_save") TextRole(Role::Body)
+                                    LocalizedText::plain("aggregator_template_save") TextRole(design_resources::TextRole::Body)
                                 ]
                                 --
                                 Node {
@@ -463,7 +464,7 @@ pub fn profiles_aggregator_scene(
                                 Button
                                 UseAggregationTemplateButton
                                 Children [
-                                    LocalizedText::plain("profiles_aggregator_reuse_template") TextRole(Role::Body)
+                                    LocalizedText::plain("profiles_aggregator_reuse_template") TextRole(design_resources::TextRole::Body)
                                 ]
                                 --
                                 Node {
@@ -477,7 +478,7 @@ pub fn profiles_aggregator_scene(
                                 Button
                                 ReAggregateTemplateButton
                                 Children [
-                                    LocalizedText::plain("aggregator_template_reaggregate") TextRole(Role::Body)
+                                    LocalizedText::plain("aggregator_template_reaggregate") TextRole(design_resources::TextRole::Body)
                                 ]
                                 --
                                 Node {
@@ -491,7 +492,7 @@ pub fn profiles_aggregator_scene(
                                 Button
                                 DeleteAggregationTemplateButton
                                 Children [
-                                    LocalizedText::plain("profiles_aggregator_delete_template") TextRole(Role::Body)
+                                    LocalizedText::plain("profiles_aggregator_delete_template") TextRole(design_resources::TextRole::Body)
                                 ]
                             ]
             }),
@@ -505,31 +506,31 @@ pub fn profiles_aggregator_scene(
                             Children [
                                 Text({ counters.clone() })
                                 AggregatorPreviewText(AggregatorPreviewKind::Counters)
-                                TextRole(Role::Caption)
+                                TextRole(design_resources::TextRole::Caption)
                                 --
                                 Text({ regions.clone() })
                                 AggregatorPreviewText(AggregatorPreviewKind::Regions)
-                                TextRole(Role::Caption)
+                                TextRole(design_resources::TextRole::Caption)
                                 --
                                 Text({ groups.clone() })
                                 AggregatorPreviewText(AggregatorPreviewKind::Groups)
-                                TextRole(Role::Caption)
+                                TextRole(design_resources::TextRole::Caption)
                                 --
                                 Text({ yaml.clone() })
                                 AggregatorPreviewText(AggregatorPreviewKind::Yaml)
-                                TextRole(Role::Caption)
+                                TextRole(design_resources::TextRole::Caption)
                                 --
                                 Text({ templates.clone() })
                                 AggregatorPreviewText(AggregatorPreviewKind::Templates)
-                                TextRole(Role::Caption)
+                                TextRole(design_resources::TextRole::Caption)
                                 --
                                 Text({ custom_groups.clone() })
                                 AggregatorCustomGroupsText
-                                TextRole(Role::Caption)
+                                TextRole(design_resources::TextRole::Caption)
                                 --
                                 LocalizedText::plain("profiles_aggregator_wizard_hint")
                                 AggregatorStatusText
-                                TextRole(Role::Caption)
+                                TextRole(design_resources::TextRole::Caption)
                             ]
             }),
             Box::new(bsn! {
@@ -540,7 +541,7 @@ pub fn profiles_aggregator_scene(
                                 padding: UiRect::top(rem(space::S4)),
                             }
                             Children [
-                                LocalizedText::plain("profiles_aggregator_sources_label") TextRole(Role::BodyStrong)
+                                LocalizedText::plain("profiles_aggregator_sources_label") TextRole(design_resources::TextRole::BodyStrong)
                                 --
                                 { source_rows }
                             ]

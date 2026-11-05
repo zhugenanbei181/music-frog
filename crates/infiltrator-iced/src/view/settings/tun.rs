@@ -12,7 +12,7 @@ use crate::view::component_forms::{
 use crate::view::components::{BadgeKind, badge, icon_button, segmented_control_with_actions};
 use crate::view::svg_icons::Icon;
 use crate::view::theme;
-use crate::view::theme::{MONO, tokens};
+use crate::view::theme::tokens;
 use iced::widget::{Space, column, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_contract::runtime_control::RuntimeControlStatus;
@@ -100,11 +100,11 @@ pub(super) fn tun_card<'a>(
         Some(lang.tr("tun_mode").to_string()),
         column![
             row![
-                text(lang.tr("settings_tun_service_status").to_string())
-                    .size(13)
-                    .style(|t: &Theme| text::Style {
+                theme::role_body_text(lang.tr("settings_tun_service_status").to_string()).style(
+                    |t: &Theme| text::Style {
                         color: Some(tokens(t).text_primary)
-                    }),
+                    }
+                ),
                 Space::new().width(theme::SP_MD),
                 badge(
                     tun_status_text,
@@ -132,11 +132,11 @@ pub(super) fn tun_card<'a>(
             ]
             .align_y(Alignment::Center),
             row![
-                text(lang.tr("settings_service_mode_title").into_owned())
-                    .size(13)
-                    .style(|t: &Theme| text::Style {
+                theme::role_body_text(lang.tr("settings_service_mode_title").into_owned()).style(
+                    |t: &Theme| text::Style {
                         color: Some(tokens(t).text_primary)
-                    }),
+                    }
+                ),
                 Space::new().width(Length::Fill),
                 secondary_text(service_mode),
             ]
@@ -160,8 +160,6 @@ pub(super) fn tun_card<'a>(
                         Length::Fixed(120.0)
                     })
                     .padding([6, 10])
-                    .size(12)
-                    .font(MONO)
                     .style(form_input_style),
             ),
             responsive_form_toggle_row_with_actions(

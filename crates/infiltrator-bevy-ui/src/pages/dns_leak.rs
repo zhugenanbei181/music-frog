@@ -30,8 +30,9 @@ use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::dns_leak::DnsLeakReport;
 use infiltrator_presentation::dns_leak_projection::{LeakTone, project_leak};
 use infiltrator_shared::locales::Lang;
@@ -84,9 +85,9 @@ pub fn dns_leak_card_scene(projection: &DnsProjection, palette: &UiPalette) -> i
                 Box::new(bsn! {
                     Node { flex_direction: FlexDirection::Column, row_gap: rem(space::S8) }
                     Children [
-                        LocalizedText::plain("dns_leak_probe_title") TextRole(Role::BodyStrong)
+                        LocalizedText::plain("dns_leak_probe_title") TextRole(design_resources::TextRole::BodyStrong)
                         --
-                        LocalizedText::plain("dns_leak_probe_desc") TextRole(Role::Caption)
+                        LocalizedText::plain("dns_leak_probe_desc") TextRole(design_resources::TextRole::Caption)
                         --
                         Node { column_gap: rem(space::S8) }
                         Children [
@@ -95,7 +96,7 @@ pub fn dns_leak_card_scene(projection: &DnsProjection, palette: &UiPalette) -> i
                             @{ (localized_button_scene(LocalizedText::plain("dns_leak_btn_retry"), ButtonVariant::Default, palette), bsn! { RetryLeakButton }) }
                         ]
                         --
-                        Text::default() LeakFeedback TextRole(Role::Caption)
+                        Text::default() LeakFeedback TextRole(design_resources::TextRole::Caption)
                     ]
                 }),
                 Box::new(bsn! {
@@ -118,11 +119,11 @@ pub fn dns_leak_card_scene(projection: &DnsProjection, palette: &UiPalette) -> i
                                     Children [
                                         Text(conclusion)
                                         DnsLine(DnsLineKind::LeakConclusion)
-                                        TextRole(Role::BodyStrong)
+                                        TextRole(design_resources::TextRole::BodyStrong)
                                         TextColor(conclusion_color)
                                     ]
                                     --
-                                    Text(sources) DnsLine(DnsLineKind::LeakSources) TextRole(Role::Caption)
+                                    Text(sources) DnsLine(DnsLineKind::LeakSources) TextRole(design_resources::TextRole::Caption)
                                 ]
                 }),
                 Box::new(bsn! {

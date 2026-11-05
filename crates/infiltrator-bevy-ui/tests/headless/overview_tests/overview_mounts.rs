@@ -2,6 +2,7 @@
 //! test-intent: behavior
 
 use super::*;
+use infiltrator_contract::design_resources;
 
 /// The route mounts the Overview page as a child of the shell's content
 /// slot, exactly once; the shell's title row shows the 核心概览 heading
@@ -22,7 +23,7 @@ fn overview_mounts_under_the_content_slot() {
     let mut headings = world.query::<(&Text, &TextRole)>();
     let title = headings
         .iter(world)
-        .find(|(text, role)| role.0 == Role::Heading && text.0 == "核心概览");
+        .find(|(text, role)| role.0 == design_resources::TextRole::Heading && text.0 == "核心概览");
     assert!(
         title.is_some(),
         "the shell title row mounts the 核心概览 heading"

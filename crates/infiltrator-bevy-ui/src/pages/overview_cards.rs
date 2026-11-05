@@ -18,9 +18,10 @@ use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::feathers::theme::ThemeTextColor;
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
+use bevy::text::TextLayout;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, FlexWrap, JustifyContent, Node,
-    Overflow, UiRect, percent,
+    AlignItems, BackgroundColor, BorderRadius, Display, FlexDirection, FlexWrap, JustifyContent,
+    Node, Overflow, RepeatedGridTrack, UiRect, percent,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
@@ -31,9 +32,10 @@ use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLo
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::{radius, space};
 use infiltrator_contract::active_exit::ActiveExitSnapshot;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot;
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot};
 use infiltrator_presentation::routing_intent_projection::routing_intent_copy_key;
@@ -97,7 +99,7 @@ pub fn subscription_quota_scene_with_snapshot(
                         Children [
                             @{ icon_scene(IconId::FileText, 16.0, palette.accent) }
                             --
-                            LocalizedText::plain("overview_subscription_quota") TextRole(Role::Caption)
+                            LocalizedText::plain("overview_subscription_quota") TextRole(design_resources::TextRole::Caption)
                         ]
                         --
                         Node {
@@ -108,7 +110,7 @@ pub fn subscription_quota_scene_with_snapshot(
                             row_gap: rem(space::S4),
                         }
                         Children [
-                            Text({ profile }) SubscriptionQuotaText(SubscriptionQuotaTextKind::Profile) TextRole(Role::Heading)
+                            Text({ profile }) SubscriptionQuotaText(SubscriptionQuotaTextKind::Profile) TextRole(design_resources::TextRole::Heading)
                             --
                             Node {
                                 padding: UiRect::axes(rem(space::S8), rem(space::S2)),
@@ -117,7 +119,7 @@ pub fn subscription_quota_scene_with_snapshot(
                             ThemeBackgroundColor({ Token::AccentContainer })
                             AccentContainerFill
                             Children [
-                                Text({ expiry }) SubscriptionQuotaText(SubscriptionQuotaTextKind::Expiry) TextRole(Role::Caption) ThemeTextColor({ Token::Accent })
+                                Text({ expiry }) SubscriptionQuotaText(SubscriptionQuotaTextKind::Expiry) TextRole(design_resources::TextRole::Caption) ThemeTextColor({ Token::Accent })
                             ]
                         ]
                         --
@@ -126,7 +128,7 @@ pub fn subscription_quota_scene_with_snapshot(
                             align_items: AlignItems::Center,
                         }
                         Children [
-                            Text({ metrics }) SubscriptionQuotaText(SubscriptionQuotaTextKind::Metrics) TextRole(Role::Caption)
+                            Text({ metrics }) SubscriptionQuotaText(SubscriptionQuotaTextKind::Metrics) TextRole(design_resources::TextRole::Caption)
                         ]
                         --
                         Node {
@@ -154,9 +156,9 @@ pub fn subscription_quota_scene_with_snapshot(
                             justify_content: JustifyContent::SpaceBetween,
                         }
                         Children [
-                            Text({ reset }) SubscriptionQuotaText(SubscriptionQuotaTextKind::Reset) TextRole(Role::Caption)
+                            Text({ reset }) SubscriptionQuotaText(SubscriptionQuotaTextKind::Reset) TextRole(design_resources::TextRole::Caption)
                             --
-                            Text({ status }) SubscriptionQuotaText(SubscriptionQuotaTextKind::Status) TextRole(Role::Caption) TextColor({ status_color })
+                            Text({ status }) SubscriptionQuotaText(SubscriptionQuotaTextKind::Status) TextRole(design_resources::TextRole::Caption) TextColor({ status_color })
                         ]
                     ]
         })],
@@ -230,7 +232,7 @@ pub fn active_exit_node_scene_with_snapshot(
                             Children [
                                 @{ icon_scene(IconId::Globe, 16.0, palette.accent) }
                                 --
-                                LocalizedText::plain("overview_active_exit_title") TextRole(Role::Heading)
+                                LocalizedText::plain("overview_active_exit_title") TextRole(design_resources::TextRole::Heading)
                             ]
                             --
                             Node {
@@ -240,7 +242,7 @@ pub fn active_exit_node_scene_with_snapshot(
                             ThemeBackgroundColor({ Token::AccentContainer })
                             AccentContainerFill
                             Children [
-                                Text({ delay }) ActiveExitText(ActiveExitTextKind::Delay) TextRole(Role::Caption) TextColor({ delay_color })
+                                Text({ delay }) ActiveExitText(ActiveExitTextKind::Delay) TextRole(design_resources::TextRole::Caption) TextColor({ delay_color })
                             ]
                         ]
                         --
@@ -259,9 +261,9 @@ pub fn active_exit_node_scene_with_snapshot(
                                 column_gap: rem(space::S8),
                             }
                             Children [
-                                Text({ flag }) ActiveExitText(ActiveExitTextKind::Flag) TextRole(Role::BodyStrong)
+                                Text({ flag }) ActiveExitText(ActiveExitTextKind::Flag) TextRole(design_resources::TextRole::BodyStrong)
                                 --
-                                Text({ name }) ActiveExitText(ActiveExitTextKind::Name) TextRole(Role::BodyStrong)
+                                Text({ name }) ActiveExitText(ActiveExitTextKind::Name) TextRole(design_resources::TextRole::BodyStrong)
                             ]
                             --
                             Node {
@@ -269,9 +271,9 @@ pub fn active_exit_node_scene_with_snapshot(
                                 column_gap: rem(space::S6),
                             }
                             Children [
-                                Text({ protocol }) ActiveExitText(ActiveExitTextKind::Protocol) TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
+                                Text({ protocol }) ActiveExitText(ActiveExitTextKind::Protocol) TextRole(design_resources::TextRole::Caption) ThemeTextColor({ Token::InkDim })
                                 --
-                                Text({ group }) ActiveExitText(ActiveExitTextKind::Group) TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
+                                Text({ group }) ActiveExitText(ActiveExitTextKind::Group) TextRole(design_resources::TextRole::Caption) ThemeTextColor({ Token::InkDim })
                             ]
                         ]
                         --
@@ -279,7 +281,7 @@ pub fn active_exit_node_scene_with_snapshot(
                             width: percent(100),
                         }
                         Children [
-                            Text({ status }) ActiveExitText(ActiveExitTextKind::Status) TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
+                            Text({ status }) ActiveExitText(ActiveExitTextKind::Status) TextRole(design_resources::TextRole::Caption) ThemeTextColor({ Token::InkDim })
                         ]
                     ]
         })],
@@ -371,7 +373,7 @@ fn single_master_card_scene(
                             Children [
                                 @{ icon_scene(icon, 16.0, palette.accent) }
                                 --
-                                LocalizedText::plain(title) TextRole(Role::BodyStrong)
+                                LocalizedText::plain(title) TextRole(design_resources::TextRole::BodyStrong)
                             ]
                             --
                             Node {
@@ -390,7 +392,7 @@ fn single_master_card_scene(
                                 }
                                 BackgroundColor({ dot_color })
                                 --
-                                Text({ status_text }) OverviewMasterSwitchText { toggle, kind: OverviewMasterSwitchTextKind::Status } TextRole(Role::Caption) TextColor({ status_color })
+                                Text({ status_text }) OverviewMasterSwitchText { toggle, kind: OverviewMasterSwitchTextKind::Status } TextRole(design_resources::TextRole::Caption) TextColor({ status_color })
                             ]
                         ]
                         --
@@ -400,7 +402,7 @@ fn single_master_card_scene(
                             justify_content: JustifyContent::SpaceBetween,
                         }
                         Children [
-                            LocalizedText::plain(desc) TextRole(Role::Caption) ThemeTextColor({ Token::InkDim })
+                            LocalizedText::plain(desc) TextRole(design_resources::TextRole::Caption) ThemeTextColor({ Token::InkDim })
                             --
                             Node {
                                 padding: UiRect::axes(rem(space::S8), rem(space::S2)),
@@ -410,7 +412,7 @@ fn single_master_card_scene(
                             Button
                             ThemeBackgroundColor({ Token::AccentContainer })
                             Children [
-                                Text({ action_text }) OverviewMasterSwitchText { toggle, kind: OverviewMasterSwitchTextKind::Action } TextRole(Role::Caption) ThemeTextColor({ Token::Accent })
+                                Text({ action_text }) OverviewMasterSwitchText { toggle, kind: OverviewMasterSwitchTextKind::Action } TextRole(design_resources::TextRole::Caption) ThemeTextColor({ Token::Accent })
                             ]
                         ]
                     ]
@@ -486,7 +488,7 @@ pub fn routing_intent_segmented_controller_scene_with_snapshot(
                             Children [
                                 @{ icon_scene(IconId::Settings, 16.0, palette.accent) }
                                 --
-                                LocalizedText::plain("routing_intent_title") TextRole(Role::Heading)
+                                LocalizedText::plain("routing_intent_title") TextRole(design_resources::TextRole::Heading)
                             ]
                             --
                             Node {
@@ -496,15 +498,20 @@ pub fn routing_intent_segmented_controller_scene_with_snapshot(
                             ThemeBackgroundColor({ Token::AccentContainer })
                             AccentContainerFill
                             Children [
-                                Text({ String::new() }) OverviewRoutingIntentCaption TextRole(Role::Caption) ThemeTextColor({ Token::Accent })
+                                Text({ String::new() }) OverviewRoutingIntentCaption TextRole(design_resources::TextRole::Caption) ThemeTextColor({ Token::Accent })
                             ]
                         ]
                         --
                         Node {
                             width: percent(100),
-                            flex_direction: FlexDirection::Row,
+                            display: Display::Grid,
+                            grid_template_columns: vec![
+                                RepeatedGridTrack::flex(1, 1.0),
+                                RepeatedGridTrack::flex(1, 1.0),
+                                RepeatedGridTrack::flex(1, 1.0),
+                            ],
+                            grid_template_rows: vec![RepeatedGridTrack::auto(1)],
                             column_gap: rem(space::S8),
-                            flex_wrap: FlexWrap::Wrap,
                             row_gap: rem(space::S4),
                         }
                         Children [
@@ -546,6 +553,11 @@ fn single_routing_intent_pill_scene(
 
     bsn! {
             Node {
+                width: percent(100),
+                min_width: percent(0.0),
+                overflow: Overflow::clip(),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
                 padding: UiRect::axes(rem(space::S12), rem(space::S6)),
                 border_radius: BorderRadius::all(rem(palette.control_radius_px)),
             }
@@ -554,7 +566,8 @@ fn single_routing_intent_pill_scene(
             Button
             BackgroundColor({ bg })
             Children [
-                LocalizedText::plain(label_key) OverviewRoutingIntentText(intent) TextRole(Role::Body) TextColor({ ink })
+                LocalizedText::plain(label_key) OverviewRoutingIntentText(intent) TextRole(design_resources::TextRole::Caption)
+                TextLayout::no_wrap() TextColor({ ink })
             ]
     }
 }

@@ -15,8 +15,9 @@ use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::{UiPalette, rem};
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_shared::assets::{
     disclaimer_text_zh, harmonyos_font_license_text, third_party_notices_text,
 };
@@ -100,10 +101,10 @@ fn about_header_scene(palette: &UiPalette) -> impl Scene + use<> {
                         row_gap: rem(space::S4),
                     }
                     Children [
-                        LocalizedText::plain("nav_about") TextRole(Role::Heading)
+                        LocalizedText::plain("nav_about") TextRole(design_resources::TextRole::Heading)
                         --
                         Text({ format!("MusicFrog Infiltrator v{}", env!("CARGO_PKG_VERSION")) })
-                            TextRole(Role::Caption)
+                            TextRole(design_resources::TextRole::Caption)
                     ]
                 ]
             ]
@@ -121,11 +122,11 @@ fn about_info_card_scene(palette: &UiPalette) -> impl Scene + use<> {
                 row_gap: rem(space::S12),
             }
             Children [
-                LocalizedText::plain("about_app_info") TextRole(Role::Heading)
+                LocalizedText::plain("about_app_info") TextRole(design_resources::TextRole::Heading)
                 --
-                LocalizedText::plain("app_description") TextRole(Role::Body)
+                LocalizedText::plain("app_description") TextRole(design_resources::TextRole::Body)
                 --
-                LocalizedText::plain("about_rem_architecture_notice") TextRole(Role::Caption)
+                LocalizedText::plain("about_rem_architecture_notice") TextRole(design_resources::TextRole::Caption)
             ]
         })],
         palette,
@@ -165,7 +166,7 @@ pub fn disclaimer_page(palette: &UiPalette) -> impl Scene + use<> {
                     Children [
                         @{ icon_tile_scene(IconId::Shield, PAGE_HEADER_ICON_TILE_PX, palette) }
                         --
-                        LocalizedText::plain("nav_disclaimer") TextRole(Role::Heading)
+                        LocalizedText::plain("nav_disclaimer") TextRole(design_resources::TextRole::Heading)
                     ]
                 })],
                 palette,
@@ -179,7 +180,7 @@ pub fn disclaimer_page(palette: &UiPalette) -> impl Scene + use<> {
                         row_gap: rem(space::S12),
                     }
                     Children [
-                        Text({ disclaimer_text_zh().to_owned() }) TextRole(Role::Body)
+                        Text({ disclaimer_text_zh().to_owned() }) TextRole(design_resources::TextRole::Body)
                     ]
                 })],
                 palette,
@@ -221,7 +222,7 @@ pub fn licenses_page(palette: &UiPalette) -> impl Scene + use<> {
                     Children [
                         @{ icon_tile_scene(IconId::FileText, PAGE_HEADER_ICON_TILE_PX, palette) }
                         --
-                        LocalizedText::plain("nav_licenses") TextRole(Role::Heading)
+                        LocalizedText::plain("nav_licenses") TextRole(design_resources::TextRole::Heading)
                     ]
                 })],
                 palette,
@@ -235,7 +236,7 @@ pub fn licenses_page(palette: &UiPalette) -> impl Scene + use<> {
                         row_gap: rem(space::S12),
                     }
                     Children [
-                        LocalizedText::plain("settings_font_attribution_title") TextRole(Role::Heading)
+                        LocalizedText::plain("settings_font_attribution_title") TextRole(design_resources::TextRole::Heading)
                         --
                         Node {
                             width: percent(100),
@@ -243,7 +244,7 @@ pub fn licenses_page(palette: &UiPalette) -> impl Scene + use<> {
                             overflow: Overflow::scroll_y(),
                         }
                         Children [
-                            Text({ harmonyos_font_license_text().to_owned() }) TextRole(Role::Mono)
+                            Text({ harmonyos_font_license_text().to_owned() }) TextRole(design_resources::TextRole::Mono)
                         ]
                     ]
                 })],
@@ -258,7 +259,7 @@ pub fn licenses_page(palette: &UiPalette) -> impl Scene + use<> {
                         row_gap: rem(space::S12),
                     }
                     Children [
-                        LocalizedText::plain("about_third_party_title") TextRole(Role::Heading)
+                        LocalizedText::plain("about_third_party_title") TextRole(design_resources::TextRole::Heading)
                         --
                         Node {
                             width: percent(100),
@@ -266,7 +267,7 @@ pub fn licenses_page(palette: &UiPalette) -> impl Scene + use<> {
                             overflow: Overflow::scroll_y(),
                         }
                         Children [
-                            Text({ third_party_notices_text().to_owned() }) TextRole(Role::Mono)
+                            Text({ third_party_notices_text().to_owned() }) TextRole(design_resources::TextRole::Mono)
                         ]
                     ]
                 })],
@@ -309,7 +310,7 @@ pub fn tools_page(palette: &UiPalette) -> impl Scene + use<> {
                     Children [
                         @{ icon_tile_scene(IconId::Settings, PAGE_HEADER_ICON_TILE_PX, palette) }
                         --
-                        LocalizedText::plain("nav_tools") TextRole(Role::Heading)
+                        LocalizedText::plain("nav_tools") TextRole(design_resources::TextRole::Heading)
                     ]
                 })],
                 palette,
@@ -363,9 +364,9 @@ fn tool_item_scene(
                 row_gap: rem(space::S4),
             }
             Children [
-                LocalizedText::plain(title_key) TextRole(Role::Body)
+                LocalizedText::plain(title_key) TextRole(design_resources::TextRole::Body)
                 --
-                LocalizedText::plain(desc_key) TextRole(Role::Caption)
+                LocalizedText::plain(desc_key) TextRole(design_resources::TextRole::Caption)
             ]
         ]
     }

@@ -181,7 +181,7 @@ fn test_profiles_aggregator_previews_and_saves_through_shared_command() {
     app.update();
 
     assert!(
-        subtree_has_text(app.world(), root, "多订阅节点聚合器 (Profile Aggregator)"),
+        subtree_has_text(app.world(), root, "订阅聚合器"),
         "the aggregator card mounts on the profiles page"
     );
     // The preview is the shared report, never a local fabrication.

@@ -261,7 +261,10 @@ class MihomoControlService : Service() {
         val request = runCatching { readRequest(arguments) }.getOrNull()
         val result = when {
             protocolVersion != AndroidHostProtocolVersion.V10 || clientSessionId.isNullOrBlank() || requestId <= 0L -> {
-                Log.w(TAG, "owner request rejected: protocol=$protocolVersion sessionBlank=${clientSessionId.isNullOrBlank()} requestId=$requestId")
+                Log.w(
+                    TAG,
+                    "owner request rejected: protocol=$protocolVersion sessionBlank=${clientSessionId.isNullOrBlank()} requestId=$requestId",
+                )
                 wipeSensitiveRequest(message, arguments)
                 ControlServiceResponse(AndroidHostReply.SERVICE_UNAVAILABLE, FfiErrorCode.NOT_READY)
             }

@@ -9,6 +9,7 @@
 #[path = "profiles_diff_query_access.rs"]
 pub mod query_access;
 use self::query_access::{SnapshotDiffModeControls, SnapshotDiffTargets};
+use infiltrator_contract::design_resources;
 use infiltrator_shared::locales::Lang;
 
 use super::profiles_diff_history::{
@@ -43,7 +44,7 @@ use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::snapshot_history::SNAPSHOT_DEFAULT_KEEP;
 use infiltrator_contract::snapshot_restore::SnapshotRestoreTarget;
@@ -161,9 +162,9 @@ pub fn snapshot_diff_scene(
                                         row_gap: rem(space::S4),
                                     }
                                     Children [
-                                        LocalizedText::plain("profiles_snapshot_diff_title") TextRole(Role::BodyStrong)
+                                        LocalizedText::plain("profiles_snapshot_diff_title") TextRole(design_resources::TextRole::BodyStrong)
                                         --
-                                        Text(summary) SnapshotDiffSummaryText TextRole(Role::Caption)
+                                        Text(summary) SnapshotDiffSummaryText TextRole(design_resources::TextRole::Caption)
                                     ]
                                 ]
                                 --
@@ -199,7 +200,7 @@ pub fn snapshot_diff_scene(
                                     column_gap: rem(space::S8),
                                 }
                                 Children [
-                                    Text({ history_summary }) SnapshotHistorySummaryText TextRole(Role::Caption)
+                                    Text({ history_summary }) SnapshotHistorySummaryText TextRole(design_resources::TextRole::Caption)
                                     --
                                     Node {
                                         align_items: AlignItems::Center,
@@ -269,7 +270,7 @@ fn mode_button(key: &'static str, split: bool, palette: &UiPalette) -> Box<dyn S
             Button
             SnapshotDiffModeButton { split }
             Children [
-                label TextRole(Role::Caption)
+                label TextRole(design_resources::TextRole::Caption)
             ]
     })
 }
@@ -287,7 +288,7 @@ fn refresh_button(palette: &UiPalette) -> Box<dyn Scene> {
             Button
             RefreshSnapshotDiffButton
             Children [
-                LocalizedText::plain("snapshot_diff_refresh") TextRole(Role::Body)
+                LocalizedText::plain("snapshot_diff_refresh") TextRole(design_resources::TextRole::Body)
             ]
     })
 }
@@ -310,7 +311,7 @@ fn rollback_button(available: bool, palette: &UiPalette) -> Box<dyn Scene> {
             Button
             RollbackSnapshotButton
             Children [
-                LocalizedText::plain("profiles_snapshot_restore_action") RollbackSnapshotLabel TextRole(Role::BodyStrong)
+                LocalizedText::plain("profiles_snapshot_restore_action") RollbackSnapshotLabel TextRole(design_resources::TextRole::BodyStrong)
             ]
     })
 }
@@ -354,7 +355,7 @@ fn diff_line_scene(line: &DiffLine, palette: &UiPalette) -> Box<dyn Scene> {
                 width: percent(100),
             }
             Children [
-                Text({ label }) TextRole(Role::Mono) TextColor({ color })
+                Text({ label }) TextRole(design_resources::TextRole::Mono) TextColor({ color })
             ]
     })
 }
@@ -366,7 +367,7 @@ pub(super) fn diff_notice_scene(key: &'static str) -> Box<dyn Scene> {
                 width: percent(100),
             }
             Children [
-                label TextRole(Role::Caption)
+                label TextRole(design_resources::TextRole::Caption)
             ]
     })
 }

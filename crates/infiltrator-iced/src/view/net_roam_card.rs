@@ -6,7 +6,7 @@ use crate::view::component_card::card;
 use crate::view::component_forms::style_accent;
 use crate::view::components::{BadgeKind, badge};
 use crate::view::svg_icons::Icon;
-use crate::view::theme::{FONT_MEDIUM, MONO, tokens};
+use crate::view::theme::tokens;
 use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
@@ -23,9 +23,7 @@ pub fn net_roam_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Me
         row![
             svg_icons::icon_themed(Icon::RefreshCw, 12.0, |t: &Theme| tokens(t).on_accent),
             Space::new().width(theme::SP_XS),
-            text(lang.tr("net_roam_btn_reconnect").to_string())
-                .size(11)
-                .font(FONT_MEDIUM),
+            theme::role_body_text(lang.tr("net_roam_btn_reconnect").to_string()),
         ]
         .align_y(Alignment::Center),
     )
@@ -47,11 +45,11 @@ pub fn net_roam_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Me
 
     let details_row = row![
         column![
-            text(lang.tr("net_roam_active_iface").to_string())
-                .size(11)
-                .style(|t: &Theme| text::Style {
+            theme::role_body_text(lang.tr("net_roam_active_iface").to_string()).style(
+                |t: &Theme| text::Style {
                     color: Some(tokens(t).text_secondary)
-                }),
+                }
+            ),
             Space::new().height(2.0),
             row![
                 badge(active_iface.to_string(), BadgeKind::Accent),
@@ -74,23 +72,23 @@ pub fn net_roam_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Me
         ]
         .width(Length::Fill),
         column![
-            text(lang.tr("net_roam_gateway").to_string())
-                .size(11)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_secondary)
-                }),
+            theme::role_body_text(lang.tr("net_roam_gateway").to_string()).style(|t: &Theme| {
+                text::Style {
+                    color: Some(tokens(t).text_secondary),
+                }
+            }),
             Space::new().height(2.0),
-            text(gateway).size(13).font(MONO),
+            theme::role_body_text(gateway),
         ]
         .width(Length::Fill),
         column![
-            text(lang.tr("net_roam_mtu").to_string())
-                .size(11)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_secondary)
-                }),
+            theme::role_body_text(lang.tr("net_roam_mtu").to_string()).style(|t: &Theme| {
+                text::Style {
+                    color: Some(tokens(t).text_secondary),
+                }
+            }),
             Space::new().height(2.0),
-            text(mtu).size(13).font(MONO),
+            theme::role_body_text(mtu),
         ]
         .width(Length::Fill),
     ]
@@ -101,11 +99,11 @@ pub fn net_roam_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Me
             row![
                 svg_icons::icon_themed(Icon::Activity, 14.0, |t: &Theme| tokens(t).success),
                 Space::new().width(theme::SP_XS),
-                text(roaming_event(ev, &Lang(lang.0)))
-                    .size(11)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).success)
-                    }),
+                theme::role_body_text(roaming_event(ev, &Lang(lang.0))).style(|t: &Theme| {
+                    text::Style {
+                        color: Some(tokens(t).success),
+                    }
+                }),
             ]
             .align_y(Alignment::Center),
         )
@@ -117,17 +115,14 @@ pub fn net_roam_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Me
     card(
         Some(lang.tr("net_roam_title").to_string()),
         column![
-            text(lang.tr("net_roam_desc").to_string())
-                .size(12)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_secondary)
-                }),
-            text(status)
-                .size(11)
-                .font(MONO)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_secondary)
-                }),
+            theme::role_body_text(lang.tr("net_roam_desc").to_string()).style(|t: &Theme| {
+                text::Style {
+                    color: Some(tokens(t).text_secondary),
+                }
+            }),
+            theme::role_body_text(status).style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary)
+            }),
             Space::new().height(theme::SP_XS),
             details_row,
             Space::new().height(theme::SP_XS),

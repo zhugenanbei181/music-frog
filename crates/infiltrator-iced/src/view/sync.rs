@@ -8,7 +8,7 @@ use crate::view::component_forms::{
 use crate::view::components::{BadgeKind, badge, modern_scrollable, section_header, status_dot};
 use crate::view::svg_icons::Icon;
 use crate::view::sync_diff::diff_panel;
-use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, SP_LG, SP_MD, tokens};
+use crate::view::theme::{SP_LG, SP_MD, tokens};
 use crate::view::{svg_icons, theme};
 use iced::advanced::widget::Id;
 use iced::widget::{Space, button, column, container, progress_bar, row, text, text_input};
@@ -21,17 +21,14 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let is_en = state.shell.lang.starts_with("en");
 
     let header = column![
-        text(lang.tr("sync_title").to_string())
-            .size(24)
-            .font(FONT_SEMIBOLD)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_primary),
-            }),
-        text(lang.tr("sync_hero_desc").to_string())
-            .size(12)
-            .style(|t: &Theme| text::Style {
+        theme::role_body_text(lang.tr("sync_title").to_string()).style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_primary),
+        }),
+        theme::role_body_text(lang.tr("sync_hero_desc").to_string()).style(|t: &Theme| {
+            text::Style {
                 color: Some(tokens(t).text_secondary),
-            }),
+            }
+        }),
     ]
     .spacing(theme::SP_XS);
 
@@ -109,12 +106,9 @@ fn build_status_card<'a>(
     };
 
     let status_header_row = row![
-        text(status_title)
-            .size(13)
-            .font(FONT_SEMIBOLD)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_primary),
-            }),
+        theme::role_body_text(status_title).style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_primary),
+        }),
         Space::new().width(theme::SP_SM),
         badge(badge_text, badge_kind),
     ]
@@ -130,12 +124,9 @@ fn build_status_card<'a>(
         };
         let progress_label = format!("{} {}/{}", progress.phase, progress.current, progress.total);
         row![
-            text(progress_label)
-                .size(11)
-                .font(MONO)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_secondary),
-                }),
+            theme::role_body_text(progress_label).style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary),
+            }),
             Space::new().width(theme::SP_SM),
             progress_bar(0.0..=1.0, ratio).length(Length::Fixed(160.0)),
         ]
@@ -148,8 +139,7 @@ fn build_status_card<'a>(
         } else {
             lang.tr("sync_manual_only").to_string()
         };
-        text(hint_text)
-            .size(11)
+        theme::role_body_text(hint_text)
             .style(|t: &Theme| text::Style {
                 color: Some(tokens(t).text_secondary),
             })
@@ -159,13 +149,11 @@ fn build_status_card<'a>(
     let interval_badge = row![
         svg_icons::icon_themed(Icon::RefreshCw, 12.0, |t: &Theme| tokens(t).text_tertiary),
         Space::new().width(theme::SP_XS),
-        text(format!(
+        theme::role_body_text(format!(
             "{} {}",
             state.profile.webdav_sync_interval_mins,
             lang.tr("sync_interval_suffix")
         ))
-        .size(12)
-        .font(MONO)
         .style(|t: &Theme| text::Style {
             color: Some(tokens(t).text_secondary),
         }),
@@ -208,22 +196,20 @@ fn build_conflicts_card<'a>(
             Space::new().width(theme::SP_SM),
             column![
                 row![
-                    text(conflict.profile.clone())
-                        .size(13)
-                        .font(FONT_SEMIBOLD)
-                        .style(|t: &Theme| text::Style {
+                    theme::role_body_text(conflict.profile.clone()).style(|t: &Theme| {
+                        text::Style {
                             color: Some(tokens(t).text_primary),
-                        }),
+                        }
+                    }),
                     Space::new().width(theme::SP_SM),
                     badge(lang.tr("sync_conflict").to_string(), BadgeKind::Warning),
                 ]
                 .align_y(Alignment::Center),
-                text(conflict.remote_path.display().to_string())
-                    .size(10)
-                    .font(MONO)
-                    .style(|t: &Theme| text::Style {
+                theme::role_body_text(conflict.remote_path.display().to_string()).style(
+                    |t: &Theme| text::Style {
                         color: Some(tokens(t).text_tertiary),
-                    }),
+                    }
+                ),
             ]
             .spacing(2),
         ]
@@ -336,9 +322,7 @@ fn build_settings_form<'a>(
     let upload_btn = button(
         row![
             svg_icons::icon_themed(Icon::ArrowUp, 14.0, |t: &Theme| tokens(t).text_secondary),
-            text(lang.tr("sync_upload").to_string())
-                .size(12)
-                .font(FONT_MEDIUM),
+            theme::role_body_text(lang.tr("sync_upload").to_string()),
         ]
         .spacing(theme::SP_XS)
         .align_y(Alignment::Center),
@@ -356,9 +340,7 @@ fn build_settings_form<'a>(
     let download_btn = button(
         row![
             svg_icons::icon_themed(Icon::ArrowDown, 14.0, |t: &Theme| tokens(t).on_accent),
-            text(lang.tr("sync_download").to_string())
-                .size(12)
-                .font(FONT_MEDIUM),
+            theme::role_body_text(lang.tr("sync_download").to_string()),
         ]
         .spacing(theme::SP_XS)
         .align_y(Alignment::Center),
@@ -406,7 +388,6 @@ fn build_settings_form<'a>(
                 text_input("https://dav.example.com/dav/", &state.profile.webdav_url)
                     .on_input(Message::UpdateWebDavUrl)
                     .padding([8, 12])
-                    .size(13)
                     .style(form_input_style),
             ]
             .spacing(theme::SP_XS),
@@ -418,7 +399,6 @@ fn build_settings_form<'a>(
                     text_input(lang.tr("sync_user").as_ref(), &state.profile.webdav_user)
                         .on_input(Message::UpdateWebDavUser)
                         .padding([8, 12])
-                        .size(13)
                         .style(form_input_style),
                 ]
                 .width(Length::FillPortion(1))
@@ -430,7 +410,6 @@ fn build_settings_form<'a>(
                     text_input(lang.tr("sync_pass").as_ref(), &state.profile.webdav_pass)
                         .on_input(Message::UpdateWebDavPass)
                         .padding([8, 12])
-                        .size(13)
                         .secure(true)
                         .style(form_input_style),
                 ]
@@ -445,8 +424,6 @@ fn build_settings_form<'a>(
                     text_input("60", &state.profile.webdav_sync_interval_mins)
                         .on_input(Message::UpdateWebDavSyncInterval)
                         .padding([8, 12])
-                        .size(13)
-                        .font(theme::MONO)
                         .style(form_input_style),
                 ]
                 .width(Length::FillPortion(1))
@@ -477,9 +454,7 @@ fn encrypted_backup_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a
     let pass_input = text_input(lang.tr("encpkg_pass_placeholder").as_ref(), &enc.passphrase)
         .on_input(Message::UpdateEncryptedBackupPassphrase)
         .padding([8, 12])
-        .size(12)
         .secure(true)
-        .font(MONO)
         .width(Length::Fill)
         .style(form_input_style);
 
@@ -487,9 +462,7 @@ fn encrypted_backup_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a
         row![
             svg_icons::icon_themed(Icon::FileText, 14.0, |t: &Theme| tokens(t).on_accent),
             Space::new().width(theme::SP_SM),
-            text(lang.tr("encpkg_btn_export").to_string())
-                .size(12)
-                .font(FONT_MEDIUM),
+            theme::role_body_text(lang.tr("encpkg_btn_export").to_string()),
         ]
         .align_y(Alignment::Center),
     )
@@ -501,9 +474,7 @@ fn encrypted_backup_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a
         row![
             svg_icons::icon_themed(Icon::RefreshCw, 14.0, |t: &Theme| tokens(t).text_secondary),
             Space::new().width(theme::SP_SM),
-            text(lang.tr("encpkg_btn_import").to_string())
-                .size(12)
-                .font(FONT_MEDIUM),
+            theme::role_body_text(lang.tr("encpkg_btn_import").to_string()),
         ]
         .align_y(Alignment::Center),
     )
@@ -516,12 +487,9 @@ fn encrypted_backup_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a
             row![
                 svg_icons::icon_themed(Icon::ListChecks, 14.0, |t: &Theme| tokens(t).success),
                 Space::new().width(theme::SP_XS),
-                text(format!("Exported: {path}"))
-                    .size(11)
-                    .font(MONO)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).success)
-                    }),
+                theme::role_body_text(format!("Exported: {path}")).style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).success)
+                }),
             ]
             .align_y(Alignment::Center),
         )
@@ -533,11 +501,11 @@ fn encrypted_backup_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a
     card(
         Some(lang.tr("encpkg_title").to_string()),
         column![
-            text(lang.tr("encpkg_desc").to_string())
-                .size(12)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_secondary)
-                }),
+            theme::role_body_text(lang.tr("encpkg_desc").to_string()).style(|t: &Theme| {
+                text::Style {
+                    color: Some(tokens(t).text_secondary),
+                }
+            }),
             Space::new().height(theme::SP_XS),
             row![
                 pass_input,

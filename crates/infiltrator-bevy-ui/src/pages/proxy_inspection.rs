@@ -38,8 +38,9 @@ use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLo
 use infiltrator_bevy_widgets::modal::{ModalDialogCard, ModalScrim};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::design_resources;
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::CoreScope;
@@ -676,10 +677,10 @@ fn inspection_field_scenes() -> impl SceneList + use<> {
                 Node { width:percent(100), column_gap:rem(space::S12), align_items:AlignItems::Start }
                 Children [
                     Node { width:percent(35), min_width:px(0.0) }
-                    Children [ LocalizedText::plain(field.key()) TextRole(Role::Caption) ]
+                    Children [ LocalizedText::plain(field.key()) TextRole(design_resources::TextRole::Caption) ]
                     --
                     Node { width:percent(65), min_width:px(0.0) }
-                    Children [ Text::new("") ProxyDetailValue(field) TextRole(Role::Body) ]
+                    Children [ Text::new("") ProxyDetailValue(field) TextRole(design_resources::TextRole::Body) ]
                 ]
             }) as Box<dyn Scene>
         })
@@ -716,24 +717,24 @@ pub fn inspection_scene(palette: &UiPalette) -> impl Scene + use<> {
             ThemeBackgroundColor({Token::Surface}) ProxyInspectionCard ModalDialogCard ModalDialog
             AccessibilityNode(semantic) LocalizedLabel::plain("proxy_inspection_title")
             Children [
-                LocalizedText::plain("proxy_inspection_title") TextRole(Role::Heading)
+                LocalizedText::plain("proxy_inspection_title") TextRole(design_resources::TextRole::Heading)
                 --
-                Text::new("") ProxyInspectionTitle TextRole(Role::BodyStrong)
+                Text::new("") ProxyInspectionTitle TextRole(design_resources::TextRole::BodyStrong)
                 --
-                LocalizedText::new("common_message",vec![("message",String::new())]) ProxyProbeStatus TextRole(Role::Caption)
+                LocalizedText::new("common_message",vec![("message",String::new())]) ProxyProbeStatus TextRole(design_resources::TextRole::Caption)
                 --
                 Node { width:percent(100),min_width:px(0.0),min_height:px(0.0),flex_shrink:1.0,flex_direction:FlexDirection::Column,row_gap:rem(space::S12),overflow:Overflow::scroll_y() }
                 ScrollArea ProxyInspectionScrollArea
                 Children [
-                    LocalizedText::plain("proxy_inspection_history") TextRole(Role::BodyStrong)
+                    LocalizedText::plain("proxy_inspection_history") TextRole(design_resources::TextRole::BodyStrong)
                     --
                     @{ chart_scene_with_smooth(Vec::new(),Vec::new(),560.0,90.0,false) } ProxyInspectionChart
                     --
                     { inspection_field_scenes() }
                     --
-                    LocalizedText::plain("proxy_inspection_timing_unavailable") TextRole(Role::Caption)
+                    LocalizedText::plain("proxy_inspection_timing_unavailable") TextRole(design_resources::TextRole::Caption)
                     --
-                    Text::new("") ProxyHistoryText TextRole(Role::Body)
+                    Text::new("") ProxyHistoryText TextRole(design_resources::TextRole::Body)
                 ]
                 --
                 Node { width:percent(100),column_gap:rem(space::S12),align_items:AlignItems::Center,flex_shrink:0.0 }
@@ -746,11 +747,11 @@ pub fn inspection_scene(palette: &UiPalette) -> impl Scene + use<> {
                     on(|activate: On<Activate>, mut commands: Commands| {
                         commands.trigger(RequestClose { source: activate.entity });
                     })
-                    Children [ LocalizedText::plain("modal_close") TextRole(Role::BodyStrong) ]
+                    Children [ LocalizedText::plain("modal_close") TextRole(design_resources::TextRole::BodyStrong) ]
                     --
                     Node { flex_grow:1.0,min_width:px(0.0),min_height:rem(palette.control_height_px),padding:UiRect::axes(rem(space::S12),rem(space::S8)),border_radius:BorderRadius::all(rem(palette.control_radius_px)) }
                     ThemeBackgroundColor({Token::AccentContainer}) Button ButtonDisabled(true) ProbeInspectedProxy
-                    Children [ LocalizedText::plain("modal_speed_test_now") ProxyProbeCaption TextRole(Role::BodyStrong) ]
+                    Children [ LocalizedText::plain("modal_speed_test_now") ProxyProbeCaption TextRole(design_resources::TextRole::BodyStrong) ]
                 ]
             ]
         ]

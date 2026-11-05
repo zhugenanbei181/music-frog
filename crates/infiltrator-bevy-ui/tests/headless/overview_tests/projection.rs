@@ -5,9 +5,11 @@ use super::*;
 use bevy::scene::{CommandsSceneExt, bsn};
 use infiltrator_bevy_ui::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated};
 use infiltrator_contract::active_exit::ActiveExitSnapshot;
+use infiltrator_contract::design_resources;
 use infiltrator_contract::surface_snapshot::OverviewPageSnapshot;
 use infiltrator_contract::traffic_waveform::TrafficSample;
 use infiltrator_domain::traffic_waveform::display_series;
+use infiltrator_presentation::dashboard_hero_projection::PolicyGroupGridProjection;
 use infiltrator_presentation::shell_readout_fold::ShellReadoutProjection;
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::page::PageData;
@@ -46,6 +48,8 @@ fn projection_updates_restamp_in_place() {
         subscription_quota: Default::default(),
         system_toggles: Default::default(),
         cpu_percent: ResourceAvailability::NotObserved,
+        memory_limit_bytes: None,
+        policy_groups: PolicyGroupGridProjection::unavailable(),
         total_traffic_bytes: None,
         routing_intent: RoutingIntentSnapshot {
             current: Some(RoutingIntent::RouteAllThroughProxy),
@@ -97,8 +101,8 @@ fn projection_updates_restamp_in_place() {
     let (_, fill, stored) = card(world);
     assert_eq!(stored, CoreLifecycle::Stopped);
     assert_eq!(
-        fill, palette.accent_container,
-        "stopped keeps the accent container banner"
+        fill, palette.surface,
+        "stopped keeps the standard banner surface"
     );
     let (_, memory) = chip_value(world, OverviewChipKind::Memory);
     assert_eq!(memory, "—");
@@ -128,6 +132,8 @@ fn projection_updates_restamp_in_place() {
         subscription_quota: Default::default(),
         system_toggles: Default::default(),
         cpu_percent: ResourceAvailability::NotObserved,
+        memory_limit_bytes: None,
+        policy_groups: PolicyGroupGridProjection::unavailable(),
         total_traffic_bytes: None,
         routing_intent: RoutingIntentSnapshot {
             current: Some(RoutingIntent::RouteAllThroughProxy),
@@ -150,14 +156,14 @@ fn projection_updates_restamp_in_place() {
     assert_eq!(failure_text, "refused");
     let (_, fill, _) = card(world);
     assert_eq!(
-        fill, palette.danger,
-        "unavailable flips the banner to danger"
+        fill, palette.surface,
+        "unavailable keeps the standard banner surface"
     );
     let (_, state_text, ink) = line(world, OverviewLineKind::State);
     assert_eq!(state_text, "运行出错");
     assert_eq!(
-        ink.0, palette.on_accent,
-        "state ink readable on the danger banner"
+        ink.0, palette.danger,
+        "the fault ink moves onto the state word itself"
     );
 }
 
@@ -215,14 +221,14 @@ fn projection_replay_preserves_unrelated_text_and_conflicting_native_roles() {
         .world_mut()
         .commands()
         .spawn_scene(bsn! {
-            Text({ "outside {opaque}".to_owned() }) TextRole(Role::Body)
+            Text({ "outside {opaque}".to_owned() }) TextRole(design_resources::TextRole::Body)
         })
         .id();
     let excluded = app
         .world_mut()
         .commands()
         .spawn_scene(bsn! {
-            Text({ "conflicting roles".to_owned() }) TextRole(Role::Body)
+            Text({ "conflicting roles".to_owned() }) TextRole(design_resources::TextRole::Body)
             ActiveExitText(ActiveExitTextKind::Name)
             PublicIpText(PublicIpTextKind::Status)
         })
@@ -231,7 +237,7 @@ fn projection_replay_preserves_unrelated_text_and_conflicting_native_roles() {
         .world_mut()
         .commands()
         .spawn_scene(bsn! {
-            Text({ "old topology".to_owned() }) TextRole(Role::Body)
+            Text({ "old topology".to_owned() }) TextRole(design_resources::TextRole::Body)
             TopologyText::default()
             ActiveExitText(ActiveExitTextKind::Name)
         })
@@ -240,7 +246,7 @@ fn projection_replay_preserves_unrelated_text_and_conflicting_native_roles() {
         .world_mut()
         .commands()
         .spawn_scene(bsn! {
-            Text({ "old node".to_owned() }) TextRole(Role::Body)
+            Text({ "old node".to_owned() }) TextRole(design_resources::TextRole::Body)
             ActiveExitText(ActiveExitTextKind::Name)
         })
         .id();

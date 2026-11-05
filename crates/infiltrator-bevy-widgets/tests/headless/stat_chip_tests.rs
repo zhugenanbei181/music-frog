@@ -18,8 +18,9 @@ use infiltrator_bevy_widgets::stat_chip::{
     StatChip, StatChipValue, stat_chip_fill, stat_chip_scene,
 };
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::{Theme, ThemeSkin};
+use infiltrator_contract::design_resources;
 
 fn headless_app() -> App {
     let mut app = App::new();
@@ -62,11 +63,11 @@ fn chip_spawns_tile_label_and_marked_value() {
     let mut saw_mono_value = false;
     for (text, role) in labels.iter(world) {
         match role.0 {
-            Role::Caption => {
+            design_resources::TextRole::Caption => {
                 saw_caption = true;
                 assert_eq!(text.0, "connections");
             }
-            Role::Mono => {
+            design_resources::TextRole::Mono => {
                 saw_mono_value = true;
                 assert_eq!(text.0, "12");
             }

@@ -470,8 +470,12 @@ capture_one() {
 
     printf '  start %-22s page=%-8s skin=%-5s window=%s\n' \
       "$name" "$page" "$skin" "$window_size"
-    XDG_RUNTIME_DIR="$RUNTIME_DIR" WAYLAND_DISPLAY="$NIRI_SOCK" DISPLAY= \
-      SLINT_DEBUG_PERFORMANCE="$SLINT_CAPTURE_PERF" \
+    local -a perf_env=()
+    if [ -n "$SLINT_CAPTURE_PERF" ]; then
+      perf_env+=("SLINT_DEBUG_PERFORMANCE=$SLINT_CAPTURE_PERF")
+    fi
+    env XDG_RUNTIME_DIR="$RUNTIME_DIR" WAYLAND_DISPLAY="$NIRI_SOCK" DISPLAY= \
+      "${perf_env[@]}" \
       INFILTRATOR_DEMO=1 \
       INFILTRATOR_LANG="${INFILTRATOR_LANG:-zh-CN}" \
       INFILTRATOR_PAGE="$page" \

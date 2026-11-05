@@ -11,9 +11,10 @@ use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::command::RequestId;
+use infiltrator_contract::design_resources;
 use infiltrator_presentation::dns_hosts_editor::DnsHostsEditor;
 
 #[derive(Resource, Default)]
@@ -65,9 +66,9 @@ pub fn dns_hosts_card_scene(palette: &UiPalette) -> impl Scene + use<> {
         vec![Box::new(bsn! {
             Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: rem(space::S8) }
             Children [
-                LocalizedText::plain("dns_hosts_title") TextRole(Role::BodyStrong)
+                LocalizedText::plain("dns_hosts_title") TextRole(design_resources::TextRole::BodyStrong)
                 --
-                LocalizedText::plain("dns_hosts_unobserved") HostsSummary TextRole(Role::Caption)
+                LocalizedText::plain("dns_hosts_unobserved") HostsSummary TextRole(design_resources::TextRole::Caption)
                 --
                 @{ (localized_button_scene(LocalizedText::plain("dns_hosts_open"), ButtonVariant::Default, palette), bsn! { HostAction::Open }) }
             ]

@@ -6,7 +6,7 @@
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::view::components::modern_scrollable;
-use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
+use crate::view::theme::tokens;
 use crate::view::{editor_viewport, theme};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
@@ -78,12 +78,11 @@ pub fn toggle_row(state: &AppState) -> Element<'_, Message> {
         .map(|source| source.document.clone());
     let commands = state.command_ingress();
     let mut chips = row![
-        text(lang.tr("mixin_studio_toggles_title").to_string())
-            .size(11)
-            .font(FONT_SEMIBOLD)
-            .style(|t: &Theme| text::Style {
+        theme::role_body_text(lang.tr("mixin_studio_toggles_title").to_string()).style(
+            |t: &Theme| text::Style {
                 color: Some(tokens(t).text_secondary),
-            }),
+            }
+        ),
     ]
     .spacing(theme::SP_SM)
     .align_y(Alignment::Center);
@@ -99,7 +98,7 @@ pub fn toggle_row(state: &AppState) -> Element<'_, Message> {
             .tr(mixin_studio_projection::preset_key(toggle))
             .to_string();
         chips = chips.push(
-            button(text(button_label).size(11).font(FONT_MEDIUM))
+            button(theme::role_body_text(button_label))
                 .padding([4, 10])
                 .style(chip_style(enabled))
                 .on_press(Message::ToggleMixinPreset(toggle, !enabled)),
@@ -130,22 +129,16 @@ pub fn preflight_banner(state: &AppState) -> Element<'_, Message> {
     };
     container(
         column![
-            text(headline)
-                .size(11)
-                .font(FONT_SEMIBOLD)
-                .style(move |t: &Theme| text::Style {
-                    color: Some(if danger {
-                        tokens(t).danger
-                    } else {
-                        tokens(t).success
-                    })
-                }),
-            text(detail)
-                .size(11)
-                .font(FONT_MEDIUM)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_secondary),
-                }),
+            theme::role_body_text(headline).style(move |t: &Theme| text::Style {
+                color: Some(if danger {
+                    tokens(t).danger
+                } else {
+                    tokens(t).success
+                })
+            }),
+            theme::role_body_text(detail).style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary),
+            }),
         ]
         .spacing(theme::SP_XS),
     )
@@ -176,12 +169,11 @@ pub fn cascade_strip(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
 
     let mut stages = row![
-        text(lang.tr("mixin_studio_cascade_title").to_string())
-            .size(11)
-            .font(FONT_SEMIBOLD)
-            .style(|t: &Theme| text::Style {
+        theme::role_body_text(lang.tr("mixin_studio_cascade_title").to_string()).style(
+            |t: &Theme| text::Style {
                 color: Some(tokens(t).text_secondary),
-            }),
+            }
+        ),
     ]
     .spacing(theme::SP_SM)
     .align_y(Alignment::Center);
@@ -190,24 +182,21 @@ pub fn cascade_strip(state: &AppState) -> Element<'_, Message> {
         Err(failure) => {
             return stages
                 .push(
-                    text(failure.message)
-                        .size(11)
-                        .style(|t: &Theme| text::Style {
-                            color: Some(tokens(t).danger),
-                        }),
+                    theme::role_body_text(failure.message).style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).danger),
+                    }),
                 )
                 .into();
         }
     };
     let report = projection.cascade;
     if let ProfileMixinCascade::Blocked { reason, .. } = &report {
-        stages = stages.push(
-            text(reason.clone())
-                .size(11)
-                .style(|t: &Theme| text::Style {
+        stages =
+            stages.push(
+                theme::role_body_text(reason.clone()).style(|t: &Theme| text::Style {
                     color: Some(tokens(t).danger),
                 }),
-        );
+            );
         return stages.into();
     }
     let ProfileMixinCascade::Merged {
@@ -219,28 +208,24 @@ pub fn cascade_strip(state: &AppState) -> Element<'_, Message> {
     };
     for (index, stage) in report_stages.iter().enumerate() {
         if index > 0 {
-            stages = stages.push(text("→").size(11).style(|t: &Theme| text::Style {
+            stages = stages.push(theme::role_body_text("→").style(|t: &Theme| text::Style {
                 color: Some(tokens(t).text_tertiary),
             }));
         }
         let stage_label = mixin_studio_projection::stage_caption(stage, &Lang(lang.0));
         stages = stages.push(
-            text(stage_label)
-                .size(11)
-                .font(FONT_MEDIUM)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_secondary),
-                }),
+            theme::role_body_text(stage_label).style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary),
+            }),
         );
     }
     column![
         stages,
-        text(format!(
+        theme::role_body_text(format!(
             "{}: {}",
             lang.tr("mixin_studio_cascade_merged"),
             format_line_count(&lang, *line_count)
         ))
-        .size(11)
         .style(|t: &Theme| text::Style {
             color: Some(tokens(t).text_tertiary),
         }),
@@ -256,12 +241,10 @@ fn format_line_count(lang: &Lang<'_>, count: usize) -> String {
 /// One column caption: the shared label plus its real line count and whether
 /// the column is editable.
 fn column_caption<'a>(lang: &Lang<'_>, column: &ProfileMixinColumn) -> Element<'a, Message> {
-    text(mixin_studio_projection::column_caption(
+    theme::role_body_text(mixin_studio_projection::column_caption(
         column,
         &Lang(lang.0),
     ))
-    .size(11)
-    .font(FONT_SEMIBOLD)
     .style(|t: &Theme| text::Style {
         color: Some(tokens(t).text_primary),
     })
@@ -272,16 +255,13 @@ fn column_caption<'a>(lang: &Lang<'_>, column: &ProfileMixinColumn) -> Element<'
 fn read_only_box<'a>(body: String, height_px: f32, danger: bool) -> Element<'a, Message> {
     container(
         modern_scrollable(
-            text(body)
-                .size(11)
-                .font(MONO)
-                .style(move |t: &Theme| text::Style {
-                    color: Some(if danger {
-                        tokens(t).danger
-                    } else {
-                        tokens(t).text_primary
-                    }),
+            theme::role_body_text(body).style(move |t: &Theme| text::Style {
+                color: Some(if danger {
+                    tokens(t).danger
+                } else {
+                    tokens(t).text_primary
                 }),
+            }),
         )
         .height(Length::Fixed(height_px)),
     )
@@ -394,9 +374,7 @@ pub fn three_column_row(state: &AppState) -> Element<'_, Message> {
         Space::new().height(theme::SP_XS),
         match compose_error.as_deref() {
             Some(error) => column![
-                text(lang.tr("mixin_column_blocked").replace("{error}", error))
-                    .size(11)
-                    .font(MONO)
+                theme::role_body_text(lang.tr("mixin_column_blocked").replace("{error}", error))
                     .style(|t: &Theme| text::Style {
                         color: Some(tokens(t).danger),
                     }),
