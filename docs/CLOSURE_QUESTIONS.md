@@ -38,6 +38,18 @@
 | 7 | 部分 | L | 彻底清除全仓 part1/part2/part3 无语义命名，重构为高内聚强语义模块（reset_recovery_and_migration、owner_switch_and_recovery、cross_process_concurrency、workspace_recovery_and_reset_tests）；文件级模块化完成（scanned=2891 violations=0，kt-line scanned=227 violations=0）；mod.rs 清退至 0；隐式状态机语义审计 + 判决台账常驻（23 条候选 0 undecided 0 open）；rem 体系 0 违规 0 debt；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | `check-structure.sh` 40+ 结构守卫、单测与工具链全部 exit 0；`cargo fmt --all --check` 0 偏差；六包定向 nextest 2179/2179 全绿；Clippy 6 包 `--all-targets -D warnings` 零警告；`screenshot-identity-guard` 550 张截图 10 aliases 0 违规；`scrollbar-contract-guard` 0 违规；`shared-copy-guard` 0 违规；`i18n-guard` 0 违规 |
 
+## 最近一批问答（2026-11-09 第一百五十一交付批次：统一验证批次 / 组团收口 b144～b150 / 全仓 nextest 5883 全绿）
+
+1. x86_64/aarch64：本批是无产品行为改动的统一验收批次，只补两条本流自己的测试欠账与一条上游公告登记，架构中性；全量 `cargo check --workspace --all-targets` 零错误、`cargo nextest run --workspace --no-fail-fast` **5883 run / 5883 passed / 15 skipped / 0 failed**、`cargo clippy --workspace --all-targets -- -D warnings` exit 0 为 `L`；本批未复跑 `scripts/cross-check.sh` 交叉腿，也未产出 aarch64 目标产物，`C`/`D` 待补证 → 部分（L）。
+2. Windows/Linux/macOS：本批只在本机 Linux 台架跑全量门（含 `cargo deny check` 四项 ok、`cargo metadata --locked` ok）；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 `Unsupported` 登记（GAP-2.2）→ 部分（L）。
+3. Android/iOS：本批改到 `android/bevy-host/driver/src/owner_client_tests.rs`（补 `session: CoreSessionObservation::Unknown`），该文件由全仓 `cargo check`/nextest 编译并运行，属 `L` 源码级证据；APK 产物与三 flavor 真机交互回执未随本批重跑，仍在斗战胜佛/未来佛 → 部分（L）。
+4. 各 UI：本批不改任何表面像素与接线；Iced/Bevy/Slint/Compose 的接入结论沿用发布整批 `20261108T164957Z_cda77dec2603_dirty_2413388`（197/197 帧），`receipt-freshness violations=0` 证明回执仍与当前源码一致，故不重采 → 部分（L）。
+5. 复用：`resolve_surface_evidence.py` status=pass（registry/discovery True、anchors=360、cells=180）；两条被修的欠账都是「第二份状态」的源头（fixture 漏迁 typed 字段、运行时断言本应编译期成立），修完后类型真源唯一；`pin-utils` 归档公告按既有九条同口径登记在 `deny.toml` 而不是复制一份说明 → 完整（L）。
+5a. 设计资源强制标准：本批无字型/字重/图标/主题身份变化，无像素重采；`design-resource-authority.py` violations=0，`screenshot-identity scanned=574 aliases=10 violations=0`，沿用同发布批回执 → 完整（L）。
+6. 功能接入：`FLCLASH-001`/`FLCLASH-002` 的裁决（已交付 Core 缺口 + 仪表盘注册表判定「存异，本仓已更强」）在全量门下确认无回归；`SPACEUTIL-001`/`004` 的判定器与契约形态表 `--self-test 20/20`、`--enforce` 197 帧 violations=0；新立 `SPACEUTIL-005`（视口阶梯三处真源）登记未实现 → 部分（L）。
+7. 模块化：全仓结构门 exit 0（文件级 2931 项 import hygiene violations=0、行预算 800 上限回归、typed-state findings=0、implicit-state 全判决、bevy bsn/rem 0 违规、feature matrix 11 crates/35 features 对齐）；无跨 UI 私有业务真源；过去佛积攒的 `Integrated` 条目已批量解锁退出并在台账登记 → 完整（L）。
+8. CI：本批就是「改动一批一批做、验收一组一组办」的集中验收腿，全套重型门只跑一次而非每改一文件一遍；`cargo fmt --all --check` 0 偏差；`cargo metadata --locked` 与 `cargo deny check` 四项 ok 保持钉住与可复现；剩余低效点（受控 CI 腿缺 `C`、真机腿缺 `D`）按既有条目留在斗战胜佛，不为本批重复立项 → 部分（L）。
+
 ## 最近一批问答（2026-11-09 第一百五十交付批次：页身空气归位 / compact 档 framed 页填满页身 / 空间利用率欠账台账清零）
 
 1. x86_64/aarch64：b150 是 Slint 外壳几何 + 共享契约层零改动 + 三处 import 归位，架构中性；`cargo check -p infiltrator-slint --all-targets`、`cargo nextest run -p infiltrator-application -p infiltrator-desktop -p infiltrator-slint` 1348/1348 全绿、`cargo clippy` 三包 `--all-targets -D warnings` 零警告为 `L`；本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。

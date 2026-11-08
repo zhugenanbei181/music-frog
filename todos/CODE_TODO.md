@@ -21,6 +21,7 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
+- 2026-11-09 第一百五十一统一验证批次（一次组团收口 b144～b150 全部 `Integrated`；`SPACEUTIL-001` 3 pt + `SPACEUTIL-004` 3 pt + `FLCLASH-001` 3 pt + `FLCLASH-002` 5 pt 共 14 pt 办结归档，`SPACEUTIL-002`/`SPACEUTIL-003` 共 8 pt 注销退出，新立 `SPACEUTIL-005` 3 pt）：本批零新功能，只做「改动一批一批做、验收一组一组办」的产出期集中验收。① **先修掉挡住全量门的两条本流自己的欠账**（并纠正一条错误记账）：`android/bevy-host/driver/src/owner_client_tests.rs:93` 的 `CoreSnapshot` 缺 `session` 被 b147/b148/b150 连续三批写成「他人 bevy-host 外债」，`git log -S` 证明该字段由本仓 b132/b142 自己引入后漏迁此 fixture——补齐为 `CoreSessionObservation::Unknown`（与本仓其余 20+ 处不关心会话时长的 fixture 同写法），全仓编译门从此可跑；`crates/infiltrator-bevy-widgets/tests/headless/advanced_multidimensional_tests.rs:90` 的 `assert!(WCAG_AA_NORMAL > WCAG_AA_LARGE)` 是 b142 引入的 `clippy::assertions_on_constants` 违规，改为 `const _: () = assert!(…)`，把阈值序关系从运行时升级为编译期断言（更强，不是更弱）。② **上游公告库新增一条**：RUSTSEC-2026-0441 宣告 `pin-utils` 归档（0.1.1 是最后一版，公告「No safe upgrade is available!」）；`cargo tree -i pin-utils` 实测唯一链路 `spin_on@0.1.1 ← slint-build@1.18.1（build）/ slint-macros@1.18.1（proc-macro）← 钉住的 Slint 1.18.1`，不进任何交付二进制，产品代码不用 `pin_mut!`（局部钉住一律 `core::pin::pin!`），按台账既有九条同口径在 `deny.toml` 登记完整理由与复核日期，不改代码、不静默删门。③ **统一批次一次跑完（全部 `L`）**：`cargo check --workspace --all-targets` 6m16s 零错误；`cargo nextest run --workspace --no-fail-fast` **5883 run / 5883 passed / 15 skipped / 0 failed**；`cargo clippy --workspace --all-targets -- -D warnings` exit 0；`cargo fmt --all --check` 0 偏差；`bash scripts/quality/check-structure.sh` **exit 0**（40+ 守卫 + quality 自测全绿）；`cargo deny check advisories bans licenses sources` 四项 ok；`cargo metadata --locked` ok；`resolve_surface_evidence.py` status=pass（registry/discovery True，anchors=360，cells=180）；`receipt-freshness=0`、`screenshot-identity scanned=574 aliases=10 violations=0`、`space_utilization --self-test 20/20` 与 `--enforce` 197 帧 violations=0。④ **批量办结/注销口径**：办结 4 条 / 14 pt（`SPACEUTIL-001` 3、`SPACEUTIL-004` 3、`FLCLASH-001` 3、`FLCLASH-002` 5——b148 裁定办结但当时未落台账，本批补记）；注销 2 条 / 8 pt（`SPACEUTIL-002`/`003`：b149 按页面形态重判后前提被实测推翻，同形态参考产品留白 80.6% 更宽，按「不为办结造功能」原则不计交付点）。⑤ **台账重算（给出可核对的推导，不造数）**：自第一百一十批次台账（已归档 1,234 pt / 455 条，累计 1,322 pt，联合分母 88 pt）起，b111/b144/b146 新登记 27 pt / 7 条未落账；本批归档 14 pt / 4 条、注销 8 pt / 2 条 ⇒ 已归档 1,234 → **1,248 pt**（455 → **459 条**），累计 1,322 + 27 − 8 = **1,341 pt**，未办结分母 88 + 27 − 14 − 8 = **93 pt**（现在佛 5 pt / 1 条 = `MUSICFROG-001`，斗战胜佛 62 pt / 20 条，未来佛 26 pt / 15 条），严格归档交付率 1,248/1,341 = **93.1%**。同时把 TODO.md 归档表头此前停在第一百零八批次的「累计 454 条 / 1,228 pt」与本台账对齐（表内明细分行同步 +4 条 / +14 pt），并写明这是对齐两份既有记账、不新增任何交付声明。⑥ **诚实边界**：本批不改产品行为与像素，发布回执 `20261108T164957Z_cda77dec2603_dirty_2413388` 保持新鲜；`C`（受控 CI）与 `D`（真机/目标产物）腿仍按既有条目留在斗战胜佛与未来佛，不因全量门通过而升级；下一步可推的真实缺口是新立 `SPACEUTIL-005`（视口阶梯三处真源：契约 600/840/1200、Slint 主题 600/800/1120、判定器 700/1000，实测导致判定器在 800～999px 误判侧栏归属、且同尺寸 1180×780 帧 Slint 与 Iced 节点列数不同）。
 - 2026-11-05 第一百一十交付批次（全仓统一公共字体/字号/字重闭环落地，`DSGSTD-002`，3 pt）：在 batch 109 建立 typed 权威与生成器代码链的基础上，彻底落实全仓使用统一的公共字体集合、大小、字重：① Contract `TextRole` 扩充 Subheading 与 Micro 并收敛于 `design_tokens::type_scale`，`FontFaceDocument`/`TypefaceDocument` 新增 `family_name`，导出 JSON 并在生成器中闭环；② Iced 统一由 `theme::font_for(role)` 与 `theme::role_body_text`/`role_text` 收口，裸 `.size(N)` 清零，废弃字体常量清零；③ Slint 全量 UI 迁移至 `DesignType.<role>-size/-weight/-family`，裸数字 font-size 与 font-weight 清零；④ Bevy UI 彻底删除本地私有 `Role` 枚举与私有字体尺寸表，944 处调用迁移至 `infiltrator_contract::design_resources::TextRole` 并由 `typeface(role)` 统一解析；⑤ Android Compose 业务代码裸 `fontSize`/`fontWeight`/`FontFamily` 清零，统一由 `AppTypography` 导出；⑥ 升级强化 `design-resource-authority.py` 门禁，全检四表面调用点；⑦ 修复 Iced、Bevy、Slint 三桌面卡片重排与几何裁切缺陷，三桌面全矩阵 558 张截图（Iced 182, Bevy 190, Slint 186）基于新字体全量重采，`screenshot_aliases.tsv` 摘要对齐，`screenshot-identity-guard` 零违规。证据：六包定向 nextest 2179/2179 全绿；clippy `--all-targets -D warnings` 零警告；`cargo fmt --all --check` 0 偏差；Android font 生成、编译、ktlintCheck、405 项单测全部 BUILD SUCCESSFUL；`check-structure.sh` 40+ 结构守卫与 351 项 quality unittests 全绿。现在佛与过去佛保持 0 条 / 0 pt，联合分母 88 pt 保持，已归档 1,231 → 1,234 pt（454 → 455 条），累计 1,319 → 1,322 pt，严格归档交付率 93.3%（1,234/1,322 pt）保持。
 - 2026-11-04 第一百零九交付批次（标准落地 + 定向验证，`DSGSTD-001`，3 pt）：跨表面设计资源强制标准进入总纲、公共文档地图、公共质量规则与结构门；`infiltrator_contract::design_resources` 统一字重闭集 400/500/600、`TextRole`→`TypefaceSpec` 与 `IconSemantic`，`design-authority.json` 由唯一 exporter 导出，Kotlin/Slint 适配物由生成器写入；`FontFace::assert_catalog_alignment()` 双向闭合五张物理面与 catalog，Iced/Bevy 跨 crate 相对字体路径清零，Android `res/font` 出库改 Gradle 生成五张面并移除 `material-icons-extended`，Slint Tier A 全部改指 canonical Lucide SVG；标准文档、总纲、公共质量底线、文档地图与收口八问 5a 问项钉死不可绕过条款，`design-resource-authority.py` 接入结构门与 main-gate 并校验标准文档/CI 注册。证据：`cargo nextest -p infiltrator-shared -p infiltrator-iced -p infiltrator-bevy-widgets` 1102/1102 全绿；五包 `cargo check --all-targets` 通过；`cargo fmt --all --check` 0 偏差；`design-resource-authority.py --self-test`/`--skip-exporter` violations=0；`generate_design_resources.py --check` 与 `generate_shared_icons.py --check` 全绿；Gradle `generateComposeDebugSharedFonts`、`compileComposeDebugKotlin`、`testComposeDebugUnitTest` 405 项全绿；doc/closure/slint 守卫全绿。按截图认证硬门，字体/字重/图标身份变化后的三桌面 standard+compact 与 Android 三 flavor 新像素回执尚未重采，相关业务能力诚实记「部分」，本批只办结标准与代码链（3 pt），联合分母 88 pt 保持，累计 1,316 → 1,319 pt，严格归档交付率 93.3%（1,231/1,319 pt）。
 - Point 基线 `musicfrog-todo-20261101-v363`：现在佛 26 pt（6 条）/ 过去佛 53 pt（19 条）/ 斗战胜佛 56 pt（18 条）/ 未来佛 26 pt（15 条），联合未办结分母 161 pt（58 条）；已归档交付 1,152 pt（430 条）；累计 1,313 pt，严格归档完成率 87.7%.
@@ -232,14 +233,29 @@
 判据唯一：`python3 scripts/parity/space_utilization.py --report`。每完成一条即从
 `scripts/quality/space_utilization_debt.json` 删除对应行（台账只减不增），并随批重采像素。
 
+`SPACEUTIL-001`～`004` 与 `FLCLASH-001`～`002` 已由**第一百五十一统一验证批次**收口退出
+（办结 4 条 / 14 pt 归档，注销 2 条 / 8 pt），归档与注销去向见
+[TODO.md](../TODO.md) 第一百五十一批次行；本板只留仍可推的新缺口。
+
 | ID | 状态 / 优先级 | points | owner | 依赖 |
 | --- | --- | --- | --- | --- |
-| `SPACEUTIL-001` | `Integrated` / P1（b146 判据作废，见批次叙事） | 3 | infiltrator-slint（`base_widgets.slint` / `theme.slint`） | `SPCUTIL-STD`（L2 标准已落地；b145 交付，待统一验收） |
-| `SPACEUTIL-002` | `Integrated` / P1（b149 复核判定达标，撤回改造） | 5 | infiltrator-slint（`page_proxies.slint` / `page_about.slint`） | `SPACEUTIL-001` |
-| `SPACEUTIL-003` | `Integrated` / P2（b149 复核判定达标，撤回改造） | 3 | infiltrator-slint（`page_doctor.slint` / `page_app_routing.slint`） | `SPACEUTIL-001` |
-| `SPACEUTIL-004` | `Integrated` / P2（b150 交付：紧凑档 framed 页填满页身） | 3 | infiltrator-slint（compact/phone 档 12 帧） | `SPACEUTIL-002`、`SPACEUTIL-003` |
-| `FLCLASH-001` | `Integrated` / P1（b147 交付，待统一验收） | 3 | infiltrator-application / composition / desktop / android | 桌面参考基准（L3 已登记） |
-| `FLCLASH-002` | `Archived` / P2（复核判定存异，无缺口） | 5 | infiltrator-contract（已具备） | `FLCLASH-001` |
+| `SPACEUTIL-005` | `Planned` / P1 | 3 | infiltrator-contract（`responsive_viewport`）+ infiltrator-slint（`theme.slint` 阶梯、`lumen-app.slint` 外壳档）+ `scripts/parity/space_utilization.py` | `SPACEUTIL-004`（已办结） |
+
+**`SPACEUTIL-005` 视口阶梯只有一个真源（b150 实测登记的真实缺陷）**：同一个
+「这个窗口算哪一档」的问题现在由**三处各写一套边界**回答——共享契约
+`responsive_viewport` 是 600/840/1200（Iced、Bevy 读它），Slint 主题私有阶梯是
+600/800/1120（`theme.slint:30`，`lumen-app.slint:38` 的 `compact-layout` 由它派生，
+即侧栏/底栏外壳在 800 处翻转），判定器 `space_utilization.py:tier()` 是 700/1000。
+实测后果有两条：① 判定器在 800～999px 宽度上**以为没有侧栏**，于是把 228u 侧栏
+当成页身内容测量，测量盒、页边距与 shell 空气三者同时错位（当前采集矩阵只有
+400/720/1180 三档，故为潜伏缺陷）；② 同一个 1180×780 业务帧，Slint 判 wide、
+契约判 Expanded，代理节点列数 4 对 Iced 的 3（实测三端 `proxies-dark.png` 同为
+1180×780 而排布不同），属跨表面同一事实两个真源。收口顺序（自底向上，禁止上层
+各留一份）：契约唯一持有边界与「外壳档」（侧栏有无 / shell 空气 / 页边距）并由
+exporter 导出 → Slint 宿主发布 tier、主题阶梯字面量清零 → 判定器只读导出物 →
+身份变化后三桌面整批重采取证。**注意**：把 Slint 的 1120 宽档改为契约的 1200，
+会使 1120～1199 区间的节点列数从 4 变 3，这是产品密度裁决，必须与
+`proxy_grid_columns` 的契约表同批一次做完，不得拆成两半。
 
 **第一百五十批 页身空气归位 / 欠账台账清零（已交付 / 待统一验收，`Integrated`）**：承接用户
 「持续打磨 slint 细节、优化空间利用率」与 b149 留下的唯一 3 帧欠账，把紧凑档 `framed`
@@ -277,10 +293,56 @@ b146/b147 遗留的 5 条 import 内联长路径违规清零（`command_applicat
 feature matrix 0 / SLINT-018 5 项自测全绿）；space self-test **20/20**、`--enforce`
 197 帧 violations=0；`receipt-freshness=0`、`screenshot-identity scanned=574 aliases=10
 violations=0`。⑦ **诚实边界**：`--workspace` nextest/clippy 与提交/CI 腿待统一验证批次；
-`infiltrator-android` 定向 nextest 仍被**他人 bevy-host driver 外债**（`owner_client_tests.rs`
-的 `CoreSnapshot` 缺 `session`）挡住，按同仓所有权纪律不碰；desktop / compact / phone
+`infiltrator-android` 定向 nextest 当时仍编译失败（`owner_client_tests.rs` 的
+`CoreSnapshot` 缺 `session`），本批按「他人外债」记录；**该归属已由 b151 复核纠正**——
+`git log -S` 证明该字段是本仓 b132/b142 自己引入后漏迁的 fixture，b151 已补齐；
+desktop / compact / phone
 三档的 band 3.5–3.7%（页头呼吸位）贴着 4% 上限，视口阶梯仍有三份边界（契约
 600/840/1200、Slint 主题 600/800/1120、判定器 700/1000）待收敛为单一真源。
+
+**第一百五十一批 统一验证批次（一次组团收口 b144～b150 全部 `Integrated` 条目）**：按
+现在佛 §0 Agent 执行循环第 2 步「过去佛攒有 `Integrated` 待验证批次时，优先执行统一验证
+批次」，本批不写新功能，只把 b144～b150 积攒的 6 条 `Integrated` 一次跑通全量门并批量
+办结。① **先清掉挡住全量门的真实欠账（并纠正一条错误记账）**：`cargo check --workspace
+--all-targets` 此前一直挂在 `android/bevy-host/driver/src/owner_client_tests.rs:93` —
+`CoreSnapshot` 缺 `session` 字段。b147/b148/b150 把这条写成「他人 bevy-host driver
+外债」，**该结论经 `git log -S` 复核是错的**：`session` 由本仓 b132「Core 会话起点
+底层贯通」引入契约、b142 落地，漏迁了这个 Android fixture，是本流自己的欠账。补齐为
+`session: CoreSessionObservation::Unknown`（与本仓其余 20+ 处不关心会话时长的 fixture
+同一写法），全仓编译门从此可跑。② **`--workspace --all-targets -D warnings` 又抓出
+一条本流自己的 b142 违规**：`crates/infiltrator-bevy-widgets/tests/headless/
+advanced_multidimensional_tests.rs:90` 的 `assert!(WCAG_AA_NORMAL > WCAG_AA_LARGE)`
+被 `clippy::assertions_on_constants` 拒绝（两个常量比较在运行时永远为真）；改为
+`const _: () = assert!(…)`，把这条阈值序关系升级为编译期事实，断言更强而不是更弱。
+③ **`cargo deny check advisories` 因上游公告库新增而失败**：RUSTSEC-2026-0441 宣告
+`pin-utils` 上游归档（0.1.1 是最后一版，公告明确「No safe upgrade is available!」）。
+`cargo tree -i pin-utils` 实测唯一链路是 `spin_on@0.1.1 ← slint-build@1.18.1（build）
+与 slint-macros@1.18.1（proc-macro）← 钉住的 Slint 1.18.1`，不进入任何交付二进制，
+且本仓产品代码不用 `pin_mut!`（局部钉住一律 `core::pin::pin!`）。按台账既有九条同一
+口径在 `deny.toml` 登记完整理由与复核日期，不改代码、不静默删除门。
+④ **统一验证批次一次跑完（全为 `L`）**：`cargo check --workspace --all-targets` 6m16s
+零错误；`cargo nextest run --workspace --no-fail-fast` **5883 run / 5883 passed /
+15 skipped / 0 failed**；`cargo clippy --workspace --all-targets -- -D warnings` exit 0；
+`cargo fmt --all --check` 0 偏差；`bash scripts/quality/check-structure.sh` **exit 0**
+（40+ 结构守卫与 360+ quality 自测）；`cargo deny check advisories bans licenses
+sources` 四项 ok；`cargo metadata --locked` ok；`resolve_surface_evidence.py`
+status=pass（registry=True、discovery=True、anchors=360、cells=180）；
+`receipt-freshness=0`、`screenshot-identity scanned=574 aliases=10 violations=0`、
+`space_utilization --self-test 20/20` 与 `--enforce` 197 帧 violations=0。
+⑤ **批量办结与注销（一次解锁六条）**：办结归档 4 条 / 14 pt —
+`SPACEUTIL-001`（3 pt，b144 标准 + b145 判定器皮肤盲 + b146 判据重裁 + b150 侧栏纯导航）、
+`SPACEUTIL-004`（3 pt，b150 紧凑档 framed 页填满页身，台账清零）、
+`FLCLASH-001`（3 pt，b147 ClearTrafficHistory 真 owner + capability 路由拆开）、
+`FLCLASH-002`（5 pt，b148 复核裁定「存异·本仓已更强」，b148 当时未落台账，本批补记）；
+注销 2 条 / 8 pt — `SPACEUTIL-002`、`SPACEUTIL-003`（b149 按页面形态重判后两页均达标，
+同形态参考产品留白 80.6% 更宽，改造前提被实测推翻，按「不为办结造功能」原则注销，
+不计交付点）。⑥ **台账**：现在佛 §0.2 由 6 条 27 pt 收为 1 条 5 pt（仅 `MUSICFROG-001`
+仍 `InProgress`），联合未办结分母 115 → 93 pt，已归档 1,234 → 1,248 pt（455 → 459 条），
+累计 1,341 pt，严格归档交付率 93.1%（1,248/1,341 pt）。⑦ **诚实边界**：本批零产品
+行为变化（两处 fixture/断言 + 一条台账登记），不改像素，发布回执 `20261108T164957Z_…`
+继续保持新鲜；`C`（受控 CI）与 `D`（真机/目标产物）腿仍按既有条目在斗战胜佛与未来佛，
+不因本批全量门通过而升级；下一步可推的真实缺口是新立的 `SPACEUTIL-005`
+（视口阶梯三处真源）。
 
 - `SPACEUTIL-001` 侧栏选中胶囊死空气 36.2% → ≤20%：胶囊按 `nav-label.preferred-width` 取内容宽
   （图标 + 间距 + 标签 + 两侧 `rail-item-padding`），上限 `desktop-pill-max-width`（= rail 内容列），

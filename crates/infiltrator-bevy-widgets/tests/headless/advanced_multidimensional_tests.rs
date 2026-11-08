@@ -87,7 +87,10 @@ fn test_wcag_luminance_and_contrast_ratios() {
     let gray = Color::srgb(0.5, 0.5, 0.5);
     let contrast_gw = as_rgba(gray).contrast_ratio(as_rgba(white));
     assert!(contrast_gw > WCAG_AA_LARGE);
-    assert!(WCAG_AA_NORMAL > WCAG_AA_LARGE);
+    // The two thresholds are constants, so their order is a compile-time fact:
+    // normal text demands more contrast than large text. Asserting it at run
+    // time only ever re-reads the same two numbers.
+    const _: () = assert!(WCAG_AA_NORMAL > WCAG_AA_LARGE);
 }
 
 #[test]

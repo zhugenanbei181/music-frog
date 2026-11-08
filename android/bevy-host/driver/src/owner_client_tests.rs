@@ -3,7 +3,7 @@ use infiltrator_contract::android_control::{
     AndroidProductControlIntent, VpnOwnerCoreReadback, VpnOwnerLifecycle, VpnOwnerReadiness,
     VpnOwnerResourceFact, VpnOwnerResourceKind, VpnOwnerResourceState, VpnOwnerSnapshot,
 };
-use infiltrator_contract::snapshot::CoreSnapshot;
+use infiltrator_contract::snapshot::{CoreSessionObservation, CoreSnapshot};
 use infiltrator_contract::vpn::{VpnGeneration, VpnOwnerStopReceipt};
 use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
@@ -91,6 +91,7 @@ fn owner_snapshot(scope: &CoreScope, revision: u64) -> SurfaceSnapshot {
         generation: scope.generation.value(),
         revision,
         core: CoreSnapshot {
+            session: CoreSessionObservation::Unknown,
             identity: Some(scope.identity.clone()),
             lifecycle: CoreLifecycle::Running,
             generation: scope.generation.value(),

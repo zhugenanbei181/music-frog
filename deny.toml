@@ -24,6 +24,7 @@ ignore = [
     { id = "RUSTSEC-2026-0206", reason = "Pinned Iced 0.14 and Slint 1.18.1 resolve through usvg 0.45.1, which still requires rustybuzz 0.20.1; replacing it requires an upstream renderer upgrade. Direct dependents: usvg@0.45.1. Review by 2027-01-28." },
     { id = "RUSTSEC-2026-0192", reason = "Pinned renderer chains still require ttf-parser 0.25.1; switching to skrifa needs compatible Iced, Bevy, and Slint upstream releases. Direct dependents: fontdb@0.23.0, owned_ttf_parser@0.25.1, rustybuzz@0.20.1. Review by 2027-01-28." },
     { id = "RUSTSEC-2024-0449", reason = "serde_yaml_ng 0.10.0 still depends on unsafe-libyaml 0.2.11; replacing the parser across Core YAML contracts requires a separate format-compatibility migration. Direct dependents: serde_yaml_ng@0.10.0. Review by 2027-01-28." },
+    { id = "RUSTSEC-2026-0441", reason = "pin-utils was retired upstream (repository archived 2026-10-01 after releasing 0.1.1, the final version); cargo deny reports no safe upgrade. It reaches this workspace only through the pinned Slint 1.18.1 toolchain, as a build-time and proc-macro dependency: spin_on@0.1.1 <- slint-build@1.18.1 (build) and slint-macros@1.18.1 (proc-macro). Nothing of it links into a shipped product binary, and the product never calls pin_mut! - local pinning uses core::pin::pin!. Removing it requires Slint upstream to drop spin_on. Direct dependents: spin_on@0.1.1. Review by 2027-01-28." },
 ]
 
 [licenses]

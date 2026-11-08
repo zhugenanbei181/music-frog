@@ -269,11 +269,17 @@
 | 文案实现 | — | — | `interpolate` 在 `lurker-ui-presentation::copy` 与 `infiltrator-shared::i18n_interpolator` 各有一份 |
 
 
-### 已归档交付原子条目（明细 439 条 / 1,207 pt；累计 454 条 / 1,228 pt）
+### 已归档交付原子条目（明细 443 条 / 1,221 pt；累计 459 条 / 1,248 pt）
 
 > 证据等级：下表除显式标注 `C` 外均为本地 `L`（命令/run 见各行）；`cargo publish --dry-run` 目前只有 `lurker-core-contract` 取得。
 >
 > 明细口径说明：本表现有 306 行可逐行核对，合计 788 pt；与明细口径的差额（25 条 / 69 pt）由历次迁入 `docs/archive/TODO_ARCHIVED_ITEMS.md` 的历史行与 v143 继承历史差额累计构成（旧任务 ID 与证据无法还原，未猜填）。`docs/archive/TODO_ARCHIVED_ITEMS.md` 是本表的历史子集快照，不重复计数。
+>
+> 第一百五十一批次更正：本表头此前的「累计 454 条 / 1,228 pt」停在第一百零八批次，
+> 未随第一百零九/一百一十批次的台账行同步（那两批各 +3 pt，已在下方 ledger 行内记账）。
+> 本批把表头累计与 point ledger 对齐为 **459 条 / 1,248 pt**（= 第一百一十批次台账
+> 1,234 pt / 455 条 + 本批归档 14 pt / 4 条），并同步明细行数 439 → 443。此处只对齐
+> 已存在的两份记账，不新增任何交付声明。
 | 条目 | pt | 证据身份 |
 | --- | ---: | --- |
 | `BANDROID-044.1` Android Lint 接入 | 2 | Lint 68 条（4 errors + 64 warnings）→ 0，三 flavor Debug 变体注册真实 lint task（`warningsAsErrors` + `abortOnError`，无 baseline），四条有据可查的窄豁免写在 `android/app/lint.xml` 并由架构红线守卫逐条钉住；`scripts/quality/android-quality-gates.sh` 一次跑完三 flavor。 |
@@ -715,6 +721,10 @@
 | `FLPARITY-011` 跨端 docked search、弹性 sheet、长按排序与 hover 交互基线 | 5 | 2026-11-03 第一百零七交付批次：contract 层统一定义 DockedSearchState、SheetSizingSpec、LongPressReorderState、SwitchInteractionState 与 ButtonLiftFeedback，四表面消费同一契约模型；定向 nextest 505/505 全绿，Clippy 零警告。 |
 | `FLPARITY-002` Profile 二维码分享与手机到电视导入 | 5 | 2026-11-03 第一百零七交付批次：contract 层统一定义脱敏 ProfileSharePayload 与一次性 PairingToken 生命周期状态机，敏感参数自动掩码，Clash import URI 生成与 TV 导入阶段机；定向 nextest 505/505 全绿，Clippy 零警告。 |
 | `ICEDUI-001` Iced Clash Party 布局收口与全 UI 共享描述强制接入 | 3 | 2026-11-04 第一百零八交付批次：`infiltrator-contract::shared_copy` 统一 typed key，Shared/PO/Android/Slint/Bevy/Iced 消费同一描述；Iced 侧栏按「模式/开关 → 活动配置 → 主导航/紧凑计数 → 底部速率」重构，控制区短视口可滚动且导航/速率底栏钉住，清除可见文案字面量与中文夹注；`shared-copy-guard.py` 与 `--self-test` 接入结构门；五包定向 nextest 2152/2152、Iced 537/537、Iced check、fmt、守卫全绿，Iced 全矩阵 182/182。 |
+| `SPACEUTIL-001` 跨表面空间利用率强制标准 / 侧栏利用率判据 | 3 | 2026-11-09 第一百五十一统一验证批次：b144 立 L2 标准与像素判定器（三种测量口径失误逐条根治），b145 根治判定器皮肤盲（深色胶囊自证墨迹）并让侧栏选中态按内容取宽，b146 按 FlClash 桌面真实场景图作废 `pill_tail` 改判 `chrome_band`（侧栏只放导航，选中全宽带右侧空地是合法呼吸位），b150 把页身底部空气归回「外壳档」真源；发布批 `20261108T164957Z_cda77dec2603_dirty_2413388`（197/197）实测侧栏 `chrome_band` 0.0%、`void` 4.4%，三档 0 帧超标；`--self-test` 20/20、`--enforce` violations=0、`--check-export` 与契约导出不漂移；全仓 nextest 5883/5883、clippy `-D warnings` 0、结构门 exit 0。 |
+| `SPACEUTIL-004` 紧凑档 / 手机档 framed 页填满页身 | 3 | 2026-11-09 第一百五十一统一验证批次：b150 实测根因（720×480 档 framed 卡止于 y407，卡下 72 行 = 480 行的 12.9% 死地；同档兄弟帧填到 y477、桌面档同页 tail 0.0%，差别只在「有没有底部导航」），裁决为「底部空气是外壳档事实，不是底栏事实」；改后三帧 tail 12.9% → **0.0%**、band 3.5%（页头呼吸位，与桌面档 3.6% 同量级），紧凑档 p90 12.9% → 6.1%，`scripts/quality/space_utilization_debt.json` 的 `frames` **清零**（台账仍只减不增）；`slint-viewport-tier-guard` 新增 chrome-fact 硬门与 planted 反例；全仓 nextest/clippy/结构门同上。 |
+| `FLCLASH-001` Core 方法面 wire 对照审计 / `ClearTrafficHistory` 真 owner 收口 | 3 | 2026-11-09 第一百五十一统一验证批次：b146 逐方法对照上游 `CoreMethod` 约 60 个 `area.verb` 后仅两处真缺陷（dispatch `Ok(())` 空操作 + capability 错映射 `ConnectionOperation::Close`）；b147 自底向上收口——domain `TrafficWaveformBuffer::reset` 保 generation/session 并递增 revision，application 发布 typed 读回，`CoreApplication` 单一持有唯一 `TrafficWaveformApplication`，桌面/Android/iOS composition 与 `ProductSurfaceReader` 共享同一 `Clone`（同一 `Arc<Mutex>`），未注入 owner 时返回 `NotReady` typed refusal；复核 Mihomo HTTP API 无 traffic-reset endpoint，故路由改 `LocalOnly` 而非虚报引擎能力；`route.watch`/`shareLink.*`/`config.decrypt` 经逐层核对为本仓已有更强实现（typed 快照读回 + revision、`ProtocolCodecApplication` 草稿↔URI 往返与保真审计），登记为存异不重复造；4 项新 nextest + 全仓 5883/5883、clippy 0、结构门 exit 0。 |
+| `FLCLASH-002` 仪表盘卡片注册表 typed 化复核（存异，本仓已更强） | 5 | 2026-11-09 第一百五十一批次补记（b148 已裁定办结、当时未落台账）：逐项核对 `infiltrator-contract::overview_layout` 确认本仓已有 typed `OverviewCardKind`（8 变体）、`region` 把 shell 侧栏控件与概览卡分开（上游 `DashboardWidget.platforms` 无此裁决）、`DEFAULT_ORDER` 与 `OverviewLayoutSnapshot` 可重排 owner + 4 项契约测试；`project_overview_layout` 纯消费、`DashboardFacts` 一次投影 11 类事实；上游平台门控在本仓无对应真实差异（`MasterSwitches` 四表面均渲染），凭空加门控只会造第二个业务真源，故按「不为办结造功能」原则不写码；统一批次全仓门 exit 0。 |
 > v143 在 v142 上归档 DNS display projection ownership，共 5 pt。继承的历史明细仍比累计少 1 条 / 1 pt，旧任务 ID 与证据无法还原；当前已知切片均登记，未猜填历史记录。
 
 ## 全局研判与产品交付收口门（2026-10-11）
