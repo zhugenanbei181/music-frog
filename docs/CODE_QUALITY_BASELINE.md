@@ -47,5 +47,6 @@
 ## 验证
 
 - 质量门只在 `scripts/quality/check-structure.sh` 汇总；禁止通过删除断言、放宽门槛、消音错误或复制第二套检查获得通过。
+- 空间利用率按 [空间利用率强制标准](SPACE_UTILIZATION_STANDARD.md) 判定，唯一入口 `scripts/parity/space_utilization.py`：`--self-test` 用植入帧证明门看得见缺陷，`--enforce` 判最新发布整批。超标帧只能登记 `scripts/quality/space_utilization_debt.json` 欠账，台账是精确清单而非白名单，只允许收紧；禁止改阈值、跳过帧或给单页开特例来获得通过。
 
 Bevy 的 ECS、shader 和资源生命周期规则见 [Bevy UI 章程](../crates/infiltrator-bevy-ui/docs/BEVY_UI_FRONTEND.md)；Android host 与 IPC 边界见 [Android 章程](../android/docs/BEVY_ANDROID_PRODUCT.md)。

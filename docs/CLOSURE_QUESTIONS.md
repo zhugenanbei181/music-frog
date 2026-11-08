@@ -38,6 +38,18 @@
 | 7 | 部分 | L | 彻底清除全仓 part1/part2/part3 无语义命名，重构为高内聚强语义模块（reset_recovery_and_migration、owner_switch_and_recovery、cross_process_concurrency、workspace_recovery_and_reset_tests）；文件级模块化完成（scanned=2891 violations=0，kt-line scanned=227 violations=0）；mod.rs 清退至 0；隐式状态机语义审计 + 判决台账常驻（23 条候选 0 undecided 0 open）；rem 体系 0 违规 0 debt；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | `check-structure.sh` 40+ 结构守卫、单测与工具链全部 exit 0；`cargo fmt --all --check` 0 偏差；六包定向 nextest 2179/2179 全绿；Clippy 6 包 `--all-targets -D warnings` 零警告；`screenshot-identity-guard` 550 张截图 10 aliases 0 违规；`scrollbar-contract-guard` 0 违规；`shared-copy-guard` 0 违规；`i18n-guard` 0 违规 |
 
+## 最近一批问答（2026-11-08 第一百四十四交付批次：空间利用率强制标准 / 像素判定器与只减欠账台账）
+
+1. x86_64/aarch64：b144 是 L2 标准文本、判定脚本与台账 JSON，不进入任何产品二进制，架构中性；判定器对最新发布整批 197 帧可复跑为 `L`，本批未复跑交叉 `cargo check`（无被测代码变更）→ 完整（L）。
+2. Windows/Linux/macOS：判定器只读已发布 PNG 与 Python/PIL，本机 Linux 台架 `--self-test` 14/14、`--enforce` violations=0 为 `L`；未在 Windows/macOS 复跑脚本，且本批不改任何平台的构建产物 → 部分（L）。
+3. Android/iOS：本批判定器只消费 Slint 桌面矩阵帧；Android 三 flavor 的同类留白取证需要真机截图批次，标准文本已把三档阈值写成跨表面适用，但 Android 侧无实测回执 → 部分（L）。
+4. 各 UI：标准登记为跨表面 L2 公共契约并钉入总纲 L0 与质量底线；Iced/Bevy/Android 尚未接入同一判定器（判定入口当前只认 Slint 发布批目录）。Slint 侧测得的 38 帧超标与侧栏胶囊 36.2% 死尾仅登记欠账，未整改任何页面布局，不宣称视觉问题已修复 → 部分（L）。
+5. 复用：留白测量收敛为唯一判定入口 `scripts/parity/space_utilization.py`（页身盒 / 左缘 margin 条取底色 / 长度 ≥3 行实带三条口径只写一处），欠账唯一真源 `scripts/quality/space_utilization_debt.json` 精确到帧且 `--update-debt` 只允许收紧（实测删一条欠账即 exit=1 并指名报出）；未新增第二份测量脚本或白名单式豁免 → 完整（L）。
+5a. 设计资源强制标准：本批不改 design authority、字型/字重/图标身份，也不重采像素，因此不提供新视觉回执；阈值取自既有发布批 197 帧与参考产品 12 帧的实测分布，而非审美断言 → 完整（L）。
+6. 功能接入：`--report` / `--enforce` / `--json` / `--self-test` / `--update-debt` / `--bootstrap` 六个入口全部实测可用；`--bootstrap` 只在台账为空时首次建档，之后新登记一律失败，防止用建档掩盖新增浪费 → 完整（L）。
+7. 模块化：标准文本（L2）/ 判定器（scripts/parity）/ 台账（scripts/quality）/ 门禁接线（`check-structure.sh` 两条腿）四件事各自一处；14 项 planted 自测覆盖「填满的卡不得判违规」「卡不得自证底色」「边缘噪声不得伪装满页」「框架卡内空视口不是页面浪费」「定宽胶囊必须被抓」，正反例都在脚本内自带 → 完整（L）。
+8. CI：新增两条腿接入 `check-structure.sh`（self-test + enforce），判定只读已发布整批，单批耗时约 6s，不触发编译；`doc-governance-guard` OK（同批修掉一条 L4 叶台账上引 L3 的既存违规）、`closure-questions-guard` 8/8；`--workspace` nextest/clippy 与提交腿留待统一验证批次 → 部分（L）。
+
 ## 最近一批问答（2026-11-08 第一百四十交付批次：编辑器动作条双视口裁切 / 说明句归位与一业务一卡）
 
 1. x86_64/aarch64：b140 是 Slint 投影标签、页面拆卡与双语文案键，架构中性；`cargo check -p infiltrator-slint -p infiltrator-shared` 与整批 197 帧发布为 `L`，本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。

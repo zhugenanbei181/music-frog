@@ -123,6 +123,8 @@ python3 scripts/quality/slint-viewport-tier-guard.py --mode enforce
 python3 scripts/quality/slint-viewport-tier-guard.py --self-test
 python3 scripts/quality/slint-list-page-guard.py --mode enforce
 python3 scripts/quality/slint-list-page-guard.py --self-test
+python3 scripts/parity/space_utilization.py --self-test
+python3 scripts/parity/space_utilization.py --enforce
 python3 scripts/quality/slint-workbench-row-guard.py --mode enforce
 python3 scripts/quality/slint-workbench-row-guard.py --self-test
 python3 scripts/quality/slint-selector-segment-guard.py --mode enforce
