@@ -248,7 +248,7 @@
   （`CardHeight.page-body` + `ListBody`），关于页许可入口按「合并」收口。
 - `SPACEUTIL-003` 诊断页与应用分流页（40.6% / 26.8%）：同 §5 填满或合并，禁止加布尔特例。
 - `SPACEUTIL-004` compact/phone 档 12 帧（最差 47.8%）：手机档配置/代理页与紧凑档面板收口。
-- `FLCLASH-001` 上游 `route.watch` / `route.check` 与本仓 typed 路由变更订阅、规则命中校验的契约缺口；自底向上（contract → application → adapter → fake/nextest）收口后再接呈现层，禁止 UI 私补。
+- `FLCLASH-001` core 方法面 wire 对照审计（b146 已审计，发现**两个真实缺陷**，待独立 Core 批次自底向上收口）：① `CommandIntent::ClearTrafficHistory` 在 `command_application/dispatch.rs` 是 `Ok(())` 空操作，从未触碰真实波形 owner；② 同一个意图在 `command_capability.rs` 被映射到 `ConnectionOperation::Close`，而上游 `traffic.reset` 清累计计数、`connection.close` 拆 socket 是**两个不同事实**，会让「能重置统计但不能关连接」的引擎误报不支持。上游 `network.changed` 由 `NetworkRoamingSnapshot` + `FakeIpCacheOperation::Flush` 覆盖，无缺口。正确收口顺序：contract 新增 typed `ConnectionOperation::ResetStatistics`（wire `connection.reset_statistics`）→ adapter 能力矩阵（mihomo/sing-box/desktop/android/composition 五处）→ `TrafficWaveformBuffer::reset` / `TrafficWaveformApplication::reset` → 让 `CommandApplication` 与 `ProductSurfaceReader` **共享同一个** `TrafficWaveformApplication` owner（`Clone` 即共享 `Arc<Mutex>`，需跨 host 注入，禁止各建一个实例做假 reset）→ dispatch 真实调用 + capability 映射拆开 + fake/nextest 验收。本轮 b146 只登记不半改，未提交的源码改动已全部回退（并行纪律：编译不通过的半成品不得留在工作树）。
 - `FLCLASH-002` 仪表盘 `DashboardWidget` 注册表 typed 化：本仓 `DashboardFacts` 已有 11 类模块与 `OverviewLayoutSnapshot` 顺序投影，缺的是卡片身份 enum + registry + 平台能力面的单一真源；不得在页面写死第二套卡片清单。
 
 ## 一、大计划主线与推进顺序

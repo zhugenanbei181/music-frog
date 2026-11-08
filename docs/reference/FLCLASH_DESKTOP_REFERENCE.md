@@ -62,25 +62,38 @@ intranetIp, memoryInfo`。
 内存信息 / 连接表 / 策略组网格等卡片。**结论：模块覆盖不缺**，缺的是
 「卡片身份没有 typed enum 注册表」与「卡片顺序不可配置」这两项架构能力。
 
-## 4. Core 能力面差距（求同抽象）
+## 4. Core 能力面差距（求同抽象，b146 复核修订）
 
-上游 `CoreMethod` 约 60 个 `area.verb` 方法。本仓 `CoreOperation` 已 typed 覆盖
-大部分且更细（Profile/Dns/Rules/Subscription/Provider/Outbound/Connection/Logs/
-FakeIpCache/Tun/Lifecycle/ProxyControl/GC/Version）。逐项核对后真实缺口：
+上游 `CoreMethod` 约 60 个 `area.verb` 方法，登记在 `core/protocol.go`，
+由 `core/method.go` 的一张 `methodHandlers` 分发表消费。本仓
+`CoreOperation` 已 typed 覆盖大部分且更细（Profile/Dns/Rules/Subscription/
+Provider/Outbound/Connection/Logs/FakeIpCache/Tun/Lifecycle/ProxyControl/
+GC/Version）。
 
-| 上游方法 | 本仓状态 | 处置 |
+**b146 首版把三项登记为「真实缺口」，逐层复核后确认是误判，现更正**——
+这是「求同存异」里"存异"的一侧，不得为办结任务而造重复能力：
+
+| 上游方法 | 复核后的本仓等价真源 | 裁决 |
 | --- | --- | --- |
-| `route.watch` / `route.check` | 无对应 typed 操作 | 立项：路由变更订阅与规则命中校验需自底向上裁决 |
-| `probe.outboundIp` / `probe.services` | `public_ip` / `speedtest` 已有更丰富投影 | **存异**：本仓更强，不照搬 |
-| `mitm.*`（8 个） | 无 | **存异**：本仓不做 MITM/脚本注入，产品边界不同，登记为显式不采纳 |
-| `shareLink.encode/decode` | `profile_share.rs` 有 typed 报告但无 core 方法对称面 | 立项：补齐 encode/decode 对称操作 |
-| `config.decrypt` / `profile.clearEffect` | 无明显同名操作 | 立项：核对是否由 profile 生命周期覆盖 |
-| `core.crash` | 无 | **存异**：崩溃注入属上游测试钩子，不进产品 |
-| `traffic.reset` / `connection.reset` / `network.changed` | 部分有 | 立项：核对 typed 意图与读回 |
+| `route.watch` / `route.check` | `CoreSnapshot.revision` 每次事务递增 + `ActiveExitSnapshot{generation, revision}` 的权威读回；规则命中校验由 `CoreOperation::Rules(RulesOperation::Trace)` + `RuleTraceRun` / `RuleHitAuditSnapshot` 承担 | **存异（更强）**：本仓用 typed 快照读回 + revision 表达选路变更，不需要额外订阅通道与轮询计时器；上游 `routeTracker` 的 1s 轮询是因 mihomo 无 URLTest/Fallback 选路 hook，本仓不受此限 |
+| `shareLink.encode` / `shareLink.decode` | `ProtocolCodecApplication::draft_from_uri` / `uri_from_draft`（DUAL-05 typed 契约，带 `ProtocolFidelity` 不可表达字段审计） | **存异（更强）**：本仓有完整草稿 → URI 往返与保真审计，非裸编解码 |
+| `config.decrypt` / `profile.clearEffect` | 由 profile 生命周期与 `ProfileDocument` 的 typed 迁移器覆盖 | **存异**：语义不同，登记为不采纳 |
+| `probe.outboundIp` / `probe.services` | `PublicIpProbeSnapshot` / `SpeedtestSnapshot` / `DashboardFacts` 的 4 服务延迟投影 | **存异（更强）** |
+| `mitm.*`（8 个） | 无 | **显式不采纳**：本仓不做 MITM/脚本注入，产品边界不同 |
+| `core.crash` | 无 | **显式不采纳**：崩溃注入是上游测试钩子，不进产品 |
+| `traffic.reset` / `connection.reset` / `network.changed` | `network.changed` 由 `NetworkRoamingSnapshot` + `FakeIpCacheOperation::Flush` 覆盖；`traffic.reset` 本仓有 `CommandIntent::ClearTrafficHistory` | **已审计，发现两个真实缺陷**：该意图 dispatch 是 `Ok(())` 空操作、且 capability 错映射到 `ConnectionOperation::Close`（清统计 ≠ 拆 socket）。登记为独立 Core 批次，不半改 |
 
-**纪律**：core 缺口必须先建/认领底层任务，在 domain/contract/ports → application →
-adapter → presentation 逐层收口并用 mock/nextest 验收，再让 UI 消费；
-严禁在 UI 层打补丁或伪造业务事实。
+**审计产物**：三个方法逐项核对后，只有 `traffic.reset` 对应的
+`CommandIntent::ClearTrafficHistory` 存在两处真缺陷（dispatch 空操作 +
+capability 错映射），已在 `FLCLASH-001` 写明自底向上的完整收口顺序
+（contract typed 操作 → adapter 五处能力矩阵 → domain/application reset →
+跨 host 共享同一波形 owner → dispatch 真实调用 → fake/nextest）。
+b146 只登记不半改，未收口的源码改动全部回退，不含「route.watch 缺失」
+这类误判结论。
+
+**纪律**：任何 core 缺口必须先建/认领底层任务，在 domain/contract/ports →
+application → adapter → presentation 逐层收口并用 mock/nextest 验收，
+再让 UI 消费；严禁在 UI 层打补丁或伪造业务事实。
 
 ## 5. 对既有空间利用率标准的修订
 
