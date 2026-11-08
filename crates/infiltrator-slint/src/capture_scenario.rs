@@ -10,6 +10,7 @@
 //! activated.
 
 use crate::AppWindow;
+use crate::set_page;
 use crate::lumen_projection::project_snapshot;
 use crate::lumen_projection::project_workbench;
 use crate::surface::action::workbench::business::open_action;
@@ -541,7 +542,7 @@ pub fn activate(
             if !activation.performed.get() {
                 // The page must really carry the business, so the workbench
                 // projection runs again for the page the capture opened.
-                window.set_page(page.into());
+                set_page(window, page);
                 window.set_page_origin("Settings".into());
                 project_workbench(window, snapshot, workbenches);
                 // The route-only render is the state the business's own
@@ -569,7 +570,7 @@ pub fn activate(
             if !activation.performed.get() {
                 // The page must really carry the business, so the shared
                 // projection runs again for the page the capture opened.
-                window.set_page(page.into());
+                set_page(window, page);
                 project_snapshot(window, snapshot, None);
                 // The route-only render is the state the business's own
                 // gesture is measured against.

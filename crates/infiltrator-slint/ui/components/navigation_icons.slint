@@ -1,0 +1,16 @@
+// The one static mapping from a shared canonical icon name to the canonical
+// Lucide asset. Slint requires `@image-url` to be a compile-time literal, so
+// the projection publishes the semantic name as a string and this component
+// resolves it. There is no second icon family and no per-page path literal.
+export global NavigationIcons {
+    public pure function icon(name: string) -> image {
+        if name == "layout-grid" { return @image-url("../../../infiltrator-shared/assets/ui/iced/svg/layout-grid.svg"); }
+        if name == "globe" { return @image-url("../../../infiltrator-shared/assets/ui/iced/svg/globe.svg"); }
+        if name == "file-text" { return @image-url("../../../infiltrator-shared/assets/ui/iced/svg/file-text.svg"); }
+        if name == "settings" { return @image-url("../../../infiltrator-shared/assets/ui/iced/svg/settings.svg"); }
+        if name == "network" { return @image-url("../../../infiltrator-shared/assets/ui/iced/svg/network.svg"); }
+        if name == "list-checks" { return @image-url("../../../infiltrator-shared/assets/ui/iced/svg/list-checks.svg"); }
+        if name == "activity" { return @image-url("../../../infiltrator-shared/assets/ui/iced/svg/activity.svg"); }
+        return @image-url("../../../infiltrator-shared/assets/ui/iced/svg/settings.svg");
+    }
+}

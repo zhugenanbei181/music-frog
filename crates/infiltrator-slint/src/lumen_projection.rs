@@ -13,7 +13,9 @@ pub(super) mod workbench;
 
 use super::flag_assets;
 use super::slint_model;
-use super::{AppWindow, OverrideCard, OverviewCardSlot, ProfileCard, ProfileOverrideChoice};
+use super::{
+    AppWindow, NavigationSlot, OverrideCard, OverviewCardSlot, ProfileCard, ProfileOverrideChoice,
+};
 use crate::surface::workbenches::Workbenches;
 use crate::theme_util::apply_theme_color;
 use crate::widget_vocabulary;
@@ -22,6 +24,9 @@ use infiltrator_contract::language::LanguagePreference;
 use infiltrator_contract::overview_layout::{OverviewCardKind, OverviewLayoutSnapshot};
 use infiltrator_contract::profile_editor_read::ProfileReadStatus;
 use infiltrator_contract::public_ip::PublicIpProbeStatus;
+use infiltrator_contract::shell_navigation::{
+    NavigationGroup, NavigationItem, NavigationSurface, NavigationTarget,
+};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_contract::system_proxy::SystemProxyRecoveryStatus;
 use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
@@ -59,6 +64,42 @@ pub(super) fn project_initial(window: &AppWindow, language: &str, autostart: Opt
     window.set_license_rows(slint_model(collections::license_rows("", language)));
     window.set_title_bar_upload("0 B/s".into());
     window.set_title_bar_download("0 B/s".into());
+    project_navigation(window, &lang);
+}
+
+/// Publish the desktop sidebar destinations from the shared typed registry.
+///
+/// The rail is a pure consumer: the destination set, order, grouping, icon
+/// semantics and labels all come from the contract. Localizing a label here is
+/// presentation, not a second truth source - the copy key is
+/// `ShellPage::sidebar_key`. The one surface-local page has no shared copy key
+/// and is localized through the same shared catalog by its own key.
+fn project_navigation(window: &AppWindow, lang: &Lang<'_>) {
+    let rows = NavigationItem::items(NavigationSurface::Desktop)
+        .iter()
+        .map(|item| NavigationSlot {
+            id: item.id().into(),
+            label: navigation_label(*item, lang).into(),
+            group: item.group.id().into(),
+            group_label: navigation_group_label(item.group, lang).into(),
+            icon: item.icon.canonical_name().into(),
+        })
+        .collect::<Vec<_>>();
+    window.set_navigation_items(slint_model(rows));
+}
+
+fn navigation_label(item: NavigationItem, lang: &Lang<'_>) -> String {
+    match item.target {
+        NavigationTarget::Shared(page) => lang.tr(page.sidebar_key()).into_owned(),
+        NavigationTarget::SurfaceLocal("traffic") => {
+            lang.tr("nav_traffic").into_owned()
+        }
+        NavigationTarget::SurfaceLocal(id) => id.to_owned(),
+    }
+}
+
+fn navigation_group_label(group: NavigationGroup, lang: &Lang<'_>) -> String {
+    lang.tr(group.title_key()).into_owned()
 }
 
 pub(super) fn snapshot_language(snapshot: &SurfaceSnapshot) -> String {

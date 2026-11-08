@@ -18,10 +18,12 @@ How a frame is measured
 * `band` is the largest ground run strictly between two content runs, i.e.
   the dead band a page pays inside its own span.
 * `unused` is the worse of the two: one number per frame, one limit per tier.
-* The desktop rail is judged on its own axis, because a tall column whose
-  selected pill carries a third of its width in dead air is waste the vertical
-  metric cannot see: `pill_tail` (dead air right of the label inside the
-  selected pill) and `void` (the largest ground run inside the nav stack).
+* The desktop rail is judged on its own axis against the FlClash desktop
+  reference: the sidebar is navigation only. `chrome_band` is the share of
+  rail height spent on non-navigation blocks (status card, brand, version),
+  and `void` is the largest ground run inside the nav stack. A full-width
+  selected row is legitimate breathing room, NOT dead width: measuring a
+  "pill tail" was a category error and has been retired.
 
 Modes
 -----
@@ -58,7 +60,7 @@ SHELL_BOTTOM_AIR = {"desktop": 72, "compact": 0, "phone": 0}
 
 # The limits of the standard, per tier, as a percentage of the page body.
 UNUSED_LIMIT = {"desktop": 12.0, "compact": 8.0, "phone": 8.0}
-RAIL_PILL_TAIL_LIMIT = 20.0
+RAIL_CHROME_BAND_LIMIT = 0.0
 RAIL_VOID_LIMIT = 12.0
 
 ROW_INK_FRACTION = 0.04
@@ -124,7 +126,16 @@ def vertical(rows: np.ndarray) -> dict:
 
 
 def rail_of(image: np.ndarray) -> dict | None:
-    """The desktop rail's own utilization, or None off the desktop tier."""
+    """The desktop rail's own utilization, or None off the desktop tier.
+
+    The reference sidebar is navigation only: the selected row is a full-width
+    wash plus a narrow indicator, and the empty right side is breathing room.
+    What IS waste is a second content block (a status card, brand tile or
+    version line) living in the rail below the nav stack - those facts already
+    have a single owner in the title bar and the dashboard. We measure it as
+    the ink below the last navigation row, which the nav stack's own stride
+    identifies.
+    """
     height, width, _ = image.shape
     if width < 1000:
         return None
@@ -136,35 +147,19 @@ def rail_of(image: np.ndarray) -> dict | None:
     if not bands:
         return None
     voids = [bands[i + 1][0] - bands[i][1] - 1 for i in range(len(bands) - 1)]
-    # The selected pill: the widest ink band of the nav stack. Its dead tail is
-    # the box width minus the last label ink column inside the box.
-    #
-    # The label is measured against the pill's OWN fill, never against an
-    # absolute luminance cut. A cut like "sum(rgb) < 430" reads the dark pill
-    # fill itself as label ink, so dark and amoled skins reported a 0% tail for
-    # the very same 160u box that light skins reported at 35%. The fill is
-    # sampled from the box's left padding (the component guarantees a
-    # `rail-item-padding` gutter there), and only the middle rows are read so
-    # the rounded corners - which blend fill into ground - cannot masquerade as
-    # ink at the box edge.
-    nav = [band for band in bands if band[0] > 110 and band[1] < 590]
-    pill_tail = 0.0
+    # Navigation rows are the compact bands in the upper 70% of the rail. A
+    # bottom chrome card is a tall band (or a cluster of lines) below them.
+    nav = [band for band in bands if band[0] < height * 0.70]
+    chrome_band = 0.0
     if nav:
-        top, bottom = max(nav, key=lambda band: band[1] - band[0])
-        cols = np.where(ink[top:bottom + 1].any(axis=0))[0]
-        if len(cols):
-            left = int(cols.min())
-            right = int(cols.max())
-            box = right - left + 1
-            span = bottom - top + 1
-            mid = strip[top + int(span * 0.30):top + int(span * 0.70) + 1, left:right + 1]
-            fill = np.median(mid[:, 0:4].reshape(-1, 3), axis=0)
-            label = (np.abs(mid - fill).sum(axis=2) > 40).sum(axis=0) >= 2
-            label_cols = np.where(label)[0]
-            if len(label_cols):
-                pill_tail = round((box - (int(label_cols.max()) + 1)) / box * 100, 1)
+        nav_bottom = max(band[1] for band in nav)
+        lower = [band for band in bands if band[0] > nav_bottom]
+        if lower:
+            chrome_band = round(
+                (max(band[1] for band in lower) - min(band[0] for band in lower) + 1)
+                / height * 100, 1)
     return dict(void_pct=round(max(voids, default=0) / height * 100, 1),
-                pill_tail_pct=pill_tail)
+                chrome_band_pct=chrome_band)
 
 
 def measure(run: pathlib.Path) -> list[dict]:
@@ -270,16 +265,16 @@ def rail_findings(results: list[dict], debt: dict) -> list[str]:
     desktop = [entry for entry in results if entry["tier"] == "desktop"]
     if not desktop:
         return found
-    worst_pill = max((entry.get("pill_tail_pct", 0.0) for entry in desktop))
+    worst_chrome = max((entry.get("chrome_band_pct", 0.0) for entry in desktop))
     worst_void = max((entry.get("void_pct", 0.0) for entry in desktop))
-    allowed_pill = float(registered.get("pill_tail_pct", 0.0))
+    allowed_chrome = float(registered.get("chrome_band_pct", 0.0))
     allowed_void = float(registered.get("void_pct", 0.0))
-    if worst_pill > RAIL_PILL_TAIL_LIMIT:
-        if worst_pill > allowed_pill:
+    if worst_chrome > RAIL_CHROME_BAND_LIMIT:
+        if worst_chrome > allowed_chrome:
             found.append(
-                f"rail: the selected pill keeps {worst_pill}% of its own width as dead air, "
-                f"over the {RAIL_PILL_TAIL_LIMIT}% limit"
-                + (f" and over its registered debt {allowed_pill}%" if allowed_pill else "")
+                f"rail: {worst_chrome}% of the rail height is non-navigation chrome, "
+                f"over the {RAIL_CHROME_BAND_LIMIT}% limit"
+                + (f" and over its registered debt {allowed_chrome}%" if allowed_chrome else "")
             )
     if worst_void > RAIL_VOID_LIMIT:
         if worst_void > allowed_void:
@@ -307,9 +302,9 @@ def report(results: list[dict]) -> None:
                   f"band {entry['band_pct']:5.1f})  {entry['scenario']}")
     desktop = [entry for entry in results if entry["tier"] == "desktop"]
     if desktop:
-        pill = max(entry.get("pill_tail_pct", 0.0) for entry in desktop)
+        chrome = max(entry.get("chrome_band_pct", 0.0) for entry in desktop)
         void = max(entry.get("void_pct", 0.0) for entry in desktop)
-        print(f"\n=== rail: worst pill dead tail {pill}% (limit {RAIL_PILL_TAIL_LIMIT}%), "
+        print(f"\n=== rail: worst non-nav chrome {chrome}% (limit {RAIL_CHROME_BAND_LIMIT}%), "
               f"worst nav void {void}% (limit {RAIL_VOID_LIMIT}%) ===")
 
 
@@ -462,62 +457,59 @@ class SelfTest(unittest.TestCase):
         found = frame_findings([], debt)
         self.assertTrue(any("not in the batch" in item for item in found), found)
 
-    def test_a_wide_pill_with_a_short_label_is_caught(self) -> None:
+    def _nav_only_rail(self, image: np.ndarray) -> None:
+        """Five selected/nav rows in the upper rail, no bottom chrome."""
+        for y in (140, 230, 320, 410, 500):
+            _fill(image, y, y + 40, 0, 200, (220, 238, 226))
+            _fill(image, y + 12, y + 28, 34, 140, INK)
+
+    def test_a_status_card_below_the_nav_stack_is_caught(self) -> None:
         image = _desktop_body()
-        # brand row, then a nav pill 160u wide whose label ink stops early
-        _fill(image, 63, 97, 18, 143, INK)
-        _fill(image, 134, 178, 34, 194, (220, 238, 226))
-        _fill(image, 150, 168, 52, 137, INK)
+        self._nav_only_rail(image)
         _fill(image, 617, 712, 18, 210, CARD)
         entry = self.measure_one(image)
-        self.assertIn("pill_tail_pct", entry)
-        self.assertGreater(entry["pill_tail_pct"], RAIL_PILL_TAIL_LIMIT, entry)
+        self.assertGreater(entry["chrome_band_pct"], RAIL_CHROME_BAND_LIMIT, entry)
         self.assertNotEqual(rail_findings([entry], {"frames": {}, "rail": {}}), [])
 
-    def test_a_content_width_pill_passes(self) -> None:
+    def test_a_navigation_only_rail_passes(self) -> None:
         image = _desktop_body()
-        _fill(image, 63, 97, 18, 143, INK)
-        _fill(image, 134, 178, 34, 150, (220, 238, 226))
-        _fill(image, 150, 168, 52, 137, INK)
-        _fill(image, 617, 712, 18, 210, CARD)
+        self._nav_only_rail(image)
         entry = self.measure_one(image)
-        self.assertLessEqual(entry["pill_tail_pct"], RAIL_PILL_TAIL_LIMIT, entry)
+        self.assertEqual(entry["chrome_band_pct"], 0.0, entry)
+        self.assertEqual(rail_findings([entry], {"frames": {}, "rail": {}}), [])
 
-    def test_a_dark_pill_with_a_short_label_is_caught_too(self) -> None:
-        # Regression: the tail used to be an absolute luminance cut, so the
-        # dark fill itself counted as label ink and this exact box reported
-        # 0% on dark/amoled while reporting 35% on light. One geometry, one
-        # verdict, every skin.
+    def test_a_dark_status_card_is_caught_too(self) -> None:
         image = _desktop_body_dark()
-        _fill(image, 63, 97, 18, 143, (213, 241, 248))
-        _fill(image, 134, 178, 34, 194, (6, 73, 91))
-        _fill(image, 150, 168, 52, 137, (213, 241, 248))
+        for y in (140, 230, 320, 410, 500):
+            _fill(image, y, y + 40, 0, 200, (6, 73, 91))
+            _fill(image, y + 12, y + 28, 34, 140, (213, 241, 248))
         _fill(image, 617, 712, 18, 210, (29, 33, 38))
         entry = self.measure_one(image)
-        self.assertGreater(entry["pill_tail_pct"], RAIL_PILL_TAIL_LIMIT, entry)
-        self.assertNotEqual(rail_findings([entry], {"frames": {}, "rail": {}}), [])
+        self.assertGreater(entry["chrome_band_pct"], RAIL_CHROME_BAND_LIMIT, entry)
 
-    def test_a_dark_content_width_pill_passes_too(self) -> None:
-        image = _desktop_body_dark()
-        _fill(image, 63, 97, 18, 143, (213, 241, 248))
-        _fill(image, 134, 178, 34, 150, (6, 73, 91))
-        _fill(image, 150, 168, 52, 137, (213, 241, 248))
-        _fill(image, 617, 712, 18, 210, (29, 33, 38))
+    def test_a_full_width_selected_row_is_not_dead_width(self) -> None:
+        # Regression for the retired `pill_tail` metric: a full-width
+        # selected band is the reference's navigation geometry. Only the
+        # presence of a non-navigation block below the nav stack is waste.
+        image = _desktop_body()
+        _fill(image, 140, 180, 0, 200, (220, 238, 226))
+        _fill(image, 152, 168, 34, 140, INK)
         entry = self.measure_one(image)
-        self.assertLessEqual(entry["pill_tail_pct"], RAIL_PILL_TAIL_LIMIT, entry)
+        self.assertEqual(entry["chrome_band_pct"], 0.0, entry)
+        self.assertEqual(rail_findings([entry], {"frames": {}, "rail": {}}), [])
 
-    def test_the_pill_verdict_does_not_depend_on_the_skin(self) -> None:
-        # The same 160u box with the same 85u of ink must yield the same tail
-        # on a light rail and on a dark rail; only the colours differ.
+    def test_the_rail_verdict_does_not_depend_on_the_skin(self) -> None:
         light = _desktop_body()
-        _fill(light, 134, 178, 34, 194, (220, 238, 226))
-        _fill(light, 150, 168, 52, 137, INK)
+        self._nav_only_rail(light)
+        _fill(light, 617, 712, 18, 210, CARD)
         dark = _desktop_body_dark()
-        _fill(dark, 134, 178, 34, 194, (6, 73, 91))
-        _fill(dark, 150, 168, 52, 137, (213, 241, 248))
+        for y in (140, 230, 320, 410, 500):
+            _fill(dark, y, y + 40, 0, 200, (6, 73, 91))
+            _fill(dark, y + 12, y + 28, 34, 140, (213, 241, 248))
+        _fill(dark, 617, 712, 18, 210, (29, 33, 38))
         light_entry = self.measure_one(light)
         dark_entry = self.measure_one(dark)
-        self.assertEqual(light_entry["pill_tail_pct"], dark_entry["pill_tail_pct"],
+        self.assertEqual(light_entry["chrome_band_pct"], dark_entry["chrome_band_pct"],
                          (light_entry, dark_entry))
 
     def test_a_published_batch_is_required_to_judge(self) -> None:
@@ -585,7 +577,7 @@ def main(argv: list[str] | None = None) -> int:
         desktop = [entry for entry in results if entry["tier"] == "desktop"]
         rail = {}
         if desktop:
-            rail["pill_tail_pct"] = max(entry.get("pill_tail_pct", 0.0) for entry in desktop)
+            rail["chrome_band_pct"] = max(entry.get("chrome_band_pct", 0.0) for entry in desktop)
             rail["void_pct"] = max(entry.get("void_pct", 0.0) for entry in desktop)
         grew = sorted(name for name, value in frames.items()
                       if float(debt["frames"].get(name, -1.0)) < value)

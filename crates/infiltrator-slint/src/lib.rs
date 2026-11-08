@@ -75,6 +75,17 @@ pub(crate) fn slint_model<T: Clone + 'static>(items: Vec<T>) -> slint::ModelRc<T
     slint::ModelRc::new(slint::VecModel::from(items))
 }
 
+/// Publish the active route and the typed navigation destination it belongs
+/// to in one call. The "which sidebar row is active" fact is resolved by the
+/// shared contract, never re-derived by the surface's own string chain.
+pub(crate) fn set_page(window: &AppWindow, page: &str) {
+    window.set_page(page.into());
+    let destination = infiltrator_contract::shell_navigation::destination_for_route(page)
+        .map(|target| target.id())
+        .unwrap_or("");
+    window.set_active_destination(destination.into());
+}
+
 /// EFFECTS-041 #167: the production desktop window goes frameless and the
 /// self-drawn title bar's controls land on the real window: minimize and
 /// maximize through the core window API, close ends the event loop (the

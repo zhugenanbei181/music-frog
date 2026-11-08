@@ -40,8 +40,8 @@
     "sync-restore-confirm-compact": 14.8
   },
   "rail": {
-    "pill_tail_pct": 14.2,
-    "void_pct": 9.6
+    "chrome_band_pct": 0.0,
+    "void_pct": 4.4
   },
   "version": 1
 }

@@ -309,7 +309,6 @@ export global LumenTheme {
     out property <length> rail-width: 228 * LumenUiScale.unit;
     out property <length> rail-vertical-inset: 18 * LumenUiScale.unit;
     out property <length> rail-row-height: 44 * LumenUiScale.unit;
-    out property <length> rail-brand-gap: 20 * LumenUiScale.unit;
     out property <length> rail-section-gap: root.space-mobile-section-head-above;
     // Two policy tiles plus their gap and the card's own inset: 2*96 + 8 + 32.
     // The desktop dashboard's last row gives this width to the policy card
@@ -445,6 +444,15 @@ export global LumenTheme {
     out property <length> rail-inset: 18 * LumenUiScale.unit;
     out property <length> rail-item-padding: space-4;
     out property <length> rail-content-leading: 2 * root.rail-item-padding;
+    // Desktop navigation geometry, one owner. The selected state is a
+    // full-width wash plus a narrow indicator, matching the FlClash desktop
+    // reference; there is no content-width capsule in the rail.
+    out property <length> rail-item-gap: 4 * LumenUiScale.unit;
+    out property <length> rail-label-gap: 12 * LumenUiScale.unit;
+    out property <length> nav-icon-size: 24 * LumenUiScale.unit;
+    out property <length> nav-indicator-width: 3 * LumenUiScale.unit;
+    out property <length> nav-indicator-height: 16 * LumenUiScale.unit;
+    out property <color> nav-selected-fill: root.text-primary.with_alpha(8%);
     // The floating bottom dock is one geometry with one owner (AppBottomBar),
     // and everything that has to clear it reads these tokens instead of keeping
     // a second copy of the height: a stale 56u reservation once drifted away

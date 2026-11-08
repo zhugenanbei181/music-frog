@@ -8,7 +8,7 @@ import { LumenTheme } from "./theme.slint";
 import { PillButton } from "./base_widgets.slint";
 import {
         ProfileCard, OverrideCard, ProfileOverrideChoice, ObservationRow, ConnectionRow, ProxyGroup,
-        TrafficBar, HomeTrafficPoint, LicenseRow, WorkbenchItem, DashboardFacts
+        TrafficBar, HomeTrafficPoint, LicenseRow, WorkbenchItem, NavigationSlot, DashboardFacts
 } from "./models.slint";
 import { DesktopSideBar } from "./sidebar.slint";
 import { PagesRouter } from "../pages/pages_router.slint";
@@ -17,6 +17,8 @@ import { MobileDockBandState, MobileDockBandProjection } from "./mobile_dock_sta
 
 export component AppBody inherits Rectangle {
         in property <string> page;
+        in property <[NavigationSlot]> navigation-items;
+        in property <string> active-destination;
         in property <string> page-origin;
         in property <bool> compact-layout;
         in property <bool> primary-page;
@@ -317,14 +319,8 @@ export component AppBody inherits Rectangle {
 
         if !root.compact-layout: DesktopSideBar {
             page: root.page;
-            runtime-status: root.runtime-status;
-            runtime-status-label: root.runtime-status-label;
-            runtime-detail: root.runtime-detail;
-            active-profile: root.active-profile;
-            network-mode-label: root.network-mode-label;
-            stat-up: root.stat-up;
-            stat-down: root.stat-down;
-            product-version: root.product-version;
+            navigation-items: root.navigation-items;
+            active-destination: root.active-destination;
             navigate-to(target) => { root.navigate(target); }
         }
 

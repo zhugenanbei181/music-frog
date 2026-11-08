@@ -1,0 +1,91 @@
+# FlClash 桌面参考基准与逐项对照
+
+> 层级：L3
+
+本文是 Slint **桌面**表面对标 FlClash 的**外部参考基准记录**。它登记上游源码结构、
+真实场景图的逐像素测量、本仓逐项对照与「求同存异」裁决；它不是本仓验收证据，
+不能据此宣称任何像素或行为已验证。本仓结论只以最新整批发布回执为准。
+
+上游版本：`chen08209/FlClash` v0.9.3（`be84736605527034689c95bf27828ff27d912c5e`）；
+侧栏组件来自子模块 `chen08209/prism_ui`（`63450c0a`，本次以 `5d8ed7a` 的
+`lib/sidebar.dart` 对照）。桌面场景图见
+[flclash-desktop/flclash-desktop-dashboard.png](flclash-desktop/flclash-desktop-dashboard.png)
+（2265×1665，SHA-256 `f6406be498613bc0249e9ae2350125a0e670e9620d0ae4b1be1aec7353372bcc`），
+另有两张同源缩放图在 `.private/`（`flclash-dashboard-reference.png`、
+`target-proxies-reference.png`），侧栏边界实测 430–440px、底色 (14,14,17)/(12,14,15)。
+
+## 1. 上游架构（要求对标的「高级架构」）
+
+| 层 | 上游真源 | 不变量 |
+| --- | --- | --- |
+| 导航契约 | `lib/common/app_ports.dart` 的 `NavigationPort`、`lib/models/common.dart` 的 `NavigationItem` | 导航项是 typed 数据（glyph + label + builder + modes），不是页面写死的按钮列表 |
+| 导航装配 | `lib/views/navigation.dart` 的 `Navigation.getItems()` | 一处按能力/`modes` 生成 8 项，桌面/手机/更多各取所需 |
+| 侧栏组件 | `plugins/prism_ui/lib/sidebar.dart` 的 `NavigationSidebar` / `SidebarDestination` | 组件只消费 `destinations + selectedIndex + expanded`，不读任何业务快照 |
+| 仪表盘契约 | `lib/enum/enum.dart` 的 `DashboardWidget` enum（11 变体） | 每张卡是 enum 变体，带 `platforms` 能力面 |
+| 仪表盘装配 | `lib/views/dashboard/widget_registry.dart` | `switch (widget)` 一处把变体映射到卡片组件；`removable` 决定可否重排 |
+| 布局裁决 | `lib/views/dashboard/layout.dart`、`lib/common/layout.dart` | `DashboardDensity.of(size)` 三档、`dashboardColumnsOf` 2/4 列、`getProxiesColumns` 按宽度 |
+| Core 方法面 | `core/protocol.go` 的 `CoreMethod` + `core/method.go` 的 `methodHandlers` | `area.verb` 命名、typed 参数、一张分发表 |
+
+**关键裁决**：FlClash 的统计（状态、速率、内存、服务探测、连接数）全部是**仪表盘卡片**，
+由 `DashboardWidget` 注册表装配；侧栏 `NavigationSidebar` 只接收导航项，**没有任何
+状态/速率/版本属性**。本仓 b145 之前把同一批事实又发布到侧栏状态卡，是第二份真源。
+
+## 2. 侧栏逐像素对照
+
+真实场景图（2265×1665）实测：侧栏边界 x=429（18.9% 宽），底色 (12,14,15)；
+选中行填充 (30,33,34) 覆盖 **y170–249 / x0–428 全宽**，即整条 429px 宽的选中带，
+不是内容宽小胶囊；导航行墨迹 x18–144（图标+两字标签），行带 y279–316 / y366–405 /
+y455–492 / y546–579，间距约 88–91px。
+
+上游源码常量（`sidebar.dart`）：`_compactWidth=48`、`_expandedWidth=220`、`_itemSize=40`、
+`_itemGap=4`、`_iconSize=24`、`_labelGap=12`、`_indicatorWidth=3`、`_indicatorHeight=16`；
+选中态为 `selectedFill = onSurface.withOpacity(0.08)` **铺满整行**，外加 3dp 宽的
+primary 色竖向指示条（16dp 高，随选中项动画移动），没有强调色实心胶囊。
+
+| 维度 | FlClash | 本仓 b145 后 | 裁决 |
+| --- | --- | --- | --- |
+| 侧栏内容 | 纯 5–8 项导航 + 折叠钮 | 导航 + 分组标题 + 品牌块 + 状态/配置/速率/版本卡 | **求同**：删状态卡、品牌块、版本行；统计归仪表盘（本仓标题栏与仪表盘已有单一真源） |
+| 选中态 | 全宽 8% 底 + 3dp 指示条 | 120u 内容宽强调色胶囊 | **求同**：改全宽淡底 + 指示条；b145 的 `pill_tail` 判据按此作废 |
+| 行几何 | 40dp 高 / 4dp 间距 / 24dp 图标 / 12dp 标签间隙 | 44u 高 / 20u 图标 / 三套列 | **求同**：收敛到一份 `NavItemMetrics` |
+| 导航项来源 | `NavigationPort.getItems()` typed 列表 + `modes` | 9 条 `NavButton` 字面量写死在 `sidebar.slint` | **求同**：由底层投影发布 typed 导航项 |
+| 折叠 | `expanded` / `compactWidth=48` 两档 | 无 | **存异**：本仓 compact 档走底部 dock，桌面不做 48dp 折叠（避免过度工程） |
+
+## 3. 仪表盘模块对照
+
+上游 11 变体：`currentOutbound, networkSpeed, outboundMode, vpnButton(Android only),
+networkTakeover(desktop only), serviceStatus, profiles, proxyGroups, connectionStats,
+intranetIp, memoryInfo`。
+
+本仓 `crates/infiltrator-slint/src/lumen_projection/dashboard.rs` 的 `DashboardFacts`
+已把同一批事实从共享 `SurfaceSnapshot` 一次性投影，页面只消费 typed 值；
+`home_desktop_grid.slint` 已有 hero / 上传 / 下载 / 内网IP / 配置 / 服务状态 /
+内存信息 / 连接表 / 策略组网格等卡片。**结论：模块覆盖不缺**，缺的是
+「卡片身份没有 typed enum 注册表」与「卡片顺序不可配置」这两项架构能力。
+
+## 4. Core 能力面差距（求同抽象）
+
+上游 `CoreMethod` 约 60 个 `area.verb` 方法。本仓 `CoreOperation` 已 typed 覆盖
+大部分且更细（Profile/Dns/Rules/Subscription/Provider/Outbound/Connection/Logs/
+FakeIpCache/Tun/Lifecycle/ProxyControl/GC/Version）。逐项核对后真实缺口：
+
+| 上游方法 | 本仓状态 | 处置 |
+| --- | --- | --- |
+| `route.watch` / `route.check` | 无对应 typed 操作 | 立项：路由变更订阅与规则命中校验需自底向上裁决 |
+| `probe.outboundIp` / `probe.services` | `public_ip` / `speedtest` 已有更丰富投影 | **存异**：本仓更强，不照搬 |
+| `mitm.*`（8 个） | 无 | **存异**：本仓不做 MITM/脚本注入，产品边界不同，登记为显式不采纳 |
+| `shareLink.encode/decode` | `profile_share.rs` 有 typed 报告但无 core 方法对称面 | 立项：补齐 encode/decode 对称操作 |
+| `config.decrypt` / `profile.clearEffect` | 无明显同名操作 | 立项：核对是否由 profile 生命周期覆盖 |
+| `core.crash` | 无 | **存异**：崩溃注入属上游测试钩子，不进产品 |
+| `traffic.reset` / `connection.reset` / `network.changed` | 部分有 | 立项：核对 typed 意图与读回 |
+
+**纪律**：core 缺口必须先建/认领底层任务，在 domain/contract/ports → application →
+adapter → presentation 逐层收口并用 mock/nextest 验收，再让 UI 消费；
+严禁在 UI 层打补丁或伪造业务事实。
+
+## 5. 对既有空间利用率标准的修订
+
+b144 立的「跨表面空间利用率强制标准」（L2 公共标准）用
+YumeBox 手机帧定阈值、把侧栏选中盒的 `pill_tail` 当浪费判据，**参照物与判据都错**：
+全宽选中带是导航结构，不是内容盒，右侧空地是合法呼吸位。该腿必须按 FlClash
+桌面真实场景重裁：侧栏只判「导航行之间的地面带」与「侧栏是否混入非导航区块」，
+不再用 `pill_tail` 惩罚选中态几何。页身 `unused` 三档阈值继续有效。

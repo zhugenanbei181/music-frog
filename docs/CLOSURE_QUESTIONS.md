@@ -38,6 +38,18 @@
 | 7 | 部分 | L | 彻底清除全仓 part1/part2/part3 无语义命名，重构为高内聚强语义模块（reset_recovery_and_migration、owner_switch_and_recovery、cross_process_concurrency、workspace_recovery_and_reset_tests）；文件级模块化完成（scanned=2891 violations=0，kt-line scanned=227 violations=0）；mod.rs 清退至 0；隐式状态机语义审计 + 判决台账常驻（23 条候选 0 undecided 0 open）；rem 体系 0 违规 0 debt；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | `check-structure.sh` 40+ 结构守卫、单测与工具链全部 exit 0；`cargo fmt --all --check` 0 偏差；六包定向 nextest 2179/2179 全绿；Clippy 6 包 `--all-targets -D warnings` 零警告；`screenshot-identity-guard` 550 张截图 10 aliases 0 违规；`scrollbar-contract-guard` 0 违规；`shared-copy-guard` 0 违规；`i18n-guard` 0 违规 |
 
+## 最近一批问答（2026-11-08 第一百四十六交付批次：FlClash 桌面真实场景对照 / 侧栏纯导航 typed 注册表 / 判定器重裁）
+
+1. x86_64/aarch64：b146 是 contract 导航契约、Slint 投影与桌面侧栏，架构中性；`cargo check -p infiltrator-slint --all-targets` 与整批 197 帧发布为 `L`，本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。
+2. Windows/Linux/macOS：b146 只在本机 Linux 台架完成编译与整批 197 帧发布；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 Unsupported 登记 → 部分（L）。
+3. Android/iOS：b146 只改桌面 Slint 侧栏与共享导航契约，移动端走 dock 分支不受影响；`NavigationItem::DOCK` 只登记未在 Compose/iOS 消费，Android 三 flavor 交互回执未随本批 → 部分（L）。
+4. 各 UI：Slint 桌面侧栏由 9 条字面量导航改为消费 `NavigationSlot` typed 列表，删品牌/状态卡/速率/版本（事实归标题栏与仪表盘单一真源），选中态改全宽 8% 淡底 + 3u 指示条，四皮肤发布回执逐帧可量；Iced/Bevy/Android 导航未随本批对齐 → 部分（L）。
+5. 复用：`shell_navigation.rs` 一处持有导航项/分组/顺序/图标语义/路由归属，`destination_for_route` 一处裁决 active 事实；`IconSemantic::canonical_name()` 复用设计权威而非第二套图标表；共享 locales 表补 `nav_traffic` 与分组 key，`set_page` 收敛三处调用，无新旧双轨 → 完整（L）。
+5a. 设计资源强制标准：图标全部经 `IconSemantic` 语义 id → `navigation_icons.slint` canonical Lucide 静态映射（`@image-url` 编译期字面量的唯一合法做法），无 emoji、无第二图标族、无跨 crate 相对路径分叉；`design-resource-authority.py` violations=0；整批 197 帧重采发布为身份变化提供双视口真实像素回执 → 完整（L）。
+6. 功能接入：9 项 contract 单测覆盖所有 Workbench 叶子路由归属与未知路由不猜；`active-destination` 由投影随 `set_page` 同步发布，导航点击仍走 `navigate-to` typed 意图；发布回执中 `proxies-probe-settings-standard` 等叶子场景实测正确高亮到所属 destination → 完整（L）。
+7. 模块化：`contract → projection → NavigationSlot → sidebar` 单向消费，`DashboardWidget` 式的 typed 注册表与 `NavigationPort.getItems()` 同构；`chrome_band` 判定器替换 `pill_tail` 并保留「全宽选中带不得判浪费」回归测试（self-test 17/17）；14 项 Slint 守卫 + typed-state/implicit-state 全 0 → 完整（L）。
+8. CI：space self-test/enforce 双腿已在结构门；`--enforce` 197 帧 violations=0、`chrome_band` 0.0%、void 4.4%，欠账台账 rail 由 16.3% 收紧到 0；`receipt-freshness=0`、`screenshot-identity scanned=574 aliases=10 violations=0`；过期批次按只留最新删除；`--workspace` nextest/clippy 与提交/CI 腿待统一验证批次 → 部分（L）。
+
 ## 最近一批问答（2026-11-08 第一百四十五交付批次：侧栏选中胶囊按内容取宽 / 判定器皮肤盲根治）
 
 1. x86_64/aarch64：b145 是 Slint 侧栏胶囊几何与 Python 判定器，架构中性；`cargo check -p infiltrator-slint --all-targets` 与整批 197 帧发布为 `L`，本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。

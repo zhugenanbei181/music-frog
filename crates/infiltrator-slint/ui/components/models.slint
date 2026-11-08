@@ -116,6 +116,18 @@ export struct OverviewCardSlot {
     can-move-down: bool,
 }
 
+// One desktop sidebar destination. The projection publishes the typed
+// registry from the shared contract; the rail renders the list and owns no
+// destination, label, group or icon of its own. `group` is a typed id, not a
+// second copy of the heading text.
+export struct NavigationSlot {
+    id: string,
+    label: string,
+    group: string,
+    group-label: string,
+    icon: string,
+}
+
 // A fact cell as the shared contract typed it: the value, whether an owner
 // published it, how it is typeset and which edge of its column it hugs. The
 // surface renders the cell; it never invents a fallback value and never

@@ -819,7 +819,7 @@ fn prepare_demo_window(
 
     // Explicitly enforce the page after projection; the theme rides the
     // snapshot's published readback, so there is no second theme writer.
-    window.set_page(settings.page.clone().into());
+    set_page(window, &settings.page);
     lumen_projection::project_workbench(window, snapshot, workbenches);
     open_proxies_group(window, snapshot);
     window.set_notice("".into());

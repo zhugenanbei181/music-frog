@@ -1,223 +1,124 @@
 import { DesignType } from "./design-type.slint";
+import { TextRole } from "./design-type.slint";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "./theme.slint";
-import { NavButton, NavButtonMetrics } from "./base_widgets.slint";
-import { RuntimeStatus } from "./domain_enums.slint";
+import { NavigationSlot } from "./models.slint";
+import { NavigationIcons } from "./navigation_icons.slint";
 import { PageTitles } from "./page_titles.slint";
 
+// The desktop sidebar is a pure navigation surface, matching the FlClash
+// desktop reference: destinations only, no status card, no throughput, no
+// brand tile and no version line. Those facts already have a single owner in
+// the title bar and the dashboard cards; publishing them here was a second
+// truth source. The rail consumes the typed registry the projection publishes.
 export component DesktopSideBar inherits Rectangle {
     in property <string> page;
-    in property <RuntimeStatus> runtime-status;
-    in property <string> runtime-status-label;
-    in property <string> runtime-detail;
-    in property <string> active-profile;
-    in property <string> network-mode-label;
-    in property <string> stat-up: "";
-    in property <string> stat-down: "";
-    in property <string> product-version;
+    in property <[NavigationSlot]> navigation-items;
+    in property <string> active-destination;
 
     callback navigate-to(string);
 
-    // The brand tile and the status card are rail chrome, not page cards. The
-    // tile's geometry is derived from the one nav icon size so its letter cap
-    // and the nav icon column cannot drift apart.
-    private property <length> brand-tile-size: LumenTheme.rail-row-height - 10 * LumenUiScale.unit;
-    private property <length> status-card-radius: LumenTheme.radius-inset-card - 2 * LumenUiScale.unit;
-    private property <length> status-padding: 10 * LumenUiScale.unit;
-    private property <length> status-dot-size: 7 * LumenUiScale.unit;
-    private property <length> status-badge-height: 18 * LumenUiScale.unit;
-    private property <length> rate-up-width: 76 * LumenUiScale.unit;
-    private property <length> rate-down-width: 80 * LumenUiScale.unit;
-
     width: LumenTheme.rail-width;
-    // The rail asks its own tier from the one surface ladder. It used to
-    // receive a colour the host recomputed from `application-dark-mode` and a
-    // hardcoded pair that belonged to no tier at all, so forest and amoled
-    // painted the dark rail and a focus change could repaint it off-ladder.
     background: LumenTheme.zinc-2;
     border-width: 0 * LumenUiScale.unit;
 
     VerticalLayout {
-        x: LumenTheme.rail-inset; y: LumenTheme.rail-vertical-inset; width: parent.width - 2 * LumenTheme.rail-inset; height: parent.height - 2 * LumenTheme.rail-vertical-inset;
-        spacing: LumenTheme.space-1 + 2 * LumenUiScale.unit;
-        HorizontalLayout {
-            height: LumenTheme.rail-row-height; spacing: LumenTheme.space-3;
-            cross-axis-alignment: center;
-            Rectangle { width: root.brand-tile-size; height: root.brand-tile-size; border-radius: LumenTheme.radius-inset-card - 3 * LumenUiScale.unit; background: LumenTheme.accent;
-                Text { text: "M"; color: LumenTheme.accent-foreground; font-size: DesignType.subheading-size; font-weight: DesignType.subheading-weight; horizontal-alignment: center; vertical-alignment: center; }
+        x: 0;
+        y: LumenTheme.rail-vertical-inset;
+        width: parent.width;
+        height: parent.height - 2 * LumenTheme.rail-vertical-inset;
+        spacing: LumenTheme.rail-item-gap;
+
+        for item[index] in root.navigation-items: VerticalLayout {
+            spacing: 0 * LumenUiScale.unit;
+
+            // A group heading is the only separator: it owns the air above
+            // and below itself, exactly when the group changes. No hairline
+            // repeats the same boundary a second time.
+            if index == 0 || root.navigation-items[index - 1].group != item.group: HorizontalLayout {
+                padding-left: LumenTheme.rail-content-leading;
+                padding-top: LumenTheme.rail-section-gap;
+                padding-bottom: LumenTheme.space-1;
+                Text {
+                    text: item.group-label;
+                    color: LumenTheme.text-muted;
+                    font-size: DesignType.tag-size;
+                    font-weight: DesignType.tag-weight;
+                    letter-spacing: 0.5 * LumenUiScale.unit;
+                }
             }
-            VerticalLayout { spacing: 2 * LumenUiScale.unit; alignment: center;
-                Text { text: @tr("Lumen"); color: LumenTheme.text-primary; font-size: DesignType.bodyLarge-size; font-weight: DesignType.bodyLarge-weight; }
-                Text { text: @tr("MIHOMO CLIENT"); color: LumenTheme.text-secondary; font-size: DesignType.tag-size; font-weight: DesignType.tag-weight; letter-spacing: 0.5 * LumenUiScale.unit; }
-            }
-        }
-        // The brand is a section of its own: without this air the first nav
-        // sat closer to the logo than the nav rows sat to each other.
-        Rectangle { height: LumenTheme.rail-brand-gap; background: transparent; }
-        NavButton { label: PageTitles.page-name("Home"); target: "Home"; compact: false; icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/layout-grid.svg"); active-icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/layout-grid.svg"); active: root.page == "Home"; clicked => { root.navigate-to("Home"); } }
-        NavButton { label: PageTitles.page-name("Proxy"); target: "Proxy"; compact: false; icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/globe.svg"); active-icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/globe.svg"); active: root.page == "Proxy"; clicked => { root.navigate-to("Proxy"); } }
-        NavButton { label: PageTitles.page-name("Config"); target: "Config"; compact: false; icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/file-text.svg"); active-icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/file-text.svg"); active: root.page == "Config"; clicked => { root.navigate-to("Config"); } }
-        // The primary block is one group: 系统设置 is a primary destination like
-        // the three above it, and bracketing a single item between two hairlines
-        // made it read as an orphan row instead of the head of the settings family.
-        NavButton { label: PageTitles.page-name("Settings"); target: "Settings"; compact: false; icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/settings.svg"); active-icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/settings.svg"); active: root.page == "Settings" || root.page == "Network" || root.page == "AppSettings" || root.page == "Overrides" || root.page == "About" || root.page == "Licenses" || root.page == "LicenseDetail" || root.page == "Dns" || root.page == "Editor" || root.page == "Filters" || root.page == "Doctor" || root.page == "Sync" || root.page == "AppRouting" || root.page == "SettingsWorkbench" || root.page == "ShellWorkbench"; clicked => { root.navigate-to("Settings"); } }
-        // One dialect for nav groups: the heading IS the separator, so a hairline
-        // directly above it is a double signal - the rule said 'the group ends here'
-        // and the heading said the same thing two lines later. The phone list already
-        // separates 资源/设置/其他 by heading alone.
-        // A group heading owns the air above and below itself, exactly like the
-        // phone list headings do, and it starts at the same column as the icons
-        // of the items it heads: a nav icon lands two `rail-item-padding` inside
-        // the layout (its face is centred and then padded again), so the heading
-        // reads `rail-content-leading`, not one padding. Measured before this it
-        // started at x34 while the icons it heads started at x51, which made the
-        // heading a stray row of its own instead of the label of the group below.
-        HorizontalLayout {
-            padding-left: LumenTheme.rail-content-leading;
-            // With no rule above it, the heading is the only thing that says
-            // "a new group starts here", so it has to lean toward its own items:
-            // measured at 12u it sat 8.25u under the last primary item and
-            // 5.5u over its first, barely a break. 16u produces the measured
-            // 35u above / 25u below split, leaning toward the group it heads.
-            padding-top: LumenTheme.rail-section-gap;
-            padding-bottom: LumenTheme.space-1;
-            Text {
-                text: @tr("运行观测");
-                color: LumenTheme.text-muted;
-                font-size: DesignType.tag-size;
-                font-weight: DesignType.tag-weight;
-                letter-spacing: 0.5 * LumenUiScale.unit;
-            }
-        }
-        NavButton { label: @tr("连接审计"); target: "Connections"; icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/network.svg"); active-icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/network.svg"); active: root.page == "Connections" || root.page == "ConnectionDetail" || root.page == "ConnectionsWorkbench"; clicked => { root.navigate-to("Connections"); } }
-        NavButton { label: @tr("运行日志"); target: "Logs"; icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/file-text.svg"); active-icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/file-text.svg"); active: root.page == "Logs" || root.page == "LogsWorkbench"; clicked => { root.navigate-to("Logs"); } }
-        NavButton { label: @tr("分流规则"); target: "Rules"; icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/list-checks.svg"); active-icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/list-checks.svg"); active: root.page == "Rules" || root.page == "Providers" || root.page == "RulesWorkbench"; clicked => { root.navigate-to("Rules"); } }
-        NavButton { label: @tr("流量统计"); target: "Traffic"; icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/activity.svg"); active-icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/activity.svg"); active: root.page == "Traffic" || root.page == "Runtime" || root.page == "RuntimeWorkbench"; clicked => { root.navigate-to("Traffic"); } }
-        // The free air of the rail belongs ABOVE the bottom cluster, not inside
-        // it. With the stretch after the status card, the card floated in the
-        // middle of the column and left an 82px void between itself and the
-        // traffic capsule that reads as its own group.
-        Rectangle { vertical-stretch: 1; background: transparent; }
-        // The rail has one separator dialect: a heading, or the edge of a box.
-        // A full-width hairline here drew the SAME boundary the status card had
-        // already drawn with its own border - measured on every desktop skin the
-        // rule sat at y610 and the card border at y617, both spanning x18..241,
-        // i.e. one box with two top edges 6px apart. The card keeps the edge.
-        // FlClash-standard unified status card
-        Rectangle {
-            border-radius: root.status-card-radius;
-            background: LumenTheme.zinc-3;
-            border-width: 1 * LumenUiScale.unit;
-            border-color: LumenTheme.hairline-glow;
-            VerticalLayout {
-                padding-left: LumenTheme.rail-item-padding;
-                padding-right: LumenTheme.rail-item-padding;
-                padding-top: root.status-padding;
-                padding-bottom: root.status-padding;
-                spacing: LumenTheme.space-1 + 1 * LumenUiScale.unit;
+
+            // The selected destination is a full-width 8% wash plus a 3u
+            // primary indicator, both spanning the row. A content-width pill
+            // was the wrong geometry for a navigation rail: the empty right
+            // side of a selected row is breathing room, not dead waste.
+            nav-face := Rectangle {
+                height: LumenTheme.rail-row-height;
+                background: item.id == root.active-destination ? LumenTheme.nav-selected-fill : transparent;
+                border-radius: LumenTheme.radius-control;
+
+                nav-touch := TouchArea {
+                    width: parent.width;
+                    height: parent.height;
+                    mouse-cursor: pointer;
+                    clicked => { root.navigate-to(item.id); }
+                }
+
+                if item.id == root.active-destination: Rectangle {
+                    x: 0 * LumenUiScale.unit;
+                    y: (parent.height - LumenTheme.nav-indicator-height) / 2;
+                    width: LumenTheme.nav-indicator-width;
+                    height: LumenTheme.nav-indicator-height;
+                    border-radius: LumenTheme.nav-indicator-width / 2;
+                    background: LumenTheme.accent-active;
+                }
+
                 HorizontalLayout {
-                    spacing: LumenTheme.space-1 + 2 * LumenUiScale.unit;
+                    padding-left: LumenTheme.rail-content-leading;
+                    padding-right: LumenTheme.rail-item-padding;
+                    spacing: LumenTheme.rail-label-gap;
+                    width: parent.width;
+                    height: parent.height;
+                    alignment: start;
                     cross-axis-alignment: center;
-                    Rectangle {
-                        width: root.status-dot-size;
-                        height: root.status-dot-size;
-                        border-radius: root.status-dot-size / 2;
-                        background: root.runtime-status == RuntimeStatus.running ? LumenTheme.ping-good : LumenTheme.text-muted;
+
+                    Image {
+                        source: NavigationIcons.icon(item.icon);
+                        width: LumenTheme.nav-icon-size;
+                        height: LumenTheme.nav-icon-size;
+                        image-fit: contain;
+                        colorize: item.id == root.active-destination ? LumenTheme.accent-active : LumenTheme.text-secondary;
                     }
                     Text {
-                        text: root.runtime-status-label;
-                        color: root.runtime-status == RuntimeStatus.running ? LumenTheme.ping-good : LumenTheme.text-muted;
-                        font-size: DesignType.captionStrong-size;
-                        font-weight: DesignType.captionStrong-weight;
-                    }
-                    Rectangle { horizontal-stretch: 1; background: transparent; }
-                    if root.network-mode-label != "": Rectangle {
-                        height: root.status-badge-height;
-                        border-radius: LumenTheme.space-1;
-                        background: LumenTheme.zinc-4;
-                        HorizontalLayout {
-                            padding-left: 6 * LumenUiScale.unit;
-                            padding-right: 6 * LumenUiScale.unit;
-                            Text {
-                                text: root.network-mode-label;
-                                color: LumenTheme.text-secondary;
-                                font-size: DesignType.tag-size;
-                                font-weight: DesignType.tag-weight;
-                                vertical-alignment: center;
-                            }
-                        }
-                    }
-                }
-                Text {
-                    text: root.active-profile == "" ? @tr("未选择配置") : root.active-profile;
-                    color: root.active-profile == "" ? LumenTheme.text-muted : LumenTheme.text-primary;
-                    font-size: DesignType.caption-size;
-                    font-weight: DesignType.caption-weight;
-                    overflow: elide;
-                }
-                if root.runtime-detail != "": Text {
-                    text: root.runtime-detail;
-                    color: LumenTheme.text-secondary;
-                    font-size: DesignType.tag-size;
-                    overflow: elide;
-                }
-                // The throughput pair is the fourth line of the same fact block,
-                // not a second panel. It used to be its own 32u capsule in the
-                // identical tier, so the two boxes read as one blob split by an
-                // 8px sliver of rail, and the rail paid a border, a gap and 18u
-                // of height for a seam that separated nothing.
-                // Two rate columns with one shared right edge. The old
-                // free-growing mono strings ended at x202-203, outside the
-                // card's own x194 content edge; a width budget per fact keeps
-                // the digits inside the card and aligned across all skins.
-                // Each fact gets the width its own string needs. The old
-                // equal 76u budget clipped "12.80 MB/s" at the rail's x194
-                // content edge on every desktop skin; the download rate is
-                // one digit wider, so it claims the larger share while the
-                // whole pair stays inside the card's 160u content width.
-                HorizontalLayout {
-                    // No `width: parent.width` here: the parent is the card
-                    // itself, so the row used to span the card's full width and
-                    // ignore the card's own 16u inner padding - the download
-                    // rate ended up on the card's border with 1u of air left.
-                    // The padded layout hands its children the content width.
-                    spacing: LumenTheme.space-1;
-                    cross-axis-alignment: center;
-                    HorizontalLayout {
-                        preferred-width: root.rate-up-width;
+                        // The four primary destinations are named by the
+                        // shared desktop page-name owner; observation rows
+                        // carry the shared copy-table label the projection
+                        // published. Neither path invents a second word.
+                        text: root.primary-name(item.id) != "" ? root.primary-name(item.id) : item.label;
+                        color: item.id == root.active-destination ? LumenTheme.text-primary : LumenTheme.text-secondary;
+                        font-size: DesignType.size(TextRole.label);
+                        font-weight: DesignType.weight(TextRole.label);
+                        font-family: DesignType.family(TextRole.label);
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
                         min-width: 0 * LumenUiScale.unit;
-                        spacing: 2 * LumenUiScale.unit;
-                        cross-axis-alignment: center;
-                        Text { text: "↑"; color: LumenTheme.status-info; font-size: DesignType.tag-size; font-weight: DesignType.tag-weight; }
-                        Text { text: root.stat-up != "" ? root.stat-up : "0 B/s"; color: LumenTheme.text-primary; font-size: DesignType.monoMicro-size; font-family: DesignType.monoMicro-family; font-weight: DesignType.monoMicro-weight; horizontal-stretch: 1; min-width: 0 * LumenUiScale.unit; horizontal-alignment: right; overflow: elide; }
-                    }
-                    HorizontalLayout {
-                        preferred-width: root.rate-down-width;
-                        min-width: 0 * LumenUiScale.unit;
-                        spacing: 2 * LumenUiScale.unit;
-                        cross-axis-alignment: center;
-                        Text { text: "↓"; color: LumenTheme.accent; font-size: DesignType.tag-size; font-weight: DesignType.tag-weight; }
-                        Text { text: root.stat-down != "" ? root.stat-down : "0 B/s"; color: LumenTheme.text-primary; font-size: DesignType.monoMicro-size; font-family: DesignType.monoMicro-family; font-weight: DesignType.monoMicro-weight; horizontal-stretch: 1; min-width: 0 * LumenUiScale.unit; horizontal-alignment: right; overflow: elide; }
+                        overflow: elide;
                     }
                 }
             }
         }
-        HorizontalLayout {
-            // The footer is the status card's own caption, so it shares the card's
-            // content column (rail inset + one item padding = x34, where the status
-            // dot sits), not the nav icon column at x51. It used to be centred at
-            // x55, which made it the only centred line in the rail.
-            padding-left: LumenTheme.rail-item-padding;
-            height: LumenTheme.rail-row-height;
-            Text {
-                text: @tr("Lumen") + " · " + root.product-version;
-                color: LumenTheme.text-muted;
-                font-size: DesignType.tag-size;
-                height: parent.height;
-                vertical-alignment: center;
-                horizontal-stretch: 1;
-                overflow: elide;
-            }
-        }
+        // The free air belongs above the bottom of the rail, never between
+        // navigation rows.
+        Rectangle { vertical-stretch: 1; background: transparent; }
+    }
+
+    // Map a typed registry id onto the one desktop page-name owner. A
+    // non-primary id returns empty so its shared copy-table label is used.
+    public pure function primary-name(id: string) -> string {
+        if id == "overview" { return PageTitles.page-name("Home"); }
+        if id == "proxies" { return PageTitles.page-name("Proxy"); }
+        if id == "profiles" { return PageTitles.page-name("Config"); }
+        if id == "settings" { return PageTitles.page-name("Settings"); }
+        return "";
     }
 }

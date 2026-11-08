@@ -19,6 +19,9 @@ fn translate_en_primary(key: &str) -> Cow<'static, str> {
     match key {
         "app_title" => SurfaceKind::IcedDesktop.product_name().into(),
         "nav_overview" => "Overview".into(),
+        "nav_traffic" => "Traffic".into(),
+        "nav_group_primary" => "Navigation".into(),
+        "nav_group_observation" => "Observation".into(),
         "nav_profiles" => "Profiles".into(),
         "nav_proxies" => "Proxies".into(),
         "nav_runtime" => "Runtime".into(),

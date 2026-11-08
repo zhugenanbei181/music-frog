@@ -14,7 +14,7 @@ import { MobileDockBandState, MobileDockBandProjection } from "components/mobile
 export { MobileDockBandState, MobileDockBandProjection }
 
 import { LumenUiScale } from "lumen-ui-scale.slint";
-import { ProfileCard, OverrideCard, ProfileOverrideChoice, ObservationRow, ConnectionRow, ProxyGroup, TrafficBar, HomeTrafficPoint, LicenseRow, WorkbenchItem, OverviewCardSlot, DashboardFacts, DashboardFactsDefaults } from "components/models.slint";
+import { ProfileCard, OverrideCard, ProfileOverrideChoice, ObservationRow, ConnectionRow, ProxyGroup, TrafficBar, HomeTrafficPoint, LicenseRow, WorkbenchItem, OverviewCardSlot, NavigationSlot, DashboardFacts, DashboardFactsDefaults } from "components/models.slint";
 import { ProfileOverlays } from "components/profile_overlays.slint";
 import { OverviewOrderOverlay } from "components/overview_order.slint";
 import { SettingsOverlays } from "components/settings_overlays.slint";
@@ -210,7 +210,7 @@ export component AppWindow inherits MaterialWindow {
         in-out property <[ObservationRow]> connections: [];
         in-out property <[ConnectionRow]> home-connection-table: [];
         in-out property <[ProxyGroup]> proxy-groups: [];
-        in-out property <[ObservationRow]> proxy-nodes: [];
+        in-out property <[ObservationRow]> proxy-nodes: []; in-out property <[NavigationSlot]> navigation-items: []; in-out property <string> active-destination: "";
         in-out property <bool> proxy-recovery-pending: false;
         in-out property <string> proxy-sort-mode: "name_asc";
         in-out property <string> proxy-testing-group: "";
@@ -415,7 +415,7 @@ export component AppWindow inherits MaterialWindow {
         page: root.page; page-origin: root.page-origin; compact-layout: root.compact-layout; primary-page: root.primary-page; android-platform: root.android-platform; application-dark-mode: root.application-dark-mode; layout-debug-bounds: root.layout-debug-bounds;
         mobile-dock-band-state: root.mobile-dock-band-state;
         layout-debug-tools-enabled: root.layout-debug-tools-enabled; predictive-back-enabled: root.predictive-back-enabled; predictive-back-supported: root.predictive-back-supported; safe-top: root.safe-area-insets.top; safe-bottom: root.safe-area-insets.bottom; safe-left: root.safe-area-insets.left; safe-right: root.safe-area-insets.right;
-        last-page-scroll-y <=> root.last-page-scroll-y; runtime-status: root.runtime-status; runtime-status-label: root.runtime-status-label; runtime-detail: root.runtime-detail;
+        last-page-scroll-y <=> root.last-page-scroll-y; navigation-items: root.navigation-items; active-destination: root.active-destination; runtime-status: root.runtime-status; runtime-status-label: root.runtime-status-label; runtime-detail: root.runtime-detail;
         active-profile: root.active-profile; has-current-profile: root.has-current-profile; current-profile-id: root.current-profile-id; network-mode-label: root.network-mode-label; home-current-node: root.home-current-node; home-current-accessible: root.home-current-accessible; home-current-flag-code: root.home-current-flag-code;
         home-current-flag-index: root.home-current-flag-index; home-current-delay: root.home-current-delay; home-exit-ip: root.home-exit-ip; home-exit-country-code: root.home-exit-country-code; home-exit-flag-index: root.home-exit-flag-index; home-exit-status: root.home-exit-status;
         dashboard-facts: root.dashboard-facts;
