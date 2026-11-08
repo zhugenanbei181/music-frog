@@ -49,6 +49,7 @@ use crate::subscription_refresh_application::SubscriptionRefreshApplication;
 use crate::sync_application::SyncApplication;
 use crate::sync_conflict_application::SyncConflictApplication;
 use crate::system_proxy_application::SystemProxyApplication;
+use crate::traffic_waveform_application::TrafficWaveformApplication;
 use crate::uwp_loopback_application::UwpLoopbackApplication;
 use crate::version_application::VersionApplication;
 use crate::vpn_application::VpnServiceApplication;
@@ -89,6 +90,7 @@ mod routing_intent_tests;
 mod runtime_probe_settings;
 mod script_services;
 mod snapshots;
+mod traffic_history;
 mod vpn_start_result;
 
 #[derive(Clone, Default)]
@@ -134,7 +136,7 @@ pub struct CommandApplication {
     privileged_network: Option<PrivilegedNetworkApplication>,
     /// Shared live traffic history owner (same instance as the surface
     /// reader), so `ClearTrafficHistory` resets the real curve.
-    traffic_waveform: Option<crate::traffic_waveform_application::TrafficWaveformApplication>,
+    traffic_waveform: Option<TrafficWaveformApplication>,
     outbound: Option<OutboundApplication>,
     outbound_ui_preferences: Option<OutboundUiPreferencesApplication>,
     rule_tracer: Option<RuleTracerApplication>,

@@ -7,11 +7,11 @@
 
 use super::*;
 use crate::traffic_waveform_application::TrafficWaveformApplication;
-use infiltrator_contract::snapshot::CoreSessionObservation;
+use infiltrator_contract::snapshot::{CoreSessionObservation, CoreSnapshot};
 use lurker_core_contract::lifecycle::CoreLifecycle;
 
-fn core_snapshot() -> infiltrator_contract::snapshot::CoreSnapshot {
-    infiltrator_contract::snapshot::CoreSnapshot {
+fn core_snapshot() -> CoreSnapshot {
+    CoreSnapshot {
         session: CoreSessionObservation::Unknown,
         identity: None,
         lifecycle: CoreLifecycle::Running,

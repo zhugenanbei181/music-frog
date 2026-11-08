@@ -65,7 +65,8 @@
             "dep:infiltrator-composition",
             "dep:infiltrator-application",
             "dep:infiltrator-test-support",
-            "infiltrator-composition/capture-fixtures"
+            "infiltrator-composition/capture-fixtures",
+            "zhuge-ui-kit-bevy/capture-tools"
           ]
         },
         { "name": "capture-controller", "kind": "capture", "members": ["capture-tools"] },

@@ -44,6 +44,7 @@ use infiltrator_application::service_mode_application::ServiceModeApplication;
 use infiltrator_application::speedtest_application::SpeedtestApplication;
 use infiltrator_application::surface_application::SurfacePump;
 use infiltrator_application::system_proxy_application::SystemProxyApplication;
+use infiltrator_application::traffic_waveform_application::TrafficWaveformApplication;
 use infiltrator_application::uwp_loopback_application::UwpLoopbackApplication;
 use infiltrator_application::version_application::VersionApplication;
 use infiltrator_composition::active_profile_backend::{
@@ -619,8 +620,7 @@ pub struct DesktopCommandServices {
     pub core_scope_source: Arc<dyn CoreScopeSource>,
     /// The Core owner's live traffic history. The surface reader records
     /// into the same instance, so `ClearTrafficHistory` clears real data.
-    pub traffic_waveform:
-        infiltrator_application::traffic_waveform_application::TrafficWaveformApplication,
+    pub traffic_waveform: TrafficWaveformApplication,
 }
 
 /// Typed declaration of log-stream ownership at the command composition

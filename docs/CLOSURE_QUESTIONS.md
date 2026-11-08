@@ -38,6 +38,18 @@
 | 7 | 部分 | L | 彻底清除全仓 part1/part2/part3 无语义命名，重构为高内聚强语义模块（reset_recovery_and_migration、owner_switch_and_recovery、cross_process_concurrency、workspace_recovery_and_reset_tests）；文件级模块化完成（scanned=2891 violations=0，kt-line scanned=227 violations=0）；mod.rs 清退至 0；隐式状态机语义审计 + 判决台账常驻（23 条候选 0 undecided 0 open）；rem 体系 0 违规 0 debt；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | `check-structure.sh` 40+ 结构守卫、单测与工具链全部 exit 0；`cargo fmt --all --check` 0 偏差；六包定向 nextest 2179/2179 全绿；Clippy 6 包 `--all-targets -D warnings` 零警告；`screenshot-identity-guard` 550 张截图 10 aliases 0 违规；`scrollbar-contract-guard` 0 违规；`shared-copy-guard` 0 违规；`i18n-guard` 0 违规 |
 
+## 最近一批问答（2026-11-09 第一百五十交付批次：页身空气归位 / compact 档 framed 页填满页身 / 空间利用率欠账台账清零）
+
+1. x86_64/aarch64：b150 是 Slint 外壳几何 + 共享契约层零改动 + 三处 import 归位，架构中性；`cargo check -p infiltrator-slint --all-targets`、`cargo nextest run -p infiltrator-application -p infiltrator-desktop -p infiltrator-slint` 1348/1348 全绿、`cargo clippy` 三包 `--all-targets -D warnings` 零警告为 `L`；本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。
+2. Windows/Linux/macOS：b150 只在本机 Linux 台架编译与整批采集；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 Unsupported 登记 → 部分（L）。
+3. Android/iOS：本批只改 Slint 外壳档的页身空气，不改任何表面接线；Android/iOS 无本批新增回执，既有外债状态不变 → 部分（L）。
+4. 各 UI：Slint 的 compact 档 `framed` 三页（logs / rules / connections 搜索高亮态）由「卡片悬在 72u 空带上方」改为「卡片填满页身」，实测 tail 12.9% → 0.0%；Iced/Bevy/Android 的同形态页面未随本批对齐，各自仍按共享契约的形态上限独立判定 → 部分（L）。
+5. 复用：页身空气的唯一真源仍是 `app_body.slint` 的 `page-content-padding-top/bottom`（外壳档事实），底栏带仍由 `MobileDockBandState` typed 状态唯一决定且只被列减一次；判定器读导出物 `page-structure.json`、不保存第二份数字；本批把 b147 的 `ClearTrafficHistory` 实现抽成 `command_application/traffic_history.rs` 独立业务缝，dispatch 表回到行预算内 → 完整（L）。
+5a. 设计资源强制标准：本批无字型/字重/图标/主题身份变化；改的是外壳几何（页身空气），整批 197 帧重采发布，`design-resource-authority.py` violations=0、`receipt-freshness=0`、`screenshot-identity scanned=574 aliases=10 violations=0` → 完整（L）。
+6. 功能接入：空间利用率六个判定模式仍全可用（`--report`/`--enforce`/`--json`/`--self-test`/`--update-debt`/`--check-export`）；发布批 `20261108T164957Z_cda77dec2603_dirty_2413388` 实测 desktop / compact / phone 三档 **0 帧超标**、欠账台账 `frames` 清空，`--update-debt` 仍只允许收紧 → 完整（L）。
+7. 模块化：底部空气从「有没有底栏」改回「外壳档」这一处事实（避免同一空间被两个 owner 声明）；`ClearTrafficHistory` 的实现下沉到独立模块 `command_application/traffic_history.rs`，dispatch 表只留一行 typed 调用；SLINT-018 守卫按 b146「侧栏只放导航」的裁决改写为「导航栈之下不得有任何内容」（5 项 planted 自测全绿）→ 完整（L）。
+8. CI：结构门 40+ 项 exit 0（`import hygiene` 5 条 b146/b147 遗留违规清零、`line budget` 800 行上限回归、`feature matrix` 台账漏登记补齐、`slint rail edge dialect` 按新裁决改写）；`cargo fmt --all --check` 0 偏差；space self-test 20/20、`--enforce` 197 帧 violations=0；`--workspace` nextest/clippy 与提交/CI 腿待统一验证批次 → 部分（L）。
+
 ## 最近一批问答（2026-11-09 第一百四十九交付批次：空间利用率阈值按页面形态重定 / 撤回对参考产品的误判）
 
 1. x86_64/aarch64：b149 是共享契约的 typed 页面形态表 + Python 判定器，架构中性；`cargo nextest run -p infiltrator-contract page_structure` 4 项通过、判定器 self-test 20/20 与 `--enforce` 197 帧 0 为 `L`，本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。

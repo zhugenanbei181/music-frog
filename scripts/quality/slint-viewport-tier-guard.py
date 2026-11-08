@@ -360,17 +360,30 @@ def violations(ui: pathlib.Path, dock_checks: bool = True) -> list[str]:
         if "y: LumenTheme.dock-top-air;" not in chrome_code:
             found.append("components/app_chrome.slint: the pill sits at the top of its band again, so it cuts content at its own edge")
         paddings = re.findall(r"padding-bottom:\s*root\.dock-band-height\s*;", body_code)
-        zero_pads = re.findall(
-            r"page-content-padding-bottom:\s*MobileDockBandProjection\.reserves_band"
-            r"\(root\.mobile-dock-band-state\)\s*\?\s*0\s*\*\s*LumenUiScale\.unit",
+        # The shell's page air is a CHROME fact, not a dock fact.
+        #
+        # The old rule made the bottom air follow the dock ("no band
+        # reserved, so pay 72u"). That was right for the desktop chrome,
+        # which keeps a page breath, and wrong for the compact chrome: its
+        # bottom room belongs to the floating dock, which reserves its own
+        # band in the column above, so a dockless compact page paid 72u of
+        # dead ground under its last block - 72 of 480 rows on the 720x480
+        # tier, 12.9% of the body, and the whole reason the framed list
+        # pages' frame floated above a band of nothing.
+        chrome_air = re.findall(
+            r"property <length> page-content-padding-bottom:\s*root\.compact-layout\s*\?"
+            r"\s*0\s*\*\s*LumenUiScale\.unit\s*:\s*72\s*\*\s*LumenUiScale\.unit",
             body_code,
         )
         if len(paddings) != 1:
             found.append(
                 f"components/app_body.slint: the dock padding facts are {len(paddings)}, expected one column band"
             )
-        if len(zero_pads) != 1:
-            found.append("components/app_body.slint: the list pad stopped reading the typed dock state")
+        if len(chrome_air) != 1:
+            found.append(
+                "components/app_body.slint: the shell's bottom air is no longer a chrome fact; "
+                "the compact chrome pays no air and the desktop chrome keeps its 72u page breath"
+            )
         for path in sorted(ui.rglob("*.slint")):
             if path.name not in ("theme.slint", "app_chrome.slint"):
                 if "dock-top-air" in mask_comments(path.read_text(encoding="utf-8")):
@@ -413,6 +426,44 @@ class GuardSelfTest(unittest.TestCase):
 
     def test_column_authority_is_closed(self) -> None:
         self.assertEqual(generated_column_findings(UI), [])
+
+    def test_dock_following_bottom_air_is_caught(self) -> None:
+        """A bottom air that follows the dock is a second owner of the bottom.
+
+        The shell's page air is a chrome fact: the compact chrome pays
+        nothing and the desktop chrome keeps its 72u page breath. The old
+        rule made the air follow the dock instead, and every dockless
+        compact page then reserved 72u of ground that nothing owned - 72 of
+        480 rows on the 720x480 tier, and the whole reason the framed list
+        pages' frame floated above a band of nothing.
+        """
+        body = UI / "components/app_body.slint"
+        original = body.read_text(encoding="utf-8")
+        live = """        property <length> page-content-padding-bottom: root.compact-layout
+            ? 0 * LumenUiScale.unit
+            : 72 * LumenUiScale.unit;"""
+        assert live in original
+        planted = original.replace(
+            live,
+            """        property <length> page-content-padding-bottom: MobileDockBandProjection.reserves_band(root.mobile-dock-band-state)
+            ? 0 * LumenUiScale.unit
+            : 72 * LumenUiScale.unit;""",
+            1,
+        )
+        real = pathlib.Path.read_text
+
+        def fake(self, *args, **kwargs):
+            if self == body:
+                return planted
+            return real(self, *args, **kwargs)
+
+        with unittest.mock.patch.object(pathlib.Path, "read_text", autospec=True) as read_text:
+            read_text.side_effect = fake
+            findings = violations(UI)
+        self.assertTrue(
+            any("bottom air is no longer a chrome fact" in item for item in findings),
+            findings,
+        )
 
     def test_raw_viewport_comparison_is_caught(self) -> None:
         class Single:
@@ -639,8 +690,8 @@ class GuardSelfTest(unittest.TestCase):
                 "the page pays the gap twice",
                 {
                     body_file: real(body_file).replace(
-                        "page-content-padding-bottom: MobileDockBandProjection.reserves_band(root.mobile-dock-band-state)\n            ? 0 * LumenUiScale.unit",
-                        "page-content-padding-bottom: MobileDockBandProjection.reserves_band(root.mobile-dock-band-state)\n            ? LumenTheme.space-mobile-card-gap",
+                        "page-content-padding-bottom: root.compact-layout\n            ? 0 * LumenUiScale.unit",
+                        "page-content-padding-bottom: root.compact-layout\n            ? LumenTheme.space-mobile-card-gap",
                         1,
                     )
                 },
@@ -662,7 +713,7 @@ class GuardSelfTest(unittest.TestCase):
             expected = {
                 "the pill is back at the top of its band": "the pill sits at the top of its band again",
                 "the band forgot the air": "no longer includes the air above the pill",
-                "the page pays the gap twice": "list pad stopped reading the typed dock state",
+                "the page pays the gap twice": "bottom air is no longer a chrome fact",
                 "the viewport takes a second copy of the band": "keeps its own copy of the dock band",
             }[label]
             with self.subTest(label):

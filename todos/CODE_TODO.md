@@ -235,11 +235,52 @@
 | ID | 状态 / 优先级 | points | owner | 依赖 |
 | --- | --- | --- | --- | --- |
 | `SPACEUTIL-001` | `Integrated` / P1（b146 判据作废，见批次叙事） | 3 | infiltrator-slint（`base_widgets.slint` / `theme.slint`） | `SPCUTIL-STD`（L2 标准已落地；b145 交付，待统一验收） |
-| `SPACEUTIL-002` | `Planned` / P1 | 5 | infiltrator-slint（`page_proxies.slint` / `page_about.slint`） | `SPACEUTIL-001` |
-| `SPACEUTIL-003` | `Planned` / P2 | 3 | infiltrator-slint（`page_doctor.slint` / `page_app_routing.slint`） | `SPACEUTIL-001` |
-| `SPACEUTIL-004` | `Planned` / P2 | 3 | infiltrator-slint（compact/phone 档 12 帧） | `SPACEUTIL-002`、`SPACEUTIL-003` |
+| `SPACEUTIL-002` | `Integrated` / P1（b149 复核判定达标，撤回改造） | 5 | infiltrator-slint（`page_proxies.slint` / `page_about.slint`） | `SPACEUTIL-001` |
+| `SPACEUTIL-003` | `Integrated` / P2（b149 复核判定达标，撤回改造） | 3 | infiltrator-slint（`page_doctor.slint` / `page_app_routing.slint`） | `SPACEUTIL-001` |
+| `SPACEUTIL-004` | `Integrated` / P2（b150 交付：紧凑档 framed 页填满页身） | 3 | infiltrator-slint（compact/phone 档 12 帧） | `SPACEUTIL-002`、`SPACEUTIL-003` |
 | `FLCLASH-001` | `Integrated` / P1（b147 交付，待统一验收） | 3 | infiltrator-application / composition / desktop / android | 桌面参考基准（L3 已登记） |
 | `FLCLASH-002` | `Archived` / P2（复核判定存异，无缺口） | 5 | infiltrator-contract（已具备） | `FLCLASH-001` |
+
+**第一百五十批 页身空气归位 / 欠账台账清零（已交付 / 待统一验收，`Integrated`）**：承接用户
+「持续打磨 slint 细节、优化空间利用率」与 b149 留下的唯一 3 帧欠账，把紧凑档 `framed`
+页悬在空带上方的最后一段死地收掉。① **根因实测**（不是猜的）：逐帧量发布批
+`20261108T152400Z_27c9732916d1_dirty_1847568` 发现 720×480 紧凑档里 framed 卡止于
+ y407（卡下 72 行纯页面底色 = 480 行的 15%，判定器报 tail 12.9%），而同档
+`logs-scroll-lock-compact` 填到 y477、桌面档同页 tail 0.0%——**同一外壳、同一页型**，
+差别只在「有没有底部导航」：`logs`/`rules`/`connections` 是二级页，无底栏带被预留。
+逐条排除：不是底栏带（`primary-page` 只有 Home/Proxy/Config/Settings/SettingsWorkbench）、
+不是遮罩（搜索高亮只写进本页自己的 `SearchField`）、不是卡内布局（卡高由
+`LumenTheme.page-body-height` 决定，而它 = 视口高 − 上 8u − **下 72u**）。② **裁决（单一真源）**：
+底部空气是**外壳档**事实，不是底栏事实——桌面外壳留 8u/72u 的页面呼吸位，紧凑外壳
+一点不留（它唯一的底部空间属于浮动底栏，而底栏带已由外壳的列减一次，
+`MobileDockBandState` typed 状态仍是唯一裁决者）。改 `app_body.slint` 的
+`page-content-padding-bottom` 为紧凑档 0u；底栏带仍只被列减一次，未新增任何
+第二份底栏几何。③ **实测结论**：发布批 `20261108T164957Z_cda77dec2603_dirty_2413388`
+（197/197，425s）三帧 tail 12.9% → **0.0%**、band 3.5%（页头与卡框之间的呼吸位，与
+桌面档 3.6% 同量级），紧凑档 p90 12.9% → **6.1%**，desktop / compact / phone
+**三档 0 帧超标**，侧栏 `chrome_band` 0.0% / `void` 4.4%，**欠账台账 `frames` 清空**
+（台账仍只减不增）。④ **门禁**：`slint-viewport-tier-guard.py`（SLINT-009）把
+「底部空气必须是外壳档事实」钉死（1 项 planted 自测：把表达式改回「跟底栏走」
+即报违规），并同步改写 b146 已作废的 `SLINT-018`（侧栏边缘方言）守卫——旧规则要求
+「底部状态卡保留唯一一条边」，而 b146 按 FlClash 对标已把状态卡整块删除，现改判
+「导航栈之下不得有任何内容」（含描边簇与文字行），5 项 planted 自测全绿。⑤ **同批清账**：
+b146/b147 遗留的 5 条 import 内联长路径违规清零（`command_application.rs` /
+`command_application_traffic_history_tests.rs` / desktop `composition.rs` / slint `lib.rs`），
+`command_application/dispatch.rs` 超 800 行预算 1 行——按「同一主题的一组重构同时落地」
+把 `ClearTrafficHistory` 的实现下沉为独立业务缝 `command_application/traffic_history.rs`
+（dispatch 只留一行 typed 调用），并修掉 b142 遗留的 `infiltrator-slint` clippy
+`needless_range_loop`；共享台账 `feature_matrix.json` 补登记 bevy 的
+`zhuge-ui-kit-bevy/capture-tools` 一行（外部会话漏登记的既有欠账，未改任何 bevy 源码）。
+⑥ **验证（L）**：`cargo nextest run -p infiltrator-application -p infiltrator-desktop
+-p infiltrator-slint` **1348/1348** 全绿；`cargo clippy` 三包 `--all-targets -D warnings`
+零警告；`cargo fmt --all --check` 0 偏差；结构门 40+ 项 exit 0（import 0 / line budget 0 /
+feature matrix 0 / SLINT-018 5 项自测全绿）；space self-test **20/20**、`--enforce`
+197 帧 violations=0；`receipt-freshness=0`、`screenshot-identity scanned=574 aliases=10
+violations=0`。⑦ **诚实边界**：`--workspace` nextest/clippy 与提交/CI 腿待统一验证批次；
+`infiltrator-android` 定向 nextest 仍被**他人 bevy-host driver 外债**（`owner_client_tests.rs`
+的 `CoreSnapshot` 缺 `session`）挡住，按同仓所有权纪律不碰；desktop / compact / phone
+三档的 band 3.5–3.7%（页头呼吸位）贴着 4% 上限，视口阶梯仍有三份边界（契约
+600/840/1200、Slint 主题 600/800/1120、判定器 700/1000）待收敛为单一真源。
 
 - `SPACEUTIL-001` 侧栏选中胶囊死空气 36.2% → ≤20%：胶囊按 `nav-label.preferred-width` 取内容宽
   （图标 + 间距 + 标签 + 两侧 `rail-item-padding`），上限 `desktop-pill-max-width`（= rail 内容列），
@@ -250,7 +291,21 @@
   验收：`--enforce` 的 `pill_tail` 腿通过 + 四皮肤 standard 像素回执。
 - `SPACEUTIL-002` 代理节点页与关于页：**b149 撤回**（按页面形态重判后两页均达标——同形态参考产品留白 80.6%，本仓 48–56% 更紧凑）；无需按「填满」改造，若仍要提升体验走 §5「提升密度」而非消除留白。
 - `SPACEUTIL-003` 诊断页与应用分流页：**b149 撤回**（按形态重判后达标）；余下唯一真实欠账是 compact 档 `framed` 页搜索高亮态 3 帧（12.9% vs 4%），属 §5「填满」范围。
-- `SPACEUTIL-004` compact/phone 档 12 帧（最差 47.8%）：手机档配置/代理页与紧凑档面板收口。
+- `SPACEUTIL-004` compact/phone 档 12 帧：**b150 交付**。b144 首测的 12 帧欠账在 b149
+  按形态重判后只剩 compact 档 `framed` 页搜索高亮态 3 帧（各 12.9% vs 上限 4%），
+  phone 档 0 帧超标。根因**实测**定位：外壳把底部空气挂在「底栏未预留」上
+  （`page-content-padding-bottom = reserves_band ? 0 : 72u`），于是紧凑档每个
+  **无底栏**页面（`logs`/`rules`/`connections` 是二级页，无底部导航）在最后一块下面
+  压着 72u 死地——720×480 档是 480 行里的 72 行，正是 framed 页框悬在空带上方的
+  原因（其余同档帧如 `logs-scroll-lock-compact` 填到 477、桌面档同页 tail 0.0%，
+  证明不是卡内布局问题、也不是遮罩或底栏问题）。裁决：底部空气是**外壳档**事实而非
+  底栏事实——桌面外壳留 8u/72u 页面呼吸位，紧凑外壳一点不留（它唯一的底部空间属于
+  浮动底栏，而底栏带已由外壳的列减一次）。改后三帧 tail 12.9% → **0.0%**、band 3.5%
+  （页头与卡框之间的呼吸位，与桌面档 3.6% 同量级），compact 档 p90 12.9% → 6.1%，
+  **欠账台账 `frames` 清空**，三档 0 帧超标。台账仍只减不增：新登记会被 `--update-debt`
+  拒绝。**遗留**：桌面档 `framed` 页与紧凑档的 band 3.5–3.7% 是页头呼吸位，贴着 4%
+  上限；视口阶梯仍有三份边界（契约 600/840/1200、Slint 主题 600/800/1120、判定器
+  700/1000），判据器在 800–999px 宽度上会误判侧栏归属，留待独立切片收敛为单一真源。
 - `FLCLASH-001` core 方法面 wire 对照审计（b146 已审计，发现**两个真实缺陷**，待独立 Core 批次自底向上收口）：① `CommandIntent::ClearTrafficHistory` 在 `command_application/dispatch.rs` 是 `Ok(())` 空操作，从未触碰真实波形 owner；② 同一个意图在 `command_capability.rs` 被映射到 `ConnectionOperation::Close`，而上游 `traffic.reset` 清累计计数、`connection.close` 拆 socket 是**两个不同事实**，会让「能重置统计但不能关连接」的引擎误报不支持。上游 `network.changed` 由 `NetworkRoamingSnapshot` + `FakeIpCacheOperation::Flush` 覆盖，无缺口。正确收口顺序：contract 新增 typed `ConnectionOperation::ResetStatistics`（wire `connection.reset_statistics`）→ adapter 能力矩阵（mihomo/sing-box/desktop/android/composition 五处）→ `TrafficWaveformBuffer::reset` / `TrafficWaveformApplication::reset` → 让 `CommandApplication` 与 `ProductSurfaceReader` **共享同一个** `TrafficWaveformApplication` owner（`Clone` 即共享 `Arc<Mutex>`，需跨 host 注入，禁止各建一个实例做假 reset）→ dispatch 真实调用 + capability 映射拆开 + fake/nextest 验收。本轮 b146 只登记不半改，未提交的源码改动已全部回退（并行纪律：编译不通过的半成品不得留在工作树）。
 - `FLCLASH-002` **复核判定「存异（本仓已更强）」，直接办结，不写码**：逐项核对 `infiltrator-contract::overview_layout` 后确认本仓已有 typed 卡片身份枚举 `OverviewCardKind`（8 变体）、`region` 把 shell 侧栏控件与概览卡分开（上游 `DashboardWidget.platforms` 没有这层裁决）、`DEFAULT_ORDER` 默认顺序、`OverviewLayoutSnapshot` 可重排 owner 与 4 项契约测试；`project_overview_layout` 纯消费、`DashboardFacts` 一次投影 11 类事实。上游 `platforms` 门控（`vpnButton` Android only / `networkTakeover` desktop only）在本仓没有对应真实差异——`MasterSwitches` 在四表面都渲染（Android 走 VPNService），若凭空加平台门控只会造第二个业务真源。b146 首版把「缺卡片身份 enum + registry」登记为缺口是误判，按「不为办结造功能」原则撤销，不新增 CoreOperation / wire / 快照 / UI。
 

@@ -37,6 +37,7 @@ use infiltrator_contract::profile_age_credential::{
     ProfileAgeCredentialOwnerReadback, ProfileAgeCredentialOwnerRequest,
     ProfileAgeCredentialReadOutcome, ProfileAgeCredentialState, ProfileAgeCredentialTarget,
 };
+use infiltrator_contract::shell_navigation::destination_for_route;
 use infiltrator_contract::subscription_import::{
     SubscriptionImportChannel, SubscriptionScheduleDraft,
 };
@@ -80,7 +81,7 @@ pub(crate) fn slint_model<T: Clone + 'static>(items: Vec<T>) -> slint::ModelRc<T
 /// shared contract, never re-derived by the surface's own string chain.
 pub(crate) fn set_page(window: &AppWindow, page: &str) {
     window.set_page(page.into());
-    let destination = infiltrator_contract::shell_navigation::destination_for_route(page)
+    let destination = destination_for_route(page)
         .map(|target| target.id())
         .unwrap_or("");
     window.set_active_destination(destination.into());
@@ -134,11 +135,11 @@ pub(crate) fn refresh_model<T: Clone + 'static>(
     match current.as_any().downcast_ref::<slint::VecModel<T>>() {
         Some(vec_model) => {
             let common = vec_model.row_count().min(rows.len());
-            for index in 0..common {
-                vec_model.set_row_data(index, rows[index].clone());
+            for (index, row) in rows.iter().take(common).enumerate() {
+                vec_model.set_row_data(index, row.clone());
             }
-            for index in vec_model.row_count()..rows.len() {
-                vec_model.insert(index, rows[index].clone());
+            for (index, row) in rows.iter().enumerate().skip(vec_model.row_count()) {
+                vec_model.insert(index, row.clone());
             }
             while vec_model.row_count() > rows.len() {
                 vec_model.remove(vec_model.row_count() - 1);

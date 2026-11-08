@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SLINT-018: the rail declares each boundary once.
+"""SLINT-018: the rail is navigation only, and declares each boundary once.
 
 The rail already owns a separator dialect, written down in its own comments:
 a group heading IS the separator, so a hairline directly above it is a double
@@ -9,14 +9,21 @@ status card's own border at y617, both spanning x18..241 - one box with two
 top edges 6px apart. Two owners claiming the same boundary is what made the
 heading look stray in b139, and it reads here as a box with a doubled rim.
 
-Three rules keep the dialect:
+The cluster itself is gone now, and it is gone on purpose. The FlClash
+desktop reference's sidebar carries navigation rows and nothing else: the
+status, throughput, brand and version facts all live in the title bar and the
+dashboard cards, and publishing them in the rail made a SECOND truth source
+of them (the space-utilization judge now measures that as `chrome_band` and
+holds it at 0%). So the rail's dialect is now three rules:
 
 * the rail draws no `ListRule` at all: its separators are headings, and its
   boxes draw their own edges;
-* the free air of the rail belongs above the bottom cluster, so the stretch
-  spacer must stay the last thing before the status card;
-* the status card keeps exactly one edge, so removing the rule cannot leave
-  the cluster boundary-less.
+* the free air of the rail belongs below the navigation stack, so the stretch
+  spacer must stay the last thing in the rail;
+* the rail declares NOTHING below that spacer. A bottom cluster - a bordered
+  card, a status row, a version line - is the second truth source coming
+  back, and the guard must refuse it at the source level, not only at the
+  pixel level.
 """
 
 from __future__ import annotations
@@ -34,6 +41,9 @@ SIDEBAR = ROOT / "crates/infiltrator-slint/ui/components/sidebar.slint"
 LIST_RULE = re.compile(r"\bListRule\s*\{")
 STRETCH_SPACER = re.compile(r"Rectangle\s*\{\s*vertical-stretch:\s*1;")
 CARD_BORDER = re.compile(r"border-width:\s*1 \* LumenUiScale\.unit;")
+# Anything that paints a fact below the navigation stack. The rail's only
+# content is the typed registry's rows; a cluster is a second owner.
+RAIL_CONTENT = re.compile(r"\b(Text|Image|SurfaceCard|IconButton|SectionCard)\s*\{")
 
 
 def mask_comments(source: str) -> str:
@@ -72,14 +82,23 @@ def violations(source: str) -> list[str]:
         )
     spacer = STRETCH_SPACER.search(code)
     if spacer is None:
-        found.append("the rail no longer parks its free air above the bottom cluster")
+        found.append("the rail no longer parks its free air below the navigation stack")
     else:
         tail = code[spacer.end() :]
         if LIST_RULE.search(tail):
             found.append("a separator follows the stretch spacer: the bottom cluster declares its edge twice")
-    card = code[spacer.end():] if spacer else code
-    if len(CARD_BORDER.findall(card)) < 1:
-        found.append("the status cluster lost its single edge")
+        if CARD_BORDER.search(tail):
+            found.append(
+                "the rail draws a bordered cluster below the navigation stack: the sidebar is "
+                "navigation only, so status, throughput, brand and version facts keep their "
+                "single owner in the title bar and the dashboard"
+            )
+        if RAIL_CONTENT.search(tail):
+            found.append(
+                "the rail paints content below the navigation stack: the sidebar is navigation "
+                "only, so no second source of a status, throughput, brand or version fact may "
+                "live below the nav stack"
+            )
     return found
 
 
@@ -95,31 +114,44 @@ class GuardSelfTest(unittest.TestCase):
         self.assertEqual(live_violations(), [])
 
     def test_a_duplicated_rim_is_caught(self) -> None:
+        anchor = "        Rectangle { vertical-stretch: 1; background: transparent; }"
+        self.assertIn(anchor, self.source)
         planted = self.source.replace(
-            "        // FlClash-standard unified status card",
-            "        ListRule {}\n        // FlClash-standard unified status card",
+            anchor,
+            anchor + "\n        ListRule {}",
             1,
         )
         found = violations(planted)
         self.assertTrue(any("declares its edge twice" in item for item in found), found)
 
     def test_a_comment_mentioning_the_rule_does_not_count(self) -> None:
+        anchor = "        Rectangle { vertical-stretch: 1; background: transparent; }"
         planted = self.source.replace(
-            "        // FlClash-standard unified status card",
-            "        // ListRule {} was here and is now gone\n        // FlClash-standard unified status card",
+            anchor,
+            "        // ListRule {} was here and is now gone\n" + anchor,
             1,
         )
         self.assertEqual(violations(planted), [])
 
-    def test_a_borderless_status_cluster_is_caught(self) -> None:
-        start = self.source.index("FlClash-standard unified status card")
-        head, tail = self.source[:start], self.source[start:]
-        planted = head + tail.replace("border-width: 1 * LumenUiScale.unit;", "", 1)
+    def test_a_bottom_cluster_is_caught(self) -> None:
+        """A rail that paints facts again is the second truth source."""
+        anchor = "        Rectangle { vertical-stretch: 1; background: transparent; }"
+        self.assertIn(anchor, self.source)
+        planted = self.source.replace(
+            anchor,
+            anchor
+            + "\n        SurfaceCard { Rectangle { border-width: 1 * LumenUiScale.unit; } }",
+            1,
+        )
         found = violations(planted)
-        self.assertTrue(any("lost its single edge" in item for item in found), found)
+        self.assertTrue(any("navigation only" in item for item in found), found)
 
     def test_the_free_air_stays_owned_by_the_spacer(self) -> None:
-        planted = self.source.replace("vertical-stretch: 1; background: transparent; }", "background: transparent; }", 1)
+        planted = self.source.replace(
+            "Rectangle { vertical-stretch: 1; background: transparent; }",
+            "Rectangle { background: transparent; }",
+            1,
+        )
         found = violations(planted)
         self.assertTrue(any("free air" in item for item in found), found)
 
