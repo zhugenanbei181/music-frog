@@ -59,8 +59,16 @@ intranetIp, memoryInfo`。
 本仓 `crates/infiltrator-slint/src/lumen_projection/dashboard.rs` 的 `DashboardFacts`
 已把同一批事实从共享 `SurfaceSnapshot` 一次性投影，页面只消费 typed 值；
 `home_desktop_grid.slint` 已有 hero / 上传 / 下载 / 内网IP / 配置 / 服务状态 /
-内存信息 / 连接表 / 策略组网格等卡片。**结论：模块覆盖不缺**，缺的是
-「卡片身份没有 typed enum 注册表」与「卡片顺序不可配置」这两项架构能力。
+内存信息 / 连接表 / 策略组网格等卡片。
+
+**b148 复核修订（存异：本仓已更强，不写码）**：`infiltrator-contract::overview_layout`
+已有 typed `OverviewCardKind`（8 变体）、`region` 把 shell 侧栏控件与概览卡分开
+（上游 `DashboardWidget.platforms` 无此裁决）、`DEFAULT_ORDER` 默认顺序、
+`OverviewLayoutSnapshot` 可重排 owner 与 4 项契约测试；`project_overview_layout`
+纯消费。上游按平台门控的两张卡（`vpnButton` Android only / `networkTakeover`
+desktop only）在本仓没有对应真实差异——`MasterSwitches` 四表面都渲染
+（Android 走 VPNService）。因此 b146 登记的「缺 typed enum 注册表」是误判，
+`FLCLASH-002` 直接办结，不新增第二套卡片清单、不动 wire/快照/UI。
 
 ## 4. Core 能力面差距（求同抽象，b146 复核修订）
 

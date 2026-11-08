@@ -237,7 +237,7 @@
 | `SPACEUTIL-003` | `Planned` / P2 | 3 | infiltrator-slint（`page_doctor.slint` / `page_app_routing.slint`） | `SPACEUTIL-001` |
 | `SPACEUTIL-004` | `Planned` / P2 | 3 | infiltrator-slint（compact/phone 档 12 帧） | `SPACEUTIL-002`、`SPACEUTIL-003` |
 | `FLCLASH-001` | `Integrated` / P1（b147 交付，待统一验收） | 3 | infiltrator-application / composition / desktop / android | 桌面参考基准（L3 已登记） |
-| `FLCLASH-002` | `Planned` / P2 | 5 | infiltrator-presentation / 四表面 | `FLCLASH-001` |
+| `FLCLASH-002` | `Archived` / P2（复核判定存异，无缺口） | 5 | infiltrator-contract（已具备） | `FLCLASH-001` |
 
 - `SPACEUTIL-001` 侧栏选中胶囊死空气 36.2% → ≤20%：胶囊按 `nav-label.preferred-width` 取内容宽
   （图标 + 间距 + 标签 + 两侧 `rail-item-padding`），上限 `desktop-pill-max-width`（= rail 内容列），
@@ -251,7 +251,7 @@
 - `SPACEUTIL-003` 诊断页与应用分流页（40.6% / 26.8%）：同 §5 填满或合并，禁止加布尔特例。
 - `SPACEUTIL-004` compact/phone 档 12 帧（最差 47.8%）：手机档配置/代理页与紧凑档面板收口。
 - `FLCLASH-001` core 方法面 wire 对照审计（b146 已审计，发现**两个真实缺陷**，待独立 Core 批次自底向上收口）：① `CommandIntent::ClearTrafficHistory` 在 `command_application/dispatch.rs` 是 `Ok(())` 空操作，从未触碰真实波形 owner；② 同一个意图在 `command_capability.rs` 被映射到 `ConnectionOperation::Close`，而上游 `traffic.reset` 清累计计数、`connection.close` 拆 socket 是**两个不同事实**，会让「能重置统计但不能关连接」的引擎误报不支持。上游 `network.changed` 由 `NetworkRoamingSnapshot` + `FakeIpCacheOperation::Flush` 覆盖，无缺口。正确收口顺序：contract 新增 typed `ConnectionOperation::ResetStatistics`（wire `connection.reset_statistics`）→ adapter 能力矩阵（mihomo/sing-box/desktop/android/composition 五处）→ `TrafficWaveformBuffer::reset` / `TrafficWaveformApplication::reset` → 让 `CommandApplication` 与 `ProductSurfaceReader` **共享同一个** `TrafficWaveformApplication` owner（`Clone` 即共享 `Arc<Mutex>`，需跨 host 注入，禁止各建一个实例做假 reset）→ dispatch 真实调用 + capability 映射拆开 + fake/nextest 验收。本轮 b146 只登记不半改，未提交的源码改动已全部回退（并行纪律：编译不通过的半成品不得留在工作树）。
-- `FLCLASH-002` 仪表盘 `DashboardWidget` 注册表 typed 化：本仓 `DashboardFacts` 已有 11 类模块与 `OverviewLayoutSnapshot` 顺序投影，缺的是卡片身份 enum + registry + 平台能力面的单一真源；不得在页面写死第二套卡片清单。
+- `FLCLASH-002` **复核判定「存异（本仓已更强）」，直接办结，不写码**：逐项核对 `infiltrator-contract::overview_layout` 后确认本仓已有 typed 卡片身份枚举 `OverviewCardKind`（8 变体）、`region` 把 shell 侧栏控件与概览卡分开（上游 `DashboardWidget.platforms` 没有这层裁决）、`DEFAULT_ORDER` 默认顺序、`OverviewLayoutSnapshot` 可重排 owner 与 4 项契约测试；`project_overview_layout` 纯消费、`DashboardFacts` 一次投影 11 类事实。上游 `platforms` 门控（`vpnButton` Android only / `networkTakeover` desktop only）在本仓没有对应真实差异——`MasterSwitches` 在四表面都渲染（Android 走 VPNService），若凭空加平台门控只会造第二个业务真源。b146 首版把「缺卡片身份 enum + registry」登记为缺口是误判，按「不为办结造功能」原则撤销，不新增 CoreOperation / wire / 快照 / UI。
 
 ## 一、大计划主线与推进顺序
 

@@ -38,6 +38,18 @@
 | 7 | 部分 | L | 彻底清除全仓 part1/part2/part3 无语义命名，重构为高内聚强语义模块（reset_recovery_and_migration、owner_switch_and_recovery、cross_process_concurrency、workspace_recovery_and_reset_tests）；文件级模块化完成（scanned=2891 violations=0，kt-line scanned=227 violations=0）；mod.rs 清退至 0；隐式状态机语义审计 + 判决台账常驻（23 条候选 0 undecided 0 open）；rem 体系 0 违规 0 debt；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | `check-structure.sh` 40+ 结构守卫、单测与工具链全部 exit 0；`cargo fmt --all --check` 0 偏差；六包定向 nextest 2179/2179 全绿；Clippy 6 包 `--all-targets -D warnings` 零警告；`screenshot-identity-guard` 550 张截图 10 aliases 0 违规；`scrollbar-contract-guard` 0 违规；`shared-copy-guard` 0 违规；`i18n-guard` 0 违规 |
 
+## 最近一批问答（2026-11-09 第一百四十八交付批次：FLCLASH-002 仪表盘注册表复核裁决（存异，无缺口））
+
+1. x86_64/aarch64：b148 是纯契约复核与台账裁决，零源码/零二进制变更，架构中性；沿用 b147 六包 `cargo check` 与 2195 项 nextest 的 `L` 证据，本批无新增编译腿，`C`/`D` 待补证 → 部分（L）。
+2. Windows/Linux/macOS：b148 不改任何平台产物，沿用既有登记；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 Unsupported 登记 → 部分（L）。
+3. Android/iOS：复核确认 `MasterSwitches` 在四表面都渲染、Android 走 VPNService，无平台门控差异；Android 三 flavor 交互回执与 b147 外债状态不变 → 部分（L）。
+4. 各 UI：本批不改任何 UI；`project_overview_layout` 与 `DashboardFacts` 继续纯消费 typed 契约，四表面无第二套卡片清单 → 部分（L）。
+5. 复用：`OverviewCardKind` 已一处持有卡片身份/region/默认顺序，`OverviewLayoutSnapshot` 一处持有可重排 owner，`DashboardFacts` 一处投影 11 类事实；裁定不再新增 `DashboardWidget` 式第二注册表，避免重复真源 → 完整（L）。
+5a. 设计资源强制标准：本批无身份变化、无像素变化，不重采；沿用 b146 发布回执（仍新鲜）与 `design-resource-authority.py` violations=0 → 完整（L）。
+6. 功能接入：逐项核对上游 11 个 `DashboardWidget` 变体与本仓 8 个 `OverviewCardKind` + `DashboardFacts` 模块覆盖，结论「模块覆盖不缺、注册表已 typed」，无功能改动 → 完整（L）。
+7. 模块化：撤销 b146「缺 enum + registry」的误判，按「不为办结造功能」原则把 `FLCLASH-002` 直接办结并写明存异理由；doc-governance / closure / space 门禁沿用全绿 → 完整（L）。
+8. CI：本批只改台账与 L3 基准文档，不触发编译、不重采像素；`doc-governance-guard` OK、`closure-questions-guard` 8/8；`--workspace` nextest/clippy 与 CI 腿待统一验证批次 → 部分（L）。
+
 ## 最近一批问答（2026-11-09 第一百四十七交付批次：FLCLASH-001 Core 缺口收口 / ClearTrafficHistory 空操作与错映射根治）
 
 1. x86_64/aarch64：b147 是 Rust Core/应用层的 typed 命令与 owner 共享，架构中性；六包 `cargo check` 与 2195 项 nextest 为 `L`，本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。
