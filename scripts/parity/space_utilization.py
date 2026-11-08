@@ -129,7 +129,7 @@ def rail_of(image: np.ndarray) -> dict | None:
     if width < 1000:
         return None
     strip = image[:, 0:RAIL_WIDTH].astype(int)
-    ground = np.median(strip[height // 2, 4:10], axis=0)
+    ground = np.median(strip[height // 2, 4:10].reshape(-1, 3), axis=0)
     ink = np.abs(strip - ground).sum(axis=2) > 14
     row_ink = ink.mean(axis=1) > 0.01
     bands = runs(row_ink)
@@ -137,20 +137,32 @@ def rail_of(image: np.ndarray) -> dict | None:
         return None
     voids = [bands[i + 1][0] - bands[i][1] - 1 for i in range(len(bands) - 1)]
     # The selected pill: the widest ink band of the nav stack. Its dead tail is
-    # the box width minus the ink that starts at the box's own left edge.
+    # the box width minus the last label ink column inside the box.
+    #
+    # The label is measured against the pill's OWN fill, never against an
+    # absolute luminance cut. A cut like "sum(rgb) < 430" reads the dark pill
+    # fill itself as label ink, so dark and amoled skins reported a 0% tail for
+    # the very same 160u box that light skins reported at 35%. The fill is
+    # sampled from the box's left padding (the component guarantees a
+    # `rail-item-padding` gutter there), and only the middle rows are read so
+    # the rounded corners - which blend fill into ground - cannot masquerade as
+    # ink at the box edge.
     nav = [band for band in bands if band[0] > 110 and band[1] < 590]
     pill_tail = 0.0
     if nav:
-        widest = max(nav, key=lambda band: band[1] - band[0])
-        cols = np.where(ink[widest[0]:widest[1] + 1].any(axis=0))[0]
+        top, bottom = max(nav, key=lambda band: band[1] - band[0])
+        cols = np.where(ink[top:bottom + 1].any(axis=0))[0]
         if len(cols):
             left = int(cols.min())
-            box = int(cols.max()) - left + 1
-            label = np.where(
-                (strip[widest[0]:widest[1] + 1, left:cols.max() + 1].sum(axis=2) < 430).any(axis=0)
-            )[0]
-            if len(label):
-                pill_tail = round((box - (int(label.max()) + 1)) / box * 100, 1)
+            right = int(cols.max())
+            box = right - left + 1
+            span = bottom - top + 1
+            mid = strip[top + int(span * 0.30):top + int(span * 0.70) + 1, left:right + 1]
+            fill = np.median(mid[:, 0:4].reshape(-1, 3), axis=0)
+            label = (np.abs(mid - fill).sum(axis=2) > 40).sum(axis=0) >= 2
+            label_cols = np.where(label)[0]
+            if len(label_cols):
+                pill_tail = round((box - (int(label_cols.max()) + 1)) / box * 100, 1)
     return dict(void_pct=round(max(voids, default=0) / height * 100, 1),
                 pill_tail_pct=pill_tail)
 
@@ -326,6 +338,14 @@ def _desktop_body() -> np.ndarray:
     return image
 
 
+def _desktop_body_dark() -> np.ndarray:
+    """The same frame on a dark rail, so a luminance-cut judge cannot hide."""
+    image = _canvas(1180, 780)
+    _fill(image, 0, 780, 0, RAIL_WIDTH, (20, 23, 27))
+    _fill(image, 0, 780, RAIL_WIDTH, 1180, (11, 13, 16))
+    return image
+
+
 def _write_run(root: pathlib.Path, frames: dict[str, np.ndarray]) -> pathlib.Path:
     run = root / "batch"
     run.mkdir(parents=True, exist_ok=True)
@@ -462,6 +482,43 @@ class SelfTest(unittest.TestCase):
         _fill(image, 617, 712, 18, 210, CARD)
         entry = self.measure_one(image)
         self.assertLessEqual(entry["pill_tail_pct"], RAIL_PILL_TAIL_LIMIT, entry)
+
+    def test_a_dark_pill_with_a_short_label_is_caught_too(self) -> None:
+        # Regression: the tail used to be an absolute luminance cut, so the
+        # dark fill itself counted as label ink and this exact box reported
+        # 0% on dark/amoled while reporting 35% on light. One geometry, one
+        # verdict, every skin.
+        image = _desktop_body_dark()
+        _fill(image, 63, 97, 18, 143, (213, 241, 248))
+        _fill(image, 134, 178, 34, 194, (6, 73, 91))
+        _fill(image, 150, 168, 52, 137, (213, 241, 248))
+        _fill(image, 617, 712, 18, 210, (29, 33, 38))
+        entry = self.measure_one(image)
+        self.assertGreater(entry["pill_tail_pct"], RAIL_PILL_TAIL_LIMIT, entry)
+        self.assertNotEqual(rail_findings([entry], {"frames": {}, "rail": {}}), [])
+
+    def test_a_dark_content_width_pill_passes_too(self) -> None:
+        image = _desktop_body_dark()
+        _fill(image, 63, 97, 18, 143, (213, 241, 248))
+        _fill(image, 134, 178, 34, 150, (6, 73, 91))
+        _fill(image, 150, 168, 52, 137, (213, 241, 248))
+        _fill(image, 617, 712, 18, 210, (29, 33, 38))
+        entry = self.measure_one(image)
+        self.assertLessEqual(entry["pill_tail_pct"], RAIL_PILL_TAIL_LIMIT, entry)
+
+    def test_the_pill_verdict_does_not_depend_on_the_skin(self) -> None:
+        # The same 160u box with the same 85u of ink must yield the same tail
+        # on a light rail and on a dark rail; only the colours differ.
+        light = _desktop_body()
+        _fill(light, 134, 178, 34, 194, (220, 238, 226))
+        _fill(light, 150, 168, 52, 137, INK)
+        dark = _desktop_body_dark()
+        _fill(dark, 134, 178, 34, 194, (6, 73, 91))
+        _fill(dark, 150, 168, 52, 137, (213, 241, 248))
+        light_entry = self.measure_one(light)
+        dark_entry = self.measure_one(dark)
+        self.assertEqual(light_entry["pill_tail_pct"], dark_entry["pill_tail_pct"],
+                         (light_entry, dark_entry))
 
     def test_a_published_batch_is_required_to_judge(self) -> None:
         empty = self.root / "nothing"

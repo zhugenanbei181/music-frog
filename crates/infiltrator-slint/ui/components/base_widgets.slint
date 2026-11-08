@@ -17,11 +17,11 @@ export global NavButtonMetrics {
     out property <length> compact-radius: LumenTheme.bottom-bar-pill-height / 2;
     out property <length> compact-icon-label-gap: 2 * LumenUiScale.unit;
     out property <length> compact-pill-gutter: LumenTheme.space-1;
-    // The desktop active face follows the icon+label column instead of
-    // filling the whole rail. A full-width selected row leaves a 60u empty
-    // tail after short labels and makes the rail look like a second content
-    // column; one content-width pill keeps the menu column tight.
-    out property <length> desktop-active-width: LumenTheme.rail-width - 2 * LumenTheme.rail-inset - 2 * LumenTheme.rail-item-padding;
+    // The desktop pill is content-width but may not exceed the rail content
+    // column. The gap between a short label and the card right edge is
+    // legitimate breathing room, not waste; the metric measures dead air
+    // *inside* the pill box only.
+    out property <length> desktop-pill-max-width: LumenTheme.rail-width - 2 * LumenTheme.rail-inset - 2 * LumenTheme.rail-item-padding;
 }
 
 // One compact page header action button, shared by the action clusters. Its
@@ -151,6 +151,10 @@ export component PingBadge inherits Rectangle {
 }
 
 export component NavButton inherits Rectangle {
+    private property <length> desktop-pill-width: min(
+        2 * LumenTheme.rail-item-padding + NavButtonMetrics.icon-size + LumenTheme.space-3 + nav-label.preferred-width,
+        NavButtonMetrics.desktop-pill-max-width);
+
     in property <string> label;
     in property <string> target;
     in property <bool> active;
@@ -169,8 +173,9 @@ export component NavButton inherits Rectangle {
     // EFFECTS-039 #160/#161/#13: hover lifts the face -1px with the
     // hairline glow; every state change rides the 120ms ease-out ramp.
     face := Rectangle {
+        x: root.compact ? 0 * LumenUiScale.unit : LumenTheme.rail-item-padding;
         y: (nav-touch.has-hover && LumenTheme.hover-allowed) && !root.active ? -1 * LumenUiScale.unit : 0 * LumenUiScale.unit;
-        width: root.compact ? parent.width : NavButtonMetrics.desktop-active-width;
+        width: root.compact ? parent.width : root.desktop-pill-width;
         height: parent.height;
         border-radius: root.compact ? NavButtonMetrics.compact-radius : NavButtonMetrics.desktop-radius;
         background: root.compact ? transparent : (root.active ? LumenTheme.accent-soft : ((nav-touch.has-hover && LumenTheme.hover-allowed) ? LumenTheme.surface-muted : transparent));
@@ -208,7 +213,11 @@ export component NavButton inherits Rectangle {
                 }
             }
         }
-        if !root.compact: HorizontalLayout {
+        // Gated by `visible` rather than `if` so the named label stays in the
+        // component tree and the root can size the pill to its preferred width
+        // (Slint cannot resolve an id declared inside a conditional block).
+        HorizontalLayout {
+            visible: !root.compact;
             padding-left: LumenTheme.rail-item-padding;
             padding-right: LumenTheme.rail-item-padding;
             width: parent.width;
@@ -217,7 +226,10 @@ export component NavButton inherits Rectangle {
             alignment: start;
             cross-axis-alignment: center;
             Image { source: root.active ? root.active-icon : root.icon; width: NavButtonMetrics.icon-size; height: NavButtonMetrics.icon-size; image-fit: contain; colorize: root.active ? LumenTheme.accent-active : ((nav-touch.has-hover && LumenTheme.hover-allowed) ? LumenTheme.text-primary : LumenTheme.text-secondary); }
-            Text { text: root.label; color: root.active ? LumenTheme.accent-active : ((nav-touch.has-hover && LumenTheme.hover-allowed) ? LumenTheme.text-primary : LumenTheme.text-secondary); font-size: DesignType.size(TextRole.label); font-weight: DesignType.weight(TextRole.label); font-family: DesignType.family(TextRole.label); vertical-alignment: center; horizontal-stretch: 1; min-width: 0 * LumenUiScale.unit; overflow: elide; }
+            // The label is named so the pill can hug its preferred width; the
+            // layout still fills the face, so `overflow: elide` engages when a
+            // long localized label reaches the pill's max-width cap.
+            nav-label := Text { text: root.label; color: root.active ? LumenTheme.accent-active : ((nav-touch.has-hover && LumenTheme.hover-allowed) ? LumenTheme.text-primary : LumenTheme.text-secondary); font-size: DesignType.size(TextRole.label); font-weight: DesignType.weight(TextRole.label); font-family: DesignType.family(TextRole.label); vertical-alignment: center; horizontal-stretch: 1; min-width: 0 * LumenUiScale.unit; overflow: elide; }
         }
     }
 }

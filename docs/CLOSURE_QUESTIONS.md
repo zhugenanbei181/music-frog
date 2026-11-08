@@ -38,6 +38,18 @@
 | 7 | 部分 | L | 彻底清除全仓 part1/part2/part3 无语义命名，重构为高内聚强语义模块（reset_recovery_and_migration、owner_switch_and_recovery、cross_process_concurrency、workspace_recovery_and_reset_tests）；文件级模块化完成（scanned=2891 violations=0，kt-line scanned=227 violations=0）；mod.rs 清退至 0；隐式状态机语义审计 + 判决台账常驻（23 条候选 0 undecided 0 open）；rem 体系 0 违规 0 debt；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | `check-structure.sh` 40+ 结构守卫、单测与工具链全部 exit 0；`cargo fmt --all --check` 0 偏差；六包定向 nextest 2179/2179 全绿；Clippy 6 包 `--all-targets -D warnings` 零警告；`screenshot-identity-guard` 550 张截图 10 aliases 0 违规；`scrollbar-contract-guard` 0 违规；`shared-copy-guard` 0 违规；`i18n-guard` 0 违规 |
 
+## 最近一批问答（2026-11-08 第一百四十五交付批次：侧栏选中胶囊按内容取宽 / 判定器皮肤盲根治）
+
+1. x86_64/aarch64：b145 是 Slint 侧栏胶囊几何与 Python 判定器，架构中性；`cargo check -p infiltrator-slint --all-targets` 与整批 197 帧发布为 `L`，本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。
+2. Windows/Linux/macOS：b145 只在本机 Linux 台架完成编译与整批 197 帧发布；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 Unsupported 登记 → 部分（L）。
+3. Android/iOS：b145 只改桌面 Slint 侧栏（rail）胶囊，移动端走 dock 分支不受影响；Android Compose 的等价导航胶囊与 iOS 未随本批 → 部分（L）。
+4. 各 UI：Slint 桌面选中胶囊由 160u 定宽盒改按 `nav-label.preferred-width` 取内容宽（上限 rail 内容列），四皮肤实测死空气 35.6%→13.3–14.2%（上限 20%）达标，图标列 x50 与整行点击目标不变；发布批相对上一批胶囊带像素变化已逐帧量到盒宽 160u→120u。Iced/Bevy/Android 导航胶囊未随本批对齐 → 部分（L）。
+5. 复用：胶囊宽度真源收敛到 `NavButtonMetrics`（删 `desktop-active-width` 定宽入口、新增 `desktop-pill-max-width` 上限），face 几何与 `nav-label` preferred-width 一处声明；判定器 `pill_tail` 改为按胶囊自身底色量墨迹、四皮肤同判，未新增第二套测量 → 完整（L）。
+5a. 设计资源强制标准：本批不改 design authority（角色闭集仍 26），改的是胶囊几何而非字型/字重/图标身份；整批 197 帧重采发布，`receipt-freshness=0`、`screenshot-identity scanned=574 aliases=10 violations=0`（mixin↔editor 四皮肤逐字节相同，4 条别名摘要按新像素刷新）→ 完整（L）。
+6. 功能接入：导航回调、target、active 门与 a11y 标签未变，只改 face 宽度与左沿；整行 `nav-touch` 仍占满列宽，点击目标不缩；长本地化标签到 `desktop-pill-max-width` 即 elide，不溢出 → 完整（L）。
+7. 模块化：判定器皮肤盲根治并新增 3 项 planted 自测（深色短标签被抓 / 深色内容宽通过 / 浅深同判），self-test 17/17；桌面分支由 `if` 改 `visible` 让 `nav-label` id 可解析（Slint 条件块内 id 不可外层访问），与 `HomeStatusChip` 同范式；几何真源在 `NavButtonMetrics`/`theme.slint` 一处 → 完整（L）。
+8. CI：space self-test 与 enforce 双腿已在结构门；本批 `--enforce` 197 帧 violations=0、六 Slint 守卫全 0、`cargo nextest run -p infiltrator-slint` 379/379；`--workspace` nextest/clippy 与提交/CI 腿待统一验证批次 → 部分（L）。
+
 ## 最近一批问答（2026-11-08 第一百四十四交付批次：空间利用率强制标准 / 像素判定器与只减欠账台账）
 
 1. x86_64/aarch64：b144 是 L2 标准文本、判定脚本与台账 JSON，不进入任何产品二进制，架构中性；判定器对最新发布整批 197 帧可复跑为 `L`，本批未复跑交叉 `cargo check`（无被测代码变更）→ 完整（L）。

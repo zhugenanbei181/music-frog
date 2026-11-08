@@ -434,12 +434,14 @@ export global LumenTheme {
     //   x18  rail chrome - the brand tile and the status card box sit at `rail-inset`;
     //   x34  card content - the card's own text, and the version line under it, sit
     //        at `rail-inset` + `rail-item-padding`;
-    //   x50  nav content - a nav item is a centred face (`desktop-active-width`, so
-    //        one `rail-item-padding` gutter each side) whose content is padded again,
-    //        so its icon lands two paddings inside the layout. A group heading heads
-    //        those icons, so it reads `rail-content-leading` and joins that column:
-    //        measured before this it started at x34 while the icons it heads started
-    //        at x51, which made the heading a stray row of its own.
+    //   x50  nav content - a nav item is a left-aligned, content-width face whose
+    //        left edge sits at `rail-item-padding` and whose content is padded again,
+    //        so its icon lands two paddings inside the layout. The pill hugs its
+    //        label (capped at the rail content column) instead of stretching to a
+    //        fixed width that left a third of the box as dead air. A group heading
+    //        heads those icons, so it reads `rail-content-leading` and joins that
+    //        column: measured before this it started at x34 while the icons it heads
+    //        started at x51, which made the heading a stray row of its own.
     out property <length> rail-inset: 18 * LumenUiScale.unit;
     out property <length> rail-item-padding: space-4;
     out property <length> rail-content-leading: 2 * root.rail-item-padding;
