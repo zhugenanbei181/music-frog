@@ -9,7 +9,7 @@ use infiltrator_contract::logs::LogLevel;
 use infiltrator_contract::logs::{
     LogBindingSnapshot, LogObservationSnapshot, LogSession, LogStreamState,
 };
-use infiltrator_contract::snapshot::CoreSnapshot;
+use infiltrator_contract::snapshot::{CoreSessionObservation, CoreSnapshot};
 use infiltrator_ports::runtime_stream::RuntimeStreamEvent;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::{
@@ -41,6 +41,7 @@ fn append(logs: &LogApplication, session: LogSession, raw: impl Into<String>) {
 
 fn core(session: &LogSession) -> CoreSnapshot {
     CoreSnapshot {
+        session: CoreSessionObservation::Unknown,
         identity: session.identity().cloned(),
         lifecycle: CoreLifecycle::Running,
         generation: session.generation.value(),

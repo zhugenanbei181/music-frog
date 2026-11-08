@@ -24,6 +24,7 @@ pub(super) fn translate_workflow_zh(key: &str) -> Cow<'static, str> {
         "script_workbench_running" => "正在执行沙盒…".into(),
         "script_workbench_retry" => "重试沙盒操作".into(),
         "script_export_review_instructions" => "请审阅即将导出的内容。确认后才写入文件；取消不会写入。".into(),
+        "script_export_review_action" => "审阅导出内容".into(),
         "uwp_observed_summary" => "已扫描 {count} 个 UWP AppContainer · 已豁免 {exempt} 个".into(),
         "uwp_observed_empty" => "当前未发现 AppContainer；可点击扫描刷新".into(),
         "uwp_state_exempted" => "已豁免".into(),

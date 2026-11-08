@@ -1,3 +1,5 @@
+import { LumenTheme } from "./theme.slint";
+
 export struct ProfileCard {
     id: string,
     name: string,
@@ -57,6 +59,15 @@ export struct ObservationRow {
     latency-ink: color,
     subtitle: string,
     trailing: string,
+    // The two rate facts of a connection row are typed, separate columns.
+    // `trailing` is still the display sentence for the other observation
+    // lists (logs, rules, providers, nodes); only a connection row fills
+    // these, and the connections widget renders them as two fixed-width,
+    // right-aligned columns. One concatenated right-aligned sentence made
+    // every digit share an edge that moved with the length of the value
+    // (measured 14-21px drift between six rows).
+    upload-rate: string,
+    download-rate: string,
     active: bool,
 }
 
@@ -105,15 +116,42 @@ export struct OverviewCardSlot {
     can-move-down: bool,
 }
 
+// A fact cell as the shared contract typed it: the value, whether an owner
+// published it, how it is typeset and which edge of its column it hugs. The
+// surface renders the cell; it never invents a fallback value and never
+// picks a second type role for the row.
+export enum FactAlignment {
+    start,
+    end,
+}
+
+export struct FactCell {
+    value: string,
+    observed: bool,
+    alignment: FactAlignment,
+}
+
+export global FactCellDefaults {
+    // The one honest shape of a fact nobody has observed: the shared marker,
+    // flagged as unobserved so the surface can mute it.
+    out property <FactCell> value: {
+        value: "—",
+        observed: false,
+        alignment: FactAlignment.start,
+    };
+}
+
 // High-density dashboard facts projected from the shared owner snapshots
 // (DashboardHeroProjection, QuickSwitchesProjection, ServiceHealthMatrixProjection,
 // MemoryInfoCardProjection, ProfileQuickCardProjection). The UI surfaces
 // bind exclusively to these typed fields; no component may hardcode facts.
 export struct DashboardFacts {
     // Hero card facts
-    organization: string,
     quality-tag: string,
-    uptime: string,
+    // The hero card's bottom fact row, typed by the shared contract: one
+    // cell per fact, so a value can never slide onto the other column.
+    hero-fact-uptime: FactCell,
+    hero-fact-organization: FactCell,
     // Traffic card facts
     traffic-peak-up: string,
     traffic-peak-down: string,
@@ -165,9 +203,9 @@ export struct DashboardFacts {
 // fabricated number, a fabricated address or a fabricated latency.
 export global DashboardFactsDefaults {
     out property <DashboardFacts> value: {
-        organization: "—",
         quality-tag: "—",
-        uptime: "—",
+        hero-fact-uptime: FactCellDefaults.value,
+        hero-fact-organization: FactCellDefaults.value,
         traffic-peak-up: "—",
         traffic-peak-down: "—",
         traffic-total-up: "—",
@@ -186,10 +224,10 @@ export global DashboardFactsDefaults {
         latency-youtube: "—",
         latency-openai: "—",
         services-summary: "未观测",
-        latency-google-color: #6B7280,
-        latency-github-color: #6B7280,
-        latency-youtube-color: #6B7280,
-        latency-openai-color: #6B7280,
+        latency-google-color: LumenTheme.text-muted,
+        latency-github-color: LumenTheme.text-muted,
+        latency-youtube-color: LumenTheme.text-muted,
+        latency-openai-color: LumenTheme.text-muted,
         memory-total: "—",
         memory-limit: "—",
         memory-fraction: 0,

@@ -21,7 +21,7 @@ use infiltrator_bevy_widgets::button::{
     ControlVisual, PillLabel, control_fill, pill_caption_scene, pill_scene,
 };
 use infiltrator_bevy_widgets::palette::UiPalette;
-use infiltrator_bevy_widgets::surface::{SurfacePanel, surface_scene};
+use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::REM_BASE;
 use infiltrator_bevy_widgets::theme::Theme;
@@ -30,6 +30,7 @@ use infiltrator_bevy_widgets::waveform::{
     WaveformSeries, waveform_scene,
 };
 use infiltrator_contract::design_resources;
+use zhuge_ui_kit_bevy::surface::CardSurface;
 
 fn headless_app() -> App {
     let mut app = App::new();
@@ -135,7 +136,7 @@ fn surface_scene_paints_a_hairline_theme_border() {
 
     let palette = UiPalette::new(&Theme::dark());
     let world = app.world_mut();
-    let mut cards = world.query::<(&SurfacePanel, &BackgroundColor, &BorderColor)>();
+    let mut cards = world.query::<(&CardSurface, &BackgroundColor, &BorderColor)>();
     let (_, fill, border) = cards.iter(world).next().expect("surface card mounted");
     assert_eq!(fill.0, palette.surface);
     assert_eq!(border.top, palette.border);

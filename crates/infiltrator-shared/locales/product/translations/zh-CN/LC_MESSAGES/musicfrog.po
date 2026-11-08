@@ -1,8 +1,8 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: MusicFrog\n"
+"Project-Id-Version: Infiltrator\n"
 "PO-Revision-Date: 2026-10-11 00:00+0000\n"
-"Last-Translator: MusicFrog contributors\n"
+"Last-Translator: Infiltrator contributors\n"
 "Language-Team: Chinese (Simplified)\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -46,8 +46,8 @@ msgstr "✓ 已关闭"
 msgid "85%–115% · 以逻辑尺寸缩放文字、图标、间距和控件"
 msgstr "85%–115% · 以逻辑尺寸缩放文字、图标、间距和控件"
 
-msgid "按本地时间从 Mihomo 累计计数差分；仅统计 MusicFrog 观察到的核心总流量，最多保留近 7 日。"
-msgstr "按本地时间从 Mihomo 累计计数差分；仅统计 MusicFrog 观察到的核心总流量，最多保留近 7 日。"
+msgid "按本地时间从 Mihomo 累计计数差分；仅统计本产品观察到的核心总流量，最多保留近 7 日。"
+msgstr "按本地时间从 Mihomo 累计计数差分；仅统计本产品观察到的核心总流量，最多保留近 7 日。"
 
 msgid "按名称排序"
 msgstr "按名称排序"
@@ -667,8 +667,8 @@ msgstr "系统代理 ✓"
 msgid "系统已加入不优化名单"
 msgstr "系统已加入不优化名单"
 
-msgid "系统正在优化 MusicFrog"
-msgstr "系统正在优化 MusicFrog"
+msgid "系统正在优化本产品"
+msgstr "系统正在优化本产品"
 
 msgid "下移"
 msgstr "下移"
@@ -904,8 +904,8 @@ msgstr "Android ABI 核心"
 msgid "HTTP/HTTPS YAML 链接"
 msgstr "HTTP/HTTPS YAML 链接"
 
-msgid "MusicFrog 本次运行中观察到的已关闭连接；最多保留 500 条。"
-msgstr "MusicFrog 本次运行中观察到的已关闭连接；最多保留 500 条。"
+msgid "本产品本次运行中观察到的已关闭连接；最多保留 500 条。"
+msgstr "本产品本次运行中观察到的已关闭连接；最多保留 500 条。"
 
 msgid "界面改编自 Lumen；上游 README 声明采用 MIT，导入归档未附独立许可证文本。"
 msgstr "界面改编自 Lumen；上游 README 声明采用 MIT，导入归档未附独立许可证文本。"
@@ -1327,11 +1327,11 @@ msgstr "确定"
 msgid "Select time"
 msgstr "选择时间"
 
-msgid "Android 通过系统 VPN 接管其他应用流量；MusicFrog 核心与转发器自身流量直连以避免回环。"
-msgstr "Android 通过系统 VPN 接管其他应用流量；MusicFrog 核心与转发器自身流量直连以避免回环。"
+msgid "Android 通过系统 VPN 接管其他应用流量；本产品核心与转发器自身流量直连以避免回环。"
+msgstr "Android 通过系统 VPN 接管其他应用流量；本产品核心与转发器自身流量直连以避免回环。"
 
-msgid "官方 Android v1.19.33 · 随 MusicFrog APK 提供，独立进程运行；GPL-3.0 许可与源码见关于页。当前："
-msgstr "官方 Android v1.19.33 · 随 MusicFrog APK 提供，独立进程运行；GPL-3.0 许可与源码见关于页。当前："
+msgid "官方 Android v1.19.33 · 随本产品 APK 提供，独立进程运行；GPL-3.0 许可与源码见关于页。当前："
+msgstr "官方 Android v1.19.33 · 随本产品 APK 提供，独立进程运行；GPL-3.0 许可与源码见关于页。当前："
 
 msgid "版本 "
 msgstr "版本 "
@@ -1558,8 +1558,20 @@ msgstr "输入新私钥以支持加密订阅；留空保留当前设置。"
 msgid "运行时"
 msgstr "运行时"
 
-msgid "MusicFrog Infiltrator"
-msgstr "MusicFrog Infiltrator"
+msgid "Ice"
+msgstr "Ice"
+
+msgid "Lurker"
+msgstr "Lurker"
+
+msgid "Source"
+msgstr "Source"
+
+msgid "Lumen"
+msgstr "Lumen"
+
+msgid "图标中的青蛙乐手是 MusicFrog 内部标识；产品名只保留本名。"
+msgstr "图标中的青蛙乐手是 MusicFrog 内部标识；产品名只保留本名。"
 
 msgid "AMOLED"
 msgstr "AMOLED"

@@ -26,11 +26,12 @@ use bevy::input::keyboard::KeyCode;
 use bevy::input::{ButtonInput, InputSystems};
 use bevy::time::{Time, Virtual};
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
-use infiltrator_bevy_widgets::toast::{ToastKind, ToastSpawnEvent};
+use infiltrator_bevy_widgets::toast::ToastSpawnEvent;
 use infiltrator_contract::shortcuts::{
     KeyModifiers, ShortcutAction, ShortcutChord, ShortcutRegistry,
 };
 use infiltrator_contract::system_toggle::SystemToggle;
+use zhuge_ui_tokens::StatusKind;
 
 /// The live binding set (shared registry).
 #[derive(Resource, Clone, Debug, Default, PartialEq, Eq)]
@@ -235,7 +236,7 @@ pub fn dispatch_chords(
             if let Some(conflict) = bindings.0.find_conflict(action, &chord) {
                 toast_gate.push(
                     &mut toast_spawns,
-                    ToastKind::Warning,
+                    StatusKind::Warning,
                     &conflict.message,
                     5.0,
                     now_ms(&time),

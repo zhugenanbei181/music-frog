@@ -1,22 +1,28 @@
 //! The shared effect mathematics (EFFECTS-004 #14~#17).
 //!
-//! Four algorithms the whole product animates and draws with:
+//! Three algorithms the whole product animates and draws with:
 //!
 //! * the Oklab perceptual colour space and its interpolation (#14);
-//! * the cubic Bézier curve evaluator (#15);
 //! * the fourth-order Runge-Kutta spring integrator (#16);
 //! * the analytic signed distance fields of a rounded rectangle and of a
 //!   pill (#17).
 //!
+//! The cubic Bézier easing curve (#15) is not here: `zhuge_ui_core::easing::CubicBezier`
+//! owns the solve of a curve for a progress, and a surface that needs an eased value calls
+//! that owner; the consumerless evaluator and solver this module used to carry are retired.
+//!
 //! The module owns the *algorithms*, never the product's numbers: the spring
 //! coefficients come from the motion contract, the colours from the palette
-//! contract. A surface that animates calls these functions instead of
+//! contract. A surface that animates calls the owning function instead of
 //! re-deriving an easing curve of its own.
 //!
 //! Every algorithm answers with a number a surface can draw with, and every
 //! number is defined on the whole input range: a frame that arrives late, a
 //! progress that is out of range and a distance that is not finite all have
 //! one documented answer instead of an accident.
+
+use zhuge_ui_core::easing::smoothstep;
+use zhuge_ui_tokens::{linear_to_srgb, srgb_to_linear};
 
 /// One point in a plane.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -104,26 +110,6 @@ pub struct Oklch {
     pub c: f32,
     /// The hue, in degrees.
     pub h: f32,
-}
-
-/// The sRGB electro-optical transfer function (one channel).
-pub fn srgb_to_linear(channel: f32) -> f32 {
-    let value = channel.clamp(0.0, 1.0);
-    if value <= 0.04045 {
-        value / 12.92
-    } else {
-        ((value + 0.055) / 1.055).powf(2.4)
-    }
-}
-
-/// The inverse sRGB electro-optical transfer function (one channel).
-pub fn linear_to_srgb(channel: f32) -> f32 {
-    let value = channel.clamp(0.0, 1.0);
-    if value <= 0.0031308 {
-        value * 12.92
-    } else {
-        1.055 * value.powf(1.0 / 2.4) - 0.055
-    }
 }
 
 /// The real cube root of a number, defined for negative inputs as well.
@@ -264,168 +250,6 @@ pub fn mix_oklch(from: Rgb, to: Rgb, amount: f32) -> Rgb {
         c: start.c + (end.c - start.c) * t,
         h: start.h + delta * t,
     }))
-}
-
-/// Evaluate one cubic Bézier segment in a single dimension.
-pub fn cubic_bezier(t: f32, p0: f32, p1: f32, p2: f32, p3: f32) -> f32 {
-    let u = if t.is_finite() {
-        t.clamp(0.0, 1.0)
-    } else {
-        0.0
-    };
-    let inverse = 1.0 - u;
-    inverse * inverse * inverse * p0
-        + 3.0 * inverse * inverse * u * p1
-        + 3.0 * inverse * u * u * p2
-        + u * u * u * p3
-}
-
-/// Evaluate one cubic Bézier segment in the plane.
-pub fn cubic_bezier_point(control: [Point; 4], t: f32) -> Point {
-    Point {
-        x: cubic_bezier(t, control[0].x, control[1].x, control[2].x, control[3].x),
-        y: cubic_bezier(t, control[0].y, control[1].y, control[2].y, control[3].y),
-    }
-}
-
-/// The tangent of one cubic Bézier segment at `t`.
-pub fn cubic_bezier_tangent(control: [Point; 4], t: f32) -> Point {
-    let u = if t.is_finite() {
-        t.clamp(0.0, 1.0)
-    } else {
-        0.0
-    };
-    let inverse = 1.0 - u;
-    Point {
-        x: 3.0
-            * (inverse * inverse * (control[1].x - control[0].x)
-                + 2.0 * inverse * u * (control[2].x - control[1].x)
-                + u * u * (control[3].x - control[2].x)),
-        y: 3.0
-            * (inverse * inverse * (control[1].y - control[0].y)
-                + 2.0 * inverse * u * (control[2].y - control[1].y)
-                + u * u * (control[3].y - control[2].y)),
-    }
-}
-
-/// A cubic Bézier easing curve.
-///
-/// The curve runs from (0, 0) to (1, 1) with the two control points of the
-/// specification in between, so it is the curve a browser draws for
-/// `cubic-bezier(x1, y1, x2, y2)`. Evaluating it at a progress means
-/// solving the curve for the parameter that puts it at that progress, which
-/// is why the evaluation carries its own root finder.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct BezierEasing {
-    /// The x coordinate of the first control point.
-    pub x1: f32,
-    /// The y coordinate of the first control point.
-    pub y1: f32,
-    /// The x coordinate of the second control point.
-    pub x2: f32,
-    /// The y coordinate of the second control point.
-    pub y2: f32,
-}
-
-impl BezierEasing {
-    /// One easing curve.
-    pub const fn new(x1: f32, y1: f32, x2: f32, y2: f32) -> Self {
-        Self { x1, y1, x2, y2 }
-    }
-
-    /// The four control points of the curve.
-    pub const fn control_points(&self) -> [Point; 4] {
-        [
-            Point::new(0.0, 0.0),
-            Point::new(self.x1, self.y1),
-            Point::new(self.x2, self.y2),
-            Point::new(1.0, 1.0),
-        ]
-    }
-
-    /// Evaluate the curve at a progress in 0.0..=1.0.
-    ///
-    /// The parameter of the curve is solved with a Newton-Raphson step and a
-    /// bisection fallback, so the result is the y coordinate of the curve at
-    /// the requested x coordinate.
-    pub fn evaluate(&self, progress: f32) -> f32 {
-        let target = if progress.is_finite() {
-            progress.clamp(0.0, 1.0)
-        } else {
-            0.0
-        };
-        if target <= 0.0 {
-            return 0.0;
-        }
-        if target >= 1.0 {
-            return 1.0;
-        }
-        let control = self.control_points();
-        let mut parameter = target;
-        for _ in 0..8 {
-            let error = cubic_bezier(
-                parameter,
-                control[0].x,
-                control[1].x,
-                control[2].x,
-                control[3].x,
-            ) - target;
-            if error.abs() < 1e-6 {
-                break;
-            }
-            let inverse = 1.0 - parameter;
-            let slope = 3.0 * inverse * inverse * control[1].x
-                + 6.0 * inverse * parameter * (control[2].x - control[1].x)
-                + 3.0 * parameter * parameter * (1.0 - control[2].x);
-            if slope.abs() < 1e-6 {
-                break;
-            }
-            parameter = (parameter - error / slope).clamp(0.0, 1.0);
-        }
-        let estimate = cubic_bezier(
-            parameter,
-            control[0].x,
-            control[1].x,
-            control[2].x,
-            control[3].x,
-        );
-        if (estimate - target).abs() > 1e-5 {
-            parameter = solve_bezier_parameter(target, &control);
-        }
-        cubic_bezier(
-            parameter,
-            control[0].y,
-            control[1].y,
-            control[2].y,
-            control[3].y,
-        )
-    }
-}
-
-/// Solve the parameter of one Bézier curve that puts it at `x`.
-///
-/// The bisection assumes that the x coordinate of the curve grows with the
-/// parameter, which holds for every easing curve the product uses.
-fn solve_bezier_parameter(target: f32, control: &[Point; 4]) -> f32 {
-    let mut low = 0.0_f32;
-    let mut high = 1.0_f32;
-    let mut middle = target;
-    for _ in 0..32 {
-        middle = (low + high) * 0.5;
-        let value = cubic_bezier(
-            middle,
-            control[0].x,
-            control[1].x,
-            control[2].x,
-            control[3].x,
-        );
-        if value < target {
-            low = middle;
-        } else {
-            high = middle;
-        }
-    }
-    middle
 }
 
 /// The state of one spring animation.
@@ -691,7 +515,13 @@ pub fn sdf_coverage(distance: f32, softness: f32) -> f32 {
         return if distance <= 0.0 { 1.0 } else { 0.0 };
     }
     let t = ((distance + width) / (2.0 * width)).clamp(0.0, 1.0);
-    1.0 - t * t * (3.0 - 2.0 * t)
+    if t.is_nan() {
+        // An untraceable ratio never reaches the ramp. The owner's non-finite
+        // answer is "finished"; this surface keeps its outside-end answer and
+        // declares it here instead of inheriting it from the arithmetic.
+        return 0.0;
+    }
+    1.0 - smoothstep(t)
 }
 
 #[cfg(test)]

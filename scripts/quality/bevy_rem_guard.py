@@ -51,6 +51,7 @@ violations exist in enforce mode.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -58,7 +59,23 @@ import re
 import sys
 import tempfile
 
-from rust_syntax import mask_noncode
+
+def load_shared_scene_owner():
+    """Import the vendored zhuge-ui-kit scene executor beside this guard."""
+
+    owner_path = Path(__file__).with_name("bevy_scene_gate.py")
+    spec = importlib.util.spec_from_file_location("bevy_scene_gate", owner_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load shared scene executor: {owner_path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+scene_owner = load_shared_scene_owner()
+mask_noncode = scene_owner.mask_noncode
+matching_paren = scene_owner.matching_paren
 
 ROOTS = ("crates/infiltrator-bevy-widgets/src", "crates/infiltrator-bevy-ui/src")
 INVENTORY = Path("scripts/quality/bevy_rem_inventory.json")
@@ -66,7 +83,11 @@ INVENTORY = Path("scripts/quality/bevy_rem_inventory.json")
 #: The capability spec's px whitelist: hairlines, the caret, viewport
 #: breakpoints, the minimum touch target, host inset physical pixels and the
 #: measured/physical quantities the product keeps in pixels on purpose (raster
-#: plates, virtual-list row metrics, measured spacers).
+#: plates, virtual-list row metrics, measured spacers). A spacer extent that
+#: `zhuge_ui_core::virtual_list::VirtualWindow` resolved (`window.top` /
+#: `window.bottom`) is one of those measured carriers: the shared law (kit
+#: `UIK-REM-001`) treats measured and converted results as legal px carriers,
+#: and the row's own geometry is the authority for how tall it is.
 PHYSICAL_WHITELIST = re.compile(
     r"HAIRLINE"
     r"|CARET_WIDTH"
@@ -85,6 +106,7 @@ PHYSICAL_WHITELIST = re.compile(
     r"|ACCEPTANCE_ROW_HEIGHT_PX"
     r"|ACCEPTANCE_VIEWPORT_HEIGHT_PX"
     r"|spacer_px"
+    r"|window\.(?:top|bottom)"
     r"|item_width_px"
     r"|(?<!control_)height_px"
     r"|display_"
@@ -164,18 +186,6 @@ def rust_files(root: Path) -> list[Path]:
     return files
 
 
-def matching_paren(masked: str, opening: int) -> int:
-    depth = 0
-    for index in range(opening, len(masked)):
-        if masked[index] == "(":
-            depth += 1
-        elif masked[index] == ")":
-            depth -= 1
-            if depth == 0:
-                return index
-    return len(masked)
-
-
 def normalize(argument: str) -> str:
     """Whitespace-insensitive form of a size expression (the debt key)."""
     text = " ".join(argument.split())
@@ -202,6 +212,8 @@ def px_sites(text: str) -> list[tuple[int, str]]:
     for match in PX_SIZE.finditer(masked):
         opening = masked.index("(", match.start(), match.end())
         closing = matching_paren(masked, opening)
+        if closing is None:
+            closing = len(masked)
         sites.append((match.start(), normalize(text[opening + 1 : closing])))
     return sites
 
@@ -482,6 +494,15 @@ def self_test() -> int:
             let touch = Val::Px(metrics::MIN_TOUCH_TARGET);
             let breakpoint = Val::Px(breakpoint::COMPACT_MAX_PX);
             let inset = Val::Px(insets_left);
+        }
+        """,
+        [],
+    )
+    expect(
+        "a spacer extent the shared virtual window resolved is a measured carrier",
+        """
+        fn spacers(window: VirtualWindow, spacer: SpacerRole) {
+            let edge = Val::Px(if spacer.top { window.top } else { window.bottom });
         }
         """,
         [],

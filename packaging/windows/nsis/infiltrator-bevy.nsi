@@ -1,4 +1,4 @@
-; MusicFrog Infiltrator Bevy UI NSIS Installer Script (Modern UI 2)
+; Lurker NSIS Installer Script (Modern UI 2)
 ; Peer of infiltrator.nsi for the Bevy unified surface. Separate install
 ; root, shortcuts, registry keys and URL scheme (infiltrator-bevy://) so both
 ; UIs can coexist on one machine without clobbering each other.
@@ -29,9 +29,9 @@ ManifestDPIAware true
   !error "KERNEL_PATH must name a verified packaged mihomo executable"
 !endif
 
-Name "MusicFrog Infiltrator Bevy"
+Name "Lurker"
 OutFile "${OUTFILE}"
-InstallDir "$PROGRAMFILES64\MusicFrog Infiltrator Bevy"
+InstallDir "$PROGRAMFILES64\Lurker"
 InstallDirRegKey HKLM "Software\MusicFrog\InfiltratorBevy" "InstallDir"
 RequestExecutionLevel admin
 SetCompressor /SOLID lzma
@@ -57,7 +57,7 @@ SetCompressor /SOLID lzma
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
 !define MUI_FINISHPAGE_RUN "$INSTDIR\infiltrator-bevy-ui.exe"
-!define MUI_FINISHPAGE_RUN_TEXT "Launch MusicFrog Infiltrator Bevy"
+!define MUI_FINISHPAGE_RUN_TEXT "Launch Lurker"
 !insertmacro MUI_PAGE_FINISH
 
 !insertmacro MUI_UNPAGE_CONFIRM
@@ -68,7 +68,7 @@ SetCompressor /SOLID lzma
 ; ---------------------------------------------------------------------------
 ; Installer Section
 ; ---------------------------------------------------------------------------
-Section "MusicFrog Infiltrator Bevy Core & GUI" SecCore
+Section "Lurker Core & GUI" SecCore
   SectionIn RO
   ${If} ${RunningX64}
     SetRegView 64
@@ -88,12 +88,12 @@ Section "MusicFrog Infiltrator Bevy Core & GUI" SecCore
   WriteUninstaller "$INSTDIR\uninstall.exe"
 
   ; Create Start Menu Shortcuts
-  CreateDirectory "$SMPROGRAMS\MusicFrog Infiltrator Bevy"
-  CreateShortcut "$SMPROGRAMS\MusicFrog Infiltrator Bevy\MusicFrog Infiltrator Bevy.lnk" "$INSTDIR\infiltrator-bevy-ui.exe" "" "$INSTDIR\infiltrator-bevy-ui.exe" 0
-  CreateShortcut "$SMPROGRAMS\MusicFrog Infiltrator Bevy\Uninstall MusicFrog Infiltrator Bevy.lnk" "$INSTDIR\uninstall.exe" "" "$INSTDIR\uninstall.exe" 0
+  CreateDirectory "$SMPROGRAMS\Lurker"
+  CreateShortcut "$SMPROGRAMS\Lurker\Lurker.lnk" "$INSTDIR\infiltrator-bevy-ui.exe" "" "$INSTDIR\infiltrator-bevy-ui.exe" 0
+  CreateShortcut "$SMPROGRAMS\Lurker\Uninstall Lurker.lnk" "$INSTDIR\uninstall.exe" "" "$INSTDIR\uninstall.exe" 0
 
   ; Create Desktop Shortcut
-  CreateShortcut "$DESKTOP\MusicFrog Infiltrator Bevy.lnk" "$INSTDIR\infiltrator-bevy-ui.exe" "" "$INSTDIR\infiltrator-bevy-ui.exe" 0
+  CreateShortcut "$DESKTOP\Lurker.lnk" "$INSTDIR\infiltrator-bevy-ui.exe" "" "$INSTDIR\infiltrator-bevy-ui.exe" 0
 
   ; Registry: Installation Path
   WriteRegStr HKLM "Software\MusicFrog\InfiltratorBevy" "InstallDir" "$INSTDIR"
@@ -101,9 +101,9 @@ Section "MusicFrog Infiltrator Bevy Core & GUI" SecCore
 
   ; Registry: Windows Add/Remove Programs (ARP)
   !define ARP_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\InfiltratorBevy"
-  WriteRegStr HKLM "${ARP_KEY}" "DisplayName" "MusicFrog Infiltrator Bevy"
+  WriteRegStr HKLM "${ARP_KEY}" "DisplayName" "Lurker"
   WriteRegStr HKLM "${ARP_KEY}" "DisplayVersion" "${VERSION}"
-  WriteRegStr HKLM "${ARP_KEY}" "Publisher" "MusicFrog Team"
+  WriteRegStr HKLM "${ARP_KEY}" "Publisher" "Infiltrator Team"
   WriteRegStr HKLM "${ARP_KEY}" "DisplayIcon" "$INSTDIR\infiltrator-bevy-ui.exe,0"
   WriteRegStr HKLM "${ARP_KEY}" "UninstallString" '"$INSTDIR\uninstall.exe"'
   WriteRegStr HKLM "${ARP_KEY}" "QuietUninstallString" '"$INSTDIR\uninstall.exe" /S'
@@ -118,14 +118,14 @@ Section "MusicFrog Infiltrator Bevy Core & GUI" SecCore
   ; Register URL Protocol (infiltrator-bevy://). The iced package owns the
   ; bare infiltrator:// scheme; the Bevy surface registers its own to avoid a
   ; last-installer-wins clash when both UIs are installed.
-  WriteRegStr HKCR "infiltrator-bevy" "" "URL:MusicFrog Infiltrator Bevy Protocol"
+  WriteRegStr HKCR "infiltrator-bevy" "" "URL:Lurker Protocol"
   WriteRegStr HKCR "infiltrator-bevy" "URL Protocol" ""
   WriteRegStr HKCR "infiltrator-bevy\DefaultIcon" "" "$INSTDIR\infiltrator-bevy-ui.exe,0"
   WriteRegStr HKCR "infiltrator-bevy\shell\open\command" "" '"$INSTDIR\infiltrator-bevy-ui.exe" "%1"'
 
   ; Firewall rule registration (Windows Firewall)
   DetailPrint "Configuring Windows Firewall exception..."
-  nsExec::Exec 'netsh advfirewall firewall add rule name="MusicFrog Infiltrator Bevy" dir=in action=allow program="$INSTDIR\infiltrator-bevy-ui.exe" enable=yes profile=any'
+  nsExec::Exec 'netsh advfirewall firewall add rule name="Lurker" dir=in action=allow program="$INSTDIR\infiltrator-bevy-ui.exe" enable=yes profile=any'
 
 SectionEnd
 
@@ -141,13 +141,13 @@ Section "Uninstall"
   nsExec::Exec 'taskkill /F /IM infiltrator-bevy-ui.exe'
 
   ; Remove Firewall Rule
-  nsExec::Exec 'netsh advfirewall firewall delete rule name="MusicFrog Infiltrator Bevy"'
+  nsExec::Exec 'netsh advfirewall firewall delete rule name="Lurker"'
 
   ; Remove Shortcuts
-  Delete "$DESKTOP\MusicFrog Infiltrator Bevy.lnk"
-  Delete "$SMPROGRAMS\MusicFrog Infiltrator Bevy\MusicFrog Infiltrator Bevy.lnk"
-  Delete "$SMPROGRAMS\MusicFrog Infiltrator Bevy\Uninstall MusicFrog Infiltrator Bevy.lnk"
-  RMDir "$SMPROGRAMS\MusicFrog Infiltrator Bevy"
+  Delete "$DESKTOP\Lurker.lnk"
+  Delete "$SMPROGRAMS\Lurker\Lurker.lnk"
+  Delete "$SMPROGRAMS\Lurker\Uninstall Lurker.lnk"
+  RMDir "$SMPROGRAMS\Lurker"
 
   ; Remove Installed Files
   Delete "$INSTDIR\infiltrator-bevy-ui.exe"

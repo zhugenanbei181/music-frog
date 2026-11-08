@@ -15,7 +15,7 @@ use super::flag_assets;
 use super::slint_model;
 use super::{AppWindow, OverrideCard, OverviewCardSlot, ProfileCard, ProfileOverrideChoice};
 use crate::surface::workbenches::Workbenches;
-use crate::theme_util::{apply_theme_color, project_slint_sidebar_wash};
+use crate::theme_util::apply_theme_color;
 use crate::widget_vocabulary;
 use infiltrator_contract::capability::Availability;
 use infiltrator_contract::language::LanguagePreference;
@@ -23,6 +23,7 @@ use infiltrator_contract::overview_layout::{OverviewCardKind, OverviewLayoutSnap
 use infiltrator_contract::profile_editor_read::ProfileReadStatus;
 use infiltrator_contract::public_ip::PublicIpProbeStatus;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
+use infiltrator_contract::system_proxy::SystemProxyRecoveryStatus;
 use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
 use infiltrator_presentation::overview_page_model::{
     OverviewHost, OverviewNetworkStatus, OverviewPageModel,
@@ -49,6 +50,7 @@ pub(super) fn project_initial(window: &AppWindow, language: &str, autostart: Opt
     window.set_application_dark_mode(false);
     window.set_auto_start(autostart.unwrap_or(false));
     window.set_active_profile(lang.tr("profile_no_active").into_owned().into());
+    window.set_current_profile_id(String::new().into());
     window.set_home_current_node(lang.tr("unknown").into_owned().into());
     window.set_home_current_accessible(lang.tr("unknown").into_owned().into());
     window.set_core_version(lang.tr("quota_value_unobserved").into_owned().into());
@@ -57,7 +59,6 @@ pub(super) fn project_initial(window: &AppWindow, language: &str, autostart: Opt
     window.set_license_rows(slint_model(collections::license_rows("", language)));
     window.set_title_bar_upload("0 B/s".into());
     window.set_title_bar_download("0 B/s".into());
-    window.set_sidebar_background(project_slint_sidebar_wash(true, false));
 }
 
 pub(super) fn snapshot_language(snapshot: &SurfaceSnapshot) -> String {
@@ -140,6 +141,11 @@ pub(super) fn project_snapshot(
 ) {
     let language = snapshot_language(snapshot);
     let lang = Lang(&language);
+    // The theme fact is projected first: `theme-mode` and
+    // `application-dark-mode` are the two window facts every theme-dependent
+    // binding in the tree reads, including the rail's surface tier. Getting
+    // them wrong for one frame made a dark fixture paint light chrome.
+    project_settings(window, snapshot, autostart);
     let page = window.get_page().to_string();
     window.set_snapshot_window_warning(snapshot_window_warning(snapshot, &page).into());
     let mut overview = OverviewPageModel::default();
@@ -160,10 +166,6 @@ pub(super) fn project_snapshot(
         project_traffic_readout(&snapshot.shell_readout, &snapshot.traffic_waveform, &lang);
     window.set_title_bar_upload(traffic.upload.clone().into());
     window.set_title_bar_download(traffic.download.clone().into());
-    let dark = window.get_application_dark_mode();
-    let focused = window.get_window_focused();
-    window.set_sidebar_background(project_slint_sidebar_wash(focused, dark));
-
     window.set_runtime_status(widget_vocabulary::runtime_status(
         snapshot.core.lifecycle.clone(),
     ));
@@ -185,6 +187,18 @@ pub(super) fn project_snapshot(
     window.set_runtime_detail(runtime_detail.into());
     window.set_active_profile(profile.into());
     window.set_has_current_profile(current_profile);
+    // The config page's refresh action needs the owner's current profile *id*,
+    // not its display name: `UpdateProfile` is keyed by id, and the UI must not
+    // derive that identity itself.
+    window.set_current_profile_id(
+        snapshot
+            .shell_readout
+            .profile
+            .current_value()
+            .map(|profile| profile.id.clone())
+            .unwrap_or_default()
+            .into(),
+    );
     window.set_route_mode(widget_vocabulary::route_mode(overview.routing_mode()));
     window.set_network_mode(widget_vocabulary::network_mode(overview.network_mode()));
     window.set_network_mode_status(network_status_copy(overview.network_status(), &lang).into());
@@ -269,6 +283,19 @@ pub(super) fn project_snapshot(
             .unwrap_or_else(|| lang.tr("quota_value_unobserved").into_owned())
             .into(),
     );
+
+    // The retry control on 网络设置 dispatches the owner's typed
+    // `CommandIntent::RecoverSystemProxy`, but its enablement input was never
+    // fed from anywhere, so the button sat permanently disabled while its
+    // command path was live. The precondition is read straight off the owner's
+    // recovery status: a retry is offered exactly when the recorded attempt
+    // failed. Restored / NotNeeded / Unknown have nothing to retry, and the two
+    // Skipped states mean somebody else owns the setting, so offering to fight
+    // them is not this surface's decision to make.
+    window.set_proxy_recovery_pending(matches!(
+        snapshot.system_proxy_recovery.status,
+        SystemProxyRecoveryStatus::Failed { .. }
+    ));
     window.set_stat_down(traffic.download.clone().into());
     window.set_stat_up(traffic.upload.clone().into());
     let (down_value, down_unit) = collections::split_rate(&traffic.download);
@@ -302,7 +329,6 @@ pub(super) fn project_snapshot(
         window.set_notice(humanize_notice(&raw_notice).into());
     }
 
-    project_settings(window, snapshot, autostart);
     project_overview_layout(window, snapshot, &language);
     dashboard::project_dashboard_facts(window, snapshot);
     lan::project_lan_sharing(window, snapshot, &language);

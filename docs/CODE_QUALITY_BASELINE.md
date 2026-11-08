@@ -31,6 +31,8 @@
 - 必须遵循模块化、组件化架构：主题（`theme.slint`）、数据模型（`models.slint`）、交互基础控件（`base_widgets.slint`）与业务卡片（`cards.slint`）必须拆分子模块独立导入，禁止在页面级或主窗口内大杂烩内联；
 - 严禁硬编码未归一化的原始状态颜色（如 `#0B667F`、`#9A6810` 等），所有视觉和语义色彩必须经由 `LumenTheme` 的语义化属性统一输出；
 - 移动端控件（按钮、点击卡片、开关、导航项等）在 `compact-layout` 模式下必须遵守 $\ge 48\text{px} \times \text{LumenUiScale.factor}$ 的最小触控热区底线。
+- **一个事实只有一个字号角色**（SLINT-009，`scripts/quality/slint-viewport-tier-guard.py`）：跨档位重复表述同一事实（同一数值在桌面 22px、在手机 15px；名字在手机上画成等宽；数值行用「A 字号 + B 家族 + C 字重」拼贴）会让同一行卡片的基线彼此错位，也让下一次改动只改到一档。守卫要求角色决策集中在 `theme.slint` 的 `metric-value-* / metric-fact-* / profile-name-*` 三组 token 里，且它们必须解析回 `design-authority.json` 登记的闭集角色，页面只许读 token；自带 planted 自测。
+- **声明了却没人接的输入是缺陷**（SLINT-005，`scripts/quality/slint-dead-input-guard.py`）：组件里每个 `in property` 必须在某个实例化点被绑定、被组件自身写入，或在守卫的 `ALLOWED_DEFAULTS` 里带着理由登记为「默认值即决策」；清单只许缩短，条目对应的输入一旦被接上就必须删除。常量默认值（`""`/`false`/`0`/缺省）被静默使用会让界面看起来正常而实际是死的：本表面曾因此把「当前版本：」拍成空话、把一条活命令的按钮永远灰掉。守卫自带 `--self-test`，会拔掉一条真实绑定来证明它真的看得见这类缺陷；
 
 ## 依赖、工具链与不安全点
 

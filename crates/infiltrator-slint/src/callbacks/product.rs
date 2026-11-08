@@ -3,7 +3,6 @@
 use super::super::*;
 use crate::surface::action::overview_card_move_action;
 use crate::surface::action::overview_card_reset_action;
-use crate::theme_util::project_slint_sidebar_wash;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 
@@ -14,11 +13,13 @@ pub(super) fn register(
 ) {
     let weak = window.as_weak();
     let weak_for_focus = weak.clone();
+    // Focus is published as the one typed window fact. The rail does not
+    // recompute a colour from it: on this host the sidebar material resolves to
+    // the opaque fallback in every state, so the rail's colour is its surface
+    // tier alone and a focus-driven colour copy was a second owner of that fact.
     window.on_window_focus_changed(move |focused| {
         if let Some(w) = weak_for_focus.upgrade() {
             w.set_window_focused(focused);
-            let dark = w.get_application_dark_mode();
-            w.set_sidebar_background(project_slint_sidebar_wash(focused, dark));
         }
     });
     let tx = requests.clone();
@@ -109,7 +110,7 @@ pub(super) fn register(
         let _ = weak_for_open_license
             .clone()
             .upgrade_in_event_loop(|window| {
-                window.set_license_detail_name("MusicFrog third-party notices".into());
+                window.set_license_detail_name("Lumen third-party notices".into());
                 window.set_license_detail_version(env!("CARGO_PKG_VERSION").into());
                 window.set_license_detail_identifier("See included notices".into());
                 window.set_license_detail_text(lumen_projection::THIRD_PARTY_NOTICES.into());

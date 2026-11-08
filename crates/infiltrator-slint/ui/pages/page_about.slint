@@ -64,11 +64,13 @@ export component PagePreview inherits VerticalLayout {
             y: 8 * LumenUiScale.unit;
             width: parent.width - 20 * LumenUiScale.unit;
             height: parent.height - 16 * LumenUiScale.unit;
+            vertical-scrollbar-policy: LumenTheme.compact-layout ? ScrollBarPolicy.always-off : ScrollBarPolicy.as-needed;
+            horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
             Text {
                 text: root.content-preview;
                 color: LumenTheme.text-primary;
-                font-family: DesignType.mono-family;
-                font-size: DesignType.caption-size;
+                font-family: DesignType.monoCaption-family;
+                font-size: DesignType.monoCaption-size;
                 wrap: word-wrap;
             }
         }
@@ -86,12 +88,18 @@ export component PageAbout inherits VerticalLayout {
     spacing: LumenTheme.space-4;
 
     SectionCard {
-        heading: "MusicFrog Infiltrator";
+        heading: @tr("Lumen");
         detail: @tr("版本 ") + root.product-version + @tr(" · Mihomo ") + root.core-version;
         Text {
             text: @tr("跨平台 Mihomo 客户端，使用 Rust + Slint。");
             color: LumenTheme.text-secondary;
             font-size: DesignType.mono-size;
+        }
+        Text {
+            text: @tr("图标中的青蛙乐手是 MusicFrog 内部标识；产品名只保留本名。");
+            color: LumenTheme.text-secondary;
+            font-size: DesignType.mono-size;
+            wrap: word-wrap;
         }
         Text {
             text: @tr("界面改编自 Lumen；上游 README 声明采用 MIT，导入归档未附独立许可证文本。");
@@ -195,9 +203,9 @@ export component PageLicenses inherits VerticalLayout {
         for item in root.license-rows: Rectangle {
             height: 64 * LumenUiScale.unit;
             border-radius: LumenTheme.radius-control;
-            background: lic-touch.has-hover ? LumenTheme.surface-raised : LumenTheme.surface;
+            background: (lic-touch.has-hover && LumenTheme.hover-allowed) ? LumenTheme.surface-raised : LumenTheme.surface;
             border-width: 1 * LumenUiScale.unit;
-            border-color: lic-touch.has-hover ? LumenTheme.accent : LumenTheme.border;
+            border-color: (lic-touch.has-hover && LumenTheme.hover-allowed) ? LumenTheme.accent : LumenTheme.border;
             animate background, border-color { duration: 120ms; easing: ease-out; }
 
             lic-touch := TouchArea {
@@ -210,12 +218,27 @@ export component PageLicenses inherits VerticalLayout {
                 width: parent.width - 28 * LumenUiScale.unit;
                 height: parent.height - 16 * LumenUiScale.unit;
                 spacing: 3 * LumenUiScale.unit;
-                Text {
-                    text: item.name + "  " + item.version;
-                    color: LumenTheme.text-primary;
-                    font-size: DesignType.mono-size;
-                    font-weight: DesignType.mono-weight;
-                    overflow: elide;
+                // The package's own line: name on the left, version on the right.
+                // Gluing them with two literal spaces made the version move with
+                // the name's length, so no column existed to scan, and eliding
+                // the run cut the version off before the name it belonged to.
+                HorizontalLayout {
+                    spacing: LumenTheme.space-2;
+                    cross-axis-alignment: center;
+                    Text {
+                        text: item.name;
+                        color: LumenTheme.text-primary;
+                        font-size: DesignType.mono-size;
+                        font-weight: DesignType.mono-weight;
+                        horizontal-stretch: 1;
+                        overflow: elide;
+                    }
+                    Text {
+                        text: item.version;
+                        color: LumenTheme.text-secondary;
+                        font-size: DesignType.micro-size;
+                        vertical-alignment: center;
+                    }
                 }
                 Text {
                     text: item.identifier;
@@ -242,8 +265,26 @@ export component PageLicenseDetail inherits VerticalLayout {
     spacing: LumenTheme.space-4;
 
     SectionCard {
-        heading: root.license-detail-name + "  " + root.license-detail-version;
-        detail: @tr("许可证标识：") + root.license-detail-identifier;
+        heading: root.license-detail-name;
+        detail: "";
+        // Same two labelled columns the dashboard hero uses: the version and
+        // the licence identifier are two facts, and one string with two
+        // literal spaces between them made both of them unalignable.
+        HorizontalLayout {
+            spacing: LumenTheme.space-4;
+            VerticalLayout {
+                spacing: 2 * LumenUiScale.unit;
+                Text { text: @tr("版本"); color: LumenTheme.text-muted; font-size: DesignType.tag-size; font-weight: DesignType.tag-weight; }
+                Text { text: root.license-detail-version; color: LumenTheme.text-primary; font-size: DesignType.monoCaption-size; font-family: DesignType.monoCaption-family; font-weight: DesignType.monoCaption-weight; }
+            }
+            Rectangle { horizontal-stretch: 1; background: transparent; }
+            VerticalLayout {
+                spacing: 2 * LumenUiScale.unit;
+                alignment: end;
+                Text { text: @tr("许可证标识"); color: LumenTheme.text-muted; font-size: DesignType.tag-size; font-weight: DesignType.tag-weight; horizontal-alignment: right; }
+                Text { text: root.license-detail-identifier; color: LumenTheme.text-primary; font-size: DesignType.monoCaption-size; font-family: DesignType.monoCaption-family; font-weight: DesignType.monoCaption-weight; max-width: LumenTheme.license-identifier-max-width; overflow: elide; horizontal-alignment: right; }
+            }
+        }
         PillButton {
             label: @tr("返回许可证列表");
             clicked => { root.back-licenses(); }
@@ -288,13 +329,15 @@ export component PageLicenseDetail inherits VerticalLayout {
             border-color: LumenTheme.border;
 
             ScrollView {
+                vertical-scrollbar-policy: LumenTheme.compact-layout ? ScrollBarPolicy.always-off : ScrollBarPolicy.as-needed;
+                horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
                 HorizontalLayout {
                     padding: 12 * LumenUiScale.unit;
                     Text {
                         text: root.license-detail-text;
                         color: LumenTheme.text-primary;
-                        font-family: DesignType.mono-family;
-                        font-size: DesignType.caption-size;
+                        font-family: DesignType.monoCaption-family;
+                        font-size: DesignType.monoCaption-size;
                         wrap: word-wrap;
                     }
                 }

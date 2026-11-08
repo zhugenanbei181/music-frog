@@ -91,6 +91,55 @@ class RetiredSurfaceGuardTests(unittest.TestCase):
 
         self.assertTrue(any("retired surface `VpnStateManager`" in item for item in problems))
 
+    def test_path_mounted_production_module_under_tests_is_scanned(self):
+        entry = self.registry["retired_surfaces"][0]
+        entry["language"] = "rust"
+        entry["source_roots"] = ["crates/infiltrator-bevy-ui"]
+        entry["replacement_behavior_tests"] = [
+            "crates/infiltrator-bevy-ui/tests/headless/pages/processes.rs"
+        ]
+        self.write_registry()
+        declaring = self.root / "crates/infiltrator-bevy-ui/src/pages/processes.rs"
+        declaring.parent.mkdir(parents=True, exist_ok=True)
+        declaring.write_text(
+            '#[path = "../../tests/headless/pages/process_fixture_support.rs"]\n'
+            "mod process_fixture_support;\n",
+            encoding="utf-8",
+        )
+        mounted = self.root / "crates/infiltrator-bevy-ui/tests/headless/pages/process_fixture_support.rs"
+        mounted.parent.mkdir(parents=True, exist_ok=True)
+        mounted.write_text("pub fn VpnStateManager() {}\n", encoding="utf-8")
+        replacement = self.root / entry["replacement_behavior_tests"][0]
+        replacement.parent.mkdir(parents=True, exist_ok=True)
+        replacement.write_text("fn owner_bound() {}\n", encoding="utf-8")
+
+        problems = self.problems()
+
+        self.assertTrue(any("process_fixture_support.rs:1" in item for item in problems))
+
+    def test_test_gated_path_mount_stays_outside_production_scan(self):
+        entry = self.registry["retired_surfaces"][0]
+        entry["language"] = "rust"
+        entry["source_roots"] = ["crates/infiltrator-bevy-ui"]
+        entry["replacement_behavior_tests"] = [
+            "crates/infiltrator-bevy-ui/tests/headless/pages/processes.rs"
+        ]
+        self.write_registry()
+        declaring = self.root / "crates/infiltrator-bevy-ui/src/pages/processes.rs"
+        declaring.parent.mkdir(parents=True, exist_ok=True)
+        declaring.write_text(
+            '#[cfg(test)]\n#[path = "../../tests/headless/pages/processes.rs"]\n'
+            "mod tests;\n",
+            encoding="utf-8",
+        )
+        mounted = self.root / "crates/infiltrator-bevy-ui/tests/headless/pages/processes.rs"
+        mounted.parent.mkdir(parents=True, exist_ok=True)
+        mounted.write_text("fn owner_bound() {}\n", encoding="utf-8")
+
+        problems = self.problems()
+
+        self.assertFalse(any("pages/processes.rs:1" in item for item in problems))
+
     def test_exact_symbol_in_authoritative_product_document_is_rejected(self):
         (self.root / "README.md").write_text(
             "The VpnStateManager API starts the tunnel.\n",

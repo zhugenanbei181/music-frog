@@ -35,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
@@ -101,11 +102,21 @@ internal fun AppRoutingScreen(viewModel: AppRoutingViewModel = viewModel()) {
                             },
                             style = MaterialTheme.typography.titleSmall,
                         )
-                        Text(
-                            text = stringResource(R.string.label_selected_apps_count, selectedCount),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        // InventoryUnknown publishes no number at all: an unfiltered
+                        // length would be a different fact than the one the row edits.
+                        when (val count = selectedCount) {
+                            is SelectedAppCount.Known -> Text(
+                                text = pluralStringResource(
+                                    R.plurals.label_selected_apps_count,
+                                    count.installedSelected,
+                                    count.installedSelected,
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+
+                            SelectedAppCount.InventoryUnknown -> Unit
+                        }
                     }
                     Switch(
                         checked = when (val mode = routingMode) {

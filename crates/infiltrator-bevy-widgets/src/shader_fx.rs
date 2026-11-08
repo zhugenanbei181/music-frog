@@ -14,6 +14,7 @@ use bevy::shader::ShaderRef;
 use bevy::ui::UiSystems;
 use bevy::ui_render::prelude::{UiMaterial, UiMaterialPlugin};
 use std::f32::consts::TAU;
+use zhuge_ui_core::easing::smoothstep;
 
 /// Minimum screen-space anti-aliasing width in device pixels.
 ///
@@ -31,6 +32,8 @@ pub const MIN_EDGE_AA_PX: f32 = 0.7;
 /// derivative-wide band centred on the edge, clamped to [`MIN_EDGE_AA_PX`] so
 /// a vanishing derivative never collapses the band. It is monotonic
 /// non-increasing in `distance`: 1.0 strictly inside, 0.0 strictly outside.
+/// A distance or derivative that is not a number covers nothing: the answer is
+/// declared here (`0.0`), not left to the ramp's arithmetic.
 ///
 /// This is the CPU mirror of `sdf_edge_coverage` in `shaders/squircle.wesl`.
 /// [`sdf_edge_coverage_cpu`] is the explicit fallback when no derivative is
@@ -38,7 +41,10 @@ pub const MIN_EDGE_AA_PX: f32 = 0.7;
 pub fn sdf_edge_coverage(distance: f32, screen_space_derivative: f32) -> f32 {
     let width = screen_space_derivative.abs().max(MIN_EDGE_AA_PX);
     let t = ((distance + width * 0.5) / width).clamp(0.0, 1.0);
-    (1.0 - t * t * (3.0 - 2.0 * t)).clamp(0.0, 1.0)
+    if t.is_nan() {
+        return 0.0;
+    }
+    (1.0 - smoothstep(t)).clamp(0.0, 1.0)
 }
 
 /// CPU fallback edge coverage: a linear ramp over `pixel_scale` device pixels.
@@ -230,7 +236,6 @@ impl OklchColor {
 }
 
 use crate::palette::{UiPalette, rem};
-use crate::surface::SurfacePanel;
 use crate::theme::CornerCurvature;
 use crate::theme::{radius, space};
 use bevy::ecs::hierarchy::Children;
@@ -240,6 +245,7 @@ use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::ComputedNode;
 use bevy::ui::prelude::{BackgroundColor, BorderRadius, FlexDirection, Node, UiRect, percent};
+use zhuge_ui_kit_bevy::surface::CardSurface;
 
 /// Specification for moving shimmer gradient waves on skeleton loading placeholders.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -366,7 +372,12 @@ impl AnalyticalDropShadow {
             0.0
         } else {
             let t = distance / self.blur_radius;
-            (1.0 - t * t * (3.0 - 2.0 * t)).clamp(0.0, 1.0)
+            if !t.is_finite() {
+                // A distance or radius that is not a number traces no falloff;
+                // the outside end of the ramp is the declared answer.
+                return 0.0;
+            }
+            (1.0 - smoothstep(t)).clamp(0.0, 1.0)
         }
     }
 }
@@ -857,7 +868,7 @@ fn card_instance_from_computed(
 pub fn sync_card_instances(
     strategy: Res<CardRenderStrategy>,
     palette: Res<UiPalette>,
-    cards: Query<&ComputedNode, With<SurfacePanel>>,
+    cards: Query<&ComputedNode, With<CardSurface>>,
     mut state: ResMut<CardInstanceSyncState>,
 ) {
     let strategy = *strategy;

@@ -36,7 +36,7 @@ pub struct DesktopRunnerHost;
 
 impl UniversalRunnerHost for DesktopRunnerHost {
     fn host_name(&self) -> &'static str {
-        "MusicFrog Infiltrator Desktop Runner"
+        "Lurker Desktop Runner"
     }
 
     fn is_headless(&self) -> bool {

@@ -36,7 +36,7 @@ fn shell_mounts_camera_content_slot_and_stamped_header() {
     let palette = UiPalette::new(&Theme::dark());
     assert_eq!(ink.0, palette.ink, "heading ink stamped from tokens");
     assert!(
-        matches!(font.font_size, FontSize::Rem(f) if (f * REM_BASE - palette.heading_font_px).abs() < 1e-4),
+        matches!(font.font_size, FontSize::Rem(f) if (f * REM_BASE - design_resources::typeface(design_resources::TextRole::Heading).size_px).abs() < 1e-4),
         "heading size stamped from the type scale through the rem channel"
     );
 }

@@ -107,7 +107,9 @@ fun toolchainValue(key: String): String = androidToolchain.getProperty(key)?.tak
 
 fun toolchainInt(key: String): Int = toolchainValue(key).toIntOrNull()
     ?: error("Android toolchain key '$key' must be an integer")
-val javaTargetVersion = toolchainValue("java.major")
+// The level compiled into the APK. The JDK that builds is `java.major` and is a
+// different fact: Detekt and D8 both cap this below the build JDK.
+val javaBytecodeTarget = toolchainValue("java.bytecode.target")
 
 fun launcherActivityClass(activity: String): String = if (activity.startsWith('.')) "$androidNamespace$activity" else activity
 
@@ -334,15 +336,15 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.toVersion(javaTargetVersion)
-        targetCompatibility = JavaVersion.toVersion(javaTargetVersion)
+        sourceCompatibility = JavaVersion.toVersion(javaBytecodeTarget)
+        targetCompatibility = JavaVersion.toVersion(javaBytecodeTarget)
     }
 
     kotlin {
         compilerOptions {
             jvmTarget.set(
                 org.jetbrains.kotlin.gradle.dsl.JvmTarget
-                    .fromTarget(javaTargetVersion),
+                    .fromTarget(javaBytecodeTarget),
             )
         }
     }
@@ -458,6 +460,15 @@ detekt {
     )
 }
 
+// Detekt's parser defaults its bytecode level to the JDK that runs Gradle. The
+// build JDK and the compiled level are separate facts, so that default drifts
+// off the pinned target whenever the build JDK moves: JDK 25 handed Detekt
+// `--jvm-target 25`, which Detekt 1.23.8 rejects outright. Analyze at the level
+// the source is actually compiled to.
+tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
+    jvmTarget = javaBytecodeTarget
+}
+
 androidComponents {
     onVariants { variant ->
         val sharedFontTask = tasks.register<GenerateSharedFonts>(
@@ -473,6 +484,8 @@ androidComponents {
                     "inter_semibold.ttf",
                     "jetbrains_mono_regular.ttf",
                     "cjk_regular.ttf",
+                    "cjk_medium.ttf",
+                    "cjk_semibold.ttf",
                 ),
             )
             outputDirectory.set(

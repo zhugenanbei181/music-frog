@@ -134,6 +134,7 @@ pub fn run() -> anyhow::Result<()> {
     });
     let initial_spec = build_tray_spec(
         &TrayMenuContext {
+            surface: SurfaceKind::SlintDesktop,
             lang: "zh-CN".into(),
             capabilities: TrayMenuCapabilities::shared_desktop(),
             ..TrayMenuContext::default()

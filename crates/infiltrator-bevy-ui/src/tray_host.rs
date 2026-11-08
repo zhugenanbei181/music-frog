@@ -28,6 +28,7 @@ use lurker_core_contract::error::Failure;
 pub fn initial_tray_spec(color_mode: TrayIconColorMode) -> TraySpec {
     build_tray_spec(
         &TrayMenuContext {
+            surface: SurfaceKind::BevyDesktop,
             lang: "zh-CN".to_string(),
             capabilities: TrayMenuCapabilities::shared_desktop(),
             ..TrayMenuContext::default()

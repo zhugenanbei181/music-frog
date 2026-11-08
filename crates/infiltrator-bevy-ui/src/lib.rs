@@ -1,5 +1,5 @@
 #![allow(clippy::collapsible_match, clippy::large_enum_variant)]
-//! MusicFrog Infiltrator — independent Bevy UI surface.
+//! Lurker — independent Bevy UI surface.
 //!
 //! This crate owns the ECS UI and accepts host-owned surface, command, and
 //! system-capability adapters. Product composition and process entrypoints
@@ -16,10 +16,14 @@
 //! [`command`] the UI command sink pipeline, and [`capture`] the headless
 //! screenshot forensics seam (env-driven skin/window-size/marker, read only here).
 
+#[cfg(feature = "capture-tools")]
+use infiltrator_bevy_widgets::motion::UiMotionPreference;
 use infiltrator_bevy_widgets::shader_fx::ModernSurfacePlugin;
 #[cfg(feature = "capture-tools")]
 use infiltrator_bevy_widgets::theme::REM_BASE;
 use infiltrator_contract::theme::ThemePreference;
+#[cfg(feature = "capture-tools")]
+use zhuge_ui_kit_bevy::frame_capture::install_sync_frame_capture;
 pub mod a11y;
 pub mod app;
 pub mod appearance;
@@ -35,6 +39,10 @@ pub mod command_palette_shell;
 #[cfg(feature = "capture-tools")]
 pub mod controller;
 pub mod domain_state;
+#[cfg(feature = "capture-tools")]
+mod frame_capture;
+#[cfg(feature = "capture-tools")]
+mod frame_timing;
 pub mod gesture;
 pub mod history;
 pub mod host_capabilities;
@@ -260,7 +268,7 @@ fn run_with_command_sink_and_composition(
         DefaultPlugins
             .set(WindowPlugin {
                 primary_window: Some(Window {
-                    title: "MusicFrog Infiltrator — Bevy".into(),
+                    title: SurfaceKind::BevyDesktop.product_name().into(),
                     resolution: WindowResolution::new(width, height),
                     // DUAL-15-13: the shell runs the shared frameless chrome shape;
                     // the mounted chrome bar owns dragging and the window controls.
@@ -339,6 +347,14 @@ fn run_with_command_sink_and_composition(
         };
         app.add_plugins(plugin);
     }
+    #[cfg(feature = "capture-tools")]
+    if frame_capture::SYNC_FRAME_ENV.active() {
+        app.insert_resource(UiMotionPreference::Full);
+    }
+    #[cfg(feature = "capture-tools")]
+    install_sync_frame_capture(&mut app, frame_capture::SYNC_FRAME_ENV);
+    #[cfg(feature = "capture-tools")]
+    frame_timing::install(&mut app);
     #[cfg(feature = "capture-tools")]
     if let Some(feature) = interaction_capture::feature_from_environment() {
         match interaction_capture_source {

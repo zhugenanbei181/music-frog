@@ -1,0 +1,15 @@
+import { ScrollView } from "std-widgets.slint";
+import { LumenTheme } from "./theme.slint";
+
+// The scrolling body of a list page.
+//
+// One owner for the scroll behaviour of a list that lives inside a card:
+// the rows scroll inside the card's frame instead of pushing the card past
+// the page, the rail follows the one viewport fact the shell publishes, and
+// the compact layout never paints a rail at all.
+export component ListBody inherits ScrollView {
+    vertical-scrollbar-policy: LumenTheme.compact-layout ? ScrollBarPolicy.always-off : ScrollBarPolicy.as-needed;
+    horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
+    content-width: self.width;
+    @children
+}

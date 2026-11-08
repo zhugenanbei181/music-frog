@@ -1,19 +1,55 @@
 import { MaterialSchemes } from "@material";
+import { MaterialWindowAdapter } from "@material";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { DesignType } from "./design-type.slint";
-// The five shipped physical faces are registered once from the shared owner.
-import "../../../infiltrator-shared/assets/fonts/Inter-Regular.ttf";
-import "../../../infiltrator-shared/assets/fonts/Inter-Medium.ttf";
-import "../../../infiltrator-shared/assets/fonts/Inter-SemiBold.ttf";
-import "../../../infiltrator-shared/assets/fonts/JetBrainsMono-Regular.ttf";
-import "../../../infiltrator-shared/assets/fonts/CJK-Regular.ttf";
+import { ViewportTier } from "./viewport_tier.slint";
 
 export global LumenTheme {
     in-out property <bool> dark-mode: false;
+    // One viewport fact for every surface-level compact decision. The window
+    // publishes it once, so scrollbars and other chrome never infer "mobile"
+    // from Android, pointer state or their own width comparison.
+    in-out property <bool> compact-layout: false;
+    // The window publishes its width once, and the tier ladder below is the
+    // only place a viewport boundary is written. Every surface-level
+    // "is this a phone / is this tight / how many columns fit" question reads
+    // the tier instead of comparing the width itself, so two pages can never
+    // disagree about the viewport they are in.
+    in-out property <length> viewport-width: 0 * LumenUiScale.unit;
+    // The height one page body may use. The shell publishes it once, after
+    // the page header and the floating dock band are taken off the window,
+    // so a list page's card can fill the page without any page doing its
+    // own viewport arithmetic.
+    in-out property <length> page-body-height: 0 * LumenUiScale.unit;
+    // The dashboard grid needs all four of its first-row cards to reach at
+    // least their declared minimum width. Below this boundary the phone
+    // single-column flow takes over, even on a wide-but-short desktop
+    // window; a desktop grid squeezed into 640px clipped its third card
+    // clean off the right edge of the window.
+    in-out property <length> dashboard-grid-min-width: 720 * LumenUiScale.unit;
+    out property <ViewportTier> viewport-tier:
+        root.viewport-width < 600 * LumenUiScale.unit ? ViewportTier.phone
+        : root.viewport-width < 800 * LumenUiScale.unit ? ViewportTier.compact
+        : root.viewport-width < 1120 * LumenUiScale.unit ? ViewportTier.medium
+        : ViewportTier.wide;
+    // Hover is a pointing-device affordance, and the surface already carries
+    // one authoritative fact about pointing devices: `MaterialWindow.disable-hover`
+    // (Android touch has none, and the capture host has none either). Every
+    // hover state reads this one derived fact, so a surface that cannot be
+    // hovered can never show a hovered control - not on a phone, and not in a
+    // receipt where the nested compositor parks its pointer at the output
+    // centre. It is a property rather than a helper function because Slint
+    // bindings may only call pure functions, and this reads another global.
+    in property <bool> hover-allowed: !MaterialWindowAdapter.disable_hover;
     in-out property <bool> forest-mode: false;
     in-out property <bool> amoled-mode: false;
     in-out property <bool> show-layout-bounds: false;
-    in-out property <color> user-accent: #016888;
+    // The product's default accent is one fact. It used to be spelled five
+    // more times in `lumen-app.slint` (the window's own defaults and the two
+    // draft fields), so changing the brand default meant finding every copy.
+    out property <color> default-accent: #016888;
+    out property <string> default-accent-code: "#016888";
+    in-out property <color> user-accent: default-accent;
     in-out property <color> accent-foreground: #FFFFFF;
     in-out property <bool> invert-semantic-foreground: false;
     out property <MaterialSchemes> material-schemes: {
@@ -122,13 +158,29 @@ export global LumenTheme {
     };
 
     out property <bool> is-dark: root.dark-mode || root.amoled-mode;
-    out property <color> canvas: root.amoled-mode ? #000000 : root.forest-mode ? #F1F6EF : root.dark-mode ? #0A0B0E : root.material-schemes.light.background;
-    out property <color> surface: root.amoled-mode ? #080808 : root.forest-mode ? #F8FBF6 : root.dark-mode ? #1D2126 : root.material-schemes.light.surface;
-    out property <color> surface-muted: root.amoled-mode ? #121212 : root.forest-mode ? #E8F0E5 : root.dark-mode ? #14171B : root.material-schemes.light.surfaceContainerLow;
-    out property <color> surface-raised: root.amoled-mode ? #181818 : root.forest-mode ? #FFFFFF : root.dark-mode ? #292E35 : root.material-schemes.light.surfaceContainerHigh;
+    // EFFECTS-037 #153: the legacy `surface*` vocabulary is a set of aliases,
+    // not a second ladder. It used to keep its own Material container values:
+    // in light it ran white -> grey -> *darker* grey while `zinc-*` ran the
+    // other way, so the same hover token lifted in one control and sank in
+    // another. Every skin now resolves `surface` to the card tier, `-muted`
+    // to the inset tier and `-raised` to the hover tier, so there is one
+    // elevation direction and one owner for the four states.
+    out property <color> surface: root.zinc-3;
+    out property <color> surface-muted: root.zinc-4;
+    out property <color> surface-raised: root.zinc-5;
     out property <color> accent: root.forest-mode ? #34784F : root.user-accent;
     out property <color> accent-soft: root.forest-mode ? #DCEEE2 : (root.amoled-mode ? #003644 : (root.dark-mode ? root.material-schemes.dark.primaryContainer : root.material-schemes.light.primaryContainer));
     out property <color> accent-active: root.forest-mode ? #1F5A36 : (root.is-dark ? #D5F1F8 : root.accent);
+    // The selected state of a card, a group pill and a row badge is one fact.
+    // It used to be a literal at six call sites (`#2563EB` in the dark skin),
+    // so a theme decision could not change all of them at once. It then became
+    // a second accent: the reference marks a chosen egress with the very same
+    // colour it uses for every other accent surface, while this literal stayed
+    // blue even when the user's accent - or the whole skin - said teal. Selected
+    // is not its own hue, it is the accent, so one property now feeds every
+    // selected pill, node badge and switch in all four skins.
+    out property <color> selection: root.accent;
+    out property <color> selection-ink: root.accent-foreground;
     out property <color> text-primary: root.is-dark ? root.material-schemes.dark.onSurface : root.material-schemes.light.onSurface;
     out property <color> text-secondary: root.is-dark ? root.material-schemes.dark.onSurfaceVariant : root.material-schemes.light.onSurfaceVariant;
     out property <color> border: root.amoled-mode ? #222222 : root.forest-mode ? #D5E0CC : (root.dark-mode ? #27272A : root.material-schemes.light.outlineVariant);
@@ -143,7 +195,37 @@ export global LumenTheme {
     out property <color> status-info: root.is-dark ? #70D2EC : #0B667F;
     out property <color> status-warning: root.is-dark ? #FFD180 : #9A6810;
     out property <color> text-muted: root.is-dark ? #A5B0BC : #666666;
+    // Identity hues for the icon tiles of a destination family. Each hue is one
+    // colour with a night step and a paper step, because the ink used to be a
+    // single skin-blind literal: measured against its own card it came out
+    // 8.5:1 on the night card and 1.8:1 on the paper card, i.e. the icon simply
+    // disappeared in the light skin - a step picked for a dark background had
+    // been painted on a light one. The paper steps are the 600/700 tier of the
+    // same hue families, every one of which clears 4.5:1 on the paper card.
+    out property <color> tile-magenta: root.is-dark ? #E879F9 : #A21CAF;
+    out property <color> tile-azure: root.is-dark ? #38BDF8 : #0369A1;
+    out property <color> tile-teal: root.is-dark ? #2DD4BF : #0F766E;
+    out property <color> tile-violet: root.is-dark ? #A78BFA : #6D28D9;
+    out property <color> tile-amber: root.is-dark ? #FBBF24 : #B45309;
+    out property <color> tile-indigo: root.is-dark ? #818CF8 : #4338CA;
+    out property <color> tile-orange: root.is-dark ? #FB923C : #C2410C;
+    out property <color> tile-slate: root.is-dark ? #94A3B8 : #475569;
+    // A tile is the tint of its own identity hue. The alpha is a data token
+    // rather than a helper: Slint forbids calling an impure global function
+    // from a binding, and the hue table has to read these hues, so the rule
+    // lives here as a number and the one consumer applies it.
+    out property <float> tile-fill-alpha: 0.15;
 
+    // The layout-debug overlay is one registered instrument. Its colours used to
+    // be 44 ad-hoc hexes spread over ten files, so reading them meant diffing
+    // literals against each other to discover that the same magenta meant the
+    // same thing in all of them. `SURFACE.md`'s hint text names these roles.
+    out property <color> debug-frame: #FF2D55;
+    out property <color> debug-content: #00A6A6;
+    out property <color> debug-icon: #007AFF;
+    out property <color> debug-text: #34C759;
+    out property <color> debug-word: #FF9500;
+    out property <color> debug-title: #AF52DE;
     out property <color> preference-off: root.amoled-mode ? #282828 : (root.forest-mode ? #D5E0CC : (root.dark-mode ? #383838 : #D8D8DC));
     out property <color> preference-accent: root.accent;
     out property <length> preference-card-radius: 28 * LumenUiScale.unit;
@@ -152,23 +234,123 @@ export global LumenTheme {
     out property <length> space-2: 8 * LumenUiScale.unit;
     out property <length> space-3: 12 * LumenUiScale.unit;
     out property <length> space-4: 16 * LumenUiScale.unit;
-    out property <length> space-6: 24 * LumenUiScale.unit;
-    out property <length> space-8: 32 * LumenUiScale.unit;
     out property <length> radius-control: 14 * LumenUiScale.unit;
     out property <length> radius-card: 24 * LumenUiScale.unit;
-    out property <length> radius-sheet: 28 * LumenUiScale.unit;
+    out property <length> radius-inset-card: 12 * LumenUiScale.unit;
+    // One geometry for every card, whichever component draws it. `SectionCard`
+    // and `SurfaceCard` used to each own an inset, a radius, a vertical pad
+    // and a gap, and one of them guessed "phone" from its own width; the same
+    // 400x800 screen then carried two card shapes. The viewport fact is the
+    // one `compact-layout` this global already owns.
+    out property <length> card-inset: root.compact-layout ? 12 * LumenUiScale.unit : 16 * LumenUiScale.unit;
+    out property <length> card-vertical-padding: root.compact-layout ? 14 * LumenUiScale.unit : 18 * LumenUiScale.unit;
+    out property <length> card-radius: root.compact-layout ? LumenTheme.radius-mobile-card : root.radius-card;
+    out property <length> card-content-gap: root.space-3;
+    // The overview card grid is a real grid, not a content-sized row: every
+    // card in a row takes one equal share of the row, and a card that spans
+    // two shares takes them plus the gap it covers. `horizontal-stretch`
+    // could not do this job - it only hands out the slack that is left after
+    // each card has already taken its preferred width, so the phone grid's
+    // two cards measured 187u and 169u and the desktop grid's four measured
+    // 199u/201u/216u/216u in the same screen. Sibling cards therefore never
+    // lined up on their inner edges, and every row had its own column grid.
+    out property <int> overview-card-columns: root.compact-layout ? 2 : 4;
+    out property <length> overview-card-gap: root.compact-layout ? root.space-3 : root.space-4;
+    // One line box for a fact card's primary value. The roles were already
+    // unified per fact kind, but a 22px numeric value and a 15px name still
+    // produced two different line boxes, so the sibling cards under them
+    // started their meta lines 5-8px apart. The box is shared, the value
+    // hugs its bottom edge, and the meta lines of one row therefore start at
+    // one y - the baselines themselves land within the font's descent
+    // difference instead of a full line apart.
+    out property <length> fact-value-line-height: 30 * LumenUiScale.unit;
+    // One card-header ink height for both tiers. The phone and desktop grids
+    // used to spell their own icon and chevron boxes (16u/14u/20u), so the same
+    // heading row drew different ink baselines on the two tiers and the
+    // chevron sat at a different right inset. The header is one geometry with
+    // one owner; every caller reads these three facts.
+    out property <length> card-header-height: 20 * LumenUiScale.unit;
+    out property <length> card-header-icon-size: 16 * LumenUiScale.unit;
+    out property <length> card-header-chevron-size: 14 * LumenUiScale.unit;
+    // One registered sans role for the card heading itself. The two tiers
+    // used to pass 13u (a mono role's size) on some cards and 12u (a caption
+    // role) on others, so a row of sibling cards drew its headings at two
+    // baselines. The header resolves one whole `caption` role; no caller
+    // keeps a `title-size` knob.
+    out property <length> card-header-title-size: DesignType.caption-size;
+    // The chevron's trailing air is one step of the shared spacing ladder, not
+    // a per-card literal. It is read from `row-trailing-inset` so the card
+    // header and a grouped list row end their affordance on the same column.
+    out property <length> card-header-trailing-inset: root.row-trailing-inset;
+    // One service-chip geometry, shared by the phone flow and desktop grid.
+    // The old chip spent 6u of padding on each flank, 7u on the pulse, 4u on
+    // both gaps and an 11u mono value in a 74u chip, so "4277 ms" elided to
+    // "4277…" on the phone. The dot, label and value now share one tight
+    // ladder and a single registered `monoTag` triple; the four chips stay
+    // equal-width and their values keep one right edge.
+    out property <length> latency-chip-height: 28 * LumenUiScale.unit;
+    out property <length> latency-chip-radius: 6 * LumenUiScale.unit;
+    out property <length> latency-chip-inset: 3 * LumenUiScale.unit;
+    out property <length> latency-chip-gap: 2 * LumenUiScale.unit;
+    out property <length> latency-chip-pulse-size: 6 * LumenUiScale.unit;
+    // "GH" is the longest of the four published badges at the registered
+    // `micro` role. One fixed label step keeps every value's left edge aligned
+    // across the four chips without letting a label steal the number's room.
+    out property <length> latency-chip-label-width: 16 * LumenUiScale.unit;
+    // One policy-tile geometry. The old 26u/8u/8u row spent 42u before the
+    // group name, which elided "HK IPLC 01" on the desktop two-column grid.
+    out property <length> policy-tile-inset: 6 * LumenUiScale.unit;
+    out property <length> policy-tile-gap: 6 * LumenUiScale.unit;
+    out property <length> policy-tile-avatar-size: 24 * LumenUiScale.unit;
+    // One page margin and one rail rhythm. These used to be literals repeated
+    // across the shell, the rail, the header row and the footer, so a header
+    // could disagree with the body column it headed.
+    out property <length> page-margin-desktop: 30 * LumenUiScale.unit;
+    out property <length> rail-width: 228 * LumenUiScale.unit;
+    out property <length> rail-vertical-inset: 18 * LumenUiScale.unit;
+    out property <length> rail-row-height: 44 * LumenUiScale.unit;
+    out property <length> rail-brand-gap: 20 * LumenUiScale.unit;
+    out property <length> rail-section-gap: root.space-mobile-section-head-above;
+    // Two policy tiles plus their gap and the card's own inset: 2*96 + 8 + 32.
+    // The desktop dashboard's last row gives this width to the policy card
+    // before the connection table takes the remaining stretch, so a wide
+    // 7-column table cannot squeeze group names into three dots.
+    out property <length> policy-card-min-width: 232 * LumenUiScale.unit;
+    // The phone card radius: the reference's card corner turns over roughly
+    // 18dp of its own height, and a squircle fit puts the visual radius near
+    // 20dp. The phone grid used 12dp and the phone profile card 16dp, so the
+    // two compact surfaces disagreed with each other and with the reference.
+    out property <length> radius-mobile-card: 20 * LumenUiScale.unit;
+    // The gap between two phone cards: the reference keeps 8dp, so a grid that
+    // used 12dp spent half again the reference's air on every seam.
+    out property <length> space-mobile-card-gap: 8 * LumenUiScale.unit;
+    // The reference screenshots are ~2.89x device pixels. Its measured 76px
+    // heading gaps normalise to ~26u, split toward the group a heading owns:
+    // 16u above and 10u below. The old 24u/16u copied device pixels as design
+    // units and left two 58px bands in the 400x800 settings receipt.
+    out property <length> space-mobile-section-head-above: 16 * LumenUiScale.unit;
+    out property <length> space-mobile-section-head-below: 10 * LumenUiScale.unit;
     // EFFECTS-037 #150: Zinc micro-step bases — every surface asks by tier,
-    // never by raw color. zinc-0 is the deepest page void, zinc-7 the
-    // highest raised panel; light and forest map the same ladder onto the
-    // paper ramp so callers stay theme-blind.
-    out property <color> zinc-0: root.amoled-mode ? #000000 : root.forest-mode ? #E3ECDF : root.dark-mode ? #0A0B0E : #F7F7F8;
-    out property <color> zinc-1: root.amoled-mode ? #050505 : root.forest-mode ? #EAF1E5 : root.dark-mode ? #0F1114 : #FBFBFC;
-    out property <color> zinc-2: root.amoled-mode ? #0A0A0A : root.forest-mode ? #E0EAD9 : root.dark-mode ? #14171B : #F4F4F5;
-    out property <color> zinc-3: root.amoled-mode ? #101010 : root.forest-mode ? #D5E2CC : root.dark-mode ? #1D2126 : #EDEDEF;
-    out property <color> zinc-4: root.amoled-mode ? #161616 : root.forest-mode ? #C9D8BF : root.dark-mode ? #242930 : #E4E4E7;
-    out property <color> zinc-5: root.amoled-mode ? #1C1C1C : root.forest-mode ? #BDCFAF : root.dark-mode ? #292E35 : #DCDCE0;
-    out property <color> zinc-6: root.amoled-mode ? #222222 : root.forest-mode ? #B0C5A4 : root.dark-mode ? #313740 : #C8C8CD;
-    out property <color> zinc-7: root.amoled-mode ? #282828 : root.forest-mode ? #A3BB98 : root.dark-mode ? #363C44 : #BDBDC3;
+    // never by raw color. The ladder is two ladders, and both run in the same
+    // direction in every skin:
+    //   zinc-0..zinc-3 climb OFF the page. zinc-0 is the void, zinc-3 the card
+    //     the user reads as paper. In ink that is dark -> light; in paper it is
+    //     grey -> white, exactly the reference's own separation (its page sits
+    //     ~15 luminance steps under a white card). Paper used to run the other
+    //     way, so a `zinc-3` card painted 10 steps UNDER its own page in light
+    //     and forest while painting 21 steps OVER it in dark: the same token,
+    //     opposite layering, and the light skins read flat.
+    //   zinc-4..zinc-7 are the pressed/inset tints, one tier BELOW the card:
+    //     chips, wells, tracks, nested panels.
+    // A caller picks a role; it never picks a direction.
+    out property <color> zinc-0: root.amoled-mode ? #000000 : root.forest-mode ? #E1EBD9 : root.dark-mode ? #0A0B0E : #EFF0F3;
+    out property <color> zinc-1: root.amoled-mode ? #050505 : root.forest-mode ? #E9F1E3 : root.dark-mode ? #0F1114 : #F4F5F8;
+    out property <color> zinc-2: root.amoled-mode ? #0A0A0A : root.forest-mode ? #F1F6ED : root.dark-mode ? #14171B : #FAFBFD;
+    out property <color> zinc-3: root.amoled-mode ? #101010 : root.forest-mode ? #F8FBF5 : root.dark-mode ? #1D2126 : #FFFFFF;
+    out property <color> zinc-4: root.amoled-mode ? #161616 : root.forest-mode ? #E6EEDF : root.dark-mode ? #242930 : #EDEEF1;
+    out property <color> zinc-5: root.amoled-mode ? #1F1F1F : root.forest-mode ? #EEF4EA : root.dark-mode ? #2C323A : #F5F6F8;
+    out property <color> zinc-6: root.amoled-mode ? #0C0C0C : root.forest-mode ? #DCE7D6 : root.dark-mode ? #161A1F : #E4E6EA;
+    out property <color> zinc-7: root.amoled-mode ? #060606 : root.forest-mode ? #CEDCC8 : root.dark-mode ? #101418 : #D9DCE3;
     // EFFECTS-037 #151: diffuse two-tier shadows — ambient under resting
     // cards on the panel, key under raised interactive surfaces.
     out property <color> shadow-ambient-color: root.dark-mode || root.amoled-mode ? #00000055 : #0F172A22;
@@ -180,17 +362,174 @@ export global LumenTheme {
     // EFFECTS-037 #152: the 1px semi-transparent inner hairline of cards.
     out property <color> hairline-glow: root.dark-mode || root.amoled-mode ? #FFFFFF1E : #0F172A0F;
     out property <length> hairline-width: LumenUiScale.unit;
+    // Floating dock surface: a glass veil, never an opaque plate.
+    //
+    // The alpha is the contract's one decision - `MobileDockMaterial::
+    // VEIL_ALPHA` (0x99, 60%) - so the capsule keeps showing the page ground
+    // through itself and reads as a control floating above the page. A skin
+    // may only pick the veil's tint; the translucency has a single owner.
+    //
+    // Painting the card tier here instead (an opaque `zinc-3`, or a card
+    // colour at ~85% alpha) is what made the dock read as a covering slab
+    // and what kept the material flip-flopping between "opaque" and
+    // "translucent" in prose, in the guard and in the pixels.
+    out property <color> floating-surface: root.amoled-mode ? #303A4499 : (root.forest-mode ? #FFFFFF99 : (root.dark-mode ? #333D4899 : #FFFFFF99));
+    // The glass rim: a light specular edge on ink skins, a quiet hairline on
+    // paper skins. It is what lets a translucent plate read as glass instead
+    // of as a hole with a shadow.
+    out property <color> dock-rim-color: root.amoled-mode ? #FFFFFF26 : (root.forest-mode ? #0F172A14 : (root.dark-mode ? #FFFFFF2B : #1018281F));
+    // One separator decision for every grouped list, instead of a literal that
+    // happened to reuse the card-outline tier. A seam is quieter than an
+    // outline: the reference's hairline is a fixed step off its card tier
+    // (measured 31/255 on paper), and the dark skins keep the step they already
+    // measured instead of inheriting the louder border value.
+    out property <color> row-divider: root.amoled-mode ? #1E1E1E : root.forest-mode ? #C2D2B8 : root.dark-mode ? #262A30 : #D5D8DA;
+    out property <length> row-divider-thickness: 1 * LumenUiScale.unit;
+    // The seam starts at the ink column (icon tier + its gap) and stops at the
+    // card's own padding, so it separates rows without ever touching a frame.
+    out property <length> row-divider-inset-start: 48 * LumenUiScale.unit;
+    out property <length> row-divider-inset-end: 0 * LumenUiScale.unit;
+    // The trailing air inside a row, measured from the receipt rather than
+    // guessed: the reference's chevron ink ends 24u from the card's right edge
+    // (its switch ink 21u), while ours ended 19u there. The chevron's 18u box
+    // already carries about 7u of its own right padding, so the row owes the
+    // remaining 4u - one step on the spacing scale. Without it every trailing
+    // affordance (chevron, switch, value) sits flush on the card edge and the
+    // list reads as clipped. One token, because a row must not invent its own
+    // margin.
+    out property <length> row-trailing-inset: 4 * LumenUiScale.unit;
+    // The reserved action column of a mixed-action workbench list. A row
+    // without an action keeps the same right edge as a row with one, so the
+    // trailing status and the detail's right edge stay in one column down the
+    // list. Without it a row with a button and a row without one ended their
+    // detail 80u apart (doctor receipt: 失败 x1035 vs 警告 x1115). One width
+    // fits the longest action label (添加应用分流) with the button's own
+    // padding; the label elides rather than widening the column. Uniform lists
+    // do not reserve it and keep the compact auto width.
+    out property <length> workbench-row-action-width: 96 * LumenUiScale.unit;
+    // The gap between the segments of a segmented selector. `horizontal-stretch`
+    // cannot make equal segments: it hands every child its own preferred width
+    // and then splits whatever is left, so a short label lands narrower than a
+    // long one and the control stops reading as a split (app-routing receipt:
+    // 295 / 238 / 295 px for three segments of one row). A selector row instead
+    // computes `(row - segments * gap) / segments` from this one gap, so all
+    // segments are equal whatever their labels are.
+    out property <length> selector-segment-gap: 10 * LumenUiScale.unit;
+    // One height for the compact page header row - the big title plus its
+    // action cluster. It used to be spelled 48u on the dashboard, 52u in the
+    // shell and 54u on the proxy and profile pages, so the same row grew four
+    // different pitches between four pages and a page could not inherit the
+    // decision. The reference's own header is a 44dp action capsule with air
+    // above and below, which lands here.
+    out property <length> page-header-height: 52 * LumenUiScale.unit;
     // Semantic status colors matching contract OUTBOUND_STATUS_PALETTE (TODO-003)
     out property <color> status-running: #10B981;
     out property <color> status-running-soft: #10B98126;
-        // SLINTUI-007 #31: the mono family for live-updating numerals — fixed
+    // SLINTUI-007 #31: the mono family for live-updating numerals — fixed
     // advance widths keep counters from jittering as digits change.
     out property <string> mono-family: DesignType.mono-family;
-    out property <string> default-family: DesignType.body-family;
-        out property <length> min-touch-target: 48 * LumenUiScale.unit;
+    out property <length> min-touch-target: 48 * LumenUiScale.unit;
     out property <length> page-padding: 16 * LumenUiScale.unit;
-    out property <length> navigation-height: 56 * LumenUiScale.unit;
-    out property <length> title-size: DesignType.display-size;
+    // The desktop rail has three columns and each one is a fact of its own:
+    //   x18  rail chrome - the brand tile and the status card box sit at `rail-inset`;
+    //   x34  card content - the card's own text, and the version line under it, sit
+    //        at `rail-inset` + `rail-item-padding`;
+    //   x50  nav content - a nav item is a centred face (`desktop-active-width`, so
+    //        one `rail-item-padding` gutter each side) whose content is padded again,
+    //        so its icon lands two paddings inside the layout. A group heading heads
+    //        those icons, so it reads `rail-content-leading` and joins that column:
+    //        measured before this it started at x34 while the icons it heads started
+    //        at x51, which made the heading a stray row of its own.
+    out property <length> rail-inset: 18 * LumenUiScale.unit;
+    out property <length> rail-item-padding: space-4;
+    out property <length> rail-content-leading: 2 * root.rail-item-padding;
+    // The floating bottom dock is one geometry with one owner (AppBottomBar),
+    // and everything that has to clear it reads these tokens instead of keeping
+    // a second copy of the height: a stale 56u reservation once drifted away
+    // from the real dock exactly that way.
+    //
+    // The numbers are FlClash's floating bar measured by colour, not by
+    // luminance band, so the drop shadow is not counted as body: the bar itself
+    // is 186px on a 2367px-tall @2.96 screen (63dp), the active pill inside it
+    // is 267 x 163px (90 x 55dp, a full stadium) with 4dp of clearance above
+    // and below, and the bar sits flush on the system inset rather than adding
+    // its own bottom air. The inset here is the smallest value that still lets
+    // the dock's own shadow decay before it reaches the window edge.
+    out property <length> bottom-bar-height: 64 * LumenUiScale.unit;
+    out property <length> bottom-bar-inset: 12 * LumenUiScale.unit;
+    // The air the dock keeps above its own pill. It is one card gap, read from
+    // the gap the list already uses between two cards, so the pill is never the
+    // thing that slices a row: content stops a full gap short of the pill and
+    // the page ground shows on all four flanks of a floating control.
+    out property <length> dock-top-air: root.space-mobile-card-gap;
+    // The whole region the dock owns at the bottom of the window: the air above
+    // the pill, the pill, and the air under it. The scroll viewport subtracts
+    // exactly this number, so scrolling content can neither be drawn behind the
+    // pill nor be cut at its top edge: the reference does the same (none of its
+    // four screens shows content under the bar), and a pill that cuts a card
+    // mid-row reads as a covering band rather than a floating control. One
+    // derived number, so no page can keep a second copy of the dock geometry.
+    out property <length> bottom-bar-band-height: root.dock-top-air + root.bottom-bar-height + root.bottom-bar-inset;
+    // How far a toast has to sit above the band the dock owns. The banner used
+    // to re-add `bottom-bar-height + bottom-bar-inset` plus its own literal, so
+    // a long notice could land on the pill; now both facts come from the dock's
+    // own geometry and one clearance token.
+    out property <length> dock-toast-clearance: 24 * LumenUiScale.unit;
+    // The dock is a floating pill, not a screen-wide band. Its inset is one
+    // page margin on each flank and its width has one hard ceiling so a tablet
+    // cannot stretch the four tabs into a bar. The elevation lives here too:
+    // one soft shadow and one hairline define the dock in every skin.
+    out property <length> bottom-bar-max-width: 360 * LumenUiScale.unit;
+    out property <length> bottom-bar-padding: 6 * LumenUiScale.unit;
+    out property <color> dock-shadow-color: root.is-dark ? #00000099 : #00000028;
+    out property <length> dock-shadow-blur: 10 * LumenUiScale.unit;
+    out property <length> dock-shadow-offset-y: 2 * LumenUiScale.unit;
+    // The tab pill is cut out of the dock instead of being measured on its own:
+    // the drift that made the pill touch the dock's top edge while leaving a
+    // dead band under the label came from four independent literals.
+    out property <length> bottom-bar-pill-height: bottom-bar-height - 8 * LumenUiScale.unit;
+    out property <length> bottom-bar-pill-width: 90 * LumenUiScale.unit;
+    // A dashboard fact value has ONE role decision, shared by the desktop grid
+    // and the phone flow. The two tiers used to spell the same facts
+    // differently - the exit IP was 18px mono on desktop and 14px mono on the
+    // phone, the memory total 22px on desktop and 15px on the phone, the
+    // profile name sans 15/400 on desktop and *mono* 13 on the phone - so the
+    // sibling cards in one grid row put their value baselines 6-8px apart and
+    // each page kept its own idea of how loud a number is.
+    out property <length> metric-value-size: DesignType.numericDense-size;
+    out property <int> metric-value-weight: DesignType.numericDense-weight;
+    out property <string> metric-value-family: DesignType.numericDense-family;
+    // The small monospaced readouts (the uptime clock, the CPU value) share
+    // one role as well, instead of borrowing caption/micro text sizes and
+    // pasting the mono family onto them.
+    out property <length> metric-fact-size: DesignType.numericSmall-size;
+    out property <int> metric-fact-weight: DesignType.numericSmall-weight;
+    out property <string> metric-fact-family: DesignType.numericSmall-family;
+    // A profile name is text, not a number: one sans role for both tiers.
+    out property <length> profile-name-size: DesignType.body-size;
+    out property <int> profile-name-weight: DesignType.body-weight;
     out property <length> body-size: DesignType.bodyLarge-size;
     out property <length> supporting-size: DesignType.label-size;
+    // The elide budget of a right-aligned value column, one token per fact.
+    //
+    // The phone and the desktop card each carried their own number for the
+    // SAME fact - the organization name was 104u on the phone and 128u on the
+    // desktop, the profile name 130u and 172u - so one value had two answers
+    // and neither card could be widened without editing both. The token is
+    // the fact's budget; the tier only chooses how much of it a narrower card
+    // can afford.
+    // One elide budget for every profile name, whichever card prints it. The
+    // phone's 2x2 quick card is 168u wide with a 12u inset on each flank, so
+    // 144u is the exact content box; 130u elided "Alpha Fast (HK/JP/US)"
+    // after "HK/J". The 400u-wide phone profile list has a 16u inset on each
+    // flank and a centred 25u current badge, so the same fact gets a wider
+    // honest budget there. Both are derived from the same `card-inset` and
+    // viewport width, never a second literal per card.
+    out property <length> profile-name-max-width: root.compact-layout
+        ? 168 * LumenUiScale.unit - 2 * root.card-inset
+        : 172 * LumenUiScale.unit;
+    out property <length> exit-status-max-width: 84 * LumenUiScale.unit;
+    out property <length> lan-address-max-width: 170 * LumenUiScale.unit;
+    out property <length> memory-limit-max-width: 96 * LumenUiScale.unit;
+    out property <length> license-identifier-max-width: 260 * LumenUiScale.unit;
 }

@@ -26,7 +26,7 @@ use infiltrator_contract::resources::{
 };
 use infiltrator_contract::runtime_control::{RuntimeControlSnapshot, RuntimeControlStatus};
 use infiltrator_contract::service_mode::ServiceModeSnapshot;
-use infiltrator_contract::snapshot::CoreSnapshot;
+use infiltrator_contract::snapshot::{CoreSessionObservation, CoreSnapshot};
 use infiltrator_contract::sync_snapshot::SyncPageSnapshot;
 use infiltrator_contract::system_proxy::{
     SystemProxyObservation, SystemProxyRecoverySnapshot, SystemProxySnapshot,
@@ -87,6 +87,7 @@ fn snapshot_from_overview_fixture(
     fixture: OverviewFixture,
 ) -> surface_snapshot::SurfaceSnapshot {
     let core = CoreSnapshot {
+        session: CoreSessionObservation::Unknown,
         identity: match fixture {
             OverviewFixture::DemoPages => Some(demo_core_identity()),
             OverviewFixture::OverviewOnly => None,

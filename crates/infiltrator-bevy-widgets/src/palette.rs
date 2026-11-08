@@ -10,6 +10,7 @@ use crate::theme::{
 use bevy::color::{Alpha, Color, LinearRgba};
 use bevy::ecs::resource::Resource;
 use bevy::ui::{Val, ValNum};
+use zhuge_ui_tokens::Rgba;
 
 /// Convert a baseline-pixel dimension into a `Val::Rem` so it scales with
 /// the root font size (`RemSize`). This is the ONLY sanctioned way to turn a
@@ -204,36 +205,11 @@ impl UiPalette {
     }
 }
 
-/// Calculate relative luminance of a color according to WCAG 2.1 standard.
-pub fn calculate_relative_luminance(color: Color) -> f32 {
+/// Convert a Bevy color into the shared resolved RGBA owner.
+#[must_use]
+pub fn as_rgba(color: Color) -> Rgba {
     let srgb = color.to_srgba();
-    let to_linear = |c: f32| -> f32 {
-        if c <= 0.04045 {
-            c / 12.92
-        } else {
-            ((c + 0.055) / 1.055).powf(2.4)
-        }
-    };
-
-    let r = to_linear(srgb.red);
-    let g = to_linear(srgb.green);
-    let b = to_linear(srgb.blue);
-
-    0.2126 * r + 0.7152 * g + 0.0722 * b
-}
-
-/// Calculate contrast ratio between background and foreground colors [1.0..21.0].
-pub fn calculate_contrast_ratio(bg: Color, fg: Color) -> f32 {
-    let l1 = calculate_relative_luminance(bg);
-    let l2 = calculate_relative_luminance(fg);
-    let lighter = l1.max(l2);
-    let darker = l1.min(l2);
-    (lighter + 0.05) / (darker + 0.05)
-}
-
-/// Check if color combination satisfies WCAG AA (4.5:1) standard for standard text.
-pub fn satisfies_wcag_aa(bg: Color, fg: Color) -> bool {
-    calculate_contrast_ratio(bg, fg) >= 4.5
+    Rgba::new(srgb.red, srgb.green, srgb.blue, srgb.alpha)
 }
 
 /// A partial theme token patch for localized scoped overrides or emergency alert skins.

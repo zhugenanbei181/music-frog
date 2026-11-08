@@ -18,6 +18,7 @@ description = "Business-agnostic Bevy UI widget layer for MusicFrog: bsn! scene 
 [dependencies]
 zhuge-ui-kit-bevy.workspace = true
 zhuge-ui-core.workspace = true
+zhuge-ui-tokens.workspace = true
 accesskit = { workspace = true }
 bevy = { workspace = true, features = ["bevy_feathers"] }
 unicode-segmentation = { workspace = true }

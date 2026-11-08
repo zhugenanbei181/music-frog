@@ -21,7 +21,9 @@ pub mod scroll_core;
 pub mod scrollbar;
 use infiltrator_contract::design_resources;
 use scroll_core::*;
-use zhuge_ui_core::virtual_list::{ExtentUpdate, VariableExtentIndex, VirtualListConfig};
+use zhuge_ui_core::virtual_list::{
+    ExtentUpdate, VariableExtentIndex, VirtualListConfig, VirtualWindow,
+};
 
 use crate::feathers_theme::Token;
 use crate::list::feather::list_scroll_frame_with_feathers;
@@ -305,13 +307,10 @@ impl VirtualListState {
                 self.scroll_offset_px,
                 self.overscan,
             ),
-            RowHeightMode::VariableExtent(idx) => VirtualWindow::from_shared(
-                idx.compute_window(
-                    self.viewport_height_px,
-                    self.scroll_offset_px,
-                    self.overscan,
-                ),
-                idx.total_extent(),
+            RowHeightMode::VariableExtent(idx) => idx.compute_window(
+                self.viewport_height_px,
+                self.scroll_offset_px,
+                self.overscan,
             ),
         }
     }

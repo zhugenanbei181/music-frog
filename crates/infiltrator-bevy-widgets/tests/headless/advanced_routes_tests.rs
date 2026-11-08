@@ -83,6 +83,46 @@ fn test_multitier_tsdb_and_time_travel_scrubber() {
     assert!(score > 90.0);
 }
 
+/// The scrubber's position is the shared interval projection over the captured
+/// window: the ends clamp, and a window with no time to scrub reads as already
+/// being at its newest instant.
+#[test]
+fn test_scrubber_fraction_is_the_declared_window_projection() {
+    let mut scrubber = TimeTravelScrubber::new(1_000, 2_000);
+    assert_eq!(
+        scrubber.fraction(),
+        1.0,
+        "a fresh scrubber sits at the newest end"
+    );
+
+    scrubber.scrub_to_fraction(0.25);
+    assert_eq!(scrubber.current_timestamp, 1_250);
+    assert_eq!(scrubber.fraction(), 0.25);
+
+    scrubber.scrub_to_fraction(-1.0);
+    assert_eq!(
+        scrubber.fraction(),
+        0.0,
+        "below the window reads as its start"
+    );
+
+    scrubber.scrub_to_fraction(2.0);
+    assert_eq!(
+        scrubber.fraction(),
+        1.0,
+        "above the window reads as its end"
+    );
+
+    let mut instant = TimeTravelScrubber::new(5_000, 5_000);
+    instant.scrub_to_fraction(0.4);
+    assert_eq!(instant.current_timestamp, 5_000);
+    assert_eq!(
+        instant.fraction(),
+        1.0,
+        "a window with no travel is already at its newest instant"
+    );
+}
+
 #[test]
 fn test_haptics_and_procedural_tone_generator() {
     assert_eq!(HapticPattern::LightTick.duration_ms(), 15);

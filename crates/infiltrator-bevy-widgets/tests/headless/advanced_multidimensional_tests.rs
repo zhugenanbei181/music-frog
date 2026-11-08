@@ -10,12 +10,11 @@ use bevy::text::{TextBackgroundColor, TextSpan};
 use bevy::ui::{prelude, widget};
 use infiltrator_bevy_widgets::desktop::ClipboardPayload;
 use infiltrator_bevy_widgets::motion::{SpringAnimator, StaggeredEnterAnimation};
-use infiltrator_bevy_widgets::palette::{
-    UiPalette, calculate_contrast_ratio, calculate_relative_luminance, satisfies_wcag_aa,
-};
+use infiltrator_bevy_widgets::palette::{UiPalette, as_rgba};
 use infiltrator_bevy_widgets::shader_fx::{ShimmerWaveSpec, skeleton_card_scene};
 use infiltrator_bevy_widgets::text::{RichTextSpan, rich_text_line_scene};
 use infiltrator_contract::design_resources;
+use zhuge_ui_tokens::{WCAG_AA_LARGE, WCAG_AA_NORMAL};
 
 #[test]
 fn test_staggered_enter_animation_and_spring_animator() {
@@ -78,16 +77,17 @@ fn test_wcag_luminance_and_contrast_ratios() {
     let black = Color::srgb(0.0, 0.0, 0.0);
     let white = Color::srgb(1.0, 1.0, 1.0);
 
-    assert_eq!(calculate_relative_luminance(black), 0.0);
-    assert!((calculate_relative_luminance(white) - 1.0).abs() < 1e-3);
+    assert_eq!(as_rgba(black).relative_luminance(), 0.0);
+    assert!((as_rgba(white).relative_luminance() - 1.0).abs() < 1e-3);
 
-    let contrast_bw = calculate_contrast_ratio(black, white);
+    let contrast_bw = as_rgba(black).contrast_ratio(as_rgba(white));
     assert!((contrast_bw - 21.0).abs() < 1e-1);
-    assert!(satisfies_wcag_aa(black, white));
+    assert!(as_rgba(black).is_wcag_aa_normal(as_rgba(white)));
 
     let gray = Color::srgb(0.5, 0.5, 0.5);
-    let contrast_gw = calculate_contrast_ratio(gray, white);
-    assert!(contrast_gw > 3.0);
+    let contrast_gw = as_rgba(gray).contrast_ratio(as_rgba(white));
+    assert!(contrast_gw > WCAG_AA_LARGE);
+    assert!(WCAG_AA_NORMAL > WCAG_AA_LARGE);
 }
 
 #[test]

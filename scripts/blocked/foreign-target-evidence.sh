@@ -125,8 +125,8 @@ cat > "$LEGS" <<EOF
 | GAP-2.1 | Windows x86_64 | install, tray and TUN smoke of the installed package | \`dist/Infiltrator-Setup-x86_64.exe /S\` then the tray and TUN observation |
 | GAP-2.1 | Windows x86_64 | uninstall smoke | \`dist/Infiltrator-Setup-x86_64.exe /S /uninstall\` |
 | GAP-2.2 | macOS aarch64 | bundle build | \`cargo build --locked --release --target aarch64-apple-darwin -p infiltrator-iced --bin infiltrator-iced\` |
-| GAP-2.2 | macOS aarch64 | DMG | \`bash packaging/macos/create-dmg.sh dist/Infiltrator-macOS.dmg "dist/MusicFrog Infiltrator.app"\` |
-| GAP-2.2 | macOS aarch64 | signing and notarisation | \`codesign --sign "<Developer ID Application>" --options runtime --timestamp dist/"MusicFrog Infiltrator.app"\` then \`xcrun notarytool submit\` |
+| GAP-2.2 | macOS aarch64 | DMG | \`bash packaging/macos/create-dmg.sh dist/Infiltrator-macOS.dmg "dist/Ice.app"\` |
+| GAP-2.2 | macOS aarch64 | signing and notarisation | \`codesign --sign "<Developer ID Application>" --options runtime --timestamp dist/"Ice.app"\` then \`xcrun notarytool submit\` |
 | GAP-3.1 | any | APK build and identity receipt | \`cd android && ./gradlew :app:assembleComposeRelease :app:assembleBevyRelease :app:assembleSlintRelease\` |
 | GAP-3.2 | iOS aarch64 | the real iOS target build | \`cargo build --locked --release --target aarch64-apple-ios\` |
 | GAP-3.2 | iOS aarch64 | app bundle and NetworkExtension package structure | package inspection of the produced \`.app\` / \`.appex\` |

@@ -370,10 +370,7 @@ pub fn build_macos_command_for(notification: &SystemNotification) -> Command {
 pub fn build_linux_command_for(notification: &SystemNotification) -> Command {
     let mut cmd = Command::new("notify-send");
 
-    let app_name = notification
-        .app_id
-        .as_deref()
-        .unwrap_or("MusicFrog Infiltrator");
+    let app_name = notification.app_id.as_deref().unwrap_or("Infiltrator");
     cmd.arg("-a").arg(app_name);
 
     cmd.arg("-u").arg(notification.level.to_linux_urgency());

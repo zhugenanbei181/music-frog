@@ -38,92 +38,106 @@
       "catalog_id": "font.CJK-Regular",
       "android_resource": "cjk_regular",
       "family": "Cjk",
-      "family_name": "HarmonyOS Sans",
+      "family_name": "HarmonyOS Sans SC",
       "weight": "Regular"
+    },
+    {
+      "catalog_id": "font.CJK-Medium",
+      "android_resource": "cjk_medium",
+      "family": "Cjk",
+      "family_name": "HarmonyOS Sans SC",
+      "weight": "Medium"
+    },
+    {
+      "catalog_id": "font.CJK-SemiBold",
+      "android_resource": "cjk_semibold",
+      "family": "Cjk",
+      "family_name": "HarmonyOS Sans SC",
+      "weight": "SemiBold"
     }
   ],
   "type_roles": [
     {
       "role": "Display",
-      "catalog_id": "font.Inter-SemiBold",
-      "family_name": "Inter",
+      "catalog_id": "font.CJK-SemiBold",
+      "family_name": "HarmonyOS Sans SC",
       "size_px": 22.0,
       "weight": "SemiBold"
     },
     {
       "role": "Title",
-      "catalog_id": "font.Inter-SemiBold",
-      "family_name": "Inter",
+      "catalog_id": "font.CJK-SemiBold",
+      "family_name": "HarmonyOS Sans SC",
       "size_px": 20.0,
       "weight": "SemiBold"
     },
     {
       "role": "Subheading",
-      "catalog_id": "font.Inter-SemiBold",
-      "family_name": "Inter",
+      "catalog_id": "font.CJK-SemiBold",
+      "family_name": "HarmonyOS Sans SC",
       "size_px": 18.0,
       "weight": "SemiBold"
     },
     {
       "role": "Heading",
-      "catalog_id": "font.Inter-SemiBold",
-      "family_name": "Inter",
+      "catalog_id": "font.CJK-SemiBold",
+      "family_name": "HarmonyOS Sans SC",
       "size_px": 20.0,
       "weight": "SemiBold"
     },
     {
       "role": "BodyLarge",
-      "catalog_id": "font.Inter-Regular",
-      "family_name": "Inter",
+      "catalog_id": "font.CJK-Regular",
+      "family_name": "HarmonyOS Sans SC",
       "size_px": 16.0,
       "weight": "Regular"
     },
     {
       "role": "Body",
-      "catalog_id": "font.Inter-Regular",
-      "family_name": "Inter",
+      "catalog_id": "font.CJK-Regular",
+      "family_name": "HarmonyOS Sans SC",
       "size_px": 15.0,
       "weight": "Regular"
     },
     {
       "role": "BodyStrong",
-      "catalog_id": "font.Inter-SemiBold",
-      "family_name": "Inter",
+      "catalog_id": "font.CJK-SemiBold",
+      "family_name": "HarmonyOS Sans SC",
       "size_px": 15.0,
       "weight": "SemiBold"
     },
     {
       "role": "Label",
-      "catalog_id": "font.Inter-Medium",
-      "family_name": "Inter",
+      "catalog_id": "font.CJK-Medium",
+      "family_name": "HarmonyOS Sans SC",
       "size_px": 14.0,
       "weight": "Medium"
     },
     {
       "role": "LabelStrong",
-      "catalog_id": "font.Inter-SemiBold",
-      "family_name": "Inter",
+      "catalog_id": "font.CJK-SemiBold",
+      "family_name": "HarmonyOS Sans SC",
       "size_px": 14.0,
       "weight": "SemiBold"
     },
     {
       "role": "Caption",
-      "catalog_id": "font.Inter-Medium",
-      "family_name": "Inter",
+      "catalog_id": "font.CJK-Medium",
+      "family_name": "HarmonyOS Sans SC",
       "size_px": 12.0,
       "weight": "Medium"
     },
     {
       "role": "Micro",
-      "catalog_id": "font.Inter-Medium",
-      "family_name": "Inter",
+      "catalog_id": "font.CJK-Medium",
+      "family_name": "HarmonyOS Sans SC",
       "size_px": 11.0,
       "weight": "Medium"
     },
     {
       "role": "Tag",
-      "catalog_id": "font.Inter-Medium",
-      "family_name": "Inter",
+      "catalog_id": "font.CJK-Medium",
+      "family_name": "HarmonyOS Sans SC",
       "size_px": 10.0,
       "weight": "Medium"
     },
@@ -140,7 +154,104 @@
       "family_name": "JetBrains Mono",
       "size_px": 13.0,
       "weight": "Regular"
+    },
+    {
+      "role": "NumericLarge",
+      "catalog_id": "font.JetBrainsMono-Regular",
+      "family_name": "JetBrains Mono",
+      "size_px": 28.0,
+      "weight": "Regular"
+    },
+    {
+      "role": "NumericDense",
+      "catalog_id": "font.JetBrainsMono-Regular",
+      "family_name": "JetBrains Mono",
+      "size_px": 22.0,
+      "weight": "Regular"
+    },
+    {
+      "role": "NumericSmall",
+      "catalog_id": "font.JetBrainsMono-Regular",
+      "family_name": "JetBrains Mono",
+      "size_px": 13.0,
+      "weight": "Regular"
+    },
+    {
+      "role": "MicroStrong",
+      "catalog_id": "font.CJK-SemiBold",
+      "family_name": "HarmonyOS Sans SC",
+      "size_px": 11.0,
+      "weight": "SemiBold"
+    },
+    {
+      "role": "CaptionStrong",
+      "catalog_id": "font.CJK-SemiBold",
+      "family_name": "HarmonyOS Sans SC",
+      "size_px": 12.0,
+      "weight": "SemiBold"
+    },
+    {
+      "role": "TagStrong",
+      "catalog_id": "font.CJK-SemiBold",
+      "family_name": "HarmonyOS Sans SC",
+      "size_px": 10.0,
+      "weight": "SemiBold"
+    },
+    {
+      "role": "MonoTag",
+      "catalog_id": "font.JetBrainsMono-Regular",
+      "family_name": "JetBrains Mono",
+      "size_px": 10.0,
+      "weight": "Regular"
+    },
+    {
+      "role": "MonoMicro",
+      "catalog_id": "font.JetBrainsMono-Regular",
+      "family_name": "JetBrains Mono",
+      "size_px": 11.0,
+      "weight": "Regular"
+    },
+    {
+      "role": "MonoCaption",
+      "catalog_id": "font.JetBrainsMono-Regular",
+      "family_name": "JetBrains Mono",
+      "size_px": 12.0,
+      "weight": "Regular"
+    },
+    {
+      "role": "MonoBodyLarge",
+      "catalog_id": "font.JetBrainsMono-Regular",
+      "family_name": "JetBrains Mono",
+      "size_px": 16.0,
+      "weight": "Regular"
+    },
+    {
+      "role": "MonoTitle",
+      "catalog_id": "font.JetBrainsMono-Regular",
+      "family_name": "JetBrains Mono",
+      "size_px": 20.0,
+      "weight": "Regular"
+    },
+    {
+      "role": "FactNamed",
+      "catalog_id": "font.CJK-Regular",
+      "family_name": "HarmonyOS Sans SC",
+      "size_px": 13.0,
+      "weight": "Regular"
     }
+  ],
+  "connection_column_weights": [
+    8,
+    16,
+    3,
+    5,
+    6,
+    6,
+    4
+  ],
+  "hero_fact_column_weights": [
+    5,
+    7
   ],
   "icons": [
     {
@@ -425,5 +536,12 @@
       "id": "slint.ping-spin",
       "reason": "Slint renders a frame sequence instead of a runtime rotation"
     }
-  ]
+  ],
+  "mascot": {
+    "catalog_id": "mascot.musicfrog-cutout",
+    "path": "mascot/musicfrog-cutout.png",
+    "format": "png",
+    "hero_path": "mascot/musicfrog-hero-512.png",
+    "redistributable": false
+  }
 }

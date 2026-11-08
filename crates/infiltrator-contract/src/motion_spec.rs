@@ -14,6 +14,8 @@
 
 use std::f32::consts::PI;
 
+use zhuge_ui_core::easing::CubicBezier;
+
 /// The three global motion durations of the product (EFFECTS-003 #10).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum MotionDuration {
@@ -181,111 +183,15 @@ impl MotionHandover {
     }
 }
 
-/// A cubic bezier easing definition with two control points (x1, y1, x2, y2).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct CubicBezier {
-    pub x1: f32,
-    pub y1: f32,
-    pub x2: f32,
-    pub y2: f32,
-}
-
-impl CubicBezier {
-    /// Material Design 3 Standard easing curve: cubic-bezier(0.2, 0.0, 0.0, 1.0).
-    pub const STANDARD: Self = Self {
-        x1: 0.2,
-        y1: 0.0,
-        x2: 0.0,
-        y2: 1.0,
-    };
-
-    /// Material Design 3 Emphasized easing curve: cubic-bezier(0.05, 0.7, 0.1, 1.0).
-    pub const EMPHASIZED: Self = Self {
-        x1: 0.05,
-        y1: 0.7,
-        x2: 0.1,
-        y2: 1.0,
-    };
-
-    /// Material Design 3 Decelerated easing curve: cubic-bezier(0.0, 0.0, 0.2, 1.0).
-    pub const DECELERATED: Self = Self {
-        x1: 0.0,
-        y1: 0.0,
-        x2: 0.2,
-        y2: 1.0,
-    };
-
-    /// Material Design 3 Accelerated easing curve: cubic-bezier(0.3, 0.0, 1.0, 1.0).
-    pub const ACCELERATED: Self = Self {
-        x1: 0.3,
-        y1: 0.0,
-        x2: 1.0,
-        y2: 1.0,
-    };
-
-    /// Solve y for input progress x in `0.0..=1.0` using Newton-Raphson with binary search fallback.
-    pub fn solve(&self, x: f32) -> f32 {
-        let x = x.clamp(0.0, 1.0);
-        if x <= 0.0 {
-            return 0.0;
-        }
-        if x >= 1.0 {
-            return 1.0;
-        }
-
-        let mut t = x;
-        for _ in 0..8 {
-            let current_x = self.sample_x(t) - x;
-            if current_x.abs() < 1e-5 {
-                return self.sample_y(t).clamp(0.0, 1.0);
-            }
-            let d_x = self.sample_dx(t);
-            if d_x.abs() < 1e-6 {
-                break;
-            }
-            t -= current_x / d_x;
-            t = t.clamp(0.0, 1.0);
-        }
-
-        let mut low = 0.0f32;
-        let mut high = 1.0f32;
-        let mut t = x;
-        for _ in 0..12 {
-            let current_x = self.sample_x(t);
-            if (current_x - x).abs() < 1e-5 {
-                return self.sample_y(t).clamp(0.0, 1.0);
-            }
-            if x > current_x {
-                low = t;
-            } else {
-                high = t;
-            }
-            t = (low + high) * 0.5;
-        }
-        self.sample_y(t).clamp(0.0, 1.0)
-    }
-
-    fn sample_x(&self, t: f32) -> f32 {
-        let one_minus_t = 1.0 - t;
-        3.0 * one_minus_t * one_minus_t * t * self.x1
-            + 3.0 * one_minus_t * t * t * self.x2
-            + t * t * t
-    }
-
-    fn sample_dx(&self, t: f32) -> f32 {
-        let one_minus_t = 1.0 - t;
-        3.0 * one_minus_t * one_minus_t * self.x1
-            + 6.0 * one_minus_t * t * (self.x2 - self.x1)
-            + 3.0 * t * t * (1.0 - self.x2)
-    }
-
-    fn sample_y(&self, t: f32) -> f32 {
-        let one_minus_t = 1.0 - t;
-        3.0 * one_minus_t * one_minus_t * t * self.y1
-            + 3.0 * one_minus_t * t * t * self.y2
-            + t * t * t
-    }
-}
+/// The four Material Design 3 easing curves this product binds to the shared owner.
+///
+/// The curve values remain product facts. Their parameter resolution is the
+/// single `zhuge_ui_core::easing::CubicBezier` implementation, so contract owns
+/// the identity of the curve and the shared crate owns the numeric behavior.
+const STANDARD: CubicBezier = CubicBezier::new(0.2, 0.0, 0.0, 1.0);
+const EMPHASIZED: CubicBezier = CubicBezier::new(0.05, 0.7, 0.1, 1.0);
+const DECELERATED: CubicBezier = CubicBezier::new(0.0, 0.0, 0.2, 1.0);
+const ACCELERATED: CubicBezier = CubicBezier::new(0.3, 0.0, 1.0, 1.0);
 
 /// Material Design 3 and physical easing curves.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -310,10 +216,10 @@ impl EasingCurve {
     pub fn evaluate(self, t: f32) -> f32 {
         let t = t.clamp(0.0, 1.0);
         match self {
-            Self::Standard => CubicBezier::STANDARD.solve(t),
-            Self::Emphasized => CubicBezier::EMPHASIZED.solve(t),
-            Self::Decelerated => CubicBezier::DECELERATED.solve(t),
-            Self::Accelerated => CubicBezier::ACCELERATED.solve(t),
+            Self::Standard => STANDARD.sample(t),
+            Self::Emphasized => EMPHASIZED.sample(t),
+            Self::Decelerated => DECELERATED.sample(t),
+            Self::Accelerated => ACCELERATED.sample(t),
             Self::Linear => t,
             Self::Spring => {
                 let p = t * PI;
@@ -701,26 +607,80 @@ mod tests {
     }
 
     #[test]
-    fn test_cubic_bezier_monotonicity_and_bounds() {
-        for curve in [
-            CubicBezier::STANDARD,
-            CubicBezier::EMPHASIZED,
-            CubicBezier::DECELERATED,
-            CubicBezier::ACCELERATED,
-        ] {
-            assert_eq!(curve.solve(0.0), 0.0);
-            assert_eq!(curve.solve(1.0), 1.0);
+    fn the_shared_owner_keeps_the_m3_curves_monotonic_and_bounded() {
+        for curve in [STANDARD, EMPHASIZED, DECELERATED, ACCELERATED] {
+            assert_eq!(curve.sample(0.0), 0.0);
+            assert_eq!(curve.sample(1.0), 1.0);
 
             let mut prev = 0.0;
             for step in 1..=20 {
                 let t = step as f32 / 20.0;
-                let val = curve.solve(t);
+                let val = curve.sample(t);
                 assert!(
                     val >= prev - 1e-4,
                     "easing curve should be monotonic non-decreasing: t={t}, val={val}, prev={prev}"
                 );
                 assert!((0.0..=1.0).contains(&val));
                 prev = val;
+            }
+        }
+    }
+
+    #[test]
+    fn the_shared_owner_hits_the_exact_m3_standard_midpoint() {
+        assert_eq!(
+            STANDARD.sample(0.2),
+            0.5,
+            "the old 1e-5 early stop returned 0.49999994; the shared owner is exact here"
+        );
+        assert_eq!(EasingCurve::Standard.evaluate(0.2), 0.5);
+    }
+
+    #[test]
+    fn the_transition_grid_keeps_its_display_contract() {
+        for pattern in [
+            TransitionPattern::FadeThrough,
+            TransitionPattern::SharedAxisX,
+            TransitionPattern::SharedAxisY,
+            TransitionPattern::DrawerSlide,
+            TransitionPattern::ModalElevation,
+            TransitionPattern::ContainerTransform,
+        ] {
+            for direction in [TransitionDirection::Enter, TransitionDirection::Exit] {
+                for preference in [
+                    MotionPreference::Full,
+                    MotionPreference::Reduced,
+                    MotionPreference::None,
+                ] {
+                    let spec = TransitionSpec::new(pattern, direction, preference);
+                    let terminal = spec.interpolate(spec.duration_ms());
+                    assert!(terminal.is_completed);
+                    assert_eq!(terminal.progress, 1.0);
+                    assert_eq!(
+                        terminal.opacity,
+                        if matches!(direction, TransitionDirection::Enter) {
+                            1.0
+                        } else {
+                            0.0
+                        }
+                    );
+                    assert_eq!(terminal.scale, 1.0);
+                    assert_eq!(terminal.offset_x_px, 0.0);
+                    assert_eq!(terminal.offset_y_px, 0.0);
+
+                    let mut previous_progress = -1.0;
+                    for elapsed_ms in 0..spec.duration_ms() {
+                        let frame = spec.interpolate(elapsed_ms);
+                        assert!(!frame.is_completed);
+                        assert!((0.0..=1.0).contains(&frame.progress));
+                        assert!(frame.progress >= previous_progress);
+                        previous_progress = frame.progress;
+                        assert!(frame.offset_x_px.abs() <= 280.0);
+                        assert!(frame.offset_y_px.abs() <= 24.0);
+                        assert!((0.0..=1.0).contains(&frame.opacity));
+                        assert!((0.0..=1.0).contains(&frame.scrim_opacity));
+                    }
+                }
             }
         }
     }

@@ -17,10 +17,32 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 AUTHORITY = ROOT / "crates/infiltrator-contract/assets/design-authority.json"
+CATALOG = ROOT / "crates/infiltrator-shared/assets/asset-catalog.json"
 ANDROID_THEME = ROOT / "android/app/src/main/java/com/musicfrog/infiltrator/ui/theme"
 ANDROID_COMMON = ROOT / "android/app/src/main/java/com/musicfrog/infiltrator/ui/common"
 SLINT_UI = ROOT / "crates/infiltrator-slint/ui"
 SLINT_COMPONENTS = SLINT_UI / "components"
+SLINT_FONT_IMPORT_PREFIX = "../../../infiltrator-shared/assets/fonts/"
+EXPECTED_CJK_FAMILY = "HarmonyOS Sans SC"
+EXPECTED_CATALOG_LICENSE = "HarmonyOS Sans Fonts License Agreement"
+EXPECTED_CATALOG_LICENSE_PATH = (
+    "crates/infiltrator-shared/assets/fonts/HarmonyOS-Sans-LICENSE.txt"
+)
+RETIRED_ROLE_TOKENS = {
+    "MicroMedium",
+    "CaptionMedium",
+    "LabelStrongCompact",
+    "LabelCompact",
+    "MonoNumericLarge",
+    "MonoNumericDense",
+}
+# Distinct semantic roles may share one physical typeface, but only when the
+# authority explicitly names the group. This ledger prevents new exact aliases;
+# adding a role here is an architecture decision, not a compatibility fallback.
+SEMANTIC_DUPLICATE_EXEMPTIONS = {
+    frozenset({"Title", "Heading"}),
+    frozenset({"Mono", "MonoStrong", "NumericSmall"}),
+}
 
 
 def pascal(name: str) -> str:
@@ -40,6 +62,132 @@ def role_constant(name: str) -> str:
 def role_property(name: str) -> str:
     """`Display` -> `display`; Slint globals use camel case properties."""
     return name[:1].lower() + name[1:]
+
+
+def authority_problems(authority: dict) -> list[str]:
+    """Reject newly registered exact typeface aliases.
+
+    The batch expansion is closed: only the documented pre-batch semantic
+    duplicates may share a triple. A future role reusing any typeface is a
+    second alias and fails here before it can reach adapters.
+    """
+    problems: list[str] = []
+    authoritative_faces(authority, problems)
+    if len(authority.get("font_faces", [])) != 7:
+        problems.append("font_faces must contain exactly 7 physical faces")
+    if len(authority.get("type_roles", [])) != 26:
+        problems.append("type_roles must contain exactly 26 registered roles")
+    if authority.get("font_weights") != [400, 500, 600]:
+        problems.append("font_weights must be the closed set [400, 500, 600]")
+    allowed_families = {
+        (face["family_name"], face["weight"]): face["catalog_id"]
+        for face in authority.get("font_faces", [])
+    }
+    for entry in authority.get("type_roles", []):
+        role_key = (entry["family_name"], entry["weight"])
+        if role_key not in allowed_families:
+            problems.append(
+                f"role {entry['role']} requests unshipped family/weight {role_key}"
+            )
+        elif allowed_families[role_key] != entry["catalog_id"]:
+            problems.append(f"role {entry['role']} disagrees with its physical face")
+        if entry["family_name"] == EXPECTED_CJK_FAMILY:
+            if not entry["catalog_id"].startswith("font.CJK-"):
+                problems.append(
+                    f"CJK role {entry['role']} does not resolve to a HarmonyOS Sans SC face"
+                )
+            expected_weight = {
+                "font.CJK-Regular": "Regular",
+                "font.CJK-Medium": "Medium",
+                "font.CJK-SemiBold": "SemiBold",
+            }.get(entry["catalog_id"])
+            if entry["weight"] != expected_weight:
+                problems.append(
+                    f"CJK role {entry['role']} disagrees with its physical weight"
+                )
+    seen: dict[tuple[float, str, str], list[str]] = {}
+    for entry in authority.get("type_roles", []):
+        triple = (entry["size_px"], entry["weight"], entry["family_name"])
+        seen.setdefault(triple, []).append(entry["role"])
+    for triple, roles in seen.items():
+        grouped = frozenset(roles)
+        if len(roles) > 1 and grouped not in SEMANTIC_DUPLICATE_EXEMPTIONS:
+            problems.append(
+                f"duplicate typeface triple {triple}: {', '.join(sorted(roles))}"
+            )
+    for entry in authority.get("type_roles", []):
+        if entry["role"] in RETIRED_ROLE_TOKENS:
+            problems.append(f"retired TextRole is still exported: {entry['role']}")
+    if not any(entry["role"] == "Body" for entry in authority.get("type_roles", [])):
+        problems.append("the Body fallback role is missing from the authority")
+    if len({entry["role"] for entry in authority.get("type_roles", [])}) != len(
+        authority.get("type_roles", [])
+    ):
+        problems.append("TextRole names are not unique")
+    if len({face["catalog_id"] for face in authority.get("font_faces", [])}) != len(
+        authority.get("font_faces", [])
+    ):
+        problems.append("font face catalog ids are not unique")
+    for key, expected in (
+        ("connection_column_weights", 7),
+        ("hero_fact_column_weights", 2),
+    ):
+        weights = authority.get(key)
+        if not isinstance(weights, list) or len(weights) != expected:
+            problems.append(f"{key} must contain exactly {expected} absolute fractions")
+            continue
+        if any(not isinstance(weight, int) or isinstance(weight, bool) or weight <= 0 for weight in weights):
+            problems.append(f"{key} must contain positive integer fractions")
+        else:
+            if sum(weights) != (48 if key == "connection_column_weights" else 12):
+                problems.append(f"{key} no longer matches the contract weight total")
+    return problems
+
+
+def authoritative_faces(authority: dict, problems: list[str]) -> dict[str, str]:
+    """Resolve each face id to its one shared catalog path and licence."""
+    catalog = json.loads(CATALOG.read_text(encoding="utf-8"))["assets"]
+    by_id = {record["id"]: record for record in catalog if record["format"] == "ttf"}
+    paths: dict[str, str] = {}
+    for face in authority.get("font_faces", []):
+        record = by_id.get(face["catalog_id"])
+        if record is None:
+            problems.append(f"font face is missing from shared catalog: {face['catalog_id']}")
+            continue
+        paths[face["catalog_id"]] = record["path"]
+        if record["path"] != f"fonts/{pathlib.PurePosixPath(face['catalog_id'].removeprefix('font.')).with_suffix('.ttf')}":
+            problems.append(
+                f"font face path drifts from its catalog id: {face['catalog_id']}"
+            )
+        if face["family"] == "Cjk":
+            if face["family_name"] != EXPECTED_CJK_FAMILY:
+                problems.append("CJK family must be uniquely HarmonyOS Sans SC")
+            if record["license"] != EXPECTED_CATALOG_LICENSE:
+                problems.append(f"CJK face has an unexpected licence: {face['catalog_id']}")
+            if record["license_path"] != EXPECTED_CATALOG_LICENSE_PATH:
+                problems.append(f"CJK face has an unexpected licence path: {face['catalog_id']}")
+    cjk_families = {
+        face["family_name"]
+        for face in authority.get("font_faces", [])
+        if face["family"] == "Cjk"
+    }
+    if cjk_families != {EXPECTED_CJK_FAMILY}:
+        problems.append("CJK faces do not share exactly one family name")
+    return paths
+
+
+def font_import_lines(authority: dict) -> list[str]:
+    paths = authoritative_faces(authority, [])
+    lines = [
+        "// Generated by scripts/generate_design_resources.py from design-authority.json.",
+        "// The seven shipped physical faces are registered once from the shared catalog.",
+    ]
+    for face in authority["font_faces"]:
+        path = paths.get(face["catalog_id"])
+        if path is None:
+            continue
+        lines.append(f'import "{SLINT_FONT_IMPORT_PREFIX}{pathlib.PurePosixPath(path).name}";')
+    return lines
 
 def font_family(authority: dict) -> str:
     lines = [
@@ -137,18 +285,89 @@ def android_typography(authority: dict) -> str:
 
 def slint_type(authority: dict) -> str:
     weight_values = {"Regular": 400, "Medium": 500, "SemiBold": 600}
-    lines = [
-        "// Generated by scripts/generate_design_resources.py from design-authority.json.",
+    roles = authority["type_roles"]
+    fallback = next(spec for spec in roles if spec["role"] == "Body")
+    lines = font_import_lines(authority) + [
         "// Every surface reads the same closed set of physical weights.",
+        "// A Text asks for one TextRole and resolves size/weight/family together;",
+        "// it never assembles a typeface from three unrelated role prefixes.",
         'import { LumenUiScale } from "../lumen-ui-scale.slint";',
+        "",
+        "export enum TextRole {",
+    ]
+    for spec in roles:
+        lines.append(f"    {role_property(spec['role'])},")
+    lines += [
+        "}",
         "",
         "export global DesignType {",
     ]
-    for spec in authority["type_roles"]:
+    for spec in roles:
         key = role_property(spec["role"])
         lines.append(f"    out property <length> {key}-size: {spec['size_px']:g} * LumenUiScale.unit;")
         lines.append(f"    out property <int> {key}-weight: {weight_values[spec['weight']]};")
         lines.append(f'    out property <string> {key}-family: "{spec["family_name"]}";')
+    for function_name, value_type, value in (
+        ("size", "length", lambda spec: f"{spec['size_px']:g} * LumenUiScale.unit"),
+        ("weight", "int", lambda spec: str(weight_values[spec["weight"]])),
+        ("family", "string", lambda spec: f'"{spec["family_name"]}"'),
+    ):
+        lines.append(f"    public pure function {function_name}(role: TextRole) -> {value_type} {{")
+        for spec in roles:
+            variant = role_property(spec["role"])
+            lines.append(f"        if role == TextRole.{variant} {{ return {value(spec)}; }}")
+        lines.append(f"        return {value(fallback)};")
+        lines.append("    }")
+    lines += ["}", ""]
+    return "\n".join(lines)
+
+
+def slint_mascot_assets(authority: dict) -> str:
+    mascot = authority["mascot"]
+    master = pathlib.PurePosixPath(mascot["path"]).name
+    hero = pathlib.PurePosixPath(mascot["hero_path"]).name
+    return "\n".join([
+        "// Generated by scripts/generate_design_resources.py from design-authority.json.",
+        "// The hero uses the prefiltered draw plate; the master stays the one catalog identity.",
+        "",
+        "export global MascotAssets {",
+        f'    out property <image> master: @image-url("../../../infiltrator-shared/assets/mascot/{master}");',
+        f'    out property <image> frog: @image-url("../../../infiltrator-shared/assets/mascot/{hero}");',
+        "}",
+        "",
+    ])
+
+
+def slint_layout_tokens(authority: dict) -> str:
+    weights = authority["connection_column_weights"]
+    total = 48
+    hero_weights = authority["hero_fact_column_weights"]
+    hero_total = 12
+    lines = [
+        "// Generated by scripts/generate_design_resources.py from design-authority.json.",
+        "// The live connection table's column vocabulary has one authority.",
+        "//",
+        "// These are ABSOLUTE fractions of the table's content width, not",
+        "// stretch weights. Slint distributes `horizontal-stretch` slack only",
+        "// AFTER every child has taken its preferred width, so a 2-glyph CJK",
+        "// header and a 12-glyph mono address in the same column start with",
+        "// different pools and land on different x positions. A column edge",
+        "// must be the same fraction of the row for the header and every body",
+        "// row, regardless of how much text is inside the cell.",
+        "",
+        "export global LayoutTokens {",
+    ]
+    for index, weight in enumerate(weights, 1):
+        lines.append(f"    out property <float> connection-column-{index}: {weight} / {total};")
+    lines += [
+        "",
+        "    // The hero card's two labelled facts share the same absolute",
+        "    // column fractions on the phone and desktop tiers. A stretch",
+        "    // spacer between them let the organization text push the field",
+        "    // grid off its own baseline.",
+    ]
+    for index, weight in enumerate(hero_weights, 1):
+        lines.append(f"    out property <float> hero-fact-column-{index}: {weight} / {hero_total};")
     lines += ["}", ""]
     return "\n".join(lines)
 
@@ -230,6 +449,8 @@ def generated_files(authority: dict) -> dict[pathlib.Path, str]:
         ANDROID_THEME / "AppTypography.kt": android_typography(authority),
         ANDROID_COMMON / "AppIconSemantic.kt": android_icon_semantics(authority),
         SLINT_COMPONENTS / "design-type.slint": slint_type(authority),
+        SLINT_COMPONENTS / "layout-tokens.slint": slint_layout_tokens(authority),
+        SLINT_COMPONENTS / "mascot-assets.slint": slint_mascot_assets(authority),
         ANDROID_THEME / "DesignTokens.kt": design_tokens(authority),
     }
 
@@ -250,6 +471,11 @@ def main() -> int:
         print(f"missing design authority: {AUTHORITY}", file=sys.stderr)
         return 1
     authority = json.loads(AUTHORITY.read_text(encoding="utf-8"))
+    problems = authority_problems(authority)
+    if problems:
+        for problem in problems:
+            print(problem, file=sys.stderr)
+        return 1
     files = generated_files(authority)
     if args.check:
         problems = [item for path, content in files.items() for item in compare(path, content)]

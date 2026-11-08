@@ -18,8 +18,6 @@ use infiltrator_desktop::exit_cleanup::{install, run_now};
 use infiltrator_desktop::product::{DesktopProductSession, DesktopProductSessionHandle};
 use infiltrator_desktop::storage::home_dir;
 use infiltrator_shared::effect_assets::FontFace;
-#[cfg(feature = "capture-tools")]
-use infiltrator_shared::effect_assets::FontFace;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use single_instance::SingleInstance;
 use std::backtrace::Backtrace;
@@ -125,16 +123,15 @@ fn run_production(surface_bridge: Option<SurfaceBridge>) -> iced::Result {
         (state, task)
     };
 
-    let result = application(initializer, AppState::update, AppState::view)
+    let mut app = application(initializer, AppState::update, AppState::view)
         .title(AppState::title)
         .theme(AppState::theme)
-        .subscription(AppState::subscription)
-        .font(FontFace::all_bytes()[0])
-        .font(FontFace::all_bytes()[1])
-        .font(FontFace::all_bytes()[2])
-        .font(FontFace::all_bytes()[3])
-        .font(FontFace::all_bytes()[4])
-        .default_font(iced::Font::with_name("Inter"))
+        .subscription(AppState::subscription);
+    for font_data in FontFace::all_bytes() {
+        app = app.font(font_data);
+    }
+    let result = app
+        .default_font(iced::Font::with_name("HarmonyOS Sans SC"))
         .window(window_settings(
             (1180.0, 780.0),
             // Kept below the 600px Compact boundary so every responsive tier

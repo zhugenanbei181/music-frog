@@ -218,6 +218,7 @@ fn ambiguous_rule_trace_observation(scope: &CoreScope) -> OutboundObservationSna
 
 fn running_core() -> CoreSnapshot {
     CoreSnapshot {
+        session: CoreSessionObservation::Unknown,
         identity: None,
         lifecycle: CoreLifecycle::Running,
         generation: 1,

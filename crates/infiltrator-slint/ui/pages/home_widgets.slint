@@ -1,9 +1,12 @@
-import { DesignType } from "../components/design-type.slint";
+import { DesignType, TextRole } from "../components/design-type.slint";
+import { LayoutTokens } from "../components/layout-tokens.slint";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "../components/theme.slint";
 import { ConnectionRow, DashboardFacts, ObservationRow, ProxyGroup } from "../components/models.slint";
 import { RouteMode, RuntimeStatus } from "../components/domain_enums.slint";
 import { FlagIcon } from "../lumen-flags.slint";
+import { ListRule } from "../components/base_widgets.slint";
+import { MusicFrogHero } from "../components/mascot.slint";
 
 // The dashboard card's title row: one icon, one title, one trailing affordance.
 //
@@ -20,10 +23,10 @@ export component AppCardHeader inherits Rectangle {
     in property <color> trailing-color: LumenTheme.text-secondary;
     in property <bool> chevron: false;
     in property <bool> actionable: false;
-    in property <length> title-size: 13 * LumenUiScale.unit;
+    property <length> title-size: LumenTheme.card-header-title-size;
     callback clicked();
 
-    height: 20 * LumenUiScale.unit;
+    height: LumenTheme.card-header-height;
     background: transparent;
     accessible-role: button;
     accessible-label: root.title;
@@ -32,32 +35,36 @@ export component AppCardHeader inherits Rectangle {
     HorizontalLayout {
         width: parent.width;
         spacing: LumenTheme.space-2;
+        padding-right: LumenTheme.card-header-trailing-inset;
         if root.glyph != "": Text {
             text: root.glyph;
             color: root.icon-color;
             font-size: root.title-size;
-            font-weight: DesignType.body-weight;
+            font-weight: DesignType.weight(TextRole.caption);
+            font-family: DesignType.family(TextRole.caption);
             vertical-alignment: center;
         }
         if root.icon.width > 0: Image {
             source: root.icon;
-            width: 16 * LumenUiScale.unit;
-            height: 16 * LumenUiScale.unit;
+            width: LumenTheme.card-header-icon-size;
+            height: LumenTheme.card-header-icon-size;
             image-fit: contain;
             colorize: root.icon-color;
             vertical-alignment: center;
         }
         title-text := Text {
             text: root.title;
-            color: LumenTheme.text-secondary;
+            color: root.actionable && (touch.has-hover && LumenTheme.hover-allowed) ? LumenTheme.text-primary : LumenTheme.text-secondary;
             font-size: root.title-size;
-            font-weight: DesignType.body-weight;
+            font-weight: DesignType.weight(TextRole.caption);
+            font-family: DesignType.family(TextRole.caption);
             vertical-alignment: center;
             overflow: elide;
             // The title claims the slack. It used to have no stretch while a
             // stretch-1 spacer sat beside it, so an eliding Text collapsed to
             // its minimum width and the dense tier showed "服…" for 服务状态.
             horizontal-stretch: 1;
+            animate color { duration: 120ms; easing: ease-out; }
         }
         if root.trailing != "": Text {
             text: root.trailing;
@@ -69,17 +76,18 @@ export component AppCardHeader inherits Rectangle {
         }
         if root.chevron: Image {
             source: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/chevron-right.svg");
-            width: 14 * LumenUiScale.unit;
-            height: 14 * LumenUiScale.unit;
+            width: LumenTheme.card-header-chevron-size;
+            height: LumenTheme.card-header-chevron-size;
             image-fit: contain;
-            colorize: LumenTheme.text-muted;
+            colorize: root.actionable && (touch.has-hover && LumenTheme.hover-allowed) ? LumenTheme.accent : LumenTheme.text-muted;
             vertical-alignment: center;
         }
     }
-    if root.actionable: TouchArea {
+    touch := TouchArea {
+        enabled: root.actionable;
         width: parent.width;
         height: parent.height;
-        mouse-cursor: pointer;
+        mouse-cursor: root.actionable ? pointer : default;
         clicked => { root.clicked(); }
     }
 }
@@ -105,156 +113,68 @@ export component HomeWaveBand inherits Rectangle {
     }
 }
 
-// The hero's organic run/stop control. The reference is not a flat circle:
-// it is a soft-edged blob with a halo, a pause/play vector and its caption
-// inside the action. Keeping it shared means desktop, tablet and phone all
-// read the same typed runtime state and emit the same typed intent.
-export component HomeHeroActionButton inherits Rectangle {
-    in property <RuntimeStatus> runtime-status;
-    in property <length> button-size: 64 * LumenUiScale.unit;
-    callback start-runtime();
-    callback stop-runtime();
-
-    // The running halo is larger than the blob, so the component reserves room
-    // for it. When the box was only as wide as the blob the halo crossed the
-    // hero card's border and sat on top of the neighbouring speed card, which
-    // is what made the 720x480 dashboard read as broken.
-    width: root.button-size * 1.2;
-    height: root.button-size * 1.2;
-    background: transparent;
-    accessible-role: button;
-    accessible-label: root.runtime-status == RuntimeStatus.running ? @tr("暂停") : @tr("启动");
-    accessible-action-default => {
-        if root.runtime-status == RuntimeStatus.running {
-            root.stop-runtime();
-        } else {
-            root.start-runtime();
-        }
-    }
-
-    halo := Rectangle {
-        x: (parent.width - self.width) / 2;
-        y: (parent.height - self.height) / 2;
-        width: root.runtime-status == RuntimeStatus.running
-            ? parent.width
-            : root.button-size;
-        height: root.runtime-status == RuntimeStatus.running
-            ? parent.height
-            : root.button-size;
-        border-radius: self.width / 2;
-        background: root.runtime-status == RuntimeStatus.running ? LumenTheme.accent.with_alpha(18%) : transparent;
-    }
-
-    blob := Rectangle {
-        x: (parent.width - root.button-size) / 2;
-        y: (parent.height - root.button-size) / 2;
-        width: root.button-size;
-        height: root.button-size;
-        background: transparent;
-
-        Path {
-            x: 0 * LumenUiScale.unit;
-            y: 0 * LumenUiScale.unit;
-            width: parent.width;
-            height: parent.height;
-            viewbox-width: 100;
-            viewbox-height: 100;
-            commands: "M 50 4 C 57 4 60 11 66 13 C 72 15 80 12 84 18 C 88 24 84 31 86 37 C 88 43 95 46 95 52 C 95 58 88 61 86 67 C 84 73 88 80 83 85 C 78 90 71 86 65 88 C 59 90 56 96 50 96 C 44 96 41 90 35 88 C 29 86 22 90 17 85 C 12 80 16 73 14 67 C 12 61 5 58 5 52 C 5 46 12 43 14 37 C 16 31 12 24 17 18 C 22 12 29 15 35 13 C 41 11 43 4 50 4 Z";
-            fill: root.runtime-status == RuntimeStatus.running ? LumenTheme.accent : LumenTheme.zinc-4;
-            stroke: root.runtime-status == RuntimeStatus.running ? LumenTheme.accent-foreground.with_alpha(22%) : LumenTheme.hairline-glow;
-            stroke-width: 1.2 * LumenUiScale.unit;
-        }
-
-        if root.runtime-status == RuntimeStatus.running: Path {
-            x: 0 * LumenUiScale.unit;
-            y: 0 * LumenUiScale.unit;
-            width: parent.width;
-            height: parent.height;
-            viewbox-width: 100;
-            viewbox-height: 100;
-            commands: "M 41 31 L 41 55 M 59 31 L 59 55";
-            stroke: LumenTheme.accent-foreground;
-            stroke-width: 6 * LumenUiScale.unit;
-            stroke-line-cap: round;
-        }
-
-        if root.runtime-status != RuntimeStatus.running: Path {
-            x: 0 * LumenUiScale.unit;
-            y: 0 * LumenUiScale.unit;
-            width: parent.width;
-            height: parent.height;
-            viewbox-width: 100;
-            viewbox-height: 100;
-            commands: "M 40 30 L 66 43 L 40 56 Z";
-            fill: LumenTheme.text-primary;
-            stroke: LumenTheme.text-primary;
-            stroke-width: 2 * LumenUiScale.unit;
-        }
-    }
-
-    Text {
-        text: root.runtime-status == RuntimeStatus.running ? @tr("暂停") : @tr("启动");
-        color: root.runtime-status == RuntimeStatus.running ? LumenTheme.accent-foreground : LumenTheme.text-secondary;
-        font-size: DesignType.tag-size;
-        y: blob.y + root.button-size - 14 * LumenUiScale.unit;
-        x: (parent.width - self.width) / 2;
-    }
-
-    TouchArea {
-        width: parent.width;
-        height: parent.height;
-        mouse-cursor: pointer;
-        clicked => {
-            if root.runtime-status == RuntimeStatus.running {
-                root.stop-runtime();
-            } else {
-                root.start-runtime();
-            }
-        }
-    }
+// The hero's run/stop control is now the product mascot. The name is kept as
+// the one page-facing entry point so desktop, tablet and phone cannot fork a
+// second hero; every instance reads the same typed spec and emits the same
+// typed intent. See components/mascot.slint.
+export component HomeHeroActionButton inherits MusicFrogHero {
 }
 
 // The dashboard's shared service-latency chip: a service badge plus its
-// measured latency. The chip shrinks with the card and elides the latency
-// instead of crossing the card's border.
+// measured latency. One theme-owned geometry trims the dot, label and value
+// gaps so the owner's full four-digit probe string stays inside the chip.
 export component HomeLatencyChip inherits Rectangle {
     in property <string> label;
     in property <string> value;
     in property <color> pulse-ink: LumenTheme.text-muted;
     in property <bool> observed: root.value != "—" && root.value != "";
-
     horizontal-stretch: 1;
-    height: 28 * LumenUiScale.unit;
-    border-radius: 6 * LumenUiScale.unit;
-    background: root.observed ? LumenTheme.zinc-4 : LumenTheme.zinc-3;
+    height: LumenTheme.latency-chip-height;
+    border-radius: LumenTheme.latency-chip-radius;
+    background: root.observed ? ((touch.has-hover && LumenTheme.hover-allowed) ? LumenTheme.surface-raised : LumenTheme.zinc-4) : LumenTheme.zinc-3;
+    animate background { duration: 120ms; easing: ease-out; }
 
     HorizontalLayout {
-        x: 6 * LumenUiScale.unit;
-        width: max(0 * LumenUiScale.unit, parent.width - 12 * LumenUiScale.unit);
-        spacing: 4 * LumenUiScale.unit;
+        x: LumenTheme.latency-chip-inset;
+        width: max(0 * LumenUiScale.unit, parent.width - 2 * LumenTheme.latency-chip-inset);
+        spacing: LumenTheme.latency-chip-gap;
         Rectangle {
-            width: 7 * LumenUiScale.unit;
-            height: 7 * LumenUiScale.unit;
-            border-radius: 4 * LumenUiScale.unit;
+            width: LumenTheme.latency-chip-pulse-size;
+            height: LumenTheme.latency-chip-pulse-size;
+            border-radius: LumenTheme.latency-chip-pulse-size / 2;
             y: (parent.height - self.height) / 2;
             background: root.pulse-ink;
         }
         Text {
+            width: LumenTheme.latency-chip-label-width;
             text: root.label;
-            font-weight: DesignType.tag-weight;
+            font-weight: DesignType.weight(TextRole.micro);
             color: LumenTheme.text-primary;
-            font-size: DesignType.micro-size;
+            font-size: DesignType.size(TextRole.micro);
+            font-family: DesignType.family(TextRole.micro);
             vertical-alignment: center;
+            overflow: elide;
         }
         Text {
             text: root.value;
-            font-family: DesignType.mono-family;
+            font-family: DesignType.family(TextRole.monoTag);
             color: root.observed ? LumenTheme.status-info : LumenTheme.text-muted;
-            font-size: DesignType.micro-size;
+            font-size: DesignType.size(TextRole.monoTag);
+            font-weight: DesignType.weight(TextRole.monoTag);
             vertical-alignment: center;
+            // The number is right-aligned inside the chip: every chip in the
+            // grid is the same width, but their labels are not ("G" vs "GH"),
+            // so a left-aligned value started at a different column in each
+            // chip and the four latencies never formed a column. Right-aligned,
+            // the digits share one edge across the whole grid.
+            horizontal-alignment: right;
             horizontal-stretch: 1;
             overflow: elide;
         }
+    }
+
+    touch := TouchArea {
+        mouse-cursor: default;
     }
 }
 
@@ -292,14 +212,36 @@ export component HomeMetaChip inherits Rectangle {
 export component HomeConnectionMiniTable inherits VerticalLayout {
     in property <DashboardFacts> dashboard-facts;
     in property <[ConnectionRow]> connections;
-    // One column weight unit; 48 units plus six gaps fill the row. The caller
-    // passes it from the page width, which is a one-way input and never feeds
-    // back into this table's own layout info (a `self.width` binding did form
-    // a layout loop). Header and body read the same unit, so the columns align.
-    in property <length> column-unit;
+    // The seven columns are one stretch vocabulary, not a page-derived
+    // `column-unit`. Slint distributes the same 8/16/3/5/6/6/4 weights in the
+    // header and every row, so a parent layout guess can no longer make the
+    // column edges drift or overflow the card. The weights themselves are
+    // generated from `TextRole::CONNECTION_COLUMN_WEIGHTS` in the contract.
+    callback open-connections();
+    callback open-dns();
 
     spacing: LumenTheme.space-2;
     alignment: start;
+
+    // One width owner for the whole table. The caller supplies the width
+    // the card has already measured, so the table never reads its own
+    // `width` (that would form a layout binding loop). The seven generated
+    // fractions are multiplied HERE, once, and the header and every body
+    // row read the resulting lengths. `horizontal-stretch` could not do
+    // this job: it distributes the slack left over after each child takes
+    // its preferred width, so a 2-glyph CJK header and a long mono address
+    // in the same column ended up with different column edges (measured
+    // 59px drift between the header and row 1).
+    in property <length> table-content-width: 600 * LumenUiScale.unit;
+    property <length> column-content-width: max(0 * LumenUiScale.unit,
+        min(root.table-content-width, LumenTheme.viewport-width) - 20 * LumenUiScale.unit - 6 * LumenTheme.space-2);
+    property <length> column-1: root.column-content-width * LayoutTokens.connection-column-1;
+    property <length> column-2: root.column-content-width * LayoutTokens.connection-column-2;
+    property <length> column-3: root.column-content-width * LayoutTokens.connection-column-3;
+    property <length> column-4: root.column-content-width * LayoutTokens.connection-column-4;
+    property <length> column-5: root.column-content-width * LayoutTokens.connection-column-5;
+    property <length> column-6: root.column-content-width * LayoutTokens.connection-column-6;
+    property <length> column-7: root.column-content-width * LayoutTokens.connection-column-7;
 
     HorizontalLayout {
         spacing: LumenTheme.space-2;
@@ -308,25 +250,30 @@ export component HomeConnectionMiniTable inherits VerticalLayout {
         Rectangle {
             height: 28 * LumenUiScale.unit;
             border-radius: 14 * LumenUiScale.unit;
-            background: LumenTheme.is-dark ? #2563EB : LumenTheme.accent;
+            background: LumenTheme.selection;
             width: conn-tab-text.preferred-width + 24 * LumenUiScale.unit;
             conn-tab-text := Text {
                 width: parent.width;
                 height: parent.height;
                 text: root.dashboard-facts.connection-count + " " + @tr("实时连接");
                 color: LumenTheme.accent-foreground;
-                font-size: DesignType.caption-size;
-                font-weight: DesignType.labelStrong-weight;
-                font-family: DesignType.caption-family;
+                font-size: DesignType.captionStrong-size;
+                font-weight: DesignType.captionStrong-weight;
+                font-family: DesignType.captionStrong-family;
                 horizontal-alignment: center;
                 vertical-alignment: center;
+            }
+            TouchArea {
+                mouse-cursor: pointer;
+                clicked => { root.open-connections(); }
             }
         }
         // Tab 2: 最近请求
         Rectangle {
             height: 28 * LumenUiScale.unit;
             border-radius: 14 * LumenUiScale.unit;
-            background: LumenTheme.zinc-4;
+            background: (req-touch.has-hover && LumenTheme.hover-allowed) ? LumenTheme.zinc-3 : LumenTheme.zinc-4;
+            animate background { duration: 120ms; easing: ease-out; }
             width: req-tab-text.preferred-width + 24 * LumenUiScale.unit;
             req-tab-text := Text {
                 width: parent.width;
@@ -339,12 +286,17 @@ export component HomeConnectionMiniTable inherits VerticalLayout {
                 horizontal-alignment: center;
                 vertical-alignment: center;
             }
+            req-touch := TouchArea {
+                mouse-cursor: pointer;
+                clicked => { root.open-connections(); }
+            }
         }
         // Tab 3: DNS 查询
         Rectangle {
             height: 28 * LumenUiScale.unit;
             border-radius: 14 * LumenUiScale.unit;
-            background: LumenTheme.zinc-4;
+            background: (dns-touch.has-hover && LumenTheme.hover-allowed) ? LumenTheme.zinc-3 : LumenTheme.zinc-4;
+            animate background { duration: 120ms; easing: ease-out; }
             width: dns-tab-text.preferred-width + 24 * LumenUiScale.unit;
             dns-tab-text := Text {
                 width: parent.width;
@@ -356,6 +308,10 @@ export component HomeConnectionMiniTable inherits VerticalLayout {
                 color: LumenTheme.text-secondary;
                 horizontal-alignment: center;
                 vertical-alignment: center;
+            }
+            dns-touch := TouchArea {
+                mouse-cursor: pointer;
+                clicked => { root.open-dns(); }
             }
         }
         Rectangle { horizontal-stretch: 1; background: transparent; }
@@ -370,9 +326,9 @@ export component HomeConnectionMiniTable inherits VerticalLayout {
                 width: parent.width;
                 height: parent.height;
                 text: "TCP " + root.dashboard-facts.connection-count;
-                font-family: DesignType.mono-family;
-                font-size: DesignType.micro-size;
-                font-weight: DesignType.micro-weight;
+                font-family: DesignType.monoMicro-family;
+                font-size: DesignType.monoMicro-size;
+                font-weight: DesignType.monoMicro-weight;
                 color: LumenTheme.text-secondary;
                 horizontal-alignment: center;
                 vertical-alignment: center;
@@ -391,16 +347,19 @@ export component HomeConnectionMiniTable inherits VerticalLayout {
         padding-left: 10 * LumenUiScale.unit;
         padding-right: 10 * LumenUiScale.unit;
         spacing: LumenTheme.space-2;
-        height: 22 * LumenUiScale.unit;
-        Text { text: @tr("来源"); color: LumenTheme.text-secondary; font-size: DesignType.micro-size; font-weight: DesignType.micro-weight; font-family: DesignType.micro-family; width: root.column-unit * 8; overflow: elide; }
-        Text { text: @tr("目标"); color: LumenTheme.text-secondary; font-size: DesignType.micro-size; font-weight: DesignType.micro-weight; font-family: DesignType.micro-family; width: root.column-unit * 16; overflow: elide; }
-        Text { text: @tr("协议"); color: LumenTheme.text-secondary; font-size: DesignType.micro-size; font-weight: DesignType.micro-weight; font-family: DesignType.micro-family; width: root.column-unit * 3; overflow: elide; }
-        Text { text: @tr("出口"); color: LumenTheme.text-secondary; font-size: DesignType.micro-size; font-weight: DesignType.micro-weight; font-family: DesignType.micro-family; width: root.column-unit * 5; overflow: elide; }
-        Text { text: @tr("下载"); color: LumenTheme.text-secondary; font-size: DesignType.micro-size; font-weight: DesignType.micro-weight; font-family: DesignType.micro-family; width: root.column-unit * 6; horizontal-alignment: right; overflow: elide; }
-        Text { text: @tr("上传"); color: LumenTheme.text-secondary; font-size: DesignType.micro-size; font-weight: DesignType.micro-weight; font-family: DesignType.micro-family; width: root.column-unit * 6; horizontal-alignment: right; overflow: elide; }
-        Text { text: @tr("时长"); color: LumenTheme.text-secondary; font-size: DesignType.micro-size; font-weight: DesignType.micro-weight; font-family: DesignType.micro-family; width: root.column-unit * 4; horizontal-alignment: right; overflow: elide; }
+        height: 24 * LumenUiScale.unit;
+        Text { text: @tr("来源"); color: LumenTheme.text-secondary; font-size: DesignType.micro-size; font-weight: DesignType.micro-weight; font-family: DesignType.micro-family; width: root.column-1; vertical-alignment: center; overflow: elide; }
+        Text { text: @tr("目标"); color: LumenTheme.text-secondary; font-size: DesignType.micro-size; font-weight: DesignType.micro-weight; font-family: DesignType.micro-family; width: root.column-2; vertical-alignment: center; overflow: elide; }
+        Text { text: @tr("协议"); color: LumenTheme.text-secondary; font-size: DesignType.micro-size; font-weight: DesignType.micro-weight; font-family: DesignType.micro-family; width: root.column-3; horizontal-alignment: center; vertical-alignment: center; overflow: elide; }
+        Text { text: @tr("出口"); color: LumenTheme.text-secondary; font-size: DesignType.micro-size; font-weight: DesignType.micro-weight; font-family: DesignType.micro-family; width: root.column-4; horizontal-alignment: center; vertical-alignment: center; overflow: elide; }
+        Text { text: @tr("下载"); color: LumenTheme.text-secondary; font-size: DesignType.micro-size; font-weight: DesignType.micro-weight; font-family: DesignType.micro-family; width: root.column-5; horizontal-alignment: right; vertical-alignment: center; overflow: elide; }
+        Text { text: @tr("上传"); color: LumenTheme.text-secondary; font-size: DesignType.micro-size; font-weight: DesignType.micro-weight; font-family: DesignType.micro-family; width: root.column-6; horizontal-alignment: right; vertical-alignment: center; overflow: elide; }
+        Text { text: @tr("时长"); color: LumenTheme.text-secondary; font-size: DesignType.micro-size; font-weight: DesignType.micro-weight; font-family: DesignType.micro-family; width: root.column-7; horizontal-alignment: right; vertical-alignment: center; overflow: elide; }
     }
-    Rectangle { height: 1 * LumenUiScale.unit; background: LumenTheme.border.with_alpha(15%); }
+    // One separator dialect: the mini table used to draw its own hairline
+    // from `border.with_alpha(15%)`, which is a stroke colour wearing a seam's
+    // job - a third separator tier next to `row-divider`. The seam is ListRule.
+    ListRule {}
     for connection in root.connections: Rectangle {
         height: 30 * LumenUiScale.unit;
         border-radius: 6 * LumenUiScale.unit;
@@ -412,13 +371,13 @@ export component HomeConnectionMiniTable inherits VerticalLayout {
             padding-right: 10 * LumenUiScale.unit;
             spacing: LumenTheme.space-2;
             height: parent.height;
-            Text { text: connection.source; color: LumenTheme.text-secondary; font-size: DesignType.mono-size; font-weight: DesignType.mono-weight; font-family: DesignType.mono-family; width: root.column-unit * 8; height: parent.height; vertical-alignment: center; overflow: elide; }
-            Text { text: connection.destination; color: LumenTheme.text-primary; font-size: DesignType.mono-size; font-weight: DesignType.mono-weight; font-family: DesignType.mono-family; width: root.column-unit * 16; height: parent.height; vertical-alignment: center; overflow: elide; }
-            Text { text: connection.protocol; color: LumenTheme.text-secondary; font-size: DesignType.micro-size; font-weight: DesignType.micro-weight; font-family: DesignType.micro-family; width: root.column-unit * 3; height: parent.height; vertical-alignment: center; overflow: elide; }
-            Text { text: connection.outbound; color: LumenTheme.text-secondary; font-size: DesignType.micro-size; font-weight: DesignType.micro-weight; font-family: DesignType.micro-family; width: root.column-unit * 5; height: parent.height; vertical-alignment: center; overflow: elide; }
-            Text { text: connection.download; color: LumenTheme.text-secondary; font-size: DesignType.mono-size; font-weight: DesignType.mono-weight; font-family: DesignType.mono-family; width: root.column-unit * 6; height: parent.height; vertical-alignment: center; horizontal-alignment: right; overflow: elide; }
-            Text { text: connection.upload; color: LumenTheme.text-secondary; font-size: DesignType.mono-size; font-weight: DesignType.mono-weight; font-family: DesignType.mono-family; width: root.column-unit * 6; height: parent.height; vertical-alignment: center; horizontal-alignment: right; overflow: elide; }
-            Text { text: connection.duration; color: LumenTheme.text-secondary; font-size: DesignType.mono-size; font-weight: DesignType.mono-weight; font-family: DesignType.mono-family; width: root.column-unit * 4; height: parent.height; vertical-alignment: center; horizontal-alignment: right; overflow: elide; }
+            Text { text: connection.source; color: LumenTheme.text-secondary; font-size: DesignType.monoMicro-size; font-family: DesignType.monoMicro-family; width: root.column-1; height: parent.height; vertical-alignment: center; overflow: elide; }
+            Text { text: connection.destination; color: LumenTheme.text-primary; font-size: DesignType.monoMicro-size; font-family: DesignType.monoMicro-family; font-weight: DesignType.monoMicro-weight; width: root.column-2; height: parent.height; vertical-alignment: center; overflow: elide; }
+            Text { text: connection.protocol; color: LumenTheme.text-secondary; font-size: DesignType.monoMicro-size; font-family: DesignType.monoMicro-family; width: root.column-3; height: parent.height; horizontal-alignment: center; vertical-alignment: center; overflow: elide; }
+            Text { text: connection.outbound; color: LumenTheme.text-secondary; font-size: DesignType.monoMicro-size; font-family: DesignType.monoMicro-family; width: root.column-4; height: parent.height; horizontal-alignment: center; vertical-alignment: center; overflow: elide; }
+            Text { text: connection.download; color: LumenTheme.text-secondary; font-size: DesignType.monoMicro-size; font-family: DesignType.monoMicro-family; width: root.column-5; height: parent.height; vertical-alignment: center; horizontal-alignment: right; overflow: elide; }
+            Text { text: connection.upload; color: LumenTheme.text-secondary; font-size: DesignType.monoMicro-size; font-family: DesignType.monoMicro-family; width: root.column-6; height: parent.height; vertical-alignment: center; horizontal-alignment: right; overflow: elide; }
+            Text { text: connection.duration; color: LumenTheme.text-secondary; font-size: DesignType.monoMicro-size; font-family: DesignType.monoMicro-family; width: root.column-7; height: parent.height; vertical-alignment: center; horizontal-alignment: right; overflow: elide; }
         }
     }
     if root.connections.length == 0: Text {
@@ -428,7 +387,7 @@ export component HomeConnectionMiniTable inherits VerticalLayout {
         font-weight: DesignType.micro-weight;
         font-family: DesignType.micro-family;
     }
-    Rectangle { height: 1 * LumenUiScale.unit; background: LumenTheme.border.with_alpha(15%); }
+    ListRule {}
 }
 
 // One pill of the outbound-mode selector. The selection is the owner's
@@ -436,6 +395,7 @@ export component HomeConnectionMiniTable inherits VerticalLayout {
 // reports a tap.
 component HomeRouteModePill inherits Rectangle {
     in property <string> label;
+    in property <image> icon;
     in property <bool> selected: false;
     in property <bool> enabled: true;
     in property <length> pill-width: 58 * LumenUiScale.unit;
@@ -448,22 +408,36 @@ component HomeRouteModePill inherits Rectangle {
     border-radius: root.pill-height / 2;
     background: root.selected
         ? LumenTheme.accent
-        : (touch.has-hover && root.enabled ? LumenTheme.zinc-3 : transparent);
+        : ((touch.has-hover && LumenTheme.hover-allowed) && root.enabled ? LumenTheme.zinc-3 : transparent);
+    animate background { duration: 150ms; easing: ease-out; }
     accessible-role: button;
     accessible-label: root.label;
     accessible-action-default => { if root.enabled { root.clicked(); } }
 
-    Text {
-        text: root.label;
-        color: root.selected ? LumenTheme.accent-foreground : LumenTheme.text-secondary;
-        font-size: root.font-size;
-        font-weight: DesignType.caption-weight;
-        x: (parent.width - self.width) / 2;
-        y: (parent.height - self.height) / 2;
+    HorizontalLayout {
+        alignment: center;
+        cross-axis-alignment: center;
+        spacing: 4 * LumenUiScale.unit;
+        if root.icon.width > 0: Image {
+            source: root.icon;
+            width: 14 * LumenUiScale.unit;
+            height: 14 * LumenUiScale.unit;
+            image-fit: contain;
+            colorize: root.selected ? LumenTheme.accent-foreground : LumenTheme.text-secondary;
+            vertical-alignment: center;
+        }
+        Text {
+            text: root.label;
+            color: root.selected ? LumenTheme.accent-foreground : LumenTheme.text-secondary;
+            font-size: root.font-size;
+            font-weight: DesignType.weight(root.selected ? TextRole.captionStrong : TextRole.caption);
+            font-family: DesignType.family(root.selected ? TextRole.captionStrong : TextRole.caption);
+            vertical-alignment: center;
+        }
     }
     touch := TouchArea {
         enabled: root.enabled;
-        mouse-cursor: root.enabled ? pointer : default;
+        mouse-cursor: pointer;
         clicked => { if root.enabled { root.clicked(); } }
     }
 }
@@ -478,15 +452,18 @@ export component HomeRouteModePills inherits Rectangle {
     in property <length> pill-width: 58 * LumenUiScale.unit;
     in property <length> pill-height: 30 * LumenUiScale.unit;
     in property <length> font-size: DesignType.caption-size;
+    in property <bool> full-width: false;
     callback select(RouteMode);
 
-    // Three pills plus the two 2px gaps and the 2px inset on each side.
-    // Without an explicit width the Rectangle shrank to its parent's spare
-    // space and the third pill was clipped: the selector looked like a
-    // two-option control even though the owner publishes three modes.
-    width: 3 * root.pill-width + 8 * LumenUiScale.unit;
-    height: root.pill-height + 4 * LumenUiScale.unit;
-    border-radius: (root.pill-height + 4 * LumenUiScale.unit) / 2;
+    property <length> effective-pill-width: root.full-width ? (self.width - 8 * LumenUiScale.unit) / 3 : root.pill-width;
+    property <length> effective-pill-height: root.full-width ? 36 * LumenUiScale.unit : root.pill-height;
+
+    horizontal-stretch: root.full-width ? 1 : 0;
+    min-width: 3 * root.pill-width + 8 * LumenUiScale.unit;
+    preferred-width: root.full-width ? 10000 * LumenUiScale.unit : (3 * root.pill-width + 8 * LumenUiScale.unit);
+    max-width: root.full-width ? 10000 * LumenUiScale.unit : (3 * root.pill-width + 8 * LumenUiScale.unit);
+    height: root.effective-pill-height + 4 * LumenUiScale.unit;
+    border-radius: root.full-width ? 14 * LumenUiScale.unit : (root.pill-height + 4 * LumenUiScale.unit) / 2;
     background: LumenTheme.zinc-4;
 
     HorizontalLayout {
@@ -497,28 +474,31 @@ export component HomeRouteModePills inherits Rectangle {
         spacing: 2 * LumenUiScale.unit;
         HomeRouteModePill {
             label: @tr("规则");
+            icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/list-checks.svg");
             selected: root.route-mode == RouteMode.rule;
             enabled: root.enabled;
-            pill-width: root.pill-width;
-            pill-height: root.pill-height;
+            pill-width: root.effective-pill-width;
+            pill-height: root.effective-pill-height;
             font-size: root.font-size;
             clicked => { root.select(RouteMode.rule); }
         }
         HomeRouteModePill {
             label: @tr("全局");
+            icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/globe.svg");
             selected: root.route-mode == RouteMode.global;
             enabled: root.enabled;
-            pill-width: root.pill-width;
-            pill-height: root.pill-height;
+            pill-width: root.effective-pill-width;
+            pill-height: root.effective-pill-height;
             font-size: root.font-size;
             clicked => { root.select(RouteMode.global); }
         }
         HomeRouteModePill {
             label: @tr("直连");
+            icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/target.svg");
             selected: root.route-mode == RouteMode.direct;
             enabled: root.enabled;
-            pill-width: root.pill-width;
-            pill-height: root.pill-height;
+            pill-width: root.effective-pill-width;
+            pill-height: root.effective-pill-height;
             font-size: root.font-size;
             clicked => { root.select(RouteMode.direct); }
         }
@@ -534,7 +514,8 @@ component HomePolicyGroupTile inherits Rectangle {
 
     height: root.tile-height;
     border-radius: 10 * LumenUiScale.unit;
-    background: touch.has-hover ? LumenTheme.zinc-3 : LumenTheme.zinc-4;
+    background: (touch.has-hover && LumenTheme.hover-allowed) ? LumenTheme.zinc-3 : LumenTheme.zinc-4;
+    animate background { duration: 120ms; easing: ease-out; }
     border-width: 1 * LumenUiScale.unit;
     border-color: LumenTheme.hairline-glow;
     accessible-role: button;
@@ -542,12 +523,12 @@ component HomePolicyGroupTile inherits Rectangle {
     accessible-action-default => { root.clicked(); }
 
     HorizontalLayout {
-        x: 8 * LumenUiScale.unit;
-        width: max(0 * LumenUiScale.unit, parent.width - 16 * LumenUiScale.unit);
-        spacing: 8 * LumenUiScale.unit;
+        x: LumenTheme.policy-tile-inset;
+        width: max(0 * LumenUiScale.unit, parent.width - 2 * LumenTheme.policy-tile-inset);
+        spacing: LumenTheme.policy-tile-gap;
         Rectangle {
-            width: 26 * LumenUiScale.unit; height: 26 * LumenUiScale.unit;
-            border-radius: 13 * LumenUiScale.unit;
+            width: LumenTheme.policy-tile-avatar-size; height: LumenTheme.policy-tile-avatar-size;
+            border-radius: LumenTheme.policy-tile-avatar-size / 2;
             background: LumenTheme.zinc-3;
             y: (parent.height - self.height) / 2;
             Text {
@@ -606,6 +587,7 @@ export component HomePolicyGroupGrid inherits VerticalLayout {
     in property <bool> show-header: true;
     in property <image> header-icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/list-checks.svg");
     callback select-group(string);
+    callback open-proxies();
 
     spacing: LumenTheme.space-2;
     alignment: start;
@@ -617,7 +599,9 @@ export component HomePolicyGroupGrid inherits VerticalLayout {
             trailing: "" + root.proxy-groups.length;
             trailing-color: LumenTheme.accent;
             chevron: true;
+            actionable: true;
             horizontal-stretch: 1;
+            clicked => { root.open-proxies(); }
         }
     }
     GridLayout {

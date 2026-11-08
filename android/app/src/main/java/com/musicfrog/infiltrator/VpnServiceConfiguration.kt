@@ -1,8 +1,10 @@
 package com.musicfrog.infiltrator
 
+import android.content.pm.PackageManager
 import android.net.IpPrefix
 import android.net.VpnService
 import android.os.Build
+import android.util.Log
 import infiltrator_android.AndroidAppRoutingMode
 import infiltrator_android.FfiErrorCode
 import infiltrator_android.androidVpnRoutingSnapshot
@@ -10,6 +12,8 @@ import org.json.JSONObject
 import java.net.InetAddress
 
 internal data class NativeVpnRoute(val address: String, val prefix: Int, val exclude: Boolean)
+
+private const val TAG = "VpnServiceConfiguration"
 
 internal data class NativeVpnConfiguration(
     val proxyEndpoint: String,
@@ -301,15 +305,44 @@ internal sealed interface VpnRoutingConfiguration {
 }
 
 internal sealed interface VpnPackageRule {
-    data class Allow(val packageName: String) : VpnPackageRule
+    /** The package this rule restricts, shared by both directions of the rule. */
+    val packageName: String
 
-    data class Disallow(val packageName: String) : VpnPackageRule
+    data class Allow(override val packageName: String) : VpnPackageRule
+
+    data class Disallow(override val packageName: String) : VpnPackageRule
 }
 
 internal sealed interface VpnPackageRoutingPlan {
     data class Ready(val rules: List<VpnPackageRule>) : VpnPackageRoutingPlan
 
     data class Failed(val message: String) : VpnPackageRoutingPlan
+}
+
+/**
+ * Result of wiring a [VpnPackageRoutingPlan] into a VPN builder.
+ *
+ * `addAllowedApplication`/`addDisallowedApplication` resolve the package against the
+ * device's installed packages and throw `NameNotFoundException` when it is gone. A
+ * package the user selected and later uninstalled is stale data, not a reason to
+ * refuse the whole tunnel, so it is reported in `skippedUninstalled` instead of
+ * aborting establish. Anything else that can fail is a real contract violation and
+ * must reject the tunnel: the host's own rule keeps the documented invariant that
+ * MusicFrog's traffic never enters the tunnel it owns, and mixing allow with deny is
+ * rejected by the platform as `UnsupportedOperationException`.
+ */
+internal sealed interface VpnPackageRoutingApply {
+    data class Applied(val applied: List<VpnPackageRule>, val skippedUninstalled: List<String>) : VpnPackageRoutingApply
+
+    data class Rejected(val message: String) : VpnPackageRoutingApply
+}
+
+@Suppress("NewApi")
+private fun addVpnPackageRule(builder: VpnService.Builder, rule: VpnPackageRule) {
+    when (rule) {
+        is VpnPackageRule.Allow -> builder.addAllowedApplication(rule.packageName)
+        is VpnPackageRule.Disallow -> builder.addDisallowedApplication(rule.packageName)
+    }
 }
 
 internal fun loadVpnRoutingConfiguration(): VpnRoutingConfiguration = try {
@@ -380,15 +413,60 @@ internal fun applyVpnRoute(builder: VpnService.Builder, route: NativeVpnRoute) {
     }
 }
 
-internal fun applyVpnPackageRouting(builder: VpnService.Builder, plan: VpnPackageRoutingPlan) {
-    when (plan) {
-        is VpnPackageRoutingPlan.Failed -> throw IllegalArgumentException(plan.message)
-
-        is VpnPackageRoutingPlan.Ready -> for (rule in plan.rules) {
-            when (rule) {
-                is VpnPackageRule.Allow -> builder.addAllowedApplication(rule.packageName)
-                is VpnPackageRule.Disallow -> builder.addDisallowedApplication(rule.packageName)
+/**
+ * Wire [plan] one package at a time through [applyRule].
+ *
+ * [applyRule] is injectable so the stale-package behaviour is testable without a
+ * live [VpnService.Builder]; production passes [addVpnPackageRule].
+ */
+internal fun applyVpnPackageRouting(
+    plan: VpnPackageRoutingPlan,
+    ownPackageName: String,
+    applyRule: (VpnPackageRule) -> Unit,
+): VpnPackageRoutingApply {
+    val rules = when (plan) {
+        is VpnPackageRoutingPlan.Failed -> return VpnPackageRoutingApply.Rejected(plan.message)
+        is VpnPackageRoutingPlan.Ready -> plan.rules
+    }
+    val applied = mutableListOf<VpnPackageRule>()
+    val skipped = mutableListOf<String>()
+    for (rule in rules) {
+        try {
+            applyRule(rule)
+            applied.add(rule)
+        } catch (_: PackageManager.NameNotFoundException) {
+            if (rule.packageName == ownPackageName) {
+                return VpnPackageRoutingApply.Rejected(
+                    "The VPN host package ${rule.packageName} is not installed on this device",
+                )
             }
+            skipped.add(rule.packageName)
+        } catch (error: Exception) {
+            return VpnPackageRoutingApply.Rejected(
+                "VPN app routing could not be configured: ${error.message ?: error.javaClass.simpleName}",
+            )
         }
     }
+    if (skipped.isNotEmpty()) {
+        Log.i(TAG, "Skipped ${skipped.size} uninstalled app-routing package(s): $skipped")
+    }
+    // A whitelist with no entries is not "nothing tunnels", it is "everything
+    // tunnels": the platform only restricts the tunnel once at least one
+    // addAllowedApplication call exists. So if every selected app was
+    // uninstalled, the plan must fail closed rather than silently invert.
+    if (rules.any { it is VpnPackageRule.Allow } && applied.none { it is VpnPackageRule.Allow }) {
+        return VpnPackageRoutingApply.Rejected(
+            "Every app selected for selected-app routing is uninstalled; choose at least one installed app",
+        )
+    }
+    return VpnPackageRoutingApply.Applied(applied = applied, skippedUninstalled = skipped)
+}
+
+/** Production entry point: wire [plan] into a live [builder], one package at a time. */
+internal fun applyVpnPackageRouting(
+    builder: VpnService.Builder,
+    plan: VpnPackageRoutingPlan,
+    ownPackageName: String,
+): VpnPackageRoutingApply = applyVpnPackageRouting(plan, ownPackageName) { rule ->
+    addVpnPackageRule(builder, rule)
 }

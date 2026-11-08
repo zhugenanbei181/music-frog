@@ -1,8 +1,8 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: MusicFrog\n"
+"Project-Id-Version: Infiltrator\n"
 "PO-Revision-Date: 2026-10-11 00:00+0000\n"
-"Last-Translator: MusicFrog contributors\n"
+"Last-Translator: Infiltrator contributors\n"
 "Language-Team: English\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -46,8 +46,8 @@ msgstr "✓ Closed"
 msgid "85%–115% · 以逻辑尺寸缩放文字、图标、间距和控件"
 msgstr "85%–115% · Scales text, icons, spacing, and controls"
 
-msgid "按本地时间从 Mihomo 累计计数差分；仅统计 MusicFrog 观察到的核心总流量，最多保留近 7 日。"
-msgstr "Uses Mihomo cumulative counters in local time; keeps up to 7 days of core-wide traffic observed by MusicFrog."
+msgid "按本地时间从 Mihomo 累计计数差分；仅统计本产品观察到的核心总流量，最多保留近 7 日。"
+msgstr "Uses Mihomo cumulative counters in local time; keeps up to 7 days of core-wide traffic observed by this product."
 
 msgid "按名称排序"
 msgstr "Sort by name"
@@ -667,8 +667,8 @@ msgstr "System proxy ✓"
 msgid "系统已加入不优化名单"
 msgstr "System has excluded Lumen from battery optimization"
 
-msgid "系统正在优化 MusicFrog"
-msgstr "System is optimizing MusicFrog"
+msgid "系统正在优化本产品"
+msgstr "System is optimizing this product"
 
 msgid "下移"
 msgstr "Move down"
@@ -904,8 +904,8 @@ msgstr "Android ABI core"
 msgid "HTTP/HTTPS YAML 链接"
 msgstr "HTTP/HTTPS YAML URL"
 
-msgid "MusicFrog 本次运行中观察到的已关闭连接；最多保留 500 条。"
-msgstr "Connections closed during this MusicFrog session; up to 500 are retained."
+msgid "本产品本次运行中观察到的已关闭连接；最多保留 500 条。"
+msgstr "Connections closed during this product session; up to 500 are retained."
 
 msgid "界面改编自 Lumen；上游 README 声明采用 MIT，导入归档未附独立许可证文本。"
 msgstr "The interface is adapted from Lumen. Its upstream README says MIT, but the imported archive did not include a separate license text."
@@ -1328,11 +1328,11 @@ msgstr "OK"
 msgid "Select time"
 msgstr "Select time"
 
-msgid "Android 通过系统 VPN 接管其他应用流量；MusicFrog 核心与转发器自身流量直连以避免回环。"
-msgstr "Android routes other apps through the system VPN; MusicFrog core and forwarding traffic bypass it to prevent a loop."
+msgid "Android 通过系统 VPN 接管其他应用流量；本产品核心与转发器自身流量直连以避免回环。"
+msgstr "Android routes other apps through the system VPN; this product core and forwarding traffic bypass it to prevent a loop."
 
-msgid "官方 Android v1.19.33 · 随 MusicFrog APK 提供，独立进程运行；GPL-3.0 许可与源码见关于页。当前："
-msgstr "Official Android v1.19.33 core · bundled with the MusicFrog APK and run as a separate process; GPL-3.0 license and source are listed in About. Current: "
+msgid "官方 Android v1.19.33 · 随本产品 APK 提供，独立进程运行；GPL-3.0 许可与源码见关于页。当前："
+msgstr "Official Android v1.19.33 core · bundled with this product APK and run as a separate process; GPL-3.0 license and source are listed in About. Current: "
 
 msgid "版本 "
 msgstr "Version "
@@ -1559,8 +1559,20 @@ msgstr "Enter a private key for encrypted subscriptions; leave empty to keep the
 msgid "运行时"
 msgstr "Runtime"
 
-msgid "MusicFrog Infiltrator"
-msgstr "MusicFrog Infiltrator"
+msgid "Ice"
+msgstr "Ice"
+
+msgid "Lurker"
+msgstr "Lurker"
+
+msgid "Source"
+msgstr "Source"
+
+msgid "Lumen"
+msgstr "Lumen"
+
+msgid "图标中的青蛙乐手是 MusicFrog 内部标识；产品名只保留本名。"
+msgstr "The frog musician in the icon is the internal MusicFrog mark; product names use only their own names."
 
 msgid "AMOLED"
 msgstr "AMOLED"

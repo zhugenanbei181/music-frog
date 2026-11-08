@@ -180,6 +180,7 @@ mod tests {
     use super::*;
     use infiltrator_contract::mrs_acceleration::MrsAccelerationStatus;
     use infiltrator_contract::rule_provider_runtime::RuleProviderId;
+    use infiltrator_contract::snapshot::CoreSessionObservation;
     use lurker_core_contract::identity::EngineId;
 
     fn provider(
@@ -202,6 +203,7 @@ mod tests {
 
     fn running_core() -> CoreSnapshot {
         CoreSnapshot {
+            session: CoreSessionObservation::Unknown,
             identity: None,
             lifecycle: CoreLifecycle::Running,
             generation: 2,

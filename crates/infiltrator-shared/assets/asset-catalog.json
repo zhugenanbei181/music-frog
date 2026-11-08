@@ -5172,6 +5172,26 @@
       "source": "Unmodified HarmonyOS Sans SC font distributed with Huawei Device Co., Ltd. notice"
     },
     {
+      "id": "font.CJK-Medium",
+      "format": "ttf",
+      "variant": "default",
+      "path": "fonts/CJK-Medium.ttf",
+      "mime_type": "font/ttf",
+      "license": "HarmonyOS Sans Fonts License Agreement",
+      "license_path": "crates/infiltrator-shared/assets/fonts/HarmonyOS-Sans-LICENSE.txt",
+      "source": "Unmodified HarmonyOS Sans SC font distributed with Huawei Device Co., Ltd. notice"
+    },
+    {
+      "id": "font.CJK-SemiBold",
+      "format": "ttf",
+      "variant": "default",
+      "path": "fonts/CJK-SemiBold.ttf",
+      "mime_type": "font/ttf",
+      "license": "HarmonyOS Sans Fonts License Agreement",
+      "license_path": "crates/infiltrator-shared/assets/fonts/HarmonyOS-Sans-LICENSE.txt",
+      "source": "Unmodified HarmonyOS Sans SC font distributed with Huawei Device Co., Ltd. notice"
+    },
+    {
       "id": "font.Inter-Medium",
       "format": "ttf",
       "variant": "default",
@@ -5920,6 +5940,26 @@
       "license": "ISC",
       "license_path": "crates/infiltrator-shared/assets/ui/lumen/svg/LICENSE-LUCIDE.txt",
       "source": "Lumen UI source icon"
+    },
+    {
+      "id": "mascot.musicfrog-cutout",
+      "format": "png",
+      "variant": "source",
+      "path": "mascot/musicfrog-cutout.png",
+      "mime_type": "image/png",
+      "license": "USER-PROVIDED-REFERENCE",
+      "license_path": "docs/reference/MUSICFROG_MASCOT_LICENSE.md",
+      "source": "High-resolution identity-preserving redraw of the user-supplied MusicFrog mascot illustration; 1254x1254 transparent RGBA master derived 2026-11-06. Redistribution scope pending user confirmation."
+    },
+    {
+      "id": "mascot.musicfrog-cutout",
+      "format": "png",
+      "variant": "hero-512",
+      "path": "mascot/musicfrog-hero-512.png",
+      "mime_type": "image/png",
+      "license": "USER-PROVIDED-REFERENCE",
+      "license_path": "docs/reference/MUSICFROG_MASCOT_LICENSE.md",
+      "source": "Lanczos prefiltered 512x512 hero draw variant of mascot.musicfrog-cutout; the shared catalog remains the single asset owner."
     }
   ]
 }

@@ -134,7 +134,7 @@ fn spec_layout_mirrors_the_full_feature_menu() {
     assert!(icon.rgba.as_chunks::<4>().0.iter().any(|px| px[3] != 0));
 
     // The tooltip is localized and carries routing intent/status/version lines.
-    assert!(spec.tooltip.contains("MusicFrog Infiltrator"));
+    assert!(spec.tooltip.contains("Ice"));
     assert!(
         spec.tooltip
             .contains(&format!("{}: -", Lang("zh-CN").tr("routing_intent_title")))

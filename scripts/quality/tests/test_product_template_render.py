@@ -17,7 +17,7 @@ class ProductTemplateRenderTests(unittest.TestCase):
             encoding="utf-8"
         )
         rendered = render_template(template, read_properties())
-        self.assertIn("Name=MusicFrog Infiltrator", rendered)
+        self.assertIn("Name=Ice", rendered)
         self.assertIn("Exec=infiltrator-iced %U", rendered)
         self.assertIn("Icon=infiltrator", rendered)
         self.assertIn("x-scheme-handler/infiltrator;", rendered)
@@ -27,10 +27,20 @@ class ProductTemplateRenderTests(unittest.TestCase):
             encoding="utf-8"
         )
         rendered = render_template(template, read_properties())
-        self.assertIn("Name=MusicFrog Infiltrator Bevy", rendered)
+        self.assertIn("Name=Lurker", rendered)
         self.assertIn("Exec=infiltrator-bevy-ui %U", rendered)
         self.assertIn("Icon=infiltrator-bevy", rendered)
         self.assertIn("x-scheme-handler/infiltrator-bevy;", rendered)
+
+    def test_slint_linux_launcher_keeps_its_own_registered_identity(self):
+        template = (ROOT / "packaging/linux/appimage/infiltrator-slint.desktop").read_text(
+            encoding="utf-8"
+        )
+        rendered = render_template(template, read_properties())
+        self.assertIn("Name=Lumen", rendered)
+        self.assertIn("Exec=infiltrator-slint %U", rendered)
+        self.assertIn("Icon=infiltrator-slint", rendered)
+        self.assertIn("x-scheme-handler/infiltrator-slint;", rendered)
 
     def test_unknown_placeholder_fails_closed(self):
         with self.assertRaisesRegex(ValueError, "unknown product identity placeholder"):

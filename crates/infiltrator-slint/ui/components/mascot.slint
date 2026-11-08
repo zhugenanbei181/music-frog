@@ -1,0 +1,193 @@
+// The MusicFrog hero: one brand asset, one typed motion spec, three notes.
+//
+// This component is a passive consumer. It never asks "is the core running",
+// never owns a timer and never keeps a second animation state: the projection
+// publishes `MascotMotionSpec` and this surface draws exactly what it says.
+// A capture host publishes the still spec, so the frog cannot jitter in a
+// receipt while the live window sways to the same beat.
+
+import { LumenUiScale } from "../lumen-ui-scale.slint";
+import { LumenTheme } from "./theme.slint";
+import { MascotAssets } from "./mascot-assets.slint";
+
+export enum MascotPhase {
+    idle,
+    starting,
+    running,
+    stopping,
+}
+
+export enum HeroGlyph {
+    play,
+    pause,
+}
+
+export struct MascotMotionSpec {
+    phase: MascotPhase,
+    sway: float,
+    pulse: float,
+    note-count: int,
+    note-1: float,
+    note-2: float,
+    note-3: float,
+    glyph: HeroGlyph,
+}
+
+// The command/readback loop shared by every hero instance. The UI writes one
+// typed pending cue; the Rust driver consumes it, applies the owner readback
+// and publishes the one spec below. No surface computes a phase itself.
+export global MascotMotionState {
+    // 0 = none, 1 = start requested, 2 = stop requested. A typed intent, not
+    // a state: the driver clears it as soon as it is consumed.
+    in-out property <int> pending-cue: 0;
+    in-out property <MascotMotionSpec> current: {
+        phase: MascotPhase.idle, sway: 0, pulse: 0, note-count: 0,
+        note-1: 0, note-2: 0, note-3: 0, glyph: HeroGlyph.play,
+    };
+    out property <bool> is-running: self.current.glyph == HeroGlyph.pause;
+}
+
+export component MusicFrogHero inherits Rectangle {
+    // One read-only projection, no local animation state.
+    // One geometry decision for the whole product: the character's disc
+    // diameter. The phone, the compact window and the desktop grid all read
+    // this one property, so the mascot cannot grow a second size on the way
+    // to a narrower viewport. The disc is also the hit surface, so it is the
+    // tap target: the superimposed control is drawn on the character, not
+    // parked next to it.
+    in property <length> disc-size: 112 * LumenUiScale.unit;
+    private property <MascotMotionSpec> spec: MascotMotionState.current;
+    private property <bool> running: MascotMotionState.is-running;
+    callback start-runtime();
+    callback stop-runtime();
+
+    // The 1254x1254 master is the catalog identity. The 512x512 hero plate is
+    // its prefiltered draw variant and carries a baked circular alpha mask, so
+    // rotating the character can never push an arm or instrument outside the
+    // disc even when a renderer does not clip transformed children.
+    width: root.disc-size;
+    height: root.disc-size;
+    border-radius: self.width / 2;
+    background: LumenTheme.accent-soft;
+    border-width: LumenTheme.hairline-width;
+    border-color: LumenTheme.hairline-glow;
+    // One circular hit surface. The asset-owned alpha mask is the primary
+    // boundary; this clip also keeps the notes and control inside the disc.
+    clip: true;
+    accessible-role: button;
+    accessible-label: root.running ? @tr("暂停") : @tr("启动");
+    accessible-action-default => {
+        if root.running { root.stop-runtime(); } else { root.start-runtime(); }
+    }
+
+    // The frog sways and breathes. Rotation is intentionally small: the
+    // reference is a portrait, and a large tilt would read as a spinning icon
+    // instead of a musician keeping time.
+    //
+    // The plate is a square circle, so the draw box is the disc box: the
+    // character is never offset by a half-width correction, and the only
+    // motion the reader sees is the breath and the sway.
+    frog := Image {
+        source: MascotAssets.frog;
+        // The source plate is inscribed in its own square circle. Leave one
+        // unit of inset for the small sway rotation, so the silhouette stays
+        // inside the hero's circular clip instead of grazing its edge.
+        x: 1 * LumenUiScale.unit;
+        y: 1 * LumenUiScale.unit - root.spec.pulse * 1 * LumenUiScale.unit;
+        width: parent.width - 2 * LumenUiScale.unit;
+        height: parent.height - 2 * LumenUiScale.unit;
+        image-fit: fill;
+        transform-rotation: root.spec.sway * 2deg;
+    }
+
+    // Three explicit note slots. A `for` over a literal array did not track
+    // changes to the global spec (the array was built once), so the receipt
+    // frames showed no notes at all. Each slot reads one projected progress;
+    // all three rise, drift and fade, and are drawn above the character.
+    //
+    // The glyph is three closed subpaths (notehead, stem, flag) with `fill`
+    // only. An open stroked path turned every stem and arc into a thick
+    // outline at this size and read as a blue tile instead of a note.
+    Path {
+        visible: root.spec.note-count >= 1;
+        x: parent.width * (0.47 + root.spec.note-1 * 0.03);
+        y: parent.height * (0.34 - root.spec.note-1 * 0.16);
+        width: parent.width * 0.20; height: parent.width * 0.24;
+        viewbox-width: 24; viewbox-height: 28;
+        commands: "M 3 21 C 3 18 5 16 8 16 C 11 16 12 18 11 21 C 10 23 7 24 5 23 C 4 22.5 3 22 3 21 Z M 10 4 L 12 4 L 12 18 L 10 18 Z M 12 4 C 17 5 19 9 17 13 C 17 10 15 8 12 8 Z";
+        fill: LumenTheme.accent;
+        stroke: transparent;
+        opacity: 0.55 + (1.0 - root.spec.note-1) * 0.45;
+    }
+    Path {
+        visible: root.spec.note-count >= 2;
+        x: parent.width * (0.56 + root.spec.note-2 * 0.03);
+        y: parent.height * (0.28 - root.spec.note-2 * 0.14);
+        width: parent.width * 0.20; height: parent.width * 0.24;
+        viewbox-width: 24; viewbox-height: 28;
+        commands: "M 3 21 C 3 18 5 16 8 16 C 11 16 12 18 11 21 C 10 23 7 24 5 23 C 4 22.5 3 22 3 21 Z M 10 4 L 12 4 L 12 18 L 10 18 Z M 12 4 C 17 5 19 9 17 13 C 17 10 15 8 12 8 Z";
+        fill: LumenTheme.accent;
+        stroke: transparent;
+        opacity: 0.55 + (1.0 - root.spec.note-2) * 0.45;
+    }
+    Path {
+        visible: root.spec.note-count >= 3;
+        x: parent.width * (0.65 + root.spec.note-3 * 0.03);
+        y: parent.height * (0.33 - root.spec.note-3 * 0.13);
+        width: parent.width * 0.20; height: parent.width * 0.24;
+        viewbox-width: 24; viewbox-height: 28;
+        commands: "M 3 21 C 3 18 5 16 8 16 C 11 16 12 18 11 21 C 10 23 7 24 5 23 C 4 22.5 3 22 3 21 Z M 10 4 L 12 4 L 12 18 L 10 18 Z M 12 4 C 17 5 19 9 17 13 C 17 10 15 8 12 8 Z";
+        fill: LumenTheme.accent;
+        stroke: transparent;
+        opacity: 0.55 + (1.0 - root.spec.note-3) * 0.45;
+    }
+
+    // The control is superimposed on the character, not parked outside it.
+    // Its diameter is derived from the hero itself so both phone and desktop
+    // tiers keep one proportion and every tap target stays generous.
+    scrim := Rectangle {
+        x: (parent.width - self.width) / 2;
+        y: parent.height * 0.62;
+        width: parent.width * 0.30;
+        height: parent.width * 0.30;
+        border-radius: self.width / 2;
+        background: LumenTheme.accent;
+        drop-shadow-blur: 6 * LumenUiScale.unit;
+        drop-shadow-offset-y: 2 * LumenUiScale.unit;
+        drop-shadow-color: LumenTheme.shadow-key-color;
+    }
+    if root.spec.glyph == HeroGlyph.pause: Path {
+        x: scrim.x;
+        y: scrim.y;
+        width: scrim.width;
+        height: scrim.height;
+        viewbox-width: 100;
+        viewbox-height: 100;
+        commands: "M 38 30 L 38 70 M 62 30 L 62 70";
+        stroke: LumenTheme.accent-foreground;
+        stroke-width: scrim.width * 0.10;
+        stroke-line-cap: round;
+    }
+    if root.spec.glyph == HeroGlyph.play: Path {
+        x: scrim.x;
+        y: scrim.y;
+        width: scrim.width;
+        height: scrim.height;
+        viewbox-width: 100;
+        viewbox-height: 100;
+        commands: "M 38 27 L 74 50 L 38 73 Z";
+        fill: LumenTheme.accent-foreground;
+        stroke: LumenTheme.accent-foreground;
+        stroke-width: scrim.width * 0.035;
+    }
+
+    touch := TouchArea {
+        width: parent.width;
+        height: parent.height;
+        mouse-cursor: pointer;
+        clicked => {
+            MascotMotionState.pending-cue = root.running ? 2 : 1;
+            if root.running { root.stop-runtime(); } else { root.start-runtime(); }
+        }
+    }
+}

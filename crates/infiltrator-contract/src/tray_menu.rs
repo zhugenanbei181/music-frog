@@ -20,6 +20,7 @@
 //! Red line: pure data only. The localized *rendering* of the tree lives in
 //! the desktop host layer; no surface builds a second copy of the menu.
 
+use crate::surface::SurfaceKind;
 use crate::tray_status::TrayRateBadge;
 use lurker_core_contract::routing_intent::RoutingIntent;
 use serde::{Deserialize, Serialize};
@@ -214,6 +215,8 @@ impl Default for TrayMenuCapabilities {
 /// single product fact while the values stay owned by their own surface.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TrayMenuContext {
+    /// The desktop product whose tray is being rendered.
+    pub surface: SurfaceKind,
     /// BCP-47 language tag the menu is rendered in.
     pub lang: String,
     /// Current typed routing intent.
@@ -249,6 +252,7 @@ pub struct TrayMenuContext {
 impl Default for TrayMenuContext {
     fn default() -> Self {
         Self {
+            surface: SurfaceKind::IcedDesktop,
             lang: "zh-CN".to_string(),
             routing_intent: None,
             system_proxy: false,

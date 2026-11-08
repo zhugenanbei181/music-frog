@@ -3,10 +3,11 @@ import { IconButton } from "@material";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "../components/theme.slint";
 import { ObservationRow, ProxyGroup } from "../components/models.slint";
-import { LayoutOutline, SegmentedControl } from "../components/base_widgets.slint";
+import { CompactPageHeader, HeaderActionCluster, HeaderActionMetrics, LayoutOutline, NavButtonMetrics, SegmentedControl } from "../components/base_widgets.slint";
 import { ProxyGroupCard, SurfaceCard } from "../components/cards.slint";
 import { RouteMode, RuntimeStatus } from "../components/domain_enums.slint";
 import { ProxyGroupPillBar, ProxyNodeCard } from "../components/proxy_picker.slint";
+import { ViewportTier } from "../components/viewport_tier.slint";
 
 export component PageProxies inherits VerticalLayout {
     in property <bool> compact-layout;
@@ -22,15 +23,15 @@ export component PageProxies inherits VerticalLayout {
     in property <string> proxy-testing-node;
     in-out property <length> proxy-active-node-position;
     in-out property <bool> proxy-current-node-available;
+    property <bool> show-search: !root.compact-layout;
 
     // The reference carries several node cards across one row instead of one
     // full-width row per node, which is what made each row read as mostly
     // empty space. The column count follows the width the page actually has,
     // so a phone keeps a single readable column.
-    in property <int> node-columns: root.width >= 1120 * LumenUiScale.unit ? 4
-        : root.width >= 840 * LumenUiScale.unit ? 3
-        : root.width >= 560 * LumenUiScale.unit ? 2
-        : 1;
+    in property <int> node-columns: LumenTheme.viewport-tier == ViewportTier.wide ? 4
+        : LumenTheme.viewport-tier == ViewportTier.medium ? 3
+        : 2;
 
     callback set-route-mode(RouteMode);
     callback select-group(string);
@@ -49,38 +50,46 @@ export component PageProxies inherits VerticalLayout {
         // The reference puts the page title on the left and the page actions on
         // the right of one row. The action used to sit alone on its own row
         // above the title, which read as an orphaned icon.
-        HorizontalLayout {
-            width: parent.width;
-            height: 54 * LumenUiScale.unit;
-            cross-axis-alignment: center;
-            Text {
-                text: @tr("代理");
-                color: LumenTheme.text-primary;
-                font-size: DesignType.display-size;
-                font-weight: DesignType.display-weight;
-                horizontal-stretch: 1;
-                vertical-alignment: center;
+        CompactPageHeader {
+            page: "Proxy";
+            // The reference groups the two node-level actions into one capsule
+            // and lets the sort/locate action keep a circle of its own.
+            HeaderActionCluster {
+                IconButton {
+                    width: HeaderActionMetrics.action-control-size; height: HeaderActionMetrics.action-control-size;
+                    icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/search.svg");
+                    tooltip: @tr("搜索节点");
+                    clicked => { root.show-search = !root.show-search; }
+                }
+                IconButton {
+                    width: HeaderActionMetrics.action-control-size; height: HeaderActionMetrics.action-control-size;
+                    icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/zap.svg");
+                    tooltip: @tr("全部测速");
+                    clicked => { root.test-proxy(root.selected-group, ""); }
+                }
             }
-            IconButton {
-                width: 44 * LumenUiScale.unit; height: 44 * LumenUiScale.unit;
-                icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/list-checks.svg");
-                tooltip: @tr("定位当前节点与排序");
-                clicked => { root.open-sort-menu(); }
+            HeaderActionCluster {
+                IconButton {
+                    width: HeaderActionMetrics.action-control-size; height: HeaderActionMetrics.action-control-size;
+                    icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/list-checks.svg");
+                    tooltip: @tr("定位当前节点与排序");
+                    clicked => { root.open-sort-menu(); }
+                }
             }
         }
-        Rectangle { height: 16 * LumenUiScale.unit; background: transparent; }
-        search-box := Rectangle {
-            width: parent.width; height: 42 * LumenUiScale.unit; border-radius: 21 * LumenUiScale.unit;
+        if root.show-search: search-box := Rectangle {
+            width: parent.width; height: HeaderActionMetrics.search-height; border-radius: HeaderActionMetrics.search-height / 2;
             background: LumenTheme.surface-muted;
             border-width: 1 * LumenUiScale.unit;
-            border-color: search-touch.has-hover ? LumenTheme.accent : LumenTheme.border;
+            border-color: (search-touch.has-hover && LumenTheme.hover-allowed) ? LumenTheme.accent : LumenTheme.border;
             search-touch := TouchArea { width: parent.width; height: parent.height; }
             search-layout := HorizontalLayout {
-                x: 16 * LumenUiScale.unit; width: parent.width - 32 * LumenUiScale.unit; height: parent.height; spacing: LumenTheme.space-3;
+                x: HeaderActionMetrics.search-inset; width: parent.width - 2 * HeaderActionMetrics.search-inset; height: parent.height; spacing: LumenTheme.space-3;
                 cross-axis-alignment: center;
                 search-icon := Image {
-                    source: root.application-dark-mode ? @image-url("../../../infiltrator-shared/assets/ui/iced/svg/search.svg") : @image-url("../../../infiltrator-shared/assets/ui/iced/svg/search.svg");
-                    width: 20 * LumenUiScale.unit; height: 20 * LumenUiScale.unit; image-fit: contain;
+                    source: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/search.svg");
+                    width: NavButtonMetrics.icon-size; height: NavButtonMetrics.icon-size; image-fit: contain;
+                    colorize: LumenTheme.text-secondary;
                 }
                 search-content := Rectangle {
                     horizontal-stretch: 1; height: parent.height; background: transparent;
@@ -89,12 +98,14 @@ export component PageProxies inherits VerticalLayout {
                         text <=> root.proxy-search;
                         color: LumenTheme.text-primary;
                         font-size: DesignType.label-size;
+                        font-weight: DesignType.label-weight;
+                        font-family: DesignType.label-family;
                         vertical-alignment: center;
                         edited => { root.search-proxy-nodes(self.text); }
                     }
                     if root.proxy-search == "": Text {
                         x: 0 * LumenUiScale.unit; width: parent.width; height: parent.height;
-                        text: @tr("搜索节点名称或协议"); color: LumenTheme.text-muted; font-size: DesignType.label-size;
+                        text: @tr("搜索节点名称或协议"); color: LumenTheme.text-muted; font-size: DesignType.label-size; font-weight: DesignType.label-weight; font-family: DesignType.label-family;
                         vertical-alignment: center;
                     }
                 }
@@ -102,16 +113,16 @@ export component PageProxies inherits VerticalLayout {
             if root.layout-debug-bounds: Rectangle {
                 x: search-layout.x + search-icon.x; y: search-layout.y + search-icon.y;
                 width: search-icon.width; height: search-icon.height;
-                background: transparent; border-width: 1 * LumenUiScale.unit; border-color: #007AFF;
+                background: transparent; border-width: 1 * LumenUiScale.unit; border-color: LumenTheme.debug-icon;
             }
             if root.layout-debug-bounds: Rectangle {
                 x: search-layout.x + search-content.x; y: search-layout.y + search-content.y;
                 width: search-content.width; height: search-content.height;
-                background: transparent; border-width: 1 * LumenUiScale.unit; border-color: #00A6A6;
+                background: transparent; border-width: 1 * LumenUiScale.unit; border-color: LumenTheme.debug-content;
             }
-            if root.layout-debug-bounds: LayoutOutline { outline-color: #FF2D55; }
+            if root.layout-debug-bounds: LayoutOutline { outline-color: LumenTheme.debug-frame; }
         }
-        if root.runtime-status != RuntimeStatus.running: Text { text: @tr("内核未启动：Ping 测 TCP 连通性，切换节点需启动"); color: LumenTheme.text-secondary; font-size: DesignType.micro-size; height: 18 * LumenUiScale.unit; }
+        if root.runtime-status != RuntimeStatus.running: Text { text: @tr("内核未启动：Ping 测 TCP 连通性，切换节点需启动"); color: LumenTheme.text-secondary; font-size: DesignType.micro-size; font-weight: DesignType.micro-weight; font-family: DesignType.micro-family; height: 18 * LumenUiScale.unit; }
     }
     if root.selected-group == "" && !root.compact-layout: SurfaceCard {
         Text { text: @tr("策略模式"); color: LumenTheme.text-primary; font-size: DesignType.subheading-size; font-weight: DesignType.subheading-weight; }
@@ -167,7 +178,8 @@ export component PageProxies inherits VerticalLayout {
     }
     if root.selected-group != "": GridLayout {
         width: parent.width;
-        spacing: LumenTheme.space-3;
+        // The phone grid keeps the reference's 8dp seam; it used to spend 12dp.
+        spacing: root.compact-layout ? LumenTheme.space-mobile-card-gap : LumenTheme.space-3;
         for node[index] in root.proxy-nodes: ProxyNodeCard {
             col: Math.mod(index, root.node-columns);
             row: index / root.node-columns;

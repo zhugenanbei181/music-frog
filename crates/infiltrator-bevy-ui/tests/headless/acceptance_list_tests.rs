@@ -164,7 +164,7 @@ fn acceptance_list_mounts_50_rows_under_scenario_id() {
     let window = state.list.window();
     assert_eq!(window.start, 0);
     // Viewport height 440px / 44px row height = 10 visible + 2 overscan = 12 items
-    assert!(window.visible_count <= 14);
+    assert!(window.materialized_len() <= 14);
 
     app.world_mut()
         .commands()

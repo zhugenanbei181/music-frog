@@ -13,6 +13,7 @@ pub mod country_flags;
 pub mod dns_observation;
 pub mod effect_assets;
 pub mod effect_math;
+pub mod elapsed_time;
 pub mod error_codes;
 pub mod fuzzy_search;
 pub mod i18n_interpolator;

@@ -253,17 +253,14 @@ fn update(state: &mut AppState, message: Message) -> Task<Message> {
 /// (no single-instance mutex, no tray, no settings bootstrap).
 pub fn run(env: DemoEnv) -> iced::Result {
     let window_size = env.window_size;
-    application(move || AppState::demo(&env), update, AppState::view)
+    let mut app = application(move || AppState::demo(&env), update, AppState::view)
         .title(AppState::title)
         .theme(AppState::theme)
-        .subscription(AppState::subscription)
-        // Bundled typography: identical to the production window (see main.rs).
-        .font(FontFace::all_bytes()[0])
-        .font(FontFace::all_bytes()[1])
-        .font(FontFace::all_bytes()[2])
-        .font(FontFace::all_bytes()[3])
-        .font(FontFace::all_bytes()[4])
-        .default_font(iced::Font::with_name("Inter"))
+        .subscription(AppState::subscription);
+    for font_data in FontFace::all_bytes() {
+        app = app.font(font_data);
+    }
+    app.default_font(iced::Font::with_name("HarmonyOS Sans SC"))
         .window(window_settings(window_size, MIN_WINDOW_SIZE))
         .run()
 }

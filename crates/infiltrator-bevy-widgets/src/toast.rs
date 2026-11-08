@@ -1,6 +1,6 @@
 //! Toast notifications: temporary message alerts and auto-dismissing toast stack.
 //!
-//! **Pure Queue & Timer Core**: [`ToastQueue`], [`ToastMessage`], and [`ToastKind`]
+//! **Pure Queue & Timer Core**: [`ToastQueue`], [`ToastMessage`], and [`StatusKind`]
 //! manage timed life cycles, capacity limits, dismiss events, and countdown timers.
 //! Zero-bevy and 100% headless-testable.
 //!
@@ -33,20 +33,11 @@ use bevy::ui::prelude::{
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
 use infiltrator_contract::design_resources;
+use zhuge_ui_tokens::{StatusColors, StatusKind};
 
 /// One-off layout value (not a ladder rung): the width of a single toast card
 /// in the notification stack.
 const TOAST_CARD_WIDTH_PX: f32 = 320.0;
-
-/// Semantic type of a toast alert.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum ToastKind {
-    #[default]
-    Info,
-    Success,
-    Warning,
-    Danger,
-}
 
 /// One active toast notification item.
 #[derive(Clone, Debug, PartialEq)]
@@ -54,13 +45,13 @@ pub struct ToastMessage {
     pub id: u64,
     pub title: Option<String>,
     pub content: String,
-    pub kind: ToastKind,
+    pub kind: StatusKind,
     pub duration_secs: f32,
     pub remaining_secs: f32,
 }
 
 impl ToastMessage {
-    pub fn new(id: u64, content: impl Into<String>, kind: ToastKind, duration_secs: f32) -> Self {
+    pub fn new(id: u64, content: impl Into<String>, kind: StatusKind, duration_secs: f32) -> Self {
         Self {
             id,
             title: None,
@@ -122,7 +113,12 @@ impl ToastQueue {
     }
 
     /// Push a new toast message. Evicts oldest if exceeding max capacity. Returns new toast ID.
-    pub fn push(&mut self, content: impl Into<String>, kind: ToastKind, duration_secs: f32) -> u64 {
+    pub fn push(
+        &mut self,
+        content: impl Into<String>,
+        kind: StatusKind,
+        duration_secs: f32,
+    ) -> u64 {
         let id = self.next_id;
         self.next_id = self.next_id.wrapping_add(1);
 
@@ -160,16 +156,6 @@ impl ToastQueue {
     }
 }
 
-/// Accent color for a given toast kind. Pure function.
-pub fn toast_accent_color(kind: ToastKind, palette: &UiPalette) -> Color {
-    match kind {
-        ToastKind::Info => palette.accent,
-        ToastKind::Success => palette.success,
-        ToastKind::Warning => palette.warning,
-        ToastKind::Danger => palette.danger,
-    }
-}
-
 /// Marker component on toast stack container.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ToastContainer;
@@ -186,7 +172,7 @@ pub struct ToastDismissButton(pub u64);
 #[derive(Message, Clone, Debug, PartialEq)]
 pub struct ToastSpawnEvent {
     pub content: String,
-    pub kind: ToastKind,
+    pub kind: StatusKind,
     pub duration_secs: f32,
 }
 
@@ -196,15 +182,21 @@ pub struct ToastDismissEvent(pub u64);
 
 /// Construct a single toast card scene.
 pub fn toast_item_scene(toast: &ToastMessage, palette: &UiPalette) -> impl Scene + use<> {
-    let accent = toast_accent_color(toast.kind, palette);
+    let accent = StatusColors {
+        accent: palette.accent,
+        success: palette.success,
+        warning: palette.warning,
+        danger: palette.danger,
+    }
+    .resolve(toast.kind);
     let id = toast.id;
     let content_text = toast.content.clone();
 
     let icon_id = match toast.kind {
-        ToastKind::Info => IconId::Globe,
-        ToastKind::Success => IconId::Zap,
-        ToastKind::Warning => IconId::Activity,
-        ToastKind::Danger => IconId::Trash,
+        StatusKind::Info => IconId::Globe,
+        StatusKind::Success => IconId::Zap,
+        StatusKind::Warning => IconId::Activity,
+        StatusKind::Danger => IconId::Trash,
     };
 
     bsn! {

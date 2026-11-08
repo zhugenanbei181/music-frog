@@ -5,6 +5,8 @@ import { LumenTheme } from "../components/theme.slint";
 import { ObservationRow, TrafficBar } from "../components/models.slint";
 import { SearchField, PillButton } from "../components/base_widgets.slint";
 import { SectionCard } from "../components/cards.slint";
+import { ListBody } from "../components/list_body.slint";
+import { CardHeight } from "../components/card_height.slint";
 import { ConnectionSort, LogLevel, RuntimeStatus, TrafficRange } from "../components/domain_enums.slint";
 export { PageConnectionDetail } from "page_connection_detail.slint";
 export { PageProviders } from "page_providers.slint";
@@ -33,222 +35,252 @@ export component PageConnections inherits VerticalLayout {
     spacing: LumenTheme.space-4;
 
     SectionCard {
+        // The card is the page's frame: it reaches the bottom of the page
+        // body and the rows scroll inside it, so the page never shows a
+        // short card above a band of empty ground.
+        height-mode: CardHeight.page-body;
         heading: @tr("连接");
-        detail: root.connection-show-closed ? @tr("MusicFrog 本次运行中观察到的已关闭连接；最多保留 500 条。") : (root.runtime-status == RuntimeStatus.running ? @tr("本地 Mihomo 活动连接；最多显示 500 条。") : @tr("Runtime 未运行；不显示缓存数据作为实时状态。"));
+        detail: root.connection-show-closed ? @tr("本产品本次运行中观察到的已关闭连接；最多保留 500 条。") : (root.runtime-status == RuntimeStatus.running ? @tr("本地 Mihomo 活动连接；最多显示 500 条。") : @tr("Runtime 未运行；不显示缓存数据作为实时状态。"));
         if root.snapshot-window-warning != "": Text { text: root.snapshot-window-warning; color: LumenTheme.ping-warning; font-size: DesignType.mono-size; wrap: word-wrap; }
 
-        // View switcher pills + refresh
-        HorizontalLayout {
-            spacing: LumenTheme.space-2;
-            cross-axis-alignment: center;
+        // The toolbar zone stays put while the rows scroll under it.
+        VerticalLayout {
+            vertical-stretch: 0;
+            spacing: LumenTheme.card-content-gap;
 
-            Rectangle {
-                border-radius: 18 * LumenUiScale.unit;
-                background: LumenTheme.surface-muted;
-                border-width: 1 * LumenUiScale.unit;
-                border-color: LumenTheme.border;
-                height: 36 * LumenUiScale.unit;
-
-                HorizontalLayout {
-                    padding: 2 * LumenUiScale.unit;
-                    spacing: 2 * LumenUiScale.unit;
-
-                    PillButton {
-                        label: @tr("活动中");
-                        segmented: true;
-                        pill-height: 30 * LumenUiScale.unit;
-                        selected: !root.connection-show-closed;
-                        clicked => { root.set-view(false); }
-                    }
-                    PillButton {
-                        label: @tr("已关闭");
-                        segmented: true;
-                        pill-height: 30 * LumenUiScale.unit;
-                        selected: root.connection-show-closed;
-                        clicked => { root.set-view(true); }
-                    }
-                }
-            }
-
-            Rectangle { horizontal-stretch: 1; background: transparent; }
-
-            PillButton {
-                label: @tr("刷新");
-                min-pill-width: 72 * LumenUiScale.unit;
-                clicked => { root.refresh(); }
-            }
-        }
-
-        // Search bar + sort dimension pills
-        HorizontalLayout {
-            spacing: LumenTheme.space-2;
-            cross-axis-alignment: center;
-
-            SearchField {
-                horizontal-stretch: 1;
-                placeholder: @tr("搜索主机或进程");
-                text <=> root.connection-search;
-                search(query) => { root.search(query); }
-            }
-
-            PillButton {
-                label: root.connection-sort == ConnectionSort.time ? @tr("↓ 时间") : @tr("时间");
-                tinted: true;
-                check-prefix: true;
-                selected: root.connection-sort == ConnectionSort.time;
-                clicked => { root.connection-sort = ConnectionSort.time; root.set-sort(ConnectionSort.time); }
-            }
-            PillButton {
-                label: root.connection-sort == ConnectionSort.upload ? @tr("↑ 上传") : @tr("上传");
-                tinted: true;
-                check-prefix: true;
-                selected: root.connection-sort == ConnectionSort.upload;
-                clicked => { root.connection-sort = ConnectionSort.upload; root.set-sort(ConnectionSort.upload); }
-            }
-            PillButton {
-                label: root.connection-sort == ConnectionSort.download ? @tr("↓ 下载") : @tr("下载");
-                tinted: true;
-                check-prefix: true;
-                selected: root.connection-sort == ConnectionSort.download;
-                clicked => { root.connection-sort = ConnectionSort.download; root.set-sort(ConnectionSort.download); }
-            }
-            PillButton {
-                label: root.connection-sort == ConnectionSort.host ? @tr("A-Z 主机") : @tr("主机");
-                tinted: true;
-                check-prefix: true;
-                selected: root.connection-sort == ConnectionSort.host;
-                clicked => { root.connection-sort = ConnectionSort.host; root.set-sort(ConnectionSort.host); }
-            }
-        }
-
-        // Connection rows (card layout)
-        for row in root.connections: Rectangle {
-            height: 48 * LumenUiScale.unit;
-            border-radius: LumenTheme.radius-control;
-            background: conn-touch.has-hover ? LumenTheme.surface-raised : LumenTheme.surface-muted;
-            border-width: 1 * LumenUiScale.unit;
-            border-color: conn-touch.has-hover ? LumenTheme.accent : LumenTheme.border;
-            animate background, border-color { duration: 120ms; easing: ease-out; }
-
-            conn-touch := TouchArea {
-                clicked => {
-                    if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); }
-                    root.open-detail(row.id);
-                }
-            }
-
+            // View switcher pills + refresh
             HorizontalLayout {
-                padding-left: LumenTheme.space-3;
-                padding-right: LumenTheme.space-3;
-                spacing: LumenTheme.space-3;
+                spacing: LumenTheme.space-2;
                 cross-axis-alignment: center;
 
-                // Host chip opens the detail view
                 Rectangle {
-                    height: 28 * LumenUiScale.unit;
-                    border-radius: 6 * LumenUiScale.unit;
-                    background: LumenTheme.surface;
+                    border-radius: 18 * LumenUiScale.unit;
+                    background: LumenTheme.surface-muted;
                     border-width: 1 * LumenUiScale.unit;
                     border-color: LumenTheme.border;
-                    accessible-role: button;
-                    accessible-label: @tr("查看详情：") + row.title;
+                    height: 36 * LumenUiScale.unit;
 
                     HorizontalLayout {
-                        padding-left: LumenTheme.space-2;
-                        padding-right: LumenTheme.space-2;
-                        alignment: center;
-                        cross-axis-alignment: center;
-                        Text {
-                            text: row.title;
-                            color: LumenTheme.text-primary;
-                            font-size: DesignType.caption-size;
-                            font-weight: DesignType.caption-weight;
-                            vertical-alignment: center;
+                        padding: 2 * LumenUiScale.unit;
+                        spacing: 2 * LumenUiScale.unit;
+
+                        PillButton {
+                            label: @tr("活动中");
+                            segmented: true;
+                            pill-height: 30 * LumenUiScale.unit;
+                            selected: !root.connection-show-closed;
+                            clicked => { root.set-view(false); }
+                        }
+                        PillButton {
+                            label: @tr("已关闭");
+                            segmented: true;
+                            pill-height: 30 * LumenUiScale.unit;
+                            selected: root.connection-show-closed;
+                            clicked => { root.set-view(true); }
                         }
                     }
                 }
 
-                // Process & protocol chip
-                Rectangle {
-                    height: 24 * LumenUiScale.unit;
-                    border-radius: 4 * LumenUiScale.unit;
-                    background: LumenTheme.surface-raised.with_alpha(50%);
+                Rectangle { horizontal-stretch: 1; background: transparent; }
+
+                PillButton {
+                    label: @tr("刷新");
+                    min-pill-width: 72 * LumenUiScale.unit;
+                    clicked => { root.refresh(); }
+                }
+            }
+
+            // Search bar + sort dimension pills
+            HorizontalLayout {
+                spacing: LumenTheme.space-2;
+                cross-axis-alignment: center;
+
+                SearchField {
                     horizontal-stretch: 1;
+                    placeholder: @tr("搜索主机或进程");
+                    text <=> root.connection-search;
+                    search(query) => { root.search(query); }
+                }
+
+                PillButton {
+                    label: root.connection-sort == ConnectionSort.time ? @tr("↓ 时间") : @tr("时间");
+                    tinted: true;
+                    check-prefix: true;
+                    selected: root.connection-sort == ConnectionSort.time;
+                    clicked => { root.connection-sort = ConnectionSort.time; root.set-sort(ConnectionSort.time); }
+                }
+                PillButton {
+                    label: root.connection-sort == ConnectionSort.upload ? @tr("↑ 上传") : @tr("上传");
+                    tinted: true;
+                    check-prefix: true;
+                    selected: root.connection-sort == ConnectionSort.upload;
+                    clicked => { root.connection-sort = ConnectionSort.upload; root.set-sort(ConnectionSort.upload); }
+                }
+                PillButton {
+                    label: root.connection-sort == ConnectionSort.download ? @tr("↓ 下载") : @tr("下载");
+                    tinted: true;
+                    check-prefix: true;
+                    selected: root.connection-sort == ConnectionSort.download;
+                    clicked => { root.connection-sort = ConnectionSort.download; root.set-sort(ConnectionSort.download); }
+                }
+                PillButton {
+                    label: root.connection-sort == ConnectionSort.host ? @tr("A-Z 主机") : @tr("主机");
+                    tinted: true;
+                    check-prefix: true;
+                    selected: root.connection-sort == ConnectionSort.host;
+                    clicked => { root.connection-sort = ConnectionSort.host; root.set-sort(ConnectionSort.host); }
+                }
+            }
+        }
+
+        // The connection rows scroll inside the card's frame.
+        ListBody {
+            vertical-stretch: 1;
+            VerticalLayout {
+                width: parent.width;
+                spacing: LumenTheme.card-content-gap;
+                alignment: start;
+
+                for row in root.connections: Rectangle {
+                    height: 48 * LumenUiScale.unit;
+                    border-radius: LumenTheme.radius-control;
+                    background: (conn-touch.has-hover && LumenTheme.hover-allowed) ? LumenTheme.surface-raised : LumenTheme.surface-muted;
+                    border-width: 1 * LumenUiScale.unit;
+                    border-color: (conn-touch.has-hover && LumenTheme.hover-allowed) ? LumenTheme.accent : LumenTheme.border;
+                    animate background, border-color { duration: 120ms; easing: ease-out; }
+
+                    conn-touch := TouchArea {
+                        clicked => {
+                            if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); }
+                            root.open-detail(row.id);
+                        }
+                    }
 
                     HorizontalLayout {
-                        padding-left: 6 * LumenUiScale.unit;
-                        padding-right: 6 * LumenUiScale.unit;
+                        padding-left: LumenTheme.space-3;
+                        padding-right: LumenTheme.space-3;
+                        spacing: LumenTheme.space-3;
+                        cross-axis-alignment: center;
+
+                        // Host chip opens the detail view
+                        Rectangle {
+                            height: 28 * LumenUiScale.unit;
+                            border-radius: 6 * LumenUiScale.unit;
+                            background: LumenTheme.surface;
+                            border-width: 1 * LumenUiScale.unit;
+                            border-color: LumenTheme.border;
+                            accessible-role: button;
+                            accessible-label: @tr("查看详情：") + row.title;
+
+                            HorizontalLayout {
+                                padding-left: LumenTheme.space-2;
+                                padding-right: LumenTheme.space-2;
+                                alignment: center;
+                                cross-axis-alignment: center;
+                                Text {
+                                    text: row.title;
+                                    color: LumenTheme.text-primary;
+                                    font-size: DesignType.caption-size;
+                                    font-weight: DesignType.caption-weight;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+
+                        // Process & protocol chip
+                        Rectangle {
+                            height: 24 * LumenUiScale.unit;
+                            border-radius: 4 * LumenUiScale.unit;
+                            background: LumenTheme.surface-raised.with_alpha(50%);
+                            horizontal-stretch: 1;
+
+                            HorizontalLayout {
+                                padding-left: 6 * LumenUiScale.unit;
+                                padding-right: 6 * LumenUiScale.unit;
+                                Text {
+                                    text: row.subtitle;
+                                    color: LumenTheme.text-secondary;
+                                    font-size: DesignType.caption-size;
+                                    vertical-alignment: center;
+                                    overflow: elide;
+                                }
+                            }
+                        }
+
+                        // Two typed rate columns, each with one fixed width and one
+                        // right edge. The old concatenated sentence was right-aligned
+                        // as a whole, so every glyph moved when either value changed
+                        // length - six rows had six different decimal edges.
                         Text {
-                            text: row.subtitle;
+                            width: 84 * LumenUiScale.unit;
+                            text: "↑ " + row.upload-rate;
                             color: LumenTheme.text-secondary;
-                            font-size: DesignType.caption-size;
+                            font-size: DesignType.monoCaption-size;
+                            font-family: DesignType.monoCaption-family;
+                            horizontal-alignment: right;
                             vertical-alignment: center;
                             overflow: elide;
                         }
-                    }
-                }
-
-                // Upload & download rate column-aligned
-                Rectangle {
-                    min-width: 140 * LumenUiScale.unit;
-                    Text {
-                        width: parent.width;
-                        text: row.trailing;
-                        color: LumenTheme.text-secondary;
-                        font-size: DesignType.caption-size;
-                        font-family: DesignType.mono-family;
-                        horizontal-alignment: right;
-                        vertical-alignment: center;
-                    }
-                }
-
-                if row.active: Rectangle {
-                    width: 64 * LumenUiScale.unit;
-                    height: 28 * LumenUiScale.unit;
-                    border-radius: 14 * LumenUiScale.unit;
-                    background: row.id == root.connection-breaking-id ? LumenTheme.disabled : LumenTheme.ping-bad-soft;
-                    border-width: 1 * LumenUiScale.unit;
-                    border-color: row.id == root.connection-breaking-id ? LumenTheme.border : LumenTheme.error;
-
-                    TouchArea {
-                        enabled: row.id != root.connection-breaking-id;
-                        clicked => { root.close-conn(row.id); }
-                    }
-
-                    HorizontalLayout {
-                        alignment: center;
-                        cross-axis-alignment: center;
                         Text {
-                            text: row.id == root.connection-breaking-id ? @tr("打断中") : @tr("打断");
-                            color: LumenTheme.error;
-                            font-size: DesignType.micro-size;
-                            font-weight: DesignType.micro-weight;
+                            width: 84 * LumenUiScale.unit;
+                            text: "↓ " + row.download-rate;
+                            color: LumenTheme.text-secondary;
+                            font-size: DesignType.monoCaption-size;
+                            font-family: DesignType.monoCaption-family;
+                            horizontal-alignment: right;
                             vertical-alignment: center;
+                            overflow: elide;
+                        }
+
+                        if row.active: Rectangle {
+                            width: 64 * LumenUiScale.unit;
+                            height: 28 * LumenUiScale.unit;
+                            border-radius: 14 * LumenUiScale.unit;
+                            background: row.id == root.connection-breaking-id ? LumenTheme.disabled : LumenTheme.ping-bad-soft;
+                            border-width: 1 * LumenUiScale.unit;
+                            border-color: row.id == root.connection-breaking-id ? LumenTheme.border : LumenTheme.error;
+
+                            TouchArea {
+                                enabled: row.id != root.connection-breaking-id;
+                                clicked => { root.close-conn(row.id); }
+                            }
+
+                            HorizontalLayout {
+                                alignment: center;
+                                cross-axis-alignment: center;
+                                Text {
+                                    text: row.id == root.connection-breaking-id ? @tr("打断中") : @tr("打断");
+                                    color: LumenTheme.error;
+                                    font-size: DesignType.micro-size;
+                                    font-weight: DesignType.micro-weight;
+                                    vertical-alignment: center;
+                                }
+                            }
                         }
                     }
                 }
-            }
-        }
 
-        if root.connections.length == 0: Rectangle {
-            height: 64 * LumenUiScale.unit;
-            border-radius: LumenTheme.radius-control;
-            background: LumenTheme.surface-muted;
-            border-width: 1 * LumenUiScale.unit;
-            border-color: LumenTheme.border;
-            VerticalLayout {
-                alignment: center;
-                Text {
-                    text: !root.connection-show-closed
-                        ? (root.runtime-status == RuntimeStatus.running
-                            ? (root.connection-search == "" ? @tr("暂无活动连接") : (@tr("没有匹配到活动连接：") + root.connection-search))
-                            : @tr("Runtime 未运行；活动连接不可用"))
-                        : (root.runtime-status == RuntimeStatus.running
-                            ? (root.connection-search == "" ? @tr("尚未观察到已关闭连接") : (@tr("没有匹配到已关闭连接：") + root.connection-search))
-                            : @tr("Runtime 未运行；已关闭连接不可用"));
-                    color: LumenTheme.text-secondary;
-                    font-size: DesignType.mono-size;
-                    horizontal-alignment: center;
+                if root.connections.length == 0: Rectangle {
+                    height: 64 * LumenUiScale.unit;
+                    border-radius: LumenTheme.radius-control;
+                    background: LumenTheme.surface-muted;
+                    border-width: 1 * LumenUiScale.unit;
+                    border-color: LumenTheme.border;
+                    VerticalLayout {
+                        alignment: center;
+                        Text {
+                            text: !root.connection-show-closed
+                                ? (root.runtime-status == RuntimeStatus.running
+                                    ? (root.connection-search == "" ? @tr("暂无活动连接") : (@tr("没有匹配到活动连接：") + root.connection-search))
+                                    : @tr("Runtime 未运行；活动连接不可用"))
+                                : (root.runtime-status == RuntimeStatus.running
+                                    ? (root.connection-search == "" ? @tr("尚未观察到已关闭连接") : (@tr("没有匹配到已关闭连接：") + root.connection-search))
+                                    : @tr("Runtime 未运行；已关闭连接不可用"));
+                            color: LumenTheme.text-secondary;
+                            font-size: DesignType.mono-size;
+                            horizontal-alignment: center;
+                        }
+                    }
                 }
             }
         }
@@ -272,142 +304,162 @@ export component PageLogs inherits VerticalLayout {
     spacing: LumenTheme.space-4;
 
     SectionCard {
+        // The card is the page's frame: it reaches the bottom of the page
+        // body and the rows scroll inside it, so the page never shows a
+        // short card above a band of empty ground.
+        height-mode: CardHeight.page-body;
         heading: @tr("实时日志");
         detail: root.runtime-status != RuntimeStatus.running ? @tr("Runtime 未运行；不显示缓存数据作为实时状态。") : (root.log-stream-status == "正在重连" ? @tr("日志流断开，正在重连；保留最近 300 条并脱敏。") : (root.log-stream-status == "已连接" ? @tr("Mihomo 实时日志流已连接；保留最近 300 条并脱敏。") : @tr("正在连接 Mihomo 实时日志流。")));
         if root.snapshot-window-warning != "": Text { text: root.snapshot-window-warning; color: LumenTheme.ping-warning; font-size: DesignType.mono-size; wrap: word-wrap; }
 
-        // Search bar + export
-        HorizontalLayout {
-            spacing: LumenTheme.space-3;
-            cross-axis-alignment: center;
+        // The toolbar zone stays put while the log rows scroll under it.
+        VerticalLayout {
+            vertical-stretch: 0;
+            spacing: LumenTheme.card-content-gap;
 
-            SearchField {
-                horizontal-stretch: 1;
-                placeholder: @tr("搜索日志内容或关键词");
-                text <=> root.log-search;
-                search(query) => { root.search(query); }
-            }
+            // Search bar + export
+            HorizontalLayout {
+                spacing: LumenTheme.space-3;
+                cross-axis-alignment: center;
 
-            PillButton {
-                label: @tr("导出日志");
-                min-pill-width: 92 * LumenUiScale.unit;
-                enabled: root.logs.length > 0;
-                clicked => { root.export-logs(); }
-            }
-        }
+                SearchField {
+                    horizontal-stretch: 1;
+                    placeholder: @tr("搜索日志内容或关键词");
+                    text <=> root.log-search;
+                    search(query) => { root.search(query); }
+                }
 
-        Rectangle { height: 4 * LumenUiScale.unit; }
-
-        // Log level filter pills (the warning and error levels carry their
-        // own semantic tone in the selected fill) in a styled Segmented Control
-        HorizontalLayout {
-            alignment: start;
-
-            Rectangle {
-                border-radius: 18 * LumenUiScale.unit;
-                background: LumenTheme.surface-muted;
-                border-width: 1 * LumenUiScale.unit;
-                border-color: LumenTheme.border;
-                height: 36 * LumenUiScale.unit;
-
-                HorizontalLayout {
-                    padding: 2 * LumenUiScale.unit;
-                    spacing: 2 * LumenUiScale.unit;
-
-                    PillButton {
-                        label: @tr("全部");
-                        segmented: true;
-                        pill-height: 30 * LumenUiScale.unit;
-                        selected: root.log-level == LogLevel.all;
-                        clicked => { root.log-level = LogLevel.all; root.set-level(LogLevel.all); }
-                    }
-                    PillButton {
-                        label: @tr("调试");
-                        segmented: true;
-                        pill-height: 30 * LumenUiScale.unit;
-                        selected: root.log-level == LogLevel.debug;
-                        clicked => { root.log-level = LogLevel.debug; root.set-level(LogLevel.debug); }
-                    }
-                    PillButton {
-                        label: @tr("信息");
-                        segmented: true;
-                        pill-height: 30 * LumenUiScale.unit;
-                        selected: root.log-level == LogLevel.info;
-                        clicked => { root.log-level = LogLevel.info; root.set-level(LogLevel.info); }
-                    }
-                    PillButton {
-                        label: @tr("警告");
-                        segmented: true;
-                        pill-height: 30 * LumenUiScale.unit;
-                        selected: root.log-level == LogLevel.warning;
-                        select-fill: LumenTheme.status-warning;
-                        clicked => { root.log-level = LogLevel.warning; root.set-level(LogLevel.warning); }
-                    }
-                    PillButton {
-                        label: @tr("错误");
-                        segmented: true;
-                        pill-height: 30 * LumenUiScale.unit;
-                        selected: root.log-level == LogLevel.error;
-                        select-fill: LumenTheme.error;
-                        clicked => { root.log-level = LogLevel.error; root.set-level(LogLevel.error); }
-                    }
+                PillButton {
+                    label: @tr("导出日志");
+                    min-pill-width: 92 * LumenUiScale.unit;
+                    enabled: root.logs.length > 0;
+                    clicked => { root.export-logs(); }
                 }
             }
-        }
 
-        if root.log-search-error != "": Text { text: root.log-search-error; color: LumenTheme.error; font-size: DesignType.mono-size; wrap: word-wrap; }
+            Rectangle { height: 4 * LumenUiScale.unit; }
 
-        for row in root.logs: HorizontalLayout {
-            spacing: 6 * LumenUiScale.unit;
-            alignment: start;
-            padding-bottom: 2 * LumenUiScale.unit;
+            // Log level filter pills (the warning and error levels carry their
+            // own semantic tone in the selected fill) in a styled Segmented Control
+            HorizontalLayout {
+                alignment: start;
 
-            Text {
-                text: row.title;
-                color: LumenTheme.text-muted;
-                font-size: DesignType.micro-size;
-                font-family: DesignType.mono-family;
-            }
+                Rectangle {
+                    border-radius: 18 * LumenUiScale.unit;
+                    background: LumenTheme.surface-muted;
+                    border-width: 1 * LumenUiScale.unit;
+                    border-color: LumenTheme.border;
+                    height: 36 * LumenUiScale.unit;
 
-            Rectangle {
-                border-radius: 3 * LumenUiScale.unit;
-                background: row.subtitle == "error" ? LumenTheme.error.with_alpha(15%) : (row.subtitle == "warning" ? LumenTheme.status-warning.with_alpha(15%) : LumenTheme.surface-muted);
-                HorizontalLayout {
-                    padding-left: 4 * LumenUiScale.unit;
-                    padding-right: 4 * LumenUiScale.unit;
-                    Text {
-                        text: row.subtitle;
-                        color: row.subtitle == "error" ? LumenTheme.error : (row.subtitle == "warning" ? LumenTheme.status-warning : LumenTheme.text-secondary);
-                        font-size: DesignType.tag-size;
-                        font-family: DesignType.mono-family;
-                        font-weight: DesignType.tag-weight;
+                    HorizontalLayout {
+                        padding: 2 * LumenUiScale.unit;
+                        spacing: 2 * LumenUiScale.unit;
+
+                        PillButton {
+                            label: @tr("全部");
+                            segmented: true;
+                            pill-height: 30 * LumenUiScale.unit;
+                            selected: root.log-level == LogLevel.all;
+                            clicked => { root.log-level = LogLevel.all; root.set-level(LogLevel.all); }
+                        }
+                        PillButton {
+                            label: @tr("调试");
+                            segmented: true;
+                            pill-height: 30 * LumenUiScale.unit;
+                            selected: root.log-level == LogLevel.debug;
+                            clicked => { root.log-level = LogLevel.debug; root.set-level(LogLevel.debug); }
+                        }
+                        PillButton {
+                            label: @tr("信息");
+                            segmented: true;
+                            pill-height: 30 * LumenUiScale.unit;
+                            selected: root.log-level == LogLevel.info;
+                            clicked => { root.log-level = LogLevel.info; root.set-level(LogLevel.info); }
+                        }
+                        PillButton {
+                            label: @tr("警告");
+                            segmented: true;
+                            pill-height: 30 * LumenUiScale.unit;
+                            selected: root.log-level == LogLevel.warning;
+                            select-fill: LumenTheme.status-warning;
+                            clicked => { root.log-level = LogLevel.warning; root.set-level(LogLevel.warning); }
+                        }
+                        PillButton {
+                            label: @tr("错误");
+                            segmented: true;
+                            pill-height: 30 * LumenUiScale.unit;
+                            selected: root.log-level == LogLevel.error;
+                            select-fill: LumenTheme.error;
+                            clicked => { root.log-level = LogLevel.error; root.set-level(LogLevel.error); }
+                        }
                     }
                 }
             }
 
-            Text {
-                text: row.trailing;
-                color: LumenTheme.text-primary;
-                font-size: DesignType.caption-size;
-                font-family: DesignType.mono-family;
-                wrap: word-wrap;
-                horizontal-stretch: 1;
-            }
+            if root.log-search-error != "": Text { text: root.log-search-error; color: LumenTheme.error; font-size: DesignType.mono-size; wrap: word-wrap; }
         }
 
-        if root.logs.length == 0: Rectangle {
-            height: 64 * LumenUiScale.unit;
-            border-radius: LumenTheme.radius-control;
-            background: LumenTheme.surface-muted;
-            border-width: 1 * LumenUiScale.unit;
-            border-color: LumenTheme.border;
+        // The log rows scroll inside the card's frame.
+        ListBody {
+            vertical-stretch: 1;
             VerticalLayout {
-                alignment: center;
-                Text {
-                    text: root.runtime-status != RuntimeStatus.running ? @tr("Runtime 未运行，日志不可用") : (root.log-search != "" || root.log-level != LogLevel.all ? @tr("没有匹配的日志") : (root.log-stream-status == "正在重连" ? @tr("正在重连日志流") : @tr("等待 Mihomo 日志流")));
-                    color: LumenTheme.text-secondary;
-                    font-size: DesignType.mono-size;
-                    horizontal-alignment: center;
+                width: parent.width;
+                spacing: LumenTheme.card-content-gap;
+                alignment: start;
+
+                for row in root.logs: HorizontalLayout {
+                    spacing: 6 * LumenUiScale.unit;
+                    alignment: start;
+                    padding-bottom: 2 * LumenUiScale.unit;
+
+                    Text {
+                        text: row.title;
+                        color: LumenTheme.text-muted;
+                        font-size: DesignType.monoMicro-size;
+                        font-family: DesignType.monoMicro-family;
+                    }
+
+                    Rectangle {
+                        border-radius: 3 * LumenUiScale.unit;
+                        background: row.subtitle == "error" ? LumenTheme.error.with_alpha(15%) : (row.subtitle == "warning" ? LumenTheme.status-warning.with_alpha(15%) : LumenTheme.surface-muted);
+                        HorizontalLayout {
+                            padding-left: 4 * LumenUiScale.unit;
+                            padding-right: 4 * LumenUiScale.unit;
+                            Text {
+                                text: row.subtitle;
+                                color: row.subtitle == "error" ? LumenTheme.error : (row.subtitle == "warning" ? LumenTheme.status-warning : LumenTheme.text-secondary);
+                                font-size: DesignType.monoTag-size;
+                                font-family: DesignType.monoTag-family;
+                                font-weight: DesignType.monoTag-weight;
+                            }
+                        }
+                    }
+
+                    Text {
+                        text: row.trailing;
+                        color: LumenTheme.text-primary;
+                        font-size: DesignType.monoCaption-size;
+                        font-family: DesignType.monoCaption-family;
+                        wrap: word-wrap;
+                        horizontal-stretch: 1;
+                    }
+                }
+
+                if root.logs.length == 0: Rectangle {
+                    height: 64 * LumenUiScale.unit;
+                    border-radius: LumenTheme.radius-control;
+                    background: LumenTheme.surface-muted;
+                    border-width: 1 * LumenUiScale.unit;
+                    border-color: LumenTheme.border;
+                    VerticalLayout {
+                        alignment: center;
+                        Text {
+                            text: root.runtime-status != RuntimeStatus.running ? @tr("Runtime 未运行，日志不可用") : (root.log-search != "" || root.log-level != LogLevel.all ? @tr("没有匹配的日志") : (root.log-stream-status == "正在重连" ? @tr("正在重连日志流") : @tr("等待 Mihomo 日志流")));
+                            color: LumenTheme.text-secondary;
+                            font-size: DesignType.mono-size;
+                            horizontal-alignment: center;
+                        }
+                    }
                 }
             }
         }
@@ -429,103 +481,129 @@ export component PageRules inherits VerticalLayout {
     spacing: LumenTheme.space-4;
 
     SectionCard {
+        // The card is the page's frame: it reaches the bottom of the page
+        // body and the rule rows scroll inside it, so the page never shows a
+        // short card above a band of empty ground.
+        height-mode: CardHeight.page-body;
         heading: @tr("运行规则");
         detail: root.runtime-status == RuntimeStatus.running ? @tr("核心运行规则；启停仅影响当前会话，重启后恢复配置值。") : @tr("Runtime 未运行；不显示缓存数据作为实时状态。");
         if root.snapshot-window-warning != "": Text { text: root.snapshot-window-warning; color: LumenTheme.ping-warning; font-size: DesignType.mono-size; wrap: word-wrap; }
 
-        // Search bar + refresh pill
-        HorizontalLayout {
-            spacing: LumenTheme.space-3;
-            cross-axis-alignment: center;
+        // The toolbar zone stays put while the rule rows scroll under it.
+        VerticalLayout {
+            vertical-stretch: 0;
+            spacing: LumenTheme.card-content-gap;
 
-            SearchField {
-                horizontal-stretch: 1;
-                placeholder: @tr("搜索规则");
-                text <=> root.rule-search;
-                search(query) => { root.search(query); }
-            }
-
-            PillButton {
-                label: @tr("刷新");
-                min-pill-width: 72 * LumenUiScale.unit;
-                clicked => { root.refresh(); }
-            }
-        }
-
-        // Rule item rows with the session toggle
-        for row in root.rules: Rectangle {
-            height: 44 * LumenUiScale.unit;
-            border-radius: LumenTheme.radius-control;
-            background: LumenTheme.surface-muted;
-            border-width: 1 * LumenUiScale.unit;
-            border-color: LumenTheme.border;
-            accessible-role: list-item;
-            accessible-label: row.title + " " + row.subtitle + (row.active ? @tr(" 已启用") : @tr(" 已停用"));
-
+            // Search bar + refresh pill
             HorizontalLayout {
-                padding-left: 14 * LumenUiScale.unit;
-                padding-right: 14 * LumenUiScale.unit;
                 spacing: LumenTheme.space-3;
                 cross-axis-alignment: center;
 
-                Text {
-                    text: row.title + "  ·  " + row.subtitle;
-                    color: LumenTheme.text-primary;
-                    font-size: DesignType.mono-size;
+                SearchField {
                     horizontal-stretch: 1;
-                    vertical-alignment: center;
-                    overflow: elide;
+                    placeholder: @tr("搜索规则");
+                    text <=> root.rule-search;
+                    search(query) => { root.search(query); }
                 }
 
-                HorizontalLayout {
-                    spacing: LumenTheme.space-3;
-                    cross-axis-alignment: center;
-
-                    CheckBox {
-                        text: row.id == root.rule-pending-index ? @tr("更新中…") : @tr("启用");
-                        enabled: row.id != root.rule-pending-index;
-                        checked: row.active;
-                        toggled => { root.toggle-rule(row.id, self.checked); }
-                    }
-
-                    Rectangle { width: 6 * LumenUiScale.unit; background: transparent; }
-
-                    if row.trailing != "": Rectangle {
-                        width: max(32 * LumenUiScale.unit, badge-txt.preferred-width + 14 * LumenUiScale.unit);
-                        height: 22 * LumenUiScale.unit;
-                        border-radius: 6 * LumenUiScale.unit;
-                        background: LumenTheme.surface-muted;
-                        border-width: 1 * LumenUiScale.unit;
-                        border-color: LumenTheme.border;
-
-                        badge-txt := Text {
-                            text: row.trailing;
-                            color: LumenTheme.text-secondary;
-                            font-size: DesignType.micro-size;
-                            font-family: DesignType.mono-family;
-                            horizontal-alignment: center;
-                            vertical-alignment: center;
-                        }
-                    }
+                PillButton {
+                    label: @tr("刷新");
+                    min-pill-width: 72 * LumenUiScale.unit;
+                    clicked => { root.refresh(); }
                 }
             }
         }
 
-        if root.rules.length == 0: Rectangle {
-            height: 64 * LumenUiScale.unit;
-            border-radius: LumenTheme.radius-control;
-            background: LumenTheme.surface-muted;
-            border-width: 1 * LumenUiScale.unit;
-            border-color: LumenTheme.border;
+        // The rule rows scroll inside the card's frame.
+        ListBody {
+            vertical-stretch: 1;
             VerticalLayout {
-                alignment: center;
-                Text {
-                    text: root.runtime-status != RuntimeStatus.running
-                        ? @tr("Runtime 未运行，规则不可用")
-                        : (root.rule-search == "" ? @tr("暂无运行规则") : (@tr("没有匹配到规则：") + root.rule-search));
-                    color: LumenTheme.text-secondary;
-                    font-size: DesignType.mono-size;
-                    horizontal-alignment: center;
+                width: parent.width;
+                spacing: LumenTheme.card-content-gap;
+                alignment: start;
+
+                // Rule item rows with the session toggle
+                for row in root.rules: Rectangle {
+                    height: 44 * LumenUiScale.unit;
+                    border-radius: LumenTheme.radius-control;
+                    background: LumenTheme.surface-muted;
+                    border-width: 1 * LumenUiScale.unit;
+                    border-color: LumenTheme.border;
+                    accessible-role: list-item;
+                    accessible-label: row.title + " " + row.subtitle + (row.active ? @tr(" 已启用") : @tr(" 已停用"));
+
+                    HorizontalLayout {
+                        padding-left: 14 * LumenUiScale.unit;
+                        padding-right: 14 * LumenUiScale.unit;
+                        spacing: LumenTheme.space-3;
+                        cross-axis-alignment: center;
+
+                        Text {
+                            text: row.title + "  ·  " + row.subtitle;
+                            color: LumenTheme.text-primary;
+                            font-size: DesignType.mono-size;
+                            horizontal-stretch: 1;
+                            min-width: 0 * LumenUiScale.unit;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
+
+                        HorizontalLayout {
+                            width: 208 * LumenUiScale.unit;
+                            spacing: LumenTheme.space-3;
+                            cross-axis-alignment: center;
+
+                            Rectangle {
+                                width: 84 * LumenUiScale.unit;
+                                CheckBox {
+                                    width: parent.width;
+                                    text: row.id == root.rule-pending-index ? @tr("更新中…") : @tr("启用");
+                                    enabled: row.id != root.rule-pending-index;
+                                    checked: row.active;
+                                    toggled => { root.toggle-rule(row.id, self.checked); }
+                                }
+                            }
+
+                            Rectangle { width: 6 * LumenUiScale.unit; background: transparent; }
+
+                            if row.trailing != "": Rectangle {
+                                width: 88 * LumenUiScale.unit;
+                                height: 22 * LumenUiScale.unit;
+                                border-radius: 6 * LumenUiScale.unit;
+                                background: LumenTheme.surface-muted;
+                                border-width: 1 * LumenUiScale.unit;
+                                border-color: LumenTheme.border;
+
+                                badge-txt := Text {
+                                    text: row.trailing;
+                                    color: LumenTheme.text-secondary;
+                                    font-size: DesignType.monoMicro-size;
+                                    font-family: DesignType.monoMicro-family;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if root.rules.length == 0: Rectangle {
+                    height: 64 * LumenUiScale.unit;
+                    border-radius: LumenTheme.radius-control;
+                    background: LumenTheme.surface-muted;
+                    border-width: 1 * LumenUiScale.unit;
+                    border-color: LumenTheme.border;
+                    VerticalLayout {
+                        alignment: center;
+                        Text {
+                            text: root.runtime-status != RuntimeStatus.running
+                                ? @tr("Runtime 未运行，规则不可用")
+                                : (root.rule-search == "" ? @tr("暂无运行规则") : (@tr("没有匹配到规则：") + root.rule-search));
+                            color: LumenTheme.text-secondary;
+                            font-size: DesignType.mono-size;
+                            horizontal-alignment: center;
+                        }
+                    }
                 }
             }
         }

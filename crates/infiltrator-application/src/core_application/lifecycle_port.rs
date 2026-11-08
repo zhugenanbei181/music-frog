@@ -14,8 +14,11 @@ impl CoreApplication {
         // counters remain intact until the new session is proven ready.
         self.reset_watchdog_for_start();
 
-        let session_token = self.allocate_session_token();
-        self.apply_domain_event(core_state::CoreEvent::StartRequested { session_token });
+        let (session_token, started_at_epoch_ms) = self.allocate_session();
+        self.apply_domain_event(core_state::CoreEvent::StartRequested {
+            session_token,
+            started_at_epoch_ms,
+        });
         let Some(identity) = self.inner.process.core_identity() else {
             let failure = Failure::new(
                 ErrorCode::InvalidState,

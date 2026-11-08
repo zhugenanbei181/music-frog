@@ -7,6 +7,7 @@ publish = false
 description = "Runtime- and UI-independent domain state and algorithms for MusicFrog Infiltrator."
 
 [dependencies]
+zhuge-ui-core.workspace = true
 lurker-core-contract = { path = "../lurker-core-contract" }
 anyhow = { workspace = true }
 base64 = "0.22"

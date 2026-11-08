@@ -47,6 +47,7 @@ use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::a11y::ShellA11yNode;
 use infiltrator_contract::design_resources;
+use infiltrator_contract::surface::SurfaceKind;
 use infiltrator_contract::surface_snapshot::PageId;
 use infiltrator_contract::system_toggle::SystemToggleSnapshot;
 use infiltrator_presentation::routing_intent_projection::routing_intent_copy_key;
@@ -81,7 +82,7 @@ pub fn identity_scene(palette: &UiPalette) -> impl Scene + use<> {
                 SidebarIdentityText
                 SidebarExpandedOnly
                 Children [
-                    Text({ "MusicFrog".to_owned() }) TextRole(design_resources::TextRole::BodyStrong)
+                    Text({ SurfaceKind::BevyDesktop.product_name().to_owned() }) TextRole(design_resources::TextRole::BodyStrong)
                     --
                     Text({ version.to_owned() }) TextRole(design_resources::TextRole::Caption)
                 ]

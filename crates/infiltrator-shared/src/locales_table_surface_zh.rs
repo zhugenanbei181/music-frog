@@ -62,6 +62,7 @@ pub(super) fn translate_surface_zh(key: &str) -> Cow<'static, str> {
         "snapshot_fidelity_preserved" => "通过".into(),
         "snapshot_fidelity_degraded" => "降级".into(),
         "snapshot_restore_confirm" => "恢复配置".into(),
+        "snapshot_restore_review_action" => "审阅快照".into(),
         "snapshot_restore_cancel" => "取消".into(),
         "snapshot_restore_retry" => "重试恢复".into(),
         "snapshot_restore_title" => "审阅快照恢复".into(),

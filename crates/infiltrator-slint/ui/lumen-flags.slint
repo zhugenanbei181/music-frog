@@ -1,4 +1,5 @@
 import { LumenUiScale } from "lumen-ui-scale.slint";
+import { LumenTheme } from "./components/theme.slint";
 
 export global FlagImages {
     out property <[image]> flags: [
@@ -267,7 +268,6 @@ export component FlagIcon inherits Rectangle {
     in property <int> index: -1;
     in property <string> country-code;
     in property <length> diameter: 28 * LumenUiScale.unit;
-    in property <bool> show-layout-bounds: false;
     width: root.diameter;
     height: root.diameter;
     background: transparent;
@@ -280,10 +280,14 @@ export component FlagIcon inherits Rectangle {
         source: FlagImages.flags[root.index];
         x: 0 * LumenUiScale.unit; y: 0 * LumenUiScale.unit; width: parent.width; height: parent.height; image-fit: cover;
     }
-    if root.show-layout-bounds: Rectangle {
+    // The debug outline reads the surface's one layout-bounds switch. It used
+    // to be an input that none of the six call sites ever fed, so turning the
+    // debug frames on left every other frame visible and the flag circles
+    // invisible - a second, silently-off source for the same fact.
+    if LumenTheme.show-layout-bounds: Rectangle {
         width: parent.width; height: parent.height;
         border-radius: self.width / 2;
-        background: transparent; border-width: 1 * LumenUiScale.unit; border-color: #007AFF;
+        background: transparent; border-width: 1 * LumenUiScale.unit; border-color: LumenTheme.debug-icon;
         z: 1000;
     }
 }

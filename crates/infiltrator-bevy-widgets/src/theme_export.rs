@@ -8,8 +8,9 @@
 
 use crate::palette::UiPalette;
 use crate::shader_fx::OklchColor;
-use crate::theme::{Theme, TokenColor, contrast};
+use crate::theme::{Theme, TokenColor};
 use bevy::color::Color;
+use zhuge_ui_tokens::{linear_to_srgb, srgb_to_linear};
 
 /// Target export format for theme design tokens.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -123,7 +124,7 @@ impl TonalLadder {
     /// WCAG contrast ratio spanned by the lightest and darkest stops.
     pub fn contrast_span(&self) -> f32 {
         match (self.lightest(), self.darkest()) {
-            (Some(light), Some(dark)) => contrast::contrast_ratio(light, dark),
+            (Some(light), Some(dark)) => light.as_rgba().contrast_ratio(dark.as_rgba()),
             _ => 1.0,
         }
     }
@@ -143,30 +144,12 @@ pub fn token_to_hex(token: TokenColor) -> String {
     color_to_hex(Color::srgba(token.r, token.g, token.b, token.a))
 }
 
-fn linearize_channel(channel: f32) -> f32 {
-    let channel = channel.clamp(0.0, 1.0);
-    if channel <= 0.040_45 {
-        channel / 12.92
-    } else {
-        ((channel + 0.055) / 1.055).powf(2.4)
-    }
-}
-
-fn encode_channel(channel: f32) -> f32 {
-    let channel = channel.clamp(0.0, 1.0);
-    if channel <= 0.003_130_8 {
-        12.92 * channel
-    } else {
-        1.055 * channel.powf(1.0 / 2.4) - 0.055
-    }
-}
-
 /// Convert an sRGB token into the perceptually-uniform OKLCH space
 /// (Björn Ottosson's OKLab, expressed as lightness / chroma / hue).
 pub fn token_to_oklch(token: TokenColor) -> OklchColor {
-    let red = linearize_channel(token.r);
-    let green = linearize_channel(token.g);
-    let blue = linearize_channel(token.b);
+    let red = srgb_to_linear(token.r);
+    let green = srgb_to_linear(token.g);
+    let blue = srgb_to_linear(token.b);
 
     let long = 0.412_221_47 * red + 0.536_332_54 * green + 0.051_445_995 * blue;
     let medium = 0.211_903_5 * red + 0.680_699_5 * green + 0.107_396_96 * blue;
@@ -214,9 +197,9 @@ pub fn oklch_to_token(oklch: OklchColor) -> TokenColor {
     let blue = -0.004_196_086_3 * long - 0.703_418_6 * medium + 1.707_614_7 * short;
 
     TokenColor {
-        r: encode_channel(red),
-        g: encode_channel(green),
-        b: encode_channel(blue),
+        r: linear_to_srgb(red),
+        g: linear_to_srgb(green),
+        b: linear_to_srgb(blue),
         a: oklch.alpha,
     }
 }
@@ -354,10 +337,11 @@ pub fn export_tonal_ladder(ladder: &TonalLadder, format: ThemeExportFormat) -> S
 mod tests {
     use super::*;
     use crate::theme::ThemeSkin;
+    use zhuge_ui_tokens::{WCAG_AA_NORMAL, WCAG_AAA_NORMAL};
 
     fn is_monotonic(ladder: &TonalLadder) -> bool {
         ladder.stops.windows(2).all(|window| {
-            contrast::relative_luminance(window[0]) > contrast::relative_luminance(window[1])
+            window[0].as_rgba().relative_luminance() > window[1].as_rgba().relative_luminance()
         })
     }
 
@@ -378,7 +362,7 @@ mod tests {
                 is_monotonic(&ladder),
                 "ladder for {seed:?} is not monotonic"
             );
-            assert!(ladder.contrast_span() >= 7.0);
+            assert!(ladder.contrast_span() >= WCAG_AAA_NORMAL);
         }
     }
 
@@ -389,7 +373,7 @@ mod tests {
         assert_eq!(ladder.source, LadderSource::SrgbFallback);
         assert_eq!(ladder.len(), DEFAULT_LADDER_STEPS);
         assert!(is_monotonic(&ladder));
-        assert!(ladder.contrast_span() >= 4.5);
+        assert!(ladder.contrast_span() >= WCAG_AA_NORMAL);
         // The fallback is a distinct generator, never a silent alias.
         assert_ne!(
             ladder,
@@ -411,7 +395,7 @@ mod tests {
                 assert_eq!(ladder.source, LadderSource::Oklch);
                 assert_eq!(ladder.len(), DEFAULT_LADDER_STEPS);
                 assert!(is_monotonic(ladder));
-                assert!(ladder.contrast_span() >= 7.0);
+                assert!(ladder.contrast_span() >= WCAG_AAA_NORMAL);
             }
         }
         // The hand-picked seed tokens are unchanged by the ladder integration.

@@ -51,10 +51,10 @@ use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::ecs::{event::Event, observer::On};
 use bevy::ui_widgets::{Activate, ScrollArea};
 use bevy::window::{PrimaryWindow, Window};
-use infiltrator_bevy_widgets::surface::SurfacePanel;
 use infiltrator_bevy_widgets::theme::ThemeSkin;
 use std::path::PathBuf;
 use std::{env, fs};
+use zhuge_ui_kit_bevy::surface::CardSurface;
 
 /// Parse the capture skin knob. Case-insensitive, whitespace-tolerant;
 /// anything else is `None` (the launcher falls back to the shared
@@ -322,7 +322,7 @@ struct CaptureSectionControls<'w, 's> {
     options: ResMut<'w, ProfileEditorOptionsState>,
     editor_roots: Query<'w, 's, Entity, With<ProfileEditorRoot>>,
     parents: Query<'w, 's, &'static ChildOf>,
-    cards: Query<'w, 's, (), With<SurfacePanel>>,
+    cards: Query<'w, 's, (), With<CardSurface>>,
     globe_slots: Query<'w, 's, Entity, With<GlobeSectionSlot>>,
     resource_gauge_cards: Query<'w, 's, Entity, With<OverviewResourceGaugeCard>>,
     service_health_cards: Query<'w, 's, Entity, With<OverviewServiceHealthCard>>,

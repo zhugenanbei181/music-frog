@@ -1,0 +1,23 @@
+// Slint-side closed vocabulary for the Rust-owned dock-band projection.
+//
+// This enum is the only UI input: the host maps the shared contract state to
+// one variant and every geometry consumer compares that variant. No component
+// combines `present` and `visible` flags, and no component writes the state.
+export enum MobileDockBandState {
+    closed,
+    reserved,
+}
+
+export global MobileDockBandProjection {
+    // `reserved` is the only variant that owns a bottom band. The conversion
+    // is a pure function so a binding cannot mutate the owner's state.
+    public pure function reserves_band(state: MobileDockBandState) -> bool {
+        return state == MobileDockBandState.reserved;
+    }
+
+    // One typed state decides both reservation and mounting; two functions
+    // would invite a second truth back into the component tree.
+    public pure function draws_dock(state: MobileDockBandState) -> bool {
+        return reserves_band(state);
+    }
+}

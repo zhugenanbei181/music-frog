@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Capture the MusicFrog Infiltrator Bevy frontend demo screenshot matrix in one fully
+# Capture the Lurker Bevy frontend demo screenshot matrix in one fully
 # backgrounded compositor stack (native bevy render evidence — the bevy
 # sibling of capture-iced-matrix.sh).
 #
@@ -20,7 +20,7 @@
 #     (dark|light|forest|amoled; business rows default to forest),
 #     INFILTRATOR_BEVY_WINDOW_SIZE (WxH) and INFILTRATOR_CAPTURE_MARKER
 #     (frame-counted readiness file written by src/capture.rs);
-#   * the window identity is the title "MusicFrog Infiltrator — Bevy"
+#   * the window identity is the title "Lurker"
 #     (niri IPC + window-rule bind on title + spawned PID);
 #   * BEVY_ASSET_ROOT points at the widget crate so the embedded icon
 #     plates (assets/icons/*.png) resolve through the host AssetServer;
@@ -55,7 +55,7 @@ APP_ID="infiltrator-bevy-ui"
 # title below; winit's app_id may be the binary name or empty depending on
 # version, so the title is the stable observed identifier and the spawned
 # PID stays the authoritative binding either way.
-APP_TITLE="MusicFrog Infiltrator — Bevy"
+APP_TITLE="Lurker"
 CRATE_DIR="$REPO/crates/infiltrator-bevy-desktop-host"
 APP="${CARGO_TARGET_DIR:-$REPO/target}/debug/infiltrator-bevy-ui"
 ASSET_ROOT="$REPO/crates/infiltrator-bevy-widgets"
@@ -324,7 +324,7 @@ layout {
 }
 window-rule {
     match app-id="$APP_ID"
-    match title="^MusicFrog Infiltrator — Bevy\$"
+    match title="^Lurker\$"
     open-floating true
 }
 KDL

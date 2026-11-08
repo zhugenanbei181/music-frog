@@ -9,8 +9,9 @@ use infiltrator_bevy_widgets::WidgetsPlugin;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::theme::Theme;
 use infiltrator_bevy_widgets::toast::{
-    ToastCard, ToastContainer, ToastKind, ToastMessage, ToastQueue, toast_stack_scene,
+    ToastCard, ToastContainer, ToastMessage, ToastQueue, toast_stack_scene,
 };
+use zhuge_ui_tokens::StatusKind;
 
 fn headless_app() -> App {
     let mut app = App::new();
@@ -25,13 +26,13 @@ fn toast_queue_capacity_and_timer_expiration() {
     let mut queue = ToastQueue::new(3);
 
     // Push 3 toasts
-    let _id1 = queue.push("Toast 1", ToastKind::Info, 2.0);
-    let id2 = queue.push("Toast 2", ToastKind::Success, 5.0);
-    let id3 = queue.push("Toast 3", ToastKind::Warning, 10.0);
+    let _id1 = queue.push("Toast 1", StatusKind::Info, 2.0);
+    let id2 = queue.push("Toast 2", StatusKind::Success, 5.0);
+    let id3 = queue.push("Toast 3", StatusKind::Warning, 10.0);
     assert_eq!(queue.len(), 3);
 
     // Push 4th toast -> evicts id1
-    let id4 = queue.push("Toast 4", ToastKind::Danger, 1.0);
+    let id4 = queue.push("Toast 4", StatusKind::Danger, 1.0);
     assert_eq!(queue.len(), 3);
     assert_eq!(queue.items()[0].id, id2);
     assert_eq!(queue.items()[2].id, id4);
@@ -54,8 +55,8 @@ fn toast_stack_scene_spawns_on_token_layers() {
         Startup,
         |mut commands: Commands, palette: Res<UiPalette>| {
             let toasts = vec![
-                ToastMessage::new(1, "Success notification", ToastKind::Success, 5.0),
-                ToastMessage::new(2, "Warning alert", ToastKind::Warning, 5.0),
+                ToastMessage::new(1, "Success notification", StatusKind::Success, 5.0),
+                ToastMessage::new(2, "Warning alert", StatusKind::Warning, 5.0),
             ];
             commands.spawn_scene(toast_stack_scene(&toasts, &palette));
         },

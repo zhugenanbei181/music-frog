@@ -1,9 +1,11 @@
 import { DesignType } from "./design-type.slint";
+import { ProxyPillMetrics } from "./proxy_picker.slint";
 import { ScrollView } from "std-widgets.slint";
 import { LargeAppBar, SmallAppBar, IconButton } from "@material";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { PageTitles } from "./page_titles.slint";
 import { LumenTheme } from "./theme.slint";
+import { PillButton } from "./base_widgets.slint";
 import {
         ProfileCard, OverrideCard, ProfileOverrideChoice, ObservationRow, ConnectionRow, ProxyGroup,
         TrafficBar, HomeTrafficPoint, LicenseRow, WorkbenchItem, DashboardFacts
@@ -11,6 +13,7 @@ import {
 import { DesktopSideBar } from "./sidebar.slint";
 import { PagesRouter } from "../pages/pages_router.slint";
 import { ConnectionSort, LogLevel, NetworkMode, RouteMode, RuntimeStatus, ThemeMode, TrafficRange } from "./domain_enums.slint";
+import { MobileDockBandState, MobileDockBandProjection } from "./mobile_dock_state.slint";
 
 export component AppBody inherits Rectangle {
         in property <string> page;
@@ -19,7 +22,6 @@ export component AppBody inherits Rectangle {
         in property <bool> primary-page;
         in property <bool> android-platform;
         in property <bool> application-dark-mode;
-        in property <color> sidebar-background: LumenTheme.zinc-2;
         in property <bool> layout-debug-bounds;
         in property <bool> layout-debug-tools-enabled;
         in property <bool> predictive-back-enabled;
@@ -28,20 +30,53 @@ export component AppBody inherits Rectangle {
         in property <length> safe-bottom;
         in property <length> safe-left;
         in property <length> safe-right;
-        in-out property <bool> bottom-bar-visible: true;
-        in property <bool> hide-bottom-bar-on-scroll;
+        // One typed state from the Rust projection owns both the reserved
+        // region and the mounted dock. The body never derives a second state.
+        in property <MobileDockBandState> mobile-dock-band-state;
         in-out property <length> last-page-scroll-y: 0 * LumenUiScale.unit;
 
+        // One horizontal rhythm for the page body. Compact used to fork this per
+        // page (Home 24, AppSettings 10, everything else 16), which meant three
+        // pages could not share a left edge even though the reference phone
+        // layout keeps one 16.6dp inset everywhere.
+        property <length> page-margin: root.compact-layout
+            ? LumenTheme.page-padding
+            : LumenTheme.page-margin-desktop;
+        // The reserved band is subtracted once from the column that carries
+        // the page header and scroll viewport. The height is one theme token,
+        // and the decision to use it comes from the typed state alone.
+        property <length> dock-band-height: MobileDockBandProjection.reserves_band(root.mobile-dock-band-state)
+            ? LumenTheme.bottom-bar-band-height
+            : 0 * LumenUiScale.unit;
+        // The air the page body keeps for itself. The content's top padding
+        // is the desktop's page breath, and its bottom padding is the room
+        // the floating dock never reaches. Both are one fact each, read by
+        // the layout that pads the content and by the page-body height below.
+        property <length> page-content-padding-top: root.compact-layout
+            ? 0 * LumenUiScale.unit
+            : 8 * LumenUiScale.unit;
+        property <length> page-content-padding-bottom: MobileDockBandProjection.reserves_band(root.mobile-dock-band-state)
+            ? 0 * LumenUiScale.unit
+            : 72 * LumenUiScale.unit;
+        // The height one page body may use. The page scroll viewport is the
+        // page's ground; the page's own air is subtracted here, so a list
+        // page's card reaches the bottom of the page and still keeps clear
+        // of the floating dock. The shell publishes this once and no page
+        // measures the window for itself.
+        property <length> page-body-height: page-scroll.visible-height
+            - root.page-content-padding-top
+            - root.page-content-padding-bottom;
+
+        init => { LumenTheme.page-body-height = root.page-body-height; }
+        changed page-body-height => { LumenTheme.page-body-height = root.page-body-height; }
+
         // Home
-        in property <length> home-title-gap;
-        in property <length> home-data-upload-gap;
-        in property <length> home-before-node-gap;
-        in property <length> home-node-egress-gap;
         in property <RuntimeStatus> runtime-status;
         in property <string> runtime-status-label;
         in property <string> runtime-detail;
         in property <string> active-profile;
         in property <bool> has-current-profile;
+        in property <string> current-profile-id;
         in property <string> network-mode-label;
         in property <string> home-current-node;
         in property <string> home-current-accessible;
@@ -91,6 +126,11 @@ export component AppBody inherits Rectangle {
         // Settings
         in property <string> product-version;
         in property <string> core-version;
+        // Whether the owner's last system-proxy recovery attempt failed, i.e. whether
+        // asking for it again is a real action. The 网络设置 page used to render the
+        // retry button with this input never fed from anywhere, so the control sat
+        // permanently disabled while its command path was live.
+        in property <bool> proxy-recovery-pending;
         in property <NetworkMode> network-mode;
         in property <string> network-mode-status;
         in property <bool> network-mode-status-warning;
@@ -192,6 +232,7 @@ export component AppBody inherits Rectangle {
         callback cache-back-preview();
         callback open-profile-add();
         callback set-current-profile(string);
+        callback refresh-profile(string);
         callback open-profile-action(string, string);
         callback request-export(string, string);
         callback request-delete(string, string);
@@ -207,10 +248,10 @@ export component AppBody inherits Rectangle {
         callback set-route-mode(RouteMode);
         callback request-network-mode-change(NetworkMode);
         callback check-core();
+        callback retry-proxy-restore();
         callback set-auto-start(bool);
         callback set-refresh-profile-on-start(bool);
         callback set-invert-theme-foreground(bool);
-        callback set-hide-bottom-bar-on-scroll(bool);
         callback set-predictive-back-enabled(bool);
         callback set-hide-background-card(bool);
         callback set-show-traffic-notification(bool);
@@ -262,7 +303,7 @@ export component AppBody inherits Rectangle {
         if !available || pos == 0 * LumenUiScale.unit || page-scroll.visible-height <= 0 * LumenUiScale.unit {
             return;
         }
-        let target-y = page-scroll.absolute-position.y + max(16 * LumenUiScale.unit, (page-scroll.visible-height - 76 * LumenUiScale.unit) / 2);
+        let target-y = page-scroll.absolute-position.y + max(16 * LumenUiScale.unit, (page-scroll.visible-height - ProxyPillMetrics.node-card-height) / 2);
         let delta = pos - target-y;
         page-scroll.content-y = max(page-scroll.visible-height - page-scroll.content-height, min(0 * LumenUiScale.unit, page-scroll.content-y - delta));
         }
@@ -281,17 +322,16 @@ export component AppBody inherits Rectangle {
             runtime-detail: root.runtime-detail;
             active-profile: root.active-profile;
             network-mode-label: root.network-mode-label;
+            stat-up: root.stat-up;
+            stat-down: root.stat-down;
             product-version: root.product-version;
-            sidebar-background: root.sidebar-background;
             navigate-to(target) => { root.navigate(target); }
         }
 
         main-panel := Rectangle {
             horizontal-stretch: 1;
             vertical-stretch: 1;
-            height: root.compact-layout && root.primary-page
-                ? max(0 * LumenUiScale.unit, parent.height - (root.bottom-bar-visible ? LumenTheme.navigation-height + 20 * LumenUiScale.unit : 0 * LumenUiScale.unit))
-                : parent.height;
+            height: parent.height;
             clip: true;
             background: LumenTheme.zinc-0; // #154: the page void is zinc-0, never raw black
 
@@ -299,19 +339,38 @@ export component AppBody inherits Rectangle {
                 width: parent.width;
                 height: parent.height;
                 spacing: 0 * LumenUiScale.unit;
+                // The dock band is subtracted exactly once, here, from the column
+                // that carries the page header and the page viewport together. An
+                // absolute height on the scroll view itself was the second copy, and
+                // it only matched while the column held one child: on the compact
+                // 工具 page the header row shares this column, so the viewport was
+                // pushed down by the header and its last rows were cut behind the
+                // pill again - the covering bar the reference never shows.
+                padding-bottom: root.dock-band-height;
 
                 if !root.compact-layout && root.primary-page && !(root.page == "Proxy" && root.selected-group != ""): HorizontalLayout {
                     height: 56 * LumenUiScale.unit;
-                    padding-left: 30 * LumenUiScale.unit;
-                    padding-right: 30 * LumenUiScale.unit;
+                    padding-left: LumenTheme.page-margin-desktop;
+                    padding-right: LumenTheme.page-margin-desktop;
                     Text {
-                        text: PageTitles.top-title(root.page);
+                        text: PageTitles.page-name(root.page);
                         color: LumenTheme.text-primary;
                         font-size: DesignType.display-size;
                         font-weight: DesignType.display-weight;
                         vertical-alignment: center;
                     }
                     Rectangle { horizontal-stretch: 1; background: transparent; }
+                    // The config page's add action belongs in the ONE page
+                    // header, not in a second 38u row whose 702px of the row
+                    // was empty air. The shell owns the header and already
+                    // carries the typed open-profile-add intent.
+                    if root.page == "Config": PillButton {
+                        label: @tr("+ 添加配置");
+                        selected: true;
+                        pill-height: 36 * LumenUiScale.unit;
+                        min-pill-width: 104 * LumenUiScale.unit;
+                        clicked => { root.open-profile-add(); }
+                    }
                     if root.page == "Proxy" && root.selected-group == "": IconButton {
                         width: 44 * LumenUiScale.unit;
                         height: 44 * LumenUiScale.unit;
@@ -321,12 +380,18 @@ export component AppBody inherits Rectangle {
                     }
                 }
 
-                if root.compact-layout && root.primary-page && root.page != "Home" && !(root.page == "Proxy" && root.selected-group != ""): HorizontalLayout {
-                    height: 52 * LumenUiScale.unit;
-                    padding-left: LumenTheme.space-4;
-                    padding-right: LumenTheme.space-4;
+                // Home / Proxy / Config own their compact header inside the
+                // page (one shared CompactPageHeader component). Settings has
+                // no page-level action cluster, so the shell prints its title.
+                // The shell can no longer print a SECOND header over a page
+                // that already has one, and the scroll padding no longer
+                // forks 0/8u between pages.
+                if root.compact-layout && root.primary-page && root.page == "Settings" && !(root.page == "Proxy" && root.selected-group != ""): HorizontalLayout {
+                    height: LumenTheme.page-header-height;
+                    padding-left: LumenTheme.page-padding;
+                    padding-right: LumenTheme.page-padding;
                     Text {
-                        text: root.page == "Proxy" ? @tr("节点") : root.page == "Config" ? @tr("配置") : @tr("设置");
+                        text: PageTitles.phone-title(root.page);
                         color: LumenTheme.text-primary;
                         font-size: DesignType.display-size;
                         font-weight: DesignType.display-weight;
@@ -369,33 +434,37 @@ export component AppBody inherits Rectangle {
                 page-scroll := ScrollView {
                     content-width: self.width;
                     changed content-y => {
-                        let delta = self.content-y - root.last-page-scroll-y;
-                        if root.primary-page && root.hide-bottom-bar-on-scroll && (delta > 3 * LumenUiScale.unit || delta < -3 * LumenUiScale.unit) {
-                            root.bottom-bar-visible = delta > 0 * LumenUiScale.unit;
-                        } else if !root.hide-bottom-bar-on-scroll || !root.primary-page {
-                            root.bottom-bar-visible = true;
-                        }
+                        // hide-on-scroll is retired: hiding a mounted dock is
+                        // an illegal `reserved-without-dock` stage. The typed
+                        // owner closes the whole band or keeps it reserved.
                         root.last-page-scroll-y = self.content-y;
                     }
                     mouse-drag-pan-enabled: root.android-platform;
                     vertical-stretch: 1;
-                    vertical-scrollbar-policy: root.android-platform ? ScrollBarPolicy.always-off : ScrollBarPolicy.as-needed;
+                    // Mobile chrome never paints a scroll rail; desktop keeps
+                    // the shared auto-hide rail. Both axes read the one compact
+                    // viewport fact, not a second platform guess.
+                    vertical-scrollbar-policy: LumenTheme.compact-layout ? ScrollBarPolicy.always-off : ScrollBarPolicy.as-needed;
                     horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
 
                     VerticalLayout {
-                        x: root.compact-layout ? (root.page == "Home" ? 24 * LumenUiScale.unit : root.page == "AppSettings" ? 10 * LumenUiScale.unit : 16 * LumenUiScale.unit) : 30 * LumenUiScale.unit;
-                        width: parent.width - (root.compact-layout ? (root.page == "Home" ? 48 * LumenUiScale.unit : root.page == "AppSettings" ? 20 * LumenUiScale.unit : 32 * LumenUiScale.unit) : 60 * LumenUiScale.unit);
-                        padding-top: (root.compact-layout && (root.page == "Home" || (root.page == "Proxy" && root.selected-group == ""))) ? 0 * LumenUiScale.unit : 8 * LumenUiScale.unit;
-                        padding-bottom: root.compact-layout && root.primary-page ? 128 * LumenUiScale.unit : 72 * LumenUiScale.unit;
+                        x: root.page-margin;
+                        width: parent.width - 2 * root.page-margin;
+                        padding-top: root.page-content-padding-top;
+                        // The distance from the clip line to the pill is the band's
+                        // own `dock-top-air`, exactly one card gap, which is also what
+                        // the reference measures between its last card and the floating
+                        // bar (24-25px @1156 = 8.5u). The page pays nothing here:
+                        // adding `space-mobile-card-gap` a second time would make the
+                        // rest gap two card gaps, and the old 48u literal made it five.
+                        padding-bottom: root.page-content-padding-bottom;
                         spacing: LumenTheme.space-3;
 
                         PagesRouter {
                             page: root.page; android-platform: root.android-platform; compact-layout: root.compact-layout;
                             application-dark-mode: root.application-dark-mode; layout-debug-bounds: root.layout-debug-bounds;
                             layout-debug-tools-enabled: root.layout-debug-tools-enabled; predictive-back-enabled: root.predictive-back-enabled;
-                            home-title-gap: root.home-title-gap; home-data-upload-gap: root.home-data-upload-gap;
-                            home-before-node-gap: root.home-before-node-gap; home-node-egress-gap: root.home-node-egress-gap;
-                            runtime-status: root.runtime-status; active-profile: root.active-profile; has-current-profile: root.has-current-profile;
+                            runtime-status: root.runtime-status; active-profile: root.active-profile; has-current-profile: root.has-current-profile; current-profile-id: root.current-profile-id;
                             network-mode-label: root.network-mode-label; home-current-node: root.home-current-node;
                             home-current-accessible: root.home-current-accessible; home-current-flag-code: root.home-current-flag-code;
                             home-current-flag-index: root.home-current-flag-index; home-current-delay: root.home-current-delay;
@@ -416,14 +485,14 @@ export component AppBody inherits Rectangle {
                             proxy-testing-node: root.proxy-testing-node; proxy-groups: root.proxy-groups; proxy-nodes: root.proxy-nodes;
                             proxy-search <=> root.proxy-search; proxy-active-node-position <=> root.proxy-active-node-position;
                             proxy-current-node-available <=> root.proxy-current-node-available; product-version: root.product-version;
-                            core-version: root.core-version; network-mode: root.network-mode; network-mode-status: root.network-mode-status;
+                            core-version: root.core-version; proxy-recovery-pending: root.proxy-recovery-pending; network-mode: root.network-mode; network-mode-status: root.network-mode-status;
                             network-mode-status-warning: root.network-mode-status-warning; tun-capable: root.tun-capable;
                             tun-capability-detail: root.tun-capability-detail; app-settings-preview-section: root.app-settings-preview-section; lan-sharing-heading: root.lan-sharing-heading; lan-sharing-detail: root.lan-sharing-detail;
                             auto-start: root.auto-start; refresh-current-profile-on-start: root.refresh-current-profile-on-start;
                             theme-mode: root.theme-mode; invert-theme-foreground: root.invert-theme-foreground;
                             theme-color-code: root.theme-color-code; application-language: root.application-language;
                             system-language: root.system-language; page-scale-percent: root.page-scale-percent;
-                            hide-bottom-bar-on-scroll: root.hide-bottom-bar-on-scroll; predictive-back-supported: root.predictive-back-supported;
+                            predictive-back-supported: root.predictive-back-supported;
                             hide-background-card: root.hide-background-card; show-traffic-notification: root.show-traffic-notification;
                             release-ui-when-background: root.release-ui-when-background; ignore-battery-optimizations: root.ignore-battery-optimizations;
                             user-agent: root.user-agent; overrides: root.overrides; override-importing: root.override-importing;
@@ -459,7 +528,7 @@ export component AppBody inherits Rectangle {
                             open-overview-order => { root.open-overview-order(); }
                             start-runtime => { root.start-runtime(); } stop-runtime => { root.stop-runtime(); }
                             navigate(t) => { root.navigate(t); } cache-back-preview => { root.cache-back-preview(); }
-                            open-profile-add => { root.open-profile-add(); } set-current-profile(id) => { root.set-current-profile(id); }
+                            open-profile-add => { root.open-profile-add(); } set-current-profile(id) => { root.set-current-profile(id); } refresh-profile(id) => { root.refresh-profile(id); }
                             open-profile-action(id, name) => { root.open-profile-action(id, name); }
                             request-export(id, name) => { root.request-export(id, name); } request-delete(id, name) => { root.request-delete(id, name); }
                             cancel-profile-settings => { root.cancel-profile-settings(); }
@@ -471,10 +540,10 @@ export component AppBody inherits Rectangle {
                             search-proxy-nodes(q) => { root.search-proxy-nodes(q); } test-proxy(g, n) => { root.test-proxy(g, n); }
                             open-sort-menu => { root.open-sort-menu(); } set-route-mode(m) => { root.set-route-mode(m); }
                             request-network-mode-change(m) => { root.request-network-mode-change(m); }
-                            check-core => { root.check-core(); } set-auto-start(v) => { root.set-auto-start(v); }
+                            check-core => { root.check-core(); }
+                            retry-proxy-restore => { root.retry-proxy-restore(); } set-auto-start(v) => { root.set-auto-start(v); }
                             set-refresh-profile-on-start(v) => { root.set-refresh-profile-on-start(v); }
                             set-invert-theme-foreground(v) => { root.set-invert-theme-foreground(v); }
-                            set-hide-bottom-bar-on-scroll(v) => { root.set-hide-bottom-bar-on-scroll(v); }
                             set-predictive-back-enabled(v) => { root.set-predictive-back-enabled(v); }
                             set-hide-background-card(v) => { root.set-hide-background-card(v); }
                             set-show-traffic-notification(v) => { root.set-show-traffic-notification(v); }

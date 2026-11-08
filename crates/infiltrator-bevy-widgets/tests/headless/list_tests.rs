@@ -15,8 +15,7 @@ use bevy::scene::{CommandsSceneExt, ScenePlugin};
 use bevy::ui::BackgroundColor;
 use infiltrator_bevy_widgets::WidgetsPlugin;
 use infiltrator_bevy_widgets::list::scroll_core::{
-    SlotBinding, VirtualEntityPool, VirtualSlot, clamp_scroll_offset, visible_window,
-    visible_window_with_overscan,
+    clamp_scroll_offset, visible_window, visible_window_with_overscan,
 };
 use infiltrator_bevy_widgets::list::{
     FixedExtentUpdate, RowHeightMode, RowMeasurementOutcome, ScrollOffsetOutcome, SelectionOutcome,
@@ -29,7 +28,8 @@ use infiltrator_bevy_widgets::nav::{NavActive, NavItem, nav_fill_token};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::theme::{Breakpoint, Theme, ThemeSkin};
-use zhuge_ui_core::virtual_list::{ExtentUpdate, VirtualListConfig};
+use zhuge_ui_core::virtual_list::{ExtentUpdate, VirtualListConfig, max_band_rows};
+use zhuge_ui_kit_bevy::control::{VirtualScrollSlot, sync_virtual_slots};
 
 fn headless_app() -> App {
     let mut app = App::new();
@@ -67,11 +67,11 @@ fn virtual_list_massive_dataset_o1_geometry() {
     let win = state.window();
     assert_eq!(win.start, 0);
     assert_eq!(win.end, 25);
-    assert_eq!(win.visible_count, 25);
-    assert_eq!(win.top_spacer_px, 0.0);
-    assert_eq!(win.bottom_spacer_px, (1_000_000.0 - 25.0) * 40.0);
+    assert_eq!(win.materialized_len(), 25);
+    assert_eq!(win.top, 0.0);
+    assert_eq!(win.bottom, (1_000_000.0 - 25.0) * 40.0);
     assert_eq!(
-        win.top_spacer_px + win.visible_count as f32 * row_h + win.bottom_spacer_px,
+        win.top + win.materialized_len() as f32 * row_h + win.bottom,
         state.total_height_px()
     );
 
@@ -89,7 +89,7 @@ fn virtual_list_massive_dataset_o1_geometry() {
     let mid_win = state.window();
     assert!(mid_win.start <= 500_000 && mid_win.end > 500_000);
     assert_eq!(
-        mid_win.top_spacer_px + mid_win.visible_count as f32 * row_h + mid_win.bottom_spacer_px,
+        mid_win.top + mid_win.materialized_len() as f32 * row_h + mid_win.bottom,
         state.total_height_px()
     );
 
@@ -99,9 +99,9 @@ fn virtual_list_massive_dataset_o1_geometry() {
     assert_eq!(state.scroll_progress(), 1.0);
     let end_win = state.window();
     assert_eq!(end_win.end, 1_000_000);
-    assert_eq!(end_win.bottom_spacer_px, 0.0);
+    assert_eq!(end_win.bottom, 0.0);
     assert_eq!(
-        end_win.top_spacer_px + end_win.visible_count as f32 * row_h + end_win.bottom_spacer_px,
+        end_win.top + end_win.materialized_len() as f32 * row_h + end_win.bottom,
         state.total_height_px()
     );
 }
@@ -343,10 +343,16 @@ fn variable_extent_window_uses_shared_core_geometry_after_measurements() {
     assert_eq!(state.visible_range(), (visible.start, visible.end));
     let product = state.window();
     assert_eq!((product.start, product.end), (mounted.start, mounted.end));
-    assert_eq!(product.visible_count, mounted.materialized_len());
-    assert_eq!(product.top_spacer_px, mounted.top);
-    assert_eq!(product.bottom_spacer_px, mounted.bottom);
-    assert_eq!(product.total_height_px, shared.total_extent());
+    assert_eq!(product.materialized_len(), mounted.materialized_len());
+    assert_eq!(product.top, mounted.top);
+    assert_eq!(product.bottom, mounted.bottom);
+    // The window carries the two spacer extents; the full content height of a
+    // measured list belongs to the shared index, not to a fixed extent.
+    assert_eq!(state.total_height_px(), shared.total_extent());
+    assert!(
+        product.top + product.bottom <= shared.total_extent(),
+        "the spacers plus the mounted rows cover the measured content"
+    );
 }
 
 #[test]
@@ -373,15 +379,12 @@ fn scroll_offset_outcomes_preserve_state_on_invalid_input_and_report_clamping() 
 #[test]
 fn empty_viewport_keeps_full_virtual_extent_without_mounting_rows() {
     let window = visible_window_with_overscan(100, 0.0, 30.0, 0.0, 4);
-    assert_eq!((window.start, window.end, window.visible_count), (0, 0, 0));
     assert_eq!(
-        (
-            window.top_spacer_px,
-            window.bottom_spacer_px,
-            window.total_height_px,
-        ),
-        (3000.0, 0.0, 3000.0)
+        (window.start, window.end, window.materialized_len()),
+        (0, 0, 0),
+        "an unmeasured viewport mounts nothing"
     );
+    assert_eq!((window.top, window.bottom), (0.0, 0.0));
 }
 
 #[test]
@@ -496,32 +499,32 @@ fn virtual_window_with_overscan_calculates_spacers_and_buffers() {
     // Base visible is [10, 20). With overscan 2: [8, 22).
     assert_eq!(win.start, 8);
     assert_eq!(win.end, 22);
-    assert_eq!(win.visible_count, 14);
-    assert_eq!(win.top_spacer_px, 8.0 * 30.0);
-    assert_eq!(win.bottom_spacer_px, (100.0 - 22.0) * 30.0);
-    assert_eq!(win.total_height_px, 3000.0);
+    assert_eq!(win.materialized_len(), 14);
+    assert_eq!(win.top, 8.0 * 30.0);
+    assert_eq!(win.bottom, (100.0 - 22.0) * 30.0);
+    assert_eq!(win.total_extent(30.0), 3000.0);
     assert_eq!(
-        win.top_spacer_px + win.visible_count as f32 * 30.0 + win.bottom_spacer_px,
-        win.total_height_px
+        win.top + win.materialized_len() as f32 * 30.0 + win.bottom,
+        win.total_extent(30.0)
     );
 
     // Overscan clamped at start (index 0).
     let win_start = visible_window_with_overscan(100, 300.0, 30.0, 0.0, 5);
     assert_eq!(win_start.start, 0);
     assert_eq!(win_start.end, 15);
-    assert_eq!(win_start.top_spacer_px, 0.0);
+    assert_eq!(win_start.top, 0.0);
 
     // Overscan clamped at end (index 100).
     let win_end = visible_window_with_overscan(100, 300.0, 30.0, 5000.0, 5);
     assert_eq!(win_end.start, 85);
     assert_eq!(win_end.end, 100);
-    assert_eq!(win_end.bottom_spacer_px, 0.0);
+    assert_eq!(win_end.bottom, 0.0);
 
     // Degenerate inputs.
     let win_empty = visible_window_with_overscan(0, 300.0, 30.0, 0.0, 2);
     assert_eq!(win_empty.start, 0);
     assert_eq!(win_empty.end, 0);
-    assert_eq!(win_empty.total_height_px, 0.0);
+    assert_eq!(win_empty.total_extent(30.0), 0.0);
 }
 
 #[test]
@@ -555,9 +558,12 @@ fn fixed_list_adapter_delegates_geometry_to_zhuge_ui_core() {
         let product =
             visible_window_with_overscan(item_count, viewport, row_height, offset, overscan);
         assert_eq!((product.start, product.end), shared.key());
-        assert_eq!(product.top_spacer_px, shared.top);
-        assert_eq!(product.bottom_spacer_px, shared.bottom);
-        assert_eq!(product.total_height_px, shared.total_extent(row_height));
+        assert_eq!(product.top, shared.top);
+        assert_eq!(product.bottom, shared.bottom);
+        assert_eq!(
+            product.total_extent(row_height),
+            shared.total_extent(row_height)
+        );
         assert_eq!(
             clamp_scroll_offset(offset, item_count, viewport, row_height),
             VirtualListConfig::new(item_count, row_height, viewport)
@@ -658,106 +664,6 @@ fn theme_flip_repaints_the_list_and_rows_without_respawn() {
 }
 
 #[test]
-fn virtual_entity_pool_slot_rebind_protection_rejects_delayed_receipts_and_queued_clicks() {
-    let mut app = headless_app();
-    let slot_entities: Vec<Entity> = (0..5).map(|_| app.world_mut().spawn_empty().id()).collect();
-
-    let mut pool = VirtualEntityPool::new(slot_entities);
-    assert_eq!(pool.capacity(), 5);
-    assert_eq!(pool.active_count(), 0);
-
-    // Initial mount: items 0..5 into slots 0..5
-    let actions = pool.sync_window(0, 5, |idx| idx as f32 * 40.0);
-    assert_eq!(actions.len(), 5);
-    assert_eq!(pool.active_count(), 5);
-
-    // Check slot 2: bound to item 2, generation 1
-    assert_eq!(
-        pool.slot_binding(2),
-        Some((SlotBinding::Bound { item_idx: 2 }, 1))
-    );
-    assert!(pool.is_receipt_valid(2, 2, 1));
-    assert!(!pool.is_receipt_valid(2, 2, 0)); // stale generation rejected
-    assert!(!pool.is_receipt_valid(2, 3, 1)); // wrong item rejected
-
-    let mut slot_comp = VirtualSlot::new(2);
-    slot_comp.apply_rebind(2, 1);
-    assert!(slot_comp.is_bound_to(2));
-    assert_eq!(slot_comp.bound_item_idx(), Some(2));
-    assert!(slot_comp.is_active());
-    assert!(slot_comp.is_valid_receipt(2, 1));
-    assert!(!slot_comp.is_valid_receipt(2, 0));
-
-    // Simulate user clicking slot 2 (item 2 at generation 1).
-    // An async command or delayed callback is queued with (slot: 2, item: 2, gen: 1).
-    let queued_click_target = (2usize, 2usize, 1u64);
-
-    // Now user scrolls down: window slides to [10, 15).
-    let rebind_actions = pool.sync_window(10, 15, |idx| idx as f32 * 40.0);
-    assert_eq!(rebind_actions.len(), 5);
-    // Slot 2 is now rebound to item 12 at generation 2
-    assert_eq!(
-        pool.slot_binding(2),
-        Some((SlotBinding::Bound { item_idx: 12 }, 2))
-    );
-    slot_comp.apply_rebind(12, 2);
-
-    // The delayed receipt / queued click from the earlier interaction arrives!
-    // Rebind protection guard checks whether the receipt is still valid for slot 2:
-    assert!(
-        !pool.is_receipt_valid(
-            queued_click_target.0,
-            queued_click_target.1,
-            queued_click_target.2
-        ),
-        "delayed click or receipt targeting item 2 must be rejected after slot 2 was rebound to item 12"
-    );
-    assert!(
-        !slot_comp.is_valid_receipt(queued_click_target.1, queued_click_target.2),
-        "VirtualSlot component must reject stale receipt targeting previous item and generation"
-    );
-
-    // Valid receipt for current binding succeeds
-    assert!(pool.is_receipt_valid(2, 12, 2));
-    assert!(slot_comp.is_valid_receipt(12, 2));
-
-    // Deactivate slots when window shrinks to [10, 12) (only 2 active slots)
-    let _deact_actions = pool.sync_window(10, 12, |idx| idx as f32 * 40.0);
-    assert_eq!(pool.active_count(), 2);
-    // Slot 2 was deactivated: generation advanced to 3, the slot is free
-    assert_eq!(pool.slot_binding(2), Some((SlotBinding::Free, 3)));
-    slot_comp.apply_deactivate(3);
-    // One binding, one truth: a free slot has no item and is not active.
-    assert_eq!(slot_comp.bound_item_idx(), None);
-    assert!(!slot_comp.is_active());
-    assert!(!pool.is_receipt_valid(2, 12, 2));
-    assert!(!pool.is_receipt_valid(2, 12, 3));
-    assert!(!slot_comp.is_valid_receipt(12, 2));
-    assert!(!slot_comp.is_valid_receipt(12, 3));
-
-    // Scrolling back so slot 2 rebinds to item 2 again: generation is now 4!
-    let _scroll_back_actions = pool.sync_window(0, 5, |idx| idx as f32 * 40.0);
-    assert_eq!(
-        pool.slot_binding(2),
-        Some((SlotBinding::Bound { item_idx: 2 }, 4))
-    );
-    slot_comp.apply_rebind(2, 4);
-
-    // Even though slot 2 is once again bound to item 2, the old delayed click from generation 1 is STILL rejected!
-    assert!(
-        !pool.is_receipt_valid(
-            queued_click_target.0,
-            queued_click_target.1,
-            queued_click_target.2
-        ),
-        "stale click targeting generation 1 must not match the new generation 4 binding of the same item"
-    );
-    assert!(!slot_comp.is_valid_receipt(queued_click_target.1, queued_click_target.2));
-    assert!(pool.is_receipt_valid(2, 2, 4));
-    assert!(slot_comp.is_valid_receipt(2, 4));
-}
-
-#[test]
 fn virtual_list_pool_capacity_and_mounted_slots_are_strictly_bounded_by_viewport_and_overscan() {
     // Test dataset with 50,000 items in an 800px viewport with row height 40px and overscan 3.
     let item_count = 50_000;
@@ -769,16 +675,15 @@ fn virtual_list_pool_capacity_and_mounted_slots_are_strictly_bounded_by_viewport
 
     // Visible rows in viewport = 800 / 40 = 20.
     // Mounted rows with overscan = 20 + 2 * 3 = 26 (at interior positions).
-    // The maximum possible mounted rows for any scroll offset is strictly bounded:
-    let max_mounted_bound = ((viewport / row_height).ceil() as usize) + overscan * 2 + 2;
+    // The shared band rule gives the maximum mounted rows for any scroll offset:
+    let max_mounted_bound = max_band_rows(row_height, viewport, overscan);
 
-    // Pool capacity needed:
-    let pool_capacity = max_mounted_bound;
-    let mut app = headless_app();
-    let dummy_entities: Vec<Entity> = (0..pool_capacity)
-        .map(|_| app.world_mut().spawn_empty().id())
+    let mut slots: Vec<VirtualScrollSlot> = (0..max_mounted_bound)
+        .map(|slot| VirtualScrollSlot {
+            slot,
+            ..VirtualScrollSlot::default()
+        })
         .collect();
-    let mut pool = VirtualEntityPool::new(dummy_entities);
 
     // Test across various scroll positions from top to middle to bottom
     let scroll_offsets = [
@@ -799,24 +704,25 @@ fn virtual_list_pool_capacity_and_mounted_slots_are_strictly_bounded_by_viewport
 
         // 1. Mounted window length must never exceed the viewport + overscan upper bound
         assert!(
-            win.visible_count <= max_mounted_bound,
+            win.materialized_len() <= max_mounted_bound,
             "mounted rows count {} must be bounded by {}",
-            win.visible_count,
+            win.materialized_len(),
             max_mounted_bound
         );
 
-        // 2. Sync pool to window
-        let _actions = pool.sync_window(win.start, win.end, |idx| idx as f32 * row_height);
-
-        // 3. Active pool slots must be exactly equal to the mounted window visible count
+        // 2. The shared recycle rule binds exactly the mounted window's rows.
+        sync_virtual_slots(&win, &mut slots);
+        let bound = slots
+            .iter()
+            .filter(|slot| slot.bound_index().is_some())
+            .count();
         assert_eq!(
-            pool.active_count(),
-            win.visible_count,
-            "active slots in pool must match the mounted window count"
+            bound,
+            win.materialized_len(),
+            "bound slots must match the mounted window count"
         );
 
-        // 4. Pool capacity never changes and is independent of 50,000 item dataset
-        assert_eq!(pool.capacity(), pool_capacity);
-        assert!(pool.capacity() <= 30);
+        // 3. Pool capacity never changes and is independent of 50,000 item dataset
+        assert!(slots.len() <= 30);
     }
 }

@@ -300,8 +300,11 @@ fn matrix_11_08_search_and_pagination_reduce_in_shared_view() {
         entry("GEOIP,CN,DIRECT"),
     ];
     assert_eq!(view::filter_rule_indices(&rules, "proxy"), vec![1]);
-    assert_eq!(view::page_count(0, 0), 1);
-    assert_eq!(view::page_bounds(9, 5, 2), (4, 5));
+    // Pagination arithmetic belongs to `zhuge-ui-core::row_page`; the domain
+    // keeps only the page-size policy the surfaces read, so that is what this
+    // proves: a zero setting resolves to the declared default, not to zero rows.
+    assert_eq!(view::effective_page_size(0), view::DEFAULT_RULE_PAGE_SIZE);
+    assert_eq!(view::effective_page_size(2), 2);
 
     // DUAL-11-08: the published view is capped and says so.
     assert_eq!(view::published_rule_count(120), 120);

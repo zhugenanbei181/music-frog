@@ -61,6 +61,8 @@ pub(super) fn project_logs(window: &AppWindow, snapshot: &SurfaceSnapshot) {
                 latency_ink: unobserved_ink(),
                 subtitle: format!("{timestamp} · {level}").into(),
                 trailing: tag.into(),
+                upload_rate: "".into(),
+                download_rate: "".into(),
                 active: false,
             }
         })

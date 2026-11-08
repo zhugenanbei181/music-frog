@@ -5,8 +5,17 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AppRoutingMode {
+    /// Route every app through the tunnel except the VPN host itself.
+    ///
+    /// The host-traffic invariant holds for all three modes: MusicFrog's own
+    /// traffic never enters the tunnel it owns, so subscription updates and IP
+    /// probes do not depend on a link this app is responsible for bringing up.
+    /// FlClash wires the opposite policy (self added to the allow list); do not
+    /// copy it here without re-deciding this invariant.
     ProxyAll,
+    /// Route only the selected apps; unselected apps, including the host, go direct.
     ProxySelected,
+    /// Route everything except the selected apps; the host is always bypassed.
     BypassSelected,
 }
 

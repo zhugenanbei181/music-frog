@@ -7,7 +7,7 @@
 #
 # Layout under the toolchain root (default "$HOME/android-tools-bevy",
 # override with ANDROID_TOOLS_ROOT; nothing here is tracked by the repo):
-#   jdk/                                Temurin JDK 17
+#   jdk/                                Temurin JDK (pinned build LTS)
 #   android/                            Android SDK root
 #   android/cmdline-tools/latest/       sdkmanager / avdmanager
 #   android/ndk/<version>/              NDK

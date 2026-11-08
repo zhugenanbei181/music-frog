@@ -67,7 +67,7 @@ use crate::script_export::ScriptExportSnapshot;
 use crate::script_sandbox::ScriptSandboxSnapshot;
 use crate::service_mode::ServiceModeSnapshot;
 use crate::shell_readout::ShellReadoutSnapshot;
-use crate::snapshot::CoreSnapshot;
+use crate::snapshot::{CoreSessionObservation, CoreSnapshot};
 use crate::snapshot_history::SnapshotHistorySnapshot;
 use crate::speedtest::SpeedtestSnapshot;
 use crate::stun_probe::StunProbeReport;
@@ -838,6 +838,7 @@ impl SurfaceSnapshot {
             generation: 0,
             revision: 0,
             core: CoreSnapshot {
+                session: CoreSessionObservation::Unknown,
                 identity: None,
                 lifecycle: CoreLifecycle::Starting,
                 generation: 0,

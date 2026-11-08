@@ -2848,6 +2848,71 @@
       "source_roots": [
         "crates/infiltrator-iced/src/update/protocol_codec.rs"
       ]
+    },
+    {
+      "id": "shared-bezier-easing-solver",
+      "text": "BezierEasing",
+      "rationale": "The cubic-Bézier easing solve is owned by zhuge-ui-core::easing::CubicBezier; this local Newton/bisection solver had no production consumer and held the same fact a second time with different convergence rules.",
+      "kind": "public_symbol",
+      "language": "rust",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-bevy-widgets/tests/headless/easing_owner_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-shared/src"
+      ]
+    },
+    {
+      "id": "shared-cubic-bezier-evaluator",
+      "text": "cubic_bezier",
+      "rationale": "The one-dimensional Bernstein evaluator existed only to feed the retired local easing solver; an eased surface takes its value from the shared owner instead.",
+      "kind": "public_symbol",
+      "language": "rust",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-bevy-widgets/tests/headless/easing_owner_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-shared/src"
+      ]
+    },
+    {
+      "id": "shared-cubic-bezier-point-evaluator",
+      "text": "cubic_bezier_point",
+      "rationale": "Plane curve evaluation with no consumer: chart geometry evaluates its own segments in pixel space, and easing takes its value from the shared owner.",
+      "kind": "public_symbol",
+      "language": "rust",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-bevy-widgets/tests/headless/easing_owner_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-shared/src"
+      ]
+    },
+    {
+      "id": "shared-cubic-bezier-tangent-evaluator",
+      "text": "cubic_bezier_tangent",
+      "rationale": "Curve tangent with no consumer; a surface that needs a tangent owns that drawing fact in its own geometry, never in the shared easing family.",
+      "kind": "public_symbol",
+      "language": "rust",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-bevy-widgets/tests/headless/easing_owner_tests.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-shared/src"
+      ]
+    },
+    {
+      "id": "contract-cubic-bezier-solve",
+      "text": "solve",
+      "rationale": "The contract-local Newton/bisection cubic-Bézier solve was a second numeric authority. Its four M3 curves now bind zhuge-ui-core::easing::CubicBezier::sample, with Rust bit-exact transition-grid parity evidence in the private convergence receipt.",
+      "kind": "public_symbol",
+      "language": "rust",
+      "replacement_behavior_tests": [
+        "crates/infiltrator-contract/tests/motion_owner_guard.rs"
+      ],
+      "source_roots": [
+        "crates/infiltrator-contract/src/motion_spec.rs"
+      ]
     }
   ]
 }

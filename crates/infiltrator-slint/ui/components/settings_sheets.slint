@@ -38,6 +38,7 @@ export component ThemeColorSheet inherits ModalBottomSheet {
         ScrollView {
             width: parent.width; height: parent.height; content-width: self.width;
             mouse-drag-pan-enabled: root.android-platform;
+            vertical-scrollbar-policy: LumenTheme.compact-layout ? ScrollBarPolicy.always-off : ScrollBarPolicy.as-needed;
             horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
             VerticalLayout {
                 x: 16 * LumenUiScale.unit; width: max(0 * LumenUiScale.unit, parent.width - 32 * LumenUiScale.unit);
@@ -82,7 +83,7 @@ export component ThemeColorSheet inherits ModalBottomSheet {
                 }
             }
         }
-        if LumenTheme.show-layout-bounds: LayoutOutline { outline-color: #34C759; }
+        if LumenTheme.show-layout-bounds: LayoutOutline { outline-color: LumenTheme.debug-text; }
     }
 }
 
@@ -127,7 +128,7 @@ export component PageScaleSheet inherits ModalBottomSheet {
                 SheetActionButton { horizontal-stretch: 1; label: @tr("应用"); primary: true; clicked => { root.apply(root.page-scale-draft); } }
             }
         }
-        if LumenTheme.show-layout-bounds: LayoutOutline { outline-color: #34C759; }
+        if LumenTheme.show-layout-bounds: LayoutOutline { outline-color: LumenTheme.debug-text; }
     }
 }
 
@@ -158,6 +159,7 @@ export component UserAgentSheet inherits ModalBottomSheet {
         ScrollView {
             width: parent.width; height: parent.height; content-width: self.width;
             mouse-drag-pan-enabled: root.android-platform;
+            vertical-scrollbar-policy: LumenTheme.compact-layout ? ScrollBarPolicy.always-off : ScrollBarPolicy.as-needed;
             horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
             VerticalLayout {
                 x: 16 * LumenUiScale.unit; width: max(0 * LumenUiScale.unit, parent.width - 32 * LumenUiScale.unit); padding-bottom: LumenTheme.space-4; spacing: LumenTheme.space-4; alignment: start;
@@ -167,7 +169,7 @@ export component UserAgentSheet inherits ModalBottomSheet {
                     Text { text: @tr("自定义 User-Agent"); font-size: DesignType.subheading-size; color: LumenTheme.text-primary; horizontal-stretch: 1; vertical-alignment: center; horizontal-alignment: center; }
                     Rectangle { width: 48 * LumenUiScale.unit; height: 48 * LumenUiScale.unit; }
                 }
-                Text { text: @tr("留空使用默认值") + " MusicFrog/" + root.product-version; font-size: DesignType.label-size; color: LumenTheme.text-secondary; wrap: word-wrap; vertical-stretch: 0; }
+                Text { text: @tr("留空使用默认值") + " " + @tr("Lumen") + "/" + root.product-version; font-size: DesignType.label-size; color: LumenTheme.text-secondary; wrap: word-wrap; vertical-stretch: 0; }
                 RoundedInputField { width: parent.width; label: "User-Agent"; text <=> root.user-agent-draft; }
                 if root.user-agent-error != "": Text { text: root.user-agent-error; font-size: DesignType.label-size; color: LumenTheme.error; wrap: word-wrap; vertical-stretch: 0; }
                 HorizontalLayout {
@@ -177,7 +179,7 @@ export component UserAgentSheet inherits ModalBottomSheet {
                 }
             }
         }
-        if LumenTheme.show-layout-bounds: LayoutOutline { outline-color: #34C759; }
+        if LumenTheme.show-layout-bounds: LayoutOutline { outline-color: LumenTheme.debug-text; }
     }
 }
 

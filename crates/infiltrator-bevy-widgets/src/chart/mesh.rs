@@ -7,6 +7,7 @@
 use super::bezier::PlotPoint;
 use bevy::asset::RenderAssetUsages;
 use bevy::render::mesh::{Indices, Mesh, PrimitiveTopology};
+use zhuge_ui_core::easing::lerp;
 
 /// A single vertex for 2D GPU telemetry rendering.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -209,7 +210,7 @@ pub fn build_donut_sector_mesh(
 
     for i in 0..=steps {
         let t = i as f32 / steps as f32;
-        let angle = start_angle + (end_angle - start_angle) * t;
+        let angle = lerp(start_angle, end_angle, t);
         let (sin_a, cos_a) = angle.sin_cos();
 
         // Inner circle point

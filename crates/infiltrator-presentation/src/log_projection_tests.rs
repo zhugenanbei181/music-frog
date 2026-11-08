@@ -4,7 +4,7 @@ use infiltrator_contract::logs::{
     LogBindingSnapshot, LogFactsSnapshot, LogLevel, LogObservationSnapshot, LogSession,
     LogStreamState, RawLogRecord,
 };
-use infiltrator_contract::snapshot::CoreSnapshot;
+use infiltrator_contract::snapshot::{CoreSessionObservation, CoreSnapshot};
 use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
 };
@@ -28,6 +28,7 @@ fn session(generation: u64, token: u128) -> LogSession {
 
 fn core(session: &LogSession) -> CoreSnapshot {
     CoreSnapshot {
+        session: CoreSessionObservation::Unknown,
         identity: session.identity().cloned(),
         lifecycle: CoreLifecycle::Running,
         generation: session.generation.value(),

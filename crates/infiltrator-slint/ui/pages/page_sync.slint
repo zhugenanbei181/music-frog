@@ -59,12 +59,21 @@ export component PageSync inherits VerticalLayout {
         }
 
         VerticalLayout {
-            spacing: 6 * LumenUiScale.unit;
+            // spacing 0: a per-item wrapper whose condition is false still
+            // pays layout spacing, so a 6u gap per published item accumulated
+            // into a 73px dead band above the action row. The gap belongs to
+            // the row that actually renders, not to the loop.
+            spacing: 0 * LumenUiScale.unit;
 
             for item in root.items: VerticalLayout {
-                if item.id.starts-with("sync-conflict/"): ItemRow {
-                    item: item;
-                    action(id, row) => { root.action(id, row); }
+                spacing: 0 * LumenUiScale.unit;
+                if item.id.starts-with("sync-conflict/"): VerticalLayout {
+                    spacing: 0 * LumenUiScale.unit;
+                    ItemRow {
+                        item: item;
+                        action(id, row) => { root.action(id, row); }
+                    }
+                    Rectangle { height: 6 * LumenUiScale.unit; }
                 }
             }
         }
@@ -122,10 +131,15 @@ export component PageSync inherits VerticalLayout {
             spacing: 0;
 
             for item in root.items: VerticalLayout {
-                if item.id.starts-with("sync-snapshot/"): ItemRow {
-                    item: item;
-                    row-min-height: 48 * LumenUiScale.unit;
-                    action(id, row) => { root.action(id, row); }
+                spacing: 0;
+                if item.id.starts-with("sync-snapshot/"): VerticalLayout {
+                    spacing: 0;
+                    ItemRow {
+                        item: item;
+                        row-min-height: 48 * LumenUiScale.unit;
+                        action(id, row) => { root.action(id, row); }
+                    }
+                    Rectangle { height: 6 * LumenUiScale.unit; }
                 }
             }
         }

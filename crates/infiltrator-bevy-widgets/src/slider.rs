@@ -16,6 +16,12 @@ use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, Node, PositionType, Val, percent, px,
 };
 use bevy::ui_widgets::{Slider, SliderRange, SliderThumb, SliderValue};
+use zhuge_ui_core::value::interval_fraction;
+
+// A range that cannot travel spans the whole axis: lower thumb at the start,
+// upper thumb at the end.
+const FLAT_LOWER_THUMB_AT_START: f32 = 0.0;
+const FLAT_UPPER_THUMB_AT_END: f32 = 1.0;
 
 /// Marker on the fill bar; its width carries the value between range start
 /// and the thumb. Pure routing for the repaint system.
@@ -100,12 +106,10 @@ pub fn slider_fraction(value: f32, start: f32, end: f32) -> f32 {
 
 /// The dual values' travels through range as (0..=1, 0..=1), clamped. Pure function.
 pub fn range_slider_fractions(start_val: f32, end_val: f32, min: f32, max: f32) -> (f32, f32) {
-    if max <= min {
-        return (0.0, 1.0);
-    }
-    let range = max - min;
-    let s_pct = ((start_val - min) / range).clamp(0.0, 1.0);
-    let e_pct = ((end_val - min) / range).clamp(0.0, 1.0);
+    // A range that cannot travel spans the whole axis: the lower thumb at the
+    // start, the upper at the end. The projection owns both divisions.
+    let s_pct = interval_fraction(start_val, min, max, FLAT_LOWER_THUMB_AT_START);
+    let e_pct = interval_fraction(end_val, min, max, FLAT_UPPER_THUMB_AT_END);
     (s_pct.min(e_pct), s_pct.max(e_pct))
 }
 

@@ -8,9 +8,10 @@ use bevy::scene::ScenePlugin;
 use bevy::ui::widget::Text;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::toast::{ShellToast, ToastPolicyGate};
-use infiltrator_bevy_widgets::toast::{ToastContainer, ToastKind, ToastQueue};
+use infiltrator_bevy_widgets::toast::{ToastContainer, ToastQueue};
 use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
 use infiltrator_contract::toast::ToastPolicy;
+use zhuge_ui_tokens::StatusKind;
 
 fn mounted_app() -> App {
     let mut app = App::new();
@@ -107,7 +108,7 @@ fn the_overlay_mounts_a_single_stack_root() {
     {
         let world = app.world_mut();
         world.write_message(ShellToast {
-            kind: ToastKind::Warning,
+            kind: StatusKind::Warning,
             text: "shortcut conflict: Ctrl+Alt+T".to_string(),
             duration_secs: 5.0,
         });

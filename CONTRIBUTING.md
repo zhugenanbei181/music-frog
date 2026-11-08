@@ -1,8 +1,8 @@
-# 贡献指南 (Contributing to MusicFrog & Lurker)
+# 贡献指南 (Contributing to Infiltrator & Lurker)
 
 > 层级：L1
 
-感谢您对 MusicFrog 及其开源中立内核 Lurker 做出贡献！为了保持工程的高性能、确定性与跨平台稳定性，我们制定了以下贡献流程与质量约束。
+感谢您对 Infiltrator 及其开源中立内核 Lurker 做出贡献！为了保持工程的高性能、确定性与跨平台稳定性，我们制定了以下贡献流程与质量约束。
 
 ---
 

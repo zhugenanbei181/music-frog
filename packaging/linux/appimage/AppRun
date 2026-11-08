@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AppRun entrypoint for MusicFrog Infiltrator AppImage
+# AppRun entrypoint for Infiltrator AppImage
 set -e
 
 # Determine the directory where AppRun is located

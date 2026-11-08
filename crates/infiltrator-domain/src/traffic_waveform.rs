@@ -138,6 +138,7 @@ pub fn display_series(snapshot: &TrafficWaveformSnapshot) -> (Vec<f32>, Vec<f32>
 #[cfg(test)]
 mod tests {
     use super::*;
+    use infiltrator_contract::snapshot::CoreSessionObservation;
 
     #[test]
     fn same_generation_new_session_retires_the_old_curve_and_stop_retains_without_adding_zero() {
@@ -159,6 +160,7 @@ mod tests {
 
     fn core(generation: u64, upload: f64, download: f64, lifecycle: CoreLifecycle) -> CoreSnapshot {
         CoreSnapshot {
+            session: CoreSessionObservation::Unknown,
             identity: None,
             lifecycle,
             generation,

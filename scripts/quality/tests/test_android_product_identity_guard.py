@@ -457,7 +457,7 @@ class AndroidProductIdentityRules(unittest.TestCase):
             badging = "\n".join(
                 (
                     f"package: name='com.musicfrog.infiltrator' versionCode='{version_code}' versionName='{version_name}'",
-                    "application-label:'MusicFrog Infiltrator'",
+                    f"application-label:'{identity['compose.display_name']}'",
                     "application-icon-320:'res/b7.png'",
                 )
             )
@@ -471,7 +471,7 @@ class AndroidProductIdentityRules(unittest.TestCase):
         badging = (
             f"package: name='com.musicfrog.infiltrator' versionCode='{version_code}'"
             " versionName='ignored'\n"
-            "application-label:'MusicFrog Infiltrator'\n"
+            f"application-label:'{identity['compose.display_name']}'\n"
             "application-icon-320:'res/b7.png'\n"
         )
         with tempfile.TemporaryDirectory() as directory:
@@ -538,7 +538,7 @@ class AndroidProductIdentityRules(unittest.TestCase):
             badging = "\n".join(
                 (
                     f"package: name='com.musicfrog.infiltrator' versionCode='{version_code}' versionName='{version_name}'",
-                    "application-label:'MusicFrog Infiltrator'",
+                    f"application-label:'{identity['compose.display_name']}'",
                     "application-icon-320:'res/b7.png'",
                 )
             )

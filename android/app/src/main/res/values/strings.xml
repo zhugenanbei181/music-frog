@@ -98,7 +98,10 @@
     <string name="routing_mode_proxy_selected">Proxy Selected (Allowlist)</string>
     <string name="routing_mode_bypass_selected">Bypass Selected (Blocklist)</string>
     <string name="routing_mode_unavailable">Routing state unavailable</string>
-    <string name="label_selected_apps_count">%1$d apps selected</string>
+    <plurals name="label_selected_apps_count">
+        <item quantity="one">%1$d app selected</item>
+        <item quantity="other">%1$d apps selected</item>
+    </plurals>
     <string name="access_control_status_title">Access Control</string>
     <string name="action_retry">Retry</string>
     <string name="search_apps_hint">Search Apps</string>
@@ -200,7 +203,7 @@
 
     <!-- Service -->
     <string name="notification_channel_name">VPN Service</string>
-    <string name="notification_title">MusicFrog Infiltrator VPN</string>
+    <string name="notification_title">%1$s VPN</string>
     <string name="notification_starting">Starting…</string>
     <string name="notification_active">Protection Active</string>
     <string name="notification_start_failed">VPN startup failed</string>
@@ -276,8 +279,9 @@
     <string name="owner_health_unhealthy">Unhealthy</string>
     <string name="owner_outbound_selected">Selected: %1$s</string>
     <string name="owner_outbound_preferences_unavailable">Outbound preferences are not available from the owner.</string>
-    <string name="brand_name">MusicFrog</string>
-    <string name="app_display_name">MusicFrog Infiltrator</string>
+    <string name="brand_name">Source</string>
+    <string name="app_display_name">Source</string>
+    <string name="about_brand_note">The frog musician in the icon is the internal MusicFrog mark; product names use only their own names.</string>
     <string name="configuration_saving">Saving configuration</string>
     <string name="configuration_saved">Saved</string>
     <string name="configuration_failed">Save failed</string>

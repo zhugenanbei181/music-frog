@@ -1,0 +1,301 @@
+import { DesignType } from "./design-type.slint";
+import { IconButton, Switch } from "@material";
+import { LumenUiScale } from "../lumen-ui-scale.slint";
+import { LumenTheme } from "theme.slint";
+import { LayoutOutline, ListRule } from "base_widgets.slint";
+
+export component ProfileCardSurface inherits Rectangle {
+    in property <string> profile-name;
+    in property <string> profile-kind;
+    in property <string> profile-location;
+    in property <bool> current;
+    in property <bool> has-quota: false;
+    in property <string> used-text: "";
+    in property <string> total-text: "";
+    in property <string> expire-text: "";
+    in property <float> usage-fraction: 0.0;
+    in property <string> quota-grade: "observed";
+    in property <bool> compact: false;
+    callback set-current();
+    callback clear-current();
+    callback open-settings();
+    callback share-profile();
+    callback delete-profile();
+    vertical-stretch: 0;
+    // The phone card is the sum of its own rows, not a literal: the reference
+    // profile card is 64.9dp tall and its structure is the same two lines, so
+    // 12 + 20 + 6 + 16 + 12 = 66u lands inside a dp of it. The 68u literal was
+    // 3dp over every card and, with `alignment: center`, spent it as slack
+    // between the name line and the kind line.
+    // The desktop card's height is the sum of its own rows, not a literal.
+    // A fixed 156u clipped the 48u action row: the copy/trash buttons and
+    // the edit pill continued 13px below the card edge on `profiles-light`.
+    // One property owns the height and every contributing row adds to it:
+    // 16 top pad + 34 name + 6 gap + 22 kind/chips + (quota 10 + 6 bar
+    // + 6 gap + 18 caption when present) + 12 + 1 rule + 12 + 48 actions
+    // + 8 bottom pad = 159u with quota, 119u without.
+    property <length> desktop-content-height:
+        16 * LumenUiScale.unit + 34 * LumenUiScale.unit + 6 * LumenUiScale.unit
+        + 22 * LumenUiScale.unit
+        + (root.has-quota ? 40 * LumenUiScale.unit : 0 * LumenUiScale.unit)
+        + 12 * LumenUiScale.unit + LumenTheme.row-divider-thickness
+        + 12 * LumenUiScale.unit + 48 * LumenUiScale.unit
+        + 8 * LumenUiScale.unit;
+    min-height: root.compact
+        ? 12 * LumenUiScale.unit + 20 * LumenUiScale.unit + 6 * LumenUiScale.unit + 16 * LumenUiScale.unit + 12 * LumenUiScale.unit
+        : root.desktop-content-height;
+    preferred-height: root.min-height;
+    border-radius: root.compact ? LumenTheme.radius-mobile-card : LumenTheme.radius-card;
+    background: root.compact
+        ? ((compact-touch.has-hover && LumenTheme.hover-allowed) ? LumenTheme.zinc-4 : LumenTheme.zinc-3)
+        : LumenTheme.surface;
+    border-width: 1 * LumenUiScale.unit;
+    border-color: root.compact
+        ? LumenTheme.hairline-glow
+        : LumenTheme.border;
+    animate background, border-color { duration: 120ms; easing: ease-out; }
+
+    compact-touch := TouchArea {
+        enabled: root.compact;
+        mouse-cursor: pointer;
+        clicked => {
+            if !root.current {
+                root.set-current();
+            } else {
+                root.open-settings();
+            }
+        }
+    }
+
+    if root.compact: VerticalLayout {
+        padding-left: 16 * LumenUiScale.unit;
+        padding-right: 16 * LumenUiScale.unit;
+        padding-top: 12 * LumenUiScale.unit;
+        padding-bottom: 12 * LumenUiScale.unit;
+        spacing: 6 * LumenUiScale.unit;
+
+        HorizontalLayout {
+            height: 20 * LumenUiScale.unit;
+            spacing: 8 * LumenUiScale.unit;
+            cross-axis-alignment: center;
+
+            Text {
+                text: root.profile-name;
+                color: LumenTheme.text-primary;
+                font-size: LumenTheme.profile-name-size;
+                font-weight: LumenTheme.profile-name-weight;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+
+            if root.expire-text != "": Rectangle {
+                height: 18 * LumenUiScale.unit;
+                border-radius: 4 * LumenUiScale.unit;
+                background: LumenTheme.zinc-4;
+                HorizontalLayout {
+                    padding-left: 6 * LumenUiScale.unit;
+                    padding-right: 6 * LumenUiScale.unit;
+                    alignment: center;
+                    cross-axis-alignment: center;
+                    Text {
+                        text: root.expire-text;
+                        color: LumenTheme.accent;
+                        font-size: DesignType.micro-size;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+
+            Rectangle { horizontal-stretch: 1; background: transparent; }
+        }
+
+        HorizontalLayout {
+            height: 16 * LumenUiScale.unit;
+            spacing: 8 * LumenUiScale.unit;
+            cross-axis-alignment: center;
+
+            // The kind belongs on the second line, the way the reference puts
+            // "本地" under the profile name and leaves the first line for the
+            // name and its date chip.
+            Text {
+                text: root.profile-kind == @tr("本地文件") || root.profile-kind == "本地 YAML" ? @tr("本地") : (root.expire-text != "" ? @tr("已同步") : @tr("本地"));
+                color: LumenTheme.text-muted;
+                font-size: DesignType.caption-size;
+                vertical-alignment: center;
+            }
+
+            if root.has-quota: Text {
+                text: root.used-text + " / " + root.total-text;
+                color: LumenTheme.text-secondary;
+                font-size: DesignType.monoCaption-size;
+                font-family: DesignType.monoCaption-family;
+                vertical-alignment: center;
+            }
+
+            if !root.has-quota: Text {
+                text: root.profile-location != "" ? root.profile-location : @tr("本地配置文件");
+                color: LumenTheme.text-secondary;
+                font-size: DesignType.caption-size;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+
+            Rectangle { horizontal-stretch: 1; background: transparent; }
+        }
+    }
+
+    // The current-profile badge belongs to the card, not to the first text
+    // row: the reference centres it on the card's own height so it reads as
+    // the card's state rather than as a trailing glyph of the name.
+    if root.compact && root.current: Rectangle {
+        x: parent.width - self.width - 16 * LumenUiScale.unit;
+        y: (parent.height - self.height) / 2;
+        width: 25 * LumenUiScale.unit;
+        height: 25 * LumenUiScale.unit;
+        border-radius: 13 * LumenUiScale.unit;
+        background: LumenTheme.selection;
+        Path {
+            width: parent.width;
+            height: parent.height;
+            viewbox-width: 24;
+            viewbox-height: 24;
+            commands: "M 7 12.5 L 10.5 16 L 17 8.5";
+            stroke: LumenTheme.selection-ink;
+            stroke-width: 2.4 * LumenUiScale.unit;
+            stroke-line-cap: round;
+            stroke-line-join: round;
+        }
+    }
+
+    if !root.compact: VerticalLayout {
+        x: 18 * LumenUiScale.unit; width: parent.width - 36 * LumenUiScale.unit;
+        padding-top: LumenTheme.space-4; padding-bottom: LumenTheme.space-2;
+        spacing: 0 * LumenUiScale.unit; alignment: start;
+        HorizontalLayout { spacing: LumenTheme.space-3; vertical-stretch: 0; height: 34 * LumenUiScale.unit;
+            Text { text: root.profile-name; color: LumenTheme.text-primary; font-size: DesignType.title-size; font-weight: DesignType.title-weight; horizontal-stretch: 1; vertical-alignment: center; overflow: elide; accessible-label: root.profile-name; }
+            Switch {
+                checked: root.current;
+                width: 52 * LumenUiScale.unit;
+                height: 32 * LumenUiScale.unit;
+                tooltip: root.current ? @tr("取消当前配置") : @tr("设为当前配置");
+                checked-state-changed(checked) => {
+                    if checked { root.set-current(); }
+                    else { root.clear-current(); }
+                }
+            }
+        }
+        Rectangle { height: 6 * LumenUiScale.unit; background: transparent; }
+        HorizontalLayout {
+            spacing: LumenTheme.space-2;
+            vertical-stretch: 0;
+            cross-axis-alignment: center;
+
+            Rectangle {
+                height: 22 * LumenUiScale.unit;
+                border-radius: 4 * LumenUiScale.unit;
+                background: LumenTheme.surface-muted;
+                HorizontalLayout {
+                    padding-left: 8 * LumenUiScale.unit;
+                    padding-right: 8 * LumenUiScale.unit;
+                    alignment: center;
+                    cross-axis-alignment: center;
+                    Text {
+                        text: root.profile-kind;
+                        color: LumenTheme.text-secondary;
+                        font-size: DesignType.micro-size;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+
+            Text {
+                text: root.profile-location;
+                color: LumenTheme.text-muted;
+                font-size: DesignType.mono-size;
+                horizontal-stretch: 1;
+                vertical-alignment: center;
+                overflow: elide;
+                accessible-label: root.profile-location;
+            }
+        }
+        if root.has-quota: Rectangle { height: 10 * LumenUiScale.unit; background: transparent; }
+        if root.has-quota: VerticalLayout {
+            spacing: 6 * LumenUiScale.unit;
+            vertical-stretch: 0;
+
+            // Usage progress bar
+            Rectangle {
+                width: parent.width;
+                height: 6 * LumenUiScale.unit;
+                border-radius: 3 * LumenUiScale.unit;
+                background: LumenTheme.border.with_alpha(40%);
+
+                Rectangle {
+                    x: 0;
+                    y: 0;
+                    width: parent.width * clamp(root.usage-fraction, 0.0, 1.0);
+                    height: parent.height;
+                    border-radius: 3 * LumenUiScale.unit;
+                    background: root.quota-grade == "danger" ? LumenTheme.error : (root.quota-grade == "warning" ? LumenTheme.status-warning : LumenTheme.accent);
+                    animate width { duration: 200ms; easing: ease-out; }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: LumenTheme.space-2;
+                Text {
+                    text: root.used-text + " / " + root.total-text;
+                    color: LumenTheme.text-secondary;
+                    font-size: DesignType.caption-size;
+                    font-weight: DesignType.caption-weight;
+                    horizontal-stretch: 1;
+                    vertical-alignment: center;
+                }
+                if root.expire-text != "": Text {
+                    text: root.expire-text;
+                    color: root.quota-grade == "danger" ? LumenTheme.error : LumenTheme.text-muted;
+                    font-size: DesignType.micro-size;
+                    horizontal-alignment: right;
+                    vertical-alignment: center;
+                }
+            }
+        }
+        Rectangle { height: 12 * LumenUiScale.unit; background: transparent; }
+        ListRule {}
+        Rectangle { height: 12 * LumenUiScale.unit; background: transparent; }
+        HorizontalLayout { spacing: LumenTheme.space-3; height: 48 * LumenUiScale.unit; vertical-stretch: 0;
+            Rectangle {
+                width: 48 * LumenUiScale.unit; height: 48 * LumenUiScale.unit; background: transparent;
+                Rectangle { x: 4 * LumenUiScale.unit; y: 4 * LumenUiScale.unit; width: 40 * LumenUiScale.unit; height: 40 * LumenUiScale.unit; border-radius: 20 * LumenUiScale.unit; background: LumenTheme.surface-muted; }
+                IconButton { width: 48 * LumenUiScale.unit; height: 48 * LumenUiScale.unit; icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/copy.svg"); tooltip: @tr("分享配置文件"); clicked => { root.share-profile(); } }
+            }
+            Rectangle {
+                width: 48 * LumenUiScale.unit; height: 48 * LumenUiScale.unit; background: transparent;
+                Rectangle { x: 4 * LumenUiScale.unit; y: 4 * LumenUiScale.unit; width: 40 * LumenUiScale.unit; height: 40 * LumenUiScale.unit; border-radius: 20 * LumenUiScale.unit; background: LumenTheme.surface-muted; }
+                IconButton { width: 48 * LumenUiScale.unit; height: 48 * LumenUiScale.unit; icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/trash-2.svg"); tooltip: @tr("删除配置"); clicked => { root.delete-profile(); } }
+            }
+            Rectangle { horizontal-stretch: 1; background: transparent; }
+            Rectangle {
+                width: 96 * LumenUiScale.unit; height: 48 * LumenUiScale.unit; background: transparent;
+                accessible-role: button;
+                accessible-label: @tr("编辑配置");
+                Rectangle { x: 0 * LumenUiScale.unit; y: 4 * LumenUiScale.unit; width: parent.width; height: 40 * LumenUiScale.unit; border-radius: 20 * LumenUiScale.unit; background: (edit-touch.has-hover && LumenTheme.hover-allowed) ? LumenTheme.zinc-5 : LumenTheme.zinc-4; animate background { duration: 120ms; easing: ease-out; } }
+                edit-row := HorizontalLayout {
+                    x: 0 * LumenUiScale.unit; y: 4 * LumenUiScale.unit; width: parent.width; height: 40 * LumenUiScale.unit;
+                    spacing: LumenTheme.space-2; alignment: center; cross-axis-alignment: center;
+                    edit-icon := Image {
+                        source: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/pencil.svg");
+                        width: 22 * LumenUiScale.unit; height: 22 * LumenUiScale.unit; image-fit: contain;
+                        colorize: LumenTheme.text-primary;
+                    }
+                    edit-label := Text {
+                        text: @tr("编辑"); color: LumenTheme.text-primary; font-size: DesignType.body-size;
+                        vertical-alignment: center;
+                    }
+                }
+                edit-touch := TouchArea { width: parent.width; height: parent.height; mouse-cursor: pointer; clicked => { root.open-settings(); } }
+            }
+        }
+    }
+    if LumenTheme.show-layout-bounds: LayoutOutline { outline-color: LumenTheme.debug-frame; }
+}

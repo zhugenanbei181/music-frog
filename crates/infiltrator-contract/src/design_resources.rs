@@ -8,7 +8,7 @@
 
 use serde::{Deserialize, Serialize};
 
-/// The three physical weights the bundled interface family ships.
+/// The three physical weights every bundled family may expose.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum FontWeightTier {
     Regular,
@@ -39,6 +39,8 @@ impl FontWeightTier {
 }
 
 /// The families whose bytes are registered in the shared asset catalog.
+/// `Cjk` has one family name and three separate physical faces; no surface
+/// may treat `font.CJK-Regular` as the whole family.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum FontFamilyToken {
     Sans,
@@ -51,7 +53,7 @@ impl FontFamilyToken {
         match self {
             Self::Sans => "Inter",
             Self::Mono => "JetBrains Mono",
-            Self::Cjk => "HarmonyOS Sans",
+            Self::Cjk => "HarmonyOS Sans SC",
         }
     }
 }
@@ -64,12 +66,14 @@ pub struct FontFaceToken {
 }
 
 impl FontFaceToken {
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 7] = [
         Self::sans(FontWeightTier::Regular),
         Self::sans(FontWeightTier::Medium),
         Self::sans(FontWeightTier::SemiBold),
         Self::mono(),
-        Self::cjk(),
+        Self::cjk(FontWeightTier::Regular),
+        Self::cjk(FontWeightTier::Medium),
+        Self::cjk(FontWeightTier::SemiBold),
     ];
 
     pub const fn sans(weight: FontWeightTier) -> Self {
@@ -86,10 +90,10 @@ impl FontFaceToken {
         }
     }
 
-    pub const fn cjk() -> Self {
+    pub const fn cjk(weight: FontWeightTier) -> Self {
         Self {
             family: FontFamilyToken::Cjk,
-            weight: FontWeightTier::Regular,
+            weight,
         }
     }
 
@@ -100,7 +104,9 @@ impl FontFaceToken {
             (FontFamilyToken::Sans, FontWeightTier::Medium) => "font.Inter-Medium",
             (FontFamilyToken::Sans, FontWeightTier::SemiBold) => "font.Inter-SemiBold",
             (FontFamilyToken::Mono, _) => "font.JetBrainsMono-Regular",
-            (FontFamilyToken::Cjk, _) => "font.CJK-Regular",
+            (FontFamilyToken::Cjk, FontWeightTier::Regular) => "font.CJK-Regular",
+            (FontFamilyToken::Cjk, FontWeightTier::Medium) => "font.CJK-Medium",
+            (FontFamilyToken::Cjk, FontWeightTier::SemiBold) => "font.CJK-SemiBold",
         }
     }
 
@@ -111,7 +117,9 @@ impl FontFaceToken {
             (FontFamilyToken::Sans, FontWeightTier::Medium) => "inter_medium",
             (FontFamilyToken::Sans, FontWeightTier::SemiBold) => "inter_semibold",
             (FontFamilyToken::Mono, _) => "jetbrains_mono_regular",
-            (FontFamilyToken::Cjk, _) => "cjk_regular",
+            (FontFamilyToken::Cjk, FontWeightTier::Regular) => "cjk_regular",
+            (FontFamilyToken::Cjk, FontWeightTier::Medium) => "cjk_medium",
+            (FontFamilyToken::Cjk, FontWeightTier::SemiBold) => "cjk_semibold",
         }
     }
 }
@@ -134,10 +142,37 @@ pub enum TextRole {
     Tag,
     Mono,
     MonoStrong,
+    /// Large live numeric readout (dashboard traffic / counters).
+    NumericLarge,
+    /// Dense variant of the live numeric readout for compact grid cells.
+    NumericDense,
+    /// Small numeric caption that sits under a live readout.
+    NumericSmall,
+    /// Compact CJK semibold body: 11px / 600.
+    MicroStrong,
+    /// Small CJK semibold label: 12px / 600.
+    CaptionStrong,
+    /// Extra-small CJK semibold tag: 10px / 600.
+    TagStrong,
+    /// Small monospaced readout: 10px / 400.
+    MonoTag,
+    /// Small monospaced readout: 11px / 400.
+    MonoMicro,
+    /// Small monospaced readout: 12px / 400.
+    MonoCaption,
+    /// Medium monospaced readout: 16px / 400.
+    MonoBodyLarge,
+    /// Large monospaced readout: 20px / 400.
+    MonoTitle,
+    /// A labelled fact value on the hero card: 13px / 400 in the interface
+    /// family. One family and one size is the only structural guarantee that
+    /// two values on the same row share a baseline; a monospaced neighbour has
+    /// a different ascent and cannot align with it at any size.
+    FactNamed,
 }
 
 impl TextRole {
-    pub const ALL: [Self; 14] = [
+    pub const ALL: [Self; 26] = [
         Self::Display,
         Self::Title,
         Self::Subheading,
@@ -152,7 +187,36 @@ impl TextRole {
         Self::Tag,
         Self::Mono,
         Self::MonoStrong,
+        Self::NumericLarge,
+        Self::NumericDense,
+        Self::NumericSmall,
+        Self::MicroStrong,
+        Self::CaptionStrong,
+        Self::TagStrong,
+        Self::MonoTag,
+        Self::MonoMicro,
+        Self::MonoCaption,
+        Self::MonoBodyLarge,
+        Self::MonoTitle,
+        Self::FactNamed,
     ];
+
+    /// The one column-weight vocabulary for the live connection table.
+    /// Header and body read these weights instead of a page-derived length,
+    /// so a column edge cannot drift with a parent layout guess.
+    pub const CONNECTION_COLUMN_WEIGHTS: [u8; 7] = [8, 16, 3, 5, 6, 6, 4];
+
+    /// Sum of [`Self::CONNECTION_COLUMN_WEIGHTS`].
+    pub const CONNECTION_COLUMN_WEIGHT_TOTAL: u8 = 48;
+
+    /// Absolute fractions for the hero card's two labelled fact columns.
+    /// The phone and desktop hero both read these generated values, so a
+    /// short label and a long organization name cannot claim different slack
+    /// pools and pull their baselines out of the shared grid.
+    pub const HERO_FACT_COLUMN_WEIGHTS: [u8; 2] = [5, 7];
+
+    /// Sum of [`Self::HERO_FACT_COLUMN_WEIGHTS`].
+    pub const HERO_FACT_COLUMN_WEIGHT_TOTAL: u8 = 12;
 
     pub const fn as_str(self) -> &'static str {
         match self {
@@ -170,6 +234,18 @@ impl TextRole {
             Self::Tag => "tag",
             Self::Mono => "mono",
             Self::MonoStrong => "monoStrong",
+            Self::NumericLarge => "numericLarge",
+            Self::NumericDense => "numericDense",
+            Self::NumericSmall => "numericSmall",
+            Self::MicroStrong => "microStrong",
+            Self::CaptionStrong => "captionStrong",
+            Self::TagStrong => "tagStrong",
+            Self::MonoTag => "monoTag",
+            Self::MonoMicro => "monoMicro",
+            Self::MonoCaption => "monoCaption",
+            Self::MonoBodyLarge => "monoBodyLarge",
+            Self::MonoTitle => "monoTitle",
+            Self::FactNamed => "factNamed",
         }
     }
 }
@@ -191,8 +267,9 @@ impl TypefaceSpec {
     }
 }
 
-/// The single role→typeface table. Sizes come from `design_tokens::type_scale`;
-/// weights come only from the three shipped physical faces.
+/// The single role→typeface table. Sizes come from `design_tokens::type_scale`
+/// or an explicitly registered numeric/mono role; weights and families come
+/// only from the seven shipped physical faces.
 pub const fn typeface(role: TextRole) -> TypefaceSpec {
     use crate::design_tokens::type_scale::{
         BODY, BODY_LARGE, CAPTION, DISPLAY, HEADING, LABEL_LARGE, LABEL_SMALL, MONO, SUBHEADING,
@@ -200,51 +277,51 @@ pub const fn typeface(role: TextRole) -> TypefaceSpec {
     };
     match role {
         TextRole::Display => TypefaceSpec {
-            face: FontFaceToken::sans(FontWeightTier::SemiBold),
+            face: FontFaceToken::cjk(FontWeightTier::SemiBold),
             size_px: DISPLAY,
         },
         TextRole::Title => TypefaceSpec {
-            face: FontFaceToken::sans(FontWeightTier::SemiBold),
+            face: FontFaceToken::cjk(FontWeightTier::SemiBold),
             size_px: TITLE,
         },
         TextRole::Subheading => TypefaceSpec {
-            face: FontFaceToken::sans(FontWeightTier::SemiBold),
+            face: FontFaceToken::cjk(FontWeightTier::SemiBold),
             size_px: SUBHEADING,
         },
         TextRole::Heading => TypefaceSpec {
-            face: FontFaceToken::sans(FontWeightTier::SemiBold),
+            face: FontFaceToken::cjk(FontWeightTier::SemiBold),
             size_px: HEADING,
         },
         TextRole::BodyLarge => TypefaceSpec {
-            face: FontFaceToken::sans(FontWeightTier::Regular),
+            face: FontFaceToken::cjk(FontWeightTier::Regular),
             size_px: BODY_LARGE,
         },
         TextRole::Body => TypefaceSpec {
-            face: FontFaceToken::sans(FontWeightTier::Regular),
+            face: FontFaceToken::cjk(FontWeightTier::Regular),
             size_px: BODY,
         },
         TextRole::BodyStrong => TypefaceSpec {
-            face: FontFaceToken::sans(FontWeightTier::SemiBold),
+            face: FontFaceToken::cjk(FontWeightTier::SemiBold),
             size_px: BODY,
         },
         TextRole::Label => TypefaceSpec {
-            face: FontFaceToken::sans(FontWeightTier::Medium),
+            face: FontFaceToken::cjk(FontWeightTier::Medium),
             size_px: LABEL_LARGE,
         },
         TextRole::LabelStrong => TypefaceSpec {
-            face: FontFaceToken::sans(FontWeightTier::SemiBold),
+            face: FontFaceToken::cjk(FontWeightTier::SemiBold),
             size_px: LABEL_LARGE,
         },
         TextRole::Caption => TypefaceSpec {
-            face: FontFaceToken::sans(FontWeightTier::Medium),
+            face: FontFaceToken::cjk(FontWeightTier::Medium),
             size_px: CAPTION,
         },
         TextRole::Micro => TypefaceSpec {
-            face: FontFaceToken::sans(FontWeightTier::Medium),
+            face: FontFaceToken::cjk(FontWeightTier::Medium),
             size_px: LABEL_SMALL,
         },
         TextRole::Tag => TypefaceSpec {
-            face: FontFaceToken::sans(FontWeightTier::Medium),
+            face: FontFaceToken::cjk(FontWeightTier::Medium),
             size_px: TAG,
         },
         TextRole::Mono => TypefaceSpec {
@@ -253,6 +330,54 @@ pub const fn typeface(role: TextRole) -> TypefaceSpec {
         },
         TextRole::MonoStrong => TypefaceSpec {
             face: FontFaceToken::mono(),
+            size_px: MONO,
+        },
+        TextRole::NumericLarge => TypefaceSpec {
+            face: FontFaceToken::mono(),
+            size_px: 28.0,
+        },
+        TextRole::NumericDense => TypefaceSpec {
+            face: FontFaceToken::mono(),
+            size_px: 22.0,
+        },
+        TextRole::NumericSmall => TypefaceSpec {
+            face: FontFaceToken::mono(),
+            size_px: MONO,
+        },
+        TextRole::MicroStrong => TypefaceSpec {
+            face: FontFaceToken::cjk(FontWeightTier::SemiBold),
+            size_px: 11.0,
+        },
+        TextRole::CaptionStrong => TypefaceSpec {
+            face: FontFaceToken::cjk(FontWeightTier::SemiBold),
+            size_px: 12.0,
+        },
+        TextRole::TagStrong => TypefaceSpec {
+            face: FontFaceToken::cjk(FontWeightTier::SemiBold),
+            size_px: 10.0,
+        },
+        TextRole::MonoTag => TypefaceSpec {
+            face: FontFaceToken::mono(),
+            size_px: 10.0,
+        },
+        TextRole::MonoMicro => TypefaceSpec {
+            face: FontFaceToken::mono(),
+            size_px: 11.0,
+        },
+        TextRole::MonoCaption => TypefaceSpec {
+            face: FontFaceToken::mono(),
+            size_px: 12.0,
+        },
+        TextRole::MonoBodyLarge => TypefaceSpec {
+            face: FontFaceToken::mono(),
+            size_px: 16.0,
+        },
+        TextRole::MonoTitle => TypefaceSpec {
+            face: FontFaceToken::mono(),
+            size_px: 20.0,
+        },
+        TextRole::FactNamed => TypefaceSpec {
+            face: FontFaceToken::cjk(FontWeightTier::Regular),
             size_px: MONO,
         },
     }
@@ -545,8 +670,17 @@ pub struct DesignAuthorityDocument {
     pub font_weights: Vec<u16>,
     pub font_faces: Vec<FontFaceDocument>,
     pub type_roles: Vec<TypefaceDocument>,
+    /// Stretch weights of the live connection table's seven columns. Header
+    /// and rows read the same generated tokens, so no surface recomputes a
+    /// column width from a parent layout guess.
+    pub connection_column_weights: Vec<u8>,
+    /// Stretch weights of the hero card's two labelled fact columns.
+    pub hero_fact_column_weights: Vec<u8>,
     pub icons: Vec<IconDocument>,
     pub platform_native_icons: Vec<PlatformNativeIcon>,
+    /// The product mascot: a brand asset, not an icon semantic. Its bytes live
+    /// in the shared catalog and its motion is a separate typed contract.
+    pub mascot: MascotAssetDocument,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -575,6 +709,29 @@ pub struct IconDocument {
     pub canonical_name: &'static str,
 }
 
+/// The one exported brand identity. A second frog image, a second cutout or a
+/// per-surface copy would be a second source of truth.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct MascotAssetDocument {
+    pub catalog_id: &'static str,
+    pub path: &'static str,
+    pub format: &'static str,
+    /// A prefiltered plate sized for the hero's real pixel box. It is a
+    /// generated variant of the same catalog identity, never a second mascot.
+    pub hero_path: &'static str,
+    /// Whether the licence has been cleared for shipping in a release. Local
+    /// implementation and receipts may use the asset; distribution may not.
+    pub redistributable: bool,
+}
+
+pub const MASCOT_ASSET: MascotAssetDocument = MascotAssetDocument {
+    catalog_id: "mascot.musicfrog-cutout",
+    path: "mascot/musicfrog-cutout.png",
+    format: "png",
+    hero_path: "mascot/musicfrog-hero-512.png",
+    redistributable: false,
+};
+
 /// The one exported snapshot; generators compare against this value, never
 /// against a second hand-maintained table.
 pub fn design_authority_document() -> DesignAuthorityDocument {
@@ -602,6 +759,8 @@ pub fn design_authority_document() -> DesignAuthorityDocument {
                 }
             })
             .to_vec(),
+        connection_column_weights: TextRole::CONNECTION_COLUMN_WEIGHTS.to_vec(),
+        hero_fact_column_weights: TextRole::HERO_FACT_COLUMN_WEIGHTS.to_vec(),
         icons: IconSemantic::ALL
             .map(|semantic| IconDocument {
                 semantic,
@@ -611,6 +770,7 @@ pub fn design_authority_document() -> DesignAuthorityDocument {
             })
             .to_vec(),
         platform_native_icons: PLATFORM_NATIVE_ICONS.to_vec(),
+        mascot: MASCOT_ASSET,
     }
 }
 
@@ -623,6 +783,7 @@ pub fn design_authority_json() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
 
     #[test]
     fn shipped_weights_are_the_only_weights() {
@@ -642,6 +803,32 @@ mod tests {
             assert!(spec.face.catalog_id().starts_with("font."));
             assert!(spec.size_px > 0.0);
         }
+        let mut by_triple: HashMap<(u32, u16, &'static str), Vec<TextRole>> = HashMap::new();
+        for role in TextRole::ALL {
+            let spec = typeface(role);
+            let triple = (
+                spec.size_px.to_bits(),
+                spec.weight().value(),
+                spec.family().as_str(),
+            );
+            by_triple.entry(triple).or_default().push(role);
+        }
+        let legacy_semantic_groups: [&[TextRole]; 2] = [
+            &[TextRole::Title, TextRole::Heading],
+            &[TextRole::Mono, TextRole::MonoStrong, TextRole::NumericSmall],
+        ];
+        for (triple, roles) in by_triple {
+            if roles.len() > 1 {
+                assert!(
+                    legacy_semantic_groups
+                        .iter()
+                        .any(|group| roles.iter().all(|role| group.contains(role))),
+                    "unregistered duplicate (size, weight, family) {triple:?}: {roles:?}"
+                );
+            }
+        }
+        assert_eq!(TextRole::ALL.len(), 26);
+        assert_eq!(FontFaceToken::ALL.len(), 7);
         assert_eq!(typeface(TextRole::Subheading).size_px, 18.0);
         assert_eq!(typeface(TextRole::Micro).size_px, 11.0);
         assert_eq!(typeface(TextRole::Micro).weight(), FontWeightTier::Medium);
@@ -662,13 +849,66 @@ mod tests {
         let document = design_authority_document();
         assert_eq!(document.version, 1);
         assert_eq!(document.font_faces.len(), FontFaceToken::ALL.len());
+        assert_eq!(document.font_faces.len(), 7);
         assert_eq!(document.type_roles.len(), TextRole::ALL.len());
+        assert_eq!(document.type_roles.len(), 26);
+        let cjk_faces: Vec<_> = document
+            .font_faces
+            .iter()
+            .filter(|face| face.family == FontFamilyToken::Cjk)
+            .collect();
+        assert_eq!(cjk_faces.len(), 3);
+        assert!(
+            cjk_faces
+                .iter()
+                .all(|face| face.family_name == FontFamilyToken::Cjk.as_str())
+        );
+        assert_eq!(
+            cjk_faces
+                .iter()
+                .map(|face| face.weight.value())
+                .collect::<Vec<_>>(),
+            vec![400, 500, 600]
+        );
+        assert_eq!(
+            document.connection_column_weights,
+            TextRole::CONNECTION_COLUMN_WEIGHTS
+        );
+        assert_eq!(
+            document.connection_column_weights.iter().sum::<u8>(),
+            TextRole::CONNECTION_COLUMN_WEIGHT_TOTAL
+        );
+        assert_eq!(
+            document.hero_fact_column_weights,
+            TextRole::HERO_FACT_COLUMN_WEIGHTS
+        );
+        assert_eq!(
+            document.hero_fact_column_weights.iter().sum::<u8>(),
+            TextRole::HERO_FACT_COLUMN_WEIGHT_TOTAL
+        );
         assert_eq!(document.icons.len(), IconSemantic::ALL.len());
         let json = design_authority_json();
         assert!(json.contains("\"font_weights\""));
         assert!(json.contains("\"catalog_id\": \"font.Inter-Regular\""));
         assert!(json.contains("\"Body\""));
         assert!(json.contains("\"Settings\""));
+        assert!(json.contains("\"mascot.musicfrog-cutout\""));
+        assert_eq!(MASCOT_ASSET.hero_path, "mascot/musicfrog-hero-512.png");
+        const { assert!(!MASCOT_ASSET.redistributable) };
         assert_eq!(document.font_weights, vec![400, 500, 600]);
+        assert_eq!(
+            document
+                .type_roles
+                .iter()
+                .filter(|role| role.family_name == FontFamilyToken::Cjk.as_str())
+                .count(),
+            16
+        );
+        assert!(document.type_roles.iter().all(|role| {
+            document
+                .font_faces
+                .iter()
+                .any(|face| face.catalog_id == role.catalog_id)
+        }));
     }
 }

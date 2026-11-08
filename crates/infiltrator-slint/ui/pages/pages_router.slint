@@ -27,13 +27,10 @@ export component PagesRouter inherits VerticalLayout {
         in property <bool> predictive-back-enabled;
 
         // Home
-        in property <length> home-title-gap;
-        in property <length> home-data-upload-gap;
-        in property <length> home-before-node-gap;
-        in property <length> home-node-egress-gap;
-        in property <RuntimeStatus> runtime-status;
+                        in property <RuntimeStatus> runtime-status;
         in property <string> active-profile;
         in property <bool> has-current-profile;
+        in property <string> current-profile-id;
         in property <string> network-mode-label;
         in property <string> home-current-node;
         in property <string> home-current-accessible;
@@ -83,6 +80,7 @@ export component PagesRouter inherits VerticalLayout {
         // Settings
         in property <string> product-version;
         in property <string> core-version;
+        in property <bool> proxy-recovery-pending;
         in property <NetworkMode> network-mode;
         in property <string> network-mode-status;
         in property <bool> network-mode-status-warning;
@@ -99,7 +97,6 @@ export component PagesRouter inherits VerticalLayout {
         in property <string> application-language;
         in property <string> system-language;
         in property <int> page-scale-percent;
-        in property <bool> hide-bottom-bar-on-scroll;
         in property <bool> predictive-back-supported;
         in property <bool> hide-background-card;
         in property <bool> show-traffic-notification;
@@ -184,6 +181,7 @@ export component PagesRouter inherits VerticalLayout {
         callback navigate(string);
         callback cache-back-preview();
         callback open-profile-add();
+        callback refresh-profile(string);
         callback set-current-profile(string);
         callback open-profile-action(string, string);
         callback request-export(string, string);
@@ -201,10 +199,10 @@ export component PagesRouter inherits VerticalLayout {
         callback set-route-mode(RouteMode);
         callback request-network-mode-change(NetworkMode);
         callback check-core();
+        callback retry-proxy-restore();
         callback set-auto-start(bool);
         callback set-refresh-profile-on-start(bool);
         callback set-invert-theme-foreground(bool);
-        callback set-hide-bottom-bar-on-scroll(bool);
         callback set-predictive-back-enabled(bool);
         callback set-hide-background-card(bool);
         callback set-show-traffic-notification(bool);
@@ -315,10 +313,8 @@ export component PagesRouter inherits VerticalLayout {
         page: root.page; android-platform: root.android-platform; compact-layout: root.compact-layout;
         application-dark-mode: root.application-dark-mode; layout-debug-bounds: root.layout-debug-bounds;
         layout-debug-tools-enabled: root.layout-debug-tools-enabled;
-        predictive-back-enabled: root.predictive-back-enabled; product-version: root.product-version; home-title-gap: root.home-title-gap;
-        home-data-upload-gap: root.home-data-upload-gap; home-before-node-gap: root.home-before-node-gap;
-        home-node-egress-gap: root.home-node-egress-gap; runtime-status: root.runtime-status;
-        active-profile: root.active-profile; has-current-profile: root.has-current-profile;
+        predictive-back-enabled: root.predictive-back-enabled; product-version: root.product-version; runtime-status: root.runtime-status;
+        active-profile: root.active-profile; has-current-profile: root.has-current-profile; current-profile-id: root.current-profile-id;
         home-current-node: root.home-current-node;
         network-mode: root.network-mode; tun-capable: root.tun-capable;
         home-current-accessible: root.home-current-accessible; home-current-flag-code: root.home-current-flag-code;
@@ -345,7 +341,7 @@ export component PagesRouter inherits VerticalLayout {
         proxy-current-node-available <=> root.proxy-current-node-available;
         start-runtime => { root.start-runtime(); } stop-runtime => { root.stop-runtime(); }
         navigate(t) => { root.navigate(t); } cache-back-preview => { root.cache-back-preview(); }
-        open-profile-add => { root.open-profile-add(); } set-current-profile(id) => { root.set-current-profile(id); }
+        open-profile-add => { root.open-profile-add(); } set-current-profile(id) => { root.set-current-profile(id); } refresh-profile(id) => { root.refresh-profile(id); }
         open-profile-action(id, name) => { root.open-profile-action(id, name); }
         request-export(id, name) => { root.request-export(id, name); }
         request-delete(id, name) => { root.request-delete(id, name); }
@@ -364,6 +360,7 @@ export component PagesRouter inherits VerticalLayout {
 
         PagesSettings {
         page: root.page; android-platform: root.android-platform; compact-layout: root.compact-layout;
+        core-version: root.core-version; proxy-recovery-pending: root.proxy-recovery-pending;
         route-mode: root.route-mode; runtime-status: root.runtime-status; has-current-profile: root.has-current-profile;
         network-mode: root.network-mode; network-mode-label: root.network-mode-label;
         network-mode-status: root.network-mode-status; network-mode-status-warning: root.network-mode-status-warning;
@@ -373,7 +370,6 @@ export component PagesRouter inherits VerticalLayout {
         theme-mode: root.theme-mode; invert-theme-foreground: root.invert-theme-foreground;
         theme-color-code: root.theme-color-code; application-language: root.application-language;
         system-language: root.system-language; page-scale-percent: root.page-scale-percent;
-        hide-bottom-bar-on-scroll: root.hide-bottom-bar-on-scroll;
         predictive-back-enabled: root.predictive-back-enabled;
         predictive-back-supported: root.predictive-back-supported;
         hide-background-card: root.hide-background-card;
@@ -387,10 +383,10 @@ export component PagesRouter inherits VerticalLayout {
         navigate(t) => { root.navigate(t); } cache-back-preview => { root.cache-back-preview(); }
         set-route-mode(m) => { root.set-route-mode(m); }
         set-network-mode(m) => { root.request-network-mode-change(m); }
-        check-core => { root.check-core(); } set-auto-start(v) => { root.set-auto-start(v); }
+        check-core => { root.check-core(); }
+        retry-proxy-restore => { root.retry-proxy-restore(); } set-auto-start(v) => { root.set-auto-start(v); }
         set-refresh-profile-on-start(v) => { root.set-refresh-profile-on-start(v); }
         set-invert-theme-foreground(v) => { root.set-invert-theme-foreground(v); }
-        set-hide-bottom-bar-on-scroll(v) => { root.set-hide-bottom-bar-on-scroll(v); }
         set-predictive-back-enabled(v) => { root.set-predictive-back-enabled(v); }
         set-hide-background-card(v) => { root.set-hide-background-card(v); }
         set-show-traffic-notification(v) => { root.set-show-traffic-notification(v); }

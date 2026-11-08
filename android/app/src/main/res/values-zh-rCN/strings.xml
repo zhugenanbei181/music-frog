@@ -97,7 +97,9 @@
     <string name="routing_mode_proxy_selected">仅代理选中 (白名单)</string>
     <string name="routing_mode_bypass_selected">仅绕过选中 (黑名单)</string>
     <string name="routing_mode_unavailable">路由状态不可用</string>
-    <string name="label_selected_apps_count">已选择 %1$d 个应用</string>
+    <plurals name="label_selected_apps_count">
+        <item quantity="other">已选择 %1$d 个应用</item>
+    </plurals>
     <string name="access_control_status_title">访问控制</string>
     <string name="action_retry">重试</string>
     <string name="search_apps_hint">搜索应用</string>
@@ -197,7 +199,7 @@
 
     <!-- Service -->
     <string name="notification_channel_name">VPN 服务</string>
-    <string name="notification_title">MusicFrog Infiltrator VPN</string>
+    <string name="notification_title">%1$s VPN</string>
     <string name="notification_starting">正在启动…</string>
     <string name="notification_active">保护已开启</string>
     <string name="notification_start_failed">VPN 启动失败</string>
@@ -273,8 +275,9 @@
     <string name="owner_health_unhealthy">异常</string>
     <string name="owner_outbound_selected">已选择：%1$s</string>
     <string name="owner_outbound_preferences_unavailable">Owner 暂未提供节点偏好设置。</string>
-    <string name="brand_name">MusicFrog</string>
-    <string name="app_display_name">MusicFrog Infiltrator</string>
+    <string name="brand_name">Source</string>
+    <string name="app_display_name">Source</string>
+    <string name="about_brand_note">图标中的青蛙乐手是 MusicFrog 内部标识；产品名只保留本名。</string>
     <string name="configuration_saving">保存配置</string>
     <string name="configuration_saved">已保存</string>
     <string name="configuration_failed">保存失败</string>

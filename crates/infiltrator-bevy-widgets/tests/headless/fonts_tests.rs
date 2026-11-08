@@ -78,14 +78,17 @@ fn embedded_faces_register_exactly_four_font_assets() {
     assert!(sources.caption.is_strong());
     assert!(sources.mono.is_strong());
     assert!(sources.cjk.is_strong());
+    assert!(sources.cjk_regular.is_strong());
+    assert!(sources.cjk_medium.is_strong());
+    assert!(sources.cjk_semibold.is_strong());
     assert_ne!(sources.heading, sources.body, "faces are distinct assets");
 
     let world = app.world_mut();
     let fonts = world.resource::<Assets<Font>>();
     assert_eq!(
         fonts.len(),
-        5,
-        "the five faces are the whole embedded store"
+        7,
+        "the seven faces are the whole embedded store"
     );
 }
 
@@ -110,7 +113,7 @@ fn font_initialization_precedes_startup_and_preserves_preexisting_labels() {
         FontSource::Handle(source)
     );
     app.update();
-    assert_eq!(app.world().resource::<Assets<Font>>().len(), 5);
+    assert_eq!(app.world().resource::<Assets<Font>>().len(), 7);
     assert!(app.world().get_entity(label).is_ok());
 }
 
@@ -128,7 +131,7 @@ fn widgets_plugin_requires_asset_plugin_before_it() {
             .spawn_scene(bsn! { TextRole(design_resources::TextRole::Body) TextFont::default() });
     });
     app.update();
-    assert!(app.world().resource::<Assets<Font>>().len() >= 5);
+    assert!(app.world().resource::<Assets<Font>>().len() >= 7);
     assert!(
         app.world().contains_resource::<Assets<Shader>>(),
         "feather embedded-shader asset store registered"
@@ -144,10 +147,22 @@ fn faces_map_per_role() {
     let world = app.world_mut();
     let sources = world.resource::<FontSources>();
     let table = [
-        (design_resources::TextRole::Display, sources.heading.clone()),
-        (design_resources::TextRole::Heading, sources.heading.clone()),
-        (design_resources::TextRole::Body, sources.body.clone()),
-        (design_resources::TextRole::Caption, sources.caption.clone()),
+        (
+            design_resources::TextRole::Display,
+            sources.cjk_semibold.clone(),
+        ),
+        (
+            design_resources::TextRole::Heading,
+            sources.cjk_semibold.clone(),
+        ),
+        (
+            design_resources::TextRole::Body,
+            sources.cjk_regular.clone(),
+        ),
+        (
+            design_resources::TextRole::Caption,
+            sources.cjk_medium.clone(),
+        ),
         (design_resources::TextRole::Mono, sources.mono.clone()),
     ];
     for (role, face) in table {
@@ -207,7 +222,7 @@ fn spawned_label_stamps_the_embedded_face() {
 
     let world = app.world_mut();
     let sources = world.resource::<FontSources>();
-    let body = sources.body.clone();
+    let body = sources.cjk_regular.clone();
     let world = app.world_mut();
     let mut labels = world.query::<(&TextFont, &TextColor)>();
     let (font, ink) = labels.iter(world).next().expect("one stamped label");

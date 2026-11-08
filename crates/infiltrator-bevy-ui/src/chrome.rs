@@ -76,6 +76,7 @@ use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::a11y::ShellA11yNode;
 #[cfg(not(target_os = "android"))]
 use infiltrator_contract::design_resources;
+use infiltrator_contract::surface::SurfaceKind;
 #[cfg(not(target_os = "android"))]
 use infiltrator_contract::window_chrome::CHROME_DRAG_STRIP_HEIGHT_PX;
 use infiltrator_contract::window_chrome::{NativeShadow, WindowChrome, WindowChromeSupport};
@@ -326,7 +327,7 @@ pub fn chrome_bar_scene(palette: &UiPalette) -> impl Scene + use<> {
             }
             ChromeDragBar
             Children [
-                Text({ "MusicFrog Infiltrator".to_owned() })
+                Text({ SurfaceKind::BevyDesktop.product_name().to_owned() })
                 TextRole(design_resources::TextRole::Caption)
                 ThemeTextColor({ Token::InkDim })
                 --

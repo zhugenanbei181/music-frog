@@ -35,8 +35,12 @@ export component WorkbenchCard inherits Rectangle {
     in property <length> inset: 16 * LumenUiScale.unit;
 
     vertical-stretch: 0;
+    // `preferred-height` includes the preferred size of every per-item
+    // wrapper, including ones whose condition is false, so a page with many
+    // published items could inflate a card by 73-83px of dead air. The
+    // rendered content's min-height is the honest sum of what is drawn.
     min-height: content.min-height;
-    preferred-height: content.preferred-height;
+    preferred-height: content.min-height;
     border-radius: LumenTheme.radius-card;
     background: LumenTheme.surface;
     border-width: 1 * LumenUiScale.unit;
@@ -162,7 +166,9 @@ export component DraftField inherits Rectangle {
         cross-axis-alignment: root.mono ? start : center;
 
         input := TextInput {
-            width: parent.width;
+            // The padded layout owns the field's inner width. Asking the
+            // parent for its width instead made the input 28u wider than the
+            // field, so a long draft ran past the field's right edge.
             text <=> root.text;
             color: LumenTheme.text-primary;
             font-size: DesignType.mono-size;
@@ -186,6 +192,49 @@ export component DraftField inherits Rectangle {
     }
 }
 
+// One workbench row's action capsule: the press/tone behaviour, the label
+// elision and the minimum width all live here, so a reserved column and an
+// auto-width column share one button instead of two copies.
+component ItemRowActionButton inherits Rectangle {
+    in property <WorkbenchItem> item;
+
+    callback action(string, string);
+
+    height: 28 * LumenUiScale.unit;
+    min-width: max(80 * LumenUiScale.unit, btn-label.preferred-width + 24 * LumenUiScale.unit);
+    preferred-width: self.min-width;
+    border-radius: 14 * LumenUiScale.unit;
+    background: (btn-touch.has-hover && LumenTheme.hover-allowed) && root.item.enabled ? LumenTheme.surface-raised : LumenTheme.surface;
+    border-width: 1 * LumenUiScale.unit;
+    border-color: (btn-touch.has-hover && LumenTheme.hover-allowed) && root.item.enabled ? LumenTheme.accent : LumenTheme.border;
+    opacity: root.item.enabled ? 1 : 0.5;
+    animate background, border-color { duration: 120ms; easing: ease-out; }
+
+    HorizontalLayout {
+        width: parent.width;
+        padding-left: 12 * LumenUiScale.unit;
+        padding-right: 12 * LumenUiScale.unit;
+        alignment: center;
+        cross-axis-alignment: center;
+
+        btn-label := Text {
+            text: root.item.label;
+            color: (btn-touch.has-hover && LumenTheme.hover-allowed) && root.item.enabled ? LumenTheme.accent : LumenTheme.text-primary;
+            font-size: DesignType.micro-size;
+            font-weight: DesignType.micro-weight;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
+
+    btn-touch := TouchArea {
+        width: parent.width;
+        height: parent.height;
+        enabled: root.item.enabled;
+        clicked => { root.action(root.item.action-id, root.item.row-id); }
+    }
+}
+
 // One published row: its title, detail and trailing fact plus the row's own
 // action when the projection published one. The trailing fact renders as a
 // tone-colored chip for pages that lead with the rule (the tone is the typed
@@ -193,6 +242,11 @@ export component DraftField inherits Rectangle {
 export component ItemRow inherits Rectangle {
     in property <WorkbenchItem> item;
     in property <bool> trailing-badge: false;
+    // A list that mixes rows with and without an action asks for one reserved
+    // action column, so the trailing status and detail right edge stay aligned.
+    // Lists whose rows all share the same action shape keep the compact auto
+    // width and do not pay for an empty column.
+    in property <bool> reserve-action-column: false;
     in property <length> row-min-height: 44 * LumenUiScale.unit;
 
     callback action(string, string);
@@ -263,38 +317,30 @@ export component ItemRow inherits Rectangle {
             }
         }
 
-        if root.item.action-id != "": Rectangle {
+        // The action zone is one owner. A mixed-action list reserves the shared
+        // column width even for a row without an action; a uniform list keeps
+        // the button's own width, and a row with no action pays zero.
+        if root.reserve-action-column: Rectangle {
             horizontal-stretch: 0;
-            min-width: max(80 * LumenUiScale.unit, row-btn-label.preferred-width + 24 * LumenUiScale.unit);
+            width: LumenTheme.workbench-row-action-width;
             height: 28 * LumenUiScale.unit;
-            border-radius: 14 * LumenUiScale.unit;
-            background: row-btn-touch.has-hover && root.item.enabled ? LumenTheme.surface-raised : LumenTheme.surface;
-            border-width: 1 * LumenUiScale.unit;
-            border-color: row-btn-touch.has-hover && root.item.enabled ? LumenTheme.accent : LumenTheme.border;
-            opacity: root.item.enabled ? 1 : 0.5;
-            animate background, border-color { duration: 120ms; easing: ease-out; }
 
-            HorizontalLayout {
-                padding-left: 12 * LumenUiScale.unit;
-                padding-right: 12 * LumenUiScale.unit;
-                alignment: center;
-                cross-axis-alignment: center;
-
-                row-btn-label := Text {
-                    text: root.item.label;
-                    color: row-btn-touch.has-hover && root.item.enabled ? LumenTheme.accent : LumenTheme.text-primary;
-                    font-size: DesignType.micro-size;
-                    font-weight: DesignType.micro-weight;
-                    vertical-alignment: center;
-                }
-            }
-
-            row-btn-touch := TouchArea {
+            if root.item.action-id != "": ItemRowActionButton {
                 width: parent.width;
                 height: parent.height;
-                enabled: root.item.enabled;
-                clicked => { root.action(root.item.action-id, root.item.row-id); }
+                item: root.item;
+                action(id, row) => { root.action(id, row); }
             }
+        }
+
+        if !root.reserve-action-column && root.item.action-id != "": ItemRowActionButton {
+            item: root.item;
+            action(id, row) => { root.action(id, row); }
         }
     }
 }
+
+// One workbench row's action button. It owns the capsule, the press/tone
+// behaviour and the label elision; a row decides only whether the column is
+// reserved (mixed-action list) or takes the button's own width.
+

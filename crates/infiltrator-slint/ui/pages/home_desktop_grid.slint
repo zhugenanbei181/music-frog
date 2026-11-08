@@ -1,19 +1,35 @@
-import { DesignType } from "../components/design-type.slint";
-import { AppPreferenceSwitch } from "../components/base_widgets.slint";
+import { DesignType, TextRole } from "../components/design-type.slint";
+import { AppPreferenceSwitch } from "../components/preferences.slint";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "../components/theme.slint";
 import { NetworkMode, RouteMode, RuntimeStatus } from "../components/domain_enums.slint";
 import { FlagIcon } from "../lumen-flags.slint";
+import { ViewportTier } from "../components/viewport_tier.slint";
 import { ProfileCard, ProxyGroup } from "../components/models.slint";
+import { LayoutTokens } from "../components/layout-tokens.slint";
 import { StatusBadge, SurfaceCard } from "../components/cards.slint";
 import {
     AppCardHeader, HomeConnectionMiniTable, HomeHeroActionButton, HomeLatencyChip, HomePolicyGroupGrid,
     HomeMetaChip, HomeRouteModePills, HomeWaveBand,
 } from "home_widgets.slint";
 import { ConnectionRow, DashboardFacts } from "../components/models.slint";
+import { HomeHeroFactRow } from "home_fact_row.slint";
 
 export component HomeDesktopGrid inherits VerticalLayout {
     in property <RuntimeStatus> runtime-status;
+    // One width basis for the whole dashboard grid: the dense tier lays two
+    // cards per row, the wide tier four, and every card - including the two
+    // cards that span a pair of columns - takes whole shares of that basis.
+    // `horizontal-stretch` could not do this job: it hands out the slack left
+    // over after each card has taken its preferred width, so the four fact
+    // cards measured 199u/201u/216u/216u in one row and their inner edges
+    // never matched the row above them.
+    property <int> card-columns: root.dense ? 2 : LumenTheme.overview-card-columns;
+    property <length> card-column-width: max(0 * LumenUiScale.unit,
+        (self.width - (root.card-columns - 1) * LumenTheme.overview-card-gap)
+            / root.card-columns);
+    property <length> card-span-width: 2 * root.card-column-width
+        + LumenTheme.overview-card-gap;
     in property <string> home-exit-status;
     in property <string> home-exit-country-code;
     in property <int> home-exit-flag-index: -1;
@@ -43,37 +59,47 @@ export component HomeDesktopGrid inherits VerticalLayout {
     spacing: root.dense ? LumenTheme.space-3 : LumenTheme.space-4;
     alignment: start;
 
-    // A 720px compact window is still too narrow for the full standard card
-    // metrics. This is a viewport fact, not a second page state.
-    property <bool> dense: root.width < 800 * LumenUiScale.unit;
+    // A compact window is still too narrow for the full standard card
+    // metrics. This is a viewport fact read from the shared tier ladder, not
+    // a second page state and not this page's own width comparison.
+    property <bool> dense: LumenTheme.viewport-tier == ViewportTier.phone || LumenTheme.viewport-tier == ViewportTier.compact;
 
     // Row 1: Hero Card (50%) + Upload Card (25%) + Download Card (25%)
-    HorizontalLayout {
+    // A non-wrapping row paid four column-shares even in the dense tier, which
+    // only declares two: at 720 wide the upload and download cards landed
+    // entirely past the right edge and never rendered. The dense tier now wraps
+    // them onto their own row, the same way row 3 already wraps its four cards.
+    GridLayout {
         width: parent.width;
         spacing: root.dense ? LumenTheme.space-3 : LumenTheme.space-4;
 
         // Hero Card (FlClash Style)
         SurfaceCard {
-            horizontal-stretch: 2;
-            HorizontalLayout {
-                horizontal-stretch: 1;
-                spacing: root.dense ? LumenTheme.space-3 : LumenTheme.space-4;
-                VerticalLayout {
+            col: 0;
+            row: 0;
+            colspan: 2;
+            width: root.card-span-width;
+            VerticalLayout {
+                spacing: LumenTheme.card-content-gap;
+                HorizontalLayout {
                     horizontal-stretch: 1;
-                    spacing: LumenTheme.space-2;
-                    HorizontalLayout {
+                    spacing: root.dense ? LumenTheme.space-3 : LumenTheme.space-4;
+                    VerticalLayout {
+                        horizontal-stretch: 1;
                         spacing: LumenTheme.space-2;
-                        StatusBadge {
-                            label: root.runtime-status == RuntimeStatus.running ? @tr("运行中") : @tr("已停止");
-                            active: root.runtime-status == RuntimeStatus.running;
-                            badge-width: 82 * LumenUiScale.unit;
-                        }
-                        if root.home-exit-status != "": Text {
-                            text: root.home-exit-status;
-                            color: LumenTheme.text-secondary;
-                            font-size: DesignType.caption-size;
-                            vertical-alignment: center;
-                        }
+                        HorizontalLayout {
+                            spacing: LumenTheme.space-2;
+                            StatusBadge {
+                                label: root.runtime-status == RuntimeStatus.running ? @tr("运行中") : @tr("已停止");
+                                active: root.runtime-status == RuntimeStatus.running;
+                                badge-width: 82 * LumenUiScale.unit;
+                            }
+                            if root.home-exit-status != "": Text {
+                                text: root.home-exit-status;
+                                color: LumenTheme.text-secondary;
+                                font-size: DesignType.caption-size;
+                                vertical-alignment: center;
+                            }
                     }
                     HorizontalLayout {
                         spacing: LumenTheme.space-3;
@@ -101,10 +127,10 @@ export component HomeDesktopGrid inherits VerticalLayout {
                         }
                         Text {
                             text: root.home-exit-ip;
-                            font-family: DesignType.mono-family;
+                            font-family: DesignType.family(root.dense ? TextRole.numericDense : TextRole.numericLarge);
                             color: LumenTheme.text-primary;
-                            font-size: root.dense ? 22 * LumenUiScale.unit : 26 * LumenUiScale.unit;
-                            font-weight: DesignType.label-weight;
+                            font-size: DesignType.size(root.dense ? TextRole.numericDense : TextRole.numericLarge);
+                            font-weight: DesignType.weight(root.dense ? TextRole.numericDense : TextRole.numericLarge);
                             vertical-alignment: center;
                         }
                     }
@@ -120,26 +146,46 @@ export component HomeDesktopGrid inherits VerticalLayout {
                         }
                         Rectangle { horizontal-stretch: 1; background: transparent; }
                     }
-                    Text {
-                        text: @tr("运行时长 ") + root.dashboard-facts.uptime + "   " + @tr("组织 ") + root.dashboard-facts.organization;
-                        color: LumenTheme.text-secondary;
-                        font-size: DesignType.caption-size;
+                    }
+                    // Floating organic run/stop control shared with mobile.
+                    //
+                    // The character is the hero of the card, and the reference
+                    // keeps the whole card's weight on it. Its disc is sized
+                    // from the component's own default instead of a second
+                    // desktop literal, so the desktop and the phone disc
+                    // cannot drift apart again.
+                    HomeHeroActionButton {
+                        disc-size: 112 * LumenUiScale.unit;
+                        start-runtime => { root.start-runtime(); }
+                        stop-runtime => { root.stop-runtime(); }
                     }
                 }
-                // Floating organic run/stop control shared with mobile.
-                HomeHeroActionButton {
-                    button-size: 64 * LumenUiScale.unit;
-                    runtime-status: root.runtime-status;
-                    y: (parent.height - self.height) / 2;
-                    start-runtime => { root.start-runtime(); }
-                    stop-runtime => { root.stop-runtime(); }
+                // The same two labelled columns the phone card uses, not one
+                // run-on sentence: the old line glued two facts together with
+                // three literal spaces, so the unknown uptime printed as a
+                // stray dash in the middle of the sentence and the right-hand
+                // fact never had an edge to sit on. One dialect per fact-block,
+                // both tiers.
+                //
+                // The row is the card's own footer and spans the FULL content
+                // width, so the right column is anchored to the card's right
+                // edge - the edge the phone card anchors to and the edge the
+                // reference anchors to. Inside the mascot's column it ended
+                // 144px short of that edge, at a boundary nothing else in the
+                // card shared, and the value read as text floating in the
+                // middle of the card.
+                HomeHeroFactRow {
+                    uptime-cell: root.dashboard-facts.hero-fact-uptime;
+                    organization-cell: root.dashboard-facts.hero-fact-organization;
                 }
             }
         }
 
         // Upload Card
         SurfaceCard {
-            horizontal-stretch: 1;
+            col: root.dense ? 0 : 2;
+            row: root.dense ? 1 : 0;
+            width: root.card-column-width;
             HorizontalLayout {
                 AppCardHeader {
                     title: @tr("上传");
@@ -152,16 +198,17 @@ export component HomeDesktopGrid inherits VerticalLayout {
             }
             Text {
                 text: root.stat-up;
-                font-family: DesignType.mono-family;
+                font-family: DesignType.family(root.dense ? TextRole.numericDense : TextRole.numericLarge);
                 color: LumenTheme.text-primary;
-                font-size: root.dense ? 22 * LumenUiScale.unit : 28 * LumenUiScale.unit;
-                font-weight: DesignType.micro-weight;
+                font-size: DesignType.size(root.dense ? TextRole.numericDense : TextRole.numericLarge);
+                font-weight: DesignType.weight(root.dense ? TextRole.numericDense : TextRole.numericLarge);
             }
             Text {
                 text: root.dashboard-facts.traffic-total-up;
                 color: LumenTheme.text-secondary;
                 font-size: DesignType.caption-size;
             }
+            Rectangle { vertical-stretch: 1; background: transparent; }
             HomeWaveBand {
                 commands: root.dashboard-facts.upload-wave;
                 ink: LumenTheme.status-info;
@@ -171,7 +218,9 @@ export component HomeDesktopGrid inherits VerticalLayout {
 
         // Download Card
         SurfaceCard {
-            horizontal-stretch: 1;
+            col: root.dense ? 1 : 3;
+            row: root.dense ? 1 : 0;
+            width: root.card-column-width;
             HorizontalLayout {
                 AppCardHeader {
                     title: @tr("下载");
@@ -184,16 +233,17 @@ export component HomeDesktopGrid inherits VerticalLayout {
             }
             Text {
                 text: root.stat-down;
-                font-family: DesignType.mono-family;
+                font-family: DesignType.family(root.dense ? TextRole.numericDense : TextRole.numericLarge);
                 color: LumenTheme.accent;
-                font-size: root.dense ? 22 * LumenUiScale.unit : 28 * LumenUiScale.unit;
-                font-weight: DesignType.micro-weight;
+                font-size: DesignType.size(root.dense ? TextRole.numericDense : TextRole.numericLarge);
+                font-weight: DesignType.weight(root.dense ? TextRole.numericDense : TextRole.numericLarge);
             }
             Text {
                 text: root.dashboard-facts.traffic-total-down;
                 color: LumenTheme.text-secondary;
                 font-size: DesignType.caption-size;
             }
+            Rectangle { vertical-stretch: 1; background: transparent; }
             HomeWaveBand {
                 commands: root.dashboard-facts.download-wave;
                 ink: LumenTheme.accent;
@@ -203,13 +253,19 @@ export component HomeDesktopGrid inherits VerticalLayout {
     }
 
     // Row 2: Outbound Mode Selector (50%) + System Proxy (25%) + TUN (25%)
-    HorizontalLayout {
+    // The same dense wrap as row 1: the two switch cards used to be paid for
+    // in a third and fourth column the dense tier never had, so they vanished
+    // off the right edge of a 720-wide window.
+    GridLayout {
         width: parent.width;
         spacing: root.dense ? LumenTheme.space-3 : LumenTheme.space-4;
 
         // Outbound Mode Selector Card
         SurfaceCard {
-            horizontal-stretch: 2;
+            col: 0;
+            row: 0;
+            colspan: 2;
+            width: root.card-span-width;
             HorizontalLayout {
                 horizontal-stretch: 1;
                 spacing: LumenTheme.space-3;
@@ -225,7 +281,7 @@ export component HomeDesktopGrid inherits VerticalLayout {
                     route-mode: root.route-mode;
                     pill-width: root.dense ? 58 * LumenUiScale.unit : 72 * LumenUiScale.unit;
                     pill-height: root.dense ? 28 * LumenUiScale.unit : 32 * LumenUiScale.unit;
-                    font-size: root.dense ? 12 * LumenUiScale.unit : 13 * LumenUiScale.unit;
+                    font-size: DesignType.size(root.dense ? TextRole.caption : TextRole.numericSmall);
                     select(mode) => { root.set-route-mode(mode); }
                 }
             }
@@ -233,7 +289,9 @@ export component HomeDesktopGrid inherits VerticalLayout {
 
         // System Proxy Switch Card
         SurfaceCard {
-            horizontal-stretch: 1;
+            col: root.dense ? 0 : 2;
+            row: root.dense ? 1 : 0;
+            width: root.card-column-width;
             HorizontalLayout {
                 horizontal-stretch: 1;
                 VerticalLayout {
@@ -243,8 +301,8 @@ export component HomeDesktopGrid inherits VerticalLayout {
                         spacing: LumenTheme.space-2;
                         Image {
                             source: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/globe.svg");
-                            width: 16 * LumenUiScale.unit;
-                            height: 16 * LumenUiScale.unit;
+                            width: LumenTheme.card-header-icon-size;
+                            height: LumenTheme.card-header-icon-size;
                             image-fit: contain;
                             colorize: root.network-mode == NetworkMode.system-proxy ? LumenTheme.accent : LumenTheme.text-muted;
                             vertical-alignment: center;
@@ -264,7 +322,9 @@ export component HomeDesktopGrid inherits VerticalLayout {
 
         // TUN Virtual Network Card Switch
         SurfaceCard {
-            horizontal-stretch: 1;
+            col: root.dense ? 1 : 3;
+            row: root.dense ? 1 : 0;
+            width: root.card-column-width;
             HorizontalLayout {
                 horizontal-stretch: 1;
                 VerticalLayout {
@@ -274,8 +334,8 @@ export component HomeDesktopGrid inherits VerticalLayout {
                         spacing: LumenTheme.space-2;
                         Image {
                             source: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/shield.svg");
-                            width: 16 * LumenUiScale.unit;
-                            height: 16 * LumenUiScale.unit;
+                            width: LumenTheme.card-header-icon-size;
+                            height: LumenTheme.card-header-icon-size;
                             image-fit: contain;
                             colorize: root.network-mode == NetworkMode.tun ? LumenTheme.accent : LumenTheme.text-muted;
                             vertical-alignment: center;
@@ -308,8 +368,7 @@ export component HomeDesktopGrid inherits VerticalLayout {
         SurfaceCard {
             col: 0;
             row: 0;
-            min-width: root.dense ? 150 * LumenUiScale.unit : 200 * LumenUiScale.unit;
-            horizontal-stretch: 1;
+            width: root.card-column-width;
             HorizontalLayout {
                 AppCardHeader {
                     title: @tr("内网 IP");
@@ -319,11 +378,13 @@ export component HomeDesktopGrid inherits VerticalLayout {
             }
             Text {
                 text: root.dashboard-facts.lan-ip;
-                font-family: DesignType.mono-family;
+                font-family: LumenTheme.metric-value-family;
                 color: LumenTheme.text-primary;
-                font-size: DesignType.subheading-size;
-                font-weight: DesignType.subheading-weight;
-                max-width: 170 * LumenUiScale.unit;
+                font-size: LumenTheme.metric-value-size;
+                font-weight: LumenTheme.metric-value-weight;
+                height: LumenTheme.fact-value-line-height;
+                vertical-alignment: bottom;
+                max-width: LumenTheme.lan-address-max-width;
                 overflow: elide;
             }
             HorizontalLayout {
@@ -345,8 +406,7 @@ export component HomeDesktopGrid inherits VerticalLayout {
         SurfaceCard {
             col: 1;
             row: 0;
-            min-width: root.dense ? 150 * LumenUiScale.unit : 200 * LumenUiScale.unit;
-            horizontal-stretch: 1;
+            width: root.card-column-width;
             HorizontalLayout {
                 AppCardHeader {
                     title: @tr("配置");
@@ -360,12 +420,14 @@ export component HomeDesktopGrid inherits VerticalLayout {
             Text {
                 text: root.active-profile;
                 color: LumenTheme.text-primary;
-                font-size: DesignType.body-size;
-                font-weight: DesignType.body-weight;
-                max-width: 172 * LumenUiScale.unit;
+                font-size: LumenTheme.profile-name-size;
+                font-weight: LumenTheme.profile-name-weight;
+                height: LumenTheme.fact-value-line-height;
+                vertical-alignment: bottom;
+                max-width: LumenTheme.profile-name-max-width;
                 overflow: elide;
             }
-            Text { text: root.dashboard-facts.profile-updated-relative; color: LumenTheme.text-secondary; font-size: DesignType.micro-size; }
+            Text { text: root.dashboard-facts.profile-updated-relative; color: LumenTheme.text-secondary; font-size: DesignType.caption-size; font-weight: DesignType.caption-weight; }
             HorizontalLayout {
                 spacing: LumenTheme.space-2;
                 Text { text: root.dashboard-facts.profile-groups-count + " " + @tr("策略组"); color: LumenTheme.text-primary; font-size: DesignType.caption-size; font-weight: DesignType.caption-weight; }
@@ -386,8 +448,9 @@ export component HomeDesktopGrid inherits VerticalLayout {
             // the whole row instead, which is also how the reference keeps the
             // service matrix legible.
             colspan: root.dense ? 2 : 1;
-            min-width: root.dense ? 150 * LumenUiScale.unit : 200 * LumenUiScale.unit;
-            horizontal-stretch: 1;
+            width: root.dense
+                ? 2 * root.card-column-width + LumenTheme.overview-card-gap
+                : root.card-column-width;
             HorizontalLayout {
                 spacing: LumenTheme.space-2;
                 AppCardHeader {
@@ -403,7 +466,7 @@ export component HomeDesktopGrid inherits VerticalLayout {
                 // a second stretch-1 Rectangle split the slack in half and left
                 // the title with two characters ("服…") in the dense tier.
                 Rectangle {
-                    height: 20 * LumenUiScale.unit;
+                    height: LumenTheme.card-header-height;
                     horizontal-stretch: 0;
                     border-radius: 10 * LumenUiScale.unit;
                     background: LumenTheme.accent-soft;
@@ -458,8 +521,9 @@ export component HomeDesktopGrid inherits VerticalLayout {
             col: root.dense ? 0 : 3;
             row: root.dense ? 2 : 0;
             colspan: root.dense ? 2 : 1;
-            min-width: root.dense ? 150 * LumenUiScale.unit : 200 * LumenUiScale.unit;
-            horizontal-stretch: 1;
+            width: root.dense
+                ? 2 * root.card-column-width + LumenTheme.overview-card-gap
+                : root.card-column-width;
             HorizontalLayout {
                 AppCardHeader {
                     title: @tr("内存信息");
@@ -469,10 +533,12 @@ export component HomeDesktopGrid inherits VerticalLayout {
             }
             Text {
                 text: root.dashboard-facts.memory-total;
-                font-family: DesignType.mono-family;
+                font-family: LumenTheme.metric-value-family;
                 color: LumenTheme.text-primary;
-                font-size: DesignType.display-size;
-                font-weight: DesignType.display-weight;
+                font-size: LumenTheme.metric-value-size;
+                font-weight: LumenTheme.metric-value-weight;
+                height: LumenTheme.fact-value-line-height;
+                vertical-alignment: bottom;
             }
             Rectangle {
                 horizontal-stretch: 1;
@@ -495,13 +561,13 @@ export component HomeDesktopGrid inherits VerticalLayout {
                 spacing: LumenTheme.space-2;
                 Text { text: @tr("已用"); color: LumenTheme.text-secondary; font-size: DesignType.micro-size; }
                 Rectangle { horizontal-stretch: 1; background: transparent; }
-                Text { text: @tr("软限 ") + root.dashboard-facts.memory-limit; color: LumenTheme.text-secondary; font-size: DesignType.micro-size; max-width: 96 * LumenUiScale.unit; overflow: elide; }
+                Text { text: @tr("软限 ") + root.dashboard-facts.memory-limit; color: LumenTheme.text-secondary; font-size: DesignType.micro-size; max-width: LumenTheme.memory-limit-max-width; overflow: elide; }
             }
             HorizontalLayout {
                 spacing: LumenTheme.space-2;
                 Text { text: @tr("CPU"); color: LumenTheme.text-secondary; font-size: DesignType.micro-size; font-weight: DesignType.micro-weight; }
                 Rectangle { horizontal-stretch: 1; background: transparent; }
-                Text { text: root.dashboard-facts.cpu-text; color: LumenTheme.text-primary; font-family: DesignType.mono-family; font-size: DesignType.micro-size; }
+                Text { text: root.dashboard-facts.cpu-text; color: LumenTheme.text-primary; font-family: DesignType.monoMicro-family; font-size: DesignType.monoMicro-size; }
             }
             Rectangle {
                 horizontal-stretch: 1;
@@ -532,18 +598,19 @@ export component HomeDesktopGrid inherits VerticalLayout {
             HomeConnectionMiniTable {
                 dashboard-facts: root.dashboard-facts;
                 connections: root.home-connection-table;
-                // Row 4 split: Connections (13) vs Policy Groups (8).
-                // Seven columns have 48 weight units plus six 8px gaps and 20px inner padding.
-                column-unit: ((root.width - (root.dense ? LumenTheme.space-3 : LumenTheme.space-4)) * 13 / 21
-                    - 2 * 16 * LumenUiScale.unit - 20 * LumenUiScale.unit - 6 * LumenTheme.space-2) / 48;
+                open-connections => { root.navigate("Connections"); }
+                open-dns => { root.navigate("Dns"); }
             }
         }
 
         // Policy Groups Card
         SurfaceCard {
             horizontal-stretch: root.dense ? 1 : 8;
+            min-width: LumenTheme.policy-card-min-width;
             HomePolicyGroupGrid {
                 proxy-groups: root.proxy-groups;
+                select-group(name) => { root.select-group(name); }
+                open-proxies => { root.navigate("Proxy"); }
             }
         }
     }

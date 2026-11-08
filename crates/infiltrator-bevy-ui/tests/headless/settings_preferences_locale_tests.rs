@@ -26,10 +26,11 @@ use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::theme::space;
-use infiltrator_bevy_widgets::theme::{ThemeSkin, TokenColor, contrast};
+use infiltrator_bevy_widgets::theme::{ThemeSkin, TokenColor};
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::page::PageStatus;
 use std::sync::Arc;
+use zhuge_ui_tokens::WCAG_AA_NORMAL;
 
 #[test]
 fn native_preferences_replay_real_flags_stale_gates_locales_and_explicit_boolean_commands() {
@@ -180,11 +181,13 @@ fn native_preferences_replay_real_flags_stale_gates_locales_and_explicit_boolean
                 *channel = front * layer.alpha + *channel * (1.0 - layer.alpha);
             }
         }
-        let ratio = contrast::contrast_ratio(
-            TokenColor::rgba(ink.red, ink.green, ink.blue, ink.alpha),
-            TokenColor::rgb(fill[0], fill[1], fill[2]),
+        let ratio = TokenColor::rgba(ink.red, ink.green, ink.blue, ink.alpha)
+            .as_rgba()
+            .contrast_ratio(TokenColor::rgb(fill[0], fill[1], fill[2]).as_rgba());
+        assert!(
+            ratio >= WCAG_AA_NORMAL,
+            "preference caption is unreadable: {ratio}"
         );
-        assert!(ratio >= 4.5, "preference caption is unreadable: {ratio}");
         assert!(
             matches!(app.world().get::<Node>(knob).unwrap().left, Val::Rem(f) if (f * 15.0 - 18.0).abs() < 1e-4)
         );

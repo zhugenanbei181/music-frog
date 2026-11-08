@@ -13,6 +13,7 @@
 //! site.
 
 use bevy::ecs::resource;
+use zhuge_ui_tokens::Rgba;
 
 /// The root font size every rem value resolves against, in baseline logical
 /// pixels (= [`type_scale::BODY`]). The shell installs it as bevy's
@@ -40,6 +41,12 @@ impl TokenColor {
 
     pub const fn rgb(r: f32, g: f32, b: f32) -> Self {
         Self { r, g, b, a: 1.0 }
+    }
+
+    /// Convert this product token into the shared resolved RGBA owner.
+    #[must_use]
+    pub const fn as_rgba(self) -> Rgba {
+        Rgba::new(self.r, self.g, self.b, self.a)
     }
 }
 
@@ -608,48 +615,6 @@ pub mod timing {
     pub const CARET_BLINK_SECS: f32 = 0.53;
 }
 
-/// WCAG 2.1 relative luminance and color contrast ratio calculations.
-pub mod contrast {
-    use super::TokenColor;
-
-    /// Calculate linearized channel value per sRGB W3C formula.
-    fn linearize_channel(c: f32) -> f32 {
-        let c_norm = c.clamp(0.0, 1.0);
-        if c_norm <= 0.04045 {
-            c_norm / 12.92
-        } else {
-            ((c_norm + 0.055) / 1.055).powf(2.4)
-        }
-    }
-
-    /// Compute relative luminance of a color per WCAG 2.1 specification [0.0..1.0].
-    pub fn relative_luminance(color: TokenColor) -> f32 {
-        let r = linearize_channel(color.r);
-        let g = linearize_channel(color.g);
-        let b = linearize_channel(color.b);
-        0.2126 * r + 0.7152 * g + 0.0722 * b
-    }
-
-    /// Compute contrast ratio between two colors [1.0..21.0].
-    pub fn contrast_ratio(c1: TokenColor, c2: TokenColor) -> f32 {
-        let l1 = relative_luminance(c1);
-        let l2 = relative_luminance(c2);
-        let lighter = l1.max(l2);
-        let darker = l1.min(l2);
-        (lighter + 0.05) / (darker + 0.05)
-    }
-
-    /// Check if contrast meets WCAG 2.1 AA level for standard text (>= 4.5:1).
-    pub fn is_wcag_aa(contrast: f32) -> bool {
-        contrast >= 4.5
-    }
-
-    /// Check if contrast meets WCAG 2.1 AAA enhanced accessibility level (>= 7.0:1).
-    pub fn is_wcag_aaa(contrast: f32) -> bool {
-        contrast >= 7.0
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -669,14 +634,16 @@ mod tests {
             a: 1.0,
         };
 
-        let ratio = contrast::contrast_ratio(white, black);
+        let white_rgba = white.as_rgba();
+        let black_rgba = black.as_rgba();
+        let ratio = white_rgba.contrast_ratio(black_rgba);
         assert!((ratio - 21.0).abs() < 0.1);
-        assert!(contrast::is_wcag_aa(ratio));
-        assert!(contrast::is_wcag_aaa(ratio));
+        assert!(white_rgba.is_wcag_aa_normal(black_rgba));
+        assert!(white_rgba.is_wcag_aaa_normal(black_rgba));
 
-        let same_ratio = contrast::contrast_ratio(white, white);
+        let same_ratio = white_rgba.contrast_ratio(white_rgba);
         assert!((same_ratio - 1.0).abs() < 1e-4);
-        assert!(!contrast::is_wcag_aa(same_ratio));
+        assert!(!white_rgba.is_wcag_aa_normal(white_rgba));
     }
 
     #[test]

@@ -18,6 +18,7 @@ use infiltrator_domain::runtime::ConnectionSnapshot;
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::error::InfiltratorError;
 use std::time::Instant;
+use zhuge_ui_core::row_page::{RowPage, clamped_page, rows_per_page};
 
 impl AppState {
     pub(crate) fn sync_logs_viewport_task(&self) -> Task<Message> {
@@ -522,19 +523,20 @@ impl AppState {
             .as_ref()
             .map(|snapshot| snapshot.connections.len())
             .unwrap_or(0);
-        let size = self.diag.connections_page_size.max(1);
-        let max_page = total.saturating_sub(1) / size;
-        self.diag.connections_page = self.diag.connections_page.min(max_page);
+        self.diag.connections_page = clamped_page(
+            self.diag.connections_page,
+            total,
+            rows_per_page(self.diag.connections_page_size),
+        );
     }
 
     /// `(page, start, end)` window into the filtered connection list after
     /// clamping; the view slices with these bounds.
     pub(crate) fn connections_window(&self, total: usize) -> (usize, usize, usize) {
-        let size = self.diag.connections_page_size.max(1);
-        let max_page = total.saturating_sub(1) / size;
-        let page = self.diag.connections_page.min(max_page);
-        let start = page * size;
-        (page, start, (start + size).min(total))
+        let size = rows_per_page(self.diag.connections_page_size);
+        let page = clamped_page(self.diag.connections_page, total, size);
+        let window = RowPage::page(total, size, page);
+        (page, window.first(), window.last())
     }
 }
 

@@ -159,7 +159,7 @@ def main(argv):
                     state["logcat"].append("I/ActivityTaskManager: START u0 {cmp=com.android.vpndialogs/.ConfirmDialog}")
                 elif label == "OK":
                     state["color"] = [120, 120, 120]
-                    state["nodes"] = [["Allow MusicFrog Infiltrator to send notifications?", 900], ["Allow", 1500], ["Do not allow", 1700]]
+                    state["nodes"] = [["Allow Source to send notifications?", 900], ["Allow", 1500], ["Do not allow", 1700]]
                     state["logcat"].append("I/PermissionController: Granting notification permission")
                 elif label == "Allow":
                     state["color"] = [180, 180, 180]

@@ -14,6 +14,8 @@ val AppFontFamily = FontFamily(
     Font(R.font.inter_semibold, FontWeight.SemiBold),
     Font(R.font.jetbrains_mono_regular, FontWeight.Normal),
     Font(R.font.cjk_regular, FontWeight.Normal),
+    Font(R.font.cjk_medium, FontWeight.Medium),
+    Font(R.font.cjk_semibold, FontWeight.SemiBold),
 )
 
 val AppMonoFontFamily = FontFamily(

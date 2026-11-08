@@ -16,7 +16,6 @@
 
 use crate::filter::FilterEngine;
 use crate::list::VirtualListState;
-use crate::list::scroll_core::VirtualWindow;
 use crate::palette::UiPalette;
 use crate::palette::rem;
 use crate::selection::SelectionState;
@@ -32,6 +31,7 @@ use bevy::ui::prelude::{
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
 use infiltrator_contract::design_resources;
+use zhuge_ui_core::virtual_list::VirtualWindow;
 
 /// Sizing strategy for a table column.
 #[derive(Clone, Copy, Debug, PartialEq)]

@@ -83,3 +83,6 @@ crates/infiltrator-shared/assets/fonts/*.otf
 crates/infiltrator-shared/assets/fonts/LongCang-Regular.ttf
 crates/infiltrator-shared/assets/fonts/MaShanZheng-Regular.ttf
 crates/infiltrator-shared/assets/fonts/ZCOOLXiaoWei-Regular.ttf
+
+# Transient Cargo.lock snapshot taken by the shared UI kit consumer verifier.
+/Cargo.lock.zhuge-verify.bak

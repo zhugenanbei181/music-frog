@@ -4,7 +4,7 @@
 // hide the groups behind a drill-down, which made every group change a round
 // trip and left the node list as one tall column of near-empty rows.
 
-import { DesignType } from "./design-type.slint";
+import { DesignType, TextRole } from "./design-type.slint";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "./theme.slint";
 import { FlagIcon } from "../lumen-flags.slint";
@@ -14,9 +14,30 @@ import { ScrollView } from "std-widgets.slint";
 // Pills share one width so the row can scroll without measuring every label;
 // a long group name elides instead of pushing its neighbours off screen.
 export global ProxyPillMetrics {
-    out property <length> pill-width: 152 * LumenUiScale.unit;
-    out property <length> pill-height: 40 * LumenUiScale.unit;
-    out property <length> pill-spacing: 8 * LumenUiScale.unit;
+    out property <length> pill-min-width: 72 * LumenUiScale.unit;
+    out property <length> pill-height: 36 * LumenUiScale.unit;
+    out property <length> pill-spacing: LumenTheme.space-2;
+    out property <length> pill-inset: 10 * LumenUiScale.unit;
+    out property <length> pill-gap: 7 * LumenUiScale.unit;
+    out property <length> pill-identity-size: 20 * LumenUiScale.unit;
+    // The name receives the width left after the flag/avatar, one gap and the
+    // two symmetric insets. A short name reads in full instead of inheriting a
+    // 152u fixed-width row placeholder.
+    out property <length> pill-name-allowance: 112 * LumenUiScale.unit;
+    // The active node card owns its own height; scroll-to-current needs the
+    // same number instead of a second 76u literal in the shell.
+    out property <length> node-card-height:
+        10 * LumenUiScale.unit + 22 * LumenUiScale.unit + 6 * LumenUiScale.unit
+        + 18 * LumenUiScale.unit + 10 * LumenUiScale.unit;
+    out property <length> node-card-inset: 12 * LumenUiScale.unit;
+    out property <length> node-card-top-inset: 10 * LumenUiScale.unit;
+    out property <length> node-card-row-gap: 6 * LumenUiScale.unit;
+    out property <length> node-card-title-height: 22 * LumenUiScale.unit;
+    out property <length> node-card-meta-height: 18 * LumenUiScale.unit;
+    out property <length> node-card-title-gap: 7 * LumenUiScale.unit;
+    out property <length> node-card-flag-size: 18 * LumenUiScale.unit;
+    out property <length> node-card-badge-size: 20 * LumenUiScale.unit;
+    out property <length> node-card-probe-size: 14 * LumenUiScale.unit;
 }
 
 /// One policy group in the pill row.
@@ -25,21 +46,25 @@ export component ProxyGroupPill inherits Rectangle {
     in property <bool> selected;
     callback picked();
 
-    width: ProxyPillMetrics.pill-width;
+    width: Math.max(ProxyPillMetrics.pill-min-width,
+        min(group-name.preferred-width, ProxyPillMetrics.pill-name-allowance)
+        + ProxyPillMetrics.pill-identity-size + ProxyPillMetrics.pill-gap
+        + 2 * ProxyPillMetrics.pill-inset);
     height: ProxyPillMetrics.pill-height;
-    border-radius: ProxyPillMetrics.pill-height / 2;
-    background: root.selected ? (LumenTheme.is-dark ? #2563EB : LumenTheme.accent) : LumenTheme.zinc-3;
+    border-radius: self.height / 2;
+    background: root.selected ? LumenTheme.selection : ((pill-touch.has-hover && LumenTheme.hover-allowed) ? LumenTheme.zinc-4 : LumenTheme.zinc-3);
     border-width: 1 * LumenUiScale.unit;
     border-color: root.selected ? transparent : LumenTheme.hairline-glow;
+    animate background { duration: 120ms; easing: ease-out; }
     accessible-role: button;
     accessible-label: root.group.name;
     accessible-checked: root.selected;
 
     pill-layout := HorizontalLayout {
-        x: 10 * LumenUiScale.unit;
-        width: parent.width - 20 * LumenUiScale.unit;
+        x: ProxyPillMetrics.pill-inset;
+        width: parent.width - 2 * ProxyPillMetrics.pill-inset;
         height: parent.height;
-        spacing: 7 * LumenUiScale.unit;
+        spacing: ProxyPillMetrics.pill-gap;
         cross-axis-alignment: center;
 
         // The reference puts a pictograph on every pill. The owner publishes a
@@ -49,37 +74,39 @@ export component ProxyGroupPill inherits Rectangle {
         if root.group.current-flag-index >= 0: FlagIcon {
             index: root.group.current-flag-index;
             country-code: root.group.current-flag-code;
-            diameter: 20 * LumenUiScale.unit;
+            diameter: ProxyPillMetrics.pill-identity-size;
         }
         if root.group.current-flag-index < 0: Rectangle {
-            width: 20 * LumenUiScale.unit;
-            height: 20 * LumenUiScale.unit;
-            border-radius: 10 * LumenUiScale.unit;
+            width: ProxyPillMetrics.pill-identity-size;
+            height: ProxyPillMetrics.pill-identity-size;
+            border-radius: ProxyPillMetrics.pill-identity-size / 2;
             background: root.selected
                 ? LumenTheme.accent-foreground.with_alpha(24%)
                 : LumenTheme.zinc-4;
             Text {
                 text: root.group.icon-emoji;
                 color: root.selected ? LumenTheme.accent-foreground : LumenTheme.text-secondary;
-                font-size: DesignType.tag-size;
-                font-weight: DesignType.labelStrong-weight;
+                font-size: DesignType.tagStrong-size;
+                font-weight: DesignType.tagStrong-weight;
                 horizontal-alignment: center;
                 vertical-alignment: center;
             }
         }
-        Text {
+        group-name := Text {
+            width: parent.width - ProxyPillMetrics.pill-identity-size - ProxyPillMetrics.pill-gap;
             text: root.group.name;
             color: root.selected ? LumenTheme.accent-foreground : LumenTheme.text-primary;
-            font-size: DesignType.caption-size;
-            font-weight: root.selected ? DesignType.labelStrong-weight : DesignType.label-weight;
+            font-size: DesignType.size(TextRole.caption);
+            font-weight: DesignType.weight(root.selected ? TextRole.captionStrong : TextRole.caption);
             vertical-alignment: center;
             overflow: elide;
         }
     }
 
-    TouchArea {
+    pill-touch := TouchArea {
         width: parent.width;
         height: parent.height;
+        mouse-cursor: pointer;
         clicked => { root.picked(); }
     }
 }
@@ -90,23 +117,12 @@ export component ProxyGroupPillBar inherits ScrollView {
     in property <string> selected-group;
     callback picked(string);
 
-    horizontal-scrollbar-policy: ScrollBarPolicy.as-needed;
+    horizontal-scrollbar-policy: LumenTheme.compact-layout ? ScrollBarPolicy.always-off : ScrollBarPolicy.as-needed;
     vertical-scrollbar-policy: ScrollBarPolicy.always-off;
 
-    // `ScrollView` ships a 50px minimum, which would make the row taller than
-    // the pills it carries; the row asks for its own height instead, and leaves
-    // a little more so a horizontal bar that appears on overflow cannot clip the
-    // pills.
-    min-height: ProxyPillMetrics.pill-height + 8 * LumenUiScale.unit;
+    min-height: ProxyPillMetrics.pill-height + 2 * LumenTheme.space-1;
 
     HorizontalLayout {
-        // The content is as wide as the pills need and never narrower than the
-        // viewport, so short rows stay left-aligned instead of stretching.
-        width: Math.max(
-            parent.width,
-            root.groups.length * ProxyPillMetrics.pill-width
-                + Math.max(0, root.groups.length - 1) * ProxyPillMetrics.pill-spacing
-        );
         height: ProxyPillMetrics.pill-height;
         spacing: ProxyPillMetrics.pill-spacing;
         cross-axis-alignment: center;
@@ -131,31 +147,39 @@ export component ProxyNodeCard inherits Rectangle {
     callback picked();
     callback probed();
 
-    height: 78 * LumenUiScale.unit;
-    border-radius: 14 * LumenUiScale.unit;
-    background: root.node.active ? LumenTheme.zinc-3 : LumenTheme.zinc-2;
+    // The reference node card is 66.9dp tall at the same density. Its two ink
+    // rows are 22 + 6 + 18 with 10 above and below; the shared metric owns
+    // that sum for both the card and the scroll-to-current centring offset.
+    height: ProxyPillMetrics.node-card-height;
+    border-radius: LumenTheme.radius-mobile-card;
+    background: root.node.active
+        ? LumenTheme.zinc-5
+        : ((touch.has-hover && LumenTheme.hover-allowed) && root.switching-allowed ? LumenTheme.zinc-5 : LumenTheme.zinc-3);
     border-width: 1 * LumenUiScale.unit;
-    border-color: root.node.active ? (LumenTheme.is-dark ? #2563EB : LumenTheme.accent) : LumenTheme.hairline-glow;
+    border-color: root.node.active
+        ? LumenTheme.hairline-glow
+        : ((touch.has-hover && LumenTheme.hover-allowed) && root.switching-allowed ? LumenTheme.border : LumenTheme.hairline-glow);
+    animate background, border-color { duration: 120ms; easing: ease-out; }
     accessible-role: button;
     accessible-label: node.accessible-title;
     accessible-checked: root.node.active;
 
     card-content := VerticalLayout {
-        x: 12 * LumenUiScale.unit;
-        y: 10 * LumenUiScale.unit;
-        width: parent.width - 24 * LumenUiScale.unit;
-        height: parent.height - 20 * LumenUiScale.unit;
-        spacing: 6 * LumenUiScale.unit;
+        x: ProxyPillMetrics.node-card-inset;
+        y: ProxyPillMetrics.node-card-top-inset;
+        width: parent.width - 2 * ProxyPillMetrics.node-card-inset;
+        height: parent.height - 2 * ProxyPillMetrics.node-card-top-inset;
+        spacing: ProxyPillMetrics.node-card-row-gap;
 
         HorizontalLayout {
-            height: 22 * LumenUiScale.unit;
-            spacing: 7 * LumenUiScale.unit;
+            height: ProxyPillMetrics.node-card-title-height;
+            spacing: ProxyPillMetrics.node-card-title-gap;
             cross-axis-alignment: center;
 
             if root.node.flag-index >= 0: FlagIcon {
                 index: root.node.flag-index;
                 country-code: root.node.flag-code;
-                diameter: 18 * LumenUiScale.unit;
+                diameter: ProxyPillMetrics.node-card-flag-size;
             }
             Text {
                 text: root.node.title;
@@ -163,16 +187,17 @@ export component ProxyNodeCard inherits Rectangle {
                 font-size: DesignType.bodyStrong-size;
                 font-weight: DesignType.bodyStrong-weight;
                 horizontal-stretch: 1;
+                min-width: 0 * LumenUiScale.unit;
                 vertical-alignment: center;
                 overflow: elide;
             }
             // The reference marks the chosen egress with a filled circular
             // check, not a bare square glyph floating mid-row.
             if root.node.active: Rectangle {
-                width: 20 * LumenUiScale.unit;
-                height: 20 * LumenUiScale.unit;
-                border-radius: 10 * LumenUiScale.unit;
-                background: LumenTheme.is-dark ? #2563EB : LumenTheme.accent;
+                width: ProxyPillMetrics.node-card-badge-size;
+                height: ProxyPillMetrics.node-card-badge-size;
+                border-radius: ProxyPillMetrics.node-card-badge-size / 2;
+                background: LumenTheme.selection;
                 Path {
                     width: parent.width;
                     height: parent.height;
@@ -188,11 +213,19 @@ export component ProxyNodeCard inherits Rectangle {
         }
 
         HorizontalLayout {
-            height: 18 * LumenUiScale.unit;
+            height: ProxyPillMetrics.node-card-meta-height;
             spacing: LumenTheme.space-2;
             cross-axis-alignment: center;
 
-            Text {
+            // The reference's second line is quiet ink: the protocol name on
+            // the left, the probe affordance on the right, neither of them in a
+            // filled chip. Two tinted rectangles per card gave every row of the
+            // grid a pair of boxes the reference does not draw, and the grade
+            // was carried twice - once by the tint, once by the ink. The
+            // measurement now lives in the ink colour alone.
+            if root.node.subtitle != "": Text {
+                horizontal-stretch: 1;
+                min-width: 0 * LumenUiScale.unit;
                 text: root.node.subtitle;
                 color: LumenTheme.text-secondary;
                 font-size: DesignType.micro-size;
@@ -200,23 +233,35 @@ export component ProxyNodeCard inherits Rectangle {
                 vertical-alignment: center;
                 overflow: elide;
             }
-            Rectangle { horizontal-stretch: 1; background: transparent; }
-            // The only coloured fact on the card, painted from the grade the
-            // contract assigned rather than re-derived here.
-            Text {
-                text: root.testing ? @tr("正在测速") : root.node.trailing;
+            if root.testing: Text {
+                text: @tr("正在测速");
+                color: LumenTheme.text-secondary;
+                font-size: DesignType.micro-size;
+                vertical-alignment: center;
+            }
+            if !root.testing && root.node.trailing != "": Text {
+                text: root.node.trailing;
                 color: root.node.latency-ink;
-                font-size: DesignType.caption-size;
-                font-family: DesignType.mono-family;
-                font-weight: DesignType.caption-weight;
+                font-size: DesignType.monoCaption-size;
+                font-family: DesignType.monoCaption-family;
+                font-weight: DesignType.monoCaption-weight;
+                vertical-alignment: center;
+            }
+            if !root.testing && root.node.trailing == "": Image {
+                source: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/zap.svg");
+                width: ProxyPillMetrics.node-card-probe-size;
+                height: ProxyPillMetrics.node-card-probe-size;
+                image-fit: contain;
+                colorize: LumenTheme.text-muted;
                 vertical-alignment: center;
             }
         }
     }
 
-    TouchArea {
+    touch := TouchArea {
         width: parent.width;
         height: parent.height;
+        mouse-cursor: (!root.node.active && root.switching-allowed) || root.node.active ? pointer : default;
         enabled: (!root.node.active && root.switching-allowed) || root.node.active;
         clicked => {
             if root.node.active {

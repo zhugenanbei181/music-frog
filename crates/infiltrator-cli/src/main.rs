@@ -1,4 +1,4 @@
-//! `infiltrator` — command line front end for the MusicFrog Infiltrator
+//! `infiltrator` — command line front end for the Infiltrator
 //! engine-neutral Core manager (Mihomo / sing-box). The binary only parses
 //! arguments and maps handler outcomes to process exit codes; every capability
 //! lives behind the workspace crates (doctor/bootstrap in `infiltrator-core`,

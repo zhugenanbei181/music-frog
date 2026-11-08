@@ -1,0 +1,16 @@
+// How tall a card is.
+//
+// A card is either exactly as tall as the content it holds, or exactly as
+// tall as the page body that holds it. The second mode belongs to the list
+// pages: one card is the page's frame, the list scrolls inside that frame,
+// and the page never paints a short card above a band of empty page ground.
+//
+// One enum, two variants. A page cannot blend the two modes into a third
+// state of its own, and the shared card owner reads the same mode for every
+// page that asks for it.
+export enum CardHeight {
+    // The card is as tall as its own content.
+    content,
+    // The card fills the page body, and its body scrolls inside the frame.
+    page-body,
+}

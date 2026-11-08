@@ -43,7 +43,7 @@ val expandAndroidXCoreKtx = tasks.register<Copy>("expandAndroidXCoreKtx") {
 
 kotlin {
     compilerOptions {
-        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.fromTarget(toolchainValue("java.major")))
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.fromTarget(toolchainValue("java.bytecode.target")))
     }
     sourceSets {
         main {
@@ -155,8 +155,8 @@ dependencies {
 }
 
 tasks.withType<org.gradle.api.tasks.compile.JavaCompile>().configureEach {
-    sourceCompatibility = toolchainValue("java.major")
-    targetCompatibility = toolchainValue("java.major")
+    sourceCompatibility = toolchainValue("java.bytecode.target")
+    targetCompatibility = toolchainValue("java.bytecode.target")
 }
 
 tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {

@@ -8,6 +8,10 @@ python3 scripts/quality/import-guard.py --mode enforce
 python3 scripts/quality/slint-source-import-guard.py
 python3 scripts/quality/slint-syntax-guard.py --self-test
 python3 scripts/quality/slint-syntax-guard.py --mode enforce
+python3 scripts/quality/slint-typography-role-guard.py --self-test
+python3 scripts/quality/slint-typography-role-guard.py --mode enforce
+python3 scripts/quality/slint-dead-input-guard.py --self-test
+python3 scripts/quality/slint-dead-input-guard.py --mode enforce
 python3 scripts/quality/core-boundary-guard.py --mode enforce
 python3 scripts/quality/adapter-operation-declarations-guard.py
 python3 scripts/quality/workspace-pin-guard.py --mode enforce
@@ -19,6 +23,31 @@ python3 scripts/quality/bevy_scene_gate.py \
   --root crates/infiltrator-bevy-ui/src \
   --root crates/infiltrator-bevy-widgets/src \
   --baseline scripts/quality/bevy_scene_ratchet.json
+python3 -m unittest discover -s scripts/quality/tests -p 'test_bevy_guard_owner_binding.py'
+# 带宽算术唯一律（最宽带只有一个 owner）的执行器随共享包 zhuge-ui-core 一起发布；
+# 此处是同一份文件的拷贝，台账记录其摘要，改动必须同步。
+python3 scripts/quality/band_arithmetic_gate.py \
+  --root crates \
+  --baseline scripts/quality/band_arithmetic_ratchet.json
+python3 scripts/quality/test_band_arithmetic_gate.py
+# 区间归一化唯一律（进入单位区间的投影只有一个 owner）的执行器随共享包 zhuge-ui-core
+# 一起发布；此处是同一份文件的拷贝，台账记录其摘要，改动必须同步。
+python3 scripts/quality/interval_normalization_gate.py \
+  --root crates \
+  --baseline scripts/quality/interval_normalization_ratchet.json
+python3 scripts/quality/test_interval_normalization_gate.py
+# 标量混合唯一律（`A + (B - A) * t` 只有一个 owner）的执行器随共享包 zhuge-ui-core
+# 一起发布；此处是同一份文件的拷贝，台账记录其摘要，改动必须同步。
+python3 scripts/quality/scalar_mix_gate.py \
+  --root crates \
+  --baseline scripts/quality/scalar_mix_ratchet.json
+python3 scripts/quality/test_scalar_mix_gate.py
+# 缓动斜坡与 Bézier 求解唯一律（`smoothstep` 形状与「按进度解曲线参数」各只有一个 owner）的执行器
+# 随共享包 zhuge-ui-core 一起发布；此处是同一份文件的拷贝，台账记录其摘要，改动必须同步。
+python3 scripts/quality/easing_owner_gate.py \
+  --root crates \
+  --baseline scripts/quality/easing_owner_ratchet.json
+python3 scripts/quality/test_easing_owner_gate.py
 python3 scripts/quality/bevy_shader_guard.py --mode enforce
 python3 scripts/quality/line-guard.py --self-test
 python3 scripts/quality/line-guard.py --mode enforce
@@ -33,7 +62,10 @@ python3 scripts/quality/typed-state-guard.py --self-test
 python3 scripts/quality/typed-state-guard.py --mode enforce
 python3 scripts/quality/screenshot-identity-guard.py --self-test
 python3 scripts/quality/screenshot-identity-guard.py --mode enforce
+python3 scripts/quality/receipt-freshness-guard.py --self-test
+python3 scripts/quality/receipt-freshness-guard.py --mode enforce
 python3 scripts/quality/retired-surface-guard.py
+python3 -m unittest discover -s scripts/quality/tests -p 'test_easing_owner_tests_mutation.py'
 python3 scripts/quality/lurker-neutrality-guard.py --self-test
 python3 scripts/quality/lurker-neutrality-guard.py
 python3 scripts/quality/publish-order-guard.py --self-test
@@ -67,6 +99,7 @@ python3 scripts/quality/android-interaction-receipt-guard.py --mode enforce
 python3 scripts/quality/verify-packaging.py
 python3 -m unittest discover -s scripts/packaging_tests -p 'test_*.py'
 python3 -m unittest discover -s scripts/quality/tests -p 'test_*.py'
+python3 -m unittest discover -s scripts/quality/tests -p 'test_slint_mobile_chrome_guard.py'
 python3 scripts/quality/i18n-guard.py --mode enforce
 python3 scripts/quality/design-resource-authority.py --self-test
 python3 scripts/quality/design-resource-authority.py --skip-exporter
@@ -74,6 +107,32 @@ python3 scripts/quality/shared-copy-guard.py --mode enforce
 python3 scripts/quality/shared-copy-guard.py --self-test
 python3 scripts/quality/scrollbar-contract-guard.py --mode enforce
 python3 scripts/quality/scrollbar-contract-guard.py --self-test
+python3 scripts/quality/slint-mobile-chrome-guard.py --mode enforce
+python3 scripts/quality/slint-mobile-chrome-guard.py --self-test
+python3 scripts/quality/core-session-guard.py --mode enforce
+python3 scripts/quality/core-session-guard.py --self-test
+python3 scripts/quality/slint-fact-row-guard.py --mode enforce
+python3 scripts/quality/slint-fact-row-guard.py --self-test
+python3 scripts/quality/slint-padding-guard.py --mode enforce
+python3 scripts/quality/slint-padding-guard.py --self-test
+python3 scripts/quality/slint-dock-material-guard.py --mode enforce
+python3 scripts/quality/slint-dock-material-guard.py --self-test
+python3 scripts/quality/slint-surface-ladder-guard.py --mode enforce
+python3 scripts/quality/slint-surface-ladder-guard.py --self-test
+python3 scripts/quality/slint-viewport-tier-guard.py --mode enforce
+python3 scripts/quality/slint-viewport-tier-guard.py --self-test
+python3 scripts/quality/slint-list-page-guard.py --mode enforce
+python3 scripts/quality/slint-list-page-guard.py --self-test
+python3 scripts/quality/slint-workbench-row-guard.py --mode enforce
+python3 scripts/quality/slint-workbench-row-guard.py --self-test
+python3 scripts/quality/slint-selector-segment-guard.py --mode enforce
+python3 scripts/quality/slint-selector-segment-guard.py --self-test
+python3 scripts/quality/slint-dashboard-grid-guard.py --mode enforce
+python3 scripts/quality/slint-dashboard-grid-guard.py --self-test
+python3 scripts/quality/slint-action-label-guard.py --mode enforce
+python3 scripts/quality/slint-action-label-guard.py --self-test
+python3 scripts/quality/slint-rail-edge-dialect-guard.py --mode enforce
+python3 scripts/quality/slint-rail-edge-dialect-guard.py --self-test
 python3 scripts/quality/android-product-identity-guard.py
 python3 scripts/quality/release-build-target-guard.py --self-test
 python3 scripts/quality/release-build-target-guard.py

@@ -1,4 +1,4 @@
-# MusicFrog Infiltrator — Android 第三方声明（随 APK 分发）
+# Source — Android 第三方声明（随 APK 分发）
 
 > 层级：L3
 

@@ -1,4 +1,4 @@
-; MusicFrog Infiltrator NSIS Installer Script (Modern UI 2)
+; Ice NSIS Installer Script (Modern UI 2)
 ; Builds high-reliability, 64-bit Windows installer with clean uninstaller & protocol registration.
 ; Display name, installer prefix and registry keys come from product-identity.properties;
 ; packaging/windows/nsis/build-nsis.sh passes VERSION and ICON_PATH and verifies this file.
@@ -29,9 +29,9 @@ ManifestDPIAware true
   !error "KERNEL_PATH must name a verified packaged mihomo executable"
 !endif
 
-Name "MusicFrog Infiltrator"
+Name "Ice"
 OutFile "${OUTFILE}"
-InstallDir "$PROGRAMFILES64\MusicFrog Infiltrator"
+InstallDir "$PROGRAMFILES64\Ice"
 InstallDirRegKey HKLM "Software\MusicFrog\Infiltrator" "InstallDir"
 RequestExecutionLevel admin
 SetCompressor /SOLID lzma
@@ -57,7 +57,7 @@ SetCompressor /SOLID lzma
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
 !define MUI_FINISHPAGE_RUN "$INSTDIR\infiltrator-iced.exe"
-!define MUI_FINISHPAGE_RUN_TEXT "Launch MusicFrog Infiltrator"
+!define MUI_FINISHPAGE_RUN_TEXT "Launch Ice"
 !insertmacro MUI_PAGE_FINISH
 
 !insertmacro MUI_UNPAGE_CONFIRM
@@ -68,7 +68,7 @@ SetCompressor /SOLID lzma
 ; ---------------------------------------------------------------------------
 ; Installer Section
 ; ---------------------------------------------------------------------------
-Section "MusicFrog Infiltrator Core & GUI" SecCore
+Section "Ice Core & GUI" SecCore
   SectionIn RO
   ${If} ${RunningX64}
     SetRegView 64
@@ -88,12 +88,12 @@ Section "MusicFrog Infiltrator Core & GUI" SecCore
   WriteUninstaller "$INSTDIR\uninstall.exe"
 
   ; Create Start Menu Shortcuts
-  CreateDirectory "$SMPROGRAMS\MusicFrog Infiltrator"
-  CreateShortcut "$SMPROGRAMS\MusicFrog Infiltrator\MusicFrog Infiltrator.lnk" "$INSTDIR\infiltrator-iced.exe" "" "$INSTDIR\infiltrator-iced.exe" 0
-  CreateShortcut "$SMPROGRAMS\MusicFrog Infiltrator\Uninstall MusicFrog Infiltrator.lnk" "$INSTDIR\uninstall.exe" "" "$INSTDIR\uninstall.exe" 0
+  CreateDirectory "$SMPROGRAMS\Ice"
+  CreateShortcut "$SMPROGRAMS\Ice\Ice.lnk" "$INSTDIR\infiltrator-iced.exe" "" "$INSTDIR\infiltrator-iced.exe" 0
+  CreateShortcut "$SMPROGRAMS\Ice\Uninstall Ice.lnk" "$INSTDIR\uninstall.exe" "" "$INSTDIR\uninstall.exe" 0
 
   ; Create Desktop Shortcut
-  CreateShortcut "$DESKTOP\MusicFrog Infiltrator.lnk" "$INSTDIR\infiltrator-iced.exe" "" "$INSTDIR\infiltrator-iced.exe" 0
+  CreateShortcut "$DESKTOP\Ice.lnk" "$INSTDIR\infiltrator-iced.exe" "" "$INSTDIR\infiltrator-iced.exe" 0
 
   ; Registry: Installation Path
   WriteRegStr HKLM "Software\MusicFrog\Infiltrator" "InstallDir" "$INSTDIR"
@@ -101,9 +101,9 @@ Section "MusicFrog Infiltrator Core & GUI" SecCore
 
   ; Registry: Windows Add/Remove Programs (ARP)
   !define ARP_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\Infiltrator"
-  WriteRegStr HKLM "${ARP_KEY}" "DisplayName" "MusicFrog Infiltrator"
+  WriteRegStr HKLM "${ARP_KEY}" "DisplayName" "Ice"
   WriteRegStr HKLM "${ARP_KEY}" "DisplayVersion" "${VERSION}"
-  WriteRegStr HKLM "${ARP_KEY}" "Publisher" "MusicFrog Team"
+  WriteRegStr HKLM "${ARP_KEY}" "Publisher" "Infiltrator Team"
   WriteRegStr HKLM "${ARP_KEY}" "DisplayIcon" "$INSTDIR\infiltrator-iced.exe,0"
   WriteRegStr HKLM "${ARP_KEY}" "UninstallString" '"$INSTDIR\uninstall.exe"'
   WriteRegStr HKLM "${ARP_KEY}" "QuietUninstallString" '"$INSTDIR\uninstall.exe" /S'
@@ -116,14 +116,14 @@ Section "MusicFrog Infiltrator Core & GUI" SecCore
   WriteRegDWORD HKLM "${ARP_KEY}" "EstimatedSize" "$0"
 
   ; Register URL Protocol (infiltrator://)
-  WriteRegStr HKCR "infiltrator" "" "URL:MusicFrog Infiltrator Protocol"
+  WriteRegStr HKCR "infiltrator" "" "URL:Ice Protocol"
   WriteRegStr HKCR "infiltrator" "URL Protocol" ""
   WriteRegStr HKCR "infiltrator\DefaultIcon" "" "$INSTDIR\infiltrator-iced.exe,0"
   WriteRegStr HKCR "infiltrator\shell\open\command" "" '"$INSTDIR\infiltrator-iced.exe" "%1"'
 
   ; Firewall rule registration (Windows Firewall)
   DetailPrint "Configuring Windows Firewall exception..."
-  nsExec::Exec 'netsh advfirewall firewall add rule name="MusicFrog Infiltrator" dir=in action=allow program="$INSTDIR\infiltrator-iced.exe" enable=yes profile=any'
+  nsExec::Exec 'netsh advfirewall firewall add rule name="Ice" dir=in action=allow program="$INSTDIR\infiltrator-iced.exe" enable=yes profile=any'
 
 SectionEnd
 
@@ -139,13 +139,13 @@ Section "Uninstall"
   nsExec::Exec 'taskkill /F /IM infiltrator-iced.exe'
 
   ; Remove Firewall Rule
-  nsExec::Exec 'netsh advfirewall firewall delete rule name="MusicFrog Infiltrator"'
+  nsExec::Exec 'netsh advfirewall firewall delete rule name="Ice"'
 
   ; Remove Shortcuts
-  Delete "$DESKTOP\MusicFrog Infiltrator.lnk"
-  Delete "$SMPROGRAMS\MusicFrog Infiltrator\MusicFrog Infiltrator.lnk"
-  Delete "$SMPROGRAMS\MusicFrog Infiltrator\Uninstall MusicFrog Infiltrator.lnk"
-  RMDir "$SMPROGRAMS\MusicFrog Infiltrator"
+  Delete "$DESKTOP\Ice.lnk"
+  Delete "$SMPROGRAMS\Ice\Ice.lnk"
+  Delete "$SMPROGRAMS\Ice\Uninstall Ice.lnk"
+  RMDir "$SMPROGRAMS\Ice"
 
   ; Remove Installed Files
   Delete "$INSTDIR\infiltrator-iced.exe"

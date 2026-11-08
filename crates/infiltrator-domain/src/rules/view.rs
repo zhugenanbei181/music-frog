@@ -7,6 +7,10 @@
 //! the match or page arithmetic locally.
 
 use super::RuleEntry;
+use zhuge_ui_core::row_page::row_budget;
+use zhuge_ui_core::virtual_list::{
+    VirtualListConfig, max_band_rows, unclamped_item_at_offset, unclamped_item_offset,
+};
 
 /// One rule row as seen by the shared search/pagination reduction.
 pub trait RuleView {
@@ -33,17 +37,17 @@ pub const RULE_PUBLISH_LIMIT: usize = 5000;
 
 /// DUAL-11-08: number of rules published for a received list.
 pub fn published_rule_count(received: usize) -> usize {
-    received.min(RULE_PUBLISH_LIMIT)
+    row_budget(received, RULE_PUBLISH_LIMIT).shown()
 }
 
 /// DUAL-11-08: rules the publish cap drops from a received list.
 pub fn omitted_rule_count(received: usize) -> usize {
-    received.saturating_sub(RULE_PUBLISH_LIMIT)
+    row_budget(received, RULE_PUBLISH_LIMIT).hidden()
 }
 
 /// DUAL-11-08: whether publishing a received list truncates it.
 pub fn is_truncated_rule_list(received: usize) -> bool {
-    received > RULE_PUBLISH_LIMIT
+    row_budget(received, RULE_PUBLISH_LIMIT).truncated()
 }
 
 /// DUAL-11-08: fixed row height of one rule row in the virtual window
@@ -62,40 +66,42 @@ pub const RULE_DEFAULT_VIEWPORT_PX: f32 = 560.0;
 /// DUAL-11-08: the fixed row height is also the scroll quantum: a rule at
 /// filtered position `index` sits at `index * RULE_ROW_HEIGHT_PX`.
 pub fn rule_scroll_offset_for_index(index: usize) -> f32 {
-    index as f32 * RULE_ROW_HEIGHT_PX
+    unclamped_item_offset(index, RULE_ROW_HEIGHT_PX)
 }
 
 /// DUAL-11-08: the filtered position a scroll offset lands on. Used by both
 /// surfaces to report which page the viewport currently shows.
 pub fn rule_index_at_scroll_offset(offset_px: f32) -> usize {
-    if !offset_px.is_finite() || offset_px <= 0.0 {
-        return 0;
-    }
-    (offset_px / RULE_ROW_HEIGHT_PX).floor() as usize
+    unclamped_item_at_offset(offset_px, RULE_ROW_HEIGHT_PX)
 }
 
-/// DUAL-11-08: the page a filtered position belongs to, so the paging
-/// indicator follows the scroll-driven window instead of a second cursor.
-pub fn page_for_rule_index(index: usize, page_size: usize) -> usize {
-    index / effective_page_size(page_size)
+/// The viewport a rule window resolves against: the surface's measured height, or the
+/// declared fallback until one exists. Product policy, not geometry: the shared kit
+/// clamps a missing viewport to one row, which would make an unmeasured list read as a
+/// one-row list.
+fn resolved_viewport(viewport_height_px: f32) -> f32 {
+    if viewport_height_px.is_finite() && viewport_height_px > 0.0 {
+        viewport_height_px
+    } else {
+        RULE_DEFAULT_VIEWPORT_PX
+    }
 }
 
 /// DUAL-11-08: rows in the visible band, including the partially visible row
 /// at each edge. Depends only on the viewport height, never on the list
 /// length — this is what makes the render bound O(1).
 pub fn visible_rule_rows(viewport_height_px: f32) -> usize {
-    let viewport = if viewport_height_px.is_finite() && viewport_height_px > 0.0 {
-        viewport_height_px
-    } else {
-        RULE_DEFAULT_VIEWPORT_PX
-    };
-    (viewport / RULE_ROW_HEIGHT_PX).ceil() as usize + 1
+    max_band_rows(RULE_ROW_HEIGHT_PX, resolved_viewport(viewport_height_px), 0)
 }
 
 /// DUAL-11-08: the hard upper bound on rule rows any surface may render for
 /// one window, whatever the list length is (50,000+ included).
 pub fn rendered_row_bound(viewport_height_px: f32) -> usize {
-    visible_rule_rows(viewport_height_px) + RULE_WINDOW_OVERSCAN * 2
+    max_band_rows(
+        RULE_ROW_HEIGHT_PX,
+        resolved_viewport(viewport_height_px),
+        RULE_WINDOW_OVERSCAN,
+    )
 }
 
 /// DUAL-11-08: the slice of a filtered rule list a surface renders for the
@@ -139,34 +145,20 @@ impl RuleWindow {
 /// shifts `start`/`end` and the spacers, so no surface ever builds a row per
 /// entry of a 50,000-entry list.
 pub fn rule_window(scroll_offset_px: f32, viewport_height_px: f32, total: usize) -> RuleWindow {
-    let content_height_px = total as f32 * RULE_ROW_HEIGHT_PX;
-    if total == 0 {
-        return RuleWindow {
-            start: 0,
-            end: 0,
-            top_spacer_px: 0.0,
-            bottom_spacer_px: 0.0,
-            content_height_px: 0.0,
-            total: 0,
-        };
-    }
-    let offset = if scroll_offset_px.is_finite() {
-        scroll_offset_px.clamp(0.0, content_height_px)
-    } else {
-        0.0
-    };
-    let first_visible = rule_index_at_scroll_offset(offset).min(total - 1);
-    let start = first_visible.saturating_sub(RULE_WINDOW_OVERSCAN);
-    let end = first_visible
-        .saturating_add(visible_rule_rows(viewport_height_px))
-        .saturating_add(RULE_WINDOW_OVERSCAN)
-        .min(total);
+    let window = VirtualListConfig::new(
+        total,
+        RULE_ROW_HEIGHT_PX,
+        resolved_viewport(viewport_height_px),
+    )
+    .with_scroll_offset(scroll_offset_px)
+    .with_overscan(RULE_WINDOW_OVERSCAN)
+    .compute_viewport();
     RuleWindow {
-        start,
-        end,
-        top_spacer_px: start as f32 * RULE_ROW_HEIGHT_PX,
-        bottom_spacer_px: (total - end) as f32 * RULE_ROW_HEIGHT_PX,
-        content_height_px,
+        start: window.start,
+        end: window.end,
+        top_spacer_px: window.top,
+        bottom_spacer_px: window.bottom,
+        content_height_px: window.total_extent(RULE_ROW_HEIGHT_PX),
         total,
     }
 }
@@ -200,31 +192,6 @@ pub fn effective_page_size(page_size: usize) -> usize {
     } else {
         page_size
     }
-}
-
-/// Number of pages needed for `len` filtered rows; an empty list still has one
-/// (empty) page so paging controls never divide by zero.
-pub fn page_count(len: usize, page_size: usize) -> usize {
-    let page_size = effective_page_size(page_size);
-    if len == 0 {
-        1
-    } else {
-        (len - 1) / page_size + 1
-    }
-}
-
-/// Clamp `page` into the valid range for the current filtered length.
-pub fn clamp_page(page: usize, len: usize, page_size: usize) -> usize {
-    page.min(page_count(len, page_size).saturating_sub(1))
-}
-
-/// Half-open `[start, end)` slice bounds of `page` over `len` filtered rows.
-pub fn page_bounds(page: usize, len: usize, page_size: usize) -> (usize, usize) {
-    let page_size = effective_page_size(page_size);
-    let page = clamp_page(page, len, page_size);
-    let start = page.saturating_mul(page_size);
-    let end = start.saturating_add(page_size).min(len);
-    (start, end)
 }
 
 /// DUAL-11-05: human-readable form of a provider's declared refresh interval
@@ -288,15 +255,16 @@ mod tests {
     }
 
     #[test]
-    fn pagination_clamps_and_reports_bounds() {
-        assert_eq!(page_count(0, 0), 1);
-        assert_eq!(page_count(5, 2), 3);
-        assert_eq!(clamp_page(9, 5, 2), 2);
-        assert_eq!(page_bounds(0, 5, 2), (0, 2));
-        assert_eq!(page_bounds(2, 5, 2), (4, 5));
-        // A stale page past the end clamps back onto the last page.
-        assert_eq!(page_bounds(9, 5, 2), (4, 5));
-        assert_eq!(page_bounds(0, 0, 2), (0, 0));
+    fn page_size_policy_falls_back_to_the_declared_default() {
+        // The paging arithmetic itself is owned by `zhuge-ui-core::row_page`
+        // (and proven there); this domain keeps only the page-size policy the
+        // surfaces read, so a zero setting never becomes a zero-row page.
+        assert_eq!(effective_page_size(0), DEFAULT_RULE_PAGE_SIZE);
+        assert_eq!(effective_page_size(2), 2);
+        assert_eq!(
+            effective_page_size(DEFAULT_RULE_PAGE_SIZE),
+            DEFAULT_RULE_PAGE_SIZE
+        );
     }
 
     #[test]
@@ -318,10 +286,15 @@ mod tests {
 
         let top = rule_window(0.0, viewport, total);
         assert_eq!(top.start, 0);
+        assert_eq!(top.start, 0, "at the top there is no overscan above");
         assert_eq!(
-            top.rendered_rows(),
-            visible_rule_rows(viewport) + RULE_WINDOW_OVERSCAN,
-            "at the top there is no overscan above, only below"
+            top.end,
+            visible_rule_rows(viewport) - 1 + RULE_WINDOW_OVERSCAN,
+            "at the top the band is the rows the viewport intersects, plus the band below"
+        );
+        assert!(
+            top.end as f32 * RULE_ROW_HEIGHT_PX >= viewport,
+            "the window still reaches past the bottom of the viewport it was asked for"
         );
         assert!(top.rendered_rows() <= bound);
         assert_eq!(top.top_spacer_px, 0.0);
@@ -390,10 +363,6 @@ mod tests {
             rule_index_at_scroll_offset(rule_scroll_offset_for_index(7) + 1.0),
             7
         );
-        assert_eq!(page_for_rule_index(0, 200), 0);
-        assert_eq!(page_for_rule_index(199, 200), 0);
-        assert_eq!(page_for_rule_index(200, 200), 1);
-        assert_eq!(page_for_rule_index(50_000, 0), 250);
     }
 
     #[test]

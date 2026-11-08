@@ -7,10 +7,16 @@
 //! * Mathematical WCAG AA (>= 4.5:1) contrast validation across all container pairs and step distinctiveness;
 //! * FlClash v0.9.2 default color palette calibration and contrast verification.
 
-use crate::color_science::{MaterialColorScheme, TonalPalette, wcag_contrast_ratio};
+use crate::color_science::{MaterialColorScheme, TonalPalette};
 use crate::design_tokens::{RgbaToken, skin_core};
 use crate::theme::{AppearanceMode, ThemeSkin};
 use serde::{Deserialize, Serialize};
+use zhuge_ui_tokens::WCAG_AA_NORMAL;
+use zhuge_ui_tokens::surface;
+
+fn contrast_ratio(first: RgbaToken, second: RgbaToken) -> f32 {
+    surface::contrast_ratio(first.as_rgba(), second.as_rgba())
+}
 
 /// Fine-grained surface elevation and container roles matching Material Design 3.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -52,11 +58,11 @@ impl SemanticContainerPair {
     }
 
     pub fn contrast_ratio(&self) -> f32 {
-        wcag_contrast_ratio(self.on_container, self.container)
+        contrast_ratio(self.on_container, self.container)
     }
 
     pub fn meets_wcag_aa(&self) -> bool {
-        self.contrast_ratio() >= 4.5
+        self.contrast_ratio() >= WCAG_AA_NORMAL
     }
 }
 
@@ -303,21 +309,21 @@ mod tests {
     fn dark_mode_containers_have_clear_distinguishable_elevation() {
         let dark = MaterialSurfaceTokens::of(ThemeSkin::Dark);
         // Card should clearly contrast against Canvas
-        let card_canvas_ratio = wcag_contrast_ratio(dark.container_card, dark.canvas);
+        let card_canvas_ratio = contrast_ratio(dark.container_card, dark.canvas);
         assert!(
             card_canvas_ratio >= 1.20,
             "card vs canvas ratio: {card_canvas_ratio}"
         );
 
         // High container contrasts against Card
-        let high_card_ratio = wcag_contrast_ratio(dark.container_high, dark.container_card);
+        let high_card_ratio = contrast_ratio(dark.container_high, dark.container_card);
         assert!(
             high_card_ratio >= 1.15,
             "high vs card ratio: {high_card_ratio}"
         );
 
         // Highest container contrasts against High
-        let highest_high_ratio = wcag_contrast_ratio(dark.container_highest, dark.container_high);
+        let highest_high_ratio = contrast_ratio(dark.container_highest, dark.container_high);
         assert!(
             highest_high_ratio >= 1.15,
             "highest vs high ratio: {highest_high_ratio}"
@@ -330,23 +336,21 @@ mod tests {
             let tokens = MaterialSurfaceTokens::of(skin);
 
             // Primary text on card must meet WCAG AA (>= 4.5:1)
-            let text_card_contrast =
-                wcag_contrast_ratio(tokens.text_primary, tokens.container_card);
+            let text_card_contrast = contrast_ratio(tokens.text_primary, tokens.container_card);
             assert!(
-                text_card_contrast >= 4.5,
+                text_card_contrast >= WCAG_AA_NORMAL,
                 "{skin:?} text_primary on card contrast was {text_card_contrast}"
             );
 
             // Secondary text on card must meet readable floor (>= 4.5:1 in M3)
-            let text_sec_contrast =
-                wcag_contrast_ratio(tokens.text_secondary, tokens.container_card);
+            let text_sec_contrast = contrast_ratio(tokens.text_secondary, tokens.container_card);
             assert!(
-                text_sec_contrast >= 4.5,
+                text_sec_contrast >= WCAG_AA_NORMAL,
                 "{skin:?} text_secondary on card contrast was {text_sec_contrast}"
             );
 
             // Outline boundary must be non-zero distinct against card
-            let outline_contrast = wcag_contrast_ratio(tokens.outline, tokens.container_card);
+            let outline_contrast = contrast_ratio(tokens.outline, tokens.container_card);
             assert!(
                 outline_contrast >= 1.5,
                 "{skin:?} outline boundary contrast was {outline_contrast}"
@@ -368,11 +372,11 @@ mod tests {
                 "{skin:?} secondary ink drifted"
             );
             assert!(
-                wcag_contrast_ratio(core.ink, core.card) >= 4.5,
+                contrast_ratio(core.ink, core.card) >= WCAG_AA_NORMAL,
                 "{skin:?} primary ink does not meet WCAG AA"
             );
             assert!(
-                wcag_contrast_ratio(core.ink_dim, core.card) >= 4.5,
+                contrast_ratio(core.ink_dim, core.card) >= WCAG_AA_NORMAL,
                 "{skin:?} secondary ink does not meet WCAG AA"
             );
         }
@@ -394,9 +398,9 @@ mod tests {
             ),
         ] {
             let tokens = MaterialSurfaceTokens::from_scheme(&scheme, mode);
-            assert!(wcag_contrast_ratio(tokens.text_primary, tokens.container_card) >= 4.5);
-            assert!(wcag_contrast_ratio(tokens.text_secondary, tokens.container_card) >= 4.5);
-            assert!(wcag_contrast_ratio(tokens.outline, tokens.container_card) >= 1.5);
+            assert!(contrast_ratio(tokens.text_primary, tokens.container_card) >= WCAG_AA_NORMAL);
+            assert!(contrast_ratio(tokens.text_secondary, tokens.container_card) >= WCAG_AA_NORMAL);
+            assert!(contrast_ratio(tokens.outline, tokens.container_card) >= 1.5);
             assert!(tokens.primary_pair.meets_wcag_aa());
             assert!(tokens.success_pair.meets_wcag_aa());
             assert!(tokens.warning_pair.meets_wcag_aa());

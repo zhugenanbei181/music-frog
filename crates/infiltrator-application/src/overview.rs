@@ -7,7 +7,7 @@
 
 use lurker_core_contract::lifecycle::CoreLifecycle;
 
-use infiltrator_contract::snapshot::CoreSnapshot;
+use infiltrator_contract::snapshot::{CoreSessionObservation, CoreSnapshot};
 use infiltrator_ports::application_runtime::ApplicationRuntime;
 use infiltrator_ports::overview::{OverviewReader, OverviewSample};
 use lurker_core_contract::error::{ErrorCode, Failure};
@@ -136,6 +136,7 @@ impl OverviewReader for UnavailableOverviewReader {
 
 fn initial_snapshot() -> CoreSnapshot {
     CoreSnapshot {
+        session: CoreSessionObservation::Unknown,
         identity: None,
         lifecycle: CoreLifecycle::Starting,
         generation: 0,
@@ -192,6 +193,7 @@ fn pump_loop(
                     previous_totals = Some((sample.upload_total, sample.download_total, now));
                     revision = revision.saturating_add(1);
                     CoreSnapshot {
+                        session: CoreSessionObservation::Unknown,
                         identity: None,
                         lifecycle: sample.lifecycle,
                         generation: 1,
@@ -212,6 +214,7 @@ fn pump_loop(
                     revision = revision.saturating_add(1);
                     let failure = Failure::from(error);
                     CoreSnapshot {
+                        session: CoreSessionObservation::Unknown,
                         identity: None,
                         lifecycle: CoreLifecycle::Failed,
                         generation: 1,

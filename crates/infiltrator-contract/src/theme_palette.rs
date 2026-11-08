@@ -4,7 +4,7 @@
 //! component palette functions remain implementation details of this owner;
 //! renderers must not combine them into a second color source.
 
-use crate::color_science::{HctColor, MaterialColorScheme, wcag_contrast_ratio};
+use crate::color_science::{HctColor, MaterialColorScheme};
 use crate::design_tokens::palette::{SurfaceStep, surface_ladder};
 use crate::design_tokens::{
     MobileThemeTokens, RgbaToken, SkinCorePalette, SkinInteractionPalette, mobile_theme_tokens,
@@ -14,6 +14,12 @@ use crate::palette_preference::{PaletteStylePreference, derive_core_palette};
 use crate::surface_hierarchy::{MaterialSurfaceTokens, SemanticContainerPair};
 use crate::theme::{AppearanceMode, SystemAppearance, ThemePreference, ThemeSkin};
 use serde::{Deserialize, Serialize};
+use zhuge_ui_tokens::WCAG_AA_NORMAL;
+use zhuge_ui_tokens::surface;
+
+fn contrast_ratio(first: RgbaToken, second: RgbaToken) -> f32 {
+    surface::contrast_ratio(first.as_rgba(), second.as_rgba())
+}
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
 pub enum ThemePaletteSource {
@@ -186,9 +192,9 @@ impl ThemePalette {
     }
 
     pub fn meets_text_contrast(&self) -> bool {
-        wcag_contrast_ratio(self.surfaces.text_primary, self.surfaces.container_card) >= 4.5
-            && wcag_contrast_ratio(self.surfaces.text_secondary, self.surfaces.container_card)
-                >= 4.5
+        contrast_ratio(self.surfaces.text_primary, self.surfaces.container_card) >= WCAG_AA_NORMAL
+            && contrast_ratio(self.surfaces.text_secondary, self.surfaces.container_card)
+                >= WCAG_AA_NORMAL
     }
 
     pub fn semantic_pairs(&self) -> [SemanticContainerPair; 4] {

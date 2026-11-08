@@ -24,6 +24,7 @@ pub(super) fn translate_workflow_en(key: &str) -> Cow<'static, str> {
         "script_workbench_running" => "Running sandbox…".into(),
         "script_workbench_retry" => "Retry sandbox operation".into(),
         "script_export_review_instructions" => "Review the content before confirming. Confirmation writes the file; cancellation writes nothing.".into(),
+        "script_export_review_action" => "Review export".into(),
         "uwp_observed_summary" => "{count} UWP AppContainers observed · {exempt} exempted".into(),
         "uwp_observed_empty" => "No AppContainers observed; scan to refresh".into(),
         "uwp_state_exempted" => "Exempted".into(),

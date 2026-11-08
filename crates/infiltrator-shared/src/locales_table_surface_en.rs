@@ -62,6 +62,7 @@ pub(super) fn translate_surface_en(key: &str) -> Cow<'static, str> {
         "snapshot_fidelity_preserved" => "preserved".into(),
         "snapshot_fidelity_degraded" => "degraded".into(),
         "snapshot_restore_confirm" => "Restore profile".into(),
+        "snapshot_restore_review_action" => "Review snapshot".into(),
         "snapshot_restore_cancel" => "Cancel".into(),
         "snapshot_restore_retry" => "Retry restoration".into(),
         "snapshot_restore_title" => "Review snapshot restoration".into(),

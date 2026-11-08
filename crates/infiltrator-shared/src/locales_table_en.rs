@@ -1,5 +1,6 @@
 //! English (en-US) translation table for [`super::locales_table`]. Split out to honor the 800-line budget.
 
+use infiltrator_contract::surface::SurfaceKind;
 use std::borrow::Cow;
 
 #[path = "locales_table_en_legacy.rs"]
@@ -16,7 +17,7 @@ pub(super) fn translate_en(key: &str) -> Cow<'static, str> {
 
 fn translate_en_primary(key: &str) -> Cow<'static, str> {
     match key {
-        "app_title" => "MusicFrog Infiltrator".into(),
+        "app_title" => SurfaceKind::IcedDesktop.product_name().into(),
         "nav_overview" => "Overview".into(),
         "nav_profiles" => "Profiles".into(),
         "nav_proxies" => "Proxies".into(),

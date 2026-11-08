@@ -11,7 +11,7 @@ use infiltrator_contract::rule_tracer::{
     TracerRuleOverride, TracerRuleOverrideResult, TracerRuleOverrideStatus, TrafficContextSnapshot,
 };
 #[cfg(test)]
-use infiltrator_contract::snapshot::CoreSnapshot;
+use infiltrator_contract::snapshot::{CoreSessionObservation, CoreSnapshot};
 use infiltrator_domain::rules::tracer::decision_chain::build_decision_chain;
 use infiltrator_domain::rules::tracer::named::trace_named_rules;
 use infiltrator_domain::rules::tracer::{RuleTraceMatch, TrafficContext, trace_rules};

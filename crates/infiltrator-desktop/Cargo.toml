@@ -40,6 +40,7 @@ sysinfo = { workspace = true }
 tokio = { workspace = true }
 tempfile = { workspace = true }
 yaml-rust2 = { workspace = true }
+zhuge-ui-core = { workspace = true }
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 reqwest = { workspace = true, default-features = false, features = ["native-tls"] }

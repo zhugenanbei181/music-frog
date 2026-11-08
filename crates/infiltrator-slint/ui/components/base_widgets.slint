@@ -1,13 +1,40 @@
-import { DesignType } from "./design-type.slint";
+import { DesignType, TextRole } from "./design-type.slint";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "theme.slint";
+import { PageTitles } from "./page_titles.slint";
 export struct SegmentedItem {
     icon: image,
     text: string,
 }
 
+// The navigation button owns the reusable chrome geometry that the desktop
+// rail and the floating dock both consume. Each fact is declared once here;
+// the dock's band, top air and inset remain in LumenTheme.
+export global NavButtonMetrics {
+    out property <length> desktop-height: LumenTheme.rail-row-height;
+    out property <length> icon-size: 20 * LumenUiScale.unit;
+    out property <length> desktop-radius: LumenTheme.radius-control;
+    out property <length> compact-radius: LumenTheme.bottom-bar-pill-height / 2;
+    out property <length> compact-icon-label-gap: 2 * LumenUiScale.unit;
+    out property <length> compact-pill-gutter: LumenTheme.space-1;
+    // The desktop active face follows the icon+label column instead of
+    // filling the whole rail. A full-width selected row leaves a 60u empty
+    // tail after short labels and makes the rail look like a second content
+    // column; one content-width pill keeps the menu column tight.
+    out property <length> desktop-active-width: LumenTheme.rail-width - 2 * LumenTheme.rail-inset - 2 * LumenTheme.rail-item-padding;
+}
+
+// One compact page header action button, shared by the action clusters. Its
+// ink box stays inside the cluster's minimum touch target.
+export global HeaderActionMetrics {
+    out property <length> action-control-size: 40 * LumenUiScale.unit;
+    out property <length> cluster-inset: 2 * LumenUiScale.unit;
+    out property <length> search-height: 42 * LumenUiScale.unit;
+    out property <length> search-inset: LumenTheme.space-4;
+}
+
 export component LayoutOutline inherits Rectangle {
-    in property <color> outline-color: #FF2D55;
+    in property <color> outline-color: LumenTheme.debug-frame;
     background: transparent;
     border-width: LumenTheme.show-layout-bounds ? 1 * LumenUiScale.unit : 0 * LumenUiScale.unit;
     border-color: root.outline-color;
@@ -86,9 +113,9 @@ export component PingBadge inherits Rectangle {
         ping-label := Text {
             text: root.spinning ? "Ping" : root.label;
             color: root.state-color;
-            font-size: DesignType.caption-size;
-            font-family: DesignType.mono-family;
-            font-weight: DesignType.caption-weight;
+            font-size: DesignType.monoCaption-size;
+            font-family: DesignType.monoCaption-family;
+            font-weight: DesignType.monoCaption-weight;
             vertical-alignment: center;
             overflow: elide;
         }
@@ -98,6 +125,7 @@ export component PingBadge inherits Rectangle {
         width: parent.width;
         height: parent.height;
         enabled: root.enabled;
+        mouse-cursor: root.enabled ? pointer : default;
         clicked => { root.clicked(); }
     }
 
@@ -108,7 +136,7 @@ export component PingBadge inherits Rectangle {
         height: ping-icon.height;
         background: transparent;
         border-width: 1 * LumenUiScale.unit;
-        border-color: #007AFF;
+        border-color: LumenTheme.debug-icon;
     }
     if LumenTheme.show-layout-bounds: Rectangle {
         x: ping-layout.x + ping-label.x;
@@ -117,9 +145,9 @@ export component PingBadge inherits Rectangle {
         height: ping-label.height;
         background: transparent;
         border-width: 1 * LumenUiScale.unit;
-        border-color: #00A6A6;
+        border-color: LumenTheme.debug-content;
     }
-    if LumenTheme.show-layout-bounds: LayoutOutline { outline-color: #FF2D55; }
+    if LumenTheme.show-layout-bounds: LayoutOutline { outline-color: LumenTheme.debug-frame; }
 }
 
 export component NavButton inherits Rectangle {
@@ -132,183 +160,64 @@ export component NavButton inherits Rectangle {
     callback clicked();
     horizontal-stretch: 1;
     min-width: 0;
-    height: compact ? 48 * LumenUiScale.unit : 44 * LumenUiScale.unit;
+    height: compact ? LumenTheme.bottom-bar-pill-height : NavButtonMetrics.desktop-height;
     background: transparent;
     accessible-role: button;
     accessible-label: root.label;
     accessible-checked: root.active;
-    nav-touch := TouchArea { width: parent.width; height: parent.height; clicked => { root.clicked(); } }
+    nav-touch := TouchArea { width: parent.width; height: parent.height; mouse-cursor: pointer; clicked => { root.clicked(); } }
     // EFFECTS-039 #160/#161/#13: hover lifts the face -1px with the
     // hairline glow; every state change rides the 120ms ease-out ramp.
     face := Rectangle {
-        y: nav-touch.has-hover && !root.active ? -1 * LumenUiScale.unit : 0 * LumenUiScale.unit;
-        width: parent.width;
+        y: (nav-touch.has-hover && LumenTheme.hover-allowed) && !root.active ? -1 * LumenUiScale.unit : 0 * LumenUiScale.unit;
+        width: root.compact ? parent.width : NavButtonMetrics.desktop-active-width;
         height: parent.height;
-        border-radius: root.compact ? 22 * LumenUiScale.unit : 14 * LumenUiScale.unit;
-        background: root.compact ? transparent : (root.active ? LumenTheme.accent-soft : (nav-touch.has-hover ? LumenTheme.surface-muted : transparent));
-        border-width: !root.compact && nav-touch.has-hover && !root.active ? LumenTheme.hairline-width : 0 * LumenUiScale.unit;
+        border-radius: root.compact ? NavButtonMetrics.compact-radius : NavButtonMetrics.desktop-radius;
+        background: root.compact ? transparent : (root.active ? LumenTheme.accent-soft : ((nav-touch.has-hover && LumenTheme.hover-allowed) ? LumenTheme.surface-muted : transparent));
+        border-width: !root.compact && (nav-touch.has-hover && LumenTheme.hover-allowed) && !root.active ? LumenTheme.hairline-width : 0 * LumenUiScale.unit;
         border-color: LumenTheme.hairline-glow;
         animate y, background, border-width { duration: 120ms; easing: ease-out; }
-        if root.compact: VerticalLayout {
-            alignment: center;
-            // A VerticalLayout places its children across the horizontal axis
-            // by this property, not by each child's own `horizontal-alignment`
-            // (those only centre content inside the child's own box). Without
-            // it the 22px icon fell to the leading edge while the label
-            // stretched and centred, so every nav item read as a diagonal and
-            // the active pill looked like it was wrapping the wrong content.
-            cross-axis-alignment: center;
-            spacing: 2 * LumenUiScale.unit;
-            Rectangle {
-                width: 52 * LumenUiScale.unit; height: 26 * LumenUiScale.unit; border-radius: 13 * LumenUiScale.unit;
-                background: root.active ? LumenTheme.accent-soft : (nav-touch.has-hover ? LumenTheme.surface-muted : transparent);
-                animate background { duration: 120ms; easing: ease-out; }
+        if root.compact: Rectangle {
+            x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2;
+            width: min(parent.width - NavButtonMetrics.compact-pill-gutter, LumenTheme.bottom-bar-pill-width);
+            height: LumenTheme.bottom-bar-pill-height;
+            // The reference pill is a full stadium (radius = half its height),
+            // which at 90 x 56dp reads as a soft chip, not a coin.
+            border-radius: NavButtonMetrics.compact-radius;
+            // The active tab uses the same skin tokens as the desktop sidebar's
+            // active item, so one theme decision cannot fork into a second one
+            // per layout.
+            background: root.active ? LumenTheme.accent-soft : ((nav-touch.has-hover && LumenTheme.hover-allowed) ? LumenTheme.surface-muted : transparent);
+            animate background { duration: 120ms; easing: ease-out; }
+            VerticalLayout {
+                alignment: center;
+                cross-axis-alignment: center;
+                spacing: NavButtonMetrics.compact-icon-label-gap;
                 Image {
-                    x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2;
                     source: root.active ? root.active-icon : root.icon;
-                    width: 20 * LumenUiScale.unit; height: 20 * LumenUiScale.unit; image-fit: contain;
+                    width: NavButtonMetrics.icon-size; height: NavButtonMetrics.icon-size; image-fit: contain;
                     colorize: root.active ? LumenTheme.accent-active : LumenTheme.text-secondary;
                 }
-            }
-            Text {
-                text: root.label;
-                color: root.active ? LumenTheme.accent-active : LumenTheme.text-secondary;
-                font-size: DesignType.micro-size;
-                font-weight: root.active ? 600 : 500;
-                font-family: DesignType.micro-family;
-                horizontal-alignment: center;
+                Text {
+                    text: root.label;
+                    color: root.active ? LumenTheme.accent-active : LumenTheme.text-secondary;
+                    font-size: DesignType.size(TextRole.micro);
+                    font-weight: DesignType.weight(TextRole.micro);
+                    font-family: DesignType.family(TextRole.micro);
+                    horizontal-alignment: center;
+                }
             }
         }
         if !root.compact: HorizontalLayout {
-            padding-left: LumenTheme.space-4;
-            padding-right: LumenTheme.space-4;
+            padding-left: LumenTheme.rail-item-padding;
+            padding-right: LumenTheme.rail-item-padding;
             width: parent.width;
             height: parent.height;
             spacing: LumenTheme.space-3;
             alignment: start;
             cross-axis-alignment: center;
-            Image { source: root.active ? root.active-icon : root.icon; width: 22 * LumenUiScale.unit; height: 22 * LumenUiScale.unit; image-fit: contain; colorize: root.active ? LumenTheme.accent-active : LumenTheme.text-secondary; }
-            Text { text: root.label; color: root.active ? LumenTheme.accent-active : LumenTheme.text-secondary; font-size: DesignType.label-size; vertical-alignment: center; }
-        }
-    }
-}
-
-export component AppPreferenceSwitch inherits FocusScope {
-    in property <bool> checked;
-    in property <string> label;
-    callback toggled(bool);
-    width: 54 * LumenUiScale.unit; height: 48 * LumenUiScale.unit;
-    accessible-role: switch;
-    accessible-label: root.label;
-    accessible-checkable: true;
-    accessible-checked: root.checked;
-    accessible-enabled: root.enabled;
-    accessible-action-default => { if root.enabled { root.toggled(!root.checked); } }
-    key-pressed(event) => {
-        if root.enabled && (event.text == " " || event.text == "\n") {
-            root.toggled(!root.checked); return accept;
-        }
-        return reject;
-    }
-    track := Rectangle {
-        y: (parent.height - 28 * LumenUiScale.unit) / 2; width: parent.width; height: 28 * LumenUiScale.unit;
-        border-radius: self.height / 2;
-        background: root.checked ? LumenTheme.preference-accent : LumenTheme.preference-off;
-        border-width: root.checked ? 0 * LumenUiScale.unit : 1 * LumenUiScale.unit;
-        border-color: root.checked ? transparent : LumenTheme.border;
-        animate background, border-color { duration: 180ms; easing: ease-out; }
-        thumb := Rectangle {
-            x: root.checked ? parent.width - self.width - 3 * LumenUiScale.unit : 3 * LumenUiScale.unit; y: (parent.height - self.height) / 2;
-            width: root.checked ? 22 * LumenUiScale.unit : 16 * LumenUiScale.unit; height: self.width; border-radius: self.width / 2;
-            background: root.checked ? LumenTheme.accent-foreground : (LumenTheme.is-dark ? #A5B0BC : #747D7F);
-            drop-shadow-blur: root.checked ? 4 * LumenUiScale.unit : 0 * LumenUiScale.unit; drop-shadow-offset-y: 1 * LumenUiScale.unit; drop-shadow-color: #00000040;
-            animate x, width, height, background { duration: 180ms; easing: ease-out; }
-        }
-    }
-    TouchArea { enabled: root.enabled; clicked => { root.toggled(!root.checked); } }
-    if LumenTheme.show-layout-bounds: LayoutOutline { outline-color: #AF52DE; }
-}
-
-export component AppPreferenceRow inherits FocusScope {
-    in property <string> label;
-    in property <string> detail;
-    in property <string> value;
-    in property <string> unavailable;
-    in property <string> state-description;
-    in property <bool> capability-enabled: true;
-    in property <bool> toggle: false;
-    in property <bool> checked: false;
-    in property <bool> expand: false;
-    in property <image> icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/chevron-right.svg");
-    callback clicked();
-    callback toggled(bool);
-    min-height: max(root.detail == "" ? 66 * LumenUiScale.unit : 82 * LumenUiScale.unit, words.min-height + 24 * LumenUiScale.unit);
-    preferred-height: self.min-height;
-    vertical-stretch: 0;
-    accessible-role: button;
-    accessible-action-default => {
-        if root.toggle && root.capability-enabled { root.toggled(!root.checked); }
-        else { root.clicked(); }
-    }
-    key-pressed(event) => {
-        if event.text == " " || event.text == "\n" {
-            if root.toggle && root.capability-enabled { root.toggled(!root.checked); }
-            else { root.clicked(); }
-            return accept;
-        }
-        return reject;
-    }
-    accessible-label: root.label + (root.detail == "" ? "" : "，" + root.detail) + (root.unavailable == "" ? "" : "，" + root.unavailable) + (root.state-description == "" ? "" : "，" + root.state-description);
-    row := HorizontalLayout {
-        width: parent.width; height: parent.height; spacing: LumenTheme.space-3;
-        cross-axis-alignment: center;
-        words := VerticalLayout {
-            spacing: 2 * LumenUiScale.unit; alignment: center; horizontal-stretch: 1;
-            title := Text { text: root.label; font-size: LumenTheme.preference-text-size; color: LumenTheme.text-primary; wrap: word-wrap; }
-            if root.detail != "": Text {
-                text: root.detail; font-size: DesignType.label-size; color: LumenTheme.text-secondary;
-                overflow: elide; accessible-label: root.detail;
-            }
-        }
-        if root.toggle: AppPreferenceSwitch {
-            checked: root.checked; enabled: root.capability-enabled; label: root.label + " " + root.unavailable;
-            toggled(value) => { root.toggled(value); }
-        }
-        if !root.toggle && root.value != "": Text {
-            text: root.value; font-size: DesignType.subheading-size; color: LumenTheme.text-secondary;
-            vertical-alignment: center; horizontal-stretch: 0;
-        }
-        if !root.toggle: trailing-icon := Image {
-            source: root.expand ? @image-url("../../../infiltrator-shared/assets/ui/iced/svg/chevron-down.svg") : root.icon;
-            width: 24 * LumenUiScale.unit; height: 24 * LumenUiScale.unit; image-fit: contain;
-            colorize: root.expand || root.icon == @image-url("../../../infiltrator-shared/assets/ui/iced/svg/chevron-right.svg") ? LumenTheme.text-secondary : LumenTheme.preference-accent;
-            if LumenTheme.show-layout-bounds: LayoutOutline { outline-color: #007AFF; }
-        }
-    }
-    TouchArea { enabled: !root.toggle || !root.capability-enabled; clicked => { root.clicked(); } }
-    if LumenTheme.show-layout-bounds: LayoutOutline { outline-color: #00A6A6; }
-    if LumenTheme.show-layout-bounds: LayoutOutline { x: words.x; y: words.y; width: words.width; height: words.height; outline-color: #FF9500; }
-    if LumenTheme.show-layout-bounds: LayoutOutline { x: title.x + words.x; y: title.y + words.y; width: title.width; height: title.height; outline-color: #007AFF; }
-}
-
-export component AppPreferenceGroup inherits Rectangle {
-    in property <string> heading;
-    min-height: group-layout.min-height;
-    preferred-height: self.min-height;
-    vertical-stretch: 0;
-    group-layout := VerticalLayout {
-        spacing: LumenTheme.space-3; padding-top: LumenTheme.space-3; alignment: start;
-        Text { x: 18 * LumenUiScale.unit; text: root.heading; font-size: DesignType.bodyLarge-size; color: LumenTheme.preference-accent; height: 24 * LumenUiScale.unit; vertical-alignment: center; }
-        surface := Rectangle {
-            background: LumenTheme.surface; border-radius: LumenTheme.preference-card-radius;
-            min-height: contents.min-height; preferred-height: self.min-height; vertical-stretch: 0;
-            contents := VerticalLayout {
-                x: 18 * LumenUiScale.unit; width: max(0 * LumenUiScale.unit, parent.width - 36 * LumenUiScale.unit);
-                padding-top: 0 * LumenUiScale.unit; padding-bottom: 0 * LumenUiScale.unit; spacing: 0 * LumenUiScale.unit; alignment: start;
-                @children
-            }
-            if LumenTheme.show-layout-bounds: LayoutOutline { outline-color: #FF2D55; }
-            if LumenTheme.show-layout-bounds: LayoutOutline { x: contents.x; y: contents.y; width: contents.width; height: contents.height; outline-color: #34C759; }
+            Image { source: root.active ? root.active-icon : root.icon; width: NavButtonMetrics.icon-size; height: NavButtonMetrics.icon-size; image-fit: contain; colorize: root.active ? LumenTheme.accent-active : ((nav-touch.has-hover && LumenTheme.hover-allowed) ? LumenTheme.text-primary : LumenTheme.text-secondary); }
+            Text { text: root.label; color: root.active ? LumenTheme.accent-active : ((nav-touch.has-hover && LumenTheme.hover-allowed) ? LumenTheme.text-primary : LumenTheme.text-secondary); font-size: DesignType.size(TextRole.label); font-weight: DesignType.weight(TextRole.label); font-family: DesignType.family(TextRole.label); vertical-alignment: center; horizontal-stretch: 1; min-width: 0 * LumenUiScale.unit; overflow: elide; }
         }
     }
 }
@@ -350,7 +259,7 @@ export component LightRoundedInput inherits Rectangle {
         width: 24 * LumenUiScale.unit;
         height: 24 * LumenUiScale.unit;
         border-radius: 12 * LumenUiScale.unit;
-        background: eye-touch.has-hover ? LumenTheme.surface-raised : transparent;
+        background: (eye-touch.has-hover && LumenTheme.hover-allowed) ? LumenTheme.surface-raised : transparent;
         Text {
             text: root.show-password ? "👁" : "🔒";
             font-size: DesignType.caption-size;
@@ -363,9 +272,9 @@ export component LightRoundedInput inherits Rectangle {
     }
     if LumenTheme.show-layout-bounds: Rectangle {
         x: 18 * LumenUiScale.unit; y: 4 * LumenUiScale.unit; width: max(0 * LumenUiScale.unit, parent.width - 36 * LumenUiScale.unit); height: parent.height - 8 * LumenUiScale.unit;
-        background: transparent; border-width: 1 * LumenUiScale.unit; border-color: #00A6A6;
+        background: transparent; border-width: 1 * LumenUiScale.unit; border-color: LumenTheme.debug-content;
     }
-    if LumenTheme.show-layout-bounds: LayoutOutline { outline-color: #FF2D55; }
+    if LumenTheme.show-layout-bounds: LayoutOutline { outline-color: LumenTheme.debug-frame; }
 }
 
 export component RoundedInputField inherits Rectangle {
@@ -407,7 +316,7 @@ export component RoundedInputField inherits Rectangle {
         width: 24 * LumenUiScale.unit;
         height: 24 * LumenUiScale.unit;
         border-radius: 12 * LumenUiScale.unit;
-        background: eye-btn-touch.has-hover ? LumenTheme.surface-raised : transparent;
+        background: (eye-btn-touch.has-hover && LumenTheme.hover-allowed) ? LumenTheme.surface-raised : transparent;
         Text {
             text: root.show-password ? "👁" : "🔒";
             font-size: DesignType.caption-size;
@@ -420,70 +329,139 @@ export component RoundedInputField inherits Rectangle {
     }
     if LumenTheme.show-layout-bounds: Rectangle {
         x: 18 * LumenUiScale.unit; y: 4 * LumenUiScale.unit; width: max(0 * LumenUiScale.unit, parent.width - 36 * LumenUiScale.unit); height: parent.height - 8 * LumenUiScale.unit;
-        background: transparent; border-width: 1 * LumenUiScale.unit; border-color: #00A6A6;
+        background: transparent; border-width: 1 * LumenUiScale.unit; border-color: LumenTheme.debug-content;
     }
-    if LumenTheme.show-layout-bounds: LayoutOutline { outline-color: #FF2D55; }
+    if LumenTheme.show-layout-bounds: LayoutOutline { outline-color: LumenTheme.debug-frame; }
+}
+
+// The one seam used between the rows of a grouped list. Every surface that
+// splits rows draws this instead of hand-placing a rectangle, so the inset,
+// the thickness and the colour stay a single theme decision: the hairline sits
+// on the row's bottom edge, starts at the ink column and stops at the card's
+// own padding, which is how the reference keeps a row group readable without
+// ever drawing a frame around it.
+export component RowDivider inherits Rectangle {
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    // The line is a child, not the root: a component's root element cannot
+    // read `parent`, and the seam has to be measured against the row it closes.
+    Rectangle {
+        x: LumenTheme.row-divider-inset-start;
+        width: max(0 * LumenUiScale.unit, parent.width - LumenTheme.row-divider-inset-start - LumenTheme.row-divider-inset-end);
+        y: parent.height - LumenTheme.row-divider-thickness;
+        height: LumenTheme.row-divider-thickness;
+        background: LumenTheme.row-divider;
+    }
+}
+
+// The same seam for the lists that lay their rules out as an item instead of
+// pinning one to a row's edge - the sidebar's nav groups and a profile card's
+// action strip. It is a hairline that never stretches, so a group cannot
+// quietly grow a second separator tier.
+export component ListRule inherits Rectangle {
+    vertical-stretch: 0;
+    min-height: LumenTheme.row-divider-thickness;
+    preferred-height: LumenTheme.row-divider-thickness;
+    background: LumenTheme.row-divider;
 }
 
 export component SettingRow inherits Rectangle {
     in property <string> label;
     in property <string> detail;
     in property <image> icon;
-    in property <brush> icon-bg: LumenTheme.surface-raised;
-    in property <color> icon-color: LumenTheme.text-primary;
+    // The destination this row opens, in the same vocabulary as `clicked =>
+    // navigate(...)`. The identity hue is looked up from it here instead of
+    // being passed in: a tile is the destination's colour, not the list's, so
+    // 日志 is the same colour in the 工具 list and in the 运行观测 list, and a new
+    // entry point cannot invent a second identity for an existing page. The
+    // table lives in this component rather than in a global helper because
+    // Slint rejects calling an impure function from a binding.
+    in property <string> destination: "";
+    private property <color> icon-hue: root.destination == "" ? LumenTheme.text-primary
+        : root.destination == "Meta" ? LumenTheme.tile-magenta
+        : root.destination == "Logs" || root.destination == "AppSettings" ? LumenTheme.tile-azure
+        : root.destination == "Network" || root.destination == "Traffic" ? LumenTheme.tile-teal
+        : root.destination == "Overrides" || root.destination == "Rules" ? LumenTheme.tile-violet
+        : root.destination == "Dns" || root.destination == "Editor" || root.destination == "Filters" ? LumenTheme.tile-amber
+        : root.destination == "Doctor" || root.destination == "Sync" || root.destination == "Connections" ? LumenTheme.tile-indigo
+        : root.destination == "AppRouting" ? LumenTheme.tile-orange
+        : LumenTheme.tile-slate;
     in property <string> badge: "";
     in property <bool> show-divider: false;
     callback clicked();
     background: transparent;
-    min-height: 56 * LumenUiScale.unit;
-    preferred-height: content-layout.preferred-height;
+    private property <length> row-height: 56 * LumenUiScale.unit;
+    private property <length> icon-box-size: 32 * LumenUiScale.unit;
+    private property <length> icon-size: 20 * LumenUiScale.unit;
+    private property <length> icon-inset: 6 * LumenUiScale.unit;
+    private property <length> chevron-size: 18 * LumenUiScale.unit;
+    // A long label must grow the row instead of wrapping into a fixed-height
+    // ink block and losing its second line. Slint forbids `height` and
+    // `min-height` together, so the content-driven height IS the minimum:
+    // the inner layout reports its own preferred height and the row follows.
+    min-height: max(root.row-height, content-layout.preferred-height);
+    preferred-height: self.min-height;
     content-layout := VerticalLayout {
-        x: 0 * LumenUiScale.unit; width: parent.width;
+        x: 0 * LumenUiScale.unit; y: 0 * LumenUiScale.unit; width: parent.width;
+        // The ink block centres in the whole row while the separator is pinned to
+        // the row's bottom edge: as the layout's last child the separator floated
+        // right under the text, 17.5u above and 38.5u below the next row's ink.
         padding-top: LumenTheme.space-1; padding-bottom: LumenTheme.space-1;
+        // The trailing affordance keeps the reference's air: its ink ends 24u
+        // from the card's edge, not on it.
+        padding-right: LumenTheme.row-trailing-inset;
+        alignment: center;
         HorizontalLayout {
-            spacing: 12 * LumenUiScale.unit;
+            spacing: LumenTheme.space-4;
             cross-axis-alignment: center;
             Rectangle {
-                width: 32 * LumenUiScale.unit; height: 32 * LumenUiScale.unit; border-radius: 8 * LumenUiScale.unit;
-                background: root.icon-bg;
-                border-width: 1 * LumenUiScale.unit;
-                border-color: LumenTheme.border;
-                Image { x: 6 * LumenUiScale.unit; y: 6 * LumenUiScale.unit; source: root.icon; width: 20 * LumenUiScale.unit; height: 20 * LumenUiScale.unit; image-fit: contain; colorize: root.icon-color; }
+                width: root.icon-box-size; height: root.icon-box-size; border-radius: LumenTheme.space-2;
+                background: root.icon-hue.with_alpha(LumenTheme.tile-fill-alpha);
+                Image { x: root.icon-inset; y: root.icon-inset; source: root.icon; width: root.icon-size; height: root.icon-size; image-fit: contain; colorize: root.icon-hue; }
                 if LumenTheme.show-layout-bounds: Rectangle {
-                    x: 6 * LumenUiScale.unit; y: 6 * LumenUiScale.unit; width: 20 * LumenUiScale.unit; height: 20 * LumenUiScale.unit;
-                    background: transparent; border-width: 1 * LumenUiScale.unit; border-color: #007AFF;
+                    x: root.icon-inset; y: root.icon-inset; width: root.icon-size; height: root.icon-size;
+                    background: transparent; border-width: 1 * LumenUiScale.unit; border-color: LumenTheme.debug-icon;
                 }
             }
             VerticalLayout {
-                vertical-stretch: 1; alignment: center; spacing: 2 * LumenUiScale.unit;
-                Text { text: root.label; color: LumenTheme.text-primary; font-size: DesignType.body-size; font-weight: DesignType.body-weight; wrap: word-wrap; }
-                Text { text: root.detail; color: LumenTheme.text-secondary; font-size: DesignType.caption-size; wrap: word-wrap; }
+                vertical-stretch: 1; alignment: center; spacing: 2 * LumenUiScale.unit; min-width: 0 * LumenUiScale.unit;
+                Text { text: root.label; color: LumenTheme.text-primary; font-size: DesignType.body-size; font-weight: DesignType.body-weight; wrap: word-wrap; min-width: 0 * LumenUiScale.unit; }
+                Text { text: root.detail; color: LumenTheme.text-secondary; font-size: DesignType.caption-size; wrap: word-wrap; min-width: 0 * LumenUiScale.unit; }
             }
             if root.badge != "": Rectangle {
                 width: 64 * LumenUiScale.unit; height: 24 * LumenUiScale.unit; border-radius: 12 * LumenUiScale.unit; background: LumenTheme.accent-soft;
                 Text { text: root.badge; width: parent.width; height: parent.height; color: LumenTheme.accent; font-size: DesignType.caption-size; font-weight: DesignType.caption-weight; horizontal-alignment: center; vertical-alignment: center; }
             }
-            Image { source: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/chevron-right.svg"); width: 18 * LumenUiScale.unit; height: 18 * LumenUiScale.unit; image-fit: contain; vertical-alignment: center; }
-        }
-        if root.show-divider: Rectangle {
-            x: 48 * LumenUiScale.unit;
-            width: parent.width - 48 * LumenUiScale.unit;
-            height: 1 * LumenUiScale.unit;
-            background: LumenTheme.border;
+            // Every shipped Lucide SVG strokes with `currentColor`: without an
+            // explicit colorize it lands on black and disappears into the dark
+            // cards, so a row's whole trailing affordance vanishes.
+            Image { source: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/chevron-right.svg"); width: root.chevron-size; height: root.chevron-size; image-fit: contain; colorize: LumenTheme.text-secondary; vertical-alignment: center; }
         }
     }
+    if root.show-divider: RowDivider {}
     row-touch := TouchArea { width: parent.width; height: parent.height; clicked => { root.clicked(); } }
     // EFFECTS-039 #160/#161: the row answers hover with the zinc wash and
-    // the hairline glow on the 120ms ease-out ramp; no lift — rows live in
-    // scroll lists where movement reads as jitter.
+    // the 120ms ease-out ramp; no lift - rows live in scroll lists where
+    // movement reads as jitter. The hairline glow that used to come with it is
+    // gone on purpose: a row inside a card has no edge of its own, so drawing
+    // one invented a nested frame around a single row and doubled the seam
+    // lines above and below it. The rule is now one dialect for every row in a
+    // card - wash answers hover, the card alone owns the edge. A standalone
+    // control (the rail chip, a capsule) keeps its hairline because there its
+    // edge is real.
+    //
+    // The wash is one tier OFF the card, not the card's own tier. It used to be
+    // `zinc-2` inside a `zinc-2` SectionCard, which answered a hover with the
+    // exact colour the row was already sitting on - the documented "wash
+    // answers hover" was silently a no-op on every settings row.
     states [
-        hovered when row-touch.has-hover: {
-            background: LumenTheme.zinc-2;
-            border-width: LumenTheme.hairline-width; border-color: LumenTheme.hairline-glow;
-            in-out { animate background, border-width { duration: 120ms; easing: ease-out; } }
+        hovered when (row-touch.has-hover && LumenTheme.hover-allowed): {
+            background: LumenTheme.zinc-3;
+            in-out { animate background { duration: 120ms; easing: ease-out; } }
         }
     ]
-    if LumenTheme.show-layout-bounds: LayoutOutline { outline-color: #FF2D55; }
+    if LumenTheme.show-layout-bounds: LayoutOutline { outline-color: LumenTheme.debug-frame; }
 }
 
 // EFFECTS-039 #162/#14: the shell's own segmented selector — the selection
@@ -542,11 +520,11 @@ export component SegmentedControl {
                     Text {
                         text: item.text;
                         color: index == root.current-index ? LumenTheme.accent-active : LumenTheme.text-secondary;
-                        font-size: LumenTheme.supporting-size;
-                        font-weight: index == root.current-index ? 600 : 400;
+                        font-size: DesignType.size(TextRole.label);
+                        font-weight: DesignType.weight(index == root.current-index ? TextRole.labelStrong : TextRole.label);
                         horizontal-alignment: center;
                         overflow: elide;
-                        animate color, font-weight { duration: 120ms; easing: ease-out; }
+                        animate color { duration: 120ms; easing: ease-out; }
                     }
                 }
             }
@@ -596,7 +574,7 @@ export component SearchField inherits Rectangle {
 
         if root.text != "": Rectangle {
             width: 20 * LumenUiScale.unit; height: 20 * LumenUiScale.unit; border-radius: 10 * LumenUiScale.unit;
-            background: clear-touch.has-hover ? LumenTheme.surface-raised : transparent;
+            background: (clear-touch.has-hover && LumenTheme.hover-allowed) ? LumenTheme.surface-raised : transparent;
             Text { text: "✕"; color: LumenTheme.text-secondary; font-size: DesignType.micro-size; horizontal-alignment: center; vertical-alignment: center; }
             clear-touch := TouchArea { clicked => { root.text = ""; root.search(""); } }
         }
@@ -635,9 +613,9 @@ export component PillButton inherits Rectangle {
     height: root.pill-height;
     min-width: root.min-pill-width;
     border-radius: self.height / 2;
-    background: root.danger && root.enabled ? (pill-touch.has-hover ? LumenTheme.error.darker(10%) : LumenTheme.error) : (root.selected ? (root.tinted ? LumenTheme.accent-soft : root.select-fill) : (pill-touch.has-hover && root.enabled ? LumenTheme.surface-raised : (root.segmented ? transparent : LumenTheme.surface-muted)));
+    background: root.danger && root.enabled ? ((pill-touch.has-hover && LumenTheme.hover-allowed) ? LumenTheme.error.darker(10%) : LumenTheme.error) : (root.selected ? (root.tinted ? LumenTheme.accent-soft : root.select-fill) : ((pill-touch.has-hover && LumenTheme.hover-allowed) && root.enabled ? LumenTheme.surface-raised : (root.segmented ? transparent : LumenTheme.surface-muted)));
     border-width: 1 * LumenUiScale.unit;
-    border-color: root.danger && root.enabled ? LumenTheme.error : (root.selected ? (root.tinted ? LumenTheme.accent : root.select-fill) : (pill-touch.has-hover && root.enabled ? (root.segmented ? transparent : LumenTheme.accent) : (root.segmented ? transparent : LumenTheme.border)));
+    border-color: root.danger && root.enabled ? LumenTheme.error : (root.selected ? (root.tinted ? LumenTheme.accent : root.select-fill) : ((pill-touch.has-hover && LumenTheme.hover-allowed) && root.enabled ? (root.segmented ? transparent : LumenTheme.accent) : (root.segmented ? transparent : LumenTheme.border)));
     animate background, border-color { duration: 120ms; easing: ease-out; }
     opacity: root.enabled ? 1 : 0.5;
 
@@ -653,7 +631,7 @@ export component PillButton inherits Rectangle {
 
         Text {
             text: (root.check-prefix && root.selected ? "✓ " : "") + root.label;
-            color: root.danger && root.enabled ? LumenTheme.accent-foreground : (root.selected ? (root.tinted ? LumenTheme.accent : LumenTheme.accent-foreground) : (pill-touch.has-hover && root.enabled ? LumenTheme.text-primary : LumenTheme.text-secondary));
+            color: root.danger && root.enabled ? LumenTheme.accent-foreground : (root.selected ? (root.tinted ? LumenTheme.accent : LumenTheme.accent-foreground) : ((pill-touch.has-hover && LumenTheme.hover-allowed) && root.enabled ? LumenTheme.text-primary : LumenTheme.text-secondary));
             font-size: DesignType.caption-size;
             font-family: DesignType.caption-family;
             font-weight: DesignType.caption-weight;
@@ -663,6 +641,62 @@ export component PillButton inherits Rectangle {
 
     pill-touch := TouchArea {
         enabled: root.enabled;
+        mouse-cursor: root.enabled ? pointer : default;
         clicked => { root.clicked(); }
     }
+}
+
+// The compact page header's action cluster.
+//
+// Paired actions share one capsule and a lone action becomes a circle of the
+// same height, which is how the reference lays its page actions out. The height
+// and the corner live here so a page cannot invent a fifth header metric.
+export component HeaderActionCluster inherits Rectangle {
+    // The cluster is as tall as the surface's own declared minimum touch
+    // target, so a header action cannot be smaller than the rule every other
+    // control already obeys.
+    min-height: LumenTheme.min-touch-target;
+    border-radius: self.height / 2;
+    background: LumenTheme.zinc-3;
+    border-width: 1 * LumenUiScale.unit;
+    border-color: LumenTheme.hairline-glow;
+    cluster-layout := HorizontalLayout {
+        width: parent.width; height: parent.height;
+        padding-left: HeaderActionMetrics.cluster-inset; padding-right: HeaderActionMetrics.cluster-inset;
+        alignment: center; cross-axis-alignment: center;
+        @children
+    }
+}
+
+// The compact/phone page header: one title, one trailing action slot and one
+// height for all four top-level pages.
+//
+// The four pages used to draw this row themselves with two different fonts,
+// three private heights and a shell-level padding-top fork, so their title
+// ink sat at y16-35 / y17-34 / y24-43 / y25-42 - an 8-9px baseline split
+// between screens that are supposed to share one header. The shell also
+// printed a second title on some pages, which is why the compact padding
+// fork existed at all. One component owns the row now.
+export component CompactPageHeader inherits HorizontalLayout {
+    in property <string> page;
+    height: LumenTheme.page-header-height;
+    width: 100%;
+    // The page body already applies one 16u page margin to the scroll
+    // content; the header must not add a SECOND one. Settings (whose title
+    // the shell prints) starts at x17, so the three page-owned headers
+    // must too - the old x32-33 split was that duplicated inset.
+    padding-left: 0 * LumenUiScale.unit;
+    padding-right: 0 * LumenUiScale.unit;
+    spacing: LumenTheme.space-2;
+    cross-axis-alignment: center;
+    Text {
+        text: PageTitles.phone-title(root.page);
+        color: LumenTheme.text-primary;
+        font-size: DesignType.display-size;
+        font-weight: DesignType.display-weight;
+        horizontal-stretch: 1;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+    @children
 }

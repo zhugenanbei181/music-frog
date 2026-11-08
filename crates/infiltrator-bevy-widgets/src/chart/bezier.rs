@@ -1,6 +1,12 @@
 //! Smooth Bezier and spline waveform mathematics, dual-series shared scaling,
 //! and honest gap handling.
 
+use zhuge_ui_core::curve::catmull_rom_windows;
+use zhuge_ui_core::value::interval_fraction;
+
+// A series with no travel draws its middle line, the answer it drew before.
+const FLAT_SERIES_DRAWS_MIDDLE_LINE: f32 = 0.5;
+
 /// One projected point in pixel space, y growing downward (y == 0 is top).
 /// `None` indicates a gap in the observation stream.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -119,7 +125,6 @@ pub fn linear_polyline(
     }
 
     let xs = spaced_x(samples.len(), width);
-    let mid = height / 2.0;
     // let max_y = (height - 2.0).max(0.0);
 
     let mut min_val = f32::INFINITY;
@@ -140,8 +145,6 @@ pub fn linear_polyline(
         _ => (min_val, max_val),
     };
 
-    let range = max - min;
-
     samples
         .iter()
         .zip(xs)
@@ -149,12 +152,9 @@ pub fn linear_polyline(
             if !sample.is_finite() {
                 return None;
             }
-            let y = if range <= 0.0 {
-                mid
-            } else {
-                let normalized = ((sample - min) / range).clamp(0.0, 1.0);
-                height * (1.0 - normalized)
-            };
+            // A series with no travel draws its middle line, the answer it drew before.
+            let y =
+                height * (1.0 - interval_fraction(sample, min, max, FLAT_SERIES_DRAWS_MIDDLE_LINE));
             Some(PlotPoint { x, y })
         })
         .collect()
@@ -230,12 +230,11 @@ fn append_smooth_run(
         return;
     }
 
-    for i in 0..count - 1 {
-        let p0 = run[i].1;
-        let p1 = run[i + 1].1;
-
-        let p_prev = if i > 0 { run[i - 1].1 } else { p0 };
-        let p_next = if i + 2 < count { run[i + 2].1 } else { p1 };
+    for window in catmull_rom_windows(count) {
+        let p0 = run[window.start].1;
+        let p1 = run[window.end].1;
+        let p_prev = run[window.previous].1;
+        let p_next = run[window.next].1;
 
         // Catmull-Rom tangents: T_i = (P_{i+1} - P_{i-1}) * 0.5
         let t0_x = (p1.x - p_prev.x) * 0.5;
@@ -416,15 +415,11 @@ impl CatmullRomSpline {
 
         let mut output = Vec::with_capacity((n - 1) * steps + 1);
 
-        for i in 0..n - 1 {
-            let p0 = if i == 0 { samples[0] } else { samples[i - 1] };
-            let p1 = samples[i];
-            let p2 = samples[i + 1];
-            let p3 = if i + 2 < n {
-                samples[i + 2]
-            } else {
-                samples[n - 1]
-            };
+        for window in catmull_rom_windows(n) {
+            let p0 = samples[window.previous];
+            let p1 = samples[window.start];
+            let p2 = samples[window.end];
+            let p3 = samples[window.next];
 
             for s in 0..steps {
                 let t = (s as f32) / (steps as f32);

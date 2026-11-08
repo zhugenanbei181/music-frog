@@ -37,6 +37,8 @@ public abstract class GenerateSharedFonts extends DefaultTask {
         faces.put("inter_semibold.ttf", "Inter-SemiBold.ttf");
         faces.put("jetbrains_mono_regular.ttf", "JetBrainsMono-Regular.ttf");
         faces.put("cjk_regular.ttf", "CJK-Regular.ttf");
+        faces.put("cjk_medium.ttf", "CJK-Medium.ttf");
+        faces.put("cjk_semibold.ttf", "CJK-SemiBold.ttf");
         if (!getFontNames().get().equals(new ArrayList<>(faces.keySet()))) {
             throw new IllegalStateException("Shared font resource names drifted from the contract authority");
         }

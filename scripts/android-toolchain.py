@@ -19,6 +19,7 @@ TOOLCHAIN_FILE = ANDROID_ROOT / "toolchain.properties"
 REQUIRED_KEYS = {
     "java.distribution",
     "java.major",
+    "java.bytecode.target",
     "java.bootstrap.version",
     "java.bootstrap.directory",
     "java.bootstrap.url",
@@ -63,6 +64,7 @@ def require_properties(values: Mapping[str, str]) -> None:
             raise ValueError(f"toolchain property {key!r} is empty")
     for key in (
         "java.major",
+        "java.bytecode.target",
         "android.compile.sdk",
         "android.min.sdk",
         "android.target.sdk",
@@ -73,6 +75,36 @@ def require_properties(values: Mapping[str, str]) -> None:
             raise ValueError(f"toolchain property {key!r} must be a positive integer")
         if int(values[key]) <= 0:
             raise ValueError(f"toolchain property {key!r} must be a positive integer")
+
+    ensure_java_pins(values)
+
+
+def ensure_java_pins(values: Mapping[str, str]) -> None:
+    """The bootstrap download must name the same LTS as `java.major`.
+
+    `java.major` (the JDK that builds) and `java.bytecode.target` (the level
+    compiled into the APK) are different facts, and the bootstrap URL belongs to
+    the first one. Without this check a bump of either key can leave the other -
+    or the downloaded JDK - silently pointing at the old release.
+    """
+    major = int(values["java.major"])
+    bytecode = int(values["java.bytecode.target"])
+    if bytecode > major:
+        raise ValueError(
+            f"java.bytecode.target {bytecode} cannot exceed the build JDK {major}"
+        )
+    if not values["java.bootstrap.version"].startswith(f"{major}."):
+        raise ValueError(
+            f"java.bootstrap.version {values['java.bootstrap.version']!r} is not a JDK {major} release"
+        )
+    if not values["java.bootstrap.directory"].startswith(f"jdk-{major}."):
+        raise ValueError(
+            f"java.bootstrap.directory {values['java.bootstrap.directory']!r} is not a JDK {major} directory"
+        )
+    if f"temurin{major}-binaries" not in values["java.bootstrap.url"]:
+        raise ValueError(
+            f"java.bootstrap.url does not download Temurin {major}: {values['java.bootstrap.url']!r}"
+        )
 
 
 def java_major(version_output: str) -> int:
@@ -168,7 +200,7 @@ def ensure_source_links(values: Mapping[str, str]) -> None:
             'toolchainValue("android.ndk.version")',
             'toolchainInt("android.min.sdk")',
             'toolchainInt("android.target.sdk")',
-            'toolchainValue("java.major")',
+            'toolchainValue("java.bytecode.target")',
         ),
         ANDROID_ROOT / "bevy-host/build.gradle.kts": (
             'toolchainInt("android.compile.sdk")',
@@ -177,7 +209,7 @@ def ensure_source_links(values: Mapping[str, str]) -> None:
         ),
         ANDROID_ROOT / "core-host-tests/build.gradle.kts": (
             'toolchainValue("android.sdk.platform")',
-            'toolchainValue("java.major")',
+            'toolchainValue("java.bytecode.target")',
         ),
         ROOT / ".github/workflows/android.yml": (
             "steps.android-toolchain.outputs.java_major",
@@ -229,9 +261,11 @@ def ensure_source_links(values: Mapping[str, str]) -> None:
         f"platforms;android-{values['android.sdk.platform']}",
         f"build-tools;{values['android.build.tools']}",
         f"system-images;android-{values['android.emulator.api']};{values['android.emulator.image']}",
-        "JavaVersion.VERSION_17",
-        "JvmTarget.JVM_17",
-        "java-version: '17'",
+        # The two Java facts are pinned separately above; neither may reappear
+        # as a literal in a consumer.
+        f"JavaVersion.VERSION_{values['java.bytecode.target']}",
+        f"JvmTarget.JVM_{values['java.bytecode.target']}",
+        f"java-version: '{values['java.major']}'",
         f"compileSdk = {values['android.compile.sdk']}",
         f"minSdk = {values['android.min.sdk']}",
         f"targetSdk = {values['android.target.sdk']}",

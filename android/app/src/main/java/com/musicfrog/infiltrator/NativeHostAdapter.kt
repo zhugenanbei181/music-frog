@@ -522,7 +522,7 @@ class NativeHostAdapter(private val activity: Activity, private val insetsDelive
 
     companion object {
         private const val TAG = "NativeHostAdapter"
-        private const val CLIP_LABEL = "MusicFrog"
+        private const val CLIP_LABEL = "Infiltrator"
 
         private val GENERATION = AtomicLong(0)
         private val NATIVE_HOST_BRIDGE_OWNERS = NativeHostGenerationRegistry()

@@ -1,10 +1,12 @@
 //! Shared-copy catalog for the Chinese product locale.
+use infiltrator_contract::surface::SurfaceKind;
 use std::borrow::Cow;
 
 pub(super) fn translate_shared_copy_zh(key: &str) -> Cow<'static, str> {
     match key {
-        "brand_name" => "MusicFrog".into(),
-        "app_display_name" => "MusicFrog Infiltrator".into(),
+        "brand_name" => SurfaceKind::IcedDesktop.product_name().into(),
+        "app_display_name" => SurfaceKind::IcedDesktop.product_name().into(),
+        "about_brand_note" => "图标中的青蛙乐手是 MusicFrog 内部标识；产品名只保留本名。".into(),
         "configuration_saving" => "保存配置".into(),
         "configuration_saved" => "已保存".into(),
         "configuration_failed" => "保存失败".into(),

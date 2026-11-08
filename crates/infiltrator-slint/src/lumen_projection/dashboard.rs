@@ -11,6 +11,7 @@ use infiltrator_contract::design_tokens::OUTBOUND_STATUS_PALETTE;
 use infiltrator_contract::resources::{CoreResourceSnapshot, ResourceAvailability};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_contract::traffic_waveform::{TrafficSample, TrafficWaveformSnapshot};
+use infiltrator_contract::ui_fact;
 use infiltrator_presentation::dashboard_hero_projection::{
     DashboardHeroProjection, ProfileQuickCardProjection, QuickSwitchesProjection,
     TrafficWaveformProjection,
@@ -31,9 +32,9 @@ pub(super) fn project_dashboard_facts(window: &AppWindow, snapshot: &SurfaceSnap
     let (upload_wave, download_wave) = waveform_paths(&snapshot.traffic_waveform);
 
     window.set_dashboard_facts(DashboardFacts {
-        organization: hero.organization.into(),
         quality_tag: hero.quality_tag.into(),
-        uptime: hero.uptime_formatted.into(),
+        hero_fact_uptime: fact_cell(&hero.fact_row.uptime),
+        hero_fact_organization: fact_cell(&hero.fact_row.organization),
         traffic_peak_up: waveform.peak_up_formatted.clone().into(),
         traffic_peak_down: waveform.peak_down_formatted.clone().into(),
         traffic_total_up: waveform.total_up_formatted.clone().into(),
@@ -73,6 +74,22 @@ pub(super) fn project_dashboard_facts(window: &AppWindow, snapshot: &SurfaceSnap
         upload_wave: upload_wave.into(),
         download_wave: download_wave.into(),
     });
+}
+
+/// Project one typed fact cell into the surface's cell.
+///
+/// The cell is the only writer of a fact's text: the shared contract owns the
+/// unobserved marker, so a surface can never print a second fallback for a
+/// value nobody published.
+fn fact_cell(cell: &ui_fact::FactCell) -> crate::FactCell {
+    crate::FactCell {
+        value: cell.value.text().into(),
+        observed: cell.value.is_observed(),
+        alignment: match cell.alignment {
+            ui_fact::FactAlignment::Start => crate::FactAlignment::Start,
+            ui_fact::FactAlignment::End => crate::FactAlignment::End,
+        },
+    }
 }
 
 /// The four published probe results as display-ready latency strings, the

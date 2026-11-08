@@ -12,43 +12,7 @@
 
 use crate::design_tokens::RgbaToken;
 use serde::{Deserialize, Serialize};
-
-/// Linear gamma expansion for sRGB channel in `[0.0, 1.0]`.
-pub fn srgb_to_linear(c: f32) -> f32 {
-    let clamped = c.clamp(0.0, 1.0);
-    if clamped <= 0.04045 {
-        clamped / 12.92
-    } else {
-        ((clamped + 0.055) / 1.055).powf(2.4)
-    }
-}
-
-/// Gamma compression from linear to sRGB in `[0.0, 1.0]`.
-pub fn linear_to_srgb(c: f32) -> f32 {
-    let clamped = c.clamp(0.0, 1.0);
-    if clamped <= 0.0031308 {
-        clamped * 12.92
-    } else {
-        1.055 * clamped.powf(1.0 / 2.4) - 0.055
-    }
-}
-
-/// Calculate standard WCAG 2.1 relative luminance `Y` for an RGBA token.
-pub fn relative_luminance(c: RgbaToken) -> f32 {
-    let r = srgb_to_linear(c.r);
-    let g = srgb_to_linear(c.g);
-    let b = srgb_to_linear(c.b);
-    0.2126 * r + 0.7152 * g + 0.0722 * b
-}
-
-/// Calculate contrast ratio between two colors according to WCAG 2.1 specifications.
-/// Returns a ratio in `[1.0, 21.0]`.
-pub fn wcag_contrast_ratio(c1: RgbaToken, c2: RgbaToken) -> f32 {
-    let y1 = relative_luminance(c1);
-    let y2 = relative_luminance(c2);
-    let (lighter, darker) = if y1 > y2 { (y1, y2) } else { (y2, y1) };
-    (lighter + 0.05) / (darker + 0.05)
-}
+use zhuge_ui_tokens::{linear_to_srgb, srgb_to_linear};
 
 /// Convert CIE L* lightness (0..100) to relative luminance Y (0..1).
 pub fn y_from_lstar(lstar: f32) -> f32 {
@@ -506,6 +470,16 @@ impl MaterialColorScheme {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use zhuge_ui_tokens::surface;
+    use zhuge_ui_tokens::{WCAG_AA_NORMAL, WCAG_AAA_NORMAL};
+
+    fn luminance(color: RgbaToken) -> f32 {
+        color.as_rgba().relative_luminance()
+    }
+
+    fn contrast_ratio(first: RgbaToken, second: RgbaToken) -> f32 {
+        surface::contrast_ratio(first.as_rgba(), second.as_rgba())
+    }
 
     #[test]
     fn srgb_gamma_round_trip() {
@@ -522,10 +496,10 @@ mod tests {
         let white = RgbaToken::rgb(1.0, 1.0, 1.0);
         let black = RgbaToken::rgb(0.0, 0.0, 0.0);
 
-        assert!((relative_luminance(white) - 1.0).abs() < 1e-4);
-        assert!((relative_luminance(black) - 0.0).abs() < 1e-4);
+        assert!((luminance(white) - 1.0).abs() < 1e-4);
+        assert!((luminance(black) - 0.0).abs() < 1e-4);
 
-        let ratio = wcag_contrast_ratio(white, black);
+        let ratio = contrast_ratio(white, black);
         assert!((ratio - 21.0).abs() < 0.1);
     }
 
@@ -597,34 +571,33 @@ mod tests {
         let light_scheme = MaterialColorScheme::light_from_core(&core);
 
         // Dark mode primary on surface has readable contrast
-        let dark_contrast = wcag_contrast_ratio(dark_scheme.on_surface, dark_scheme.surface);
-        assert!(dark_contrast >= 4.5);
+        let dark_contrast = contrast_ratio(dark_scheme.on_surface, dark_scheme.surface);
+        assert!(dark_contrast >= WCAG_AA_NORMAL);
 
         // High-contrast dark mode meets AAA / high contrast
-        let dark_hi_contrast =
-            wcag_contrast_ratio(dark_hi_scheme.on_surface, dark_hi_scheme.surface);
-        assert!(dark_hi_contrast >= 7.0);
+        let dark_hi_contrast = contrast_ratio(dark_hi_scheme.on_surface, dark_hi_scheme.surface);
+        assert!(dark_hi_contrast >= WCAG_AAA_NORMAL);
 
         // Light mode primary on surface has readable contrast
-        let light_contrast = wcag_contrast_ratio(light_scheme.on_surface, light_scheme.surface);
-        assert!(light_contrast >= 4.5);
+        let light_contrast = contrast_ratio(light_scheme.on_surface, light_scheme.surface);
+        assert!(light_contrast >= WCAG_AA_NORMAL);
 
         // 5-level surface container steps are monotonic in tone
         assert!(
-            relative_luminance(dark_scheme.surface_container_lowest)
-                <= relative_luminance(dark_scheme.surface_container_low)
+            luminance(dark_scheme.surface_container_lowest)
+                <= luminance(dark_scheme.surface_container_low)
         );
         assert!(
-            relative_luminance(dark_scheme.surface_container_low)
-                <= relative_luminance(dark_scheme.surface_container)
+            luminance(dark_scheme.surface_container_low)
+                <= luminance(dark_scheme.surface_container)
         );
         assert!(
-            relative_luminance(dark_scheme.surface_container)
-                <= relative_luminance(dark_scheme.surface_container_high)
+            luminance(dark_scheme.surface_container)
+                <= luminance(dark_scheme.surface_container_high)
         );
         assert!(
-            relative_luminance(dark_scheme.surface_container_high)
-                <= relative_luminance(dark_scheme.surface_container_highest)
+            luminance(dark_scheme.surface_container_high)
+                <= luminance(dark_scheme.surface_container_highest)
         );
     }
 }

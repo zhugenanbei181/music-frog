@@ -38,7 +38,7 @@ export component ProfileAddSheet inherits ModalBottomSheet {
         height: root.profile-sheet-content-height;
         background: transparent;
         border-width: LumenTheme.show-layout-bounds ? 1 * LumenUiScale.unit : 0 * LumenUiScale.unit;
-        border-color: #FF2D55;
+        border-color: LumenTheme.debug-frame;
         VerticalLayout {
             width: parent.width;
             height: parent.height;
@@ -79,7 +79,7 @@ export component ProfileAddSheet inherits ModalBottomSheet {
                         text: root.profile-add-kind-index == 0 ? @tr("订阅链接") : root.profile-add-kind-index == 1 ? @tr("本地文件") : @tr("扫码添加");
                         color: LumenTheme.text-primary; font-size: DesignType.subheading-size; vertical-alignment: center;
                     }
-                    Image { source: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/chevron-down.svg"); width: 20 * LumenUiScale.unit; height: 20 * LumenUiScale.unit; y: (parent.height - self.height) / 2; image-fit: contain; }
+                    Image { source: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/chevron-down.svg"); width: 20 * LumenUiScale.unit; height: 20 * LumenUiScale.unit; y: (parent.height - self.height) / 2; image-fit: contain; colorize: LumenTheme.text-secondary; }
                 }
                 TouchArea {
                     width: parent.width; height: parent.height;
@@ -151,7 +151,7 @@ export component ProfileActionSheet inherits ModalBottomSheet {
         height: 280 * LumenUiScale.unit;
         background: transparent;
         border-width: LumenTheme.show-layout-bounds ? 1 * LumenUiScale.unit : 0 * LumenUiScale.unit;
-        border-color: #FF2D55;
+        border-color: LumenTheme.debug-frame;
         VerticalLayout {
             x: 16 * LumenUiScale.unit; width: parent.width - 32 * LumenUiScale.unit; height: parent.height;
             padding-top: LumenTheme.space-2; padding-bottom: LumenTheme.space-2; spacing: LumenTheme.space-3;
@@ -196,7 +196,7 @@ export component ProfileShareSheet inherits ModalBottomSheet {
         height: 252 * LumenUiScale.unit;
         background: transparent;
         border-width: LumenTheme.show-layout-bounds ? 1 * LumenUiScale.unit : 0 * LumenUiScale.unit;
-        border-color: #FF2D55;
+        border-color: LumenTheme.debug-frame;
         VerticalLayout {
             x: 16 * LumenUiScale.unit; width: parent.width - 32 * LumenUiScale.unit; height: parent.height;
             padding-top: LumenTheme.space-2; padding-bottom: LumenTheme.space-2; spacing: LumenTheme.space-3;
@@ -244,7 +244,7 @@ export component ProfileDeleteSheet inherits ModalBottomSheet {
         height: 224 * LumenUiScale.unit;
         background: transparent;
         border-width: LumenTheme.show-layout-bounds ? 1 * LumenUiScale.unit : 0 * LumenUiScale.unit;
-        border-color: #FF2D55;
+        border-color: LumenTheme.debug-frame;
         VerticalLayout {
             x: 16 * LumenUiScale.unit; width: parent.width - 32 * LumenUiScale.unit; height: parent.height;
             padding-top: LumenTheme.space-2; padding-bottom: LumenTheme.space-2; spacing: LumenTheme.space-3;
@@ -313,7 +313,7 @@ export component ProfileSettingsSheet inherits ModalBottomSheet {
         height: root.sheet-height;
         background: transparent;
         border-width: LumenTheme.show-layout-bounds ? 1 * LumenUiScale.unit : 0 * LumenUiScale.unit;
-        border-color: #FF2D55;
+        border-color: LumenTheme.debug-frame;
         VerticalLayout {
             x: 16 * LumenUiScale.unit; width: parent.width - 32 * LumenUiScale.unit; height: parent.height;
             padding-top: LumenTheme.space-2; padding-bottom: LumenTheme.space-2; spacing: LumenTheme.space-2;
@@ -330,7 +330,7 @@ export component ProfileSettingsSheet inherits ModalBottomSheet {
                     Text { text: @tr("设置类型"); color: LumenTheme.text-secondary; font-size: DesignType.subheading-size; vertical-alignment: center; }
                     Rectangle { horizontal-stretch: 1; background: transparent; }
                     Text { text: root.profile-settings-type-index == 0 ? @tr("订阅信息") : @tr("覆写配置"); color: LumenTheme.text-primary; font-size: DesignType.subheading-size; vertical-alignment: center; }
-                    Image { source: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/chevron-down.svg"); width: 20 * LumenUiScale.unit; height: 20 * LumenUiScale.unit; image-fit: contain; vertical-alignment: center; }
+                    Image { source: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/chevron-down.svg"); width: 20 * LumenUiScale.unit; height: 20 * LumenUiScale.unit; image-fit: contain; colorize: LumenTheme.text-secondary; vertical-alignment: center; }
                 }
                 TouchArea {
                     width: parent.width; height: parent.height;

@@ -9,6 +9,7 @@ use bevy::ecs::system::{Query, Res};
 use bevy::time::Time;
 use bevy::transform::components::Transform;
 use bevy::ui::Node;
+use zhuge_ui_core::easing::lerp;
 
 /// Standard cubic-bezier and procedural easing curves.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -75,7 +76,7 @@ impl Easing {
 
 /// Linear interpolation between two scalar values.
 pub fn lerp_f32(start: f32, end: f32, t: f32) -> f32 {
-    start + (end - start) * t.clamp(0.0, 1.0)
+    lerp(start, end, t.clamp(0.0, 1.0))
 }
 
 /// Linear interpolation between two Colors in linear sRGB space.

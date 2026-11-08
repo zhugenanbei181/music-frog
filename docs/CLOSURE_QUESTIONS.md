@@ -24,7 +24,7 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-05 第一百一十批次）
+## 当前状态（2026-11-07 第一百二十八批次；b111–b128 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
@@ -37,6 +37,223 @@
 | 6 | 部分 | L | **跨表面公共设计资源彻底落地：第一百一十批次办结 DSGSTD-002（3 pt），全仓全部可推任务仍 100% 办结退出（现在佛 0 条 / 0 pt，过去佛 0 条 / 0 pt）。** 平价覆盖矩阵 360/360 单元格保持 100% anchored（0 pending，0 missing）。三桌面 558 张四主题与双视口实图在库且摘要刷新完毕；Android 交互回执已由 PARITY-001.4 闭环 |
 | 7 | 部分 | L | 彻底清除全仓 part1/part2/part3 无语义命名，重构为高内聚强语义模块（reset_recovery_and_migration、owner_switch_and_recovery、cross_process_concurrency、workspace_recovery_and_reset_tests）；文件级模块化完成（scanned=2891 violations=0，kt-line scanned=227 violations=0）；mod.rs 清退至 0；隐式状态机语义审计 + 判决台账常驻（23 条候选 0 undecided 0 open）；rem 体系 0 违规 0 debt；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | `check-structure.sh` 40+ 结构守卫、单测与工具链全部 exit 0；`cargo fmt --all --check` 0 偏差；六包定向 nextest 2179/2179 全绿；Clippy 6 包 `--all-targets -D warnings` 零警告；`screenshot-identity-guard` 550 张截图 10 aliases 0 违规；`scrollbar-contract-guard` 0 违规；`shared-copy-guard` 0 违规；`i18n-guard` 0 违规 |
+
+## 最近一批问答（2026-11-08 第一百四十交付批次：编辑器动作条双视口裁切 / 说明句归位与一业务一卡）
+
+1. x86_64/aarch64：b140 是 Slint 投影标签、页面拆卡与双语文案键，架构中性；`cargo check -p infiltrator-slint -p infiltrator-shared` 与整批 197 帧发布为 `L`，本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。
+2. Windows/Linux/macOS：b140 只在本机 Linux 台架完成编译与整批 197 帧发布；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 Unsupported 登记 → 部分（L）。
+3. Android/iOS：b140 只改桌面 Slint 的 editor/sync 投影与页面，移动端走 dock 分支不受影响；Android Compose 的等价动作条与 iOS 未随本批 → 部分（L）。
+4. 各 UI：Slint 编辑器第 5 卡拆成「导出审阅」「快照恢复」两张卡、各拥一条动作条；两枚整句标签归位到短动作键，被丢弃的 typed 阶段读回接回正文；恢复确认动词由通用「保存生效」统一到 Iced/Bevy 既用的专键「恢复配置」。发布批相对 b139 有 21/197 帧 sha 变化：两张 snapshot-restore-confirm 帧实测三枚按钮完整在卡内（compact x380–684 / 卡右沿 702），sync 六帧为 56×14 标签带替换，editor/mixin 多为滚动条 2px 带，diff-viewer 与 yaml-error-navigation 两帧大 bbox 已目视归因为拆卡；Iced/Bevy/Android 本就用专键与短标签，未随本批改动 → 完整（L）。
+5. 复用：动作标签解析到共享文案表的专键（`script_export_review_action` / `snapshot_restore_review_action` / `snapshot_restore_confirm`），zh/en 双语对齐由 i18n-guard 钉死；阶段读回消费 `project_restore().status` 而非页面自造；一业务一卡一动作条 → 完整（L）。
+5a. 设计资源强制标准：本批不改 design authority（角色闭集仍 26），新增的是文案键而非字型/字重/图标身份；整批 197 帧重采发布，`receipt-freshness=0`、`screenshot-identity scanned=563 aliases=10 violations=0`（mixin↔editor 四皮肤逐字节相同，3 条别名摘要按新像素刷新）→ 完整（L）。
+6. 功能接入：回调、action-id、enabled 门与 a11y 标签未变，只改标签与卡结构；紧凑档快照恢复确认由「整枚出窗不可达」变为可达；21/197 帧变化均已按类归因（P1 修复 / 动词替换 / 滚动条 / 拆卡），不宣称未测帧零影响 → 完整（L）。
+7. 模块化：标签事实在共享文案表一处，页面只组合共享 `WorkbenchCard`/`WorkbenchButton`；新增 `slint-action-label-guard.py`（SLINT-017）钉死「按钮标签不得是句子、不得超动作预算」，enforce + self-test 双腿接入结构门 → 完整（L）。
+8. CI：本批新增 SLINT-017 守卫并注册 enforce + self-test；整批 197/197 发布 524s。`check-structure.sh`（set -e）在 367 项 quality unittest 处因他人 Bevy 外债（`infiltrator-bevy-ui` capture-tools 启用 `zhuge-ui-kit-bevy/capture-tools` 未同步台账，唯一失败，不碰）提前退出，其后守卫含 SLINT-017 已逐一单独验证全 0，不写「结构门整体通过」；`--workspace` nextest/clippy 与提交/CI 腿待统一验证批次 → 部分（L）。
+
+## 最近一批问答（2026-11-08 第一百三十九交付批次：侧栏分组标题列 / 菜单栏三列阶梯唯一化）
+
+1. x86_64/aarch64：b139 是 Slint 侧栏列几何与注释，架构中性；`cargo check -p infiltrator-slint` 与整批 197 帧发布为 `L`，本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。
+2. Windows/Linux/macOS：b139 只在本机 Linux 台架完成编译与整批 197 帧发布；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 Unsupported 登记 → 部分（L）。
+3. Android/iOS：b139 只改桌面侧栏（rail）的列，移动端走 dock 分支不受影响；Android Compose 的等价导航列与 iOS 未随本批 → 部分（L）。
+4. 各 UI：Slint 桌面侧栏分组标题由 x34 移到 x50，与它所引导的 nav 图标列对齐（实测图标 51，1px 为字形左沿差）；页脚版本行保持在 x34 与状态卡圆点同列，其归属已在注释写明。发布批相对上一批 124/197 帧 sha 变化；对 settings/dns/about/overview 四帧逐帧差分，改动只落在标题带 456 px / x34–90 / y350–359 且四帧一致，其余帧未逐帧归因（上一批目录已按只保留最新整批的纪律删除），不宣称全部改动已归因。Iced/Bevy/Android 未随本批对齐该列 → 部分（L）。
+5. 复用：`LumenTheme.rail-content-leading`（= `2 × rail-item-padding`，代数上等于 face gutter + 内容 padding）是 nav 内容列的唯一真源，三条列（x18 chrome / x34 卡内文本 / x50 nav 内容）在 `theme.slint` 一处声明归属；标题不再自带一份 padding → 完整（L）。
+5a. 设计资源强制标准：本批不改 design authority（角色闭集仍 26），改的是 rail 列 token 与一处 padding 读取，字型/字重/图标身份不变；整批 197 帧重采发布，`receipt-freshness=0`、`screenshot-identity scanned=563 aliases=10 violations=0`（`mixin-*` 四条别名摘要按新像素刷新，mixin 与 editor 仍逐字节相同）→ 完整（L）。
+6. 功能接入：nav 行为、回调、active 判定与 a11y 标签未变，只移动一行标题的列；124/197 帧 sha 变化，覆盖 123 张 1180×780 桌面帧（侧栏存在于每个桌面页面）加 1 张其他帧；该 1 帧未逐帧归因，不宣称非桌面帧零影响 → 完整（L）。
+7. 模块化：列事实集中在 `theme.slint` 一处，`sidebar.slint` 只读 token；未新增页面私有 padding 字面量，`slint-padding-guard`（SLINT-012）0 违规 → 完整（L）。
+8. CI：本批无 CI 变更；未新增守卫（列真源由既有 `slint-padding` 与注释契约约束）；整批 197/197 发布 384s；`--workspace` nextest/clippy 与提交/CI 腿待统一验证批次，不写「已高效验证」 → 部分（L）。
+
+## 最近一批问答（2026-11-08 第一百三十八交付批次：仪表盘密集档整卡消失 / 行不再支付不存在的列）
+
+1. x86_64/aarch64：b138 是 Slint 布局结构与门禁脚本，架构中性；`cargo check -p infiltrator-slint`、定向 nextest 379/379 与整批 197 帧发布为 `L`，本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。
+2. Windows/Linux/macOS：b138 只在本机 Linux 台架完成编译、定向测试与整批 197 帧发布；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 Unsupported 登记 → 部分（L）。
+3. Android/iOS：b138 只改 Slint 桌面/平板仪表盘结构与共享脚本门禁，不新增 Android/iOS 能力；Android Compose 的等价仪表盘与 iOS 未随本批 → 部分（L）。
+4. 各 UI：Slint 概览仪表盘密集档（720×480 / 720×800）此前完全不渲染「上传 / 下载 / 系统代理 / 虚拟网卡」四张卡（行支付 4 份列份额而密集档只有 2 列），现按第 3 行既有 `GridLayout` + `col/row` 写法换行，四张卡完整出现；宽档 1180×780 四皮肤与修复前 **逐字节相同（bbox=None）**，零回归。Iced/Bevy/Android 未随本批对齐该规则 → 部分（L）。
+5. 复用：列份额基线 `card-columns` 仍只有一个 owner，`card-column-width / card-span-width` 不变；密集换行沿用第 3 行同一 `GridLayout` 模式，未新增 token、未新增页面状态、未新增第二份布局真源。`slint-dashboard-grid-guard.py`（SLINT-016）把「不可换行的行不得 span+单卡混排」「GridLayout 内每卡自陈 col/row」「行份额 ≤ 密集列数」钉成结构不变量 → 完整（L）。
+5a. 设计资源强制标准：本批不改 design authority（角色闭集仍 26），改的是布局容器类型与卡片自陈位置，字型/字重/图标身份不变；整批 197 帧重采发布，`receipt-freshness=0`、`screenshot-identity scanned=563 aliases=10 violations=0` → 完整（L）。
+6. 功能接入：四张卡的回调、typed 状态读取（`network-mode` / `dashboard-facts` / `runtime-status`）与 a11y 标签全部原样保留，只改宽度来源与行归属；全批像素变化只落在 4 帧（3 帧密集档概览 + 1 帧光栅舍入噪声），无跨页面副作用 → 完整（L）。
+7. 模块化：改动集中在 `home_desktop_grid.slint` 一个文件的两个行容器与卡片自陈位置（529 非注释行，≤600 预算），守卫独立成 SLINT-016，不与 SLINT-013/014/015 重叠 → 完整（L）。
+8. CI：本批无 CI 变更；新守卫以 enforce + self-test 双腿接入 `check-structure.sh`；整批 197/197 发布 666s；`proxies-search-highlight-compact` 的 44646 px 差异经全带 max delta=1/255 与 −2..+2 平移不改善判定为光栅舍入噪声，不写成源码缺陷；`--workspace` nextest/clippy 与提交/CI 腿待统一验证批次，不写「已高效验证」 → 部分（L）。
+
+## 最近一批问答（2026-11-08 第一百三十七交付批次：字体公共体系权威回补 `FactNamed`）
+
+1. x86_64/aarch64：b137 是 contract typed 权威的登记回补，架构中性；`cargo nextest -p infiltrator-contract` 532/532 为 `L`，未复跑交叉 `cargo check` 与安装包腿，`C`/`D` 待补证 → 部分（L）。
+2. Windows/Linux/macOS：b137 只在本机 Linux 台架编译与测试；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 Unsupported 登记 → 部分（L）。
+3. Android/iOS：b137 由唯一生成器重刷 Kotlin `TypeScale.kt` / `DesignTokens.kt` / `AppFontFamily.kt`（实测与实验前逐字节相同），但 Gradle/模拟器/真机未随本批复跑；iOS 仍属 unsupported → 部分（L）。
+4. 各 UI：Slint `design-type.slint` 与 Kotlin 适配物由 `generate_design_resources.py` 一次再生（与现网一致）；Iced/Bevy 直接读 contract `typeface(role)`，随本次 Rust 权威回补自动获得第 26 角色；页面布局与视觉未改 → 完整（L，身份未漂移）。
+5. 复用：`infiltrator_contract::design_resources::TextRole` 是角色闭集唯一真源，`design-authority.json` 是唯一导出物，Kotlin/Slint 适配物只能由生成器写入；本批把「Rust 少一档、导出物多一档」的双真源状态收回单真源 → 完整（L）。
+5a. 设计资源强制标准：本批正是标准条款的落地修复——`docs/DESIGN_RESOURCE_STANDARD.md` 声明的 26 个 `TextRole` 现在在 typed 权威里真实存在；`design-resource-authority.py` violations=0、`generate_design_resources.py --check` 0、`slint-typography-role` / `slint-fact-row` 0；导出 JSON 逐字节未变，故无身份变化、无需新像素回执，发布整批 `20261108T022805Z_9107f001fa16_dirty_323774` 仍为当前真源 → 完整（L）。
+6. 功能接入：`home_fact_row.slint` 消费的 `TextRole.factNamed` 现在能解析回 Rust typed 权威（此前只存在于导出物）；`TextRole::ALL` 与 `typeface()` 穷尽匹配同步，无旁路 → 完整（L）。
+7. 模块化：改动只在 `crates/infiltrator-contract/src/design_resources.rs` 一个文件的枚举/表/断言，加上由唯一生成器写出的适配物与导出物；无手写生成物、无第二套角色表 → 完整（L）。
+8. CI：本批无 CI 变更；`design-resource-authority.py` 已在结构门与 main-gate 注册（正是它发现了缺位）；`--workspace` nextest/clippy 与提交/CI 腿待统一验证批次，不写「已高效验证」 → 部分（L）。
+
+## 最近一批问答（2026-11-08 第一百三十六交付批次：应用分流选择器等宽 / 按钮不得拉伸）
+
+1. x86_64/aarch64：b136 的改动是 Slint 布局与门禁脚本，架构中性；`cargo check -p infiltrator-slint` 通过、整批 197 帧发布为 `L`，本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。
+2. Windows/Linux/macOS：b136 只在本机 Linux 台架完成编译与整批 197 帧发布；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 Unsupported 登记 → 部分（L）。
+3. Android/iOS：b136 只改 Slint 表面与共享脚本门禁，不新增 Android/iOS 能力；Android Compose 的等价分段选择器与 iOS 未随本批 → 部分（L）。
+4. 各 UI：Slint 的 `app-routing` 模式选择器收成三等分——桌面四皮肤实测 276 / 276 / 276 px（旧 295 / 238 / 295），紧凑 720×480 同屏三等分；Iced / Bevy / Android 未随本批对齐该规则 → 部分（L）。
+5. 复用：选择器 gap 唯一真源是 `LumenTheme.selector-segment-gap`，段宽是页面里唯一一次 `(row − segments × gap) / segments` 计算；`WorkbenchButton` 不得带 `horizontal-stretch` 是结构不变量，`slint-selector-segment-guard.py`（SLINT-015）以 enforce + self-test 双腿钉死，与 SLINT-013（列表页）、SLINT-014（工作台行）并列 → 完整（L）。
+5a. 设计资源强制标准：本批不改 design authority（角色闭集仍 26），新增的是 surface 层布局 token（选择器段距）与一个共享按钮结构约束，非字型/图标身份；整批 197 帧重采发布，`receipt-freshness=0`、`screenshot-identity scanned=563 aliases=10 violations=0` → 完整（L）。
+6. 功能接入：模式选择器的点击回调、enabled 与文案绑定未变，只改宽度来源；全批像素差异集中在 `app-routing` 家族（另加采集期返回箭头/滚动条的悬停期抖动，见第 8 条） → 完整（L）。
+7. 模块化：段宽计算在 `page_app_routing.slint` 一处，gap 在 `theme.slint` 一处，守卫独立成 `SLINT-015` 不与 `SLINT-013`/`SLINT-014` 重叠；`page_app_routing.slint` 105 行（≤600 预算），`slint-syntax-guard` 100% PASS → 完整（L）。
+8. CI：本批无 CI 变更；新守卫以 enforce + self-test 双腿接入 `check-structure.sh`；整批 197/197 发布 338s；**采集期状态抖动已定性**——186 帧 sha 变化但量级极小且集中在返回箭头/滚动条悬停着色，同源两次单场景重采字节完全相同，判定为合成器/焦点期状态而非源码；`--workspace` nextest/clippy 与提交/CI 腿待统一验证批次，不写「已高效验证」 → 部分（L）。
+
+## 最近一批问答（2026-11-08 第一百三十五交付批次：自愈诊断页幻影带 / 行动作列对齐）
+
+1. x86_64/aarch64：b135 的改动是 Slint 布局语义与门禁脚本，架构中性；slint 定向 nextest 379/379、专项守卫与整批 197 帧发布为 `L`，本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。
+2. Windows/Linux/macOS：b135 只在本机 Linux 台架完成编译、定向测试与整批 197 帧发布；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 Unsupported 登记 → 部分（L）。
+3. Android/iOS：b135 只改 Slint 表面与共享脚本门禁，不新增 Android/iOS 能力；Android Compose 的等价工作台行布局与 iOS 未随本批 → 部分（L）。
+4. 各 UI：Slint 自愈诊断页的两处缺陷在真源层收口——`page_doctor.slint` 的生命周期 repeater 由「直接挂在 16u 间距页根下」改为 `VerticalLayout { spacing: 0; … }` 自持间距（消除约 112u 幻影带）；`workbench_parts.slint` 新增共享 `ItemRowActionButton`（声明在 `ItemRow` 之前）+ `ItemRow.reserve-action-column`，`theme.slint` 新增唯一 token `workbench-row-action-width: 96u`，混排列表尾部状态列对齐。发布帧实测诊断行状态/标签列 `(1011,1030)` / `(1011,1030)`（旧帧 `失败` x1027 / `警告` x1036）；dns/app-routing 右缘与发布前一致。Iced/Bevy/Android 未随本批对齐该规则 → 部分（L）。
+5. 复用：行动作胶囊是 `workbench_parts.slint` 里唯一共享组件（无第二份内联 `Rectangle` 胶囊），保留列宽与 token 唯一（`LumenTheme.workbench-row-action-width`），「循环自持 spacing」是结构不变量；`slint-workbench-row-guard.py`（SLINT-014）以 enforce + self-test 双腿钉死。已存在 `slint-list-page-guard.py`（SLINT-013）与 `slint-viewport-tier-guard.py` 共同覆盖列表页与视口阶梯 → 完整（L）。
+5a. 设计资源强制标准：本批不改 design authority（角色闭集仍 26），新增的两个是 surface 层布局 asset（共享动作胶囊组件与行宽 token），非字型/图标身份；整批 197 帧重采发布，`receipt-freshness=0`、`screenshot-identity scanned=563 aliases=10 violations=0` → 完整（L）。
+6. 功能接入：自愈诊断页的工具栏区、问题行列表、生命周期卡在同一页身内正确排布，无幻影死带；混排列表尾部状态列对齐、纯列表自动宽零浪费；全批变更落在 doctor 家族与 dns/app-routing 的边缘校验，无跨页面拷贝 → 完整（L）。
+7. 模块化：行与动作胶囊在 `workbench_parts.slint` 一处（组件先声明后使用），间距规则在页内 repeater 自持，行宽 token 在 `theme.slint` 一处；`page_doctor.slint` 保持 ≤600 非注释行预算，SLINT-014 与 SLINT-013 无重叠 → 完整（L）。
+8. CI：本批无 CI 变更；新守卫以 enforce + self-test 双腿接入 `check-structure.sh`；整批 197/197 发布 375s；`--workspace` nextest/clippy 与提交/CI 腿待统一验证批次，不写「已高效验证」 → 部分（L）。
+
+## 最近一批问答（2026-11-08 第一百三十四交付批次：列表页主卡填满视口 / 列表内滚）
+
+1. x86_64/aarch64：b134 的改动是 Slint 布局语义与门禁脚本，架构中性；slint 定向 nextest 379/379、专项守卫与整批 197 帧发布为 `L`，本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。
+2. Windows/Linux/macOS：b134 只在本机 Linux 台架完成编译、定向测试与整批 197 帧发布；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 Unsupported 登记 → 部分（L）。
+3. Android/iOS：b134 只改 Slint 表面与共享脚本门禁，不新增 Android/iOS 能力；Android Compose 的等价列表页布局与 iOS 未随本批 → 部分（L）。
+4. 各 UI：Slint 的 logs/rules/connections 三个列表页主卡改为「卡填满页身、列表卡内滚」——桌面四皮肤卡带 97..706（卡下底色 74px，即 72u 底部空气 + 描边），720×480 compact 卡带 49..406、下余 74px；Iced/Bevy/Android 未随本批对齐该规则 → 部分（L）。
+5. 复用：`LumenTheme.page-body-height` 是页身高度唯一真源（shell 一次发布），`CardHeight` typed 枚举 + `SectionCard.height-mode` 是卡高模式唯一 owner，`ListBody` 是列表滚动唯一 owner（rail 策略只读 `compact-layout`）；三个列表页零份私有高度/滚动拷贝 → 部分（L）。
+5a. 设计资源强制标准：本批不改 design authority（角色闭集仍 26），新增的是 surface 层布局 token/枚举而非字型/图标身份；整批 197 帧重采发布，`receipt-freshness=0`、`screenshot-identity scanned=563 aliases=10 violations=0`；Android 三 flavor 真机像素与 `C`/`D` 仍缺 → 部分（L）。
+6. 功能接入：三列表页的工具栏区固定、行在卡内滚动（桌面 `as-needed` rail、紧凑恒无 rail）；`slint-list-page-guard.py`（SLINT-013）钉死模式与 owner；全批 23 帧变化全部落在三个列表页及其 compact 变体，另 about dark/amoled 有 2×180px 的自动隐藏 rail 淡出帧差（内容像素逐像素一致，非布局变化）→ 部分（L）。
+7. 模块化：页身高度发布在 `app_body.slint` 一处，卡高模式在 `card_height.slint` + `cards.slint`，列表滚动在 `list_body.slint`，无跨页面拷贝；`page_observe.slint` 518 行（≤600 预算），SLINT-001..013 守卫全绿 → 完整（L）。
+8. CI：本批无 CI 变更；新守卫以 enforce + self-test 双腿接入 `check-structure.sh`；整批 197/197 发布 417s；`--workspace` nextest/clippy 与提交/CI 腿待统一验证批次，不写高效已验证 → 部分（L）。
+
+## 最近一批问答（2026-11-08 第一百三十三交付批次：概览卡网格等宽 / 同构卡基线对齐）
+
+1. x86_64/aarch64：b133 的改动是 Slint 布局语义与门禁脚本，架构中性；slint 定向 nextest、专项守卫与整批 197 帧发布为 `L`，本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。
+2. Windows/Linux/macOS：b133 只在本机 Linux 台架完成编译、定向测试与整批 197 帧发布；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 Unsupported 登记 → 部分（L）。
+3. Android/iOS：b133 只改 Slint 表面与共享脚本门禁，不新增 Android/iOS 能力；Gradle/模拟器/真机与 iOS 未随本批复跑 → 部分（L）。
+4. 各 UI：Slint 概览两 tier 的卡网格收成真网格——桌面四列 211u/211u/211u/211u 且三行卡沿全部对齐，手机双列 177u/177u，dense 档双列 337u/337u；同构卡 meta 行落到同一条 y；Iced/Bevy/Android 未随本批对齐该规则 → 部分（L）。
+5. 复用：`LumenTheme.overview-card-columns/overview-card-gap/fact-value-line-height` 是列数、卡距与值行盒的唯一真源，两 tier 页面只各持一个 `card-column-width` 基数；`horizontal-stretch` 定宽与页面私有行盒清零，无第二份尺寸入口 → 部分（L）。
+5a. 设计资源强制标准：本批不改 design authority（角色闭集仍 26），新增的三个是 surface 层布局 token 而非字型/图标身份；概览 fact 值仍走既有 `metric-value/profile-name` 角色，meta 统一既有 `caption` 角色；整批 197 帧重采发布，`receipt-freshness=0`、`screenshot-identity scanned=563 aliases=10 violations=0`；Android 三 flavor 真机像素与 `C`/`D` 仍缺 → 部分（L）。
+6. 功能接入：本批是概览网格与对齐收口，不新增业务能力；parity cell 与像素锚点统计不因本批变化 → 缺失（L）。
+7. 模块化：`slint-viewport-tier-guard.py` 新增两条硬门（概览页必须读 overview-card-columns/gap、卡片自身语句不得用 horizontal-stretch 定宽、fact 值必须留在共享值行盒）并新增 2 项 planted 自测（共 12 项）；未新增隐式状态机候选 → 部分（L）。
+8. CI：本批完成 197/197 整批发布（384s）、11 项专项守卫零违规与 12 项守卫自测全绿；`--workspace` nextest/clippy 与提交/CI 腿待统一验证批次，不写高效已验证 → 部分（L）。
+
+## 最近一批问答（2026-11-08 第一百三十二交付批次：Core 会话起点底层贯通 / 运行时长真实发布）
+
+1. x86_64/aarch64：b132 的改动是 contract/domain/application/presentation 的 typed 会话事实与共享时长格式化器，架构中性；contract+domain+shared+presentation 1606/1606、application+slint 1044/1044 定向 nextest 与 CORE-SESSION / SLINT-011 专项守卫为 `L`，本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。
+2. Windows/Linux/macOS：b132 只在本机 Linux 台架完成编译、定向测试与整批 197 帧发布；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 Unsupported 登记 → 部分（L）。
+3. Android/iOS：b132 新增的会话起点打戳覆盖 Android 托管路径（`adopt_if_running` 与桌面 `start_locked` 同一处打戳），但 Gradle/模拟器/真机未随本批复跑；iOS 仍属 unsupported → 部分（L）。
+4. 各 UI：Slint 概览 hero 卡「运行时长」显示 owner 实测的会话时长（发布帧 `03:04:49`，与参考同值），桌面与手机渲染同一事实格组件；Iced/Bevy/Android 未随本批展示会话时长 → 部分（L）。
+5. 复用：contract `CoreSessionObservation` 是唯一 typed 观察，domain 每个会话态携带起点，Core owner 是唯一读墙钟与实测时长的地方，presentation 只格式化；共享 `infiltrator_shared::elapsed_time::format_elapsed_ms` 是全仓唯一时长格式化器（Bevy widget 层私有的第二份 `format_duration_secs` 已删除并改读共享 owner）→ 部分（L）。
+5a. 设计资源强制标准：本批不改 design authority（角色闭集仍为 26），字体、字重与图标身份不变，事实值仍走既有 `TextRole.factNamed`；整批 197 帧重采发布，`receipt-freshness=0`、`screenshot-identity scanned=563 aliases=10 violations=0`；Android 三 flavor 真机像素与 `C`/`D` 仍缺 → 部分（L）。
+6. 功能接入：本批补齐概览卡「运行时长」的底层事实链（此前 contract/domain/application/presentation/表面全链缺位，UI 只能伪造或留空）；配置页「相对更新时间」是另一条尚未补齐的 owner 事实 → 部分（L）。
+7. 模块化：新增 `scripts/quality/core-session-guard.py`（CORE-SESSION，6 条规则 + 5 项 planted 自测）并接入 `check-structure.sh`；`slint-fact-row-guard.py` 增「projection 不得写死时长字面量」一条；本批未新增隐式状态机候选（会话起点是 typed 字段而非阶段标志）→ 部分（L）。
+8. CI：本批完成 1606/1606 + 1044/1044 定向 nextest、197/197 整批发布（383s）与十项专项守卫零违规，结构门离线项除三条他人 Bevy 在制外债（bevy-ui `capture-tools` 特性未同步 feature-matrix 台账、bevy-widgets `card.rs` 新增 rem 外债、presentation `tray_projection.rs` 未用导入）外全绿；`--workspace` nextest/clippy 与提交/CI 腿待统一验证批次，不写高效已验证 → 部分（L）。
+
+## 最近一批问答（2026-11-08 第一百三十一交付批次：侧栏页脚吞吐行越界 / 公共 padding 门禁）
+
+1. x86_64/aarch64：b131 的改动是 Slint 布局语义与共享脚本规则，架构中性；379/379（slint）定向 nextest 与专项守卫为 `L`，本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。
+2. Windows/Linux/macOS：b131 只在本机 Linux 台架完成编译、定向测试与整批 197 帧发布；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 Unsupported 登记 → 部分（L）。
+3. Android/iOS：b131 只改 Slint 表面与共享脚本门禁，不新增 Android/iOS 能力；Gradle/模拟器/真机与 iOS 未随本批复跑 → 部分（L）。
+4. 各 UI：Slint 桌面侧栏页脚吞吐行不再压到卡片描边（墨迹右沿 x205 → x193，与同卡「系统代理」胶囊同一条右沿），工作台草稿输入框不再比字段宽 28u；移动端不受影响；Iced/Bevy/Android 未随本批对齐该规则 → 部分（L）。
+5. 复用：`slint-padding-guard.py`（SLINT-012）把「带 padding 的布局的直接子元素不得以 `parent.width` 定宽」变成一条公共规则，带括号配对解析与 hit surface / 绝对定位放行；两处存量越界（侧栏吞吐行、工作台草稿输入框）在同一切片清零，无第二份私有尺寸入口 → 部分（L）。
+5a. 设计资源强制标准：本批不改 design authority（角色闭集仍为 26），字体与图标身份不变；整批 197 帧重采发布，`receipt-freshness=0`、`screenshot-identity scanned=563 aliases=10 violations=0`（mixin↔editor 别名摘要按当前像素刷新）；Android 三 flavor 真机像素与 `C`/`D` 仍缺 → 部分（L）。
+6. 功能接入：本批是菜单栏与布局边界收口，不新增业务能力；parity cell 与像素锚点统计不因本批变化 → 缺失（L）。
+7. 模块化：`slint-padding`（新增 4 自测）、`slint-fact-row`、`slint-dock-material`、`slint-mobile-chrome`、`slint-surface-ladder`、`slint-viewport-tier`、`slint-syntax`、`slint-dead-input`、`design-resource-authority`、`doc-governance` 全零违规 → 部分（L）。
+8. CI：本批完成 379/379 定向 nextest、197/197 整批发布（682s）与十项专项守卫零违规；`--workspace` nextest/clippy 与提交/CI 腿待统一验证批次，不写高效已验证 → 部分（L）。
+
+## 最近一批问答（2026-11-07 第一百三十交付批次：概览事实行 typed 契约 / 双列基线对齐）
+
+1. x86_64/aarch64：b130 的 `ui_fact` contract、presentation 投影与 Slint 组件均为架构中性的 typed 定义；902/902（contract+presentation）与 379/379（slint）定向 nextest 及专项守卫为 `L`，本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。
+2. Windows/Linux/macOS：b130 只在本机 Linux 台架完成编译、定向测试与诊断帧；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 Unsupported 登记 → 部分（L）。
+3. Android/iOS：b130 在 design-authority 新增 `FactNamed` 角色并由唯一生成器同步刷新 Kotlin `TypeScale.kt`，但 Gradle/模拟器/真机交互未随本批复跑；iOS 仍属 unsupported → 部分（L）。
+4. 各 UI：Slint 概览 hero 卡底部事实行收成单一 owner 组件（桌面/手机同渲染），事实值统一 13/400 同族字体（基线对齐的结构保证），未观测值按 contract typed 状态弱化渲染，伪造 `00:00:00` 清零；Iced/Bevy/Android 的 hero 事实行未随本批接 typed 契约 → 部分（L）。
+5. 复用：contract `ui_fact` 持有值状态/列锚/共享标记，presentation `DashboardHeroFactRow` 发布整行，Slint `HomeHeroFactRow`/`HomeHeroFactCell` 是行的唯一 owner；`hero-fact-column-1/2` 列宽仍由 design-authority 导出，页面不再自留标签/列宽/兜底副本 → 部分（L）。
+5a. 设计资源强制标准：authority 新增 `FactNamed`（13/Regular/HarmonyOS Sans SC）属身份变化，Slint 与 Kotlin 适配物由生成器一次同步；诊断帧实测事实值同族同基线。全量 197 帧重采与 Android 三 flavor 真机像素仍缺，不写「完整」 → 部分（L）。
+6. 功能接入：本批是文字对齐与公共体系收口，不新增业务能力；parity cell 与像素锚点统计不因本批变化 → 缺失（L）。
+7. 模块化：`slint-fact-row`（新增 5 自测）、`slint-typography-role`（角色闭集 25→26）、`slint-dead-input`、`design-resource-authority`、`doc-governance`、`closure-questions` 全零违规；事实行无第二份页面拷贝，无跨 UI 私有业务真源 → 部分（L）。
+8. CI：本批完成 902/902 + 379/379 定向 nextest、全量守卫零违规与移动/桌面诊断帧；全量 197 帧重采、`--workspace` nextest/clippy 与提交/CI 腿待统一验证批次 → 部分（L）。
+
+## 最近一批问答（2026-11-07 第一百二十九交付批次：底部胶囊玻璃 veil 材质单一真源 / 横跳根治）
+
+1. x86_64/aarch64：b129 的 `MobileDockMaterial`、`floating-surface`、`dock-rim-color` 均为架构中性的 typed contract 与资源定义；本地 197 帧 capture、525/525 contract nextest、379/379 slint nextest 与专项守卫为 `L`，本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。
+2. Windows/Linux/macOS：b129 只在本机 Linux 台架完成 197/197 整批发布与本机编译；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 Unsupported 登记 → 部分（L）。
+3. Android/iOS：b129 只改 Slint 表面与共享 contract；Android `NavigationBar` / iOS 未随本批接玻璃 veil（Android 为 Material3 系统组件，留待后续 typed 投影切片），iOS 仍属 unsupported → 部分（L）。
+4. 各 UI：Slint 本批把底部胶囊从「85% alpha 卡片色」升级为 contract 唯一 alpha（0x99 / 60%）的玻璃 veil，暗色合成 (33,39,45) 高于卡片层、浅色 (234,234,235) 落在参考胶囊 (251,248,249) 的同向雾面；Iced/Bevy/Android 的跨表面全量编译与功能验收未随本批统一复跑 → 部分（L）。
+5. 复用：胶囊 alpha 的唯一真源迁入 `infiltrator-contract::mobile_chrome::MobileDockMaterial::VEIL_ALPHA`，`floating-surface`（四皮肤 tint）与 `dock-rim-color`（玻璃描边）只做渲染，`MobileDockBandState` 仍是保留带唯一状态机；新增 `slint-dock-material-guard.py` 六条规则 + 9 项正反例自测并接入 `check-structure.sh`，旧「不透明 floating-surface」口径在 `MOBILE_RECEIPT_INVARIANTS.md`（S-DOCK-GLASS / P-DOCK-PILL-GLASS）、`SURFACE.md`、`FLCLASH_MOBILE_REFERENCE.md` 全部清零 → 部分（L）。
+5a. 设计资源强制标准：b129 材质为身份变化，以当前整批 197 帧重采：`receipt-freshness=0`、`screenshot-identity scanned=563 aliases=10 violations=0`（mixin↔editor 别名摘要按当前像素刷新）；dock 材质像素回执由 `slint-dock-material-guard` 的 glass-composite 校验持有（暗/浅双皮肤对当前发布帧实测 0 违规）；Android 三 flavor 真机像素与 `C`/`D` 仍缺，不能宣称完整 → 部分（L）。
+6. 功能接入：本批是材质与门禁收口，不新增业务能力；既有 parity cell 与像素锚点统计不因本批变化，`resolve_surface_evidence.py` 与全仓功能矩阵未随本批统一复跑 → 缺失（L）。
+7. 模块化：`slint-dock-material`（新增）、`slint-mobile-chrome`、`slint-surface-ladder`、`slint-viewport-tier`、`slint-syntax`、`slint-dead-input`、`receipt-freshness`、`screenshot-identity` 全零违规；材质决策从散文迁入 contract + guard 单真源，无跨 UI 私有业务真源。大面积空带 / sticky header / 字段二列基线仍属底层未决，未在 UI 私补 → 部分（L）。
+8. CI：本批完成 197/197 整批发布（`20261107T130017Z_9107f001fa16_dirty_4001560`，`CAPTURE MATRIX PASS: 197 scenario(s) in 758s`）、contract 525/525、slint 379/379 定向 nextest 与八项结构守卫零违规；`--workspace` nextest/clippy、`rustdoc --mode docs` 与提交/CI 腿待统一验证批次，不写高效已验证 → 部分（L）。
+
+## 历史批次问答（2026-11-07 第一百二十八交付批次：底部菜单半透明悬浮 / 移动端无滚动条 / 青蛙 Hero 律动闭环）
+
+1. x86_64/aarch64：b128 的 contract/slint/shared 改动均为跨平台架构中性 Rust 与 Slint 资源定义；本地 197 帧 capture、902/902 定向 nextest 与各结构守卫为 `L`，本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。
+2. Windows/Linux/macOS：b128 只在本机 Linux 台架完成 197/197 整批发布与本机编译；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 Unsupported 登记 → 部分（L）。
+3. Android/iOS：b128 只改 Slint 桌面/移动表面及共享设计资产，不新增 Android/iOS 能力；Android 生成适配物与全 Gradle/模拟器/真机交互未复跑，iOS 仍属 unsupported → 部分（L）。
+4. 各 UI：Slint 本批完成底部胶囊半透明（85% alpha 毛玻璃材质 `LumenTheme.floating-surface`）、移动端无滚动条、青蛙 hero 吉祥物 512×512 及控制按钮叠加不出圈、音符律动动效、字体字重 400/500/600 物理面治理；Iced/Bevy/Android 跨表面全量编译与功能验收未随本批统一复跑 → 部分（L）。
+5. 复用：`theme.slint` 的 `floating-surface` 为唯一半透明浮动材质，`MobileDockBandState` 为唯一 dock 保留带 typed 状态机，`mascot_motion` 为唯一吉祥物动效状态机；清除了双布尔隐式状态机与私有尺寸入口 → 部分（L）。
+5a. 设计资源强制标准：b128 身份变化以当前整批 197 帧重采，`receipt-freshness=0`、`screenshot-identity violations=0`；字重闭集 400/500/600 与 `animate font-weight` 禁令保持，`design-resource-authority violations=0`。Android 三 flavor 真机像素与 `C`/`D` 仍缺，不能复用旧回执宣称完整 → 部分（L）。
+6. 功能接入：本批是视觉、交互与状态机收口，不新增业务能力；既有 parity cell 与像素锚点统计不因本批变化，`resolve_surface_evidence.py` 与全仓功能矩阵未随本批统一复跑 → 缺失（L）。
+7. 模块化：`slint-syntax`、`slint-dead-input`、`slint-viewport-tier`、`slint-mobile-chrome`、`slint-surface-ladder`、`implicit-state-audit` 全零违规；生成物与消费点按文件所有权分批迁移后统一验收，无跨 UI 私有业务真源。大面积空带 / sticky header / 字段二列基线仍属底层未决，未在 UI 私补 → 部分（L）。
+8. CI：本批完成定向 nextest（902/902 全绿）、全矩阵 197 帧发布（`manifest.tsv` 刷新），`receipt-freshness-guard` 零违规；`--workspace` nextest/clippy、`rustdoc --mode docs` 与提交/CI 腿待统一验证批次，不写高效已验证 → 部分（L）。
+
+## 历史批次问答（2026-11-07 第一百二十七交付批次：空间利用率 / 文字对齐 / 菜单栏共治）
+
+1. x86_64/aarch64：b127 的 Slint/主题 token 与生成适配物是跨平台资源定义；本地 197 帧 capture、897/897 定向 nextest 与专项守卫为 `L`，本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。
+2. Windows/Linux/macOS：b127 只在本机 Linux 台架完成 197/197 整批发布与本机编译；Windows/macOS 构建腿与安装包未随本批复跑 → 部分（L）。
+3. Android/iOS：b127 只改 Slint 桌面/移动表面，不新增 Android/iOS 能力；Android 生成适配物与全 Gradle/模拟器/真机交互未复跑，iOS 仍属 unsupported → 部分（L）。
+4. 各 UI：Slint 本批完成卡头/服务 chip/策略 tile/导航/页头/dock 字重公共几何收口；Iced/Bevy/Android 的跨表面全量编译与功能验收未随本批统一复跑，不能由 Slint 像素外推 → 部分（L）。
+5. 复用：`theme.slint`、`NavButtonMetrics`、`HeaderActionMetrics`、`ProxyPillMetrics` 分别持有各自几何真源；卡头取消 `title-size` 页面入口，服务数值与 dock 标签读闭集 `TextRole`，不再拼跨角色三元组 → 部分（L）。
+5a. 设计资源强制标准：b127 身份变化以当前整批 197 帧重采，`receipt-freshness=0`、`screenshot-identity violations=0`；字重闭集 400/500/600 与 `animate font-weight` 禁令保持，`design-resource-authority violations=0`。Android 三 flavor 真机像素与 `C`/`D` 仍缺，不能复用旧回执宣称完整 → 部分（L）。
+6. 功能接入：本批是视觉/几何公共体系整改，不新增业务能力；既有 parity cell 与像素锚点统计不因本批变化，`resolve_surface_evidence.py` 与全仓功能矩阵未随本批统一复跑 → 缺失（L）。
+7. 模块化：`slint-syntax`、`slint-dead-input`、`slint-viewport-tier`、`slint-mobile-chrome`、`slint-surface-ladder`、`implicit-state-audit` 全零违规；公共 token 与消费点按文件所有权分批迁移后统一验收，无跨 UI 私有业务真源。大面积空带 / sticky header / 字段二列基线仍属底层未决，未在 UI 私补 → 部分（L）。
+8. CI：本批完成预热带、897/897 定向 nextest、两次 197 帧整批发布（第二次绑定最终别名摘要，第三次绑定最终 chip 高度），最终 `CAPTURE MATRIX PASS: 197 scenario(s) in 333s`；`--workspace` nextest/clippy、`rustdoc --mode docs` 与提交/CI 腿未跑，不写高效已验证 → 部分（L）。
+
+## 历史批次问答（2026-11-07 第一百二十六交付批次：字体权威精简与细节共治）
+
+1. x86_64/aarch64：b126 的 contract、生成器与 Slint/Kotlin 适配物是跨平台资源定义；本地 197 帧 capture、897/897 定向 nextest 与专项守卫为 `L`，本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。
+2. Windows/Linux/macOS：b126 只在本机 Linux 台架完成 197/197 整批发布与本机编译；Windows/macOS 构建腿与安装包未随本批复跑 → 部分（L）。
+3. Android/iOS：Android `TypeScale.kt` / `DesignTokens.kt` 已随唯一生成器刷新，未随本批跑 Gradle、模拟器或真机交互；iOS 仍属 unsupported → 部分（L）。
+4. 各 UI：Slint 本批完成 25 个 `TextRole`、typed resolution、route pill 父级字号与 7 个死 token 清理；Iced/Bevy/Android 的跨表面全量编译与功能验收未随本批统一复跑，不能由 Slint 像素外推 → 部分（L）。
+5. 复用：25 个角色、8 个生成适配物、`script/quality/slint-typography-role-guard.py` 和生成器重复三元组/退役角色门禁只有一个设计权威；侧栏吞吐、配置名、行分隔线、节点高度、网络子卡与青蛙安全内缩均回到共享 token 或单一尺寸真源，不留页面级影子副本 → 部分（L）。
+5a. 设计资源强制标准：b126 身份变化以当前整批 197 帧重采，`receipt-freshness=0`、`screenshot-identity violations=0`；字重闭集 400/500/600 与 `animate font-weight` 禁令保持，`design-resource-authority violations=0`。Android 三 flavor 真机像素与 `C`/`D` 仍缺，不能复用旧回执宣称完整 → 部分（L）。
+6. 功能接入：本批是字体/视觉公共体系整改，不新增业务能力；既有 parity cell 与像素锚点统计不因本批变化，`resolve_surface_evidence.py` 与全仓功能矩阵未随本批统一复跑 → 缺失（L）。
+7. 模块化：`slint-syntax`、`slint-dead-input`、`slint-viewport-tier`、`slint-mobile-chrome`、`slint-surface-ladder`、`implicit-state-audit` 全零违规；生成物与消费点按文件所有权分批迁移后统一验收，无跨 UI 私有业务真源 → 部分（L）。
+8. CI：本批完成一次预热带、一次定向 nextest、两次 197 帧整批发布（第二次绑定最终别名摘要），最终 `CAPTURE MATRIX PASS: 197 scenario(s) in 383s`；`--workspace` nextest/clippy、`rustdoc --mode docs` 与提交/CI 腿未跑，不写高效已验证 → 部分（L）。
+
+## 历史批次问答（2026-11-07 第一百二十五交付批次：字体公共体系收口）
+
+1. x86_64/aarch64：b125 的 contract 角色、`design-authority.json`、生成器与 Slint/Kotlin 适配物是跨平台资源定义；本地 197 帧 capture 与 typography guard 为 `L`，本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。
+2. Windows/Linux/macOS：Linux 本机发布 197/197 帧（`CAPTURE MATRIX PASS: 197 scenario(s) in 477s`）；Windows/macOS 未取得本批构建腿或安装包，macOS 沿用既有 Unsupported 登记，`C`/`D` 待补证 → 部分（L）。
+3. Android/iOS：Kotlin typography 适配物随生成器迁移，但本批没有新 APK、三 flavor 真机或目标产物回执；iOS 沿用 Unsupported，`D` 待补证 → 部分（L）。
+4. 各 UI：Slint b125 发布口径登记 31 个 typography roles 与 `DesignType.size/weight/family(TextRole)` typed role resolution；当前工作树 authority/generated Slint 只读复核为 25 个角色分支，数量差异待 b126 核对。Iced/Bevy/Android 的跨表面全量编译与功能验收未随本批统一复跑，不能由 Slint 像素外推 → 部分（L）。
+5. 复用：`design-authority.json` 仍是唯一导出真源，`design_resources` / `FontFace` / canonical Lucide SVG 的 owner 不变；`slint-typography-role-guard.py` 零 findings。发布口径 31 roles 含重复 family/size/weight 三元组，且当前工作树只读复核为 25 个角色分支；b126 待核对并精简，不写终态 → 部分（L）。
+5a. 设计资源强制标准：b125 身份变化以当前整批 197 帧重采，`receipt-freshness=0`、`screenshot-identity violations=0`；字重闭集 400/500/600 与 `animate font-weight` 禁令保持。Android 三 flavor 真机像素与 `C`/`D` 仍缺，不能复用旧回执宣称完整 → 部分（L）。
+6. 功能接入：本批是字体公共体系，不新增 parity cell；`resolve_surface_evidence.py` / `visual_receipts.py` 未随本切片统一复跑，三桌面与 Android 三 flavor 的全量认证缺口仍在，只能写「部分 / 缺失」 → 缺失（L；待补证）。
+7. 模块化：typography 守卫、生成器与适配物保持单一真源，未引入跨 UI 私有业务推导；全仓结构门、`--workspace` nextest/clippy 与 `rustdoc --mode docs` 未取得本批统一通过回执 → 部分（L）。
+8. CI 打包：本切片按任务只跑 `doc-governance-guard.py --mode enforce` 与 `closure-questions-guard.py`；没有 CI run ID，且工作树为未提交状态，不得写成已提交或已发布到 CI。`C`/`D` 与远端门禁待统一验证批次补证 → 部分（L）。
+
+## 批次八问摘要（b111–b128，2026-11-07 补记）
+
+下表每行按既有 1–8 问顺序记录结论；`L` 仅表示本地 capture / nextest / guard 证据，`C`（CI run）与 `D`（真机/目标产物）未取得时只能写「部分 / 缺失」。`缺失（L）` 表示该问项连本地证据链也未闭环。所有批次均不得把「未提交」写成「已提交」，也不得写「完整」。
+
+| 批次 | 1 | 2 | 3 | 4 | 5 | 5a | 6 | 7 | 8 | 证据等级 / 缺口 owner |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| b111 吉祥物 typed 状态机 | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 缺失（L） | 部分（L） | 部分（L） | L：contract/presentation/Slint 单测、197 帧动效回执；缺许可、跨端接线、真机连续帧、C/D，owner 为 MUSICFROG-001。 |
+| b112 512 hero plate | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 缺失（L） | 部分（L） | 部分（L） | L：资产身份与整批像素；缺外部插画许可、跨表面接线、D，owner 为 MUSICFROG-001。 |
+| b113 hero 出圈修复 | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 缺失（L） | 部分（L） | 部分（L） | L：单一 `disc-size`、竖屏/桌面像素；旧截图已失效，不翻旧账；C/D 待补。 |
+| b114 音符字形修复 | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 缺失（L） | 部分（L） | 部分（L） | L：闭合子路径与 197/197 重采；缺真机连续帧、C/D，owner 为 MUSICFROG-001。 |
+| b115 表面梯 / 页头 / 菜单栏 | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 缺失（L） | 部分（L） | 部分（L） | L：六帧诊断与 `slint-surface-ladder-guard.py`；缺整批发布后的 C/D 统一复验。 |
+| b116 双梯 / 字重 / 新鲜度 | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 缺失（L） | 部分（L） | 部分（L） | L：197/197 发布、`receipt-freshness-guard`、身份/语法/表面梯守卫；C/D 待补。 |
+| b117 公共几何 / 悬浮底栏 | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 缺失（L） | 部分（L） | 部分（L） | L：197/197 发布、全量 `check-structure.sh EXIT=0`、七门零违规；C/D 待补。 |
+| b118 公共排版 / 真悬浮底栏 | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 缺失（L） | 部分（L） | 部分（L） | L：197/197 发布、别名摘要刷新、`receipt-freshness` 零违规；C/D 待补。 |
+| b119 视口阶梯 / 页面身份 / 表格列 | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 缺失（L） | 部分（L） | 部分（L） | L：197/197 发布、九门零违规、Slint 定向单测；全量结构门有他人 feature-matrix 外债，C/D 待补。 |
+| b120 短窗口 dock / 页头 / 空带 | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 缺失（L） | 部分（L） | 部分（L） | L：197/197 发布、九门零违规与诚实别名；业务身份底层未分，C/D 待补。 |
+| b121 标题栏拖拽 / 卡片空带 | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 缺失（L） | 部分（L） | 部分（L） | L：197/197 发布、manifest 逐名对齐；C/D 待补。 |
+| b122 底栏保留带唯一化 | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 缺失（L） | 部分（L） | 部分（L） | L：197/197 发布、83 项离线门除他人外债外通过、376/376 nextest；`--workspace` nextest/clippy 与 rustdoc 未跑通。 |
+| b123 侧栏层级 / 事实值角色 / 触控高度 | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 缺失（L） | 部分（L） | 部分（L） | L：197/197 发布、四皮肤像素、376/376 nextest、viewport-tier planted 自测；C/D 与重型门待补。 |
+| b124 底栏空气带 / 滚动带唯一化 | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 缺失（L） | 部分（L） | 部分（L） | L：197/197 发布、376/376 nextest、多门零违规；用户旧裁图失效不作判据；C/D 与重型门待补。 |
+| b125 字体公共体系 | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 缺失（L） | 部分（L） | 部分（L） | L：197/197 发布、发布口径 31 roles、typed resolution、64 mixed → 0、`receipt-freshness=0`、identity 0；当前工作树复核为 25 个角色分支，数量差异、重复三元组与死 token 属 b126，C/D/提交证据待补。 |
+| b126 字体权威精简与细节共治 | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 缺失（L） | 部分（L） | 部分（L） | L：197/197 发布、897/897 定向 nextest、25 roles、生成器/排版/表面梯/视口/移动 chrome/隐式状态/新鲜度/身份全零违规；C/D、workspace 重型门与提交证据待补。 |
+| b127 空间 / 对齐 / 菜单栏共治 | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 缺失（L） | 部分（L） | 部分（L） | L：197/197 发布、897/897 定向 nextest、公共几何 token、服务数值完整、dock 字重统一、receipt/identity/专项守卫零违规；P0 空带与 sticky header 属底层未决，C/D、workspace 重型门与提交证据待补。 |
+| b128 底部菜单半透明悬浮 / 移动端无滚动条 / 青蛙hero闭环 | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 缺失（L） | 部分（L） | 部分（L） | L：197/197 发布、902/902 定向 nextest、毛玻璃浮动材质、无滚动条、青蛙512英雄按钮叠加闭环；C/D、workspace 重型门待补。 |
 
 ## 最近一批问答（2026-11-05 第一百一十交付批次：全仓统一公共字体/字号/字重跨四表面闭环落地）
 
@@ -111,7 +328,7 @@
 1. x86_64/aarch64：中性 pure-Rust 契约（`SidebarMaterialKind`、`SidebarMaterialSupport`、`SidebarMaterialSpec`）与 presentation 投影平台无关；受影响六包定向 nextest 2,241/2,241 全绿，无目标架构缺陷 → 部分（L）。
 2. Windows/Linux/macOS：Windows Mica/MicaAlt/Acrylic 构建号门禁（22000/22621/17134）判定，macOS Vibrancy 与 Linux WaylandBlur 宿主支持检测与无扩展时诚实回 `None`，不伪造系统材质；安装包与真机仍待外部环境腿 → 部分（L）。
 3. Android/iOS：Android 明确走静态 surface 不启用系统桌面材质；iOS 保持 Unsupported → 部分（L）。
-4. 各 UI：Iced 侧栏接入 `sidebar_background_color` 消费动态投影；Bevy `sync_sidebar_panel` 接入 `WindowCadenceState` 与材质投影；Slint 侧栏接入 `sidebar-background` 并在焦点变化/快照时投影；彻底落实 rem 唯一标尺（bevy_rem_guard 0 违规 0 debt，Slint 统一 * LumenUiScale.unit）→ 部分（L）。
+4. 各 UI：Iced 侧栏接入 `sidebar_background_color` 消费动态投影；Bevy `sync_sidebar_panel` 接入 `WindowCadenceState` 与材质投影；Slint 侧栏接入 `sidebar-background` 并在焦点变化/快照时投影；彻底落实 rem 唯一标尺（**第一百二十三批更正**：Slint 那条腿当时并没有真的消费材质投影——宿主把 `(0.09, 0.09, 0.11)` / `(0.95, 0.95, 0.96)` 两个不属于本表面层级表的字面量当作 wash 反复写入，forest/amoled 因此画成夜色侧栏，且每次焦点变化都重画一次。现已删除该投影入口与 `sidebar-background` 三跳管道，侧栏只问 `LumenTheme.zinc-*` 自己的层级；材质腿保持未接入：`reduce_transparency` 在 contract/application 里没有生产者、`detect_sidebar_material_support` 没有生产调用点，在该事实被底层裁决之前，任何表面都不得自行伪造，故此条对 Slint 的历史结论由「已接入」更正为「未接入（底层未决）」）（bevy_rem_guard 0 违规 0 debt，Slint 统一 * LumenUiScale.unit）→ 部分（L）。
 5. 复用：遵循底层先决与单一真源铁律：材质类型与降级规则在 contract 定义，透明度与 wash 投影在 presentation 定义，宿主检测在 desktop 定义，三端 UI 仅消费投影，零私有材质规则；FLPARITY-039（3 pt）全量闭环交付迁入过去佛 §12.66 → 部分（L）。
 6. 功能接入：FLPARITY-039（3 pt）从现在佛销账并在过去佛 §12.66 登记为 Integrated；现在佛 5 → 4 条 / 21 → 18 pt；过去佛 20 → 21 条 / 58 → 61 pt；全仓未办结 58 条 / 161 pt 保持不变，严格归档率 87.7%（1,152/1,313 pt）保持不变 → 部分（L）。
 7. 模块化：全仓文件行预算严格守卫（所有 Rust 文件 ≤800 行，Slint ≤600 行，Kotlin ≤800 行）；隐式状态机审计 23 项候选全量判决 0 undecided 0 open；bevy_rem_guard 0 违规 0 debt；slint-syntax-guard 100% PASS → 部分（L）。

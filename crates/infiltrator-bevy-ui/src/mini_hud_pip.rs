@@ -24,7 +24,7 @@ use bevy::ui_widgets::Activate;
 use infiltrator_bevy_widgets::windowing::{PipCorner, PipOverlaySession, WindowRegistry};
 
 /// Title carried by the PiP secondary window descriptor.
-pub const PIP_WINDOW_TITLE: &str = "MusicFrog PiP";
+pub const PIP_WINDOW_TITLE: &str = "Lurker PiP";
 
 /// Logical screen size the PiP overlay snaps within; a host may update it.
 #[derive(Resource, Clone, Copy, Debug, PartialEq)]

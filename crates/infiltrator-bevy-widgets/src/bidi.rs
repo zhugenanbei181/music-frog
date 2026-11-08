@@ -3,6 +3,7 @@
 use bevy::ecs::resource::Resource;
 use bevy::text::Justify;
 use bevy::ui::prelude::{AlignItems, FlexDirection, JustifyContent, UiRect};
+use zhuge_ui_core::easing::lerp;
 
 /// Inclusive `[min, max]` domain of the OpenType `wght` axis.
 pub const WEIGHT_AXIS: (f32, f32) = (100.0, 900.0);
@@ -140,7 +141,7 @@ impl Default for FontVariationAxes {
 
 /// Interpolate one axis and clamp the result into its OpenType domain.
 fn lerp_axis(from: f32, to: f32, t: f32, axis: (f32, f32)) -> f32 {
-    let blended = from + (to - from) * t.clamp(0.0, 1.0);
+    let blended = lerp(from, to, t.clamp(0.0, 1.0));
     blended.clamp(axis.0, axis.1)
 }
 

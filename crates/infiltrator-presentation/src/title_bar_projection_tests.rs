@@ -29,7 +29,7 @@ fn traffic_capsule_projection_clamps_negative_and_nan() {
 #[test]
 fn desktop_title_bar_projection_aligns_macos_and_windows() {
     let mac = project_desktop_title_bar(
-        "MusicFrog Infiltrator",
+        "Ice",
         0.0,
         0.0,
         false,
@@ -44,7 +44,7 @@ fn desktop_title_bar_projection_aligns_macos_and_windows() {
     assert!(!mac.snap_layout.is_supported());
 
     let win = project_desktop_title_bar(
-        "MusicFrog Infiltrator",
+        "Ice",
         1024.0,
         2048.0,
         true,

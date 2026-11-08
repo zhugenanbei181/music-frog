@@ -2,9 +2,30 @@ import { DesignType } from "./design-type.slint";
 import { IconButton, PopupMenu } from "@material";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "./theme.slint";
-import { NavButton, PillButton } from "./base_widgets.slint";
+import { NavButton, NavButtonMetrics, PillButton } from "./base_widgets.slint";
+import { ViewportTier } from "./viewport_tier.slint";
+import { PageTitles } from "./page_titles.slint";
+import { MobileDockBandState, MobileDockBandProjection } from "./mobile_dock_state.slint";
+
+// The reserved band's page ground. This is the window's own bottom background,
+// not a plinth or scrim: it paints no content, has no z-order and is mounted
+// below the floating pill. The page body clips scrolling content above this
+// band; any overlay that bypasses the scroll view still meets page ground
+// here instead of a transparent hole.
+export component MobileDockPageGround inherits Rectangle {
+    in property <length> window-width;
+    in property <length> window-height;
+    in property <length> safe-bottom;
+
+    width: root.window-width;
+    x: 0;
+    height: root.safe-bottom + LumenTheme.bottom-bar-band-height;
+    y: root.window-height - self.height;
+    background: LumenTheme.zinc-0;
+}
 
 export component AppBottomBar inherits Rectangle {
+    in property <MobileDockBandState> mobile-dock-band-state;
     in property <string> page;
     in property <length> window-width;
     in property <length> window-height;
@@ -15,62 +36,102 @@ export component AppBottomBar inherits Rectangle {
 
     callback select-page(string);
 
-    width: min(360 * LumenUiScale.unit, max(0 * LumenUiScale.unit, root.window-width - root.safe-left - root.safe-right - 64 * LumenUiScale.unit));
-    x: root.safe-left + (root.window-width - root.safe-left - root.safe-right - self.width) / 2;
-    y: root.window-height - root.safe-bottom - LumenTheme.navigation-height - LumenTheme.space-1;
-    height: LumenTheme.navigation-height;
-    border-width: 1 * LumenUiScale.unit;
-    border-color: LumenTheme.hairline-glow;
-    border-radius: LumenTheme.navigation-height / 2;
-    background: LumenTheme.is-dark ? #14171CE6 : #FFFFFFE6;
-    drop-shadow-blur: 16 * LumenUiScale.unit;
-    drop-shadow-offset-y: 4 * LumenUiScale.unit;
-    drop-shadow-color: LumenTheme.is-dark ? #00000099 : #00000028;
-    clip: true;
+    // The strip is the typed band and stays transparent: the pill is the floating
+    // dock geometry. `MobileDockPageGround` paints the page ground
+    // below this component; the page body clips its content at the same band's
+    // top edge.
+    width: root.window-width;
+    x: 0;
+    height: root.safe-bottom + LumenTheme.bottom-bar-band-height;
+    y: root.window-height - self.height;
+    background: transparent;
 
-    // The product's own theme-aware nav button: the material NavigationBar
-    // painted its light `surface_container` over the dark capsule, so the
-    // phone's bottom bar stayed white in the dark theme.
-    HorizontalLayout {
-        width: parent.width;
-        height: parent.height;
-        padding-left: 8 * LumenUiScale.unit;
-        padding-right: 8 * LumenUiScale.unit;
-        NavButton {
-            label: @tr("首页");
-            target: "Home";
-            active: root.page == "Home";
-            compact: true;
-            icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/layout-grid.svg");
-            active-icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/layout-grid.svg");
-            clicked => { root.select-page("Home"); }
-        }
-        NavButton {
-            label: @tr("代理");
-            target: "Proxy";
-            active: root.page == "Proxy";
-            compact: true;
-            icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/globe.svg");
-            active-icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/globe.svg");
-            clicked => { root.select-page("Proxy"); }
-        }
-        NavButton {
-            label: @tr("配置");
-            target: "Config";
-            active: root.page == "Config";
-            compact: true;
-            icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/file-text.svg");
-            active-icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/file-text.svg");
-            clicked => { root.select-page("Config"); }
-        }
-        NavButton {
-            label: @tr("设置");
-            target: "Settings";
-            active: root.page != "Home" && root.page != "Proxy" && root.page != "Config";
-            compact: true;
-            icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/settings.svg");
-            active-icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/settings.svg");
-            clicked => { root.select-page("Settings"); }
+    // One page margin on each side, and a hard ceiling so the bar never turns
+    // into a stretched pill on a tablet-width window.
+    private property <length> dock-width: min(LumenTheme.bottom-bar-max-width, max(0 * LumenUiScale.unit, root.window-width - root.safe-left - root.safe-right - 2 * LumenTheme.page-padding));
+    private property <length> dock-x: root.safe-left + (root.window-width - root.safe-left - root.safe-right - self.dock-width) / 2;
+    // The four equal tabs share the dock's content box. Keeping the geometry
+    // here lets the tab centers and the active pill derive from one width,
+    // without changing the band, top air or bottom inset.
+    private property <length> tab-width: (self.dock-width - 2 * LumenTheme.bottom-bar-padding) / 4;
+
+    dock := Rectangle {
+        x: root.dock-x;
+        width: root.dock-width;
+        height: LumenTheme.bottom-bar-height;
+        // The pill is bottom-anchored inside the band: the strip grew by the
+        // same air it now carries on top, so the pill itself does not move when
+        // the viewport is trimmed further.
+        y: LumenTheme.dock-top-air;
+        border-width: 1 * LumenUiScale.unit;
+        border-color: LumenTheme.dock-rim-color;
+        border-radius: self.height / 2;
+        // The floating glass veil. `LumenTheme.floating-surface` carries the
+        // contract's one alpha (`MobileDockMaterial::VEIL_ALPHA`), so the page
+        // ground reads through the capsule and the dock floats instead of
+        // covering. The scrolling viewport pre-reserves bottom space so no
+        // content ever needs to pass behind it: the transparency is a
+        // material decision, never a licence for content to slide under the
+        // tabs and turn into ghost lines.
+        background: LumenTheme.floating-surface;
+        // The shadow has to decay inside the dock's own bottom inset: a blur
+        // that reaches further than the inset is cut off by the window edge and
+        // reads as a hard dark band under the pill.
+        drop-shadow-blur: LumenTheme.dock-shadow-blur;
+        drop-shadow-offset-y: LumenTheme.dock-shadow-offset-y;
+        drop-shadow-color: LumenTheme.dock-shadow-color;
+        clip: true;
+
+        HorizontalLayout {
+            width: parent.width;
+            height: parent.height;
+            cross-axis-alignment: center;
+            padding-left: LumenTheme.bottom-bar-padding;
+            padding-right: LumenTheme.bottom-bar-padding;
+            NavButton {
+                width: root.tab-width;
+                horizontal-stretch: 0;
+                label: PageTitles.phone-title("Home");
+                target: "Home";
+                active: root.page == "Home";
+                compact: true;
+                icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/layout-grid.svg");
+                active-icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/layout-grid.svg");
+                clicked => { root.select-page("Home"); }
+            }
+            NavButton {
+                width: root.tab-width;
+                horizontal-stretch: 0;
+                label: PageTitles.phone-title("Proxy");
+                target: "Proxy";
+                active: root.page == "Proxy";
+                compact: true;
+                icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/globe.svg");
+                active-icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/globe.svg");
+                clicked => { root.select-page("Proxy"); }
+            }
+            NavButton {
+                width: root.tab-width;
+                horizontal-stretch: 0;
+                label: PageTitles.phone-title("Config");
+                target: "Config";
+                active: root.page == "Config";
+                compact: true;
+                icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/file-text.svg");
+                active-icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/file-text.svg");
+                clicked => { root.select-page("Config"); }
+            }
+            NavButton {
+                width: root.tab-width;
+                horizontal-stretch: 0;
+                label: PageTitles.phone-title("Settings");
+                target: "Settings";
+                active: root.page != "Home" && root.page != "Proxy" && root.page != "Config";
+                compact: true;
+                icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/settings.svg");
+                active-icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/settings.svg");
+                clicked => { root.select-page("Settings"); }
+            }
         }
     }
 }
@@ -159,8 +220,7 @@ export component NoticeBanner inherits Rectangle {
     in property <length> safe-top;
     in property <length> safe-bottom;
     in property <bool> compact-layout;
-    in property <bool> primary-page;
-    in property <bool> bottom-bar-visible;
+    in property <MobileDockBandState> mobile-dock-band-state;
 
     callback close();
 
@@ -169,7 +229,11 @@ export component NoticeBanner inherits Rectangle {
         : min(560 * LumenUiScale.unit, root.window-width - 48 * LumenUiScale.unit);
     x: root.safe-left + (root.window-width - root.safe-left - root.safe-right - self.width) / 2;
     height: notice-content.min-height;
-    y: max(root.safe-top, root.window-height - root.safe-bottom - self.height - (root.compact-layout && root.primary-page && root.bottom-bar-visible ? LumenTheme.navigation-height + 24 * LumenUiScale.unit : 16 * LumenUiScale.unit));
+    // The dock owns a band at the bottom of the window, so a toast clears the
+    // whole band plus one shared clearance instead of re-measuring the pill:
+    // with only one page-margin of offset a long notice landed on top of the
+    // dock and covered the page action row underneath it.
+    y: max(root.safe-top, root.window-height - root.safe-bottom - self.height - (MobileDockBandProjection.reserves_band(root.mobile-dock-band-state) ? LumenTheme.bottom-bar-band-height + LumenTheme.dock-toast-clearance : 16 * LumenUiScale.unit));
     z: 950;
     background: LumenTheme.surface;
     border-radius: 20 * LumenUiScale.unit;
@@ -332,7 +396,7 @@ export component ProxySortMenu inherits PopupMenu {
 
 component WindowControlButton inherits Rectangle {
     in property <bool> danger: false;
-    out property <bool> has-hover: button-touch.has-hover;
+    out property <bool> has-hover: (button-touch.has-hover && LumenTheme.hover-allowed);
     callback clicked();
     width: 46 * LumenUiScale.unit;
     height: 100%;
@@ -341,7 +405,7 @@ component WindowControlButton inherits Rectangle {
         height: parent.height;
         clicked => { root.clicked(); }
     }
-    background: button-touch.has-hover
+    background: (button-touch.has-hover && LumenTheme.hover-allowed)
         ? (root.danger ? #E81123 : LumenTheme.zinc-4)
         : transparent;
     animate background { duration: 120ms; easing: ease-out; }
@@ -364,45 +428,69 @@ export component DesktopTitleBar inherits Rectangle {
     background: LumenTheme.zinc-1;
     clip: true;
 
-    TouchArea {
-        x: 0;
-        y: 0;
-        width: max(0 * LumenUiScale.unit, parent.width - 140 * LumenUiScale.unit);
-        height: parent.height;
-        double-clicked => { root.window-toggle-maximize(); }
-    }
-
     Text {
-        x: 14 * LumenUiScale.unit;
+        x: LumenTheme.rail-inset;
         y: 0 * LumenUiScale.unit;
         height: parent.height;
-        text: @tr("MusicFrog Infiltrator");
+        text: @tr("Lumen");
         color: LumenTheme.text-secondary;
         font-size: DesignType.caption-size;
+        font-weight: DesignType.caption-weight;
+        font-family: DesignType.caption-family;
         vertical-alignment: center;
     }
 
-    if root.has-traffic-capsule && root.width > 600 * LumenUiScale.unit: Rectangle {
+    if root.has-traffic-capsule && LumenTheme.viewport-tier != ViewportTier.phone: Rectangle {
         x: max(160 * LumenUiScale.unit, parent.width - title-buttons.width - search-btn.width - self.width - 16 * LumenUiScale.unit);
         y: (parent.height - self.height) / 2;
         width: traffic-layout.min-width + 16 * LumenUiScale.unit;
-        height: 24 * LumenUiScale.unit;
-        border-radius: 12 * LumenUiScale.unit;
-        background: LumenTheme.surface;
+        height: 26 * LumenUiScale.unit;
+        border-radius: 13 * LumenUiScale.unit;
+        background: LumenTheme.zinc-3;
         border-width: 1 * LumenUiScale.unit;
-        border-color: LumenTheme.border;
+        border-color: LumenTheme.hairline-glow;
 
         traffic-layout := HorizontalLayout {
-            padding-left: 8 * LumenUiScale.unit;
-            padding-right: 8 * LumenUiScale.unit;
-            spacing: 6 * LumenUiScale.unit;
+            padding-left: 10 * LumenUiScale.unit;
+            padding-right: 10 * LumenUiScale.unit;
+            spacing: 8 * LumenUiScale.unit;
             cross-axis-alignment: center;
 
-            Text {
-                text: "↑ " + root.upload-rate + "  ↓ " + root.download-rate;
-                color: LumenTheme.text-secondary;
-                font-size: DesignType.micro-size;
-                vertical-alignment: center;
+            HorizontalLayout {
+                spacing: 3 * LumenUiScale.unit;
+                cross-axis-alignment: center;
+                Text {
+                    text: "↑";
+                    color: LumenTheme.status-info;
+                    font-size: DesignType.tag-size;
+                    font-weight: DesignType.tag-weight;
+                    vertical-alignment: center;
+                }
+                Text {
+                    text: root.upload-rate;
+                    color: LumenTheme.text-primary;
+                    font-size: DesignType.monoMicro-size;
+                    font-family: DesignType.monoMicro-family;
+                    vertical-alignment: center;
+                }
+            }
+            HorizontalLayout {
+                spacing: 3 * LumenUiScale.unit;
+                cross-axis-alignment: center;
+                Text {
+                    text: "↓";
+                    color: LumenTheme.accent;
+                    font-size: DesignType.tag-size;
+                    font-weight: DesignType.tag-weight;
+                    vertical-alignment: center;
+                }
+                Text {
+                    text: root.download-rate;
+                    color: LumenTheme.text-primary;
+                    font-size: DesignType.monoMicro-size;
+                    font-family: DesignType.monoMicro-family;
+                    vertical-alignment: center;
+                }
             }
         }
     }
@@ -411,29 +499,59 @@ export component DesktopTitleBar inherits Rectangle {
         x: parent.width - title-buttons.width - self.width - 8 * LumenUiScale.unit;
         y: (parent.height - self.height) / 2;
         width: search-layout.min-width + 16 * LumenUiScale.unit;
-        visible: root.width > 480 * LumenUiScale.unit;
-        height: 24 * LumenUiScale.unit;
+        visible: LumenTheme.viewport-tier != ViewportTier.phone;
+        height: 26 * LumenUiScale.unit;
         border-radius: 6 * LumenUiScale.unit;
-        background: search-touch.has-hover ? LumenTheme.zinc-3 : transparent;
+        background: (search-touch.has-hover && LumenTheme.hover-allowed) ? LumenTheme.zinc-4 : LumenTheme.zinc-3;
+        border-width: 1 * LumenUiScale.unit;
+        border-color: LumenTheme.hairline-glow;
         animate background { duration: 120ms; easing: ease-out; }
 
         search-touch := TouchArea {
             width: parent.width;
             height: parent.height;
+            mouse-cursor: pointer;
             clicked => { root.search-clicked(); }
         }
 
         search-layout := HorizontalLayout {
             padding-left: 8 * LumenUiScale.unit;
             padding-right: 8 * LumenUiScale.unit;
-            spacing: 4 * LumenUiScale.unit;
+            spacing: 6 * LumenUiScale.unit;
             cross-axis-alignment: center;
 
+            Image {
+                source: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/search.svg");
+                width: 12 * LumenUiScale.unit;
+                height: 12 * LumenUiScale.unit;
+                image-fit: contain;
+                colorize: LumenTheme.text-muted;
+                vertical-alignment: center;
+            }
+
             Text {
-                text: @tr("搜索 (Ctrl+K)");
+                text: @tr("搜索");
                 color: LumenTheme.text-secondary;
                 font-size: DesignType.micro-size;
+                font-weight: DesignType.micro-weight;
+                font-family: DesignType.micro-family;
                 vertical-alignment: center;
+            }
+
+            Rectangle {
+                border-radius: 3 * LumenUiScale.unit;
+                background: LumenTheme.zinc-4;
+                height: 16 * LumenUiScale.unit;
+                width: kbd-text.preferred-width + 8 * LumenUiScale.unit;
+                kbd-text := Text {
+                    text: "Ctrl+K";
+                    color: LumenTheme.text-muted;
+                    font-size: DesignType.monoTag-size;
+                    font-family: DesignType.monoTag-family;
+                    font-weight: DesignType.monoTag-weight;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
             }
         }
     }
@@ -500,18 +618,22 @@ export component DesktopTitleBar inherits Rectangle {
                 viewbox-width: 10;
                 viewbox-height: 10;
                 commands: "M 0 0 L 10 10 M 10 0 L 0 10";
-                stroke: close-btn.has-hover ? #FFFFFF : LumenTheme.text-secondary;
+                stroke: (close-btn.has-hover && LumenTheme.hover-allowed) ? #FFFFFF : LumenTheme.text-secondary;
                 stroke-width: LumenTheme.hairline-width;
             }
         }
     }
 
-    // The drag region fills the rest of the bar; declared last so the
-    // buttons above stay interactive (their TouchArea wins the hit test).
+    // ONE drag region, ending exactly where the first interactive control
+    // begins. A second raw TouchArea used to cover the traffic capsule and
+    // the left 127px of the search button with a different (double-click
+    // only) behaviour, and the two regions disagreed about x=896..1039.
+    // WindowMoveArea already owns drag + native double-click maximize.
     WindowMoveArea {
         x: 0 * LumenUiScale.unit;
         y: 0 * LumenUiScale.unit;
-        width: max(0 * LumenUiScale.unit, parent.width - title-buttons.width - search-btn.width - 24 * LumenUiScale.unit);
+        width: max(0 * LumenUiScale.unit,
+            search-btn.visible ? search-btn.x : title-buttons.x);
         height: parent.height;
     }
 }

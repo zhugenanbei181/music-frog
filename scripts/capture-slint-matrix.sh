@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Capture the Infiltrator Slint frontend demo screenshot matrix in one fully
+# Capture the Lumen Slint frontend demo screenshot matrix in one fully
 # backgrounded compositor stack (native slint render evidence — the slint
 # sibling of capture-iced-matrix.sh and capture-bevy-matrix.sh).
 #
@@ -33,7 +33,7 @@ if [ "$#" -gt 1 ]; then
 fi
 
 APP_ID="infiltrator-slint"
-APP_TITLE="MusicFrog Infiltrator"
+APP_TITLE="Lumen"
 SLINT_CAPTURE_PROFILE="${SLINT_CAPTURE_PROFILE:-debug}"
 case "$SLINT_CAPTURE_PROFILE" in
   debug|release) ;;
@@ -44,7 +44,8 @@ case "$SLINT_CAPTURE_PROFILE" in
     ;;
 esac
 APP="${CARGO_TARGET_DIR:-$REPO/target}/$SLINT_CAPTURE_PROFILE/infiltrator-slint"
-MATRIX_SRC="${INFILTRATOR_CAPTURE_MATRIX:-$REPO/scripts/capture_slint_scenarios.tsv}"
+CANONICAL_MATRIX="$REPO/scripts/capture_slint_scenarios.tsv"
+MATRIX_SRC="${INFILTRATOR_CAPTURE_MATRIX:-$CANONICAL_MATRIX}"
 OUT_DIR="${INFILTRATOR_CAPTURE_OUT_DIR:-$REPO/crates/infiltrator-slint/docs/screenshots}"
 MANIFEST_PUBLISHED="$OUT_DIR/manifest.tsv"
 EVIDENCE_ROOT="$REPO/.evidence/captures/slint"
@@ -59,7 +60,7 @@ RUN_ID="${RUN_STAMP}_${GIT_HEAD}_${WORKTREE_STATE}_$$"
 RUN_DIR="$EVIDENCE_ROOT/$RUN_ID"
 # The capture build defaults to the offline-safe feature set; a receipt run
 # that must prove the Skia channel passes SLINT_CAPTURE_FEATURES=gpu-skia,capture-tools.
-SLINT_CAPTURE_FEATURES="${SLINT_CAPTURE_FEATURES:-capture-tools}"
+SLINT_CAPTURE_FEATURES="${SLINT_CAPTURE_FEATURES:-gpu-skia,capture-tools}"
 # Optional SLINT_DEBUG_PERFORMANCE payload (e.g. refresh_lazy,console) recorded
 # into each scenario's app.log for frame-rate receipts.
 SLINT_CAPTURE_PERF="${SLINT_CAPTURE_PERF:-}"
@@ -252,9 +253,10 @@ SCENARIO_COUNT="$(awk -F '\t' 'NR > 1 && $1 != "" { count += 1 } END { print cou
   printf 'capture matrix is empty: %s\n' "$MATRIX" >&2
   exit 2
 }
-awk -F '\t' 'NR > 1 && $1 != "" { print $1 }' "$MATRIX" | while IFS= read -r name; do
-  rm -f "$OUT_DIR/$name.png"
-done
+# Nothing in the published tree is deleted up front. An interrupted or failing
+# run must never destroy the corpus it was only trying to refresh: the batch
+# publishes images, then its index, then sweeps the pixels the batch did not
+# produce. A filtered run is diagnostic and never touches the published tree.
 
 # Build
 SOURCE_FINGERPRINT="$(python3 scripts/parity/visual_receipts.py --fingerprint)"
@@ -319,7 +321,7 @@ layout {
 }
 window-rule {
     match app-id="$APP_ID"
-    match title="^MusicFrog Infiltrator\$"
+    match title="^Lumen\$"
     open-floating true
 }
 KDL
@@ -428,7 +430,7 @@ done
 printf 'compositor: ready (wayland=%s ipc=%s)\n' "$NIRI_SOCK" "$NIRI_IPC"
 
 capture_one() {
-  local name="$1" page="$2" skin="$3" window_size="$4"
+  local name="$1" page="$2" skin="$3" window_size="$4" scroll="${5:-}" mascot_frame="${6:-}" mascot_millis="${7:-}"
   local interaction=""
   case "$name" in
     *-standard) interaction="${name%-standard}" ;;
@@ -482,6 +484,9 @@ capture_one() {
       INFILTRATOR_SCENARIO="$interaction" \
       INFILTRATOR_SKIN="$skin" \
       INFILTRATOR_WINDOW_SIZE="$window_size" \
+      INFILTRATOR_SCROLL="$scroll" \
+      INFILTRATOR_MASCOT_FRAME="$mascot_frame" \
+      INFILTRATOR_MASCOT_MILLIS="$mascot_millis" \
       INFILTRATOR_CAPTURE_MARKER="$marker" \
       setsid "$APP" --demo >"$log" 2>&1 &
     APP_PID=$!
@@ -588,7 +593,6 @@ capture_one() {
   fi
 
   if [ "$action_status" = ok ]; then
-    install -m 644 "$image" "$OUT_DIR/$name.png"
     printf '  pass  %-22s %sx%s %s B\n' "$name" "$width" "$height" "$bytes"
   else
     printf '  FAIL  %-22s %s (app log: %s)\n' "$name" "$action_status" "$log" >&2
@@ -618,16 +622,74 @@ capture_one() {
 : >"$RUN_DIR/capture-markers.log"
 FAILURES=0
 FAILED_NAMES=""
-while IFS=$'\t' read -r name page skin window_size; do
+# IFS whitespace collapses consecutive tabs, which silently shifts every
+# column after an empty field (the mascot frame landed in `scroll` and no
+# notes were ever published). awk replaces empty fields with a placeholder so
+# the read always sees exactly seven fields.
+while IFS=$'\t' read -r name page skin window_size scroll mascot_frame mascot_millis; do
   [ "$name" = name ] && continue
+  [ "$scroll" = "-" ] && scroll=""
+  [ "$mascot_frame" = "-" ] && mascot_frame=""
+  [ "$mascot_millis" = "-" ] && mascot_millis=""
   [ -n "$name" ] || continue
-  if ! capture_one "$name" "$page" "$skin" "$window_size"; then
+  if ! capture_one "$name" "$page" "$skin" "$window_size" "$scroll" "$mascot_frame" "$mascot_millis"; then
     FAILURES=$((FAILURES + 1))
     FAILED_NAMES="$FAILED_NAMES $name"
   fi
-done <"$MATRIX"
+done < <(awk -F '\t' 'BEGIN { OFS="\t" } { for (i = 1; i <= NF; i++) if ($i == "") $i = "-"; print }' "$MATRIX")
 
+if [ -n "$SCENARIO_FILTER" ]; then
+  printf 'diagnostic run: %d scenario(s) captured under %s; the published corpus and its index are untouched\n' \
+    "$SCENARIO_COUNT" "$RUN_DIR"
+  ELAPSED=$(( $(date +%s) - START_EPOCH ))
+  if [ "$FAILURES" -ne 0 ]; then
+    printf 'CAPTURE MATRIX FAILED: %d/%d scenario(s) failed:%s\n' \
+      "$FAILURES" "$SCENARIO_COUNT" "$FAILED_NAMES" >&2
+    exit 1
+  fi
+  printf 'CAPTURE DIAGNOSTIC PASS: %d scenario(s) in %ds\n' "$SCENARIO_COUNT" "$ELAPSED"
+  exit 0
+fi
+
+# A matrix OVERRIDE is a diagnostic too, even when no scenario name was
+# filtered: the run then covers a different set of scenarios than the
+# published corpus, so publishing it would sweep away every receipt the
+# batch did not produce. This used to publish the override, and the
+# stale-pixel sweep then deleted 192 valid receipts of the previous full
+# batch. Only the canonical matrix may publish.
+if [ "$MATRIX_SRC" != "$CANONICAL_MATRIX" ]; then
+  printf 'diagnostic run: %d scenario(s) captured under %s; the published corpus and its index are untouched\n' \
+    "$SCENARIO_COUNT" "$RUN_DIR"
+  ELAPSED=$(( $(date +%s) - START_EPOCH ))
+  if [ "$FAILURES" -ne 0 ]; then
+    printf 'CAPTURE MATRIX FAILED: %d/%d scenario(s) failed:%s\n' \
+      "$FAILURES" "$SCENARIO_COUNT" "$FAILED_NAMES" >&2
+    exit 1
+  fi
+  printf 'CAPTURE DIAGNOSTIC PASS: %d scenario(s) in %ds\n' "$SCENARIO_COUNT" "$ELAPSED"
+  exit 0
+fi
+
+# Publication is a batch: images first, then the index they belong to, then the
+# stale-pixel sweep. A published screenshot is only as fresh as the run that
+# produced it, so every PNG this batch did not publish is deleted at once and
+# old pixels can never be cited.
+while IFS= read -r name; do
+  [ -s "$RUN_DIR/$name/image.png" ] || fail_hard "ok scenario has no image to publish: $name"
+  install -m 644 "$RUN_DIR/$name/image.png" "$OUT_DIR/$name.png"
+done < <(awk -F '\t' 'NR > 1 && $11 == "ok" { print $1 }' "$MANIFEST")
 install -m 644 "$MANIFEST" "$MANIFEST_PUBLISHED"
+python3 - "$OUT_DIR" "$MANIFEST" <<'PY'
+import csv, pathlib, sys
+out = pathlib.Path(sys.argv[1])
+manifest = pathlib.Path(sys.argv[2])
+with manifest.open(encoding="utf-8", newline="") as handle:
+    current = {row["scenario"] for row in csv.DictReader(handle, delimiter="	") if row.get("status") == "ok"}
+for image in out.glob("*.png"):
+    if image.stem not in current:
+        image.unlink()
+        print(f"removed stale screenshot: {image.name}")
+PY
 ELAPSED=$(( $(date +%s) - START_EPOCH ))
 if [ "$FAILURES" -ne 0 ]; then
   printf 'CAPTURE MATRIX FAILED: %d/%d scenario(s) failed:%s\n' \

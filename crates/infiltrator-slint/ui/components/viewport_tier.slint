@@ -1,0 +1,26 @@
+// The layout tier of the current window.
+//
+// Six width comparisons used to answer four different questions - "is this a
+// phone", "is this window tight", "how many node columns fit" and "does the
+// title bar still have room for the traffic capsule" - and each carried its
+// own number: 480, 600, 640, 760, 800 and 1120. Two of them sat inside the
+// desktop title bar, which only exists above the compact threshold, so they
+// could never be false; the rest disagreed with each other by up to 200
+// units about where a phone stops being a phone, and every page was free to
+// answer the question a sixth way.
+//
+// One ladder owns the boundaries now, and every consumer asks the ladder
+// instead of measuring the window itself. A tier is a single enum variant:
+// no consumer can combine two width comparisons into a second, hidden stage
+// table, and a new viewport can only be introduced by adding a variant here.
+export enum ViewportTier {
+    // A phone: one column, the bottom dock, no rail.
+    phone,
+    // A narrow desktop window: the rail survives, but the card metrics
+    // tighten and the node grid stays two columns wide.
+    compact,
+    // A normal desktop window.
+    medium,
+    // A wide desktop window: the widest tables and the densest grids.
+    wide,
+}

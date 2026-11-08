@@ -16,6 +16,7 @@ use infiltrator_domain::script_engine::ScriptEngine;
 use infiltrator_presentation::script_console_projection;
 use infiltrator_presentation::script_export_projection;
 use infiltrator_presentation::snapshot_presentation::{diff_summary, history_summary};
+use infiltrator_presentation::snapshot_restore_projection;
 use infiltrator_shared::locales::Lang;
 use lurker_ui_presentation::copy::TextCatalog;
 
@@ -112,7 +113,7 @@ pub(super) fn page(
     }
     items.push(button(
         "script-export-prepare",
-        &catalog.text("script_export_review_instructions"),
+        &catalog.text("script_export_review_action"),
         SCRIPT_EXPORT_PREPARE,
         !script.is_export_visible(),
     ));
@@ -181,6 +182,10 @@ pub(super) fn page(
         &history_summary(history, history.map(|h| h.keep_limit).unwrap_or(5), catalog),
         Tone::Neutral,
     ));
+    items.push(text(
+        "snapshot-restore-status",
+        &snapshot_restore_projection::project_restore(&restore, catalog).status,
+    ));
     if let Some(history) = history {
         for entry in history.entries.iter().take(32) {
             items.push(row(
@@ -196,13 +201,13 @@ pub(super) fn page(
     }
     items.push(button(
         "snapshot-restore-prepare",
-        &catalog.text("snapshot_restore_ready"),
+        &catalog.text("snapshot_restore_review_action"),
         RESTORE_PREPARE,
         history.is_some_and(|history| !history.entries.is_empty()),
     ));
     items.push(button(
         "snapshot-restore-confirm",
-        &catalog.text("common_save_apply"),
+        &catalog.text("snapshot_restore_confirm"),
         RESTORE_CONFIRM,
         restore.can_confirm(),
     ));

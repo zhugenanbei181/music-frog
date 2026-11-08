@@ -2,7 +2,7 @@
 
 > 层级：L3
 
-MusicFrog 的 Iced 桌面产品。负责路由、视图、输入、托盘呈现和 UI 状态机，通过桌面组合根消费共享 application。
+Ice：Iced 桌面产品。负责路由、视图、输入、托盘呈现和 UI 状态机，通过桌面组合根消费共享 application。
 
 通用徽标、card style 和富文本来自 `zhuge-ui-kit-iced`；纯文本投影与
 固定行高窗口算法归 `zhuge-ui-core`。两者同属共享仓库 `libs/zhuge-ui-kit`。

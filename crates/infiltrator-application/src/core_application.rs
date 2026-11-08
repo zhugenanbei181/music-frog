@@ -571,6 +571,7 @@ impl CoreApplication {
             mirror.revision,
             self.watchdog_snapshot(),
             self.current_core_identity(),
+            runtime_projection::current_epoch_ms(),
         )
     }
 
@@ -625,8 +626,11 @@ impl CoreApplication {
         }
 
         self.clear_active_core_version();
-        let session_token = self.allocate_session_token();
-        self.apply_domain_event(core_state::CoreEvent::StartRequested { session_token });
+        let (session_token, started_at_epoch_ms) = self.allocate_session();
+        self.apply_domain_event(core_state::CoreEvent::StartRequested {
+            session_token,
+            started_at_epoch_ms,
+        });
         match self
             .wait_for_readiness(session_token, self.inner.readiness_policy.timeout)
             .await
@@ -663,6 +667,19 @@ impl CoreApplication {
         SessionToken::new((u128::from(self.inner.session_namespace) << 64) | u128::from(sequence))
     }
 
+    /// Start a new Core session.
+    ///
+    /// The owner stamps the session start here, once, and the domain state
+    /// carries it with the session token through every later transition.
+    /// Nothing downstream has to infer a session start from a lifecycle
+    /// stage or from a clock of its own.
+    fn allocate_session(&self) -> (SessionToken, u64) {
+        (
+            self.allocate_session_token(),
+            runtime_projection::current_epoch_ms(),
+        )
+    }
+
     fn current_state(&self) -> CoreState {
         self.inner
             .state
@@ -686,6 +703,7 @@ impl CoreApplication {
                 mirror.revision,
                 self.watchdog_snapshot(),
                 self.current_core_identity(),
+                runtime_projection::current_epoch_ms(),
             )
         };
         self.inner.logs.observe_core(&snapshot);

@@ -6,6 +6,7 @@ use crate::state::AppState;
 use crate::types::message::Message;
 use crate::view::runtime::traffic_legend::legend_indicator;
 use infiltrator_shared::byte_units::format_bytes;
+use zhuge_ui_core::curve::catmull_rom_windows;
 
 use crate::view::component_card::card;
 use crate::view::component_forms::row_card_surface;
@@ -766,15 +767,11 @@ fn add_smooth_curves(builder: &mut Builder, points: &[Point]) {
         return;
     }
     let n = points.len();
-    for i in 0..n - 1 {
-        let p0 = if i == 0 { points[0] } else { points[i - 1] };
-        let p1 = points[i];
-        let p2 = points[i + 1];
-        let p3 = if i + 2 < n {
-            points[i + 2]
-        } else {
-            points[i + 1]
-        };
+    for window in catmull_rom_windows(n) {
+        let p0 = points[window.previous];
+        let p1 = points[window.start];
+        let p2 = points[window.end];
+        let p3 = points[window.next];
 
         let cp1 = Point::new(p1.x + (p2.x - p0.x) / 6.0, p1.y + (p2.y - p0.y) / 6.0);
         let cp2 = Point::new(p2.x - (p3.x - p1.x) / 6.0, p2.y - (p3.y - p1.y) / 6.0);

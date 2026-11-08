@@ -192,7 +192,7 @@ def main() -> int:
     try:
         props = check.item_props()
         ok = (str(props.get("Id")) == "MusicFrogInfiltrator"
-              and str(props.get("Title")) == "MusicFrog Infiltrator"
+              and str(props.get("Title")) == "Ice"
               and str(props.get("Menu")) == MENU_PATH
               and bool(str(props.get("Status"))))
         check.record(ok, "item_props",

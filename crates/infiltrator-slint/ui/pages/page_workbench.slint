@@ -15,12 +15,17 @@ component WorkbenchPanelCard inherits Rectangle {
 
     width: 100%;
     vertical-stretch: 0;
+    // The card is the sum of its own rows. Without this the host layout
+    // stretched it to a neighbouring card's height and left a measured 36px
+    // (30% of the card) empty band between the last fact and the action row.
+    min-height: panel-content.min-height;
+    preferred-height: panel-content.min-height;
     border-radius: LumenTheme.radius-card;
     background: LumenTheme.surface;
     border-width: 1 * LumenUiScale.unit;
     border-color: LumenTheme.border;
 
-    VerticalLayout {
+    panel-content := VerticalLayout {
         alignment: start;
         spacing: 0;
         padding-left: 18 * LumenUiScale.unit;

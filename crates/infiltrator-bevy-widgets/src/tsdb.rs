@@ -1,6 +1,10 @@
 //! Micro embedded time-series telemetry storage and time-travel replay scrubber.
 
 use std::collections::VecDeque;
+use zhuge_ui_core::value::interval_fraction;
+
+// A window with no time to scrub is already at its newest instant.
+const FLAT_WINDOW_AT_NEWEST_INSTANT: f32 = 1.0;
 
 /// A single telemetry sample point.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -135,14 +139,15 @@ impl TimeTravelScrubber {
         self.current_timestamp = self.min_timestamp + (range as f64 * f as f64) as u64;
     }
 
+    /// How far the playhead sits into the captured window, as `0.0..=1.0`.
+    ///
+    /// A window with no time to scrub is already at its newest instant, which is
+    /// the answer this surface declares; the division and the clamp belong to the
+    /// shared projection.
     pub fn fraction(&self) -> f32 {
-        let range = self.max_timestamp.saturating_sub(self.min_timestamp);
-        if range == 0 {
-            1.0
-        } else {
-            (self.current_timestamp.saturating_sub(self.min_timestamp) as f32 / range as f32)
-                .clamp(0.0, 1.0)
-        }
+        let offset = self.current_timestamp.saturating_sub(self.min_timestamp) as f32;
+        let travel = self.max_timestamp.saturating_sub(self.min_timestamp) as f32;
+        interval_fraction(offset, 0.0_f32, travel, FLAT_WINDOW_AT_NEWEST_INSTANT)
     }
 }
 

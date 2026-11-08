@@ -76,6 +76,7 @@ impl CoreApplication {
                 mirror.revision,
                 watchdog,
                 self.current_core_identity(),
+                runtime_projection::current_epoch_ms(),
             )
         };
         self.push_event(super::CoreEvent::SnapshotUpdated(snapshot));

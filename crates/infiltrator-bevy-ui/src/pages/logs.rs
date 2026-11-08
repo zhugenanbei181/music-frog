@@ -60,6 +60,7 @@ use infiltrator_contract::fixture_identities::{HK_PRIMARY, PROXIES, US};
 use infiltrator_contract::logs::LogLevel;
 use lurker_core_contract::page::PageStatus;
 use lurker_core_contract::session::SessionToken;
+use zhuge_ui_core::easing::lerp;
 
 /// Root marker on the Logs page scene.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
@@ -527,8 +528,11 @@ fn advance_append_pulse(
             } else {
                 StreamAppendPulse::Fading { remaining: next }
             };
-            STREAM_APPEND_REST_ALPHA
-                + (STREAM_APPEND_FLASH_ALPHA - STREAM_APPEND_REST_ALPHA) * progress
+            lerp(
+                STREAM_APPEND_REST_ALPHA,
+                STREAM_APPEND_FLASH_ALPHA,
+                progress,
+            )
         }
     };
     for mut indicator in &mut indicators {

@@ -1,0 +1,66 @@
+import { DesignType, TextRole } from "../components/design-type.slint";
+import { FactAlignment, FactCell } from "../components/models.slint";
+import { LayoutTokens } from "../components/layout-tokens.slint";
+import { LumenTheme } from "../components/theme.slint";
+import { LumenUiScale } from "../lumen-ui-scale.slint";
+
+// One fact cell: the label above the value, both anchored to the same edge of
+// the cell's column.
+//
+// Every fact value in a row uses one type role. Two values in different
+// families sit on different baselines no matter how their boxes are laid out,
+// so the row cannot mix a tabular value with a proportional one.
+export component HomeHeroFactCell inherits Rectangle {
+    in property <FactCell> cell;
+    in property <string> label;
+
+    VerticalLayout {
+        spacing: 2 * LumenUiScale.unit;
+        Text {
+            text: root.label;
+            color: LumenTheme.text-muted;
+            font-size: DesignType.tag-size;
+            font-weight: DesignType.tag-weight;
+            font-family: DesignType.tag-family;
+            horizontal-alignment: root.cell.alignment == FactAlignment.end ? right : left;
+        }
+        Text {
+            text: root.cell.value;
+            // An unobserved fact is dimmed instead of dressed up as a value.
+            color: root.cell.observed ? LumenTheme.text-primary : LumenTheme.text-muted;
+            font-size: DesignType.size(TextRole.factNamed);
+            font-weight: DesignType.weight(TextRole.factNamed);
+            font-family: DesignType.family(TextRole.factNamed);
+            horizontal-alignment: root.cell.alignment == FactAlignment.end ? right : left;
+            overflow: elide;
+        }
+    }
+}
+
+// The hero card's bottom fact row, shared by the phone card and the desktop
+// card.
+//
+// This component is the row's only owner: the labels, the column fractions,
+// the type roles, the alignment and the unobserved marker all live here. The
+// two surfaces used to keep their own copy of the same eight lines, and the
+// copies had already drifted - one of them printed a fabricated "00:00:00"
+// for a duration no owner had published, the other printed a dash, and the
+// two values used different type roles so their baselines never met.
+export component HomeHeroFactRow inherits Rectangle {
+    in property <FactCell> uptime-cell;
+    in property <FactCell> organization-cell;
+
+    HorizontalLayout {
+        spacing: 0 * LumenUiScale.unit;
+        HomeHeroFactCell {
+            cell: root.uptime-cell;
+            label: @tr("运行时长");
+            horizontal-stretch: LayoutTokens.hero-fact-column-1;
+        }
+        HomeHeroFactCell {
+            cell: root.organization-cell;
+            label: @tr("组织");
+            horizontal-stretch: LayoutTokens.hero-fact-column-2;
+        }
+    }
+}

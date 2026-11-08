@@ -35,8 +35,8 @@ export component PageEditor inherits VerticalLayout {
             if item.id == "script-sandbox-output": Text {
                 text: item.detail;
                 color: LumenTheme.text-primary;
-                font-size: DesignType.caption-size;
-                font-family: DesignType.mono-family;
+                font-size: DesignType.monoCaption-size;
+                font-family: DesignType.monoCaption-family;
                 wrap: word-wrap;
             }
             if item.id == "script-sandbox-error": Rectangle {
@@ -72,8 +72,8 @@ export component PageEditor inherits VerticalLayout {
                 if item.id.starts-with("script-sandbox/"): Text {
                     text: item.title;
                     color: LumenTheme.text-secondary;
-                    font-size: DesignType.caption-size;
-                    font-family: DesignType.mono-family;
+                    font-size: DesignType.monoCaption-size;
+                    font-family: DesignType.monoCaption-family;
                     wrap: word-wrap;
                 }
             }
@@ -210,8 +210,8 @@ export component PageEditor inherits VerticalLayout {
                 if item.id.starts-with("config-diff/"): Text {
                     text: item.title;
                     color: LumenTheme.text-secondary;
-                    font-size: DesignType.caption-size;
-                    font-family: DesignType.mono-family;
+                    font-size: DesignType.monoCaption-size;
+                    font-family: DesignType.monoCaption-family;
                     wrap: word-wrap;
                 }
             }
@@ -237,7 +237,7 @@ export component PageEditor inherits VerticalLayout {
         }
     }
 
-    // 5. Script export review & snapshot restoration
+    // 5. Script export review: one business, one card, one action bar.
     WorkbenchCard {
         for item in root.items: VerticalLayout {
             if item.id == "script-export": ItemHeader { item: item; }
@@ -245,11 +245,39 @@ export component PageEditor inherits VerticalLayout {
             if item.id == "script-export-content": Text {
                 text: item.detail;
                 color: LumenTheme.text-primary;
-                font-size: DesignType.caption-size;
-                font-family: DesignType.mono-family;
+                font-size: DesignType.monoCaption-size;
+                font-family: DesignType.monoCaption-family;
                 wrap: word-wrap;
             }
+        }
+
+        Rectangle { height: 12 * LumenUiScale.unit; }
+
+        HorizontalLayout {
+            spacing: 0;
+            alignment: end;
+
+            for item in root.items: HorizontalLayout {
+                if item.id == "script-export-prepare" || item.id == "script-export-save" || item.id == "script-export-cancel": Rectangle {
+                    width: 10 * LumenUiScale.unit;
+                }
+                if item.id == "script-export-prepare" || item.id == "script-export-save" || item.id == "script-export-cancel": WorkbenchButton {
+                    text: item.label;
+                    enabled: item.enabled;
+                    danger: item.tone == "danger";
+                    primary: item.id == "script-export-save";
+                    clicked => { root.action(item.action-id, ""); }
+                }
+            }
+        }
+    }
+
+    // 6. Snapshot restoration review: its own card and its own action bar,
+    // so the two businesses never share one non-wrapping row.
+    WorkbenchCard {
+        for item in root.items: VerticalLayout {
             if item.id == "snapshot-restore": ItemHeader { item: item; }
+            if item.id == "snapshot-restore-status": ItemText { item: item; }
             if item.id == "snapshot-restore-error": Rectangle {
                 border-radius: LumenTheme.radius-control;
                 background: LumenTheme.error.with_alpha(15%);
@@ -293,16 +321,14 @@ export component PageEditor inherits VerticalLayout {
             alignment: end;
 
             for item in root.items: HorizontalLayout {
-                if item.id == "script-export-prepare" || item.id == "script-export-save" || item.id == "script-export-cancel"
-                   || item.id == "snapshot-restore-prepare" || item.id == "snapshot-restore-confirm" || item.id == "snapshot-restore-cancel": Rectangle {
+                if item.id == "snapshot-restore-prepare" || item.id == "snapshot-restore-confirm" || item.id == "snapshot-restore-cancel": Rectangle {
                     width: 10 * LumenUiScale.unit;
                 }
-                if item.id == "script-export-prepare" || item.id == "script-export-save" || item.id == "script-export-cancel"
-                   || item.id == "snapshot-restore-prepare" || item.id == "snapshot-restore-confirm" || item.id == "snapshot-restore-cancel": WorkbenchButton {
+                if item.id == "snapshot-restore-prepare" || item.id == "snapshot-restore-confirm" || item.id == "snapshot-restore-cancel": WorkbenchButton {
                     text: item.label;
                     enabled: item.enabled;
                     danger: item.tone == "danger" || item.id == "snapshot-restore-confirm";
-                    primary: item.id == "script-export-save" || item.id == "snapshot-restore-confirm";
+                    primary: item.id == "snapshot-restore-confirm";
                     clicked => { root.action(item.action-id, ""); }
                 }
             }

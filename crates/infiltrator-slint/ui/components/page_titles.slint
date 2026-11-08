@@ -62,9 +62,46 @@ export global PageTitles {
 
     // The mobile top bar only names the top-level tabs it hosts.
     public pure function top-title(page: string) -> string {
-        if (page == "Home") { return "MusicFrog"; }
+        if (page == "Home") { return @tr("核心概览"); }
         if (page == "Proxy") { return @tr("代理策略"); }
         if (page == "Config") { return @tr("配置订阅"); }
         return @tr("系统设置");
+    }
+
+    // The name of a top-level page, in the vocabulary the desktop rail and
+    // the desktop app bar share.
+    //
+    // The desktop app bar used to print the PRODUCT name ("Lumen") over the
+    // dashboard while the rail called the same page "核心概览", so one screen
+    // showed the brand three times (title bar, rail brand block, rail
+    // footer) and its page heading was the one place a name appeared that
+    // was not a page at all. The route name is the shared fact - the same
+    // "核心概览" the Iced and Bevy shells print for this route - so the bar
+    // now prints the page, never the product.
+    //
+    // The phone keeps its own shorter dialect (仪表盘 / 代理 / 配置 / 工具):
+    // that is the reference's mobile vocabulary, and the bottom dock names
+    // the same four destinations in the same words.
+    public pure function page-name(page: string) -> string {
+        return top-title(page);
+    }
+
+    // The name of a top-level page in the PHONE and compact-window
+    // vocabulary.
+    //
+    // The phone speaks the reference's words - 仪表盘 / 代理 / 配置 / 工具 -
+    // because they are what a thumb-sized header and a four-slot dock can
+    // carry. That dialect used to be spelled out in three places (the phone
+    // header, the compact header row and the dock's four tabs), so the phone
+    // could name one page three ways; it has one owner now.
+    //
+    // The desktop keeps the route names above (核心概览 / 代理策略 /
+    // 配置订阅 / 系统设置) - the same names the Iced and Bevy shells print
+    // for these routes - because a rail can afford them.
+    public pure function phone-title(page: string) -> string {
+        if (page == "Home") { return @tr("仪表盘"); }
+        if (page == "Proxy") { return @tr("代理"); }
+        if (page == "Config") { return @tr("配置"); }
+        return @tr("工具");
     }
 }

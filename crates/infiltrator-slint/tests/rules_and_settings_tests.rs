@@ -11,6 +11,7 @@ use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::language::LanguagePreference;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{RulesPageSnapshot, SurfaceSnapshot};
+use infiltrator_contract::system_proxy::SystemProxyRecoveryStatus;
 use infiltrator_contract::theme::{SystemAppearance, ThemePreference, ThemeSkin};
 use infiltrator_contract::theme_palette::{ResolvedThemePalette, SystemDynamicColor};
 use infiltrator_slint::SlintAction;
@@ -69,6 +70,36 @@ fn the_published_theme_readback_drives_the_projected_theme() {
         infiltrator_slint::ThemeMode::Dark
     );
     assert!(surface.window().get_application_dark_mode());
+}
+
+/// The 网络设置 page used to print "当前版本：" with nothing after it and keep
+/// its retry control permanently disabled: `PageNetwork` declared both inputs,
+/// but nothing in the tree fed them. They are now plumbed from the owner's
+/// typed facts, and this pins that the projection really reads them.
+#[test]
+fn the_network_page_consumes_the_owner_core_version_and_recovery_status() {
+    let surface = harness::SurfaceHarness::new(None).unwrap();
+    let mut snapshot = desktop_snapshot();
+    snapshot.core.core_version = Some("v1.19.18".into());
+    snapshot.system_proxy_recovery.status = SystemProxyRecoveryStatus::Failed {
+        failure: Failure::new(ErrorCode::InvalidInput, "system proxy busy", true),
+    };
+
+    surface.publish_snapshot(snapshot.clone());
+    assert_eq!(surface.window().get_core_version(), "v1.19.18");
+    assert!(
+        surface.window().get_proxy_recovery_pending(),
+        "a failed recovery must offer the owner's retry command"
+    );
+
+    // A recovery the owner did not need to run is not something the surface
+    // offers to retry.
+    snapshot.system_proxy_recovery.status = SystemProxyRecoveryStatus::NotNeeded;
+    surface.publish_snapshot(snapshot);
+    assert!(
+        !surface.window().get_proxy_recovery_pending(),
+        "only a failed attempt may offer a retry"
+    );
 }
 
 /// Asserts that the surface dispatched exactly one owner command.
@@ -329,4 +360,62 @@ fn the_rule_search_narrows_the_published_window_and_leaves_an_empty_result() {
         }
     }
     assert!(surface.rule_rows().is_empty());
+}
+
+/// MUSICFROG-001: the hero is driven by the typed motion projection, not by a
+/// private `is_playing` flag in the .slint tree. A user cue starts a flourish
+/// with notes immediately, and the owner's readback settles it.
+#[test]
+fn the_mascot_answers_a_start_cue_with_notes_then_follows_the_owner_readback() {
+    use infiltrator_contract::mascot_motion;
+    use infiltrator_contract::mascot_motion::MotionCue;
+    use infiltrator_presentation::mascot_motion_projection;
+    use infiltrator_presentation::mascot_motion_projection::project_mascot;
+    use infiltrator_slint::HeroGlyph;
+    use infiltrator_slint::MascotMotionSpec;
+    use infiltrator_slint::MascotPhase;
+    use lurker_core_contract::lifecycle::CoreLifecycle;
+    use slint::Global;
+
+    let surface = harness::SurfaceHarness::new(None).unwrap();
+    let mut state = mascot_motion_projection::MascotMotionState::default();
+    let starting = project_mascot(
+        &mut state,
+        CoreLifecycle::Starting,
+        Some(MotionCue::StartRequested),
+        100,
+        false,
+    );
+    assert!(
+        starting.note_count > 0,
+        "a tap must release notes immediately"
+    );
+
+    // The UI driver's mapping lands in the window's one projected spec.
+    let ui = infiltrator_slint::MascotMotionState::get(surface.window());
+    assert_eq!(
+        ui.get_current().note_count,
+        0,
+        "no cue was sent to the window yet"
+    );
+    ui.set_current(MascotMotionSpec {
+        phase: MascotPhase::Starting,
+        sway: starting.sway,
+        pulse: starting.pulse,
+        note_count: starting.note_count as i32,
+        note_1: starting.note_progress[0],
+        note_2: starting.note_progress[1],
+        note_3: starting.note_progress[2],
+        glyph: HeroGlyph::Pause,
+    });
+    assert_eq!(ui.get_current().glyph, HeroGlyph::Pause);
+    assert!(ui.get_current().note_count > 0);
+    assert!(
+        ui.get_is_running(),
+        "the hero control shows the target state"
+    );
+
+    let running = project_mascot(&mut state, CoreLifecycle::Running, None, 600, false);
+    assert_eq!(running.control_glyph, mascot_motion::HeroGlyph::Pause);
+    assert_eq!(running.state, mascot_motion::MascotMotion::Running);
 }

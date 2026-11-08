@@ -74,7 +74,7 @@ def control_text(product: str = "iced", version: str = "0.1.0") -> str:
             "Section: net\n"
             "Priority: optional\n"
             "Architecture: amd64\n"
-            "Maintainer: MusicFrog Team <dev@musicfrog.app>\n"
+            "Maintainer: Infiltrator Team <dev@musicfrog.app>\n"
             "Description: test package\n")
 
 

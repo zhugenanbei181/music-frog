@@ -133,7 +133,7 @@ pub(super) fn page(
     }
     items.push(button(
         "snapshot-restore-confirm",
-        &catalog.text("common_save_apply"),
+        &catalog.text("snapshot_restore_confirm"),
         RESTORE_CONFIRM,
         restore.can_confirm(),
     ));

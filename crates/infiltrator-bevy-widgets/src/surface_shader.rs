@@ -1,7 +1,6 @@
 //! Bind the existing squircle material to retained cards after native layout.
 use crate::palette::UiPalette;
 use crate::shader_fx::{ModernSurfaceElevation, ModernSurfaceMaterial};
-use crate::surface::SurfacePanel;
 use crate::theme::CornerCurvature;
 use bevy::asset::{Assets, Handle};
 use bevy::color::Color;
@@ -12,6 +11,7 @@ use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::ui::{BackgroundColor, ComputedNode};
 use bevy::ui_render::ui_material::MaterialNode;
+use zhuge_ui_kit_bevy::surface::CardSurface;
 
 /// A host can select the flat renderer without changing controls or layout.
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -44,7 +44,7 @@ pub struct SurfaceShaderView {
 
 /// Removing the card role on a retained entity must also release its owner.
 pub(crate) fn release_retired(
-    cards: Query<SurfaceRetirementView, Without<SurfacePanel>>,
+    cards: Query<SurfaceRetirementView, Without<CardSurface>>,
     mut commands: Commands,
 ) {
     for card in &cards {
@@ -61,7 +61,7 @@ pub fn sync(
     palette: Res<UiPalette>,
     mode: Res<SurfaceShaderMode>,
     materials: Option<ResMut<Assets<ModernSurfaceMaterial>>>,
-    mut cards: Query<SurfaceShaderView, With<SurfacePanel>>,
+    mut cards: Query<SurfaceShaderView, With<CardSurface>>,
     mut commands: Commands,
 ) {
     let Some(mut materials) = materials else {
@@ -98,7 +98,7 @@ pub fn sync(
         }
         let radius = corner.x * card.computed.inverse_scale_factor();
         let curvature = CornerCurvature::squircle(radius);
-        // The `SurfacePanel` card marker is the existing card role: a real card
+        // The `CardSurface` card marker is the existing card role: a real card
         // carries the low card-depth elevation so `shadow.wesl` runs in
         // production instead of a permanently dead `None`.
         let desired = ModernSurfaceMaterial::card(

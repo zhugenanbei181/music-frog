@@ -73,10 +73,12 @@ impl ActiveExitApplication {
 mod tests {
     use super::*;
     use infiltrator_contract::active_exit::ActiveExitStatus;
+    use infiltrator_contract::snapshot::CoreSessionObservation;
     use lurker_core_contract::lifecycle::CoreLifecycle;
 
     fn core(lifecycle: CoreLifecycle) -> CoreSnapshot {
         CoreSnapshot {
+            session: CoreSessionObservation::Unknown,
             identity: None,
             lifecycle,
             generation: 4,

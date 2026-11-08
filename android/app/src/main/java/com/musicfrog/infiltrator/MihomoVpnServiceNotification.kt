@@ -78,7 +78,7 @@ internal fun MihomoVpnService.createNotification(
         mainIntent,
         PendingIntent.FLAG_IMMUTABLE,
     )
-    val title = trafficHeadline ?: getString(R.string.notification_title)
+    val title = trafficHeadline ?: getString(R.string.notification_title, getString(R.string.app_name))
     val builder = NotificationCompat.Builder(this, MihomoVpnService.CHANNEL_ID)
         .setContentTitle(title)
         .setContentText(statusText)

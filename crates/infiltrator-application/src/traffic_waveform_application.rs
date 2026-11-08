@@ -33,12 +33,14 @@ impl TrafficWaveformApplication {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use infiltrator_contract::snapshot::CoreSessionObservation;
     use lurker_core_contract::lifecycle::CoreLifecycle;
 
     #[test]
     fn application_records_only_live_core_samples() {
         let application = TrafficWaveformApplication::new();
         let snapshot = application.record(&CoreSnapshot {
+            session: CoreSessionObservation::Unknown,
             identity: None,
             lifecycle: CoreLifecycle::Running,
             generation: 1,

@@ -11,6 +11,8 @@ lurker-core-contract = { path = "../lurker-core-contract" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 url = { workspace = true }
+zhuge-ui-core.workspace = true
+zhuge-ui-tokens.workspace = true
 
 [dev-dependencies]
 serde_json = { workspace = true }

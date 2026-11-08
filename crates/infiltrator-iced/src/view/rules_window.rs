@@ -14,6 +14,7 @@
 
 use crate::state::AppState;
 use infiltrator_domain::rules::view;
+use zhuge_ui_core::row_page::{RowPage, clamped_page, page_of, rows_per_page};
 
 /// Scrollable id the paging buttons target with `scroll_to`.
 pub const RULES_LIST_SCROLL_ID: &str = "rules_list_scroll";
@@ -76,29 +77,31 @@ pub fn rules_window_page(state: &AppState) -> usize {
     }
     let first_visible =
         view::rule_index_at_scroll_offset(state.editor.rules_scroll_offset_px).min(total - 1);
-    view::page_for_rule_index(first_visible, state.editor.rules_page_size)
+    page_of(first_visible, rules_rows_per_page(state))
 }
 
 /// Scroll offset that brings the shared page's first row to the top.
 pub fn page_scroll_offset(state: &AppState, page: usize) -> f32 {
-    let page = view::clamp_page(
-        page,
-        state.editor.rules_filtered_count(),
-        state.editor.rules_page_size,
-    );
-    let (start, _) = view::page_bounds(
-        page,
-        state.editor.rules_filtered_count(),
-        state.editor.rules_page_size,
-    );
-    view::rule_scroll_offset_for_index(start)
+    let rows = rules_rows_per_page(state);
+    let total = state.editor.rules_filtered_count();
+    let page = clamped_page(page, total, rows);
+    view::rule_scroll_offset_for_index(RowPage::page(total, rows, page).first())
 }
 
 /// Paging bounds over the filtered list for the current page size.
 pub fn rules_page_bounds(state: &AppState) -> (usize, usize) {
-    view::page_bounds(
-        rules_window_page(state),
+    let window = RowPage::page(
         state.editor.rules_filtered_count(),
-        state.editor.rules_page_size,
-    )
+        rules_rows_per_page(state),
+        rules_window_page(state),
+    );
+    (window.first(), window.last())
+}
+
+/// The product's page-size policy (a zero setting falls back to the default
+/// rules page size) resolved to the rows one page holds. Paging arithmetic
+/// itself belongs to `zhuge-ui-core::row_page`; only this fallback is ours.
+#[must_use]
+pub fn rules_rows_per_page(state: &AppState) -> usize {
+    rows_per_page(view::effective_page_size(state.editor.rules_page_size))
 }

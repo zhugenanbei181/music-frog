@@ -55,5 +55,17 @@ object DesignTokens {
         val Tag: TextUnit = com.musicfrog.infiltrator.ui.theme.TypeScale.Tag
         val Mono: TextUnit = com.musicfrog.infiltrator.ui.theme.TypeScale.Mono
         val MonoStrong: TextUnit = com.musicfrog.infiltrator.ui.theme.TypeScale.MonoStrong
+        val NumericLarge: TextUnit = com.musicfrog.infiltrator.ui.theme.TypeScale.NumericLarge
+        val NumericDense: TextUnit = com.musicfrog.infiltrator.ui.theme.TypeScale.NumericDense
+        val NumericSmall: TextUnit = com.musicfrog.infiltrator.ui.theme.TypeScale.NumericSmall
+        val MicroStrong: TextUnit = com.musicfrog.infiltrator.ui.theme.TypeScale.MicroStrong
+        val CaptionStrong: TextUnit = com.musicfrog.infiltrator.ui.theme.TypeScale.CaptionStrong
+        val TagStrong: TextUnit = com.musicfrog.infiltrator.ui.theme.TypeScale.TagStrong
+        val MonoTag: TextUnit = com.musicfrog.infiltrator.ui.theme.TypeScale.MonoTag
+        val MonoMicro: TextUnit = com.musicfrog.infiltrator.ui.theme.TypeScale.MonoMicro
+        val MonoCaption: TextUnit = com.musicfrog.infiltrator.ui.theme.TypeScale.MonoCaption
+        val MonoBodyLarge: TextUnit = com.musicfrog.infiltrator.ui.theme.TypeScale.MonoBodyLarge
+        val MonoTitle: TextUnit = com.musicfrog.infiltrator.ui.theme.TypeScale.MonoTitle
+        val FactNamed: TextUnit = com.musicfrog.infiltrator.ui.theme.TypeScale.FactNamed
     }
 }

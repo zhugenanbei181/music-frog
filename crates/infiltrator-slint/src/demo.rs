@@ -4,12 +4,15 @@
 //! Provides realistic snapshots without connecting to real cores or external network,
 //! and writes the `CAPTURE_READY` marker for background virtual compositor screenshots.
 
+mod capture_marker;
 mod fixtures;
 mod outbound;
 mod owner;
 
 use super::*;
 use crate::capture_scenario::{self, CaptureBounds};
+use crate::demo::capture_marker::write_capture_marker;
+use crate::mascot_driver::publish_receipt_frame;
 use infiltrator_contract::active_exit::ActiveExitSnapshot;
 use infiltrator_contract::connection::ConnectionRateObservation;
 use infiltrator_contract::lan::LanSharingSnapshot;
@@ -18,10 +21,12 @@ use infiltrator_contract::public_ip::PublicIpProbeSnapshot;
 use infiltrator_contract::resources::{CoreGcStatus, CoreResourceSnapshot, ResourceAvailability};
 use infiltrator_contract::rule_snapshot::RuleSnapshot;
 use infiltrator_contract::shell_readout::{ShellObservation, ShellProfile};
+use infiltrator_contract::snapshot::CoreSessionObservation;
 use infiltrator_contract::speedtest::{
     SpeedtestConcurrency, SpeedtestOutboundResult, SpeedtestResultState, SpeedtestRunState,
     SpeedtestSampleOutcome, SpeedtestSnapshot,
 };
+use infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{
     ConnectionSnapshot, ConnectionsPageSnapshot, LogSnapshot, LogsPageSnapshot,
@@ -43,13 +48,10 @@ use lurker_core_contract::routing_intent::RoutingIntentSnapshot;
 use std::cell::Cell;
 use std::env;
 use std::f64::consts::TAU;
-use std::fs::{OpenOptions, create_dir_all};
-use std::io::Write as _;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 #[derive(Clone, Debug)]
@@ -58,8 +60,22 @@ pub struct DemoSettings {
     pub page: String,
     pub skin: String,
     pub window_size: (f32, f32),
+    /// The user zoom in percent, or `None` to keep the surface's own default.
+    /// The page scale is a real user setting (85%…115% in 5% steps) that until
+    /// now could not be reached from a capture run at all, so every pixel
+    /// judgement about typography was made at 100% only.
+    pub page_scale: Option<i32>,
     pub marker: Option<PathBuf>,
     pub scenario: Option<String>,
+    /// Scroll the page to its end before the frame is taken. Every portrait
+    /// receipt so far stops at the top of the scroll, which left the tail
+    /// padding under the floating dock - the one place the dock-to-last-card
+    /// gap is visible - unproven in pixels.
+    pub scroll_to_end: bool,
+    /// A deterministic mascot motion frame for a capture receipt: `starting`,
+    /// `running`, `stopping`. Empty means the normal live beat.
+    pub mascot_frame: Option<String>,
+    pub mascot_elapsed_millis: u32,
 }
 
 impl DemoSettings {
@@ -94,7 +110,21 @@ impl DemoSettings {
             "settings_workbench" | "settings-workbench" => "SettingsWorkbench",
             "shell_workbench" | "shell-workbench" => "ShellWorkbench",
             "overview_workbench" | "overview-workbench" => "OverviewWorkbench",
-            _ => "Home",
+            // The list pages a capture can reach straight from the demo snapshot.
+            // Without these the surface routed them but no receipt could ever be
+            // taken of them, so a change there was unprovable by construction.
+            "meta" => "Meta",
+            "overrides" => "Overrides",
+            "providers" => "Providers",
+            "licenses" => "Licenses",
+            // Fail closed: an unaddressable or misspelled page used to fall back
+            // to Home, which let a receipt be filed under a scenario whose pixels
+            // were a different page altogether.
+            other => panic!(
+                "INFILTRATOR_PAGE={other} names no page the Slint surface can open from a snapshot; \
+                 pages that need a selected id (ConnectionDetail, LicenseDetail, ProfileSettings) \
+                 are reached by a business gesture, not by this map"
+            ),
         }
         .to_string();
 
@@ -129,13 +159,32 @@ impl DemoSettings {
             .ok()
             .filter(|v| !v.trim().is_empty());
 
+        let scroll_to_end = env::var("INFILTRATOR_SCROLL").is_ok_and(|v| v.trim() == "end");
+        let mascot_frame = env::var("INFILTRATOR_MASCOT_FRAME")
+            .ok()
+            .filter(|v| matches!(v.trim(), "starting" | "running" | "stopping"))
+            .map(|v| v.trim().to_owned());
+        let mascot_elapsed_millis = env::var("INFILTRATOR_MASCOT_MILLIS")
+            .ok()
+            .and_then(|raw| raw.trim().parse::<u32>().ok())
+            .unwrap_or(225);
+
+        let page_scale = env::var("INFILTRATOR_PAGE_SCALE")
+            .ok()
+            .and_then(|raw| raw.trim().parse::<i32>().ok())
+            .filter(|percent| (85..=115).contains(percent));
+
         Self {
             enabled,
             page,
             skin,
             window_size,
+            page_scale,
             marker,
             scenario,
+            scroll_to_end,
+            mascot_frame,
+            mascot_elapsed_millis,
         }
     }
 }
@@ -194,6 +243,12 @@ impl SlintProductHost for DemoProductHost {
     }
 }
 
+/// The fixed instant the demo fixture's Core session began.
+///
+/// The fixture publishes a measured session length, not a live clock, so a
+/// capture run renders the same pixels every time it runs.
+const DEMO_SESSION_STARTED_AT_EPOCH_MS: u64 = 1_700_000_000_000;
+
 fn build_demo_snapshot(settings: &DemoSettings) -> SurfaceSnapshot {
     let mut snapshot = SurfaceSnapshot::unavailable(
         SurfaceKind::SlintDesktop,
@@ -208,6 +263,15 @@ fn build_demo_snapshot(settings: &DemoSettings) -> SurfaceSnapshot {
     snapshot.core.core_version = Some("v1.19.18".into());
     snapshot.core.active_connections = 8;
     snapshot.core.routing_intent = RoutingIntentSnapshot::demo_fixture();
+    // The demo fixture publishes the Core session the owner would publish:
+    // a fixed start instant and the session length the owner measured. The
+    // length is the reference dashboard's own `03:04:49`, so a receipt shows
+    // the running session instead of an unobserved dash - and it stays
+    // byte-identical between two capture runs.
+    snapshot.core.session = CoreSessionObservation::Active {
+        started_at_epoch_ms: DEMO_SESSION_STARTED_AT_EPOCH_MS,
+        elapsed_ms: 11_089_000,
+    };
 
     const MB: f64 = 1024.0 * 1024.0;
     snapshot.shell_readout.upload_bps = ShellObservation::Current(2.5 * MB);
@@ -223,6 +287,14 @@ fn build_demo_snapshot(settings: &DemoSettings) -> SurfaceSnapshot {
     // The profile card counts the engine's proxies; the fixture publishes the
     // same readback the live composition would report.
     snapshot.shell_readout.proxies = ShellObservation::Current(4);
+
+    // Cross-surface fixture parity: the Iced and Bevy demo hosts both publish
+    // `SubscriptionQuotaSnapshot::demo_fixture()`, so their receipts show a drawable
+    // quota. Slint left the field at its default, which meant the Slint screenshots
+    // showed a *different product state* than the other two surfaces - and the quota
+    // bar, the expiry label and the warning grades never reached a Slint pixel.
+    // One fixture, three surfaces.
+    snapshot.subscription_quota = SubscriptionQuotaSnapshot::demo_fixture();
     snapshot.system_proxy = SystemProxySnapshot::from_observation(
         1,
         SystemProxyObservation {
@@ -371,6 +443,52 @@ fn build_demo_snapshot(settings: &DemoSettings) -> SurfaceSnapshot {
                 upload_bytes: Some(1024 * 1024 * 120),
                 download_bytes: Some(1024 * 1024 * 1250),
                 total_bytes: Some(1024 * 1024 * 1024 * 64),
+                is_active: false,
+                user_agent: "".into(),
+                insecure_skip_verify: false,
+                etag: None,
+                last_modified: None,
+                has_backup: false,
+                cron_expression: None,
+                auto_update_enabled: false,
+                update_interval_hours: None,
+                next_update: None,
+                auto_reload_core: false,
+                filter: Default::default(),
+                filter_source: Ok(fixtures::profile_workspace_identity()),
+                write_protection: ProfileWriteProtection::Editable,
+            },
+            ProfileSnapshot {
+                id: "profile-3".into(),
+                name: "Gamma Cloud Hybrid (SG/TW)".into(),
+                url: "https://example.com/sub/gamma".into(),
+                updated_at: "2026-10-14 09:15:00".into(),
+                upload_bytes: Some(1024 * 1024 * 1024 * 2),
+                download_bytes: Some(1024 * 1024 * 1024 * 24),
+                total_bytes: Some(1024 * 1024 * 1024 * 256),
+                is_active: false,
+                user_agent: "".into(),
+                insecure_skip_verify: false,
+                etag: None,
+                last_modified: None,
+                has_backup: false,
+                cron_expression: None,
+                auto_update_enabled: true,
+                update_interval_hours: Some(24),
+                next_update: None,
+                auto_reload_core: true,
+                filter: Default::default(),
+                filter_source: Ok(fixtures::profile_workspace_identity()),
+                write_protection: ProfileWriteProtection::RemoteSubscription,
+            },
+            ProfileSnapshot {
+                id: "profile-4".into(),
+                name: "Delta Office Internal".into(),
+                url: "".into(),
+                updated_at: "2026-10-12 16:40:00".into(),
+                upload_bytes: None,
+                download_bytes: None,
+                total_bytes: None,
                 is_active: false,
                 user_agent: "".into(),
                 insecure_skip_verify: false,
@@ -665,92 +783,6 @@ fn build_demo_snapshot(settings: &DemoSettings) -> SurfaceSnapshot {
     snapshot
 }
 
-static CAPTURE_MARKER_WRITTEN: AtomicBool = AtomicBool::new(false);
-
-pub fn write_capture_marker(
-    settings: &DemoSettings,
-    _window: &AppWindow,
-    activated: bool,
-    bounds: Option<CaptureBounds>,
-) {
-    if !settings.enabled || CAPTURE_MARKER_WRITTEN.load(Ordering::SeqCst) {
-        return;
-    }
-    let Some(path) = settings.marker.as_ref() else {
-        return;
-    };
-
-    let marker_page = match settings.page.as_str() {
-        "Home" => "overview",
-        "Proxy" => "proxies",
-        "Config" => "profiles",
-        "Network" => "runtime",
-        "Rules" => "rules",
-        "Connections" => "connections",
-        "Logs" => "logs",
-        "Settings" => "settings",
-        "AppSettings" => "app_settings",
-        "Traffic" => "traffic",
-        "About" => "about",
-        // The workbench pages carry the parity businesses of the DNS, editor,
-        // filter, doctor, sync and routing panels.
-        "Dns" => "dns",
-        "Editor" => "editor",
-        "Filters" => "filters",
-        "Doctor" => "doctor",
-        "Sync" => "sync",
-        "AppRouting" => "app_routing",
-        "ConnectionsWorkbench" => "connections_workbench",
-        "LogsWorkbench" => "logs_workbench",
-        "RuntimeWorkbench" => "runtime_workbench",
-        "ProxiesWorkbench" => "proxies_workbench",
-        "RulesWorkbench" => "rules_workbench",
-        "SettingsWorkbench" => "settings_workbench",
-        "ShellWorkbench" => "shell_workbench",
-        "OverviewWorkbench" => "overview_workbench",
-        _ => "overview",
-    };
-
-    let mut line = format!(
-        "CAPTURE_READY page={} skin={}\n",
-        marker_page, settings.skin
-    );
-
-    if let Some(scenario) = &settings.scenario {
-        // A scenario is only published as activated when the surface really
-        // opened it and its real geometry is known.
-        match (activated, bounds) {
-            (true, Some(bounds)) => {
-                line = format!(
-                    "{} scenario={} activated=true bounds={},{},{},{}\n",
-                    line.trim_end(),
-                    scenario,
-                    bounds.x,
-                    bounds.y,
-                    bounds.width,
-                    bounds.height
-                );
-            }
-            _ => {
-                line = format!(
-                    "{} scenario={} activated=false\n",
-                    line.trim_end(),
-                    scenario
-                );
-            }
-        }
-    }
-
-    if let Some(parent) = path.parent() {
-        let _ = create_dir_all(parent);
-    }
-    if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path) {
-        if file.write_all(line.as_bytes()).is_ok() {
-            CAPTURE_MARKER_WRITTEN.store(true, Ordering::SeqCst);
-        }
-    }
-}
-
 /// Runs the demo fixture host with the real product wiring.
 ///
 /// The demo registers the product callbacks and answers the commands the
@@ -774,6 +806,10 @@ fn prepare_demo_window(
     snapshot: &SurfaceSnapshot,
 ) {
     window.set_frameless(true);
+    // A capture run has no pointing device: the nested compositor parks its
+    // pointer at the output centre, which would otherwise publish a hovered
+    // control that no user ever hovered.
+    window.set_capture_pointer_absent(settings.marker.is_some());
     window.window().set_size(slint::LogicalSize::new(
         settings.window_size.0,
         settings.window_size.1,
@@ -787,6 +823,18 @@ fn prepare_demo_window(
     lumen_projection::project_workbench(window, snapshot, workbenches);
     open_proxies_group(window, snapshot);
     window.set_notice("".into());
+    // The zoom is applied through the same setter the sheet's "应用" button
+    // uses, so a receipt at 105% rides the real `page-scale-percent` →
+    // `LumenUiScale.unit` path instead of a second, harness-only scaling route.
+    if let Some(percent) = settings.page_scale {
+        window.set_page_scale_percent(percent);
+    }
+
+    // A receipt frame is published after the page project so the driver's
+    // normal timer cannot overwrite it with the live beat.
+    if let Some(phase) = &settings.mascot_frame {
+        publish_receipt_frame(window, phase, settings.mascot_elapsed_millis);
+    }
 
     install_capture_timer(window, Arc::clone(workbenches), settings, snapshot.clone());
 }
@@ -824,6 +872,7 @@ fn install_capture_timer(
     let activation = Rc::new(capture_scenario::Activation::default());
     let previous_bounds = Cell::new(None::<CaptureBounds>);
     let ticks = Cell::new(0u32);
+    let scroll_pending = Cell::new(settings.scroll_to_end);
     let compact = settings.window_size.0 < 900.0;
     let timer = Rc::new(slint::Timer::default());
     let timer_for_callback = Rc::clone(&timer);
@@ -857,6 +906,22 @@ fn install_capture_timer(
             // scenario needs a settled sheet before its bounds are real.
             if ticks.get() < 5 || (scenario.is_some() && (!stable || !activated.get())) {
                 return;
+            }
+            // The scroll request is served here rather than at prepare time:
+            // `scroll-page-to` clamps against the scroll view's *content*
+            // height, which is still zero before the first layout passes, so a
+            // pre-layout request resolved to "stay at the top" and the frame
+            // quietly proved nothing. Returning one tick late lets the scrolled
+            // frame paint before the marker releases the screenshot.
+            if scroll_pending.get() {
+                scroll_pending.set(false);
+                window.invoke_scroll_page_to(1_000_000.0);
+                return;
+            }
+            // The frame is republished once the page has settled, so the
+            // screenshot shows the requested phase rather than a timer tick.
+            if let Some(phase) = &marker_settings.mascot_frame {
+                publish_receipt_frame(&window, phase, marker_settings.mascot_elapsed_millis);
             }
             write_capture_marker(&marker_settings, &window, activated.get(), bounds);
             timer_for_callback.stop();

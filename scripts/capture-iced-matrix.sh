@@ -35,9 +35,9 @@ fi
 APP_ID="infiltrator-iced"
 # Runtime check (niri msg -j windows): iced/winit maps the demo window with an
 # EMPTY app_id, so app_id cannot be the identity key; the window title is the
-# stable observed identifier ("MusicFrog Infiltrator" in every locale). The
+# stable observed identifier ("Ice" in every locale). The
 # spawned PID stays the authoritative binding either way.
-APP_TITLE="MusicFrog Infiltrator"
+APP_TITLE="Ice"
 APP="${CARGO_TARGET_DIR:-$REPO/target}/debug/infiltrator-iced"
 MATRIX_SRC="${INFILTRATOR_CAPTURE_MATRIX:-$REPO/scripts/capture_iced_scenarios.tsv}"
 OUT_DIR="${INFILTRATOR_CAPTURE_OUT_DIR:-$REPO/crates/infiltrator-iced/docs/screenshots}"
@@ -266,7 +266,7 @@ cat >"$CONF" <<KDL
 // INFILTRATOR_WINDOW_SIZE instead of being tiled/resized by the compositor.
 // Both matches are kept because iced/winit has been observed to map windows
 // with either the binary-name app_id or an empty one depending on version;
-// the title is stable across locales ("MusicFrog Infiltrator").
+// the title is stable across locales ("Ice").
 screenshot-path "$RUNTIME_DIR/shot.png"
 hotkey-overlay {
     skip-at-startup
@@ -291,7 +291,7 @@ layout {
 }
 window-rule {
     match app-id="$APP_ID"
-    match title="^MusicFrog Infiltrator\$"
+    match title="^Ice\$"
     open-floating true
 }
 KDL

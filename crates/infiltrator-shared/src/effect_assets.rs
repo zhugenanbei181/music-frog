@@ -8,7 +8,7 @@
 //!
 //! The fonts are the same story: one monospaced face for every number that
 //! must not jitter while it changes, one interface family with three weights,
-//! and one CJK face. The width table tells a surface how wide a character is
+//! and one CJK family with three physical weights. The width table tells a surface how wide a character is
 //! before the font engine has measured it, so a truncation plan and a layout
 //! agree on where a text ends.
 
@@ -138,18 +138,24 @@ pub enum FontFace {
     InterSemiBold,
     /// The monospaced face every changing number is drawn with.
     Mono,
-    /// The CJK face.
-    Cjk,
+    /// The regular weight of the CJK face.
+    CjkRegular,
+    /// The medium weight of the CJK face.
+    CjkMedium,
+    /// The semibold weight of the CJK face.
+    CjkSemiBold,
 }
 
 impl FontFace {
     /// Every shipped face.
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 7] = [
         Self::InterRegular,
         Self::InterMedium,
         Self::InterSemiBold,
         Self::Mono,
-        Self::Cjk,
+        Self::CjkRegular,
+        Self::CjkMedium,
+        Self::CjkSemiBold,
     ];
 
     /// The family the face belongs to.
@@ -157,16 +163,16 @@ impl FontFace {
         match self {
             Self::InterRegular | Self::InterMedium | Self::InterSemiBold => "Inter",
             Self::Mono => "JetBrains Mono",
-            Self::Cjk => "HarmonyOS Sans",
+            Self::CjkRegular | Self::CjkMedium | Self::CjkSemiBold => "HarmonyOS Sans SC",
         }
     }
 
     /// The weight of the face, in the CSS scale.
     pub const fn weight(self) -> u16 {
         match self {
-            Self::InterRegular | Self::Mono | Self::Cjk => 400,
-            Self::InterMedium => 500,
-            Self::InterSemiBold => 600,
+            Self::InterRegular | Self::Mono | Self::CjkRegular => 400,
+            Self::InterMedium | Self::CjkMedium => 500,
+            Self::InterSemiBold | Self::CjkSemiBold => 600,
         }
     }
 
@@ -177,7 +183,9 @@ impl FontFace {
             Self::InterMedium => include_bytes!("../assets/fonts/Inter-Medium.ttf").as_slice(),
             Self::InterSemiBold => include_bytes!("../assets/fonts/Inter-SemiBold.ttf").as_slice(),
             Self::Mono => include_bytes!("../assets/fonts/JetBrainsMono-Regular.ttf").as_slice(),
-            Self::Cjk => include_bytes!("../assets/fonts/CJK-Regular.ttf").as_slice(),
+            Self::CjkRegular => include_bytes!("../assets/fonts/CJK-Regular.ttf").as_slice(),
+            Self::CjkMedium => include_bytes!("../assets/fonts/CJK-Medium.ttf").as_slice(),
+            Self::CjkSemiBold => include_bytes!("../assets/fonts/CJK-SemiBold.ttf").as_slice(),
         }
     }
 
@@ -186,7 +194,7 @@ impl FontFace {
     /// A renderer registers these and never repeats a relative asset path:
     /// moving a file inside the shared catalog cannot silently strand one
     /// surface on an old copy.
-    pub fn all_bytes() -> [&'static [u8]; 5] {
+    pub fn all_bytes() -> [&'static [u8]; 7] {
         Self::ALL.map(Self::bytes)
     }
 
@@ -197,7 +205,9 @@ impl FontFace {
             Self::InterMedium => "font.Inter-Medium",
             Self::InterSemiBold => "font.Inter-SemiBold",
             Self::Mono => "font.JetBrainsMono-Regular",
-            Self::Cjk => "font.CJK-Regular",
+            Self::CjkRegular => "font.CJK-Regular",
+            Self::CjkMedium => "font.CJK-Medium",
+            Self::CjkSemiBold => "font.CJK-SemiBold",
         }
     }
 
@@ -216,6 +226,17 @@ impl FontFace {
             );
         }
         assert_eq!(Self::all_bytes().len(), Self::ALL.len());
+        assert_eq!(Self::ALL.len(), 7);
+        assert_eq!(
+            Self::ALL
+                .iter()
+                .filter(|face| matches!(
+                    face,
+                    Self::CjkRegular | Self::CjkMedium | Self::CjkSemiBold
+                ))
+                .count(),
+            3
+        );
         assert_eq!(
             AssetCatalog::records()
                 .iter()

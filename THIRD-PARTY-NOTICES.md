@@ -54,7 +54,7 @@ Font License 1.1** with the standard font-name reservation clause):
 |---|---|---|---|
 | `Inter-Regular.ttf`, `Inter-Medium.ttf`, `Inter-SemiBold.ttf` | [Inter](https://github.com/rsms/inter) by Rasmus Andersson | v4.1 | SIL OFL 1.1 |
 | `JetBrainsMono-Regular.ttf` | [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono) by JetBrains | v2.304 | SIL OFL 1.1 |
-| `CJK-Regular.ttf` | HarmonyOS Sans SC, Huawei Device Co., Ltd. | Copyright 2021 | HarmonyOS Sans Fonts License Agreement |
+| `CJK-Regular.ttf`, `CJK-Medium.ttf`, `CJK-SemiBold.ttf` | HarmonyOS Sans SC 400/500/600, Huawei Device Co., Ltd. | Copyright 2021 | HarmonyOS Sans Fonts License Agreement |
 
 - Inter is the default UI face (Regular / Medium / SemiBold map to
   `font::Weight::Normal / Medium / Semibold`); JetBrains Mono is used for
@@ -66,10 +66,12 @@ Font License 1.1** with the standard font-name reservation clause):
   (<https://github.com/rsms/inter/blob/master/LICENSE.txt>,
   <https://github.com/JetBrains/JetBrainsMono/blob/master/OFL.txt>).
 - Reserved Font Names: none invoked; files keep their upstream names.
-- HarmonyOS Sans SC is embedded unmodified. The complete agreement is kept at
+- The three unmodified HarmonyOS Sans SC faces are the CJK family's physical
+  400/500/600 inventory. The complete agreement is kept at
   `crates/infiltrator-shared/assets/fonts/HarmonyOS-Sans-LICENSE.txt`; the
-  Iced and Bevy surfaces display its required product attribution in their
-  shell/settings UI, and the Slint UI does not embed this face.
+  required product attribution is displayed in the shell/settings UI. Slint
+  registers all seven shared faces through the generated `design-type.slint`
+  adapter and requests them only through typed `TextRole`s.
 
 ## 5. Shared functional icons (`crates/infiltrator-shared/assets/ui/`)
 
@@ -91,7 +93,7 @@ The imported Slint screen and its reference source are retained under
 manifest are recorded in `lumen-source/SOURCE_IMPORT_MANIFEST.json`. The
 upstream project README in the supplied archive states that Lumen is MIT
 licensed, but the archive did not contain a separate Lumen `LICENSE` file.
-MusicFrog keeps that attribution and records the upstream statement in the
+Infiltrator keeps that attribution and records the upstream statement in the
 About view; this notice does not claim that an upstream license text was
 included in the archive. The vendored Material Slint component package keeps
 its own license at `crates/infiltrator-slint/lumen-source/material-1.1.0/LICENSE.md`.

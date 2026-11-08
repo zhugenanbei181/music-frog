@@ -20,6 +20,7 @@
 use crate::design_tokens::{RgbaToken, metrics, skin_core, skin_interaction};
 use crate::latency_display::LatencyBand;
 use crate::theme::ThemeSkin;
+use zhuge_ui_core::easing::lerp;
 
 /// The eight neutral surface steps of one skin (EFFECTS-001 #1).
 ///
@@ -356,10 +357,6 @@ impl LinearGradient {
             lerp(self.start.color.a, self.end.color.a, t),
         )
     }
-}
-
-fn lerp(from: f32, to: f32, t: f32) -> f32 {
-    from + (to - from) * t
 }
 
 /// The alpha of the lit edge of a raised surface (EFFECTS-001 #3).

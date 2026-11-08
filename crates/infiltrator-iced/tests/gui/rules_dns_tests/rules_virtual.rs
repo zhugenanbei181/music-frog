@@ -3,7 +3,7 @@
 
 use super::*;
 use crate::view::rules_window::{
-    rendered_rule_rows, rules_window, rules_window_page, visible_rule_items,
+    rendered_rule_rows, rules_page_bounds, rules_window, rules_window_page, visible_rule_items,
 };
 use infiltrator_composition::capture_fixtures::list_document;
 
@@ -59,10 +59,13 @@ fn test_rules_virtual_window_renders_bounded_rows_for_50k_list() {
     );
     assert!(rendered.iter().all(|index| *index < 25_000 + bound));
 
-    // Paging is a scroll jump to the shared page's first row; the window
-    // follows the offset through the same shared reduction.
-    let (page_start, _) = view::page_bounds(3, 50_000, view::DEFAULT_RULE_PAGE_SIZE);
+    // Paging is a scroll jump to the page's first row, and the window follows
+    // the offset through the same shared reduction. The page's own bounds come
+    // from the shared page axis, so the jump and the slice cannot disagree.
     let _ = state.update(Message::RulesSetPage(3));
+    let (page_start, page_end) = rules_page_bounds(&state);
+    assert_eq!(page_start, 3 * view::DEFAULT_RULE_PAGE_SIZE);
+    assert_eq!(page_end, page_start + view::DEFAULT_RULE_PAGE_SIZE);
     assert_eq!(
         state.editor.rules_scroll_offset_px,
         view::rule_scroll_offset_for_index(page_start)

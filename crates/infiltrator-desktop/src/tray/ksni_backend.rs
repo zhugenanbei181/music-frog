@@ -16,10 +16,14 @@ use ksni::menu::{CheckmarkItem, StandardItem, SubMenu};
 use ksni::{Icon, MenuItem, ToolTip};
 use std::collections::HashMap;
 use std::sync::mpsc::{Sender, channel};
+use zhuge_ui_core::pixel::rgba8_to_argb32;
 
 /// Stable StatusNotifierItem id; consistent across sessions.
 const TRAY_ID: &str = "MusicFrogInfiltrator";
-const TRAY_TITLE: &str = "MusicFrog Infiltrator";
+
+fn product_title(spec: &TraySpec) -> String {
+    spec.tooltip.lines().next().unwrap_or_default().to_owned()
+}
 
 /// The ksni tray service. `menu()` re-derives the ksni menu from the pushed
 /// spec on every read, so the app-side state stays the single source of truth.
@@ -48,7 +52,7 @@ impl ksni::Tray for KsniTray {
     }
 
     fn title(&self) -> String {
-        TRAY_TITLE.to_owned()
+        product_title(&self.spec)
     }
 
     fn icon_pixmap(&self) -> Vec<Icon> {
@@ -63,7 +67,7 @@ impl ksni::Tray for KsniTray {
     fn tool_tip(&self) -> ToolTip {
         ToolTip {
             icon_pixmap: self.icon_pixmap(),
-            title: TRAY_TITLE.to_owned(),
+            title: product_title(&self.spec),
             description: self.spec.tooltip.clone(),
             ..Default::default()
         }
@@ -161,17 +165,12 @@ pub fn map_items(
         .collect()
 }
 
-/// RGBA8 to ksni ARGB32 network byte order (rotate each `[r, g, b, a]`
-/// pixel right by one byte to get `[a, r, g, b]`).
+/// Assemble the native ksni icon around the shared ARGB32 pixel transform.
 pub fn to_ksni_icon(icon: &TrayIconData) -> Icon {
-    let mut data = icon.rgba.clone();
-    for pixel in data.as_chunks_mut::<4>().0 {
-        pixel.rotate_right(1);
-    }
     Icon {
         width: icon.width as i32,
         height: icon.height as i32,
-        data,
+        data: rgba8_to_argb32(&icon.rgba),
     }
 }
 

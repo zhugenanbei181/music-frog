@@ -1,5 +1,6 @@
 package com.musicfrog.infiltrator
 
+import android.content.pm.PackageManager
 import infiltrator_android.AndroidAppRoutingMode
 import infiltrator_android.AndroidHostReply
 import infiltrator_android.AndroidVpnRoutingActivationLease
@@ -198,6 +199,77 @@ class VpnProcessStateTest {
                 ),
             ),
             bypass,
+        )
+    }
+
+    @Test
+    fun staleUninstalledPackageDoesNotVetoTheTunnel() {
+        val own = "com.musicfrog.infiltrator"
+        val plan = VpnPackageRoutingPlan.Ready(
+            listOf(VpnPackageRule.Allow("com.alpha"), VpnPackageRule.Allow("com.gone"), VpnPackageRule.Allow("com.zeta")),
+        )
+        val wired = applyVpnPackageRouting(plan, own) { rule ->
+            if (rule.packageName == "com.gone") {
+                throw PackageManager.NameNotFoundException(rule.packageName)
+            }
+        }
+
+        assertEquals(
+            VpnPackageRoutingApply.Applied(
+                applied = listOf(VpnPackageRule.Allow("com.alpha"), VpnPackageRule.Allow("com.zeta")),
+                skippedUninstalled = listOf("com.gone"),
+            ),
+            wired,
+        )
+    }
+
+    @Test
+    fun whitelistWhoseSelectedAppsAreAllUninstalledFailsClosed() {
+        val own = "com.musicfrog.infiltrator"
+        val plan = VpnPackageRoutingPlan.Ready(listOf(VpnPackageRule.Allow("com.gone")))
+        val wired = applyVpnPackageRouting(plan, own) { rule ->
+            throw PackageManager.NameNotFoundException(rule.packageName)
+        }
+
+        assertTrue(
+            wired is VpnPackageRoutingApply.Rejected &&
+                wired.message.startsWith("Every app selected for selected-app routing is uninstalled"),
+        )
+    }
+
+    @Test
+    fun blacklistSurvivesUninstalledAppsAndKeepsTheHostRule() {
+        val own = "com.musicfrog.infiltrator"
+        val plan = buildVpnPackageRoutingPlan(
+            VpnRoutingConfiguration.Ready(AndroidAppRoutingMode.BYPASS_SELECTED, setOf("com.gone"), routingRevision = 7uL),
+            own,
+        )
+        val wired = applyVpnPackageRouting(plan, own) { rule ->
+            if (rule.packageName != own) {
+                throw PackageManager.NameNotFoundException(rule.packageName)
+            }
+        }
+
+        assertEquals(
+            VpnPackageRoutingApply.Applied(
+                applied = listOf(VpnPackageRule.Disallow(own)),
+                skippedUninstalled = listOf("com.gone"),
+            ),
+            wired,
+        )
+    }
+
+    @Test
+    fun aNonMissingPackageFailureRejectsTheTunnelInsteadOfPartialWiring() {
+        val own = "com.musicfrog.infiltrator"
+        val wired = applyVpnPackageRouting(
+            VpnPackageRoutingPlan.Ready(listOf(VpnPackageRule.Allow("com.alpha"))),
+            own,
+        ) { throw IllegalStateException("allow and disallow lists are mutually exclusive") }
+
+        assertTrue(
+            wired is VpnPackageRoutingApply.Rejected &&
+                wired.message.contains("mutually exclusive"),
         )
     }
 

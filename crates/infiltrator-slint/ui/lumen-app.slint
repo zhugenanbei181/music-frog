@@ -5,37 +5,49 @@ import {
 } from "@material";
 export { Palette } from "std-widgets.slint";
 export { MaterialWindowAdapter } from "@material";
-import { LumenTheme } from "components/theme.slint";
+import { LumenTheme } from "components/theme.slint"; import { ProductIdentity } from "components/product-identity.slint";
 export { LumenTheme }
 import { DesignType } from "components/design-type.slint";
+import { MascotMotionState, MascotMotionSpec, MascotPhase, HeroGlyph, MusicFrogHero } from "components/mascot.slint";
+export { MascotMotionState, MascotMotionSpec, MascotPhase, HeroGlyph }
+import { MobileDockBandState, MobileDockBandProjection } from "components/mobile_dock_state.slint";
+export { MobileDockBandState, MobileDockBandProjection }
 
 import { LumenUiScale } from "lumen-ui-scale.slint";
 import { ProfileCard, OverrideCard, ProfileOverrideChoice, ObservationRow, ConnectionRow, ProxyGroup, TrafficBar, HomeTrafficPoint, LicenseRow, WorkbenchItem, OverviewCardSlot, DashboardFacts, DashboardFactsDefaults } from "components/models.slint";
 import { ProfileOverlays } from "components/profile_overlays.slint";
 import { OverviewOrderOverlay } from "components/overview_order.slint";
 import { SettingsOverlays } from "components/settings_overlays.slint";
-import { AppBottomBar, ClearTrafficDialog, DesktopTitleBar, NoticeBanner, SettingsMessageBanner, ProfileSettingsTypeMenu, ProfileAddTypeMenu, ProxySortMenu } from "components/app_chrome.slint";
+import { AppBottomBar, MobileDockPageGround, ClearTrafficDialog, DesktopTitleBar, NoticeBanner, SettingsMessageBanner, ProfileSettingsTypeMenu, ProfileAddTypeMenu, ProxySortMenu } from "components/app_chrome.slint";
 import { AppBody } from "components/app_body.slint";
 import { PageTitles } from "components/page_titles.slint";
+import { ViewportTier } from "components/viewport_tier.slint";
 import { PageWorkbench } from "pages/page_workbench.slint";
 import { ConnectionSort, LogLevel, NetworkMode, RouteMode, RuntimeStatus, ThemeMode, TrafficRange } from "components/domain_enums.slint";
 
 export component AppWindow inherits MaterialWindow {
-        title: "MusicFrog Infiltrator";
+        title: @tr("Lumen");
         no-frame: root.frameless;
-        background: LumenTheme.canvas;
-        disable-hover: root.android-platform;
+        background: LumenTheme.zinc-0;
+        disable-hover: root.android-platform || root.capture-pointer-absent;
         default-font-family: DesignType.body-family;
-        property <bool> compact-layout: root.android-platform || root.width < 760 * LumenUiScale.unit;
+        // The chrome decision reads the shared tier ladder instead of
+        // measuring the window itself: a rail and a floating dock are two
+        // answers to the same question, and the ladder is the only place the
+        // boundary is written.
+        out property <bool> compact-layout: root.android-platform || LumenTheme.viewport-tier == ViewportTier.phone || LumenTheme.viewport-tier == ViewportTier.compact;
         property <bool> platform-dark-mode: MaterialPalette.color-scheme == ColorScheme.dark;
         in-out property <bool> frameless: false;
         // EFFECTS-041 #167: the frameless desktop chrome's window controls.
         callback window-minimize(); callback window-toggle-maximize(); callback window-close();
         in-out property <bool> is-maximized: false; in-out property <bool> window-focused: true; callback window-focus-changed(bool);
         in-out property <string> title-bar-upload: "0 B/s"; in-out property <string> title-bar-download: "0 B/s"; callback title-bar-search-clicked();
-        in-out property <color> sidebar-background: LumenTheme.zinc-2;
         in-out property <bool> android-platform: false;
-        in-out property <string> product-version: "0.68.2";
+        // A capture run drives the surface through typed gestures only: the
+        // nested compositor parks its pointer at the output centre, which would
+        // otherwise publish a hovered control no user ever hovered.
+        in property <bool> capture-pointer-absent: false;
+        in-out property <string> product-version: ProductIdentity.version;
         in-out property <bool> layout-debug-tools-enabled: false;
         in-out property <bool> layout-debug-bounds: false;
         in-out property <bool> application-dark-mode: false;
@@ -43,14 +55,15 @@ export component AppWindow inherits MaterialWindow {
         in-out property <bool> auto-start: false;
         in-out property <bool> refresh-current-profile-on-start: false;
         in-out property <bool> invert-theme-foreground: false;
-        in-out property <color> theme-color: #016888;
+        in-out property <color> theme-color: LumenTheme.default-accent;
         in-out property <bool> theme-accent-light-foreground: true;
-        in-out property <string> theme-color-code: "#016888"; in-out property <string> theme-color-input-code: "##016888";
+        in-out property <string> theme-color-code: LumenTheme.default-accent-code; in-out property <string> theme-color-input-code: LumenTheme.default-accent-code;
         in-out property <float> theme-hue: 198; in-out property <float> theme-saturation: 0.66; in-out property <float> theme-value: 0.50;
         in-out property <string> application-language: "system"; in-out property <string> system-language: "zh-CN"; in-out property <string> current-translated-language: "";
         in-out property <int> page-scale-percent: 100;
-        in-out property <bool> hide-bottom-bar-on-scroll: false;
-        in-out property <bool> bottom-bar-visible: true;
+        // The host projects the shared contract into this one typed state.
+        // Every geometry consumer reads it; no surface computes a dock state.
+        in property <MobileDockBandState> mobile-dock-band-state: MobileDockBandState.reserved;
         in-out property <bool> predictive-back-enabled: false;
         in-out property <bool> predictive-back-supported: false;
         in-out property <bool> hide-background-card: false;
@@ -60,7 +73,7 @@ export component AppWindow inherits MaterialWindow {
         in-out property <int> app-settings-preview-section: -1;
         in-out property <string> app-settings-message: "";
         in-out property <bool> theme-color-dialog-open: false;
-        in-out property <string> theme-color-draft: "#016888"; in-out property <string> theme-color-code-draft: "##016888";
+        in-out property <string> theme-color-draft: LumenTheme.default-accent-code; in-out property <string> theme-color-code-draft: LumenTheme.default-accent-code;
         in-out property <float> theme-hue-draft: 198; in-out property <float> theme-saturation-draft: 0.66; in-out property <float> theme-value-draft: 0.50;
         in-out property <string> theme-color-error: ""; in-out property <bool> theme-color-saving: false; in-out property <bool> theme-color-code-edited: false;
         in-out property <int> theme-color-result-revision: 0;
@@ -93,15 +106,12 @@ export component AppWindow inherits MaterialWindow {
         property <length> profile-dialog-content-width: max(0 * LumenUiScale.unit, root.profile-dialog-width - 16 * LumenUiScale.unit);
         property <length> profile-sheet-content-height: 364 * LumenUiScale.unit;
         property <length> profile-settings-sheet-height: min(root.profile-settings-type-index == 1 ? 640 * LumenUiScale.unit : root.profile-settings-kind == "remote_subscription" ? 520 * LumenUiScale.unit : 340 * LumenUiScale.unit, max(0 * LumenUiScale.unit, root.height - root.safe-area-insets.top - root.safe-area-insets.bottom - 52 * LumenUiScale.unit));
-        property <length> home-title-gap: root.height < 760 * LumenUiScale.unit ? 32 * LumenUiScale.unit : root.height < 840 * LumenUiScale.unit ? 64 * LumenUiScale.unit : 74 * LumenUiScale.unit;
-        property <length> home-data-upload-gap: root.height < 760 * LumenUiScale.unit ? 24 * LumenUiScale.unit : root.height < 840 * LumenUiScale.unit ? 24 * LumenUiScale.unit : 40 * LumenUiScale.unit;
-        property <length> home-before-node-gap: root.height < 760 * LumenUiScale.unit ? 16 * LumenUiScale.unit : root.height < 840 * LumenUiScale.unit ? 16 * LumenUiScale.unit : 28 * LumenUiScale.unit;
-        property <length> home-node-egress-gap: 8 * LumenUiScale.unit;
-        property <bool> primary-page: root.page == "Home" || root.page == "Proxy" || root.page == "Config" || root.page == "Settings" || root.page == "SettingsWorkbench";
-
+        out property <bool> primary-page: root.page == "Home" || root.page == "Proxy" || root.page == "Config" || root.page == "Settings" || root.page == "SettingsWorkbench";
         init => {
         MaterialPalette.schemes = LumenTheme.material-schemes;
         LumenTheme.show-layout-bounds = root.layout-debug-bounds;
+        LumenTheme.viewport-width = root.width;
+        LumenTheme.compact-layout = root.compact-layout;
         LumenUiScale.unit = 1px * (root.page-scale-percent / 100.0);
         LumenTheme.dark-mode = root.application-dark-mode;
         LumenTheme.user-accent = root.theme-color;
@@ -115,6 +125,7 @@ export component AppWindow inherits MaterialWindow {
         in-out property <string> page: "Home"; in-out property <string> page-origin: "Settings";
         in-out property <RuntimeStatus> runtime-status: RuntimeStatus.stopped; in-out property <string> runtime-detail: @tr("尚未启动 Mihomo");
         in-out property <string> active-profile: @tr("未选择配置"); in-out property <bool> has-current-profile: false;
+        in property <string> current-profile-id;
         in-out property <RouteMode> route-mode: RouteMode.rule; in-out property <NetworkMode> network-mode: NetworkMode.system-proxy;
         // The one copy source for the takeover mode: the sidebar and the settings
         // page read this, and it now derives from the typed enum through the same
@@ -300,7 +311,6 @@ export component AppWindow inherits MaterialWindow {
         callback set-theme-color(string);
         callback set-application-language(string);
         callback set-page-scale(int);
-        callback set-hide-bottom-bar-on-scroll(bool);
         callback set-predictive-back-enabled(bool);
         callback set-hide-background-card(bool);
         callback set-show-traffic-notification(bool);
@@ -315,9 +325,9 @@ export component AppWindow inherits MaterialWindow {
         callback search-licenses(string);
         callback open-license(string);
         callback retry-license-catalog();
-        callback workbench-action(string, string); callback workbench-draft-edited(string, string);
+        callback workbench-action(string, string); callback workbench-draft-edited(string, string); callback mobile-dock-band-state-changed();
 
-        changed page => { if root.page != "Proxy" && root.selected-group != "" { root.selected-group = ""; } app-body.scroll-to-top(); root.bottom-bar-visible = true; root.update-color-scheme(); }
+        changed page => { if root.page != "Proxy" && root.selected-group != "" { root.selected-group = ""; } app-body.scroll-to-top(); root.mobile-dock-band-state-changed(); root.update-color-scheme(); }
         changed selected-group => { root.proxy-active-node-position = 0 * LumenUiScale.unit; root.proxy-current-node-available = false; root.update-color-scheme(); root.select-proxy-group(root.selected-group); }
         changed proxy-nodes => { root.proxy-active-node-position = 0 * LumenUiScale.unit; }
         changed profile-add-open => { root.update-color-scheme(); profile-add-type-menu.close(); if root.profile-add-open { profile-overlays.show-add(); } else { profile-overlays.close-add(); } }
@@ -332,6 +342,8 @@ export component AppWindow inherits MaterialWindow {
         changed platform-dark-mode => { if root.theme-mode == ThemeMode.system { root.application-dark-mode = root.platform-dark-mode; } }
         changed theme-mode => { LumenTheme.forest-mode = root.theme-mode == ThemeMode.forest; LumenTheme.amoled-mode = root.theme-mode == ThemeMode.amoled; if root.theme-mode == ThemeMode.system { root.application-dark-mode = root.platform-dark-mode; } else if root.theme-mode == ThemeMode.dark || root.theme-mode == ThemeMode.amoled { root.application-dark-mode = true; } else { root.application-dark-mode = false; } root.update-color-scheme(); }
         changed page-scale-percent => { LumenUiScale.unit = 1px * (root.page-scale-percent / 100.0); }
+        changed compact-layout => { LumenTheme.compact-layout = root.compact-layout; root.mobile-dock-band-state-changed(); }
+        changed width => { LumenTheme.viewport-width = root.width; root.mobile-dock-band-state-changed(); }
         changed theme-color => { LumenTheme.user-accent = root.theme-color; MaterialPalette.schemes = LumenTheme.material-schemes; }
         changed theme-color-code => { if root.theme-color-dialog-open && !root.theme-color-code-edited { root.theme-color-code-draft = root.theme-color-input-code; root.theme-color-draft = root.theme-color-input-code; } }
         changed theme-color-input-code => { if root.theme-color-dialog-open && !root.theme-color-code-edited { root.theme-color-code-draft = root.theme-color-input-code; root.theme-color-draft = root.theme-color-input-code; } }
@@ -386,7 +398,7 @@ export component AppWindow inherits MaterialWindow {
         else { if root.predictive-back-enabled { root.commit-back-preview(); } root.page = "Settings"; root.navigate("Settings"); }
         }
 
-        if !root.android-platform: DesktopTitleBar {
+        if !root.android-platform && !root.compact-layout: DesktopTitleBar {
         // EFFECTS-041 #167: the frameless chrome; callbacks land on the
         // real window via lib.rs's installer.
         x: root.safe-area-insets.left; y: root.safe-area-insets.top;
@@ -399,14 +411,12 @@ export component AppWindow inherits MaterialWindow {
         window-minimize => { root.window-minimize(); } window-toggle-maximize => { root.window-toggle-maximize(); } window-close => { root.window-close(); }
         }
         app-body := AppBody {
-        x: root.safe-area-insets.left; y: root.safe-area-insets.top + (!root.android-platform ? 40 * LumenUiScale.unit : 0 * LumenUiScale.unit); width: max(0 * LumenUiScale.unit, root.width - root.safe-area-insets.left - root.safe-area-insets.right); height: max(0 * LumenUiScale.unit, root.height - root.safe-area-insets.top - root.safe-area-insets.bottom - (!root.android-platform ? 40 * LumenUiScale.unit : 0 * LumenUiScale.unit));
+        x: root.safe-area-insets.left; y: root.safe-area-insets.top + (!root.android-platform && !root.compact-layout ? 40 * LumenUiScale.unit : 0 * LumenUiScale.unit); width: max(0 * LumenUiScale.unit, root.width - root.safe-area-insets.left - root.safe-area-insets.right); height: max(0 * LumenUiScale.unit, root.height - root.safe-area-insets.top - root.safe-area-insets.bottom - (!root.android-platform && !root.compact-layout ? 40 * LumenUiScale.unit : 0 * LumenUiScale.unit));
         page: root.page; page-origin: root.page-origin; compact-layout: root.compact-layout; primary-page: root.primary-page; android-platform: root.android-platform; application-dark-mode: root.application-dark-mode; layout-debug-bounds: root.layout-debug-bounds;
-        sidebar-background: root.sidebar-background;
+        mobile-dock-band-state: root.mobile-dock-band-state;
         layout-debug-tools-enabled: root.layout-debug-tools-enabled; predictive-back-enabled: root.predictive-back-enabled; predictive-back-supported: root.predictive-back-supported; safe-top: root.safe-area-insets.top; safe-bottom: root.safe-area-insets.bottom; safe-left: root.safe-area-insets.left; safe-right: root.safe-area-insets.right;
-        bottom-bar-visible <=> root.bottom-bar-visible; hide-bottom-bar-on-scroll: root.hide-bottom-bar-on-scroll;
-        last-page-scroll-y <=> root.last-page-scroll-y; home-title-gap: root.home-title-gap;
-        home-data-upload-gap: root.home-data-upload-gap; home-before-node-gap: root.home-before-node-gap; home-node-egress-gap: root.home-node-egress-gap; runtime-status: root.runtime-status; runtime-status-label: root.runtime-status-label; runtime-detail: root.runtime-detail;
-        active-profile: root.active-profile; has-current-profile: root.has-current-profile; network-mode-label: root.network-mode-label; home-current-node: root.home-current-node; home-current-accessible: root.home-current-accessible; home-current-flag-code: root.home-current-flag-code;
+        last-page-scroll-y <=> root.last-page-scroll-y; runtime-status: root.runtime-status; runtime-status-label: root.runtime-status-label; runtime-detail: root.runtime-detail;
+        active-profile: root.active-profile; has-current-profile: root.has-current-profile; current-profile-id: root.current-profile-id; network-mode-label: root.network-mode-label; home-current-node: root.home-current-node; home-current-accessible: root.home-current-accessible; home-current-flag-code: root.home-current-flag-code;
         home-current-flag-index: root.home-current-flag-index; home-current-delay: root.home-current-delay; home-exit-ip: root.home-exit-ip; home-exit-country-code: root.home-exit-country-code; home-exit-flag-index: root.home-exit-flag-index; home-exit-status: root.home-exit-status;
         dashboard-facts: root.dashboard-facts;
         home-traffic-points: root.home-traffic-points; home-traffic-has-data: root.home-traffic-has-data; stat-down: root.stat-down; stat-up: root.stat-up; stat-down-value: root.stat-down-value; stat-down-unit: root.stat-down-unit; stat-up-compact: root.stat-up-compact; stat-connections: root.stat-connections;
@@ -417,7 +427,7 @@ export component AppWindow inherits MaterialWindow {
         profile-settings-overrides: root.profile-settings-overrides; route-mode: root.route-mode; selected-group: root.selected-group; proxy-testing-group: root.proxy-testing-group; proxy-testing-node: root.proxy-testing-node; proxy-groups: root.proxy-groups; proxy-nodes: root.proxy-nodes;
         proxy-search <=> root.proxy-search; proxy-active-node-position <=> root.proxy-active-node-position;
         proxy-current-node-available <=> root.proxy-current-node-available; product-version: root.product-version;
-        core-version: root.core-version; network-mode: root.network-mode; network-mode-status: root.network-mode-status; network-mode-status-warning: root.network-mode-status-warning; tun-capable: root.tun-capable; tun-capability-detail: root.tun-capability-detail; app-settings-preview-section: root.app-settings-preview-section; lan-sharing-heading: root.lan-sharing-heading; lan-sharing-detail: root.lan-sharing-detail;
+        core-version: root.core-version; proxy-recovery-pending: root.proxy-recovery-pending; network-mode: root.network-mode; network-mode-status: root.network-mode-status; network-mode-status-warning: root.network-mode-status-warning; tun-capable: root.tun-capable; tun-capability-detail: root.tun-capability-detail; app-settings-preview-section: root.app-settings-preview-section; lan-sharing-heading: root.lan-sharing-heading; lan-sharing-detail: root.lan-sharing-detail;
         auto-start: root.auto-start; refresh-current-profile-on-start: root.refresh-current-profile-on-start; theme-mode: root.theme-mode; invert-theme-foreground: root.invert-theme-foreground; theme-color-code: root.theme-color-code; application-language: root.application-language;
         system-language: root.system-language; page-scale-percent: root.page-scale-percent; hide-background-card: root.hide-background-card; show-traffic-notification: root.show-traffic-notification; release-ui-when-background: root.release-ui-when-background; ignore-battery-optimizations: root.ignore-battery-optimizations;
         user-agent: root.user-agent; overrides: root.overrides; override-importing: root.override-importing;
@@ -447,7 +457,7 @@ export component AppWindow inherits MaterialWindow {
         go-back => { root.go-back(); }
         start-runtime => { root.start-runtime(); } stop-runtime => { root.stop-runtime(); }
         cache-back-preview => { root.cache-back-preview(); } open-profile-add => { root.open-profile-add(); }
-        set-current-profile(id) => { root.set-current-profile(id); }
+        set-current-profile(id) => { root.set-current-profile(id); } refresh-profile(id) => { root.refresh-profile(id); }
         open-profile-action(id, name) => { root.profile-action-id = id; root.profile-action-name = name; root.profile-action-open = true; }
         request-export(id, name) => { root.pending-profile-export-id = id; root.pending-profile-export-name = name; }
         request-delete(id, name) => { root.pending-delete-id = id; root.pending-delete-name = name; }
@@ -460,10 +470,13 @@ export component AppWindow inherits MaterialWindow {
         search-proxy-nodes(q) => { root.search-proxy-nodes(q); } test-proxy(g, n) => { root.test-proxy(g, n); }
         set-route-mode(m) => { root.set-route-mode(m); }
         request-network-mode-change(m) => { root.open-network-mode-dialog(m); }
-        check-core => { root.check-core(); } set-auto-start(v) => { root.set-auto-start(v); }
+        check-core => { root.check-core(); }
+        // The retry was declared on the window and handled by the host from the
+        // first day, but no hop between the page and the window forwarded it, so
+        // the button could never reach its own command.
+        retry-proxy-restore => { root.retry-proxy-restore(); } set-auto-start(v) => { root.set-auto-start(v); }
         set-refresh-profile-on-start(v) => { root.set-refresh-profile-on-start(v); }
         set-invert-theme-foreground(v) => { root.set-invert-theme-foreground(v); }
-        set-hide-bottom-bar-on-scroll(v) => { root.set-hide-bottom-bar-on-scroll(v); }
         set-predictive-back-enabled(v) => { root.set-predictive-back-enabled(v); }
         set-hide-background-card(v) => { root.set-hide-background-card(v); }
         set-show-traffic-notification(v) => { root.set-show-traffic-notification(v); }
@@ -548,7 +561,16 @@ export component AppWindow inherits MaterialWindow {
         reset-order => { root.reset-overview-card-order(); }
         }
 
-        if root.compact-layout && root.primary-page && root.bottom-bar-visible: AppBottomBar {
+        // The page ground is the last layer below the dock. It draws the
+        // reserved band before the pill, so no overlay or page content can
+        // cross the band; it is the page's own background, not a cover bar.
+        if MobileDockBandProjection.reserves_band(root.mobile-dock-band-state): MobileDockPageGround {
+        window-width: root.width; window-height: root.height;
+        safe-bottom: root.safe-area-insets.bottom;
+        }
+
+        if MobileDockBandProjection.draws_dock(root.mobile-dock-band-state): AppBottomBar {
+        mobile-dock-band-state: root.mobile-dock-band-state;
         page: root.page; window-width: root.width; window-height: root.height;
         safe-left: root.safe-area-insets.left; safe-right: root.safe-area-insets.right; safe-bottom: root.safe-area-insets.bottom;
         layout-debug-bounds: root.layout-debug-bounds;
@@ -620,7 +642,7 @@ export component AppWindow inherits MaterialWindow {
         notice: root.notice; window-width: root.width; window-height: root.height;
         safe-left: root.safe-area-insets.left; safe-right: root.safe-area-insets.right;
         safe-top: root.safe-area-insets.top; safe-bottom: root.safe-area-insets.bottom;
-        compact-layout: root.compact-layout; primary-page: root.primary-page; bottom-bar-visible: root.bottom-bar-visible;
+        compact-layout: root.compact-layout; mobile-dock-band-state: root.mobile-dock-band-state;
         close => { root.notice = ""; }
         }
 
@@ -635,7 +657,7 @@ export component AppWindow inherits MaterialWindow {
         x: root.safe-area-insets.left; y: root.safe-area-insets.top;
         width: max(0 * LumenUiScale.unit, root.width - root.safe-area-insets.left - root.safe-area-insets.right);
         height: max(0 * LumenUiScale.unit, root.height - root.safe-area-insets.top - root.safe-area-insets.bottom);
-        background: transparent; border-width: 1 * LumenUiScale.unit; border-color: #FF2D55; z: 1000;
+        background: transparent; border-width: 1 * LumenUiScale.unit; border-color: LumenTheme.debug-frame; z: 1000;
         }
         app-settings-message-timeout := Timer {
         interval: 5s; running: root.app-settings-message != "";

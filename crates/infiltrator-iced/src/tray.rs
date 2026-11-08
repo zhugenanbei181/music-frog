@@ -18,6 +18,7 @@ use iced::advanced::subscription::{EventStream, Hasher, Recipe, from_recipe};
 use iced::futures::channel::mpsc;
 use iced::futures::stream::BoxStream;
 use iced::{Subscription, Task, stream};
+use infiltrator_contract::surface::SurfaceKind;
 use infiltrator_contract::tray_menu::{
     TRAY_MAX_GROUPS, TrayCoreStatus, TrayKernelEntry, TrayMenuCapabilities, TrayMenuContext,
     TrayOutboundGroup, TrayOutboundNode, TrayProfileEntry, TraySpec,
@@ -249,6 +250,7 @@ impl AppState {
             .as_ref()
             .map(|runtime| runtime.controller_url());
         let ctx = TrayMenuContext {
+            surface: SurfaceKind::IcedDesktop,
             lang: self.shell.lang.clone(),
             routing_intent: self.runtime.routing_intent.clone(),
             system_proxy: self.runtime.system_proxy_stage.is_enabled(),

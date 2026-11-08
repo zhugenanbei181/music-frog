@@ -3,6 +3,7 @@ use crate::core_application::{
     test_dispatch_at_current_scope, test_execute_result_at_current_scope,
 };
 use crate::core_capability_test_support::core_scope;
+use infiltrator_contract::snapshot::CoreSessionObservation;
 use infiltrator_ports::active_profile_reference_store::ActiveProfileOwnerLease;
 use lurker_core_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
 use lurker_core_contract::core_process::CoreProcessStartContext;
@@ -498,3 +499,40 @@ async fn tracked_scoped_dispatch_rejects_old_scope_and_completes_current_scope()
 
 #[path = "ownership_tests/lifecycle_cases.rs"]
 mod lifecycle_cases;
+
+#[tokio::test]
+async fn the_core_owner_publishes_the_session_it_runs() {
+    let app = application(
+        FakeProcess {
+            running: AtomicBool::new(false),
+            fail_start: false,
+            fail_stop: false,
+        },
+        Ok("http://127.0.0.1:9090".to_string()),
+    );
+
+    // Nobody started a session yet, so the owner publishes no running
+    // session instead of a length of zero.
+    assert_eq!(app.snapshot().session, CoreSessionObservation::Inactive);
+
+    let started = test_execute_result_at_current_scope(&app, CommandIntent::StartCore).await;
+    assert!(matches!(started, CommandResult::Completed { .. }));
+
+    let session = app.snapshot().session;
+    assert!(session.is_active());
+    let started_at_epoch_ms = session
+        .started_at_epoch_ms()
+        .expect("a running session publishes its start");
+    assert!(started_at_epoch_ms > 0);
+    assert!(session.elapsed_ms().is_some());
+
+    // A second read measures the same session instead of starting a new one.
+    assert_eq!(
+        app.snapshot().session.started_at_epoch_ms(),
+        Some(started_at_epoch_ms)
+    );
+
+    let stopped = test_execute_result_at_current_scope(&app, CommandIntent::StopCore).await;
+    assert!(matches!(stopped, CommandResult::Completed { .. }));
+    assert_eq!(app.snapshot().session, CoreSessionObservation::Inactive);
+}

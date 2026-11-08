@@ -20,6 +20,7 @@ use bevy::ui::prelude::{AlignItems, BackgroundColor, BorderRadius, JustifyConten
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use std::f32::consts::TAU;
+use zhuge_ui_core::easing::lerp;
 
 /// The halo's resting diameter, in baseline pixels.
 const HALO_MIN_SIZE_PX: f32 = 12.0;
@@ -97,7 +98,7 @@ pub fn animate_status_dot(
     }
     // A breath runs from "small and invisible" to "wide and faint" and back.
     let breath = 0.5 - 0.5 * (state.phase * TAU).cos();
-    let size = HALO_MIN_SIZE_PX + (HALO_MAX_SIZE_PX - HALO_MIN_SIZE_PX) * breath;
+    let size = lerp(HALO_MIN_SIZE_PX, HALO_MAX_SIZE_PX, breath);
     let alpha = HALO_PEAK_ALPHA * (1.0 - breath);
     let ink = status_dot_color(last.as_deref().and_then(|last| last.0.as_ref()), &palette);
     for (mut node, mut fill) in &mut halos {

@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 publish = false
-description = "Bevy UI frontend shell for MusicFrog Infiltrator: a peer desktop+mobile product."
+description = "Bevy UI frontend shell for Lurker: a peer desktop+mobile product."
 
 # Bevy and Iced are peer products; mobile support is a separate platform axis.
 [features]
@@ -20,6 +20,7 @@ capture-tools = [
     "dep:infiltrator-application",
     "dep:infiltrator-test-support",
     "infiltrator-composition/capture-fixtures",
+    "zhuge-ui-kit-bevy/capture-tools",
 ]
 # Explicit opt-in for the legacy controller-only live Overview capture adapter.
 capture-controller = ["capture-tools"]
@@ -33,6 +34,8 @@ static-openssl = ["dep:openssl", "openssl/vendored"]
 lurker-core-ports = { path = "../lurker-core-ports" }
 lurker-core-contract = { path = "../lurker-core-contract" }
 zhuge-ui-core.workspace = true
+zhuge-ui-tokens.workspace = true
+zhuge-ui-kit-bevy.workspace = true
 infiltrator-bevy-widgets = { path = "../infiltrator-bevy-widgets" }
 
 # AccessKit node/role vocabulary for the shell's semantic nodes. Direct dep
@@ -91,6 +94,7 @@ bevy = { workspace = true, features = [
     "bevy_text",
     "ui_picking",
     "touch",
+    "png",
     "accesskit_unix",
     "wayland",
     "system_font_discovery",
@@ -115,6 +119,7 @@ bevy = { workspace = true, features = [
     "bevy_text",
     "ui_picking",
     "touch",
+    "png",
     "android-native-activity",
     "system_font_discovery",
 ] }
@@ -137,6 +142,7 @@ bevy = { workspace = true, features = [
     "bevy_text",
     "ui_picking",
     "touch",
+    "png",
     "system_font_discovery",
     "bevy_clipboard",
 ] }
@@ -167,7 +173,7 @@ min_sdk_version = 29
 target_sdk_version = 36
 
 [package.metadata.android.application]
-label = "MusicFrog Infiltrator Bevy"
+label = "Lurker"
 theme = "@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen"
 icon = "@drawable/ic_app_icon"
 

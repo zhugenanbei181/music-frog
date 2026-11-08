@@ -31,6 +31,7 @@
 use crate::surface_hierarchy::{MaterialSurfaceTokens, SemanticContainerPair};
 use crate::theme::ThemeSkin;
 use serde::{Deserialize, Serialize};
+use zhuge_ui_tokens::Rgba;
 
 /// One sRGBA token, channel-exact.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
@@ -48,6 +49,12 @@ impl RgbaToken {
 
     pub const fn rgba(r: f32, g: f32, b: f32, a: f32) -> Self {
         Self { r, g, b, a }
+    }
+
+    /// Convert this product token into the shared resolved RGBA owner.
+    #[must_use]
+    pub const fn as_rgba(self) -> Rgba {
+        Rgba::new(self.r, self.g, self.b, self.a)
     }
 }
 

@@ -17,6 +17,8 @@ export component PagesSettings inherits VerticalLayout {
     in property <bool> network-mode-status-warning;
     in property <bool> tun-capable;
     in property <string> tun-capability-detail;
+    in property <string> core-version;
+    in property <bool> proxy-recovery-pending;
     in property <string> lan-sharing-heading;
     in property <string> lan-sharing-detail;
     in property <int> app-settings-preview-section;
@@ -28,7 +30,6 @@ export component PagesSettings inherits VerticalLayout {
     in property <string> application-language;
     in property <string> system-language;
     in property <int> page-scale-percent;
-    in property <bool> hide-bottom-bar-on-scroll;
     in property <bool> predictive-back-enabled;
     in property <bool> predictive-back-supported;
     in property <bool> hide-background-card;
@@ -49,10 +50,10 @@ export component PagesSettings inherits VerticalLayout {
     callback set-route-mode(RouteMode);
     callback set-network-mode(NetworkMode);
     callback check-core();
+    callback retry-proxy-restore();
     callback set-auto-start(bool);
     callback set-refresh-profile-on-start(bool);
     callback set-invert-theme-foreground(bool);
-    callback set-hide-bottom-bar-on-scroll(bool);
     callback set-predictive-back-enabled(bool);
     callback set-hide-background-card(bool);
     callback set-show-traffic-notification(bool);
@@ -94,11 +95,14 @@ export component PagesSettings inherits VerticalLayout {
         network-mode-status-warning: root.network-mode-status-warning;
         tun-capable: root.tun-capable;
         tun-capability-detail: root.tun-capability-detail;
+        core-version: root.core-version;
+        proxy-recovery-pending: root.proxy-recovery-pending;
         lan-sharing-heading: root.lan-sharing-heading;
         lan-sharing-detail: root.lan-sharing-detail;
         set-route-mode(mode) => { root.set-route-mode(mode); }
         set-network-mode(mode) => { root.set-network-mode(mode); }
         check-core => { root.check-core(); }
+        retry-proxy-restore => { root.retry-proxy-restore(); }
     }
 
     if root.page == "AppSettings": PageAppSettings {
@@ -112,7 +116,6 @@ export component PagesSettings inherits VerticalLayout {
         application-language: root.application-language;
         system-language: root.system-language;
         page-scale-percent: root.page-scale-percent;
-        hide-bottom-bar-on-scroll: root.hide-bottom-bar-on-scroll;
         predictive-back-enabled: root.predictive-back-enabled;
         predictive-back-supported: root.predictive-back-supported;
         hide-background-card: root.hide-background-card;
@@ -123,7 +126,6 @@ export component PagesSettings inherits VerticalLayout {
         set-auto-start(value) => { root.set-auto-start(value); }
         set-refresh-profile-on-start(value) => { root.set-refresh-profile-on-start(value); }
         set-invert-theme-foreground(value) => { root.set-invert-theme-foreground(value); }
-        set-hide-bottom-bar-on-scroll(value) => { root.set-hide-bottom-bar-on-scroll(value); }
         set-predictive-back-enabled(value) => { root.set-predictive-back-enabled(value); }
         set-hide-background-card(value) => { root.set-hide-background-card(value); }
         set-show-traffic-notification(value) => { root.set-show-traffic-notification(value); }

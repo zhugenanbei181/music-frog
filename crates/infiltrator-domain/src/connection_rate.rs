@@ -19,6 +19,7 @@ use infiltrator_contract::connection::ConnectionRateObservation;
 use std::collections::BTreeMap;
 use std::f32::consts::TAU;
 use std::time::Instant;
+use zhuge_ui_core::easing::lerp;
 
 /// Instantaneous bandwidth at or above which a connection row renders the
 /// high-throughput pulse (5 MB/s, the product threshold of DUAL-13-10).
@@ -70,7 +71,7 @@ pub fn pulse_intensity(upload_bps: f64, download_bps: f64, phase: f32) -> f32 {
         return 0.0;
     }
     let breath = 0.5 - 0.5 * (phase.clamp(0.0, 1.0) * TAU).cos();
-    PULSE_MIN_INTENSITY + (PULSE_MAX_INTENSITY - PULSE_MIN_INTENSITY) * breath
+    lerp(PULSE_MIN_INTENSITY, PULSE_MAX_INTENSITY, breath)
 }
 
 /// Byte-counter delta over a known interval. A first observation, a

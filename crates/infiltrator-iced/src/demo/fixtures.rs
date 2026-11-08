@@ -425,7 +425,7 @@ pub(super) fn tun_json_fixture() -> String {
 
 pub(super) fn profile_yaml_fixture() -> String {
     [
-        "# MusicFrog Infiltrator 演示配置 (demo fixture)",
+        "# Ice 演示配置 (demo fixture)",
         "mixed-port: 7890",
         "allow-lan: false",
         "mode: rule",

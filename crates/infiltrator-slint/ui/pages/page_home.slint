@@ -2,11 +2,12 @@ import { DesignType } from "../components/design-type.slint";
 import { FilledButton, TonalButton } from "@material";
 import { HomeDesktopGrid } from "home_desktop_grid.slint";
 import { HomeCompactFlow } from "home_compact_flow.slint";
-import { AppPreferenceSwitch } from "../components/base_widgets.slint";
+import { AppPreferenceSwitch } from "../components/preferences.slint";
 import { FlagIcon } from "../lumen-flags.slint";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "../components/theme.slint";
 import { PageTitles } from "../components/page_titles.slint";
+import { ViewportTier } from "../components/viewport_tier.slint";
 import { RouteMode, RuntimeStatus } from "../components/domain_enums.slint";
 import { NetworkMode } from "../components/domain_enums.slint";
 import {
@@ -55,10 +56,6 @@ export component PageHome inherits VerticalLayout {
         in property <string> traffic-today-up;
         in property <[TrafficBar]> traffic-today-bars;
         in property <[ProxyGroup]> proxy-groups;
-        in property <length> home-title-gap;
-        in property <length> home-data-upload-gap;
-        in property <length> home-before-node-gap;
-        in property <length> home-node-egress-gap;
 
         callback start-runtime();
         callback stop-runtime();
@@ -78,14 +75,15 @@ export component PageHome inherits VerticalLayout {
         // The compact tier still gets the reference dashboard's density once
         // the window is wide enough to carry two-column rows. A phone keeps
         // the single-column flow; a true Android surface is always phone.
-        property <bool> uses-dashboard-grid: !root.android-platform && root.width >= 640 * LumenUiScale.unit;
+        property <bool> uses-dashboard-grid: !root.android-platform
+            && LumenTheme.viewport-width >= LumenTheme.dashboard-grid-min-width;
 
         if root.compact-layout && root.uses-dashboard-grid: HorizontalLayout {
             width: parent.width;
             height: 40 * LumenUiScale.unit;
             alignment: space-between;
             Text {
-                text: "MusicFrog";
+                text: PageTitles.phone-title("Home");
                 color: LumenTheme.text-primary;
                 font-size: DesignType.display-size;
                 font-weight: DesignType.display-weight;
@@ -150,7 +148,10 @@ export component PageHome inherits VerticalLayout {
 
         if root.compact-layout && root.uses-dashboard-grid: TonalButton {
             text: @tr("调整卡片顺序");
-            height: 44 * LumenUiScale.unit;
+            // One page action, one height: the compact grid variant used to be
+            // 44u while the phone flow was 48u, and 44u is below the touch
+            // minimum this surface publishes. Both now read that authority.
+            height: LumenTheme.min-touch-target;
             horizontal-stretch: 1;
             clicked => { root.open-overview-order(); }
         }

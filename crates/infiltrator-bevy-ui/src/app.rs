@@ -79,6 +79,7 @@ use infiltrator_bevy_widgets::theme::{Breakpoint, Theme, space};
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::shell_gesture;
 use infiltrator_contract::sidebar_material::SidebarMaterialKind;
+use infiltrator_contract::surface::SurfaceKind;
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot};
 use infiltrator_contract::theme::{self, ThemePreference};
 use infiltrator_contract::window_chrome::{CHROME_DRAG_STRIP_HEIGHT_PX, DesktopPlatformKind};
@@ -625,7 +626,7 @@ fn spawn_shell(
     toggles: Res<SidebarToggleProjection>,
 ) {
     commands.spawn_scene(shell_scene_with_toggles(
-        "MusicFrog Infiltrator".to_string(),
+        SurfaceKind::BevyDesktop.product_name().to_string(),
         &toggles.0,
         &palette,
     ));

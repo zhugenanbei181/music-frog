@@ -12,7 +12,7 @@ use infiltrator_bevy_widgets::gesture::{
     SwipeToActionItem, TouchPhase,
 };
 use infiltrator_bevy_widgets::i18n::{
-    Locale, LocaleKey, TranslationRepo, format_bytes, format_duration_secs, format_rate,
+    Locale, LocaleKey, TranslationRepo, format_bytes, format_rate,
 };
 use infiltrator_bevy_widgets::mobile_view::{
     CameraPixelFormat, CameraScanReject, CameraScanResponse, CameraScanSession, CameraScanState,
@@ -25,6 +25,7 @@ use infiltrator_bevy_widgets::text_input::native::{
     ScreenReaderGate, ScreenReaderOutcome, SemanticNodeId,
 };
 use infiltrator_bevy_widgets::theme::Theme;
+use infiltrator_shared::elapsed_time::format_elapsed_ms;
 
 #[test]
 fn test_touch_gesture_recognizer_tap_long_press_swipe() {
@@ -111,7 +112,7 @@ fn test_i18n_formatting_and_locales() {
     assert_eq!(format_bytes(1024), "1.00 KB");
     assert_eq!(format_bytes(1024 * 1024 * 50), "50.00 MB");
     assert_eq!(format_rate(2048.0), "2.00 KB/s");
-    assert_eq!(format_duration_secs(3665), "01:01:05");
+    assert_eq!(format_elapsed_ms(3_665_000), "01:01:05");
 
     let mut repo = TranslationRepo::new(Locale::ZhCn);
     assert_eq!(repo.translate(LocaleKey::Overview), "核心概览");

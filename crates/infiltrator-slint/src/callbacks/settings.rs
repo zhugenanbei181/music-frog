@@ -139,12 +139,6 @@ pub(super) fn register(
             .clone()
             .upgrade_in_event_loop(move |window| window.set_page_scale_percent(percent));
     });
-    let weak_for_hide_bar = weak.clone();
-    window.on_set_hide_bottom_bar_on_scroll(move |enabled| {
-        let _ = weak_for_hide_bar
-            .clone()
-            .upgrade_in_event_loop(move |window| window.set_hide_bottom_bar_on_scroll(enabled));
-    });
     let weak_for_predictive_back = weak.clone();
     window.on_set_predictive_back_enabled(move |enabled| {
         let _ = weak_for_predictive_back

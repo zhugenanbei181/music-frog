@@ -1,0 +1,6 @@
+// One product-identity fact for every page shell. The version used to be
+// repeated as a literal default in three independent page owners, so a
+// release bump could leave one footer or one "About" row behind.
+export global ProductIdentity {
+    out property <string> version: "0.68.2";
+}

@@ -20,4 +20,16 @@ object TypeScale {
     val Tag: TextUnit = 10.sp
     val Mono: TextUnit = 13.sp
     val MonoStrong: TextUnit = 13.sp
+    val NumericLarge: TextUnit = 28.sp
+    val NumericDense: TextUnit = 22.sp
+    val NumericSmall: TextUnit = 13.sp
+    val MicroStrong: TextUnit = 11.sp
+    val CaptionStrong: TextUnit = 12.sp
+    val TagStrong: TextUnit = 10.sp
+    val MonoTag: TextUnit = 10.sp
+    val MonoMicro: TextUnit = 11.sp
+    val MonoCaption: TextUnit = 12.sp
+    val MonoBodyLarge: TextUnit = 16.sp
+    val MonoTitle: TextUnit = 20.sp
+    val FactNamed: TextUnit = 13.sp
 }

@@ -55,8 +55,14 @@ fun AboutScreen() {
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "MusicFrog Infiltrator is engineered for network protocol research, " +
+                    text = "Source is engineered for network protocol research, " +
                         "compliance diagnostics, and secure traffic analysis.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = stringResource(R.string.about_brand_note),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

@@ -192,8 +192,13 @@ class FourPagesHierarchyAndSemanticsTest {
         val zhCnStrings = File(rootDir, "values-zh-rCN/strings.xml").readText()
         val zhTwStrings = File(rootDir, "values-zh-rTW/strings.xml").readText()
 
+        // Quantity strings are <plurals>, not <string>: Android treats a type
+        // change as a resource conflict at merge time, so a locale cannot keep
+        // one and lose the other. Extracting only <string> would let a
+        // core-facing key silently turn into a plural in one locale and drop
+        // out of this parity check.
         val extractKeys = { text: String ->
-            Regex("""<string\s+name="([^"]+)"""")
+            Regex("""<(?:string|plurals)\s+name="([^"]+)"""")
                 .findAll(text)
                 .map { it.groupValues[1] }
                 .toSet()

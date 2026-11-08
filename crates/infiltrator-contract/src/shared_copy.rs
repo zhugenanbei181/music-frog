@@ -7,6 +7,7 @@
 pub enum SharedCopyKey {
     AppName,
     AppDisplayName,
+    AboutBrandNote,
     ConfigurationSaving,
     ConfigurationSaved,
     ConfigurationFailed,
@@ -20,9 +21,10 @@ pub enum SharedCopyKey {
 }
 
 impl SharedCopyKey {
-    pub const ALL: [Self; 12] = [
+    pub const ALL: [Self; 13] = [
         Self::AppName,
         Self::AppDisplayName,
+        Self::AboutBrandNote,
         Self::ConfigurationSaving,
         Self::ConfigurationSaved,
         Self::ConfigurationFailed,
@@ -39,6 +41,7 @@ impl SharedCopyKey {
         match self {
             Self::AppName => "brand_name",
             Self::AppDisplayName => "app_display_name",
+            Self::AboutBrandNote => "about_brand_note",
             Self::ConfigurationSaving => "configuration_saving",
             Self::ConfigurationSaved => "configuration_saved",
             Self::ConfigurationFailed => "configuration_failed",
@@ -56,6 +59,7 @@ impl SharedCopyKey {
 pub const SHARED_COPY_KEYS: [&str; SharedCopyKey::ALL.len()] = [
     SharedCopyKey::AppName.key(),
     SharedCopyKey::AppDisplayName.key(),
+    SharedCopyKey::AboutBrandNote.key(),
     SharedCopyKey::ConfigurationSaving.key(),
     SharedCopyKey::ConfigurationSaved.key(),
     SharedCopyKey::ConfigurationFailed.key(),

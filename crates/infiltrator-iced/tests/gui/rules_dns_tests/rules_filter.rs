@@ -2,10 +2,11 @@
 //! test-intent: behavior
 
 use super::*;
+use crate::view::rules_window::rules_page_bounds;
 use crate::view::rules_window::{rendered_rule_rows, rules_window_page};
 use infiltrator_composition::capture_fixtures::list_document;
 use infiltrator_domain::rules::view::{
-    clamp_page, filter_rule_indices, page_bounds, rendered_row_bound, rule_scroll_offset_for_index,
+    filter_rule_indices, rendered_row_bound, rule_scroll_offset_for_index,
 };
 
 #[test]
@@ -25,7 +26,11 @@ fn test_rules_filter_and_pagination_delegate_to_shared_reduction() {
 
     state.editor.rules_page_size = 2;
     let _ = state.update(Message::RulesSetPage(1));
-    assert_eq!(page_bounds(1, 5, 2), (2, 4));
+    assert_eq!(
+        rules_page_bounds(&state),
+        (2, 4),
+        "the product's page slice comes from the shared page axis"
+    );
     assert_eq!(state.editor.rules_page, 1);
     // DUAL-11-08: the visible rows are the shared window at the page's scroll
     // offset, not the whole page slice; the count is bounded by the viewport.
@@ -49,7 +54,10 @@ fn test_rules_filter_and_pagination_delegate_to_shared_reduction() {
     let _ = state.update(Message::RulesNextPage);
     assert_eq!(state.editor.rules_page, 2);
     let _ = state.update(Message::RulesSetPage(99));
-    assert_eq!(state.editor.rules_page, clamp_page(99, 5, 2));
+    assert_eq!(
+        state.editor.rules_page, 2,
+        "a stale page clamps back to the last real page of five rows at two per page"
+    );
 
     let _ = state.update(Message::FilterRules("site4".into()));
     assert_eq!(state.editor.rules_page, 0);

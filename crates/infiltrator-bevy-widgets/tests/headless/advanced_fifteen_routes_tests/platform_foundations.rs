@@ -15,7 +15,7 @@ fn test_abi_version_and_runner_host() {
     let host = DesktopRunnerHost;
     assert_eq!(host.abi_version(), (0, 30, 0));
     assert!(!host.is_headless());
-    assert_eq!(host.host_name(), "MusicFrog Infiltrator Desktop Runner");
+    assert_eq!(host.host_name(), "Lurker Desktop Runner");
 }
 
 #[test]

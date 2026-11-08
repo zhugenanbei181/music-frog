@@ -48,11 +48,13 @@ impl ReconnectMaskApplication {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use infiltrator_contract::snapshot::CoreSessionObservation;
     #[cfg(test)]
     use infiltrator_contract::snapshot::CoreWatchdogSnapshot;
 
     fn sample_core(lifecycle: CoreLifecycle, watchdog: CoreWatchdogState) -> CoreSnapshot {
         CoreSnapshot {
+            session: CoreSessionObservation::Unknown,
             identity: None,
             lifecycle,
             generation: 1,

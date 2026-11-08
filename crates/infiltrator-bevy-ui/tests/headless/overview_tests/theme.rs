@@ -4,7 +4,7 @@
 use super::*;
 use infiltrator_bevy_ui::pages::overview_lifecycle::CoreControlCaption;
 use infiltrator_bevy_widgets::button::ButtonDisabled;
-use infiltrator_bevy_widgets::theme::{TokenColor, contrast};
+use infiltrator_bevy_widgets::theme::TokenColor;
 
 fn over(foreground: Color, background: Color) -> Color {
     let foreground = foreground.to_linear();
@@ -21,10 +21,11 @@ fn over(foreground: Color, background: Color) -> Color {
 fn contrast_on(foreground: Color, background: Color) -> f32 {
     let foreground = over(foreground, background).to_srgba();
     let background = background.to_srgba();
-    contrast::contrast_ratio(
-        TokenColor::rgb(foreground.red, foreground.green, foreground.blue),
-        TokenColor::rgb(background.red, background.green, background.blue),
-    )
+    TokenColor::rgb(foreground.red, foreground.green, foreground.blue)
+        .as_rgba()
+        .contrast_ratio(
+            TokenColor::rgb(background.red, background.green, background.blue).as_rgba(),
+        )
 }
 
 #[test]

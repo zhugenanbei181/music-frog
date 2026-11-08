@@ -27,9 +27,9 @@ export component WorkbenchButton inherits Rectangle {
     min-width: max(96 * LumenUiScale.unit, i-layout.min-width + 24 * LumenUiScale.unit);
     height: 34 * LumenUiScale.unit;
     border-radius: 17 * LumenUiScale.unit;
-    background: root.danger && root.enabled ? LumenTheme.error : (root.primary && root.enabled ? LumenTheme.accent : (touch.has-hover && root.enabled ? LumenTheme.surface-raised : LumenTheme.surface-muted));
+    background: root.danger && root.enabled ? LumenTheme.error : (root.primary && root.enabled ? LumenTheme.accent : ((touch.has-hover && LumenTheme.hover-allowed) && root.enabled ? LumenTheme.surface-raised : LumenTheme.surface-muted));
     border-width: 1 * LumenUiScale.unit;
-    border-color: root.danger && root.enabled ? LumenTheme.error : (root.primary && root.enabled ? LumenTheme.accent : (touch.has-hover && root.enabled ? LumenTheme.accent : LumenTheme.border));
+    border-color: root.danger && root.enabled ? LumenTheme.error : (root.primary && root.enabled ? LumenTheme.accent : ((touch.has-hover && LumenTheme.hover-allowed) && root.enabled ? LumenTheme.accent : LumenTheme.border));
     animate background, border-color { duration: 120ms; easing: ease-out; }
 
     accessible-role: button;
@@ -60,7 +60,7 @@ export component WorkbenchButton inherits Rectangle {
             text: root.text;
             color: !root.enabled ? LumenTheme.disabled
                 : (root.danger || root.primary) ? LumenTheme.accent-foreground
-                : touch.has-hover ? LumenTheme.accent
+                : (touch.has-hover && LumenTheme.hover-allowed) ? LumenTheme.accent
                 : LumenTheme.text-primary;
             font-size: DesignType.label-size;
             font-weight: DesignType.label-weight;

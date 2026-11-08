@@ -43,9 +43,9 @@ use infiltrator_bevy_widgets::gesture::{
     SwipeActionDrawer, SwipeContentContainer, SwipeToActionItem, pull_to_refresh_scene,
 };
 use infiltrator_bevy_widgets::localization::UiLocale;
+use infiltrator_bevy_widgets::motion::UiMotionPreference;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::scrollarea::ScrollMotionPreference;
 use infiltrator_bevy_widgets::theme::Theme;
 use infiltrator_contract::shell_gesture::{
     GesturePoint, GestureSemanticEvent, GestureTouchPhase, PullPhase, SafeAreaInsets,
@@ -309,8 +309,8 @@ fn shell_host_reduce_motion_preference_maps_to_scroll_physics() {
     app.update();
 
     assert_eq!(
-        *app.world().resource::<ScrollMotionPreference>(),
-        ScrollMotionPreference::Full
+        *app.world().resource::<UiMotionPreference>(),
+        UiMotionPreference::Full
     );
     app.world_mut()
         .trigger(HostPreferenceIntent(HostPreferences {
@@ -318,15 +318,15 @@ fn shell_host_reduce_motion_preference_maps_to_scroll_physics() {
             ..Default::default()
         }));
     assert_eq!(
-        *app.world().resource::<ScrollMotionPreference>(),
-        ScrollMotionPreference::Reduced
+        *app.world().resource::<UiMotionPreference>(),
+        UiMotionPreference::Reduced
     );
 
     app.world_mut()
         .trigger(HostPreferenceIntent(HostPreferences::default()));
     assert_eq!(
-        *app.world().resource::<ScrollMotionPreference>(),
-        ScrollMotionPreference::Full
+        *app.world().resource::<UiMotionPreference>(),
+        UiMotionPreference::Full
     );
 }
 
@@ -343,8 +343,8 @@ fn shell_reduced_motion_default_seeds_the_shared_preference_at_startup() {
     app.update();
 
     assert_eq!(
-        *app.world().resource::<ScrollMotionPreference>(),
-        ScrollMotionPreference::Reduced,
+        *app.world().resource::<UiMotionPreference>(),
+        UiMotionPreference::Reduced,
         "a capture/demo host that inserts reduced motion never animates decorative travel"
     );
 }

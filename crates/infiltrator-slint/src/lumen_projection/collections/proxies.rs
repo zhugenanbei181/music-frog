@@ -331,6 +331,8 @@ fn node_row(node: ProxyNodeView) -> ObservationRow {
             .map(|value| format!("{value} ms"))
             .unwrap_or_else(|| "—".to_owned())
             .into(),
+        upload_rate: "".into(),
+        download_rate: "".into(),
         active,
     }
 }

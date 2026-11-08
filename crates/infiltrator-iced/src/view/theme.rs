@@ -78,7 +78,7 @@ pub const fn font_for(role: TextRole) -> iced::Font {
     };
     let family = match spec.family() {
         FontFamilyToken::Mono => "JetBrains Mono",
-        FontFamilyToken::Cjk => "HarmonyOS Sans",
+        FontFamilyToken::Cjk => "HarmonyOS Sans SC",
         FontFamilyToken::Sans => "Inter",
     };
     iced::Font {

@@ -18,9 +18,7 @@ use iced::widget::scrollable::AbsoluteOffset;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::rule_edit::{RuleDraft, RuleMoveDirection};
 use infiltrator_contract::rules_workspace::{RulesJsonSection, RulesTab};
-use infiltrator_domain::rules::view::{
-    clamp_page, effective_page_size, page_count, rule_scroll_offset_for_index,
-};
+use infiltrator_domain::rules::view::{effective_page_size, rule_scroll_offset_for_index};
 use infiltrator_presentation::rule_list_editor::RuleListReadback;
 use infiltrator_presentation::rule_list_projection::draft_page;
 use infiltrator_presentation::rule_row_projection::rule_row;
@@ -28,6 +26,7 @@ use infiltrator_presentation::rules_page_model::RulesOperation;
 use lurker_core_contract::error::InfiltratorError;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use std::time::Instant;
+use zhuge_ui_core::row_page::{clamped_page, page_slots};
 
 impl AppState {
     fn rule_badge_kind(rule_type: &str) -> RuleBadgeKind {
@@ -90,7 +89,7 @@ impl AppState {
     /// whole page.
     pub(crate) fn apply_rules_filter(&mut self) {
         self.editor.rules_page_size = effective_page_size(self.editor.rules_page_size);
-        self.editor.rules_page = clamp_page(
+        self.editor.rules_page = clamped_page(
             self.editor.rules_page,
             self.editor.rules_filtered_count(),
             self.editor.rules_page_size,
@@ -129,10 +128,10 @@ impl AppState {
     /// the absolute offset of that page's first row. The window follows the
     /// offset immediately, so the jump never waits for a scroll event.
     pub(crate) fn goto_rules_page(&mut self, page: usize) -> Task<Message> {
-        self.editor.rules_page = clamp_page(
+        self.editor.rules_page = clamped_page(
             page,
             self.editor.rules_filtered_count(),
-            self.editor.rules_page_size,
+            effective_page_size(self.editor.rules_page_size),
         );
         let offset = page_scroll_offset(self, self.editor.rules_page);
         self.editor.rules_scroll_offset_px = offset;
@@ -400,9 +399,9 @@ impl AppState {
                 self.goto_rules_page(self.editor.rules_page.saturating_sub(1))
             }
             Message::RulesNextPage => {
-                let total_pages = page_count(
+                let total_pages = page_slots(
                     self.editor.rules_filtered_count(),
-                    self.editor.rules_page_size,
+                    effective_page_size(self.editor.rules_page_size),
                 );
                 let target = if self.editor.rules_page + 1 < total_pages {
                     self.editor.rules_page + 1

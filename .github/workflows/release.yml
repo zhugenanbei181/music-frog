@@ -415,7 +415,7 @@ jobs:
         id: android-toolchain
         run: python3 scripts/android-toolchain.py github-output "$GITHUB_OUTPUT"
 
-      - name: Setup Java JDK 17
+      - name: Setup pinned Android build JDK
         uses: actions/setup-java@v6
         with:
           distribution: ${{ steps.android-toolchain.outputs.java_distribution }}

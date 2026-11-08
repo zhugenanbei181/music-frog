@@ -172,11 +172,13 @@ fn failed_failure(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use infiltrator_contract::snapshot::CoreSessionObservation;
     use infiltrator_contract::traffic_topology::TrafficTopologyStatus;
     use lurker_core_contract::lifecycle::CoreLifecycle;
 
     fn core(lifecycle: CoreLifecycle) -> CoreSnapshot {
         CoreSnapshot {
+            session: CoreSessionObservation::Unknown,
             identity: None,
             lifecycle,
             generation: 7,

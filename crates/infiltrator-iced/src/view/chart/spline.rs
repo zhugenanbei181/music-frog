@@ -7,6 +7,7 @@
 //! rate-driven phase.
 
 use iced::Point;
+use zhuge_ui_core::curve::catmull_rom_windows;
 
 /// One cubic bezier segment: the two control points and the end point; the
 /// start is wherever the previous segment ended.
@@ -34,11 +35,11 @@ pub fn catmull_rom_segments(points: &[Point], tension: f32) -> Vec<CubicSegment>
         }];
     }
     let tension = tension.clamp(0.0, 1.0) / 6.0;
-    for index in 0..points.len() - 1 {
-        let p0 = points[index.saturating_sub(1)];
-        let p1 = points[index];
-        let p2 = points[index + 1];
-        let p3 = points.get(index + 2).copied().unwrap_or(p2);
+    for window in catmull_rom_windows(points.len()) {
+        let p0 = points[window.previous];
+        let p1 = points[window.start];
+        let p2 = points[window.end];
+        let p3 = points[window.next];
         segments.push(CubicSegment {
             control_a: Point::new(
                 p1.x + (p2.x - p0.x) * tension,

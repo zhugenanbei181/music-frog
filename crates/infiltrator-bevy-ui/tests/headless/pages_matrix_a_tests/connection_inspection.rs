@@ -10,11 +10,11 @@ use infiltrator_bevy_ui::pages::connections_clipboard::{
 use infiltrator_bevy_ui::toast::ShellToast;
 use infiltrator_bevy_widgets::drawer::DrawerCloseButton;
 use infiltrator_bevy_widgets::text_input::TextFieldFocused;
-use infiltrator_bevy_widgets::toast::ToastKind;
 use infiltrator_contract::capability::Availability;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::connection::timing_availability;
 use std::time::Duration;
+use zhuge_ui_tokens::StatusKind;
 
 fn open(app: &mut App) {
     let entity = app
@@ -177,7 +177,7 @@ fn connection_drawer_unsupported_clipboard_does_not_report_success() {
         .drain()
         .collect();
     assert_eq!(messages.len(), 1);
-    assert_eq!(messages[0].kind, ToastKind::Warning);
+    assert_eq!(messages[0].kind, StatusKind::Warning);
     assert!(sink.submitted().is_empty());
     let disconnect = app
         .world_mut()
@@ -388,7 +388,7 @@ fn connection_copy_reports_success_only_after_a_real_host_write() {
     assert_eq!(toasts.len(), 1);
     assert_eq!(
         toasts[0].kind,
-        ToastKind::Info,
+        StatusKind::Info,
         "a confirmed write succeeds"
     );
     assert_eq!(
@@ -413,7 +413,7 @@ fn connection_copy_surfaces_denied_write_without_success() {
     assert_eq!(toasts.len(), 1);
     assert_eq!(
         toasts[0].kind,
-        ToastKind::Danger,
+        StatusKind::Danger,
         "a denied write is surfaced, never a success"
     );
     assert!(sink.submitted().is_empty());
@@ -433,7 +433,7 @@ fn connection_copy_surfaces_write_failure_without_success() {
     trigger_copy(&mut app);
     let toasts = copy_toasts(&mut app);
     assert_eq!(toasts.len(), 1);
-    assert_eq!(toasts[0].kind, ToastKind::Danger);
+    assert_eq!(toasts[0].kind, StatusKind::Danger);
     assert!(
         toasts[0].text.contains("clipboard busy"),
         "the typed failure reason is surfaced: {}",

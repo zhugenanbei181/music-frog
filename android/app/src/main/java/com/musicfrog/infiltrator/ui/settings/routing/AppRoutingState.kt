@@ -156,6 +156,38 @@ private fun AcceptedAppRoutingSnapshot.toModeState(): AppRoutingModeState = when
     )
 }
 
+/**
+ * The one place that publishes the 「已选 N」 fact.
+ *
+ * The owner stores the selection, so a package the user picked and later
+ * uninstalled stays in that set forever. Counting the stored set inflates the
+ * number the user acts on, so the count is taken against the accepted
+ * installed-app inventory - the same measure FlClash uses
+ * (`currentList.where(installedPackageNames.contains).length`). Surfaces must
+ * consume this and never `size` the stored set themselves.
+ *
+ * When no installed-app inventory has ever been accepted there is no honest
+ * number to publish, so [SelectedAppCount.InventoryUnknown] says so instead of
+ * falling back to the unfiltered length.
+ */
+internal sealed interface SelectedAppCount {
+    data class Known(val installedSelected: Int) : SelectedAppCount
+
+    data object InventoryUnknown : SelectedAppCount
+}
+
+internal fun selectedAppCount(snapshot: AppRoutingSnapshotState, installedApps: InstalledAppsState): SelectedAppCount {
+    val installedPackages = when (val accepted = installedApps.lastAccepted()) {
+        AcceptedInstalledApps.Missing -> return SelectedAppCount.InventoryUnknown
+        is AcceptedInstalledApps.Present -> accepted.apps.map(AppItem::packageName).toSet()
+    }
+    val selected = when (val retained = snapshot.lastAccepted()) {
+        AcceptedAppRoutingSnapshot.Missing -> return SelectedAppCount.Known(installedSelected = 0)
+        is AcceptedAppRoutingSnapshot.Present -> retained.observation.selectedPackages
+    }
+    return SelectedAppCount.Known(installedSelected = selected.count(installedPackages::contains))
+}
+
 internal fun visibleAppItems(installedApps: InstalledAppsState, query: String, snapshot: AppRoutingSnapshotState): List<AppItem> {
     val apps = when (installedApps) {
         is InstalledAppsState.Loading -> installedApps.lastAccepted.appsOrEmpty()

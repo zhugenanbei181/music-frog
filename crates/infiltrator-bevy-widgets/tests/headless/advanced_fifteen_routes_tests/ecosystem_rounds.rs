@@ -72,8 +72,9 @@ fn test_advanced_ecosystem_round_four_capabilities() {
         mask_sensitive_token, sanitize_pasted_text,
     };
     use infiltrator_bevy_widgets::splitter::{DEFAULT_SNAP_ANCHORS, apply_snap_anchors};
-    use infiltrator_bevy_widgets::theme::{TokenColor, contrast};
+    use infiltrator_bevy_widgets::theme::TokenColor;
     use infiltrator_bevy_widgets::tsdb::{DeltaCompressedSeries, TelemetrySample};
+    use zhuge_ui_tokens::WCAG_AAA_NORMAL;
 
     // 1. Clipboard Sanitizer
     let cleaned = sanitize_pasted_text("link\u{200B}\r\n");
@@ -131,9 +132,7 @@ fn test_advanced_ecosystem_round_four_capabilities() {
         b: 1.0,
         a: 1.0,
     };
-    assert!(contrast::is_wcag_aaa(contrast::contrast_ratio(
-        white, black
-    )));
+    assert!(white.as_rgba().contrast_ratio(black.as_rgba()) >= WCAG_AAA_NORMAL);
 }
 
 #[test]
@@ -221,9 +220,10 @@ fn test_advanced_ecosystem_round_six_capabilities() {
 #[test]
 fn test_advanced_ecosystem_round_seven_capabilities() {
     use infiltrator_bevy_widgets::auto_heal::RootCauseInferenceEngine;
-    use infiltrator_bevy_widgets::cadence::FrameTimingProbe;
     use infiltrator_bevy_widgets::chart::nice_scale::NiceScale;
     use infiltrator_bevy_widgets::datagrid::ColumnResizeState;
+    use std::time::Duration;
+    use zhuge_ui_core::frame_timing::{FrameTimingObservation, FrameTimingRecorder};
 
     // 1. Column resize state
     let mut resize = ColumnResizeState::new();
@@ -246,11 +246,15 @@ fn test_advanced_ecosystem_round_seven_capabilities() {
     let primary = RootCauseInferenceEngine::identify_primary(&anomalies);
     assert_eq!(primary, Some(DiagnosticAnomaly::TunInterfaceMissing));
 
-    // 4. Frame timing probe
-    let mut probe = FrameTimingProbe::new(30, 16.67);
-    probe.record_frame(8.33); // 120 fps
-    assert!(probe.is_stutter_free());
-    assert!(probe.average_fps() > 100.0);
+    // 4. Frame timing recorder (shared owner)
+    let mut recorder = FrameTimingRecorder::new(30, 16.67);
+    recorder.record(FrameTimingObservation::new(
+        0,
+        Some(Duration::from_millis(8)),
+        Some(Duration::from_millis(1)),
+    ));
+    assert_eq!(recorder.stutter_count(), 0);
+    assert!(recorder.average_fps().is_some_and(|fps| fps > 100.0));
 }
 
 #[test]

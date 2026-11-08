@@ -1,5 +1,5 @@
 //! BANDROID-010: the Logs row list wired to the shared recycler engine (the
-//! same [`VirtualListState`] / [`VirtualEntityPool`] the Proxies and
+//! same [`VirtualListState`] / shared recycle rule the Proxies and
 //! Connections pages consume).
 //!
 //! The mounted row topology is always bounded: the shared recycler bounds the
@@ -26,8 +26,9 @@ use bevy::scene::{CommandsSceneExt, Scene, bsn};
 use bevy::ui::UiGlobalTransform;
 use bevy::ui::prelude::{ComputedNode, FlexDirection, Node, Overflow, ScrollPosition, percent, px};
 use infiltrator_bevy_widgets::list::VirtualListState;
-use infiltrator_bevy_widgets::list::scroll_core::{SlotRebindAction, VirtualEntityPool};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use zhuge_ui_core::virtual_list::max_band_rows;
+use zhuge_ui_kit_bevy::control::{SlotAction, VirtualScrollSlot, sync_virtual_slots};
 
 /// Total entry count at or below which the page keeps its full-mount path.
 /// Above it the recycler owns row mounting.
@@ -69,12 +70,15 @@ pub struct LogsVirtualSpacer {
 }
 
 /// Recycler state for the Logs row list.
-#[derive(Resource)]
+#[derive(Resource, Default)]
 pub struct LogsVirtualState {
     /// Window/scroll engine state over the log entry stream.
     pub list: VirtualListState,
     /// Slot recycler over the spawned slot entities.
-    pub pool: VirtualEntityPool,
+    /// The recycled slot states, in pool order. The recycle rule itself is
+    /// owned by `zhuge-ui-kit-bevy::control::sync_virtual_slots`; this array is
+    /// the per-slot truth that rule advances.
+    pub slot_states: Vec<VirtualScrollSlot>,
     /// Slot entities in pool order.
     pub slots: Vec<Entity>,
     /// Leading spacer entity.
@@ -85,20 +89,6 @@ pub struct LogsVirtualState {
     pub signature: u64,
     /// Current slot pool capacity.
     pub capacity: usize,
-}
-
-impl Default for LogsVirtualState {
-    fn default() -> Self {
-        Self {
-            list: VirtualListState::default(),
-            pool: VirtualEntityPool::new(Vec::new()),
-            slots: Vec::new(),
-            top_spacer: None,
-            bottom_spacer: None,
-            signature: 0,
-            capacity: 0,
-        }
-    }
 }
 
 /// Stable signature of the entry stream so growth/shrink/reorder trigger a
@@ -170,7 +160,12 @@ fn spawn_slots(
     state.bottom_spacer = Some(bottom);
     state.slots = slots;
     state.capacity = capacity;
-    state.pool = VirtualEntityPool::new(state.slots.clone());
+    state.slot_states = (0..capacity)
+        .map(|slot| VirtualScrollSlot {
+            slot,
+            ..VirtualScrollSlot::default()
+        })
+        .collect();
 }
 
 /// Scroll-area read shape: the scroll position plus the optional measured node
@@ -270,30 +265,34 @@ pub(crate) fn sync_logs_virtual_window(mut commands: Commands, surface: LogsVirt
 
     let window = state.list.window();
 
-    // Every row shares the estimated height until measured, so the pool
-    // capacity is bounded by the viewport, never by the ring buffer.
-    let capacity = ((viewport / LOG_ROW_HEIGHT_PX).ceil() as usize)
-        .saturating_add(LOGS_VIRTUAL_OVERSCAN * 2)
-        .saturating_add(2)
-        .max(8);
+    // One shared band rule sizes the pool: bounded by the viewport, never by the
+    // ring buffer. The floor is this page's policy — a small or jittering viewport
+    // must not make the pool resize every frame.
+    let capacity = max_band_rows(LOG_ROW_HEIGHT_PX, viewport, LOGS_VIRTUAL_OVERSCAN).max(8);
     if structure_changed || capacity != state.capacity || state.slots.is_empty() {
         spawn_slots(&mut commands, &mut state, container, capacity);
     }
 
-    let actions = state.pool.sync_window(window.start, window.end, |_| 0.0);
+    // The recycle rule is the shared owner's; this page maps its slot actions
+    // onto the slot entities it owns.
+    let actions = sync_virtual_slots(&window, &mut state.slot_states);
     let rebind_happened = !actions.is_empty();
     for action in actions {
         match action {
-            SlotRebindAction::Rebind {
-                entity, item_idx, ..
-            } => {
+            SlotAction::Rebind { slot, index, .. } => {
+                let Some(entity) = state.slots.get(slot).copied() else {
+                    continue;
+                };
                 commands.entity(entity).despawn_children();
-                if let Some(entry) = projection.entries.get(item_idx) {
-                    let scene = log_row_scene(item_idx, entry, &palette);
+                if let Some(entry) = projection.entries.get(index) {
+                    let scene = log_row_scene(index, entry, &palette);
                     commands.spawn_scene(scene).insert(ChildOf(entity));
                 }
             }
-            SlotRebindAction::Deactivate { entity, .. } => {
+            SlotAction::Release { slot, .. } => {
+                let Some(entity) = state.slots.get(slot).copied() else {
+                    continue;
+                };
                 commands.entity(entity).despawn_children();
             }
         }
@@ -302,7 +301,7 @@ pub(crate) fn sync_logs_virtual_window(mut commands: Commands, surface: LogsVirt
     // Slot heights track their bound row so the mounted window and the scroll
     // extent agree. Inactive slots collapse to zero height.
     for (_entity, slot, mut node, children) in &mut slots {
-        let active = slot.slot_idx < window.visible_count;
+        let active = slot.slot_idx < window.materialized_len();
         let item_idx = window.start + slot.slot_idx;
         let height = if active {
             state
@@ -332,9 +331,9 @@ pub(crate) fn sync_logs_virtual_window(mut commands: Commands, surface: LogsVirt
     }
     for (spacer, mut node) in &mut spacers {
         let target = px(if spacer.top {
-            window.top_spacer_px
+            window.top
         } else {
-            window.bottom_spacer_px
+            window.bottom
         });
         if node.height != target {
             node.height = target;
@@ -344,9 +343,10 @@ pub(crate) fn sync_logs_virtual_window(mut commands: Commands, surface: LogsVirt
 
 #[cfg(test)]
 mod tests {
+    use zhuge_ui_core::virtual_list::VirtualWindow;
+
     use super::*;
     use crate::pages::logs::LogsProjection;
-    use bevy::ecs::world::World;
     use infiltrator_contract::logs::LogLevel;
     use lurker_core_contract::page::PageStatus;
 
@@ -381,15 +381,15 @@ mod tests {
             viewport,
         )
         .with_overscan(LOGS_VIRTUAL_OVERSCAN);
-        let bound = (viewport / LOG_ROW_HEIGHT_PX).ceil() as usize + LOGS_VIRTUAL_OVERSCAN * 2;
+        let bound = max_band_rows(LOG_ROW_HEIGHT_PX, viewport, LOGS_VIRTUAL_OVERSCAN);
         let window = list.window();
         assert!(
-            window.visible_count <= bound,
+            window.materialized_len() <= bound,
             "mounted window {} must be bounded by {bound}",
-            window.visible_count
+            window.materialized_len()
         );
         assert!(
-            window.visible_count < projection.entries.len(),
+            window.materialized_len() < projection.entries.len(),
             "a 50k-log stream must not mount every row"
         );
     }
@@ -416,8 +416,8 @@ mod tests {
         let _ = list.scroll_to_bottom();
         let bottom = list.window();
         assert_eq!(bottom.end, projection.entries.len());
-        assert!(bottom.top_spacer_px > 0.0);
-        assert!(bottom.bottom_spacer_px <= f32::EPSILON);
+        assert!(bottom.top > 0.0);
+        assert!(bottom.bottom <= f32::EPSILON);
         assert!(
             bottom.start > top.start,
             "the window must slide as the offset advances"
@@ -440,22 +440,47 @@ mod tests {
 
     #[test]
     fn rebinding_preserves_stable_slot_identity() {
-        let world = World::new();
-        // Allocate bare entity ids without spawning a UI tree: the recycler
-        // only needs stable identities, never queryable entities.
-        let slots: Vec<Entity> = (0..16).map(|_| world.entity_allocator().alloc()).collect();
-        let mut pool = VirtualEntityPool::new(slots.clone());
+        // The shared recycle rule owns which slot shows which row; this page
+        // owns the slot entities and maps the owner's slot actions onto them.
+        // A rebind replaces the slot's children, never the slot entity itself,
+        // so a stale queued click on the removed child cannot fire.
+        let mut slots: Vec<VirtualScrollSlot> = (0..16)
+            .map(|slot| VirtualScrollSlot {
+                slot,
+                ..VirtualScrollSlot::default()
+            })
+            .collect();
 
-        pool.sync_window(0, 10, |_| 0.0);
-        assert_eq!(pool.active_count(), 10);
-        for action in pool.sync_window(5, 15, |_| 0.0) {
-            if let SlotRebindAction::Rebind { entity, .. } = action {
-                assert!(
-                    slots.contains(&entity),
-                    "rebound slot {entity:?} must be one of the stable pool entities"
-                );
-            }
-        }
-        assert_eq!(pool.active_count(), 10);
+        let window = VirtualWindow::visible_for_sticky_rows(20, 0.0, 200.0, 20.0);
+        let first = sync_virtual_slots(&window, &mut slots);
+        assert_eq!(
+            first.len(),
+            10,
+            "the window binds exactly its materialized rows"
+        );
+        assert_eq!(
+            slots
+                .iter()
+                .filter(|slot| slot.bound_index().is_some())
+                .count(),
+            10,
+            "ten slots are bound after the first sync"
+        );
+
+        // Slide the window: the same slots are reused, never respawned.
+        let scrolled = VirtualWindow::visible_for_sticky_rows(20, 100.0, 200.0, 20.0);
+        let second = sync_virtual_slots(&scrolled, &mut slots);
+        assert!(
+            second.iter().all(|action| action.slot() < 16),
+            "every action names a slot of this pool"
+        );
+        assert_eq!(
+            slots
+                .iter()
+                .filter(|slot| slot.bound_index().is_some())
+                .count(),
+            10,
+            "the pool stays bounded by the window, not by the dataset"
+        );
     }
 }

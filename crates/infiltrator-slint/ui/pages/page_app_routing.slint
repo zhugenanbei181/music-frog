@@ -25,6 +25,16 @@ export component PageAppRouting inherits VerticalLayout {
     spacing: LumenTheme.space-4;
     alignment: start;
 
+    // A segmented selector divides its own width into equal segments - one
+    // computation for the row instead of one implicit width per label.
+    // `horizontal-stretch` cannot do this job: it gives each button its
+    // preferred width (which follows the label) and only then splits the slack,
+    // so "仅代理选中应用" landed 57 px narrower than its neighbours.
+    property <int> selector-segments: 3;
+    property <length> selector-segment-width: max(0 * LumenUiScale.unit,
+        (mode-row.width - root.selector-segments * LumenTheme.selector-segment-gap)
+            / root.selector-segments);
+
     // The routing rule draft the row actions apply.
     if root.draft-2-id != "": DraftField {
         draft-id: root.draft-2-id;
@@ -43,17 +53,17 @@ export component PageAppRouting inherits VerticalLayout {
 
         Rectangle { height: 12 * LumenUiScale.unit; }
 
-        HorizontalLayout {
+        mode-row := HorizontalLayout {
             spacing: 0;
 
             for item in root.items: HorizontalLayout {
                 if item.id == "app-routing-mode-all" || item.id == "app-routing-mode-proxy" || item.id == "app-routing-mode-bypass": Rectangle {
-                    width: 10 * LumenUiScale.unit;
+                    width: LumenTheme.selector-segment-gap;
                 }
                 if item.id == "app-routing-mode-all" || item.id == "app-routing-mode-proxy" || item.id == "app-routing-mode-bypass": WorkbenchButton {
                     text: item.label;
                     enabled: item.enabled;
-                    horizontal-stretch: 1;
+                    width: root.selector-segment-width;
                     clicked => { root.action(item.action-id, ""); }
                 }
             }

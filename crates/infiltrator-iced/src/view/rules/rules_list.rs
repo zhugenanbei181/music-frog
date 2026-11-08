@@ -16,8 +16,8 @@ use crate::view::components::{
 };
 use crate::view::rule_hit_card::rule_hit_card;
 use crate::view::rules_window::{
-    RULES_LIST_SCROLL_ID, rules_window_page, rules_window_range, rules_window_spacers,
-    visible_rule_items,
+    RULES_LIST_SCROLL_ID, rules_rows_per_page, rules_window_page, rules_window_range,
+    rules_window_spacers, visible_rule_items,
 };
 use crate::view::subrules_builder::subrules_panel;
 use crate::view::svg_icons::Icon;
@@ -32,11 +32,12 @@ use iced::widget::{
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_contract::rule_document::RuleRowId;
 use infiltrator_domain::rules::edit::CUSTOM_RULE_TYPE_CHOICES;
-use infiltrator_domain::rules::view::{RULE_ROW_HEIGHT_PX, page_count};
+use infiltrator_domain::rules::view::RULE_ROW_HEIGHT_PX;
 use infiltrator_presentation::rule_row_projection::{row_detail, row_hits_copy};
 use infiltrator_presentation::rules_page_model::RulesOperation;
 use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer};
+use zhuge_ui_core::row_page::page_slots;
 
 /// Rule hit statistics and recency metadata.
 /// Save / Saving… / Saved action used across rules panels.
@@ -470,9 +471,10 @@ pub(super) fn rules_list_view<'a>(
     ))
     .id(InteractionRegion::RulesSearchInput.id());
 
-    let page_size = state.editor.rules_page_size.max(1);
     let total_count = state.editor.rules_filtered_count();
-    let total_pages = page_count(total_count, page_size);
+    // The pager denominator is the shared page axis: every page the filtered
+    // list needs, plus the one slot an empty result still reads as 1 / 1.
+    let total_pages = page_slots(total_count, rules_rows_per_page(state));
     // DUAL-11-08: the rendered band is the shared virtual window of the
     // filtered list — fixed-height rows, visible band + overscan, spacers for
     // the rest. The list length never enters the row count.

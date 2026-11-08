@@ -46,6 +46,14 @@ use infiltrator_contract::traffic_topology::TrafficTopologyStage;
 use infiltrator_domain::rules::view;
 use infiltrator_domain::rules::view::RuleView;
 use infiltrator_presentation::rules_page_model::RulesPageModel;
+use zhuge_ui_core::row_page::{RowPage, clamped_page, page_of, page_slots, rows_per_page};
+
+/// The product's page-size policy resolved to rows per page: a zero setting
+/// falls back to the declared rules default. The paging arithmetic itself is
+/// owned by `zhuge-ui-core::row_page`; only this fallback is ours.
+fn rule_rows_per_page(page_size: usize) -> usize {
+    rows_per_page(view::effective_page_size(page_size))
+}
 
 /// Marker on a rule row root; the payload is the row index into the last
 /// projection. Rows outside the shared window are not spawned at all.
@@ -237,7 +245,11 @@ fn refilter(
     model.edit_filter(&query);
     view.filtered_indices = model.filtered_indices(&projection.rules);
     view.filter_generation = view.filter_generation.wrapping_add(1);
-    view.page = view::clamp_page(view.page, view.filtered_indices.len(), view.page_size);
+    view.page = clamped_page(
+        view.page,
+        view.filtered_indices.len(),
+        rule_rows_per_page(view.page_size),
+    );
     if keyword_changed {
         view.scroll_offset_px = 0.0;
         view.pending_viewport_reset = true;
@@ -344,9 +356,9 @@ pub(crate) fn sync_rules_window(
     view.page = if total == 0 {
         0
     } else {
-        view::page_for_rule_index(
+        page_of(
             view::rule_index_at_scroll_offset(view.scroll_offset_px).min(total - 1),
-            view.page_size,
+            rule_rows_per_page(view.page_size),
         )
     };
 
@@ -390,7 +402,10 @@ pub(crate) fn sync_rules_window(
             "rules_pagination_live",
             vec![
                 ("page", (page + 1).to_string()),
-                ("pages", view::page_count(total, view.page_size).to_string()),
+                (
+                    "pages",
+                    page_slots(total, rule_rows_per_page(view.page_size)).to_string(),
+                ),
                 ("start", (window.start + 1).to_string()),
                 ("end", window.end.to_string()),
                 ("total", total.to_string()),
@@ -461,7 +476,8 @@ fn spacer_scene(height: f32) -> impl Scene {
 /// express it: it scrolls the **minimum** distance that brings a row into
 /// view, so revealing the page's first row from below lands that row on the
 /// viewport's *bottom* edge, and the viewport would still show the previous
-/// page (`page_for_rule_index` reads the page off the scroll offset). The
+/// page (`zhuge_ui_core::row_page::page_of` reads the page off the scroll
+/// offset). The
 /// viewport's own `ScrollPosition` therefore stays the offset's only owner,
 /// and the page's copy of it is the read-back in [`sync_rules_window`].
 pub(crate) fn on_rules_paging_activated(
@@ -478,15 +494,15 @@ pub(crate) fn on_rules_paging_activated(
     if prev.contains(activate.entity) {
         view.page = view.page.saturating_sub(1);
     } else if next.contains(activate.entity) {
-        let total_pages = view::page_count(total, view.page_size);
+        let total_pages = page_slots(total, rule_rows_per_page(view.page_size));
         if view.page + 1 < total_pages {
             view.page += 1;
         }
     } else {
         return;
     }
-    view.page = view::clamp_page(view.page, total, view.page_size);
-    let (start, _) = view::page_bounds(view.page, total, view.page_size);
+    view.page = clamped_page(view.page, total, rule_rows_per_page(view.page_size));
+    let start = RowPage::page(total, rule_rows_per_page(view.page_size), view.page).first();
     let offset = view::rule_scroll_offset_for_index(start);
     // The viewport owns the offset. The page's own copy of it is the
     // read-back in `sync_rules_window`, never a second offset.

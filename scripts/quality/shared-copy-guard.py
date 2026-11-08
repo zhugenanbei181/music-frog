@@ -181,7 +181,16 @@ def check() -> list[str]:
     po_entries = ROOT / "crates/infiltrator-shared/locales/product/translations"
     for locale_dir in ("zh-CN", "en"):
         catalog = (po_entries / locale_dir / "LC_MESSAGES/musicfrog.po").read_text(encoding="utf-8")
-        for message in ("MusicFrog Infiltrator", "AMOLED", "English", "布局密度"):
+        for message in (
+            "Ice",
+            "Lurker",
+            "Source",
+            "Lumen",
+            "图标中的青蛙乐手是 MusicFrog 内部标识；产品名只保留本名。",
+            "AMOLED",
+            "English",
+            "布局密度",
+        ):
             if f'msgid "{message}"' not in catalog:
                 violations.append(f"{locale_dir} product catalog missing message '{message}'")
 
@@ -195,9 +204,13 @@ def check() -> list[str]:
 
     if 'SharedCopyKey::AppDisplayName' not in slint_source():
         # Slint resolves compiler-driven @tr IDs; assert the routed product copy instead.
-        for message in ("MusicFrog Infiltrator", "AMOLED", "English"):
+        for message in ("Lumen", "AMOLED", "English"):
             if f'@tr("{message}")' not in slint_source():
                 violations.append(f"Slint surface does not localize '{message}'")
+
+    slint_about = (ROOT / "crates/infiltrator-slint/ui/pages/page_about.slint").read_text(encoding="utf-8")
+    if '@tr("图标中的青蛙乐手是 MusicFrog 内部标识；产品名只保留本名。")' not in slint_about:
+        violations.append("Slint About does not explain the internal frog icon")
 
     for path in (ROOT / "crates/infiltrator-contract/src/a11y.rs", ROOT / "crates/infiltrator-bevy-ui/src/a11y.rs"):
         if "label_zh" in path.read_text(encoding="utf-8"):

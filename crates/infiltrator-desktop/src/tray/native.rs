@@ -38,13 +38,13 @@ struct TrayManager {
 }
 
 impl TrayManager {
-    pub fn new(icon: Option<&TrayIconData>) -> Self {
+    pub fn new(spec: &TraySpec) -> Self {
         // The menu content is driven entirely by apply_spec; spawn starts
         // with an empty menu so there is exactly one renderer of state.
         let menu = Menu::new();
         let mut builder = TrayIconBuilder::new()
             .with_menu(Box::new(menu.clone()))
-            .with_tooltip("MusicFrog Infiltrator");
+            .with_tooltip(spec.tooltip.lines().next().unwrap_or_default());
 
         // macOS 左键语义（平台契约 §2.1 的显式决策）：**左键单击 = 显示主
         // 窗口**（经 [`TrayEvent::IconActivated`] 走既有 `ShowWindow` 意图，
@@ -59,7 +59,7 @@ impl TrayManager {
             builder = builder.with_menu_on_left_click(false);
         }
 
-        if let Some(spec_icon) = icon
+        if let Some(spec_icon) = spec.icon.as_ref()
             && let Ok(i) =
                 Icon::from_rgba(spec_icon.rgba.clone(), spec_icon.width, spec_icon.height)
         {
@@ -404,7 +404,7 @@ impl TrayController for NativeTrayController {
 /// resource conflict) degrades to a typed [`TrayStartup::Unavailable`].
 pub fn spawn_native(spec: TraySpec) -> TrayStartup {
     let (events, receiver) = channel();
-    let manager = TrayManager::new(spec.icon.as_ref());
+    let manager = TrayManager::new(&spec);
 
     if manager.tray_icon.is_none() {
         return TrayStartup::Unavailable {

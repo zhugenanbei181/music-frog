@@ -2,35 +2,12 @@
 
 use super::AppWindow;
 use infiltrator_contract::motion_spec::MotionTokens;
-use infiltrator_contract::sidebar_material::SidebarMaterialKind;
-use infiltrator_contract::window_chrome::DesktopPlatformKind;
 use infiltrator_presentation::motion_projection::is_headless_capture_active;
-use infiltrator_presentation::sidebar_material_projection::{
-    project_sidebar_material, project_sidebar_surface_wash,
-};
 
 /// Material 3 animation duration constants for Slint property transitions.
 pub const DURATION_FAST_MS: i32 = MotionTokens::FAST_MS as i32;
 pub const DURATION_STANDARD_MS: i32 = MotionTokens::STANDARD_MS as i32;
 pub const DURATION_DELIBERATE_MS: i32 = MotionTokens::DELIBERATE_MS as i32;
-
-/// Project the sidebar wash colour for Slint desktop based on window focus (FLPARITY-039).
-pub fn project_slint_sidebar_wash(window_focused: bool, is_dark: bool) -> slint::Color {
-    let material_state = project_sidebar_material(
-        SidebarMaterialKind::OpaqueFallback,
-        false,
-        window_focused,
-        DesktopPlatformKind::Linux,
-        None,
-    );
-    let base = if is_dark {
-        (0.09, 0.09, 0.11)
-    } else {
-        (0.95, 0.95, 0.96)
-    };
-    let (r, g, b, a) = project_sidebar_surface_wash(&material_state, base, is_dark);
-    slint::Color::from_argb_f32(a, r, g, b)
-}
 
 /// Effective duration taking headless capture / reduced motion into account.
 pub fn effective_motion_duration_ms(base_ms: i32) -> i32 {

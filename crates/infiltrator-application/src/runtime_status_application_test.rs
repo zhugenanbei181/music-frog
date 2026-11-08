@@ -9,7 +9,7 @@ use infiltrator_contract::runtime_status::{
     ControllerApiObservation, CoreProcessObservation, ProxyEffectivenessObservation,
     ProxyReadinessBlocker, TunDataPlaneObservation, VpnAuthorizationObservation,
 };
-use infiltrator_contract::snapshot::CoreSnapshot;
+use infiltrator_contract::snapshot::{CoreSessionObservation, CoreSnapshot};
 use infiltrator_contract::surface::HostKind;
 use infiltrator_contract::traffic_topology::{TrafficTopologySnapshot, TrafficTopologyStatus};
 use infiltrator_contract::vpn::{VpnGeneration, VpnSurfaceObservation};
@@ -22,6 +22,7 @@ use lurker_core_contract::session::SessionToken;
 
 fn core(lifecycle: CoreLifecycle) -> CoreSnapshot {
     CoreSnapshot {
+        session: CoreSessionObservation::Unknown,
         identity: Some(CoreIdentity::new(
             EngineId::new("mihomo").expect("engine ID"),
             CoreInstanceId::new("active").expect("instance ID"),

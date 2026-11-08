@@ -123,16 +123,3 @@ pub fn format_bytes(bytes: u64) -> String {
 pub fn format_rate(bytes_per_sec: f64) -> String {
     format!("{}/s", format_bytes(bytes_per_sec.max(0.0) as u64))
 }
-
-/// Format duration in seconds into human-readable timestamp.
-pub fn format_duration_secs(secs: u64) -> String {
-    let hours = secs / 3600;
-    let mins = (secs % 3600) / 60;
-    let rem_secs = secs % 60;
-
-    if hours > 0 {
-        format!("{:02}:{:02}:{:02}", hours, mins, rem_secs)
-    } else {
-        format!("{:02}:{:02}", mins, rem_secs)
-    }
-}

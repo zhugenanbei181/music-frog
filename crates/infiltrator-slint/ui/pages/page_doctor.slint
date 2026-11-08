@@ -84,16 +84,23 @@ export component PageDoctor inherits VerticalLayout {
         for item in root.items: VerticalLayout {
             if item.id.starts-with("doctor/"): ItemRow {
                 item: item;
+                reserve-action-column: true;
                 row-min-height: 48 * LumenUiScale.unit;
                 action(id, row) => { root.action(id, row); }
             }
         }
     }
 
-    // Lifecycle watchdog panel
-    for item in root.items: VerticalLayout {
-        if item.id == "lifecycle-recovery": WorkbenchCard {
-            ItemHeader { item: item; badge: true; }
+    // Lifecycle watchdog panel. The loop lives inside a zero-spacing wrapper
+    // so the page root sees one child for it: a loop directly under the spaced
+    // root made every non-matching item pay the root's 16u gap, leaving a
+    // ~112u dead band between the issue rows and this card.
+    VerticalLayout {
+        spacing: 0;
+        for item in root.items: VerticalLayout {
+            if item.id == "lifecycle-recovery": WorkbenchCard {
+                ItemHeader { item: item; badge: true; }
+            }
         }
     }
 }

@@ -21,9 +21,10 @@ use infiltrator_bevy_widgets::shader_fx::{
     CardRenderStrategy, MAX_CARD_INSTANCES_PER_BATCH, MIN_EDGE_AA_PX, ModernSurfaceMaterial,
     ModernSurfacePlugin, SdfSquircle, sdf_edge_coverage, sdf_edge_coverage_cpu,
 };
-use infiltrator_bevy_widgets::surface::{SurfacePanel, surface_scene};
+use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::surface_shader::SurfaceShaderMode;
 use std::collections::HashSet;
+use zhuge_ui_kit_bevy::surface::CardSurface;
 
 fn surface(app: &mut App) -> Entity {
     let palette = *app.world().resource::<UiPalette>();
@@ -390,7 +391,7 @@ fn removing_render_roles_on_retained_entities_releases_owned_assets() {
     app.world_mut()
         .entity_mut(topology)
         .remove::<TopologyPlate>();
-    app.world_mut().entity_mut(card).remove::<SurfacePanel>();
+    app.world_mut().entity_mut(card).remove::<CardSurface>();
     app.update();
     app.update();
     for image_id in chart_images {

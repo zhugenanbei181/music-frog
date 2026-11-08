@@ -262,7 +262,7 @@ pub fn build_tray_spec(ctx: &TrayMenuContext, color_mode: TrayIconColorMode) -> 
 
     TraySpec {
         icon: Some(icon),
-        tooltip: tooltip(ctx, &tr),
+        tooltip: tooltip(ctx, &tr, ctx.surface.product_name()),
         menu: TrayMenuSpec { items },
     }
 }
@@ -285,10 +285,10 @@ fn default_kernel_version(ctx: &TrayMenuContext) -> Option<&str> {
 
 /// Localized tooltip carrying the static state lines (routing intent/status/version)
 /// plus the shared live rate badge when the host has delivered a real sample.
-fn tooltip(ctx: &TrayMenuContext, tr: Tr<'_>) -> String {
+fn tooltip(ctx: &TrayMenuContext, tr: Tr<'_>, product_name: &'static str) -> String {
     let mut tooltip = format!(
         "{}\n{}: {} · {}: {}\n{}: {}",
-        tr("app_title"),
+        product_name,
         tr("routing_intent_title"),
         routing_intent_text(ctx),
         tr("tray_info_status"),
@@ -673,6 +673,7 @@ fn info_submenu(ctx: &TrayMenuContext, tr: Tr<'_>) -> TrayMenuItem {
 /// menu shows the honest placeholders instead of a fabricated value.
 pub fn tray_context_from_snapshot(snapshot: &SurfaceSnapshot, lang: &str) -> TrayMenuContext {
     TrayMenuContext {
+        surface: snapshot.surface,
         lang: lang.to_string(),
         routing_intent: snapshot.core.routing_intent.current.clone(),
         system_proxy: matches!(snapshot.system_proxy.status, SystemProxyStatus::Enabled),

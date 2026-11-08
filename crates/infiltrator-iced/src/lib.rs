@@ -3,7 +3,7 @@
     clippy::large_enum_variant,
     clippy::map_identity
 )]
-//! Library root of the MusicFrog Infiltrator iced frontend.
+//! Library root of the Ice iced frontend.
 //!
 //! The crate is a lib + thin binary: [`run`] owns the full application
 //! bootstrap (demo-mode dispatch, single-instance guard, panic hook, bundled

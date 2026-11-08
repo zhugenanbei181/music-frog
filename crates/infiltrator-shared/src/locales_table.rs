@@ -3,6 +3,7 @@
 //! budget. The English (en-US) table is split out to
 //! `locales_table_en.rs`.
 
+use infiltrator_contract::surface::SurfaceKind;
 use std::borrow::Cow;
 
 #[path = "locales_table_legacy.rs"]
@@ -19,7 +20,7 @@ pub(super) fn translate_zh_cn(key: &str) -> Cow<'static, str> {
 
 fn translate_zh_cn_primary(key: &str) -> Cow<'static, str> {
     match key {
-        "app_title" => "MusicFrog Infiltrator".into(),
+        "app_title" => SurfaceKind::IcedDesktop.product_name().into(),
         "nav_overview" => "核心概览".into(),
         "nav_profiles" => "配置管理".into(),
         "nav_proxies" => "代理节点".into(),

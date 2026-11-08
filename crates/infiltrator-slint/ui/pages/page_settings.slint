@@ -1,12 +1,14 @@
 import { DesignType } from "../components/design-type.slint";
+import { ProductIdentity } from "../components/product-identity.slint";
 import { CheckBox } from "std-widgets.slint";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "../components/theme.slint";
 import { OverrideCard } from "../components/models.slint";
 import {
-    AppPreferenceGroup, AppPreferenceRow, PillButton, RoundedInputField, SegmentedControl, SettingRow
+    PillButton, RoundedInputField, SegmentedControl, SettingRow
 } from "../components/base_widgets.slint";
-import { SectionCard } from "../components/cards.slint";
+import { AppPreferenceGroup, AppPreferenceRow } from "../components/preferences.slint";
+import { SectionCard, SectionHeading } from "../components/cards.slint";
 import { NetworkMode, RouteMode, RuntimeStatus, ThemeMode } from "../components/domain_enums.slint";
 
 export component PageSettings inherits VerticalLayout {
@@ -14,36 +16,43 @@ export component PageSettings inherits VerticalLayout {
     in property <bool> predictive-back-enabled;
     in property <bool> layout-debug-tools-enabled;
     in-out property <bool> layout-debug-bounds;
-    in property <string> product-version: "0.68.2";
+    in property <string> product-version: ProductIdentity.version;
 
     callback navigate(string);
     callback cache-back-preview();
 
+    // A list-only section card has no heading or detail text, so the standard
+    // card padding would add air that its first and last 56u rows do not have.
+    // This one row-padding token keeps both ends equal without a second frame.
+    private property <length> list-card-vertical-padding: LumenTheme.space-1;
+
     width: 100%;
-    spacing: LumenTheme.space-2;
+    // The group headings own the air above and below themselves, so the list
+    // does not add a uniform gap on top of it.
+    spacing: 0 * LumenUiScale.unit;
     alignment: start;
 
-    Text { text: @tr("界面设置"); color: LumenTheme.accent; font-size: DesignType.bodyLarge-size; font-weight: DesignType.bodyLarge-weight; }
+    SectionHeading { text: @tr("资源"); }
     SectionCard {
-        heading: ""; detail: ""; content-spacing: 0 * LumenUiScale.unit; vertical-padding: LumenTheme.space-2; border-width: 0 * LumenUiScale.unit;
-        SettingRow { show-divider: true; label: @tr("应用"); detail: @tr("主题、语言与启动行为"); icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/settings.svg"); icon-bg: #0284C7.with_alpha(15%); icon-color: #38BDF8; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("AppSettings"); } }
-        SettingRow { show-divider: true; label: @tr("网络"); detail: @tr("代理模式、核心与平台接管"); icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/network.svg"); icon-bg: #0D9488.with_alpha(15%); icon-color: #2DD4BF; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Network"); } }
-        SettingRow { show-divider: true; label: @tr("覆写"); detail: @tr("YAML 与规则覆写"); icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/list-checks.svg"); icon-bg: #7C3AED.with_alpha(15%); icon-color: #A78BFA; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Overrides"); } }
-        SettingRow { label: @tr("Meta 功能"); detail: @tr("连接、日志、规则和流量统计"); icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/settings.svg"); icon-bg: #C026D3.with_alpha(15%); icon-color: #E879F9; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Meta"); } }
+        heading: ""; detail: ""; content-spacing: 0 * LumenUiScale.unit; vertical-padding: root.list-card-vertical-padding; border-width: 0 * LumenUiScale.unit;
+        SettingRow { show-divider: true; label: @tr("运行观测"); detail: @tr("连接、规则和流量统计"); icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/activity.svg"); destination: "Meta"; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Meta"); } }
+        SettingRow { label: @tr("日志"); detail: @tr("实时运行与内核输出"); icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/file-text.svg"); destination: "Logs"; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Logs"); } }
     }
-    Text { text: @tr("更多"); color: LumenTheme.accent; font-size: DesignType.bodyLarge-size; font-weight: DesignType.bodyLarge-weight; }
+    SectionHeading { text: @tr("设置"); }
     SectionCard {
-        heading: ""; detail: ""; content-spacing: 0 * LumenUiScale.unit; vertical-padding: LumenTheme.space-2; border-width: 0 * LumenUiScale.unit;
-        SettingRow { show-divider: true; label: @tr("DNS"); detail: @tr("泄漏检测、查询、缓存与 Hosts"); icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/network.svg"); icon-bg: #0369A1.with_alpha(15%); icon-color: #60A5FA; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Dns"); } }
-        SettingRow { show-divider: true; label: @tr("编辑器"); detail: @tr("脚本沙箱、导出评审、差异与快照恢复"); icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/pencil.svg"); icon-bg: #D97706.with_alpha(15%); icon-color: #FBBF24; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Editor"); } }
-        SettingRow { show-divider: true; label: @tr("过滤与聚合"); detail: @tr("订阅过滤与配置聚合向导"); icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/search.svg"); icon-bg: #059669.with_alpha(15%); icon-color: #34D399; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Filters"); } }
-        SettingRow { show-divider: true; label: @tr("诊断"); detail: @tr("诊断检查与生命周期恢复"); icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/activity.svg"); icon-bg: #E11D48.with_alpha(15%); icon-color: #FB7185; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Doctor"); } }
-        SettingRow { show-divider: true; label: @tr("同步"); detail: @tr("冲突解决与备份恢复"); icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/copy.svg"); icon-bg: #4F46E5.with_alpha(15%); icon-color: #818CF8; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Sync"); } }
-        SettingRow { label: @tr("应用路由"); detail: @tr("按应用分流的策略编辑"); icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/list-checks.svg"); icon-bg: #EA580C.with_alpha(15%); icon-color: #FB923C; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("AppRouting"); } }
+        heading: ""; detail: ""; content-spacing: 0 * LumenUiScale.unit; vertical-padding: root.list-card-vertical-padding; border-width: 0 * LumenUiScale.unit;
+        SettingRow { show-divider: true; label: @tr("应用"); detail: @tr("主题、语言与启动行为"); icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/settings.svg"); destination: "AppSettings"; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("AppSettings"); } }
+        SettingRow { show-divider: true; label: @tr("网络"); detail: @tr("代理模式、核心与平台接管"); icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/network.svg"); destination: "Network"; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Network"); } }
+        SettingRow { show-divider: true; label: @tr("覆写"); detail: @tr("YAML 与规则覆写"); icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/list-checks.svg"); destination: "Overrides"; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Overrides"); } }
+        SettingRow { show-divider: true; label: @tr("进阶配置"); detail: @tr("DNS、编辑器、过滤与聚合"); icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/code-2.svg"); destination: "Dns"; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Dns"); } }
+        SettingRow { show-divider: true; label: @tr("诊断与同步"); detail: @tr("生命周期、备份与恢复"); icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/copy.svg"); destination: "Doctor"; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Doctor"); } }
+        SettingRow { label: @tr("应用路由"); detail: @tr("按应用分流的策略编辑"); icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/target.svg"); destination: "AppRouting"; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("AppRouting"); } }
     }
+    SectionHeading { text: @tr("其他"); }
     SectionCard {
-        heading: ""; detail: ""; content-spacing: 0 * LumenUiScale.unit; vertical-padding: LumenTheme.space-2; border-width: 0 * LumenUiScale.unit;
-        SettingRow { label: @tr("关于"); detail: @tr("版本与许可证"); badge: "v" + root.product-version; icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/target.svg"); icon-bg: #64748B.with_alpha(15%); icon-color: #94A3B8; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("About"); } }
+        heading: ""; detail: ""; content-spacing: 0 * LumenUiScale.unit; vertical-padding: root.list-card-vertical-padding; border-width: 0 * LumenUiScale.unit;
+        SettingRow { show-divider: true; label: @tr("开源许可"); detail: @tr("第三方声明与协议"); icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/file-text.svg"); destination: "Licenses"; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Licenses"); } }
+        SettingRow { label: @tr("关于"); detail: @tr("版本与许可证"); badge: "v" + root.product-version; icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/target.svg"); destination: "About"; clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("About"); } }
         if root.layout-debug-tools-enabled: CheckBox {
             text: @tr("显示布局边界（调试）");
             checked: root.layout-debug-bounds;
@@ -60,22 +69,24 @@ export component PageMeta inherits VerticalLayout {
     callback navigate(string);
     callback cache-back-preview();
 
+    private property <length> list-card-vertical-padding: LumenTheme.space-1;
+
     width: 100%;
     spacing: LumenTheme.space-3;
     alignment: start;
 
     Text { text: @tr("运行观测"); color: LumenTheme.accent; font-size: DesignType.bodyLarge-size; font-weight: DesignType.bodyLarge-weight; }
     SectionCard {
-        heading: ""; detail: "";
-        SettingRow { label: @tr("连接"); detail: @tr("查看并管理活动连接"); icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/network.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Connections"); } }
-        Rectangle { width: parent.width; height: 1 * LumenUiScale.unit; background: LumenTheme.border; }
-        SettingRow { label: @tr("日志"); detail: @tr("筛选和导出 Mihomo 日志"); icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/file-text.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Logs"); } }
-        Rectangle { width: parent.width; height: 1 * LumenUiScale.unit; background: LumenTheme.border; }
-        SettingRow { label: @tr("运行规则"); detail: @tr("查看和临时启停规则"); icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/list-checks.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Rules"); } }
-        Rectangle { width: parent.width; height: 1 * LumenUiScale.unit; background: LumenTheme.border; }
-        SettingRow { label: @tr("流量统计"); detail: @tr("查看今日和本周流量"); icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/activity.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Traffic"); } }
-        Rectangle { width: parent.width; height: 1 * LumenUiScale.unit; background: LumenTheme.border; }
-        SettingRow { label: @tr("Providers"); detail: @tr("更新代理与规则提供者"); icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/server.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Providers"); } }
+        heading: ""; detail: ""; content-spacing: 0 * LumenUiScale.unit; vertical-padding: root.list-card-vertical-padding; border-width: 0 * LumenUiScale.unit;
+        // One separator dialect: these rows used to hand-draw a full-width rule
+        // between every pair, so the same list grew two kinds of seam - the
+        // inset hairline the rows own and this edge-to-edge line that read as a
+        // stray frame. The row's own seam is the only one.
+        SettingRow { show-divider: true; label: @tr("连接"); detail: @tr("查看并管理活动连接"); destination: "Connections"; icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/network.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Connections"); } }
+        SettingRow { show-divider: true; label: @tr("日志"); detail: @tr("筛选和导出 Mihomo 日志"); destination: "Logs"; icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/file-text.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Logs"); } }
+        SettingRow { show-divider: true; label: @tr("运行规则"); detail: @tr("查看和临时启停规则"); destination: "Rules"; icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/list-checks.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Rules"); } }
+        SettingRow { show-divider: true; label: @tr("流量统计"); detail: @tr("查看今日和本周流量"); destination: "Traffic"; icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/activity.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Traffic"); } }
+        SettingRow { label: @tr("Providers"); detail: @tr("更新代理与规则提供者"); destination: "Providers"; icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/server.svg"); clicked => { if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); } root.navigate("Providers"); } }
     }
 }
 
@@ -100,7 +111,6 @@ export component PageNetwork inherits VerticalLayout {
     callback start-runtime();
     callback stop-runtime();
     callback set-network-mode(NetworkMode);
-    callback open-network-dialog(NetworkMode);
     callback check-core();
     callback retry-proxy-restore();
 
@@ -118,7 +128,7 @@ export component PageNetwork inherits VerticalLayout {
         }
     }
     SectionCard {
-        heading: @tr("运行模式"); detail: root.compact-layout ? @tr("Android 通过系统 VPN 接管其他应用流量；MusicFrog 核心与转发器自身流量直连以避免回环。") : @tr("桌面接管模式与 Mihomo 的 Rule/Global/Direct 代理策略相互独立。");
+        heading: @tr("运行模式"); detail: root.compact-layout ? @tr("Android 通过系统 VPN 接管其他应用流量；本产品核心与转发器自身流量直连以避免回环。") : @tr("桌面接管模式与 Mihomo 的 Rule/Global/Direct 代理策略相互独立。");
         if root.compact-layout: HorizontalLayout {
             spacing: LumenTheme.space-2;
             PillButton {
@@ -135,20 +145,20 @@ export component PageNetwork inherits VerticalLayout {
                 selected: root.network-mode == NetworkMode.system-proxy;
                 check-prefix: true;
                 enabled: root.network-mode != NetworkMode.system-proxy;
-                clicked => {
-                    if root.runtime-status == RuntimeStatus.running { root.open-network-dialog(NetworkMode.system-proxy); }
-                    else { root.set-network-mode(NetworkMode.system-proxy); }
-                }
+                // There were two routes for this one action, and the one taken
+                // while the core was running - `open-network-dialog` - was handled
+                // by nobody in the tree, so pressing the system-proxy pill with a
+                // live core did nothing at all. `set-network-mode` is the live route:
+                // the router sends it to the takeover confirmation, which is exactly
+                // what a running core needs. One action, one route, both states.
+                clicked => { root.set-network-mode(NetworkMode.system-proxy); }
             }
             PillButton {
                 label: "TUN";
                 selected: root.network-mode == NetworkMode.tun;
                 check-prefix: true;
                 enabled: root.tun-capable && root.network-mode != NetworkMode.tun;
-                clicked => {
-                    if root.runtime-status == RuntimeStatus.running { root.open-network-dialog(NetworkMode.tun); }
-                    else { root.set-network-mode(NetworkMode.tun); }
-                }
+                clicked => { root.set-network-mode(NetworkMode.tun); }
             }
         }
         if !root.compact-layout: Text { text: @tr("当前选择：") + root.network-mode-label + " · " + root.network-mode-status; color: root.network-mode-status-warning ? LumenTheme.status-warning : LumenTheme.status-info; font-size: DesignType.mono-size; wrap: word-wrap; }
@@ -159,7 +169,7 @@ export component PageNetwork inherits VerticalLayout {
         detail: root.lan-sharing-detail;
     }
     SectionCard {
-        heading: @tr("Mihomo 核心"); detail: root.android-platform ? (@tr("官方 Android v1.19.33 · 随 MusicFrog APK 提供，独立进程运行；GPL-3.0 许可与源码见关于页。当前：") + root.core-version) : (@tr("从 PATH 运行 Mihomo；当前版本：") + root.core-version);
+        heading: @tr("Mihomo 核心"); detail: root.android-platform ? (@tr("官方 Android v1.19.33 · 随本产品 APK 提供，独立进程运行；GPL-3.0 许可与源码见关于页。当前：") + root.core-version) : (@tr("从 PATH 运行 Mihomo；当前版本：") + root.core-version);
         HorizontalLayout { Text { text: root.android-platform ? @tr("Android ABI 核心") : @tr("执行命令：mihomo"); color: LumenTheme.text-secondary; vertical-alignment: center; horizontal-stretch: 1; } PillButton { label: @tr("检查版本"); clicked => { root.check-core(); } } }
     }
     SectionCard {
@@ -179,7 +189,6 @@ export component PageAppSettings inherits VerticalLayout {
     in property <string> application-language;
     in property <string> system-language;
     in property <int> page-scale-percent;
-    in property <bool> hide-bottom-bar-on-scroll;
     in property <bool> predictive-back-enabled;
     in property <bool> predictive-back-supported;
     in property <bool> hide-background-card;
@@ -191,7 +200,6 @@ export component PageAppSettings inherits VerticalLayout {
     callback set-auto-start(bool);
     callback set-refresh-profile-on-start(bool);
     callback set-invert-theme-foreground(bool);
-    callback set-hide-bottom-bar-on-scroll(bool);
     callback set-predictive-back-enabled(bool);
     callback set-hide-background-card(bool);
     callback set-show-traffic-notification(bool);
@@ -222,7 +230,6 @@ export component PageAppSettings inherits VerticalLayout {
     }
     if root.android-platform && (root.app-settings-preview-section < 0 || root.app-settings-preview-section == 2): AppPreferenceGroup {
         heading: @tr("导航");
-        AppPreferenceRow { label: @tr("滑动隐藏底栏"); toggle: true; checked: root.hide-bottom-bar-on-scroll; toggled(value) => { root.set-hide-bottom-bar-on-scroll(value); } }
         AppPreferenceRow { label: @tr("预测返回手势"); toggle: true; checked: root.predictive-back-enabled; capability-enabled: root.predictive-back-supported; unavailable: root.predictive-back-supported ? "" : @tr("Android 14及以上支持系统手势进度"); clicked => { root.show-message(@tr("Android 14及以上支持系统手势进度")); } toggled(value) => { root.set-predictive-back-enabled(value); } }
     }
     if root.android-platform && (root.app-settings-preview-section < 0 || root.app-settings-preview-section == 3): AppPreferenceGroup {
@@ -233,7 +240,7 @@ export component PageAppSettings inherits VerticalLayout {
         heading: @tr("服务");
         AppPreferenceRow { label: @tr("显示流量通知"); toggle: true; checked: root.show-traffic-notification; toggled(value) => { root.set-show-traffic-notification(value); } }
         AppPreferenceRow { label: @tr("后台隐藏时释放界面"); toggle: true; checked: root.release-ui-when-background; toggled(value) => { root.set-release-ui-when-background(value); } }
-        AppPreferenceRow { label: @tr("电池优化无限制"); state-description: root.ignore-battery-optimizations ? @tr("系统已加入不优化名单") : @tr("系统正在优化 MusicFrog"); icon: root.ignore-battery-optimizations ? @image-url("../../../infiltrator-shared/assets/ui/iced/svg/square.svg") : @image-url("../../../infiltrator-shared/assets/ui/iced/svg/chevron-right.svg"); checked: root.ignore-battery-optimizations; clicked => { root.request-ignore-battery-optimization(); } }
+        AppPreferenceRow { label: @tr("电池优化无限制"); state-description: root.ignore-battery-optimizations ? @tr("系统已加入不优化名单") : @tr("系统正在优化本产品"); icon: root.ignore-battery-optimizations ? @image-url("../../../infiltrator-shared/assets/ui/iced/svg/square.svg") : @image-url("../../../infiltrator-shared/assets/ui/iced/svg/chevron-right.svg"); checked: root.ignore-battery-optimizations; clicked => { root.request-ignore-battery-optimization(); } }
     }
     if root.app-settings-preview-section < 0 || root.app-settings-preview-section == 5: AppPreferenceGroup {
         heading: @tr("网络");
@@ -242,7 +249,6 @@ export component PageAppSettings inherits VerticalLayout {
 }
 
 export component PageOverrides inherits VerticalLayout {
-    in property <bool> android-platform;
     in property <[OverrideCard]> overrides;
     in-out property <string> override-name;
     in-out property <string> override-url;

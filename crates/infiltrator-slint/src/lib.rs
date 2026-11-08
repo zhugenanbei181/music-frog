@@ -21,6 +21,8 @@ pub mod capture_scenario;
 pub mod demo;
 mod flag_assets;
 mod lumen_projection;
+pub mod mascot_driver;
+mod mobile_dock_driver;
 pub mod surface;
 pub mod theme_util;
 pub mod widget_vocabulary;
@@ -101,18 +103,35 @@ fn install_desktop_window_chrome(window: &AppWindow) {
 }
 
 /// Refresh a long-list property in place (EFFECTS-040 #18): when the window
-/// still carries a `VecModel` of the same row type, only the row data is
-/// replaced (`set_vec`), so the model object and every binding that reached
-/// it survive the snapshot; a fresh `ModelRc` is mounted only when there is
-/// nothing to refresh yet. The per-snapshot destroy-and-rebuild of the old
-/// `slint_model` call is the thing this helper retires.
+/// still carries a `VecModel` of the same row type, the rows are rewritten
+/// where they overlap and only the tail grows or shrinks, so the model object
+/// and every binding that reached it survive the snapshot; a fresh `ModelRc`
+/// is mounted only when there is nothing to refresh yet. The per-snapshot
+/// destroy-and-rebuild of the old `slint_model` call is the thing this helper
+/// retires.
+///
+/// The update never passes through a zero-row model. `VecModel::set_vec` does
+/// exactly that (one reset notification for the whole range), and a `GridLayout`
+/// repeater that reads `index` to place its cells can then be re-laid out
+/// against the jump table of the previous row count — which is the
+/// `i-slint-core` `index out of bounds: the len is 4 but the index is 4` panic
+/// the proxies node grid hit while a search filter narrowed the rows.
 pub(crate) fn refresh_model<T: Clone + 'static>(
     current: &slint::ModelRc<T>,
     rows: Vec<T>,
 ) -> slint::ModelRc<T> {
     match current.as_any().downcast_ref::<slint::VecModel<T>>() {
         Some(vec_model) => {
-            vec_model.set_vec(rows);
+            let common = vec_model.row_count().min(rows.len());
+            for index in 0..common {
+                vec_model.set_row_data(index, rows[index].clone());
+            }
+            for index in vec_model.row_count()..rows.len() {
+                vec_model.insert(index, rows[index].clone());
+            }
+            while vec_model.row_count() > rows.len() {
+                vec_model.remove(vec_model.row_count() - 1);
+            }
             current.clone()
         }
         None => slint_model(rows),
@@ -384,6 +403,7 @@ fn run_with_host_prepared_impl(
         .unwrap_or_else(|_| resolve_language_code("system"));
     select_translation(&window, &initial_language);
     lumen_projection::project_initial(&window, &initial_language, host.autostart_enabled());
+    mobile_dock_driver::install(&window);
 
     let (request_tx, request_rx) = channel::<WorkerRequest>();
     let (event_tx, event_rx) = channel::<WorkerEvent>();
@@ -403,6 +423,20 @@ fn run_with_host_prepared_impl(
         request_tx.clone(),
         Arc::clone(&latest_snapshot),
         Arc::clone(&workbenches),
+    );
+    let mobile_dock_weak = window.as_weak();
+    window.on_mobile_dock_band_state_changed(move || {
+        if let Some(window) = mobile_dock_weak.upgrade() {
+            mobile_dock_driver::project(&window);
+        }
+    });
+    // The mascot is a passive consumer: its clock and state machine live in
+    // this driver, not in the .slint tree. A capture run publishes still frames
+    // so the frog cannot jitter between two receipts.
+    mascot_driver::install(
+        &window,
+        Arc::clone(&latest_snapshot),
+        env::var_os("INFILTRATOR_CAPTURE_MARKER").is_some(),
     );
     // The surface asks for its first snapshot right away, so the owner's
     // terminal is projected with a snapshot the surface already observes.
@@ -456,6 +490,7 @@ fn run_with_host_prepared_impl(
                         select_translation(&window, &language);
                         lumen_projection::project_snapshot(&window, &snapshot, autostart);
                         lumen_projection::project_workbench(&window, &snapshot, &workbenches);
+                        mobile_dock_driver::project(&window);
                     }
                     WorkerEvent::Snapshot(Err(failure), _) => {
                         window.set_notice(failure.message.into());
@@ -863,4 +898,52 @@ pub fn run_desktop() -> anyhow::Result<()> {
 pub fn run_demo() -> anyhow::Result<()> {
     let settings = demo::DemoSettings::from_env();
     demo::run_demo(settings).map_err(|e| anyhow::anyhow!(e.to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ptr;
+
+    fn rows<T: Clone + 'static>(model: &slint::ModelRc<T>) -> Vec<T> {
+        (0..model.row_count())
+            .map(|index| model.row_data(index).expect("row within range"))
+            .collect()
+    }
+
+    /// The proxies grid places every card with `index`, so a refresh that
+    /// briefly empties the model lets Slint recompute the grid against the
+    /// previous row count and panic. A refresh therefore has to keep the same
+    /// model object and land exactly the requested rows.
+    #[test]
+    fn refresh_model_keeps_the_model_and_lands_the_rows() {
+        let first: slint::ModelRc<String> = slint_model(vec!["a".into(), "b".into(), "c".into()]);
+        let refreshed = refresh_model(&first, vec!["x".into(), "y".into()]);
+        assert!(
+            ptr::eq(
+                first
+                    .as_any()
+                    .downcast_ref::<slint::VecModel<String>>()
+                    .unwrap(),
+                refreshed
+                    .as_any()
+                    .downcast_ref::<slint::VecModel<String>>()
+                    .unwrap(),
+            ),
+            "the same VecModel must survive the refresh"
+        );
+        assert_eq!(rows(&refreshed), vec!["x".to_string(), "y".to_string()]);
+
+        let grown = refresh_model(
+            &refreshed,
+            vec!["p".into(), "q".into(), "r".into(), "s".into()],
+        );
+        assert_eq!(rows(&grown), vec!["p", "q", "r", "s"]);
+
+        let emptied = refresh_model(&grown, Vec::new());
+        assert_eq!(emptied.row_count(), 0);
+
+        let mounted = refresh_model(&emptied, vec!["only".into()]);
+        assert_eq!(rows(&mounted), vec!["only"]);
+    }
 }

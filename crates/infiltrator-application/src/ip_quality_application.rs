@@ -238,6 +238,7 @@ mod tests {
     use super::*;
     use async_trait::async_trait;
     use infiltrator_contract::ip_quality::{IpQualityStatus, IpRiskLevel, IpUsageType};
+    use infiltrator_contract::snapshot::CoreSessionObservation;
     use lurker_core_ports::error::PortError;
 
     struct TestQualityPort {
@@ -276,6 +277,7 @@ mod tests {
 
     fn dummy_core(lifecycle: CoreLifecycle) -> CoreSnapshot {
         CoreSnapshot {
+            session: CoreSessionObservation::Unknown,
             identity: None,
             lifecycle,
             generation: 1,

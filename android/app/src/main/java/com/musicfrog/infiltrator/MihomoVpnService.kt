@@ -470,7 +470,10 @@ class MihomoVpnService : VpnService() {
                     }
                     for (server in configuration.dnsServers) builder.addDnsServer(server)
                     builder.setSession(getString(R.string.app_name))
-                    applyVpnPackageRouting(builder, routingPlan)
+                    when (val wiring = applyVpnPackageRouting(builder, routingPlan, packageName)) {
+                        is VpnPackageRoutingApply.Applied -> Unit
+                        is VpnPackageRoutingApply.Rejected -> throw IOException(wiring.message)
+                    }
 
                     val activation = androidBeginVpnRoutingActivation(routing.routingRevision)
                     val routingLease = when (activation) {

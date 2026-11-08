@@ -39,6 +39,8 @@ IGNORED_PARTS = {
     "tests",
     "vendor",
 }
+PATH_MOUNT = re.compile(r'#\[\s*path\s*=\s*"([^"]+)"\s*\]')
+TEST_GATE = re.compile(r"#\[\s*cfg\s*\([^]]*\btest\b[^]]*\)\s*\]")
 
 
 class Language(str, Enum):
@@ -77,6 +79,66 @@ def _is_ignored_path(path: Path) -> bool:
         or any(part.lower() in IGNORED_PARTS for part in path.parts)
         or _is_test_file(path)
     )
+
+
+@functools.lru_cache(maxsize=None)
+def _mounted_source_paths(root: str, language: str) -> frozenset[Path]:
+    """Return non-test sources reachable through a ``#[path]`` declaration.
+
+    A module mounted into production source is production source even when its
+    directory is named ``tests`` or ``fixtures``. Only a production declaring
+    file (not test-named, not under an ignored test directory) can promote a
+    path target; a test mount file such as ``test_mounts.rs`` is itself test
+    material, so its children stay outside the production-surface scan.
+    """
+
+    repository = Path(root)
+    mounted: set[Path] = set()
+    suffix = ".kt" if language == "kotlin" else ".rs"
+    roots = [repository / "crates"]
+    if language == "kotlin":
+        roots.append(repository / "android")
+    for source_root in roots:
+        if not source_root.is_dir():
+            continue
+        for declaring in source_root.rglob("*.rs"):
+            try:
+                declaring_relative = declaring.relative_to(repository)
+            except ValueError:
+                continue
+            if _is_ignored_path(declaring_relative):
+                continue
+            try:
+                text = declaring.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            for match in PATH_MOUNT.finditer(text):
+                target = match.group(1)
+                if not target.endswith(suffix):
+                    continue
+                between = text[: match.start()].rstrip()
+                if between.endswith("]") and between.rfind("#[") >= 0:
+                    attributes = between[between.rfind("#[") :]
+                    if TEST_GATE.fullmatch(attributes):
+                        continue
+                anchors = [declaring.parent]
+                if declaring.stem in {"mod", "lib", "main"}:
+                    pass
+                else:
+                    anchors.insert(0, declaring.parent / declaring.stem)
+                for anchor in anchors:
+                    resolved = (anchor / target).resolve()
+                    try:
+                        relative = resolved.relative_to(repository.resolve())
+                    except ValueError:
+                        continue
+                    if not resolved.is_file():
+                        continue
+                    if _is_ignored_path(relative) or any(
+                        part.lower() in IGNORED_PARTS for part in relative.parts
+                    ):
+                        mounted.add(resolved)
+    return frozenset(mounted)
 
 
 @functools.lru_cache(maxsize=None)
@@ -277,10 +339,14 @@ def _source_paths(root: Path, language: Language) -> list[Path]:
         if scripts_root.is_dir():
             paths.update(scripts_root.rglob("*.sh"))
 
+    paths.update(_mounted_source_paths(str(root), language.value))
     return sorted(
         path
         for path in paths
-        if not _is_ignored_path(path.relative_to(root))
+        if (
+            not _is_ignored_path(path.relative_to(root))
+            or path in _mounted_source_paths(str(root), language.value)
+        )
         and not (language is Language.CLI and path.is_relative_to(root / "scripts/quality"))
     )
 

@@ -4,7 +4,7 @@ use clap::{Parser, Subcommand};
 #[command(
     name = "infiltrator",
     version,
-    about = "MusicFrog Infiltrator — Mihomo / sing-box proxy Core manager CLI",
+    about = "Infiltrator — Mihomo / sing-box proxy Core manager CLI",
     long_about = None
 )]
 pub struct Cli {

@@ -22,12 +22,13 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::shader_fx::{
     ModernSurfaceElevation, ModernSurfaceMaterial, ModernSurfacePlugin,
 };
-use infiltrator_bevy_widgets::surface::{SurfacePanel, surface_scene};
+use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::surface_shader::SurfaceShaderMode;
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::theme::{Theme, ThemeSkin};
 use std::thread::sleep;
 use std::time;
+use zhuge_ui_kit_bevy::surface::CardSurface;
 
 pub(super) fn app() -> App {
     let mut app = App::new();
@@ -194,7 +195,7 @@ fn surface_uniforms_follow_layout_and_theme_then_flat_mode_restores_the_card() {
     app.update();
     let entity = app
         .world_mut()
-        .query::<(Entity, &SurfacePanel)>()
+        .query::<(Entity, &CardSurface)>()
         .single(app.world())
         .unwrap()
         .0;

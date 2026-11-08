@@ -10,8 +10,8 @@
 
 `assets::AssetCatalog` 的使用与格式布局见 [资源说明](assets/README.md)；数据清单 `assets/asset-catalog.json` 为 SVG、PNG、ICO 和字体登记稳定 ID、格式变体及许可证来源。Iced/Bevy/Slint/Android 的 Tier A 图标共用 canonical Lucide SVG，Slint 测速帧作为显式平台原生例外保留；圆形旗帜、桌面 ICO 和 Android/各桌面产品 PNG 共用此资源 owner。renderer adapter 只负责把对应格式交给自己的图像控件。
 
-`effect_math` 是动效与形状的共享数学库：Oklab 感知插值（含 Oklch 短弧色相混合与感知距离）、三次贝塞尔求值与 `cubic-bezier` 缓动求解器、RK4 弹簧积分与 typed 阻尼档位、圆角矩形/胶囊（药丸形）解析 SDF（环带距离场、单位法线与抗锯齿覆盖率）。算法归本 crate，产品数值（弹簧系数、颜色）归 `infiltrator-contract` 的 motion/palette 契约；表面不得自行推导缓动曲线，也不得自行拼装弹簧系数。
+`effect_math` 是动效与形状的共享数学库：Oklab 感知插值（含 Oklch 短弧色相混合与感知距离）、RK4 弹簧积分与 typed 阻尼档位、圆角矩形/胶囊（药丸形）解析 SDF（环带距离场、单位法线）与抗锯齿覆盖率（斜坡形状来自 `zhuge-ui-core::easing::smoothstep`，非有限输入与零软度答案归本 crate 声明）。算法归本 crate，产品数值（弹簧系数、颜色）归 `infiltrator-contract` 的 motion/palette 契约；cubic-Bézier 缓动的「按进度解曲线参数」归共享包 `zhuge-ui-core::easing::CubicBezier`，本 crate 不再自带求值器或解算器，表面也不得自行推导缓动曲线或拼装弹簧系数。
 
-`effect_assets` 是视觉资源的共享管线：24×24 矢量图标白模（`white_ink_icon` 由规范 SVG 派生，不新增文件）、随包字体面目录（`FontFace::bytes`/`all_bytes`，等宽面物理等宽即物理 tabular）与全半角字符宽度表（`char_width_class` / `char_width_em`）。资产清单仍是唯一库存；`FontFace::assert_catalog_alignment()` 双向核对五张物理面与 catalog 记录，派生形态不入清单。四端通过 `design_resources` 的角色与字重目录消费这些面，不保留跨 crate 相对字体路径或合成假粗。
+`effect_assets` 是视觉资源的共享管线：24×24 矢量图标白模（`white_ink_icon` 由规范 SVG 派生，不新增文件）、随包字体面目录（`FontFace::bytes`/`all_bytes`，等宽面物理等宽即物理 tabular）与全半角字符宽度表（`char_width_class` / `char_width_em`）。资产清单仍是唯一库存；`FontFace::assert_catalog_alignment()` 双向核对 **7 张物理面**（Inter 400/500/600、JetBrains Mono 400、HarmonyOS Sans SC 400/500/600）与 catalog 记录，派生形态不入清单。CJK 三面共用同一 license，Slint 通过生成的 `design-type.slint` 注册，不在 surface 写第二份跨 crate 字体路径。四端通过 `design_resources` 的 25 个 `TextRole` 与字重闭集 400/500/600 消费这些面，不保留单面 CJK 别名或合成假粗。
 
 本 crate 不再保留调色板与动效偏好的第二份副本：语义颜色归 `infiltrator_contract::design_tokens::palette`，动效参数与减弱动效偏好归 `infiltrator_contract::motion_spec`。

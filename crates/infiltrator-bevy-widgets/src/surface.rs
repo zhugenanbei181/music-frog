@@ -9,21 +9,14 @@ use crate::palette::rem;
 use crate::shader_fx::ModernSurfaceMaterial;
 use crate::theme::space;
 use bevy::color::Color;
-use bevy::ecs::component::Component;
-use bevy::ecs::hierarchy::Children;
 use bevy::ecs::query::With;
 use bevy::ecs::system::{Query, Res};
-use bevy::scene::{Scene, bsn};
-use bevy::ui::Node;
+use bevy::scene::Scene;
 use bevy::ui::prelude::{
     BackgroundColor, BorderColor, BorderRadius, FlexDirection, UiRect, percent, px,
 };
 use bevy::ui_render::ui_material::MaterialNode;
-/// Marker on the surface card root: the fill [`sync_surface_visuals`]
-/// re-projects from the live palette (compare-and-set — a theme switch
-/// repaints cards with no switch-specific hook).
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct SurfacePanel;
+use zhuge_ui_kit_bevy::surface::{CardLayout, CardSurface, card_surface_scene};
 
 type SurfaceVisualView<'a> = (
     &'a mut BackgroundColor,
@@ -32,34 +25,43 @@ type SurfaceVisualView<'a> = (
 );
 
 /// A token-backed card that accepts a dynamic scene list as its children.
+///
+/// The card geometry — the padded, bordered column — is owned by
+/// `zhuge-ui-kit-bevy::surface::card_surface_scene`. This function keeps only
+/// MusicFrog's token mapping, and the crate's own surface identity is the kit's
+/// [`CardSurface`] marker: one marker for one surface, not a product-local
+/// copy of it.
 pub fn surface_scene(children: Vec<Box<dyn Scene>>, palette: &UiPalette) -> impl Scene + use<> {
     let fill = palette.surface;
     let border = palette.border;
-    bsn! {
-            Node {
-                width: percent(100),
-                min_width: px(0.0),
-                max_width: percent(100),
-                flex_direction: FlexDirection::Column,
-                row_gap: rem(space::S8),
-                padding: UiRect::all(rem(space::S16)),
-                border: UiRect::all(px(palette.hairline_px)),
-                border_radius: BorderRadius::all(rem(palette.card_radius_px)),
-            }
-            BackgroundColor({ fill })
-            BorderColor { top: border, right: border, bottom: border, left: border }
-            SurfacePanel
-            Children [
-                { children }
-            ]
-    }
+    card_surface_scene(
+        CardLayout {
+            width: percent(100),
+            min_width: px(0.0),
+            max_width: percent(100),
+            direction: FlexDirection::Column,
+            gap: rem(space::S8),
+            padding: UiRect::all(rem(space::S16)),
+            border: UiRect::all(px(palette.hairline_px)),
+            radius: BorderRadius::all(rem(palette.card_radius_px)),
+            shadow: Vec::new(),
+        },
+        fill,
+        BorderColor {
+            top: border,
+            right: border,
+            bottom: border,
+            left: border,
+        },
+        children,
+    )
 }
 
 /// Repaint every surface card from the live palette. Compare-and-set:
 /// unchanged frames cost nothing.
 pub fn sync_surface_visuals(
     palette: Res<UiPalette>,
-    mut cards: Query<SurfaceVisualView, With<SurfacePanel>>,
+    mut cards: Query<SurfaceVisualView, With<CardSurface>>,
 ) {
     let border_color = palette.border;
     for (mut fill, mut border, material) in &mut cards {

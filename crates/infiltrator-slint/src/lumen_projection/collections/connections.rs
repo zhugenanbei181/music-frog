@@ -112,6 +112,8 @@ fn connection_row(connection: ConnectionSnapshot) -> ObservationRow {
             format_bytes(connection.download_total)
         )
         .into(),
+        upload_rate: format_bytes(connection.upload_total).into(),
+        download_rate: format_bytes(connection.download_total).into(),
         active: true,
     }
 }
@@ -161,6 +163,8 @@ fn closed_connection_row(connection: ClosedConnectionSnapshot) -> ObservationRow
             format_bytes(connection.view_download_total())
         )
         .into(),
+        upload_rate: format_bytes(connection.view_upload_total()).into(),
+        download_rate: format_bytes(connection.view_download_total()).into(),
         active: false,
     }
 }

@@ -77,6 +77,8 @@ pub(super) fn project_rules_and_providers(window: &AppWindow, snapshot: &Surface
                             .map(|count| count.to_string())
                             .unwrap_or_default()
                             .into(),
+                        upload_rate: "".into(),
+                        download_rate: "".into(),
                         active: rule.is_enabled,
                     }
                 })
@@ -93,6 +95,8 @@ pub(super) fn project_rules_and_providers(window: &AppWindow, snapshot: &Surface
                     latency_ink: unobserved_ink(),
                     subtitle: provider.behavior.clone().into(),
                     trailing: format!("{}{}", provider.rule_count, lang.tr("条规则")).into(),
+                    upload_rate: "".into(),
+                    download_rate: "".into(),
                     active: false,
                 })
                 .collect::<Vec<_>>();
@@ -145,6 +149,8 @@ pub(super) fn project_traffic(window: &AppWindow, snapshot: &SurfaceSnapshot) {
             latency_ink: unobserved_ink(),
             subtitle: format!("{} / {}", lang.tr("下载"), lang.tr("上传")).into(),
             trailing: format!("{upload:.0} bps").into(),
+            upload_rate: "".into(),
+            download_rate: "".into(),
             active: false,
         })
         .collect::<Vec<_>>();

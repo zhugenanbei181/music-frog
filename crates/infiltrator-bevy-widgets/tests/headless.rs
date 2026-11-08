@@ -20,6 +20,8 @@ mod combobox_tests;
 mod context_menu_tests;
 #[path = "headless/drawer_tests.rs"]
 mod drawer_tests;
+#[path = "headless/easing_owner_tests.rs"]
+mod easing_owner_tests;
 #[path = "headless/fonts_tests.rs"]
 mod fonts_tests;
 #[path = "headless/globe_stage_tests.rs"]

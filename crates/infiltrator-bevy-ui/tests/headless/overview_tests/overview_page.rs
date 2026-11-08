@@ -208,7 +208,7 @@ fn overview_hero_reads_the_exit_address_at_display_size() {
     let inside = descendants(world, banner);
 
     let mut facts = world.query::<(Entity, &PublicIpText, &TextRole, &Text)>();
-    let hero: Vec<(PublicIpTextKind, Role, String)> = facts
+    let hero: Vec<(PublicIpTextKind, design_resources::TextRole, String)> = facts
         .iter(world)
         .filter(|(entity, ..)| inside.contains(entity))
         .map(|(_, marker, role, text)| (marker.0, role.0, text.0.clone()))

@@ -51,9 +51,14 @@ def local_package_roots(root):
         if manifest in seen:
             continue
         seen.add(manifest)
+        # `cargo metadata` opens the shared package cache, and on this workstation
+        # several repositories build at the same time, so the call can sit in the
+        # cache lock for minutes. A 60s budget turned that wait into a hard failure
+        # and killed a capture run after it had already built the product; the
+        # resolver is read-only, so it is allowed to wait for the lane.
         output = subprocess.run(
             ["cargo", "metadata", "--format-version", "1", "--locked", "--manifest-path", str(manifest)],
-            cwd=root, check=True, text=True, capture_output=True, timeout=60,
+            cwd=root, check=True, text=True, capture_output=True, timeout=600,
         )
         metadata = json.loads(output.stdout)
         roots.add(Path(metadata["workspace_root"]).resolve())

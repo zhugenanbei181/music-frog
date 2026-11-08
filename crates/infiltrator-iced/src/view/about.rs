@@ -44,6 +44,11 @@ pub fn about_view(state: &AppState) -> Element<'_, Message> {
                     color: Some(tokens(t).text_secondary),
                 }
             }),
+            theme::role_body_text(lang.tr("about_brand_note").into_owned()).style(|t: &Theme| {
+                text::Style {
+                    color: Some(tokens(t).text_secondary),
+                }
+            }),
             Space::new().height(theme::SP_SM),
             row![
                 text_btn(

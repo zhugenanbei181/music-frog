@@ -28,7 +28,9 @@ const FACES: FontRoleFaces = FontRoleFaces {
     body: FontFace::InterRegular,
     caption: FontFace::InterMedium,
     mono: FontFace::Mono,
-    cjk: FontFace::Cjk,
+    cjk_regular: FontFace::CjkRegular,
+    cjk_medium: FontFace::CjkMedium,
+    cjk_semibold: FontFace::CjkSemiBold,
 };
 
 struct FontRoleFaces {
@@ -36,7 +38,9 @@ struct FontRoleFaces {
     body: FontFace,
     caption: FontFace,
     mono: FontFace,
-    cjk: FontFace,
+    cjk_regular: FontFace,
+    cjk_medium: FontFace,
+    cjk_semibold: FontFace,
 }
 
 /// The role → face table, injected as a resource by [`crate::WidgetsPlugin`].
@@ -47,6 +51,9 @@ pub struct FontSources {
     pub caption: Handle<Font>,
     pub mono: Handle<Font>,
     pub cjk: Handle<Font>,
+    pub cjk_regular: Handle<Font>,
+    pub cjk_medium: Handle<Font>,
+    pub cjk_semibold: Handle<Font>,
 }
 
 impl FontSources {
@@ -57,13 +64,18 @@ impl FontSources {
         let body = fonts.add(Font::from_bytes(FACES.body.bytes().to_vec()));
         let caption = fonts.add(Font::from_bytes(FACES.caption.bytes().to_vec()));
         let mono = fonts.add(Font::from_bytes(FACES.mono.bytes().to_vec()));
-        let cjk = fonts.add(Font::from_bytes(FACES.cjk.bytes().to_vec()));
+        let cjk_regular = fonts.add(Font::from_bytes(FACES.cjk_regular.bytes().to_vec()));
+        let cjk_medium = fonts.add(Font::from_bytes(FACES.cjk_medium.bytes().to_vec()));
+        let cjk_semibold = fonts.add(Font::from_bytes(FACES.cjk_semibold.bytes().to_vec()));
         Self {
             heading,
             body,
             caption,
             mono,
-            cjk,
+            cjk: cjk_regular.clone(),
+            cjk_regular,
+            cjk_medium,
+            cjk_semibold,
         }
     }
 
@@ -72,7 +84,11 @@ impl FontSources {
         let spec = typeface(role);
         match (spec.face.family, spec.face.weight) {
             (FontFamilyToken::Mono, _) => self.mono.clone(),
-            (FontFamilyToken::Cjk, _) => self.cjk.clone(),
+            (FontFamilyToken::Cjk, weight) => match weight {
+                FontWeightTier::Regular => self.cjk_regular.clone(),
+                FontWeightTier::Medium => self.cjk_medium.clone(),
+                FontWeightTier::SemiBold => self.cjk_semibold.clone(),
+            },
             (FontFamilyToken::Sans, weight) => match weight {
                 FontWeightTier::Regular => self.body.clone(),
                 FontWeightTier::Medium => self.caption.clone(),
@@ -92,6 +108,9 @@ impl Default for FontSources {
             caption: Handle::default(),
             mono: Handle::default(),
             cjk: Handle::default(),
+            cjk_regular: Handle::default(),
+            cjk_medium: Handle::default(),
+            cjk_semibold: Handle::default(),
         }
     }
 }

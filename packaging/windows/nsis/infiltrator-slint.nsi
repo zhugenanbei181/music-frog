@@ -1,4 +1,4 @@
-; MusicFrog Infiltrator Slint installer (Modern UI 2). Peer of infiltrator.nsi
+; Lumen installer (Modern UI 2). Peer of infiltrator.nsi
 ; and infiltrator-bevy.nsi. Display name, installer prefix and registry keys
 ; come from product-identity.properties; packaging/windows/nsis/build-nsis.sh
 ; passes VERSION and ICON_PATH and verifies this file.
@@ -28,9 +28,9 @@ ManifestDPIAware true
   !error "KERNEL_PATH must name a verified packaged mihomo executable"
 !endif
 
-Name "MusicFrog Infiltrator Slint"
+Name "Lumen"
 OutFile "${OUTFILE}"
-InstallDir "$PROGRAMFILES64\MusicFrog Infiltrator Slint"
+InstallDir "$PROGRAMFILES64\Lumen"
 InstallDirRegKey HKLM "Software\MusicFrog\InfiltratorSlint" "InstallDir"
 RequestExecutionLevel admin
 SetCompressor /SOLID lzma
@@ -56,7 +56,7 @@ SetCompressor /SOLID lzma
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
 !define MUI_FINISHPAGE_RUN "$INSTDIR\infiltrator-slint.exe"
-!define MUI_FINISHPAGE_RUN_TEXT "Launch MusicFrog Infiltrator Slint"
+!define MUI_FINISHPAGE_RUN_TEXT "Launch Lumen"
 !insertmacro MUI_PAGE_FINISH
 
 !insertmacro MUI_UNPAGE_CONFIRM
@@ -67,7 +67,7 @@ SetCompressor /SOLID lzma
 ; ---------------------------------------------------------------------------
 ; Installer Section
 ; ---------------------------------------------------------------------------
-Section "MusicFrog Infiltrator Slint Core & GUI" SecCore
+Section "Lumen Core & GUI" SecCore
   SectionIn RO
   ${If} ${RunningX64}
     SetRegView 64
@@ -87,12 +87,12 @@ Section "MusicFrog Infiltrator Slint Core & GUI" SecCore
   WriteUninstaller "$INSTDIR\uninstall.exe"
 
   ; Create Start Menu Shortcuts
-  CreateDirectory "$SMPROGRAMS\MusicFrog Infiltrator Slint"
-  CreateShortcut "$SMPROGRAMS\MusicFrog Infiltrator Slint\MusicFrog Infiltrator Slint.lnk" "$INSTDIR\infiltrator-slint.exe" "" "$INSTDIR\infiltrator-slint.exe" 0
-  CreateShortcut "$SMPROGRAMS\MusicFrog Infiltrator Slint\Uninstall MusicFrog Infiltrator Slint.lnk" "$INSTDIR\uninstall.exe" "" "$INSTDIR\uninstall.exe" 0
+  CreateDirectory "$SMPROGRAMS\Lumen"
+  CreateShortcut "$SMPROGRAMS\Lumen\Lumen.lnk" "$INSTDIR\infiltrator-slint.exe" "" "$INSTDIR\infiltrator-slint.exe" 0
+  CreateShortcut "$SMPROGRAMS\Lumen\Uninstall Lumen.lnk" "$INSTDIR\uninstall.exe" "" "$INSTDIR\uninstall.exe" 0
 
   ; Create Desktop Shortcut
-  CreateShortcut "$DESKTOP\MusicFrog Infiltrator Slint.lnk" "$INSTDIR\infiltrator-slint.exe" "" "$INSTDIR\infiltrator-slint.exe" 0
+  CreateShortcut "$DESKTOP\Lumen.lnk" "$INSTDIR\infiltrator-slint.exe" "" "$INSTDIR\infiltrator-slint.exe" 0
 
   ; Registry: Installation Path
   WriteRegStr HKLM "Software\MusicFrog\InfiltratorSlint" "InstallDir" "$INSTDIR"
@@ -100,9 +100,9 @@ Section "MusicFrog Infiltrator Slint Core & GUI" SecCore
 
   ; Registry: Windows Add/Remove Programs (ARP)
   !define ARP_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\InfiltratorSlint"
-  WriteRegStr HKLM "${ARP_KEY}" "DisplayName" "MusicFrog Infiltrator Slint"
+  WriteRegStr HKLM "${ARP_KEY}" "DisplayName" "Lumen"
   WriteRegStr HKLM "${ARP_KEY}" "DisplayVersion" "${VERSION}"
-  WriteRegStr HKLM "${ARP_KEY}" "Publisher" "MusicFrog Team"
+  WriteRegStr HKLM "${ARP_KEY}" "Publisher" "Infiltrator Team"
   WriteRegStr HKLM "${ARP_KEY}" "DisplayIcon" "$INSTDIR\infiltrator-slint.exe,0"
   WriteRegStr HKLM "${ARP_KEY}" "UninstallString" '"$INSTDIR\uninstall.exe"'
   WriteRegStr HKLM "${ARP_KEY}" "QuietUninstallString" '"$INSTDIR\uninstall.exe" /S'
@@ -115,14 +115,14 @@ Section "MusicFrog Infiltrator Slint Core & GUI" SecCore
   WriteRegDWORD HKLM "${ARP_KEY}" "EstimatedSize" "$0"
 
   ; Register URL Protocol (infiltrator-slint://)
-  WriteRegStr HKCR "infiltrator-slint" "" "URL:MusicFrog Infiltrator Slint Protocol"
+  WriteRegStr HKCR "infiltrator-slint" "" "URL:Lumen Protocol"
   WriteRegStr HKCR "infiltrator-slint" "URL Protocol" ""
   WriteRegStr HKCR "infiltrator-slint\DefaultIcon" "" "$INSTDIR\infiltrator-slint.exe,0"
   WriteRegStr HKCR "infiltrator-slint\shell\open\command" "" '"$INSTDIR\infiltrator-slint.exe" "%1"'
 
   ; Firewall rule registration (Windows Firewall)
   DetailPrint "Configuring Windows Firewall exception..."
-  nsExec::Exec 'netsh advfirewall firewall add rule name="MusicFrog Infiltrator Slint" dir=in action=allow program="$INSTDIR\infiltrator-slint.exe" enable=yes profile=any'
+  nsExec::Exec 'netsh advfirewall firewall add rule name="Lumen" dir=in action=allow program="$INSTDIR\infiltrator-slint.exe" enable=yes profile=any'
 
 SectionEnd
 
@@ -138,13 +138,13 @@ Section "Uninstall"
   nsExec::Exec 'taskkill /F /IM infiltrator-slint.exe'
 
   ; Remove Firewall Rule
-  nsExec::Exec 'netsh advfirewall firewall delete rule name="MusicFrog Infiltrator Slint"'
+  nsExec::Exec 'netsh advfirewall firewall delete rule name="Lumen"'
 
   ; Remove Shortcuts
-  Delete "$DESKTOP\MusicFrog Infiltrator Slint.lnk"
-  Delete "$SMPROGRAMS\MusicFrog Infiltrator Slint\MusicFrog Infiltrator Slint.lnk"
-  Delete "$SMPROGRAMS\MusicFrog Infiltrator Slint\Uninstall MusicFrog Infiltrator Slint.lnk"
-  RMDir "$SMPROGRAMS\MusicFrog Infiltrator Slint"
+  Delete "$DESKTOP\Lumen.lnk"
+  Delete "$SMPROGRAMS\Lumen\Lumen.lnk"
+  Delete "$SMPROGRAMS\Lumen\Uninstall Lumen.lnk"
+  RMDir "$SMPROGRAMS\Lumen"
 
   ; Remove Installed Files
   Delete "$INSTDIR\infiltrator-slint.exe"

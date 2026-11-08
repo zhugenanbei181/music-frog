@@ -1,4 +1,5 @@
 use super::*;
+use infiltrator_contract::surface::SurfaceKind;
 use infiltrator_contract::tray_menu::{
     TRAY_ACTION_FACTORY_RESET, TRAY_ACTION_INFO_SYNC, TRAY_ACTION_QUIT, TRAY_ACTION_SHOW,
     TRAY_ACTION_TOGGLE_AUTOSTART, TRAY_ACTION_TOGGLE_COLOR_MODE, TRAY_ACTION_TOGGLE_SYSTEM_PROXY,
@@ -9,6 +10,7 @@ use infiltrator_contract::tray_menu::{
 
 fn base_ctx() -> TrayMenuContext {
     TrayMenuContext {
+        surface: SurfaceKind::IcedDesktop,
         lang: "zh-CN".to_string(),
         capabilities: TrayMenuCapabilities::full(),
         ..TrayMenuContext::default()

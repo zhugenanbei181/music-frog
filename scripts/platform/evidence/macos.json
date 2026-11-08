@@ -8,7 +8,7 @@
       "leg": "build",
       "status": "Unsupported",
       "reason": "Apple CI 暂缓仍然生效：没有 macOS runner、也没有安排 Apple target，当前源码没有 bundle 与 DMG（GAP-2.2）",
-      "command": "bash packaging/macos/create-dmg.sh dist/Infiltrator-macOS.dmg \"dist/MusicFrog Infiltrator.app\"",
+      "command": "bash packaging/macos/create-dmg.sh dist/Infiltrator-macOS.dmg \"dist/Ice.app\"",
       "evidence": []
     },
     {

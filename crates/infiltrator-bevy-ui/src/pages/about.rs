@@ -18,6 +18,7 @@ use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::design_resources;
+use infiltrator_contract::surface::SurfaceKind;
 use infiltrator_shared::assets::{
     disclaimer_text_zh, harmonyos_font_license_text, third_party_notices_text,
 };
@@ -103,7 +104,7 @@ fn about_header_scene(palette: &UiPalette) -> impl Scene + use<> {
                     Children [
                         LocalizedText::plain("nav_about") TextRole(design_resources::TextRole::Heading)
                         --
-                        Text({ format!("MusicFrog Infiltrator v{}", env!("CARGO_PKG_VERSION")) })
+                        Text({ format!("{} v{}", SurfaceKind::BevyDesktop.product_name(), env!("CARGO_PKG_VERSION")) })
                             TextRole(design_resources::TextRole::Caption)
                     ]
                 ]
@@ -125,6 +126,8 @@ fn about_info_card_scene(palette: &UiPalette) -> impl Scene + use<> {
                 LocalizedText::plain("about_app_info") TextRole(design_resources::TextRole::Heading)
                 --
                 LocalizedText::plain("app_description") TextRole(design_resources::TextRole::Body)
+                --
+                LocalizedText::plain("about_brand_note") TextRole(design_resources::TextRole::Caption)
                 --
                 LocalizedText::plain("about_rem_architecture_notice") TextRole(design_resources::TextRole::Caption)
             ]

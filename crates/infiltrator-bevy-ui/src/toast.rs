@@ -19,11 +19,12 @@ use bevy::scene::CommandsSceneExt;
 use bevy::time::{Time, Virtual};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::toast::{
-    ToastContainer, ToastKind, ToastQueue, ToastSpawnEvent, advance_toasts, toast_stack_scene,
+    ToastContainer, ToastQueue, ToastSpawnEvent, advance_toasts, toast_stack_scene,
 };
 use infiltrator_contract::a11y::ShellA11yNode;
 use infiltrator_contract::toast::{ToastAdmission, ToastGate, ToastSeverity};
 use lurker_core_contract::redact::redact_line;
+use zhuge_ui_tokens::StatusKind;
 
 /// The shared dedup gate plus the shell's toast clock.
 #[derive(Resource, Clone, Debug, Default)]
@@ -41,17 +42,17 @@ impl ToastPolicyGate {
     pub fn push(
         &mut self,
         spawns: &mut MessageWriter<ToastSpawnEvent>,
-        kind: ToastKind,
+        kind: StatusKind,
         text: &str,
         duration_secs: f32,
         now_ms: u64,
     ) -> bool {
         let redacted = redact_line(text, &[]);
         let severity = match kind {
-            ToastKind::Info => ToastSeverity::Info,
-            ToastKind::Success => ToastSeverity::Success,
-            ToastKind::Warning => ToastSeverity::Warning,
-            ToastKind::Danger => ToastSeverity::Error,
+            StatusKind::Info => ToastSeverity::Info,
+            StatusKind::Success => ToastSeverity::Success,
+            StatusKind::Warning => ToastSeverity::Warning,
+            StatusKind::Danger => ToastSeverity::Error,
         };
         if self.gate.admit(severity, &redacted, now_ms) == ToastAdmission::Coalesced {
             return false;
@@ -73,7 +74,7 @@ pub struct ToastStackVersion(pub Vec<u64>);
 /// One shell-level toast request (the ingestion point every producer uses).
 #[derive(Message, Clone, Debug, PartialEq)]
 pub struct ShellToast {
-    pub kind: ToastKind,
+    pub kind: StatusKind,
     pub text: String,
     pub duration_secs: f32,
 }
@@ -81,7 +82,7 @@ pub struct ShellToast {
 impl ShellToast {
     pub fn info(text: impl Into<String>) -> Self {
         Self {
-            kind: ToastKind::Info,
+            kind: StatusKind::Info,
             text: text.into(),
             duration_secs: 5.0,
         }
@@ -89,7 +90,7 @@ impl ShellToast {
 
     pub fn warning(text: impl Into<String>) -> Self {
         Self {
-            kind: ToastKind::Warning,
+            kind: StatusKind::Warning,
             text: text.into(),
             duration_secs: 5.0,
         }
@@ -97,7 +98,7 @@ impl ShellToast {
 
     pub fn danger(text: impl Into<String>) -> Self {
         Self {
-            kind: ToastKind::Danger,
+            kind: StatusKind::Danger,
             text: text.into(),
             duration_secs: 5.0,
         }

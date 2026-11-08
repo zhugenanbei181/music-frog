@@ -3,41 +3,64 @@ import { CheckBox } from "std-widgets.slint";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "../components/theme.slint";
 import { ProfileCard, ProfileOverrideChoice } from "../components/models.slint";
-import { PillButton, RoundedInputField } from "../components/base_widgets.slint";
+import { CompactPageHeader, HeaderActionCluster, PillButton, RoundedInputField } from "../components/base_widgets.slint";
 import { ProfileCardSurface, SectionCard, SurfaceCard } from "../components/cards.slint";
+
+import { IconButton } from "@material";
 
 export component PageConfig inherits VerticalLayout {
     in property <bool> application-dark-mode;
+    in property <bool> compact-layout: false;
     in property <[ProfileCard]> profiles;
+    // The owner's current profile identity, projected from the snapshot. The
+    // refresh intent is keyed by id, so the page must not derive it from the
+    // display name or from the card list.
+    in property <string> current-profile-id;
 
     callback open-profile-add();
     callback set-current-profile(string);
+    callback refresh-profile(string);
     callback open-profile-action(string, string);
     callback request-export(string, string);
     callback request-delete(string, string);
 
     width: 100%;
-    spacing: LumenTheme.space-4;
+    spacing: root.compact-layout ? LumenTheme.space-mobile-card-gap : LumenTheme.space-3;
     alignment: start;
 
-    HorizontalLayout {
-        width: parent.width;
-        height: 38 * LumenUiScale.unit;
-        cross-axis-alignment: center;
-        Rectangle { horizontal-stretch: 1; background: transparent; }
-        PillButton {
-            label: @tr("+ 添加配置");
-            selected: true;
-            pill-height: 36 * LumenUiScale.unit;
-            min-pill-width: 104 * LumenUiScale.unit;
-            clicked => { root.open-profile-add(); }
+    if root.compact-layout: CompactPageHeader {
+        page: "Config";
+        // The reference header shows refresh, sort and add. Refresh is real here
+        // because the owner publishes `UpdateProfile` for the current profile, so
+        // it rides that typed intent instead of the empty callback it used to be.
+        // Sort is deliberately absent: profile ordering is adjudicated as a
+        // per-card move (`move-profile(id, up)`) that sends `ReorderProfiles`, and
+        // a second ordering entry point would be a duplicate of that decision.
+        HeaderActionCluster {
+            IconButton {
+                width: 40 * LumenUiScale.unit; height: 40 * LumenUiScale.unit;
+                enabled: root.current-profile-id != "";
+                icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/refresh-cw.svg");
+                tooltip: @tr("刷新当前配置");
+                clicked => { root.refresh-profile(root.current-profile-id); }
+            }
+        }
+        HeaderActionCluster {
+            IconButton {
+                width: 40 * LumenUiScale.unit; height: 40 * LumenUiScale.unit;
+                icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/plus.svg");
+                tooltip: @tr("添加配置");
+                clicked => { root.open-profile-add(); }
+            }
         }
     }
+
     if root.profiles.length == 0: SurfaceCard {
         Text { text: @tr("暂无配置文件"); color: LumenTheme.text-primary; font-size: DesignType.subheading-size; font-weight: DesignType.subheading-weight; }
         Text { text: @tr("订阅或导入 YAML 配置后，可以选择当前配置并启动 Mihomo。"); color: LumenTheme.text-secondary; font-size: LumenTheme.body-size; wrap: word-wrap; }
     }
     for profile in root.profiles: ProfileCardSurface {
+        compact: root.compact-layout;
         profile-name: profile.name;
         profile-kind: profile.kind == "本地 YAML" ? @tr("本地文件") : profile.kind;
         profile-location: profile.kind == "本地 YAML" ? @tr("本地配置文件") : profile.location;

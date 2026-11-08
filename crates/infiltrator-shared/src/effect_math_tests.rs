@@ -6,6 +6,7 @@
 //! negative inside the shape.
 
 use super::*;
+use zhuge_ui_core::easing::lerp;
 
 fn assert_close(actual: f32, expected: f32, epsilon: f32) {
     assert!(
@@ -86,7 +87,7 @@ fn the_oklab_ramp_moves_the_lightness_evenly() {
             lightness > previous,
             "the lightness must grow with the amount, measured {lightness} after {previous}"
         );
-        assert_close(lightness, start + (end - start) * amount, 1e-4);
+        assert_close(lightness, lerp(start, end, amount), 1e-4);
         previous = lightness;
     }
     // The naive mix of the same two colours is not even: its halfway colour
@@ -160,98 +161,6 @@ fn the_perceptual_distance_is_symmetric() {
     assert_close(oklab_distance(cold, warm), oklab_distance(warm, cold), 1e-6);
     assert!(oklab_distance(cold, cold) < 1e-6);
     assert!(oklab_distance(cold, warm) > 0.1);
-}
-
-#[test]
-fn the_bezier_curve_hits_its_endpoints_and_stays_in_the_hull() {
-    let control = [
-        Point::new(0.0, 0.0),
-        Point::new(0.0, 10.0),
-        Point::new(10.0, 10.0),
-        Point::new(10.0, 0.0),
-    ];
-    let start = cubic_bezier_point(control, 0.0);
-    let end = cubic_bezier_point(control, 1.0);
-    assert_close(start.x, control[0].x, 1e-5);
-    assert_close(start.y, control[0].y, 1e-5);
-    assert_close(end.x, control[3].x, 1e-5);
-    assert_close(end.y, control[3].y, 1e-5);
-    for step in 0..=20 {
-        let t = step as f32 / 20.0;
-        let point = cubic_bezier_point(control, t);
-        assert!(point.x >= -1e-4 && point.x <= 10.0 + 1e-4);
-        assert!(point.y >= -1e-4 && point.y <= 10.0 + 1e-4);
-    }
-    // The tangent at the start points along the first control segment.
-    let tangent = cubic_bezier_tangent(control, 0.0);
-    assert_close(tangent.x, 0.0, 1e-4);
-    assert!(tangent.y > 0.0);
-}
-
-#[test]
-fn the_easing_curve_hits_its_ends() {
-    let easing = BezierEasing::new(0.25, 0.1, 0.25, 1.0);
-    assert_close(easing.evaluate(0.0), 0.0, 1e-6);
-    assert_close(easing.evaluate(1.0), 1.0, 1e-6);
-    assert_close(easing.evaluate(-1.0), 0.0, 1e-6);
-    assert_close(easing.evaluate(2.0), 1.0, 1e-6);
-    assert_close(easing.evaluate(f32::NAN), 0.0, 1e-6);
-}
-
-#[test]
-fn the_linear_easing_is_the_identity() {
-    let easing = BezierEasing::new(1.0 / 3.0, 1.0 / 3.0, 2.0 / 3.0, 2.0 / 3.0);
-    for step in 0..=20 {
-        let amount = step as f32 / 20.0;
-        assert_close(easing.evaluate(amount), amount, 1e-4);
-    }
-}
-
-#[test]
-fn the_easing_curve_follows_its_specification() {
-    let easing = BezierEasing::new(0.42, 0.0, 0.58, 1.0);
-    let control = easing.control_points();
-    let mut previous = 0.0;
-    for step in 0..=100 {
-        let amount = step as f32 / 100.0;
-        let value = easing.evaluate(amount);
-        assert!(
-            value >= previous - 1e-6,
-            "the easing must not go backwards, measured {value} after {previous}"
-        );
-        previous = value;
-    }
-    // The evaluation is the y coordinate of the curve at the solved
-    // parameter: a fine scan of the curve finds the same y.
-    for step in 1..=9 {
-        let amount = step as f32 / 10.0;
-        let mut best = amount;
-        let mut best_error = (cubic_bezier(
-            amount,
-            control[0].x,
-            control[1].x,
-            control[2].x,
-            control[3].x,
-        ) - amount)
-            .abs();
-        for scan in 0..=2000 {
-            let parameter = scan as f32 / 2000.0;
-            let error = (cubic_bezier(
-                parameter,
-                control[0].x,
-                control[1].x,
-                control[2].x,
-                control[3].x,
-            ) - amount)
-                .abs();
-            if error < best_error {
-                best_error = error;
-                best = parameter;
-            }
-        }
-        let scanned = cubic_bezier(best, control[0].y, control[1].y, control[2].y, control[3].y);
-        assert_close(easing.evaluate(amount), scanned, 5e-3);
-    }
 }
 
 #[test]
@@ -546,4 +455,30 @@ fn the_coverage_falls_smoothly_across_the_outline() {
         );
         previous = coverage;
     }
+}
+
+#[test]
+fn the_coverage_reads_the_shared_ramp_and_declares_its_untraceable_answer() {
+    // The ramp shape belongs to zhuge-ui-core; this surface owns only the
+    // inversion and the degenerate answers.
+    use zhuge_ui_core::easing::smoothstep;
+
+    for (distance, softness) in [
+        (-2.0_f32, 1.0_f32),
+        (-0.5, 1.0),
+        (0.0, 1.0),
+        (0.5, 1.0),
+        (2.0, 1.0),
+    ] {
+        let width = softness.max(0.0);
+        let t = ((distance + width) / (2.0 * width)).clamp(0.0, 1.0);
+        assert_eq!(sdf_coverage(distance, softness), 1.0 - smoothstep(t));
+    }
+    assert_eq!(sdf_coverage(f32::NAN, 1.0), 0.0);
+    // A non-finite softness is answered by the band-width guards, before the
+    // ramp: NaN width is a hard edge, infinite width an untraceable ratio.
+    assert_eq!(sdf_coverage(0.0, f32::NAN), 1.0);
+    assert_eq!(sdf_coverage(1.0, f32::NAN), 0.0);
+    assert_eq!(sdf_coverage(1.0, f32::INFINITY), 0.0);
+    assert_eq!(sdf_coverage(1.0, f32::NEG_INFINITY), 0.0);
 }

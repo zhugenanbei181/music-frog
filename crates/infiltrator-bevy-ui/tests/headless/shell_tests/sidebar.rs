@@ -141,10 +141,10 @@ fn test_sidebar_modern_control_center_parity() {
     let (rail, _) = rails.single(world).expect("one sidebar rail");
     let children: Vec<Entity> = world.get::<Children>(rail).expect("rail children").to_vec();
 
-    // 1. Header row: logo + MusicFrog + version
+    // 1. Header row: logo + Lurker + version
     assert!(
-        subtree_has_text(world, children[0], "MusicFrog"),
-        "sidebar identity header contains MusicFrog"
+        subtree_has_text(world, children[0], "Lurker"),
+        "sidebar identity header contains Lurker"
     );
     let expected_version = format!("v{}", env!("CARGO_PKG_VERSION"));
     assert!(
