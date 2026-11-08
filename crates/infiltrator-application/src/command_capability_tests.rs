@@ -377,6 +377,24 @@ fn profile_document_and_options_loads_are_local_commands_in_the_scoped_owner_ing
     }
 }
 
+#[test]
+fn clearing_traffic_history_is_a_local_owner_command_not_a_socket_teardown() {
+    // The waveform is application-owned sample history; Mihomo's HTTP API has
+    // no traffic-reset endpoint. Requiring `connection.close` here made the
+    // command depend on an unrelated engine capability.
+    assert_eq!(
+        classify_command(&CommandIntent::ClearTrafficHistory),
+        CommandCapabilityRoute::LocalOnly
+    );
+    assert_eq!(
+        classify_command(&CommandIntent::CloseAllConnections),
+        CommandCapabilityRoute::CoreBackend(CoreCapabilityRequirement::new(
+            CoreOperation::Connection(ConnectionOperation::Close),
+            CoreCommandEffect::Write,
+        ))
+    );
+}
+
 #[tokio::test]
 async fn every_core_command_family_fails_closed_without_scope_and_provider() {
     let application = CommandApplication::default();

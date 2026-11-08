@@ -38,6 +38,18 @@
 | 7 | 部分 | L | 彻底清除全仓 part1/part2/part3 无语义命名，重构为高内聚强语义模块（reset_recovery_and_migration、owner_switch_and_recovery、cross_process_concurrency、workspace_recovery_and_reset_tests）；文件级模块化完成（scanned=2891 violations=0，kt-line scanned=227 violations=0）；mod.rs 清退至 0；隐式状态机语义审计 + 判决台账常驻（23 条候选 0 undecided 0 open）；rem 体系 0 违规 0 debt；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | `check-structure.sh` 40+ 结构守卫、单测与工具链全部 exit 0；`cargo fmt --all --check` 0 偏差；六包定向 nextest 2179/2179 全绿；Clippy 6 包 `--all-targets -D warnings` 零警告；`screenshot-identity-guard` 550 张截图 10 aliases 0 违规；`scrollbar-contract-guard` 0 违规；`shared-copy-guard` 0 违规；`i18n-guard` 0 违规 |
 
+## 最近一批问答（2026-11-09 第一百四十七交付批次：FLCLASH-001 Core 缺口收口 / ClearTrafficHistory 空操作与错映射根治）
+
+1. x86_64/aarch64：b147 是 Rust Core/应用层的 typed 命令与 owner 共享，架构中性；六包 `cargo check` 与 2195 项 nextest 为 `L`，本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。
+2. Windows/Linux/macOS：b147 只在本机 Linux 台架编译与测试；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 Unsupported 登记 → 部分（L）。
+3. Android/iOS：android / iOS composition 两处已注入共享 owner 并通过 `cargo check`；`infiltrator-android` 定向 nextest 因他人 `bevy-host/driver/owner_client_tests.rs` 的 `CoreSnapshot` 缺 `session` 字段编译失败（外债，按所有权纪律不碰），故 Android 侧无本批真机/单测回执 → 部分（L）。
+4. 各 UI：本批不改任何 UI 呈现，`ClearTrafficHistory` 的 Slint 触发点仍发同一 typed 意图；四表面共享 `CommandApplication` 语义，`LocalOnly` 路由与共享 owner 已在 headless 测试证明；无新像素，已发布回执保持新鲜 → 部分（L）。
+5. 复用：`TrafficWaveformApplication` 由 `CoreApplication` 单一持有，reader 与 command handler 均从其 getter 派生 `Clone`（同一 `Arc<Mutex<_>>`），无第二份波形状态、无新建假实例；`LocalOnly` 复用既有 `CommandCapabilityRoute` 变体，未新增 CoreOperation / adapter 矩阵 → 完整（L）。
+5a. 设计资源强制标准：本批不改字型/字重/图标/主题身份，无视觉身份变化，不重采像素；`design-resource-authority.py` violations=0 → 完整（L）。
+6. 功能接入：dispatch 由 `Ok(())` 改为真实 `waveform.reset()` 并发布新 revision 读回；未注入 owner 返回 `NotReady` typed refusal；capability 由 `ConnectionOperation::Close` 纠正为 `LocalOnly`（Mihomo HTTP API 无 traffic-reset endpoint，清的是应用层采样历史）；3 项定向 nextest 覆盖共享可见性、诚实拒绝与路由分离 → 完整（L）。
+7. 模块化：`domain reset → application reset → CoreApplication owner/getter → SurfaceReader + CommandApplication 共享 → dispatch/capability` 单向收口；新增 `command_application_traffic_history_tests.rs` 与 domain/application 内聚测试；typed-state / implicit-state 全 0 → 完整（L）。
+8. CI：全部结构守卫、i18n、shared-copy、doc-governance、closure、space self-test 17/17 + enforce 197 帧 0、receipt-freshness 0、screenshot-identity 574/10/0 全绿；`cargo fmt --all --check` 0；六包 check 通过；`--workspace` nextest/clippy 与提交/CI 腿待统一验证批次 → 部分（L）。
+
 ## 最近一批问答（2026-11-08 第一百四十六交付批次：FlClash 桌面真实场景对照 / 侧栏纯导航 typed 注册表 / 判定器重裁）
 
 1. x86_64/aarch64：b146 是 contract 导航契约、Slint 投影与桌面侧栏，架构中性；`cargo check -p infiltrator-slint --all-targets` 与整批 197 帧发布为 `L`，本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。

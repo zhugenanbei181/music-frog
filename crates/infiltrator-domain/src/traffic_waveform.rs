@@ -68,6 +68,18 @@ impl TrafficWaveformBuffer {
             samples: self.samples.iter().cloned().collect(),
         }
     }
+
+    /// Clear the live sample history on an explicit owner command.
+    ///
+    /// The generation and session identity are kept: a reset is not a new
+    /// core session, so the next sample must not be misread as a generation
+    /// change. The revision still advances so a consumer holding the old
+    /// snapshot can tell that the history was intentionally emptied.
+    pub fn reset(&mut self) -> TrafficWaveformSnapshot {
+        self.samples.clear();
+        self.revision = self.revision.saturating_add(1);
+        self.snapshot()
+    }
 }
 
 fn sanitize_rate(rate: f64) -> f64 {
@@ -192,6 +204,19 @@ mod tests {
         let reset = buffer.record(&core(2, 9.0, 11.0, CoreLifecycle::Running));
         assert_eq!(reset.generation, 2);
         assert_eq!(reset.samples.len(), 1);
+    }
+
+    #[test]
+    fn an_explicit_reset_clears_history_without_faking_a_new_generation() {
+        let mut buffer = TrafficWaveformBuffer::default();
+        let first = buffer.record(&core(3, 5.0, 7.0, CoreLifecycle::Running));
+        assert_eq!(first.samples.len(), 1);
+        let cleared = buffer.reset();
+        assert!(cleared.samples.is_empty());
+        assert_eq!(cleared.generation, first.generation);
+        assert!(cleared.revision > first.revision);
+        let next = buffer.record(&core(3, 6.0, 8.0, CoreLifecycle::Running));
+        assert_eq!(next.samples.len(), 1);
     }
 
     #[test]

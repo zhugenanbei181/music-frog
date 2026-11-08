@@ -81,15 +81,21 @@ GC/Version）。
 | `probe.outboundIp` / `probe.services` | `PublicIpProbeSnapshot` / `SpeedtestSnapshot` / `DashboardFacts` 的 4 服务延迟投影 | **存异（更强）** |
 | `mitm.*`（8 个） | 无 | **显式不采纳**：本仓不做 MITM/脚本注入，产品边界不同 |
 | `core.crash` | 无 | **显式不采纳**：崩溃注入是上游测试钩子，不进产品 |
-| `traffic.reset` / `connection.reset` / `network.changed` | `network.changed` 由 `NetworkRoamingSnapshot` + `FakeIpCacheOperation::Flush` 覆盖；`traffic.reset` 本仓有 `CommandIntent::ClearTrafficHistory` | **已审计，发现两个真实缺陷**：该意图 dispatch 是 `Ok(())` 空操作、且 capability 错映射到 `ConnectionOperation::Close`（清统计 ≠ 拆 socket）。登记为独立 Core 批次，不半改 |
+| `traffic.reset` / `connection.reset` / `network.changed` | `network.changed` 由 `NetworkRoamingSnapshot` + `FakeIpCacheOperation::Flush` 覆盖；`traffic.reset` 本仓有 `CommandIntent::ClearTrafficHistory` | **b147 已收口**：该意图 dispatch 的 `Ok(())` 空操作改为调用共享波形 owner，capability 由 `ConnectionOperation::Close` 纠正为 `LocalOnly`；复核确认 Mihomo HTTP API 无 traffic-reset endpoint，波形历史是应用层 owner，故不新增 CoreOperation / 不动 adapter 矩阵 |
 
-**审计产物**：三个方法逐项核对后，只有 `traffic.reset` 对应的
-`CommandIntent::ClearTrafficHistory` 存在两处真缺陷（dispatch 空操作 +
-capability 错映射），已在 `FLCLASH-001` 写明自底向上的完整收口顺序
-（contract typed 操作 → adapter 五处能力矩阵 → domain/application reset →
-跨 host 共享同一波形 owner → dispatch 真实调用 → fake/nextest）。
-b146 只登记不半改，未收口的源码改动全部回退，不含「route.watch 缺失」
-这类误判结论。
+**审计产物（b147 已闭环）**：三个方法逐项核对后，只有 `traffic.reset`
+对应的 `CommandIntent::ClearTrafficHistory` 存在两处真缺陷（dispatch 空操作
++ capability 错映射）。复核上游实现后**修正了 b146 的收口计划**：Mihomo
+HTTP API 没有 traffic-reset endpoint（上游在嵌入 Go core 内进程内调
+`statistic.DefaultManager`），本仓 `TrafficWaveformSnapshot` 是应用层采样
+历史，因此正确做法是 `LocalOnly` + 共享 owner，而不是新增
+`ConnectionOperation::ResetStatistics` 并铺进 adapter 矩阵（那会把不存在的
+引擎能力写成假真源）。最终链路：`CoreApplication` 单一持有
+`TrafficWaveformApplication` → `ProductSurfaceReader` 与三个 composition 的
+`CommandApplication` 从同一 getter 派生 `Clone`（共享 `Arc<Mutex<_>>`）→
+`domain::reset`（保留 generation/session、递增 revision、不伪造零样本）→
+dispatch 真实调用 + 无 owner 时 typed refusal → 4 项 nextest 验收。
+`FLCLASH-001` 已办结，`route.watch` 缺失之类的误判结论不留。
 
 **纪律**：任何 core 缺口必须先建/认领底层任务，在 domain/contract/ports →
 application → adapter → presentation 逐层收口并用 mock/nextest 验收，

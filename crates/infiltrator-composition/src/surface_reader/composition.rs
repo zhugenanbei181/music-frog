@@ -3,6 +3,7 @@ use super::*;
 impl ProductSurfaceReader {
     pub fn new(core: Arc<CoreApplication>, surface: SurfaceKind, host: HostKind) -> Self {
         let outbound_ui_preferences = Some(core.outbound_ui_preferences_application());
+        let traffic_waveform = core.traffic_waveform_application();
         Self {
             scripts: None,
             script_exports: None,
@@ -33,7 +34,7 @@ impl ProductSurfaceReader {
             network_roaming: None,
             vpn: None,
             privileged_network: None,
-            traffic_waveform: TrafficWaveformApplication::new(),
+            traffic_waveform,
             traffic_scale: TrafficScaleApplication,
             traffic_topology: TrafficTopologyApplication,
             active_exit: ActiveExitApplication,

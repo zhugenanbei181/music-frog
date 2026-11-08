@@ -85,13 +85,41 @@ pub enum NavigationSurface {
 impl NavigationItem {
     /// Cross-surface destinations plus the one documented surface-local row.
     pub const DESKTOP: [Self; 8] = [
-        Self::shared(ShellPage::Overview, NavigationGroup::Primary, IconSemantic::Overview),
-        Self::shared(ShellPage::Proxies, NavigationGroup::Primary, IconSemantic::Proxy),
-        Self::shared(ShellPage::Profiles, NavigationGroup::Primary, IconSemantic::Config),
-        Self::shared(ShellPage::Settings, NavigationGroup::Primary, IconSemantic::Settings),
-        Self::shared(ShellPage::Connections, NavigationGroup::Observation, IconSemantic::Connections),
-        Self::shared(ShellPage::Logs, NavigationGroup::Observation, IconSemantic::Logs),
-        Self::shared(ShellPage::Rules, NavigationGroup::Observation, IconSemantic::Rules),
+        Self::shared(
+            ShellPage::Overview,
+            NavigationGroup::Primary,
+            IconSemantic::Overview,
+        ),
+        Self::shared(
+            ShellPage::Proxies,
+            NavigationGroup::Primary,
+            IconSemantic::Proxy,
+        ),
+        Self::shared(
+            ShellPage::Profiles,
+            NavigationGroup::Primary,
+            IconSemantic::Config,
+        ),
+        Self::shared(
+            ShellPage::Settings,
+            NavigationGroup::Primary,
+            IconSemantic::Settings,
+        ),
+        Self::shared(
+            ShellPage::Connections,
+            NavigationGroup::Observation,
+            IconSemantic::Connections,
+        ),
+        Self::shared(
+            ShellPage::Logs,
+            NavigationGroup::Observation,
+            IconSemantic::Logs,
+        ),
+        Self::shared(
+            ShellPage::Rules,
+            NavigationGroup::Observation,
+            IconSemantic::Rules,
+        ),
         Self::new(
             NavigationTarget::SurfaceLocal("traffic"),
             NavigationGroup::Observation,
@@ -101,14 +129,34 @@ impl NavigationItem {
 
     /// The dock is a four-item surface; it does not carry group headings.
     pub const DOCK: [Self; 4] = [
-        Self::shared(ShellPage::Overview, NavigationGroup::Primary, IconSemantic::Overview),
-        Self::shared(ShellPage::Proxies, NavigationGroup::Primary, IconSemantic::Proxy),
-        Self::shared(ShellPage::Profiles, NavigationGroup::Primary, IconSemantic::Config),
-        Self::shared(ShellPage::Settings, NavigationGroup::Primary, IconSemantic::Settings),
+        Self::shared(
+            ShellPage::Overview,
+            NavigationGroup::Primary,
+            IconSemantic::Overview,
+        ),
+        Self::shared(
+            ShellPage::Proxies,
+            NavigationGroup::Primary,
+            IconSemantic::Proxy,
+        ),
+        Self::shared(
+            ShellPage::Profiles,
+            NavigationGroup::Primary,
+            IconSemantic::Config,
+        ),
+        Self::shared(
+            ShellPage::Settings,
+            NavigationGroup::Primary,
+            IconSemantic::Settings,
+        ),
     ];
 
     pub const fn new(target: NavigationTarget, group: NavigationGroup, icon: IconSemantic) -> Self {
-        Self { target, group, icon }
+        Self {
+            target,
+            group,
+            icon,
+        }
     }
 
     pub const fn shared(page: ShellPage, group: NavigationGroup, icon: IconSemantic) -> Self {
@@ -159,26 +207,21 @@ pub const fn destination_for(page: ShellPage) -> ShellPage {
 pub fn destination_for_route(route: &str) -> Option<NavigationTarget> {
     let target = match route {
         "Home" | "Overview" | "OverviewWorkbench" => NavigationTarget::Shared(ShellPage::Overview),
-        "Proxy" | "Proxies" | "ProxiesWorkbench" => {
-            NavigationTarget::Shared(ShellPage::Proxies)
-        }
+        "Proxy" | "Proxies" | "ProxiesWorkbench" => NavigationTarget::Shared(ShellPage::Proxies),
         "Config" | "Profiles" | "ProfileSettings" | "Preview" => {
             NavigationTarget::Shared(ShellPage::Profiles)
         }
         "Settings" | "Network" | "AppSettings" | "Overrides" | "About" | "Licenses"
-        | "LicenseDetail" | "Dns" | "Editor" | "Filters" | "Doctor" | "Sync"
-        | "AppRouting" | "Meta" | "SettingsWorkbench" | "ShellWorkbench" | "Tools"
-        | "Disclaimer" => NavigationTarget::Shared(ShellPage::Settings),
+        | "LicenseDetail" | "Dns" | "Editor" | "Filters" | "Doctor" | "Sync" | "AppRouting"
+        | "Meta" | "SettingsWorkbench" | "ShellWorkbench" | "Tools" | "Disclaimer" => {
+            NavigationTarget::Shared(ShellPage::Settings)
+        }
         "Connections" | "ConnectionDetail" | "ConnectionsWorkbench" => {
             NavigationTarget::Shared(ShellPage::Connections)
         }
         "Logs" | "LogsWorkbench" => NavigationTarget::Shared(ShellPage::Logs),
-        "Rules" | "Providers" | "RulesWorkbench" => {
-            NavigationTarget::Shared(ShellPage::Rules)
-        }
-        "Traffic" | "Runtime" | "RuntimeWorkbench" => {
-            NavigationTarget::SurfaceLocal("traffic")
-        }
+        "Rules" | "Providers" | "RulesWorkbench" => NavigationTarget::Shared(ShellPage::Rules),
+        "Traffic" | "Runtime" | "RuntimeWorkbench" => NavigationTarget::SurfaceLocal("traffic"),
         _ => return None,
     };
     Some(target)
@@ -211,7 +254,11 @@ mod tests {
             })
             .collect();
         assert!(order.windows(2).all(|pair| pair[0] <= pair[1]));
-        assert!(items.iter().any(|item| item.group == NavigationGroup::Observation));
+        assert!(
+            items
+                .iter()
+                .any(|item| item.group == NavigationGroup::Observation)
+        );
     }
 
     #[test]
@@ -261,14 +308,32 @@ mod tests {
     #[test]
     fn every_workbench_route_resolves_to_the_destination_that_owns_it() {
         let cases = [
-            ("ProxiesWorkbench", NavigationTarget::Shared(ShellPage::Proxies)),
-            ("ConnectionsWorkbench", NavigationTarget::Shared(ShellPage::Connections)),
+            (
+                "ProxiesWorkbench",
+                NavigationTarget::Shared(ShellPage::Proxies),
+            ),
+            (
+                "ConnectionsWorkbench",
+                NavigationTarget::Shared(ShellPage::Connections),
+            ),
             ("LogsWorkbench", NavigationTarget::Shared(ShellPage::Logs)),
             ("RulesWorkbench", NavigationTarget::Shared(ShellPage::Rules)),
-            ("RuntimeWorkbench", NavigationTarget::SurfaceLocal("traffic")),
-            ("SettingsWorkbench", NavigationTarget::Shared(ShellPage::Settings)),
-            ("OverviewWorkbench", NavigationTarget::Shared(ShellPage::Overview)),
-            ("ShellWorkbench", NavigationTarget::Shared(ShellPage::Settings)),
+            (
+                "RuntimeWorkbench",
+                NavigationTarget::SurfaceLocal("traffic"),
+            ),
+            (
+                "SettingsWorkbench",
+                NavigationTarget::Shared(ShellPage::Settings),
+            ),
+            (
+                "OverviewWorkbench",
+                NavigationTarget::Shared(ShellPage::Overview),
+            ),
+            (
+                "ShellWorkbench",
+                NavigationTarget::Shared(ShellPage::Settings),
+            ),
         ];
         for (route, expected) in cases {
             assert_eq!(destination_for_route(route), Some(expected), "{route}");
@@ -283,8 +348,20 @@ mod tests {
     #[test]
     fn every_resolved_destination_exists_in_the_desktop_registry() {
         for route in [
-            "Home", "Proxy", "Config", "Settings", "Connections", "Logs", "Rules",
-            "Traffic", "Dns", "About", "AppRouting", "Editor", "Sync", "Tools",
+            "Home",
+            "Proxy",
+            "Config",
+            "Settings",
+            "Connections",
+            "Logs",
+            "Rules",
+            "Traffic",
+            "Dns",
+            "About",
+            "AppRouting",
+            "Editor",
+            "Sync",
+            "Tools",
         ] {
             let target = destination_for_route(route).unwrap();
             assert!(

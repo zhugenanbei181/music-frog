@@ -15,6 +15,7 @@ use super::{
     SystemProxyApplication, UwpLoopbackApplication, VersionApplication, VpnServiceApplication,
 };
 use crate::palette_preference_application::PalettePreferenceApplication;
+use crate::traffic_waveform_application::TrafficWaveformApplication;
 use infiltrator_ports::runtime_configuration::RuntimeConfigurationPorts;
 use std::sync::Arc;
 
@@ -216,6 +217,13 @@ impl CommandApplication {
 
     pub fn with_vpn(mut self, application: VpnServiceApplication) -> Self {
         self.vpn = Some(application);
+        self
+    }
+
+    /// Share the traffic waveform owner (clone of the same instance the
+    /// `ProductSurfaceReader` records into), so a reset is never a no-op.
+    pub fn with_traffic_waveform(mut self, application: TrafficWaveformApplication) -> Self {
+        self.traffic_waveform = Some(application);
         self
     }
 

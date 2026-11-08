@@ -9,6 +9,7 @@ use crate::rule_provider_runtime_application::RuleProviderRuntimeApplication;
 use crate::speedtest_application::{
     SpeedtestApplication, SpeedtestCompletionAdmission, SpeedtestTaskOutcome,
 };
+use crate::traffic_waveform_application::TrafficWaveformApplication;
 use futures_util::lock;
 use infiltrator_contract::command::{CommandIntent, CommandResult, RequestId};
 use infiltrator_contract::core_identity::{CoreCommandOutcome, CoreCommandRequest};
@@ -118,6 +119,11 @@ struct Inner {
     rule_provider_port: RwLock<Option<Arc<dyn RuleProviderPort>>>,
     geo_database_port: RwLock<Option<Arc<dyn GeoDatabasePort>>>,
     outbound_ui_preferences: OutboundUiPreferencesApplication,
+    /// The one live traffic sample history. Both the surface reader (which
+    /// records samples) and the command handler (which clears them on an
+    /// explicit owner command) derive their owner from this single instance;
+    /// `Clone` shares the same `Arc<Mutex<_>>`, so a reset is never fake.
+    traffic_waveform: TrafficWaveformApplication,
     speedtest: RwLock<Option<SpeedtestApplication>>,
     core_capabilities: RwLock<CoreCapabilityApplication>,
     dispatch_tx: SyncSender<DispatchedMessage>,
@@ -344,6 +350,7 @@ impl CoreApplication {
             rule_provider_port: RwLock::new(None),
             geo_database_port: RwLock::new(None),
             outbound_ui_preferences: OutboundUiPreferencesApplication::default(),
+            traffic_waveform: TrafficWaveformApplication::new(),
             speedtest: RwLock::new(None),
             core_capabilities: RwLock::new(CoreCapabilityApplication::without_provider()),
             dispatch_tx,
@@ -534,6 +541,12 @@ impl CoreApplication {
     /// commands and surface readback.
     pub fn outbound_ui_preferences_application(&self) -> OutboundUiPreferencesApplication {
         self.inner.outbound_ui_preferences.clone()
+    }
+
+    /// The shared live traffic history owner. The command handler and the
+    /// surface reader must both be composed from this one instance.
+    pub fn traffic_waveform_application(&self) -> TrafficWaveformApplication {
+        self.inner.traffic_waveform.clone()
     }
 
     pub fn log_application(&self) -> LogApplication {

@@ -350,11 +350,16 @@ pub fn classify_command(intent: &CommandIntent) -> CommandCapabilityRoute {
         )),
         CommandIntent::CloseConnection { .. }
         | CommandIntent::CloseAllConnections
-        | CommandIntent::ClearClosedConnections
-        | CommandIntent::ClearTrafficHistory => CoreBackend(CoreCapabilityRequirement::new(
+        | CommandIntent::ClearClosedConnections => CoreBackend(CoreCapabilityRequirement::new(
             Connection(ConnectionOperation::Close),
             Write,
         )),
+        // The traffic waveform is an application-owned sample history, not an
+        // engine statistic: Mihomo's HTTP API has no traffic-reset endpoint
+        // (upstream's `traffic.reset` calls the embedded Go core in-process).
+        // Requiring `connection.close` here was a category error - clearing a
+        // local curve is neither a socket teardown nor a backend operation.
+        CommandIntent::ClearTrafficHistory => LocalOnly,
         CommandIntent::ClearDnsCache { .. } => CoreBackend(CoreCapabilityRequirement::new(
             FakeIpCache(FakeIpCacheOperation::Flush),
             Write,

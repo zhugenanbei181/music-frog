@@ -432,7 +432,21 @@ impl CommandApplication {
                 self.connections()?.close_all_for_scope(scope).await
             }
             CommandIntent::ClearClosedConnections => Ok(()),
-            CommandIntent::ClearTrafficHistory => Ok(()),
+            CommandIntent::ClearTrafficHistory => {
+                // Upstream `traffic.reset` clears the cumulative counters.
+                // This used to acknowledge success without touching the
+                // history owner at all; a host that did not compose the
+                // waveform owner now reports an honest typed refusal.
+                let Some(waveform) = self.traffic_waveform.as_ref() else {
+                    return Err(Failure::new(
+                        ErrorCode::NotReady,
+                        "clear traffic history has no composed waveform owner",
+                        true,
+                    ));
+                };
+                waveform.reset();
+                Ok(())
+            }
             CommandIntent::ApplyDnsSettings { patch } => self
                 .configuration()?
                 .apply_dns_settings_with_access(self.profile_access(), patch)

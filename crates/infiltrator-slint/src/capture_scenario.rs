@@ -10,9 +10,9 @@
 //! activated.
 
 use crate::AppWindow;
-use crate::set_page;
 use crate::lumen_projection::project_snapshot;
 use crate::lumen_projection::project_workbench;
+use crate::set_page;
 use crate::surface::action::workbench::business::open_action;
 use crate::surface::action::workbench::{
     AGGREGATE_CREATE, AGGREGATE_PREVIEW, APP_ROUTING_RULE, DIFF_LOAD, DNS_CACHE_CONFIRM,

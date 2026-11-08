@@ -512,6 +512,7 @@ fn core_application_from_backend<S: SecureStore + 'static>(
     );
     let mut handler = CommandApplication::new()
         .with_core_capabilities(core_capabilities)
+        .with_traffic_waveform(application.traffic_waveform_application())
         .with_rule_provider_runtime(rule_provider_runtime)
         .with_geo_database(geo_database)
         .with_host_capabilities(Arc::new(AndroidBridgeAdapter::new(bridge.clone())))

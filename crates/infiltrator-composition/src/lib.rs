@@ -467,6 +467,7 @@ where
     application.install_command_handler(Arc::new(
         CommandApplication::new()
             .with_core_capabilities(core_capabilities.clone())
+            .with_traffic_waveform(application.traffic_waveform_application())
             .with_rule_provider_runtime(RuleProviderRuntimeApplication::new(
                 provider_port,
                 core_capabilities.clone(),

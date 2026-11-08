@@ -44,6 +44,7 @@ impl MihomoRuntime {
             profile_store: self.config_manager.shared_engine_profile_store(),
             subscription_source: Arc::new(subscription_source()),
             core_scope_source: self.core_scope_source(),
+            traffic_waveform: self.application.traffic_waveform_application(),
         })?
         .with_logs(self.application.log_application())
         .with_log_export(exports)

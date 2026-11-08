@@ -91,9 +91,7 @@ fn project_navigation(window: &AppWindow, lang: &Lang<'_>) {
 fn navigation_label(item: NavigationItem, lang: &Lang<'_>) -> String {
     match item.target {
         NavigationTarget::Shared(page) => lang.tr(page.sidebar_key()).into_owned(),
-        NavigationTarget::SurfaceLocal("traffic") => {
-            lang.tr("nav_traffic").into_owned()
-        }
+        NavigationTarget::SurfaceLocal("traffic") => lang.tr("nav_traffic").into_owned(),
         NavigationTarget::SurfaceLocal(id) => id.to_owned(),
     }
 }

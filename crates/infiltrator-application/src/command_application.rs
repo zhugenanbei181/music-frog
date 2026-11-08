@@ -132,6 +132,9 @@ pub struct CommandApplication {
     network_roaming: Option<NetworkRoamingApplication>,
     vpn: Option<VpnServiceApplication>,
     privileged_network: Option<PrivilegedNetworkApplication>,
+    /// Shared live traffic history owner (same instance as the surface
+    /// reader), so `ClearTrafficHistory` resets the real curve.
+    traffic_waveform: Option<crate::traffic_waveform_application::TrafficWaveformApplication>,
     outbound: Option<OutboundApplication>,
     outbound_ui_preferences: Option<OutboundUiPreferencesApplication>,
     rule_tracer: Option<RuleTracerApplication>,
@@ -739,3 +742,7 @@ mod settings_write_tests;
 #[cfg(test)]
 #[path = "command_application_overview_sync_tests.rs"]
 mod overview_sync_tests;
+
+#[cfg(test)]
+#[path = "command_application_traffic_history_tests.rs"]
+mod traffic_history_tests;

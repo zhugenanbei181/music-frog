@@ -574,6 +574,7 @@ pub(crate) async fn core_application(
             profile_store,
             subscription_source,
             core_scope_source: Arc::new(application.clone()),
+            traffic_waveform: application.traffic_waveform_application(),
         })?;
         application
             .install_core_capability_application(commands.core_capability_application())
@@ -616,6 +617,10 @@ pub struct DesktopCommandServices {
     pub profile_store: Arc<dyn ProfileStore>,
     pub subscription_source: Arc<dyn SubscriptionSource>,
     pub core_scope_source: Arc<dyn CoreScopeSource>,
+    /// The Core owner's live traffic history. The surface reader records
+    /// into the same instance, so `ClearTrafficHistory` clears real data.
+    pub traffic_waveform:
+        infiltrator_application::traffic_waveform_application::TrafficWaveformApplication,
 }
 
 /// Typed declaration of log-stream ownership at the command composition
@@ -639,6 +644,7 @@ pub fn desktop_command_application(
         profile_store,
         subscription_source,
         core_scope_source,
+        traffic_waveform,
     } = services;
     let SurfaceEngines {
         profiles,
@@ -714,6 +720,7 @@ pub fn desktop_command_application(
     .with_core_log_level_port(core_log_level_port);
     Ok(CommandApplication::new()
         .with_core_capabilities(core_capabilities)
+        .with_traffic_waveform(traffic_waveform)
         .with_rule_provider_runtime(rule_provider_runtime)
         .with_geo_database(geo_database)
         .with_routing_intent_port(backend_ports.core_operations().routing_intent()?)
