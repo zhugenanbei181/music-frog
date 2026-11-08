@@ -38,9 +38,11 @@ Modes
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import pathlib
 import statistics
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -59,9 +61,23 @@ SHELL_TOP_AIR = {"desktop": 8, "compact": 0, "phone": 0}
 SHELL_BOTTOM_AIR = {"desktop": 72, "compact": 0, "phone": 0}
 
 # The limits of the standard, per tier, as a percentage of the page body.
+#
+# A tier limit is only the fallback. The real limit comes from the page's
+# declared CONTENT SHAPE, exported by the contract
+# (`crates/infiltrator-contract/assets/page-structure.json`): a framed list
+# page must fill its body, a dense card grid must fill its rows, and a
+# content-shaped page may end where its last block ends - the peer product
+# leaves more ground than that on the very same shape, so a single global
+# number would judge the reference itself as broken.
 UNUSED_LIMIT = {"desktop": 12.0, "compact": 8.0, "phone": 8.0}
+PAGE_STRUCTURE_FILE = ROOT / "crates/infiltrator-contract/assets/page-structure.json"
 RAIL_CHROME_BAND_LIMIT = 0.0
 RAIL_VOID_LIMIT = 12.0
+
+# The contract's own limits, mirrored here only so a planted self-test can
+# assert the judge read the exported table rather than a local number.
+FRAMED_LIMIT = 4.0
+CONTENT_LIMIT = 82.0
 
 ROW_INK_FRACTION = 0.04
 MIN_CONTENT_RUN = 3
@@ -74,6 +90,67 @@ def tier(width: int) -> str:
     if width >= 700:
         return "compact"
     return "phone"
+
+
+def export_is_fresh() -> list[str]:
+    """The exported page-shape table must match the contract that owns it.
+
+    The judge reads the JSON instead of keeping numbers of its own, so the
+    JSON is a build artefact of the contract: if it drifts, the judge would
+    judge by limits nobody declared.
+    """
+    binary = ROOT / "target/debug/export_page_structure"
+    if not binary.is_file():
+        return ["page structure exporter is not built"]
+    temporary = ROOT / "target/page-structure-check.json"
+    result = subprocess.run([str(binary), str(temporary)], cwd=ROOT,
+                            capture_output=True, text=True, check=False)
+    if result.returncode:
+        return ["page structure exporter failed: " + result.stderr.strip()]
+    if not PAGE_STRUCTURE_FILE.is_file():
+        return ["page-structure.json is missing"]
+    if temporary.read_text(encoding="utf-8") != PAGE_STRUCTURE_FILE.read_text(encoding="utf-8"):
+        return ["page-structure.json is stale; rerun export_page_structure"]
+    return []
+
+
+def page_structures() -> dict[str, dict]:
+    """The exported page-shape table, keyed by capture page slug.
+
+    The table comes from the contract: a slug's shape is a typed fact, not a
+    guess the judge makes from a scenario name.
+    """
+    if not PAGE_STRUCTURE_FILE.is_file():
+        return {}
+    document = json.loads(PAGE_STRUCTURE_FILE.read_text(encoding="utf-8"))
+    return {entry["slug"]: entry for entry in document.get("slugs", [])}
+
+
+def scenario_pages(run: pathlib.Path) -> dict[str, str]:
+    """The capture page slug of every scenario in a published batch."""
+    manifest = run / "capture-manifest.tsv"
+    if not manifest.is_file():
+        return {}
+    pages: dict[str, str] = {}
+    with manifest.open(encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle, delimiter="\t")
+        for row in reader:
+            pages[row["scenario"]] = row.get("page", "")
+    return pages
+
+
+def limit_for(scenario: str, tier_name: str, structures: dict[str, dict],
+              slug: str = "") -> float:
+    """The ground limit for one frame, from its page shape when known.
+
+    The slug is the capture page the frame renders; the shape and the limit
+    come from the contract's exported table.
+    """
+    if slug:
+        entry = structures.get(slug)
+        if entry is not None:
+            return float(entry["ground_limit_pct"])
+    return UNUSED_LIMIT[tier_name]
 
 
 def content_box(width: int, height: int):
@@ -164,6 +241,7 @@ def rail_of(image: np.ndarray) -> dict | None:
 
 def measure(run: pathlib.Path) -> list[dict]:
     out: list[dict] = []
+    pages = scenario_pages(run)
     for scenario in sorted(p for p in run.iterdir() if p.is_dir()):
         image_path = scenario / "image.png"
         if not image_path.exists():
@@ -171,6 +249,7 @@ def measure(run: pathlib.Path) -> list[dict]:
         image = np.asarray(Image.open(image_path).convert("RGB"))
         split = vertical(row_usage(image))
         entry = dict(scenario=scenario.name,
+                     page=pages.get(scenario.name, ""),
                      tier=tier(image.shape[1]),
                      size=f"{image.shape[1]}x{image.shape[0]}",
                      tail_pct=split["tail_pct"],
@@ -237,15 +316,16 @@ def write_debt(document: dict, path: pathlib.Path = DEBT_FILE) -> None:
 def frame_findings(results: list[dict], debt: dict) -> list[str]:
     found: list[str] = []
     registered = debt["frames"]
+    structures = page_structures()
     for entry in results:
-        limit = UNUSED_LIMIT[entry["tier"]]
+        limit = limit_for(entry["scenario"], entry["tier"], structures, entry.get("page", ""))
         if entry["unused_pct"] <= limit:
             continue
         allowed = registered.get(entry["scenario"])
         if allowed is None:
             found.append(
                 f"{entry['scenario']}: unused {entry['unused_pct']}% of the page body "
-                f"exceeds the {limit}% {entry['tier']} limit and is not registered debt"
+                f"exceeds the {limit}% limit for its page shape and is not registered debt"
             )
             continue
         if entry["unused_pct"] > float(allowed):
@@ -292,14 +372,19 @@ def report(results: list[dict]) -> None:
         if not group:
             continue
         values = [entry["unused_pct"] for entry in group]
-        limit = UNUSED_LIMIT[name]
-        over = [entry for entry in group if entry["unused_pct"] > limit]
-        print(f"\n=== {label} ({len(group)} frames, limit {limit}%) "
+        structures = page_structures()
+        limits = {entry["scenario"]: limit_for(entry["scenario"], name, structures,
+                                                entry.get("page", ""))
+                  for entry in group}
+        over = [entry for entry in group
+                if entry["unused_pct"] > limits[entry["scenario"]]]
+        print(f"\n=== {label} ({len(group)} frames, limit by page shape) "
               f"median {statistics.median(values):.1f}% p90 {sorted(values)[int(len(values)*0.9)]:.1f}% "
               f"max {max(values):.1f}% | over limit {len(over)} ===")
         for entry in sorted(over, key=lambda e: -e["unused_pct"])[:14]:
             print(f"  unused {entry['unused_pct']:5.1f}% (tail {entry['tail_pct']:5.1f} "
-                  f"band {entry['band_pct']:5.1f})  {entry['scenario']}")
+                  f"band {entry['band_pct']:5.1f}) limit {limits[entry['scenario']]:5.1f}% "
+                  f" {entry['scenario']}")
     desktop = [entry for entry in results if entry["tier"] == "desktop"]
     if desktop:
         chrome = max(entry.get("chrome_band_pct", 0.0) for entry in desktop)
@@ -341,7 +426,8 @@ def _desktop_body_dark() -> np.ndarray:
     return image
 
 
-def _write_run(root: pathlib.Path, frames: dict[str, np.ndarray]) -> pathlib.Path:
+def _write_run(root: pathlib.Path, frames: dict[str, np.ndarray],
+               pages: dict[str, str] | None = None) -> pathlib.Path:
     run = root / "batch"
     run.mkdir(parents=True, exist_ok=True)
     (run / METADATA).write_text(f"scenario_count={len(frames)}\n", encoding="utf-8")
@@ -349,6 +435,12 @@ def _write_run(root: pathlib.Path, frames: dict[str, np.ndarray]) -> pathlib.Pat
         directory = run / name
         directory.mkdir(parents=True, exist_ok=True)
         Image.fromarray(image).save(directory / "image.png")
+    if pages:
+        rows = ["scenario\tpage\tskin\trequested_window\tapp_pid\twindow_id\twidth"
+                "\theight\tbytes\tsha256\tstatus"]
+        for name, slug in pages.items():
+            rows.append(f"{name}\t{slug}\tdark\t1180x780\t0\t0\t1180\t780\t0\t0\tok")
+        (run / "capture-manifest.tsv").write_text("\n".join(rows) + "\n", encoding="utf-8")
     return run
 
 
@@ -360,8 +452,9 @@ class SelfTest(unittest.TestCase):
         self.root = pathlib.Path(self.temporary.name)
         self.addCleanup(self.temporary.cleanup)
 
-    def measure_one(self, image: np.ndarray) -> dict:
-        run = _write_run(self.root, {"planted": image})
+    def measure_one(self, image: np.ndarray, page: str = "") -> dict:
+        pages = {"planted": page} if page else None
+        run = _write_run(self.root, {"planted": image}, pages)
         return measure(run)[0]
 
     def test_a_frame_filling_card_is_not_waste(self) -> None:
@@ -380,6 +473,39 @@ class SelfTest(unittest.TestCase):
         entry = self.measure_one(image)
         self.assertGreater(entry["unused_pct"], UNUSED_LIMIT["desktop"], entry)
         self.assertNotEqual(frame_findings([entry], {"frames": {}, "rail": {}}), [])
+
+    def test_a_framed_page_may_not_leave_ground_below_its_frame(self) -> None:
+        # A framed list page fills the page body; ground below the frame is
+        # waste, and the limit for this shape is the strict one.
+        image = _desktop_body()
+        _fill(image, 96, 300, 258, 1150, CARD)
+        for row in range(110, 290, 44):
+            _fill(image, row, row + 18, 270, 1140, INK)
+        entry = self.measure_one(image, page="logs")
+        limit = limit_for(entry["scenario"], entry["tier"], page_structures(), "logs")
+        self.assertEqual(limit, FRAMED_LIMIT, limit)
+        self.assertGreater(entry["unused_pct"], limit, entry)
+        self.assertNotEqual(frame_findings([entry], {"frames": {}, "rail": {}}), [])
+
+    def test_a_content_page_may_end_where_its_last_block_ends(self) -> None:
+        # The peer product leaves more ground than this on the same shape, so
+        # judging it by the framed rule would fail the reference itself.
+        image = _desktop_body()
+        _fill(image, 96, 300, 258, 1150, CARD)
+        for row in range(110, 290, 44):
+            _fill(image, row, row + 18, 270, 1140, INK)
+        entry = self.measure_one(image, page="about")
+        limit = limit_for(entry["scenario"], entry["tier"], page_structures(), "about")
+        self.assertEqual(limit, CONTENT_LIMIT, limit)
+        self.assertLessEqual(entry["unused_pct"], limit, entry)
+        self.assertEqual(frame_findings([entry], {"frames": {}, "rail": {}}), [])
+
+    def test_an_unknown_page_falls_back_to_the_tier_limit(self) -> None:
+        image = _desktop_body()
+        _fill(image, 96, 300, 258, 1150, CARD)
+        entry = self.measure_one(image)
+        limit = limit_for(entry["scenario"], entry["tier"], page_structures(), "")
+        self.assertEqual(limit, UNUSED_LIMIT["desktop"], limit)
 
     def test_the_shell_air_is_never_waste(self) -> None:
         # A card that fills the page body exactly, leaving only the shell's
@@ -547,10 +673,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--update-debt", action="store_true")
     parser.add_argument("--bootstrap", action="store_true",
                         help="allow the first debt baseline to be written")
+    parser.add_argument("--check-export", action="store_true",
+                        help="check that the exported page-shape table is current")
     args = parser.parse_args(argv)
 
     if args.self_test:
         return self_test()
+    if args.check_export:
+        problems = export_is_fresh()
+        for problem in problems:
+            print(f"space-utilization: {problem}", file=sys.stderr)
+        if problems:
+            return 1
+        print("space-utilization: the exported page-shape table is current")
+        return 0
     run = args.run or published_run()
     if run is None or not run.is_dir():
         print("space-utilization: no published full-matrix batch; the pixel leg "
@@ -572,8 +708,10 @@ def main(argv: list[str] | None = None) -> int:
                   "--bootstrap once to write the first baseline, afterwards "
                   "--update-debt may only shrink it", file=sys.stderr)
             return 1
+        structures = page_structures()
         frames = {entry["scenario"]: entry["unused_pct"] for entry in results
-                  if entry["unused_pct"] > UNUSED_LIMIT[entry["tier"]]}
+                  if entry["unused_pct"] > limit_for(entry["scenario"], entry["tier"],
+                                                    structures, entry.get("page", ""))}
         desktop = [entry for entry in results if entry["tier"] == "desktop"]
         rail = {}
         if desktop:

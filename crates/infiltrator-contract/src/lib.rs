@@ -88,6 +88,7 @@ pub mod network_roaming;
 pub mod offline_startup;
 pub mod overview_layout;
 pub mod pac;
+pub mod page_structure;
 pub mod palette_preference;
 pub mod parity;
 pub mod port_conflict;

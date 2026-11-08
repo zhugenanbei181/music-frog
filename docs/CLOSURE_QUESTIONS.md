@@ -38,6 +38,18 @@
 | 7 | 部分 | L | 彻底清除全仓 part1/part2/part3 无语义命名，重构为高内聚强语义模块（reset_recovery_and_migration、owner_switch_and_recovery、cross_process_concurrency、workspace_recovery_and_reset_tests）；文件级模块化完成（scanned=2891 violations=0，kt-line scanned=227 violations=0）；mod.rs 清退至 0；隐式状态机语义审计 + 判决台账常驻（23 条候选 0 undecided 0 open）；rem 体系 0 违规 0 debt；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | `check-structure.sh` 40+ 结构守卫、单测与工具链全部 exit 0；`cargo fmt --all --check` 0 偏差；六包定向 nextest 2179/2179 全绿；Clippy 6 包 `--all-targets -D warnings` 零警告；`screenshot-identity-guard` 550 张截图 10 aliases 0 违规；`scrollbar-contract-guard` 0 违规；`shared-copy-guard` 0 违规；`i18n-guard` 0 违规 |
 
+## 最近一批问答（2026-11-09 第一百四十九交付批次：空间利用率阈值按页面形态重定 / 撤回对参考产品的误判）
+
+1. x86_64/aarch64：b149 是共享契约的 typed 页面形态表 + Python 判定器，架构中性；`cargo nextest run -p infiltrator-contract page_structure` 4 项通过、判定器 self-test 20/20 与 `--enforce` 197 帧 0 为 `L`，本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。
+2. Windows/Linux/macOS：b149 只在本机 Linux 台架编译与判定；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 Unsupported 登记 → 部分（L）。
+3. Android/iOS：本批只改测量契约与判定器，不改任何表面；Android/iOS 的 capture matrix 不产生 Slint 帧，其页面形态未随本批取证 → 部分（L）。
+4. 各 UI：不改任何 UI 像素；四表面继续由发布整批回执裁决，本批重采与否取决于是否改像素（未改，故沿用同一发布批，回执保持新鲜）→ 部分（L）。
+5. 复用：形态与上限唯一真源是共享契约 `page_structure` 模块，经 exporter 导出为 `page-structure.json` 供判定器消费；判定器读发布批 manifest 的 page 列取形态，不从场景名猜、不保存第二份数字；`--check-export` 证明导出物与契约不漂移 → 完整（L）。
+5a. 设计资源强制标准：本批无字型/字重/图标/主题身份变化，无像素重采；`design-resource-authority.py` violations=0，沿用 b146 发布回执 → 完整（L）。
+6. 功能接入：判定入口六个模式仍可用（`--report`/`--enforce`/`--json`/`--self-test`/`--update-debt`/`--check-export`）；新增 `--check-export` 并接入结构门；欠账台账按新阈值由 38 帧收紧到 3 帧，`--update-debt` 仍只允许收紧 → 完整（L）。
+7. 模块化：typed `PageStructure::{Framed,Dense,Content}` + `ShellPage::structure()` + slug→形态映射构成一处裁决；工作台形态与母页分离（`logs` framed vs `logs_workbench` content）由契约显式声明；contract 4 项 nextest 与判定器 3 项新 planted 自测互为镜像 → 完整（L）。
+8. CI：结构门新增 `--check-export` 腿；self-test 20/20、`--enforce` 197 帧 violations=0、台账 38→3；doc-governance / closure / receipt-freshness / screenshot-identity 全 0；`--workspace` nextest/clippy 与提交/CI 腿待统一验证批次 → 部分（L）。
+
 ## 最近一批问答（2026-11-09 第一百四十八交付批次：FLCLASH-002 仪表盘注册表复核裁决（存异，无缺口））
 
 1. x86_64/aarch64：b148 是纯契约复核与台账裁决，零源码/零二进制变更，架构中性；沿用 b147 六包 `cargo check` 与 2195 项 nextest 的 `L` 证据，本批无新增编译腿，`C`/`D` 待补证 → 部分（L）。
