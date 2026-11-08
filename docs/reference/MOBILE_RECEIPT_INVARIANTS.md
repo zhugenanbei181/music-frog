@@ -163,6 +163,17 @@ python3 scripts/quality/receipt-freshness-guard.py --mode enforce
 
 指纹一致后才运行唯一一次完整采集；不要带 `INFILTRATOR_CAPTURE_SCENARIOS` 或矩阵 override，因为过滤运行只做诊断、不发布：
 
+> **采集顺序硬规则（b152 实测教训）**：`source_fingerprint` 把 `crates/` 与 `scripts/`
+> 的**全部受版本控制文件**（含判定器与各守卫）一起哈希，所以一旦某次改动落在 `crates/`
+> 或 `scripts/`，本批像素回执就不再是「当前源码的像素证据」。因此：任何代码/守卫改动必须
+> **在整批采集之前全部落地并跑完快门**，采集只在最后跑一次；采集结束后只允许改 `docs/`、
+> `todos/`、`TODO.md`（这些不在指纹里）。唯一例外是发布本身必须随帧更新的
+> `scripts/parity/screenshot_aliases.tsv` 摘要——它由发布后的像素重写，属于回执的一部分，
+> 不是新的源码改动；改完必须复跑 `screenshot-identity-guard --mode enforce` 归零。
+> 中途被打断（`pkill`、超时、合成器故障）的运行**不得当作发布**：它没有发布 manifest，
+> 但其 `capture-metadata.txt` 里的 `scenario_count` 仍是矩阵全数，会让
+> `published_run()` / `latest_run()` 把残缺批次误认成最新整批；必须先删除该运行目录再重跑。
+
 ```bash
 bash scripts/capture-slint-matrix.sh
 python3 scripts/quality/receipt-freshness-guard.py --mode enforce

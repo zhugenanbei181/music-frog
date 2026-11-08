@@ -16,6 +16,19 @@ pub const MEDIUM_MAX_PX: f32 = 840.0;
 /// Expanded tier lower/upper boundary; `>=` this value is [`ViewportTier::Ultra`].
 pub const EXPANDED_MAX_PX: f32 = 1200.0;
 
+/// The whole ladder in width order.
+///
+/// A consumer that walks the tiers - the exporter, a guard, or a surface that
+/// publishes the ladder into its own layout language - iterates this list, so a
+/// new tier can only appear by adding a variant to [`ViewportTier`] and an
+/// entry here.
+pub const TIERS: [ViewportTier; 4] = [
+    ViewportTier::Compact,
+    ViewportTier::Medium,
+    ViewportTier::Expanded,
+    ViewportTier::Ultra,
+];
+
 /// Four canonical responsive viewport tiers shared across desktop, tablet, and mobile.
 #[derive(
     Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
@@ -69,6 +82,65 @@ impl ViewportTier {
     /// Whether this tier is narrow enough that the shell must shed its full sidebar.
     pub const fn is_narrow(self) -> bool {
         matches!(self, Self::Compact | Self::Medium)
+    }
+
+    /// The vocabulary id of this tier, shared by every consumer of the ladder.
+    ///
+    /// A surface that names the same tier differently cannot be checked against
+    /// the export, so this id is the one name the JSON, the generated layout
+    /// file and the space-utilization judge agree on.
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::Compact => "compact",
+            Self::Medium => "medium",
+            Self::Expanded => "expanded",
+            Self::Ultra => "ultra",
+        }
+    }
+
+    /// The lowest window width this tier owns, in logical pixels.
+    pub const fn lower_bound_px(self) -> u16 {
+        match self {
+            Self::Compact => 0,
+            Self::Medium => COMPACT_MAX_PX as u16,
+            Self::Expanded => MEDIUM_MAX_PX as u16,
+            Self::Ultra => EXPANDED_MAX_PX as u16,
+        }
+    }
+
+    /// The exclusive upper bound of this tier, or `None` for the widest tier.
+    pub const fn upper_bound_px(self) -> Option<u16> {
+        match self {
+            Self::Compact => Some(COMPACT_MAX_PX as u16),
+            Self::Medium => Some(MEDIUM_MAX_PX as u16),
+            Self::Expanded => Some(EXPANDED_MAX_PX as u16),
+            Self::Ultra => None,
+        }
+    }
+
+    /// Whether the shell shows a labelled sidebar column in this tier.
+    ///
+    /// One projection of [`ViewportTier::sidebar_form`], not a second decision:
+    /// the forms that carry labels in a column are exactly the forms that own a
+    /// column. A surface choosing between a side column and a bottom bar reads
+    /// this instead of comparing the window width itself.
+    pub const fn has_labelled_sidebar(self) -> bool {
+        match self.sidebar_form() {
+            SidebarForm::Standard | SidebarForm::Wide => true,
+            SidebarForm::BottomNav | SidebarForm::Rail => false,
+        }
+    }
+
+    /// The width of the navigation column this tier owns, or `0` when the shell
+    /// has no column at all.
+    ///
+    /// The judge starts a frame's page body after this column, so the box it
+    /// measures is the room the surfaces were told to reserve.
+    pub const fn nav_column_px(self) -> u16 {
+        match self.sidebar_form().width_px() {
+            Some(width) => width,
+            None => 0,
+        }
     }
 
     /// Whether this tier is Compact (< 600px width).
@@ -155,6 +227,16 @@ impl SidebarForm {
             Self::Rail => Some(64),
             Self::Standard => Some(240),
             Self::Wide => Some(280),
+        }
+    }
+
+    /// The vocabulary id of this navigation form.
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::BottomNav => "bottom_nav",
+            Self::Rail => "rail",
+            Self::Standard => "standard",
+            Self::Wide => "wide",
         }
     }
 }

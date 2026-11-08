@@ -7,7 +7,7 @@ import { CompactPageHeader, HeaderActionCluster, HeaderActionMetrics, LayoutOutl
 import { ProxyGroupCard, SurfaceCard } from "../components/cards.slint";
 import { RouteMode, RuntimeStatus } from "../components/domain_enums.slint";
 import { ProxyGroupPillBar, ProxyNodeCard } from "../components/proxy_picker.slint";
-import { ViewportTier } from "../components/viewport_tier.slint";
+import { ViewportLadder } from "../components/viewport-ladder.slint";
 
 export component PageProxies inherits VerticalLayout {
     in property <bool> compact-layout;
@@ -27,11 +27,10 @@ export component PageProxies inherits VerticalLayout {
 
     // The reference carries several node cards across one row instead of one
     // full-width row per node, which is what made each row read as mostly
-    // empty space. The column count follows the width the page actually has,
-    // so a phone keeps a single readable column.
-    in property <int> node-columns: LumenTheme.viewport-tier == ViewportTier.wide ? 4
-        : LumenTheme.viewport-tier == ViewportTier.medium ? 3
-        : 2;
+    // empty space. The count is the exported table's, so the same window gets
+    // the same grid here as on the Iced and Bevy shells, and a phone keeps a
+    // single readable column.
+    in property <int> node-columns: ViewportLadder.proxy_node_columns(LumenTheme.viewport-tier);
 
     callback set-route-mode(RouteMode);
     callback select-group(string);

@@ -21,7 +21,7 @@ import { SettingsOverlays } from "components/settings_overlays.slint";
 import { AppBottomBar, MobileDockPageGround, ClearTrafficDialog, DesktopTitleBar, NoticeBanner, SettingsMessageBanner, ProfileSettingsTypeMenu, ProfileAddTypeMenu, ProxySortMenu } from "components/app_chrome.slint";
 import { AppBody } from "components/app_body.slint";
 import { PageTitles } from "components/page_titles.slint";
-import { ViewportTier } from "components/viewport_tier.slint";
+import { ViewportLadder } from "components/viewport-ladder.slint";
 import { PageWorkbench } from "pages/page_workbench.slint";
 import { ConnectionSort, LogLevel, NetworkMode, RouteMode, RuntimeStatus, ThemeMode, TrafficRange } from "components/domain_enums.slint";
 
@@ -32,10 +32,11 @@ export component AppWindow inherits MaterialWindow {
         disable-hover: root.android-platform || root.capture-pointer-absent;
         default-font-family: DesignType.body-family;
         // The chrome decision reads the shared tier ladder instead of
-        // measuring the window itself: a rail and a floating dock are two
-        // answers to the same question, and the ladder is the only place the
-        // boundary is written.
-        out property <bool> compact-layout: root.android-platform || LumenTheme.viewport-tier == ViewportTier.phone || LumenTheme.viewport-tier == ViewportTier.compact;
+        // measuring the window itself: a labelled side column and a floating
+        // dock are two answers to the same question, and the exported nav
+        // form is the only place that question is answered. The Android shell
+        // is a separate fact: it is a touch surface at any window size.
+        out property <bool> compact-layout: root.android-platform || !ViewportLadder.labelled_sidebar(LumenTheme.viewport-tier);
         property <bool> platform-dark-mode: MaterialPalette.color-scheme == ColorScheme.dark;
         in-out property <bool> frameless: false;
         // EFFECTS-041 #167: the frameless desktop chrome's window controls.

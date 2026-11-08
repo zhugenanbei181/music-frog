@@ -4,7 +4,7 @@ import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "../components/theme.slint";
 import { NetworkMode, RouteMode, RuntimeStatus } from "../components/domain_enums.slint";
 import { FlagIcon } from "../lumen-flags.slint";
-import { ViewportTier } from "../components/viewport_tier.slint";
+import { ViewportLadder } from "../components/viewport-ladder.slint";
 import { ProfileCard, ProxyGroup } from "../components/models.slint";
 import { LayoutTokens } from "../components/layout-tokens.slint";
 import { StatusBadge, SurfaceCard } from "../components/cards.slint";
@@ -59,10 +59,11 @@ export component HomeDesktopGrid inherits VerticalLayout {
     spacing: root.dense ? LumenTheme.space-3 : LumenTheme.space-4;
     alignment: start;
 
-    // A compact window is still too narrow for the full standard card
-    // metrics. This is a viewport fact read from the shared tier ladder, not
-    // a second page state and not this page's own width comparison.
-    property <bool> dense: LumenTheme.viewport-tier == ViewportTier.phone || LumenTheme.viewport-tier == ViewportTier.compact;
+    // A window too narrow for a labelled side column is also too narrow for
+    // the full standard card metrics. This is one viewport fact read from the
+    // shared tier ladder, not a second page state and not this page's own
+    // width comparison.
+    property <bool> dense: !ViewportLadder.labelled_sidebar(LumenTheme.viewport-tier);
 
     // Row 1: Hero Card (50%) + Upload Card (25%) + Download Card (25%)
     // A non-wrapping row paid four column-shares even in the dense tier, which

@@ -440,7 +440,7 @@ export component DesktopTitleBar inherits Rectangle {
         vertical-alignment: center;
     }
 
-    if root.has-traffic-capsule && LumenTheme.viewport-tier != ViewportTier.phone: Rectangle {
+    if root.has-traffic-capsule && LumenTheme.viewport-tier != ViewportTier.compact: Rectangle {
         x: max(160 * LumenUiScale.unit, parent.width - title-buttons.width - search-btn.width - self.width - 16 * LumenUiScale.unit);
         y: (parent.height - self.height) / 2;
         width: traffic-layout.min-width + 16 * LumenUiScale.unit;
@@ -499,7 +499,7 @@ export component DesktopTitleBar inherits Rectangle {
         x: parent.width - title-buttons.width - self.width - 8 * LumenUiScale.unit;
         y: (parent.height - self.height) / 2;
         width: search-layout.min-width + 16 * LumenUiScale.unit;
-        visible: LumenTheme.viewport-tier != ViewportTier.phone;
+        visible: LumenTheme.viewport-tier != ViewportTier.compact;
         height: 26 * LumenUiScale.unit;
         border-radius: 6 * LumenUiScale.unit;
         background: (search-touch.has-hover && LumenTheme.hover-allowed) ? LumenTheme.zinc-4 : LumenTheme.zinc-3;

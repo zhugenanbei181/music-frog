@@ -3,6 +3,7 @@ import { MaterialWindowAdapter } from "@material";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { DesignType } from "./design-type.slint";
 import { ViewportTier } from "./viewport_tier.slint";
+import { ViewportLadder } from "./viewport-ladder.slint";
 
 export global LumenTheme {
     in-out property <bool> dark-mode: false;
@@ -10,11 +11,12 @@ export global LumenTheme {
     // publishes it once, so scrollbars and other chrome never infer "mobile"
     // from Android, pointer state or their own width comparison.
     in-out property <bool> compact-layout: false;
-    // The window publishes its width once, and the tier ladder below is the
+    // The window publishes its width once, and the generated ladder is the
     // only place a viewport boundary is written. Every surface-level
     // "is this a phone / is this tight / how many columns fit" question reads
     // the tier instead of comparing the width itself, so two pages can never
-    // disagree about the viewport they are in.
+    // disagree about the viewport they are in - and neither can a surface
+    // disagree with the contract the boundary comes from.
     in-out property <length> viewport-width: 0 * LumenUiScale.unit;
     // The height one page body may use. The shell publishes it once, after
     // the page header and the floating dock band are taken off the window,
@@ -27,11 +29,14 @@ export global LumenTheme {
     // window; a desktop grid squeezed into 640px clipped its third card
     // clean off the right edge of the window.
     in-out property <length> dashboard-grid-min-width: 720 * LumenUiScale.unit;
+    // The one chain that reads the exported boundaries. It names the tiers,
+    // it does not restate their numbers: every width here comes from the
+    // generated ladder, so the contract owns the boundary.
     out property <ViewportTier> viewport-tier:
-        root.viewport-width < 600 * LumenUiScale.unit ? ViewportTier.phone
-        : root.viewport-width < 800 * LumenUiScale.unit ? ViewportTier.compact
-        : root.viewport-width < 1120 * LumenUiScale.unit ? ViewportTier.medium
-        : ViewportTier.wide;
+        root.viewport-width < ViewportLadder.compact-max ? ViewportTier.compact
+        : root.viewport-width < ViewportLadder.medium-max ? ViewportTier.medium
+        : root.viewport-width < ViewportLadder.expanded-max ? ViewportTier.expanded
+        : ViewportTier.ultra;
     // Hover is a pointing-device affordance, and the surface already carries
     // one authoritative fact about pointing devices: `MaterialWindow.disable-hover`
     // (Android touch has none, and the capture host has none either). Every
@@ -306,7 +311,13 @@ export global LumenTheme {
     // across the shell, the rail, the header row and the footer, so a header
     // could disagree with the body column it headed.
     out property <length> page-margin-desktop: 30 * LumenUiScale.unit;
-    out property <length> rail-width: 228 * LumenUiScale.unit;
+    // The navigation column this tier reserves, straight from the exported
+    // ladder. It used to be a private 228, which is neither the contract's
+    // labelled column (240) nor the ultra-wide one (280): one window would
+    // then reserve a different side column on Slint than on Iced, and the
+    // judge would measure a box no surface was told to draw.
+    out property <length> rail-width:
+        ViewportLadder.nav_column(root.viewport-tier) * LumenUiScale.unit;
     out property <length> rail-vertical-inset: 18 * LumenUiScale.unit;
     out property <length> rail-row-height: 44 * LumenUiScale.unit;
     out property <length> rail-section-gap: root.space-mobile-section-head-above;

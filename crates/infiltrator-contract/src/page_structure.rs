@@ -10,8 +10,15 @@
 //! This registry is the single owner of that shape. The space-utilization
 //! judge reads it to pick a per-page limit; a surface never decides for
 //! itself how empty a page is allowed to be.
+//!
+//! The same exporter also publishes the viewport ladder, because the judge
+//! needs both facts about one frame and must not keep a private copy of
+//! either: the boundaries themselves belong to [`crate::responsive_viewport`]
+//! and are projected here, tier by tier, as `TierFact`.
 
 use crate::command_catalogue::ShellPage;
+use crate::responsive_viewport::{TIERS, ViewportTier};
+use serde::Serialize;
 
 /// The page shape a capture slug renders.
 ///
@@ -114,9 +121,10 @@ pub fn page_structure_json() -> String {
     })
     .collect();
     format!(
-        "{{\"version\":1,\"pages\":[{}],\"slugs\":[{}]}}\n",
+        "{{\"version\":2,\"pages\":[{}],\"slugs\":[{}],\"tiers\":{}}}\n",
         pages.join(","),
-        slugs.join(",")
+        slugs.join(","),
+        tiers_json()
     )
 }
 
@@ -197,6 +205,79 @@ pub const fn ground_limit(structure: PageStructure) -> f64 {
     }
 }
 
+/// The share of the page body a frame without a known shape may leave empty.
+///
+/// A page only falls back to a tier limit when its shape is missing from the
+/// table above, which is itself a bug the `--check-export` leg reports. Below
+/// the labelled-sidebar boundary the fallback is tighter than the dense-page
+/// limit: a narrow window has proportionally less room, so the same dead band
+/// is a larger share of its body.
+pub const NARROW_TIER_GROUND_LIMIT_PCT: f64 = 8.0;
+
+/// The tier-level fallback limit for one viewport tier.
+///
+/// The judge may only reach for this when a frame's page is missing from the
+/// shape table, which is itself a bug the `--check-export` leg reports. It is
+/// exported so the judge holds no second copy of the number.
+pub const fn tier_ground_fallback(tier: ViewportTier) -> f64 {
+    if tier.has_labelled_sidebar() {
+        DENSE_PAGE_GROUND_LIMIT_PCT
+    } else {
+        NARROW_TIER_GROUND_LIMIT_PCT
+    }
+}
+
+/// One tier of the shared viewport ladder, exported.
+///
+/// The boundary and every chrome fact derived from it are emitted here so a
+/// surface's layout language and the Python judge read the same answer to
+/// "which viewport tier is this". A surface that writes its own boundary is a
+/// second idea of the same window.
+#[derive(Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct TierFact {
+    pub id: &'static str,
+    pub min_width_px: u16,
+    pub max_width_px: Option<u16>,
+    pub nav_form: &'static str,
+    pub nav_column_px: u16,
+    pub labelled_sidebar: bool,
+    pub proxy_node_columns: usize,
+    pub overview_card_columns: usize,
+    pub fallback_ground_limit_pct: f64,
+}
+
+impl TierFact {
+    const fn of(tier: ViewportTier) -> Self {
+        Self {
+            id: tier.id(),
+            min_width_px: tier.lower_bound_px(),
+            max_width_px: tier.upper_bound_px(),
+            nav_form: tier.sidebar_form().id(),
+            nav_column_px: tier.nav_column_px(),
+            labelled_sidebar: tier.has_labelled_sidebar(),
+            proxy_node_columns: tier.proxy_grid_columns(false),
+            overview_card_columns: tier.overview_card_columns(),
+            fallback_ground_limit_pct: tier_ground_fallback(tier),
+        }
+    }
+}
+
+/// Every tier of the ladder, in width order.
+pub const fn tier_facts() -> [TierFact; TIERS.len()] {
+    [
+        TierFact::of(TIERS[0]),
+        TierFact::of(TIERS[1]),
+        TierFact::of(TIERS[2]),
+        TierFact::of(TIERS[3]),
+    ]
+}
+
+/// The exported ladder as a JSON array, for the document below.
+fn tiers_json() -> String {
+    serde_json::to_string(&tier_facts()).expect("the viewport ladder is a closed table of scalars")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -223,5 +304,64 @@ mod tests {
         assert_eq!(ShellPage::About.structure(), PageStructure::Content);
         assert_eq!(ShellPage::Proxies.structure(), PageStructure::Content);
         assert_eq!(ShellPage::Overview.structure(), PageStructure::Dense);
+    }
+
+    #[test]
+    fn the_ladder_tiles_the_width_axis_without_gaps() {
+        let facts = tier_facts();
+        assert_eq!(facts[0].min_width_px, 0);
+        for pair in facts.windows(2) {
+            // Half-open tiers: the upper bound of one is the lower bound of
+            // the next, so no width is unclaimed and none is claimed twice.
+            assert_eq!(pair[0].max_width_px, Some(pair[1].min_width_px));
+        }
+        assert_eq!(facts.last().expect("a non-empty ladder").max_width_px, None);
+    }
+
+    #[test]
+    fn the_ladder_is_the_only_answer_to_which_tier_this_width_is() {
+        for fact in tier_facts() {
+            let middle = match fact.max_width_px {
+                Some(max) => {
+                    f32::from(fact.min_width_px)
+                        + (f32::from(max) - f32::from(fact.min_width_px)) / 2.0
+                }
+                None => f32::from(fact.min_width_px) + 400.0,
+            };
+            assert_eq!(ViewportTier::from_width(middle).id(), fact.id);
+        }
+    }
+
+    #[test]
+    fn only_the_forms_with_a_column_reserve_one() {
+        let facts = tier_facts();
+        for fact in facts.iter() {
+            if fact.labelled_sidebar {
+                assert!(fact.nav_column_px > 0, "{} reserves a column", fact.id);
+            }
+        }
+        // The bottom-navigation tier has no vertical column at all, and the
+        // narrow rail tier is not a labelled sidebar: a judge that measured a
+        // rail there would measure a strip of page content.
+        assert_eq!(facts[0].nav_column_px, 0);
+        assert!(!facts[1].labelled_sidebar);
+    }
+
+    #[test]
+    fn the_exported_document_carries_the_ladder() {
+        let json = page_structure_json();
+        let document: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
+        assert_eq!(document["version"], 2);
+        let tiers = document["tiers"].as_array().expect("the exported ladder");
+        assert_eq!(tiers.len(), TIERS.len());
+        assert_eq!(tiers[2]["id"], "expanded");
+        assert_eq!(tiers[2]["max_width_px"], 1200);
+        assert_eq!(tiers[2]["proxy_node_columns"], 3);
+        assert_eq!(tiers[3]["max_width_px"], serde_json::Value::Null);
+        assert_eq!(tiers[0]["labelled_sidebar"], false);
+        assert_eq!(
+            tiers[0]["fallback_ground_limit_pct"],
+            NARROW_TIER_GROUND_LIMIT_PCT
+        );
     }
 }

@@ -1,4 +1,4 @@
-// The layout tier of the current window.
+// The layout tier of the current window, in the contract's own vocabulary.
 //
 // Six width comparisons used to answer four different questions - "is this a
 // phone", "is this window tight", "how many node columns fit" and "does the
@@ -13,14 +13,20 @@
 // instead of measuring the window itself. A tier is a single enum variant:
 // no consumer can combine two width comparisons into a second, hidden stage
 // table, and a new viewport can only be introduced by adding a variant here.
+//
+// The variant names are the ids the shared contract exports
+// (`infiltrator_contract::responsive_viewport::ViewportTier`), because the
+// same window asked on two surfaces must get the same answer, in the same
+// words. The boundary numbers themselves are not here: they are generated
+// into `viewport-ladder.slint` from the contract's exported table, so this
+// file names the tier and the ladder decides it.
 export enum ViewportTier {
-    // A phone: one column, the bottom dock, no rail.
-    phone,
-    // A narrow desktop window: the rail survives, but the card metrics
-    // tighten and the node grid stays two columns wide.
+    // A phone: the bottom navigation, no side column, one card per row.
     compact,
-    // A normal desktop window.
+    // A narrow window: the labelled sidebar is shed and the grids tighten.
     medium,
-    // A wide desktop window: the widest tables and the densest grids.
-    wide,
+    // A normal desktop window: the labelled sidebar and three node columns.
+    expanded,
+    // An ultra-wide window: the roomy sidebar and the densest grids.
+    ultra,
 }

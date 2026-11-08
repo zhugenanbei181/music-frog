@@ -53,6 +53,7 @@ import argparse
 import json
 import pathlib
 import re
+import importlib.util
 import sys
 import unittest
 import unittest.mock
@@ -62,6 +63,9 @@ UI = ROOT / "crates/infiltrator-slint/ui"
 THEME = UI / "components/theme.slint"
 TITLE_FILE = UI / "components/page_titles.slint"
 TIER_FILE = UI / "components/viewport_tier.slint"
+LADDER_FILE = UI / "components/viewport-ladder.slint"
+GENERATOR = ROOT / "scripts/generate_viewport_ladder.py"
+PAGE_STRUCTURE = ROOT / "crates/infiltrator-contract/assets/page-structure.json"
 
 # A raw viewport comparison: the WINDOW's own width or height compared
 # against a length literal. Only the theme may write one, and only inside
@@ -152,6 +156,125 @@ def tier_variants() -> list[str]:
     return enum_variants("ViewportTier")
 
 
+def exported_tiers() -> list[dict]:
+    """The contract's exported ladder, the only source of these boundaries."""
+    if not PAGE_STRUCTURE.is_file():
+        return []
+    return list(json.loads(PAGE_STRUCTURE.read_text(encoding="utf-8")).get("tiers", []))
+
+
+def generator_module():
+    """The ladder generator, loaded in place so the adapter is compared here."""
+    spec = importlib.util.spec_from_file_location("generate_viewport_ladder", GENERATOR)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
+def ladder_findings(ui: pathlib.Path) -> list[str]:
+    """One ladder, exported once, generated once, read everywhere.
+
+    b150 measured three owners of "which viewport tier is this?" carrying three
+    boundary sets: the contract said 600/840/1200, this surface's theme said
+    600/800/1120, and the judge said 700/1000. The same 1180x780 proxies frame
+    then got four node columns on Slint and three on Iced, and the judge
+    measured an 800..999 frame as if it had no navigation column at all. The
+    contract exports the ladder, the generator publishes it into Slint, and
+    these checks are what keep the two ends from drifting apart again.
+    """
+    found: list[str] = []
+    tiers = exported_tiers()
+    if not tiers:
+        return ["page-structure.json carries no viewport ladder; "
+                "rerun export_page_structure"]
+    if not LADDER_FILE.is_file():
+        return ["components/viewport-ladder.slint is missing; the exported "
+                "ladder has no adapter"]
+
+    adapter = LADDER_FILE.read_text(encoding="utf-8")
+    adapter_code = mask_comments(adapter)
+
+    # The adapter must be the generator's own output, not a hand edit.
+    expected = generator_module().slint_ladder({"version": 2, "tiers": tiers})
+    if adapter != expected:
+        found.append(
+            "components/viewport-ladder.slint is not the generated adapter; "
+            "run scripts/generate_viewport_ladder.py instead of editing it"
+        )
+
+    # One boundary per tier exit, and the widest tier owns no upper bound.
+    for entry in tiers[:-1]:
+        if f"out property <length> {entry['id']}-max:" not in adapter_code:
+            found.append(
+                f"components/viewport-ladder.slint does not publish {entry['id']}-max"
+            )
+    if f"out property <length> {tiers[-1]['id']}-max:" in adapter_code:
+        found.append(
+            f"components/viewport-ladder.slint gives the widest tier an upper bound"
+        )
+    for entry in tiers[:-1]:
+        if f"ViewportTier.{entry['id']}" not in adapter_code:
+            found.append(
+                f"components/viewport-ladder.slint does not cover tier {entry['id']}"
+            )
+
+    # The theme chain reads the adapter and never restates a number.
+    theme_code = mask_comments((ui / "components/theme.slint").read_text(encoding="utf-8"))
+    binding = re.search(
+        r"out property <ViewportTier> viewport-tier:([^;]*);", theme_code, re.S)
+    if not binding:
+        found.append("components/theme.slint: the viewport tier ladder is gone")
+        return found
+    chain = binding.group(1)
+    if re.search(r"\d+(?:\.\d+)?\s*\*\s*LumenUiScale\.unit", chain):
+        found.append(
+            "components/theme.slint: the tier ladder writes its own boundary number; "
+            "read the generated ViewportLadder bounds"
+        )
+    for entry in tiers[:-1]:
+        if f"ViewportLadder.{entry['id']}-max" not in chain:
+            found.append(
+                f"components/theme.slint: the tier ladder does not read ViewportLadder.{entry['id']}-max"
+            )
+    if not chain.rstrip().endswith(f"ViewportTier.{tiers[-1]['id']}"):
+        found.append(
+            f"components/theme.slint: the tier ladder does not end in {tiers[-1]['id']}"
+        )
+
+    # The exported column and grid facts are read, not re-typed per page.
+    surfaces = "\n".join(
+        mask_comments(path.read_text(encoding="utf-8"))
+        for path in sorted(ui.rglob("*.slint"))
+        if path != LADDER_FILE
+    )
+    for function in re.findall(r"pure function (\w+)\(", adapter_code):
+        if f"ViewportLadder.{function}(" not in surfaces:
+            found.append(
+                f"components/viewport-ladder.slint: {function}() is generated but never read"
+            )
+    if "ViewportLadder.nav_column(" not in theme_code:
+        found.append(
+            "components/theme.slint: the navigation column is no longer the exported width"
+        )
+    return found
+
+
+def tier_vocabulary_findings() -> list[str]:
+    """One tier, one name, across the contract and the surface.
+
+    An id that only exists in one language is a fork waiting to be measured
+    differently, so the Slint enum must spell the exported ladder's tiers.
+    """
+    exported = [entry["id"] for entry in exported_tiers()]
+    declared = tier_variants()
+    if exported != declared:
+        return [
+            "components/viewport_tier.slint: the tier names are "
+            f"{declared} but the exported ladder says {exported}"
+        ]
+    return []
+
 def enum_variants(name: str) -> list[str]:
     text = TIER_FILE.read_text(encoding="utf-8")
     body = text.split(f"export enum {name} {{", 1)[-1].split("}", 1)[0]
@@ -180,9 +303,13 @@ def mask_comments(source: str) -> str:
     return "".join(out)
 
 
-def violations(ui: pathlib.Path, dock_checks: bool = True) -> list[str]:
+def violations(ui: pathlib.Path, dock_checks: bool = True,
+               ladder_checks: bool = True) -> list[str]:
     found: list[str] = []
     found += generated_column_findings(ui)
+    if ladder_checks:
+        found += ladder_findings(ui)
+        found += tier_vocabulary_findings()
     app_code = mask_comments((ui / "lumen-app.slint").read_text(encoding="utf-8"))
     typed_dock_owner = (
         "in property <MobileDockBandState> mobile-dock-band-state:" in app_code
@@ -408,6 +535,68 @@ def violations(ui: pathlib.Path, dock_checks: bool = True) -> list[str]:
 
 
 class GuardSelfTest(unittest.TestCase):
+    """Planted defects, so a rule that stopped biting stops the build."""
+
+    def _findings_with(self, overrides: dict[str, str]) -> list[str]:
+        """Serve planted file bodies to the guard without touching the tree.
+
+        The real reader is captured before the patch, or the passthrough
+        would call the mock and recurse.
+        """
+        real = pathlib.Path.read_text
+
+        def fake(self: pathlib.Path, *args, **kwargs):
+            for name, body in overrides.items():
+                if self.name == name:
+                    return body
+            return real(self, *args, **kwargs)
+
+        with unittest.mock.patch.object(pathlib.Path, "read_text", autospec=True) as read:
+            read.side_effect = fake
+            return violations(UI, dock_checks=False)
+
+    def test_a_private_boundary_in_the_chain_is_caught(self) -> None:
+        """A theme that types its own width number is a second ladder."""
+        theme = (UI / "components/theme.slint").read_text(encoding="utf-8")
+        anchor = "root.viewport-width < ViewportLadder.medium-max ? ViewportTier.medium"
+        assert anchor in theme, anchor
+        planted = theme.replace(
+            anchor, "root.viewport-width < 800 * LumenUiScale.unit ? ViewportTier.medium", 1
+        )
+        findings = self._findings_with({"theme.slint": planted})
+        self.assertTrue(
+            any("writes its own boundary number" in item for item in findings), findings)
+
+    def test_a_hand_edited_adapter_is_caught(self) -> None:
+        """The adapter is generated; editing it splits the ladder in two."""
+        adapter = LADDER_FILE.read_text(encoding="utf-8")
+        planted = adapter.replace("return 280;", "return 300;", 1)
+        self.assertNotEqual(adapter, planted)
+        findings = self._findings_with({"viewport-ladder.slint": planted})
+        self.assertTrue(
+            any("is not the generated adapter" in item for item in findings), findings)
+
+    def test_a_generated_lookup_nobody_reads_is_caught(self) -> None:
+        """A generated table with no consumer is a dead knob wearing the ladder."""
+        proxies = (UI / "pages/page_proxies.slint").read_text(encoding="utf-8")
+        anchor = "ViewportLadder.proxy_node_columns(LumenTheme.viewport-tier)"
+        assert anchor in proxies, anchor
+        planted = proxies.replace(anchor, "2", 1)
+        findings = self._findings_with({"page_proxies.slint": planted})
+        self.assertTrue(
+            any("proxy_node_columns() is generated but never read" in item
+                for item in findings), findings)
+
+    def test_a_renamed_tier_in_the_surface_is_caught(self) -> None:
+        """One tier, one name: the surface cannot keep a private vocabulary."""
+        tier_file = TIER_FILE.read_text(encoding="utf-8")
+        planted = tier_file.replace("    ultra,", "    wide,", 1)
+        self.assertNotEqual(tier_file, planted)
+        findings = self._findings_with({"viewport_tier.slint": planted})
+        self.assertTrue(
+            any("the exported ladder says" in item for item in findings), findings)
+
+
     def test_live_tree_is_clean(self) -> None:
         self.assertEqual(violations(UI), [])
 
