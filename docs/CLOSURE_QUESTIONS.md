@@ -38,6 +38,18 @@
 | 7 | 部分 | L | 彻底清除全仓 part1/part2/part3 无语义命名，重构为高内聚强语义模块（reset_recovery_and_migration、owner_switch_and_recovery、cross_process_concurrency、workspace_recovery_and_reset_tests）；文件级模块化完成（scanned=2891 violations=0，kt-line scanned=227 violations=0）；mod.rs 清退至 0；隐式状态机语义审计 + 判决台账常驻（23 条候选 0 undecided 0 open）；rem 体系 0 违规 0 debt；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | `check-structure.sh` 40+ 结构守卫、单测与工具链全部 exit 0；`cargo fmt --all --check` 0 偏差；六包定向 nextest 2179/2179 全绿；Clippy 6 包 `--all-targets -D warnings` 零警告；`screenshot-identity-guard` 550 张截图 10 aliases 0 违规；`scrollbar-contract-guard` 0 违规；`shared-copy-guard` 0 违规；`i18n-guard` 0 违规 |
 
+## 最近一批问答（2026-11-09 第一百五十八交付批次：侧栏行高 44u 对上游 40dp 的实测裁决 / 参照基准 §2 与 §2.1 收口 / 侧栏水平起始边界缺口登记）
+
+1. x86_64/aarch64：本批只改 Markdown 与 `theme.slint` 的一处注释，零几何值、零 wire、零导出物改动，架构中性；`cargo nextest run -p infiltrator-slint -j 2` **383 run / 383 passed / 0 skipped**、`cargo clippy -p infiltrator-slint --all-targets -D warnings` exit 0、`cargo fmt --all --check` 0 偏差为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 目标产物未随本批复跑，`C`/`D` 待补证 → 部分（L）。
+2. Windows/Linux/macOS：本机 Linux 台架（KWin + Niri 嵌套合成器）跑完一次 60 帧诊断采集作为裁决证据（`CAPTURE DIAGNOSTIC PASS: 60 scenario(s) in 262s`，不发布），并复跑全部判据腿；Windows/macOS 构建腿与安装包未复跑，macOS 沿用既有 `Unsupported` 登记（GAP-2.2），Linux 打包腿仍在现在佛 `APPID-001.3` → 部分（L）。
+3. Android/iOS：本批不触任何 Android/iOS 文件，也不重取三 flavor 实机交互回执与 iOS 回执；其归属不变（斗战胜佛/未来佛），不因本批通过而升级 → 部分（L）。
+4. 各 UI：Slint 侧栏行高由实测裁决——44u（保留）与 40u（诊断）在 60 个 720×480 轨道帧上逐帧对照：`chrome_band` 两值都是 0.0%、`void` 最大值 6.2% → 10.0%、导航栈下沿 `nav_stack_bottom_px` 398 → 366、内容列可用高度相等；参照物真实场景图（2265×1665，1.95 倍）同尺子实测行内墨迹 19–21dp（两侧各约 10dp 空气）、图标墨迹距面板左缘 9.2dp、标签 44dp，本仓同一帧实测 22u 墨迹 / 11u 空气 / x32 / x68。Iced 与 Bevy 继续读同一 Rust 契约 API，本批未改其页面 → 部分（L）。
+5. 复用：一处真源未变——`LumenTheme.rail-row-height` 仍是侧栏行高的唯一令牌，本批实测证明它在桌面**没有第二个消费者**（0 处非 compact `NavButton` 实例，`NavButtonMetrics.desktop-height` 的桌面分支不可达），判定入口仍唯一是 `scripts/parity/space_utilization.py`，欠账台账 `frames` 保持为空且本批未放宽任何阈值 → 完整（L）。
+5a. 设计资源强制标准：本批无字型/字重/图标/主题身份变化、无几何值改动，故不重采、不刷新任何别名；`receipt-freshness violations=0`（按运行绑定）、`screenshot-identity scanned=574 aliases=10 violations=0`、`design-resource-authority.py` 在结构门内 0 违规 → 完整（L）。
+6. 各处界面的功能接入：判定器六个模式与 38 项 planted 自测未改仍全绿，`--enforce` 对已发布批 197 帧 violations=0、`--check-export` current；本批新增的是**裁决记录**（L3 参照基准 §2 行几何行 + 新增 §2.1 实测表）而不是新功能 → 完整（L）。
+7. 模块化：裁决、测量与令牌各归其位——参照物测量与两次实测数字归 L3 参照基准，行高令牌仍只在 `LumenTheme` 一处，判定器只读像素与回执；`theme.slint` 里描述 b146 已删除的「状态卡/品牌块/版本行」与已作废「内容宽胶囊」的过期注释本批清除，不留「以后再改」 → 完整（L）。
+8. CI 与批次效率：过程腿按定向原则跑（slint 383、clippy、fmt），重型腿只跑一次 `check-structure.sh`（exit 0，含 space self-test 38/38、`--enforce`、`--check-export`、freshness、identity、`closure-questions`、`doc-governance`、`slint-viewport-tier-guard 24/24` 与 quality unittests）；诊断采集 60 帧 262s 只用于裁决，不发布因而不占用整批重采成本，且「诊断批永不参与判定」已实跑复核（`--enforce` 仍判 197 帧发布批）。交付率随本批由 92.6% → **92.5%**（新立 `SPACEUTIL-010` 2 pt 让未办结分母 100 → 102 pt），4 条 `Integrated` 待统一验证批次一并办结 → 部分（L）。
+
 ## 最近一批问答（2026-11-09 第一百五十七交付批次：导航栈下沿由侧栏实测并随帧发布 / 70% 形状盲启发式退役 / 图标轨侧栏轴开启）
 
 1. x86_64/aarch64：本批改动全在共享契约、Slint 表面、判定器与守卫，架构中性；`cargo nextest run -p infiltrator-contract -j 2` **560 run / 560 passed / 0 failed**（新增「列宽与栈底是一对事实」用例）、`cargo nextest run -p infiltrator-slint -j 2` **383 run / 383 passed / 0 skipped**（冷帧断言 `nav_stack_bottom_px == 0` 且与列宽配对）、`cargo clippy -p infiltrator-contract --all-targets -D warnings` exit 0、`cargo fmt --all --check` 0 偏差为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 目标产物未随本批复跑，`C`/`D` 待补证 → 部分（L）。

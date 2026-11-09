@@ -440,18 +440,26 @@ export global LumenTheme {
     out property <string> mono-family: DesignType.mono-family;
     out property <length> min-touch-target: 48 * LumenUiScale.unit;
     out property <length> page-padding: 16 * LumenUiScale.unit;
-    // The desktop rail has three columns and each one is a fact of its own:
-    //   x18  rail chrome - the brand tile and the status card box sit at `rail-inset`;
-    //   x34  card content - the card's own text, and the version line under it, sit
-    //        at `rail-inset` + `rail-item-padding`;
-    //   x50  nav content - a nav item is a left-aligned, content-width face whose
-    //        left edge sits at `rail-item-padding` and whose content is padded again,
-    //        so its icon lands two paddings inside the layout. The pill hugs its
-    //        label (capped at the rail content column) instead of stretching to a
-    //        fixed width that left a third of the box as dead air. A group heading
-    //        heads those icons, so it reads `rail-content-leading` and joins that
-    //        column: measured before this it started at x34 while the icons it heads
-    //        started at x51, which made the heading a stray row of its own.
+    // The desktop rail's own columns, each one a fact of its own:
+    //   x18  stack inset - the nav stack starts at `rail-vertical-inset`, and the
+    //        title bar's product label sits at `rail-inset` over this column. The
+    //        rail paints no chrome of its own: the status card, brand tile and
+    //        version line that used to sit here were second copies of facts the
+    //        title bar and the dashboard already own, which is why the judge holds
+    //        this column to `chrome_band` 0% instead of measuring their air;
+    //   x32  nav content - a labelled row pads its content by `rail-content-leading`
+    //        (2 x `rail-item-padding`), so its 24u icon box starts there and its
+    //        label starts at x68 (32 + icon 24 + `rail-label-gap` 12), all measured
+    //        on a published frame. A group heading reads the same token, so it heads
+    //        those icons instead of becoming a stray row of its own;
+    //   x0   selected state - the wash and the 3u indicator start at the column edge
+    //        and span the row; the empty right side of a selected row is breathing
+    //        room, not dead air.
+    // That leading is a leftover of the card era and is not yet adjudicated against
+    // the reference: measured on FlClash's desktop scene the icon ink starts 9.2dp
+    // from the pane edge (icon box about 8dp) and its label at 44dp, against our 32u
+    // and 68u in a 240u column. Registered as SPACEUTIL-010 so the next slice
+    // measures this axis instead of guessing at it.
     out property <length> rail-inset: 18 * LumenUiScale.unit;
     out property <length> rail-item-padding: space-4;
     out property <length> rail-content-leading: 2 * root.rail-item-padding;
