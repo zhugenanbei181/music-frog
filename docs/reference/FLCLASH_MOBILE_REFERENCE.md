@@ -18,7 +18,7 @@
 ### 1.1 b128 时效硬门（2026-11-07）
 
 - `scripts/quality/receipt-freshness-guard.py` 现在同时校验「发布 PNG 与最近整批 manifest 的 SHA-256 一致」以及「最近整批 metadata 的 `source_fingerprint` 与当前源码一致」。后者直接调用 `scripts/parity/visual_receipts.py --fingerprint`，与 `capture-slint-matrix.sh` 写入 metadata 的算法是同一个函数，不再依赖人工比较截图 mtime。
-- 当前 b127 发布批次 `.evidence/captures/slint/20261107T080044Z_9107f001fa16_dirty_2012886/` 的 `source_fingerprint=a6a6324028002882b655a36edea7694674b0367d5e231b7a5ec0e3ec98e4f49f`；16:20–16:23 的字体公共体系与 dock 长效机制源码使当前指纹变为 `b11b9895c28f9f54c11c14df171d318612cdb2aa32323c6df421099198da2db8`（该值随后续源码继续变化）。因此 16:06 发布到 `crates/infiltrator-slint/docs/screenshots/` 的 197 张 PNG **已不是当前源码的像素证据**，门禁强制报 `recapture required`。主收口方必须在所有并行源码落地后统一跑 `bash scripts/capture-slint-matrix.sh` 重采、发布 manifest、再由 guard 归零。
+- 上述 b127/b128 的指纹与「197 张 PNG 已过期」是**当时**的时效结论，不是本文的当前状态：此后 b146～b159 已多次按身份变化整批重采，当前发布批为 `20261109T150048Z_a2c3a2924bf6_dirty_1644937`（197/197，422s），`receipt-freshness violations=0`、`screenshot-identity scanned=574 aliases=10 violations=0`。本段保留仅为记录「新鲜度由运行绑定、不由 mtime 判定」这条长效规则；任何具体指纹/批次号都以最新 manifest 与 `source_fingerprint` 为准，不得引用这里的 b127 旧值当现状。
 - 用户 2026-11-07 16:28 的底栏裁图 `/tmp/codex-clipboard-6597baf4-a86f-437d-9540-b82068f3875b.png` 与 2026-11-06 两张历史裁图均已按「过时截图即时删除」规则删除；它们只用于触发问题定位，不保留为判据、不翻旧账。四张 FlClash 参考图是外部对照基准，不属于本仓截图回执，继续保留。
 - 判定入口仍是 `scripts/parity/resolve_surface_evidence.py` 与 `scripts/parity/visual_receipts.py`；任何用户裁图、`/tmp` 临时放大图、诊断帧或过期整批都不得写成「当前发布回执」。新截图必须带整批 `capture-manifest.tsv`、`capture-metadata.txt`、发布目录 `source_fingerprint` 与 `binary_sha256` 四者对账。
 - b128 独立只读审计的逐屏像素坐标、`S-*` / `P-*` 长效不变量与四者对账命令见 [移动端真实像素回执长效不变量](MOBILE_RECEIPT_INVARIANTS.md)；本文仍只记录外部参考基准，最新有效像素由整批重采后的 manifest 与活源码指纹裁决。
@@ -50,7 +50,7 @@
 - **卡片内行的悬停不画描边（实测）**：`SettingRow` 的 hovered 态原先同时给 `zinc-2` 底与 `hairline-glow` 描边，于是一张卡里凭空多出一个圆角框，框的上下沿又与相邻接缝叠成双线——即用户问的「奇怪的中间框框」与「按钮之间的怪线」。规则收口为：**卡片内的行只用底色回答悬停，边只归卡片**；独立控件（侧栏胶囊、动作胶囊）保留发丝描边，因为那里的边是真的。
 - **浅色竖屏的分隔线与底栏（实测，本批新增回执）**：`settings-mobile-light` 分隔线 (213,216,218) 落在卡片 (244,244,245) 上，色差 31/255 = 12.2%，与参考的 31/255 = 12.4% 同值；接缝 x 76–371（卡 16–384）与夜色竖屏逐像素同列；底栏内部逐行中位数恒为 (244,244,245)，浅色皮肤同样没有鬼影。
 - **图标**：参考图混用两类——线性描边图标（放大镜、闪电、竖三点、刷新、排序、加号、铅笔、盾牌、齿轮、扳手、云、语言气泡、终端、信息）与 emoji（🚀 🎯 🏙 及国旗）。本仓跨表面设计资源强制标准只允许 canonical Lucide 语义图标和已登记的全彩国旗资产，**emoji 是明确不可引入项**；国旗走本仓国旗资产，其余图标必须映射到 `infiltrator_contract::design_resources` 的语义集合。
-- **字号对照（实测，参考 @2.96 折算 dp，我方竖屏 @1x 即 dp）**：参考「工具」大标题墨迹 46×22dp，我方 display 角色（22px/600）墨迹 42×20dp；参考行标签「日志」墨迹 25.3×15.5dp（≈16dp em），我方 body 角色（15px/400）墨迹 27×14dp；参考笔画中位宽 5.0px ≈ 1.7dp，我方 2.0dp。两侧字号与字重在测量噪声内一致，**没有**证据支持「我方字号偏小 / 字重偏弱」的改动；105% 缩放帧与 100% 帧的可测差异同样为零（实心笔画中位宽恒 2.0px，AA/实心比 1.493 vs 1.662），所以「发虚」不归因于分数号取整，也不归因于宿主缩放（本机 niri `eDP-1` 为整数 `scale 2`）。真正未决的是 family 本身：本仓 15 个角色已全部绑到 CJK 物理面，Inter 三张面随包但无人引用，而 Iced 仍把 `Sans` 映射到 Inter——该分歧已在跨表面设计资源强制标准里登记为未决项，必须由契约层裁决，表面层不得就地修正；
+- **字号对照（实测，参考 @2.96 折算 dp，我方竖屏 @1x 即 dp）**：参考「工具」大标题墨迹 46×22dp，我方 display 角色（22px/600）墨迹 42×20dp；参考行标签「日志」墨迹 25.3×15.5dp（≈16dp em），我方 body 角色（15px/400）墨迹 27×14dp；参考笔画中位宽 5.0px ≈ 1.7dp，我方 2.0dp。两侧字号与字重在测量噪声内一致，**没有**证据支持「我方字号偏小 / 字重偏弱」的改动；105% 缩放帧与 100% 帧的可测差异同样为零（实心笔画中位宽恒 2.0px，AA/实心比 1.493 vs 1.662），所以「发虚」不归因于分数号取整，也不归因于宿主缩放（本机 niri `eDP-1` 为整数 `scale 2`）。family 分歧此后已由跨表面设计资源强制标准 §2.1 裁决：一次 `TextRole` 请求解析为单个 `TypefaceSpec`，CJK 角色按语义分别绑到 HarmonyOS Sans SC 的 400/500/600 三张独立物理面，Inter 三面仍是 `FontFamilyToken::Sans` 的完整库存供 typed `Sans` 角色使用；不再把该分歧写成「未决」，也不得把「当前角色未引用 Inter」写成删除三面的理由。
 - **字重红线**：参考图大标题与关键数值的字重视觉上超过本仓允许的最重物理面（600）。实现时用 600 档物理面 + 更大字号/更小字距/更纯黑的颜色近似层级，不合成假粗，不引入 700。
 
 ## 3. 逐屏拆解

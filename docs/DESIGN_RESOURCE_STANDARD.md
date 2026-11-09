@@ -31,7 +31,7 @@
 
 只读元数据核验：`CJK-Regular.ttf`、`CJK-Medium.ttf`、`CJK-SemiBold.ttf` 的 OS/2 `usWeightClass` 分别为 400、500、600，name 16 均为 `HarmonyOS Sans SC`；三者字节互不相同，catalog 共用 `HarmonyOS-Sans-LICENSE.txt`。`design-resource-authority.py` 会在结构门读取这些元数据并比对 authority/catalog/生成器导入，新增或替换物理面时必须同步唯一真源。实测边界仍成立：100% 与 105% 缩放下的字形锐度无可测差异（实心笔画中位宽恒 2.0px），niri 输出为整数 `scale 2`，因此「字体发虚」不归因于分数号或宿主缩放；不得再引入 `Math.round(size / 1px) * 1px`、700/Bold、合成假粗或 `animate font-weight`。
 
-当前 16:06 的 b127 发布截图批次只描述 16:06 源码；本批改动物理字体注册、角色消费、列宽门禁与生成器输出后，`source_fingerprint` 已变化，旧像素不是当前源码证据。发布目录中的 PNG 属于整批发布回执，**待主收口方统一重采/发布**；本切片不删除 `.evidence/captures` 或发布目录。
+上段的 b127 时效结论是**当时**的切片状态，不是本标准的当前状态：此后身份变化已按标准多次整批重采，最新发布批为 `20261109T150048Z_a2c3a2924bf6_dirty_1644937`（197/197），`receipt-freshness` 按运行绑定归零。本段保留「物理字体注册/角色消费变更必须触发整批重采」这条长效规则；具体批次号一律以最新 manifest 与 `source_fingerprint` 为准。
 
 ## 2.2 产品吉祥物（品牌资产，不是图标语义）
 
