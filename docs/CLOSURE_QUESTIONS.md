@@ -38,6 +38,18 @@
 | 7 | 部分 | L | 彻底清除全仓 part1/part2/part3 无语义命名，重构为高内聚强语义模块（reset_recovery_and_migration、owner_switch_and_recovery、cross_process_concurrency、workspace_recovery_and_reset_tests）；文件级模块化完成（scanned=2891 violations=0，kt-line scanned=227 violations=0）；mod.rs 清退至 0；隐式状态机语义审计 + 判决台账常驻（23 条候选 0 undecided 0 open）；rem 体系 0 违规 0 debt；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | `check-structure.sh` 40+ 结构守卫、单测与工具链全部 exit 0；`cargo fmt --all --check` 0 偏差；六包定向 nextest 2179/2179 全绿；Clippy 6 包 `--all-targets -D warnings` 零警告；`screenshot-identity-guard` 550 张截图 10 aliases 0 违规；`scrollbar-contract-guard` 0 违规；`shared-copy-guard` 0 违规；`i18n-guard` 0 违规 |
 
+## 最近一批问答（2026-11-09 第一百五十六统一验证批次：一次组团收口 b152～b155 / 全仓 nextest 5903 全绿 / 四条 10 pt 归档）
+
+1. x86_64/aarch64：本批零产品代码改动，只跑集中验收腿，架构中性；`cargo nextest run --workspace --no-fail-fast -j 2` **5903 run / 5903 passed / 15 skipped / 0 failed**、`cargo clippy --workspace --all-targets -j 2 -- -D warnings` exit 0、`cargo fmt --all --check` 0 偏差、`bash scripts/quality/check-structure.sh` exit 0 为 `L`——这是自 b154 登记 `EDITORPERF-001`（50k 窗口逐行重数上方换行）以来全仓腿第一次转绿，也是本批能一次结清四条的前提；交叉 `scripts/cross-check.sh` 腿与 aarch64 目标产物未随本批复跑，`C`/`D` 待补证 → 部分（L）。
+2. Windows/Linux/macOS：本机 Linux 台架（KWin + Niri 嵌套合成器）跑完全量门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用既有 `Unsupported` 登记（GAP-2.2），Linux 打包腿仍在现在佛 `APPID-001.3` → 部分（L）。
+3. Android/iOS：本批不改任何 Android 文件，也不重取三 flavor 实机交互回执与 iOS 回执；这些腿的归属不变（斗战胜佛/未来佛），不因全量门通过而升级 → 部分（L）。
+4. 各 UI：Slint 侧 `SPACEUTIL-005`～`007` 的接线（档界/导航形态/外壳几何回执）在发布批 `20261109T033324Z_5e108a5f55d8_dirty_1504668` 的 197 帧上逐帧复验：123 `standard/240` + 61 `rail/64` + 13 `bottom_nav/0` 与导出阶梯逐个相等；Iced/Bevy 继续读同一 Rust 契约 API，其既有整批回执仍是当前源码的有效证据；`EDITORPERF-001` 的行索引入口在 `editor_viewport*` 之外零消费者（全仓搜索实测），故未牵动任何表面 → 部分（L）。
+5. 复用：本批结清的四条正是「一处真源」链条的三段加一次根治——阶梯（契约 `responsive_viewport` → 导出 → 生成适配器 → 判定器）、导航形态（契约 `shell_navigation` + 比例标准 `max_nav_column_px`）、外壳几何（契约 `shell_receipt` 七键 → Slint `ReceiptChrome` → 宿主读回 → 逐帧 `CAPTURE_CHROME` 行 → 判定器删掉 30/16/8/72 四个镜像常量）、编辑器窗口（契约 `LineIndexedDocument` 一处持有行起始）；判定入口仍唯一是 `scripts/parity/space_utilization.py`，欠账台账 `frames` 保持为空且本批未放宽任何阈值或判据 → 完整（L）。
+5a. 设计资源强制标准：本批无字型/字重/图标/主题/布局身份变化，无重采；`receipt-freshness violations=0`、`screenshot-identity scanned=574 aliases=10 violations=0`（10 条别名逐条实测：摘要==表内值且字节==canonical 文件）、`space_utilization --enforce` 197 帧 violations=0、`--check-export` current、`--self-test` 31/31 → 完整（L）。
+6. 各处界面的功能接入：`resolve_surface_evidence.py` status=pass（registry/discovery True、anchors=360、cells=180）；四条办结的验收要件逐条齐备——`005` 阶梯无缝与导出一致、`006` 轨形态像素落地（720×480 帧 x=64 列沿亮度差 0 → 47、底部带墨迹 93.8% → 26.8%）、`007` 回执腿负向证明（同一判定器指向无回执行旧批逐帧产出 197 条违规）、`EDITORPERF-001` 预算一字未放宽而下限由实现形状达成（独立微基准 1827µs → 23µs debug）→ 完整（L）。
+7. 模块化：本批不新增结构，只按「改动一批一批做、验收一组一组办」把积攒的 `Integrated` 一次结清；台账与看板同步收口——四条从本板表格退出并在归档表登记逐行证据，`frames` 欠账保持为空，`implicit-state`/`typed-state` 判决台账无 `open` 项，文件级 import hygiene 与行预算在结构门内保持 0 违规 → 完整（L）。
+8. CI 与批次效率：本批就是集中验收腿——重型门（全仓 nextest + 全仓 clippy + 结构门）各只跑一次，而不是为四条各跑一遍全仓；四条同批结清使交付率从 91.9% 升到 **92.6%**（1,258/1,358，累计逐字不变，只把点从未办结侧搬到已归档侧）。过程实测记下一条环境事实：本机全天被其它仓库的 cargo 流挤压（load 40～56，niri soak 单进程 262% CPU），结构门在本批被饿到 35 分钟仍未退出，说明重型腿必须后台化 + 轮询、且不能与其他会话同时开第二条 cargo lane；受控 CI 的 `C` 腿与真机 `D` 腿仍按既有条目留在斗战胜佛，不为本批重复立项 → 部分（L）。
+
 ## 最近一批问答（2026-11-09 第一百五十五交付批次：编辑器窗口按行索引读取 / 50k 性能预算回到可实现的产品承诺）
 
 1. x86_64/aarch64：b155 只改共享契约 `editor_viewport` 的窗口读取与性能回执，架构中性；`cargo nextest run -p infiltrator-contract -p infiltrator-presentation -p infiltrator-slint -j 2 --no-fail-fast` **1318 run / 1318 passed / 0 failed**（1315→1318 是本批新增 3 项窗口用例，此前唯一失败的 50k 墙钟断言现在以「实现真的只花窗口的钱」通过）、`cargo clippy -p infiltrator-contract --all-targets -j 2 -- -D warnings` exit 0、`cargo fmt --all --check` 0 偏差、`import hygiene scanned=2934 violations=0` 为 `L`；本批未复跑交叉腿，也未产出 aarch64 目标产物，`C`/`D` 待补证 → 部分（L）。

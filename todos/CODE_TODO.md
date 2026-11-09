@@ -21,6 +21,7 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
+- 2026-11-09 第一百五十六统一验证批次（一次组团收口 b152～b155 全部 `Integrated`；`SPACEUTIL-005` 3 pt + `SPACEUTIL-006` 3 pt + `SPACEUTIL-007` 2 pt + `EDITORPERF-001` 2 pt 共 10 pt / 4 条办结归档，本批零产品代码改动）：① **集中验收一次跑完（全部 `L`）**：`cargo nextest run --workspace --no-fail-fast -j 2` **5903 run / 5903 passed / 15 skipped / 0 failed**——这是自 b154 登记 `EDITORPERF-001` 以来全仓腿第一次转绿，也是本批能把四条一起结清的前提；`cargo clippy --workspace --all-targets -j 2 -- -D warnings` exit 0；`cargo fmt --all --check` 0 偏差；`bash scripts/quality/check-structure.sh` exit 0（40+ 结构守卫与 quality unittests 全绿）。② **像素与判据腿在新源码上复跑**：`space_utilization --enforce` 对发布批 `20261109T033324Z_5e108a5f55d8_dirty_1504668` 197 帧 **violations=0**、`--self-test` 31/31、`--check-export` current；`receipt-freshness violations=0`；`screenshot-identity scanned=574 aliases=10 violations=0`（10 条别名逐条实测摘要==表内值且字节==canonical 文件）；`resolve_surface_evidence.py` status=pass（registry/discovery True、anchors=360、cells=180）；欠账台账 `scripts/quality/space_utilization_debt.json` 的 `frames` 保持为空且本批未放宽任何阈值。③ **为什么四条可以在同一批办结**：`SPACEUTIL-005`～`007` 是 b152/b153/b154 逐批交付并各自留下像素与判定器证据的同一主题（视口阶梯→导航形态→外壳几何回执）链条，`EDITORPERF-001` 是 b155 为解除全仓腿阻塞而做的根因修复；四者的验收动作都是「跑同一套全量门」，按批次化开发与组团集中验收铁律一次跑完而非各跑一遍全仓。④ **归档与台账重算（可核对推导）**：已归档 1,248 → **1,258 pt**（459 → **463 条**）；现在佛剩余 `MUSICFROG-001` 5 + `SPACEUTIL-008` 3 + `SPACEUTIL-009` 2 + `FLCLASH-003` 2 = **12 pt / 4 条**；联合分母 = 12 + 62 + 26 = **100 pt / 39 条**；累计 = 1,258 + 100 = **1,358 pt**——与本批前的 1,358 逐字相等，归档只把点从未办结侧搬到已归档侧，不新增任何交付声明；严格归档交付率 1,248/1,358 = 91.9% → 1,258/1,358 = **92.6%**。⑤ **本批新实测（供 `SPACEUTIL-009` 用，不改判据）**：按判定器现行 `rail_of()` 算法对全部 **60 帧** 720×480 轨帧复算——70% 线在 y336，导航列墨迹末带下沿分布 y385～479，**53/60 帧**会把线下的合法导航带算成「导航栈之下混入区块」，`chrome_band` 分布 4.2%（36 帧）／9.2%（4 帧）／20.4%（13 帧），而该轴上限是 0%；即一旦开启图标轨轴而仍用启发式，88% 轨帧会直接判违规。这证明必须由外壳实测发布栈下沿来替代 70% 线，而不是调整百分比；本批不为此改判据、不蒙判，实测数据已补进 `SPACEUTIL-009` 条目。⑥ **诚实边界**：`C`（受控 CI）与 `D`（真机/目标产物）腿仍按既有条目留在斗战胜佛与未来佛，不因全量门通过而升级；Android 三 flavor 与 iOS 的实机交互回执未随本批重取。
 - 2026-11-09 第一百五十五交付批次（编辑器窗口按行索引读取 / 50k 性能预算回到可实现的产品承诺；`EDITORPERF-001` 2 pt 实现交付转 `Integrated`，本批不办结任何条目）：① **根因不是台架噪声**：`editor_viewport` 的窗口入口把 `&str` 交给 `full_text.lines().enumerate()` 再对每一行做 `if index < first { continue }`，即**每开一次窗就把它上方的全部换行重数一遍**——模块头自己写着「work scales with the viewport window rather than the document」，实现却做不到。同机同文档独立微基准实测（`rustc` 无优化／`-O` 各一遍，非 nextest 二进制内计时）：50k 文档取中段 240 行窗口，旧法 **1827µs**，字节 seek 直读 **1364µs**，而行索引建成后同一窗口 **23µs**；release 分别 559µs／418µs／**5µs**。墙钟上限 8000µs 在 debug 下本就只剩 1% 余量，邻居 cargo 流一来（本机实测 load 33～50）就报 12031/12066µs 失败——被测的是实现做不到的复杂度，不是机器的快慢。② **底层补结构而非改判据**：契约新增 `LineIndexedDocument<'a>`（text + 每行起始字节 + 行数一次结算），打开文档付一次 O(文档)，此后切片、窗内搜索、回执统计全部走索引，代价只随窗口走；`DocumentPerformanceBudget` 的 2000µs／8000µs／240 行**一个数字都没放宽**，`measure_performance` 继续按原上限判。③ **把可复现的那一半变成断言**：`DocumentPerformanceReceipt` 新增 `slice_lines`，`DocumentPerformanceStatus` 新增 `ExceededSliceWork{actual_lines, window_lines}` 并在任何计时断言**之前**先判——切片吐出比窗口更多的行，无论机器多忙都当场失败；回执不再用时间证明工作量。④ **行语义与 `str::lines` 对齐**（索引最容易悄悄跑偏处）：尾随换行不产生 phantom 行、`
 ` 的 `
 ` 不属于行，但**没有换行终止的最后一行保留自己的裸 `
@@ -245,17 +246,15 @@
 
 `SPACEUTIL-001`～`004` 与 `FLCLASH-001`～`002` 已由**第一百五十一统一验证批次**收口退出
 （办结 4 条 / 14 pt 归档，注销 2 条 / 8 pt），归档与注销去向见
-[TODO.md](../TODO.md) 第一百五十一批次行；本板只留仍可推的新缺口。
+[TODO.md](../TODO.md) 第一百五十一批次行。`SPACEUTIL-005`～`007` 与 `EDITORPERF-001` 已由
+**第一百五十六统一验证批次**收口退出（办结 4 条 / 10 pt 归档，证据逐行见
+[TODO.md](../TODO.md) 第一百五十六批次行）；本板只留仍可推的新缺口。
 
 | ID | 状态 / 优先级 | points | owner | 依赖 |
 | --- | --- | --- | --- | --- |
-| `SPACEUTIL-005` | `Integrated` / P1（b152 交付，待统一验收） | 3 | infiltrator-contract（`responsive_viewport` / `page_structure`）+ infiltrator-slint（生成的 `viewport-ladder.slint`）+ `scripts/parity/space_utilization.py` | `SPACEUTIL-004`（已办结） |
-| `SPACEUTIL-006` | `Integrated` / P1（b153 交付，待统一验收） | 3 | infiltrator-contract（`shell_navigation` / `max_nav_column_px`）+ infiltrator-slint（`viewport-ladder.slint` 生成的形态查表、`sidebar.slint` 图标轨、`app_body.slint` 挂载）+ infiltrator-presentation（`mobile_chrome_projection`） | `SPACEUTIL-005` |
-| `SPACEUTIL-007` | `Integrated` / P2（b154 交付，待统一验收） | 2 | infiltrator-contract（`shell_receipt`）+ infiltrator-slint（`ReceiptChrome`、`shell_receipt_host`、`demo/capture_marker`）+ `scripts/parity/space_utilization.py` | `SPACEUTIL-005`、`SPACEUTIL-006` |
 | `SPACEUTIL-009` | `Planned` / P2 | 2 | infiltrator-slint（侧栏导航栈范围的实测来源）+ `scripts/parity/space_utilization.py`（图标轨侧栏轴与 70% 启发式替换） | `SPACEUTIL-007` |
 | `SPACEUTIL-008` | `Planned` / P2 | 3 | infiltrator-contract（`overview_card_columns`）+ infiltrator-slint（`theme.slint` 的 `overview-card-columns`、`pages/home_*.slint` 网格）+ infiltrator-iced（概览网格） | `SPACEUTIL-005` |
 | `FLCLASH-003` | `Planned` / P2 | 2 | infiltrator-slint（`components/theme.slint` 的 `rail-row-height` 与侧栏行）+ 桌面参照基准 §2 裁决行 | `SPACEUTIL-007` |
-| `EDITORPERF-001` | `Integrated` / P1（b155 交付，待统一验收） | 2 | infiltrator-contract（`editor_viewport` 的 `LineIndexedDocument`、性能回执与窗口入口） | 无 |
 
 **`EDITORPERF-001` 50k 性能预算断言是墙钟断言，在共享台架上不可复现（b154 实测登记）**：
 `editor_viewport_test::window_slicing_and_search_operate_within_budget_on_large_documents`
@@ -330,6 +329,9 @@ exporter 导出 → Slint 宿主发布 tier、主题阶梯字面量清零 → �
 布局槽位显式声明），拿到之后 ① 图标轨的侧栏轴才允许开启，② 判定器现有
 「导航行在窗口上方 70% 之内」这条形状盲启发式必须一并删除。判据仍由
 `space_utilization.py` 唯一持有；缺实测就只判带标签列，不蒙判。
+第一百五十六统一验证批次把这颗启发式的实际伤害量化了：对全部 60 帧 720×480 轨帧按判定器现行算法`rail_of()` 复算——70% 线在 y336，导航列墨迹末带下沿分布 y385～479；53/60 帧会把 70% 线以下的合法导航行/带算成「导航栈之下混入区块」，`chrome_band` 分布为 4.2%（36 帧）、9.2%（4 帧）、20.4%（13 帧），而该轴上限是 0%，
+即一旦开启图标轨轴而仍用启发式，88% 轨帧会直接判违规。这就是本条不许被「先开着判据再说」绕过、
+以及它排在图标轨轴之前的原因；收口时必须有外壳实测的栈下沿来替代 70% 线，而不是调整百分比。
 
 **第一百五十四批 外壳几何随帧回执发布 / 判定器删掉最后一份镜像常量（已交付 / 待统一验收，`Integrated`）**：
 承接用户「空间利用率必须因地制宜有硬标准」与 b152/b153 留下的判定器镜像常量，自底向上做完。

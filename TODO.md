@@ -77,30 +77,25 @@
 
 | 看板 | task | points |
 | --- | ---: | ---: |
-| 现在佛 | 8 | 22 |
+| 现在佛 | 4 | 12 |
 | 过去佛 | 0 | 0 |
 | 斗战胜佛 | 20 | 62 |
 | 未来佛 | 15 | 26 |
-| **未办结联合分母** | **43** | **110** |
+| **未办结联合分母** | **39** | **100** |
 
-- **严格交付率：1,248 / 1,358 = 91.9%**（archived 1,248pt / archived 1,248 + 未办结 110pt）。
-- 现在这 8 条是 `MUSICFROG-001`（5 pt，`InProgress`）、`EDITORPERF-001`（2 pt，b154 实测
-  登记、b155 交付转 `Integrated`：窗口逐行重数上方换行导致 50k 预算只剩 1% 余量，改为
-  一次索引 + 窗口级读取并新增 `slice_lines`／`ExceededSliceWork` 确定性断言，预算数字未放宽）
-  与六条视口阶梯／上游对照后续：
-  `SPACEUTIL-005`（3 pt，b152 交付转 `Integrated`）、`SPACEUTIL-006`（3 pt，b153 交付转
-  `Integrated`：中等档图标轨落地，并把「外壳列最多能占多宽」的比例标准写入契约
-  `max_nav_column_px`）、`SPACEUTIL-007`（2 pt，b154 交付转 `Integrated`：外壳把页边距、
-  shell 空气、导航列宽与底部带随帧回执 `CAPTURE_CHROME` 发布，判定器四个镜像常量删除）、
-  `SPACEUTIL-008`（3 pt，概览卡列数的度量语义分歧待裁决）、`SPACEUTIL-009`（2 pt，
-  b154 实测新立：导航栈纵向范围必须由外壳实测发布，占位块 y 实测 466px 而最后一行墨迹
-  到 488px，错误数字会让每帧带标签列的最后一行被误判成混入区块）、`FLCLASH-003`（2 pt，
-  b154 复核桌面参照时实测登记：侧栏行高 44u 对上游 `_itemSize=40` 是唯一未裁决数值，
-  8 行 × 4u = 32u 的栈高差在 480 高窗口占 6.7%）。
-  相比 b151 记的 93 pt / 35 条：b152 补回漏计的 3 pt 并把条数按分项纠正为 36，再加
-  b152 新立 8 pt / 3 条、b154 新立 2 pt / 1 条与复核新立 2 pt / 1 条；b153 只推进状态不改分母。
-  再加 b154 验收实测新立 `EDITORPERF-001` 2 pt / 1 条；b153 只推进状态不改分母。
-  登记新缺口让比率从 93.1% 降到 92.3%、92.2%、92.0% 再到 91.9%，这是如实记账，不是进度倒退。
+- **严格交付率：1,258 / 1,358 = 92.6%**（archived 1,258pt / archived 1,258 + 未办结 100pt）。
+- 现在这 4 条是 `MUSICFROG-001`（5 pt，`InProgress`）与三条后续缺口：
+  `SPACEUTIL-008`（3 pt，概览卡列数的度量语义分歧待裁决）、
+  `SPACEUTIL-009`（2 pt，导航栈纵向范围必须由外壳实测发布——b154 实测占位块 y 报 466px 而末行墨迹到 488px；
+  b156 按判定器现行算法复算 60 帧 720×480 轨帧：70% 线 y336、末带下沿 y385～479，**53/60 帧**会把线下的
+  合法导航带算成混入区块（`chrome_band` 4.2%/9.2%/20.4% 对 0% 上限），故图标轨轴在拿到外壳实测的栈下沿前不得开启）、
+  `FLCLASH-003`（2 pt，侧栏行高 44u 对上游 `_itemSize=40` 是逐维对照后唯一剩下的未裁决数值）。
+  第一百五十六统一验证批次一次组团办结退出 4 条 / 10 pt：`SPACEUTIL-005`（3）、`SPACEUTIL-006`（3）、
+  `SPACEUTIL-007`（2）、`EDITORPERF-001`（2），逐行证据见下方归档表第一百五十六批次行；
+  分母由 110 pt / 43 条降至 **100 pt / 39 条**，已归档 1,248 → **1,258 pt**（459 → **463 条**），
+  累计 = 1,258 + 100 = **1,358 pt**（与本批前的累计逐字相等，归档只把点从未办结侧搬到已归档侧，不新增交付），
+  严格归档交付率 91.9% → **92.6%**。
+
 - 2026-11-05 第一百一十交付批次（全仓统一公共字体/字号/字重闭环落地，`DSGSTD-002`，3 pt）：在 batch 109 建立 typed 权威与生成器代码链的基础上，彻底落实全仓使用统一的公共字体集合、大小、字重：① Contract `TextRole` 扩充 Subheading 与 Micro 并收敛于 `design_tokens::type_scale`，`FontFaceDocument`/`TypefaceDocument` 新增 `family_name`，导出 JSON 并在生成器中闭环；② Iced 统一由 `theme::font_for(role)` 与 `theme::role_body_text`/`role_text` 收口，裸 `.size(N)` 清零，废弃字体常量清零；③ Slint 全量 UI 迁移至 `DesignType.<role>-size/-weight/-family`，裸数字 font-size 与 font-weight 清零；④ Bevy UI 彻底删除本地私有 `Role` 枚举与私有字体尺寸表，944 处调用迁移至 `infiltrator_contract::design_resources::TextRole` 并由 `typeface(role)` 统一解析；⑤ Android Compose 业务代码裸 `fontSize`/`fontWeight`/`FontFamily` 清零，统一由 `AppTypography` 导出；⑥ 升级强化 `design-resource-authority.py` 门禁，全检四表面调用点；⑦ 修复 Iced、Bevy、Slint 三桌面卡片重排与几何裁切缺陷，三桌面全矩阵 558 张截图（Iced 182, Bevy 190, Slint 186）基于新字体全量重采，`screenshot_aliases.tsv` 摘要对齐，`screenshot-identity-guard` 零违规。证据：六包定向 nextest 2179/2179 全绿；clippy `--all-targets -D warnings` 零警告；`cargo fmt --all --check` 0 偏差；Android font 生成、编译、ktlintCheck、405 项单测全部 BUILD SUCCESSFUL；`check-structure.sh` 40+ 结构守卫与 351 项 quality unittests 全绿。现在佛与过去佛保持 0 条 / 0 pt，联合分母 88 pt 保持，已归档 1,231 → 1,234 pt（454 → 455 条），累计 1,319 → 1,322 pt，严格归档交付率 93.3%（1,234/1,322 pt）保持。
 - 2026-11-04 第一百零九交付批次（标准落地 + 定向验证，`DSGSTD-001`，3 pt）：跨表面设计资源强制标准进入总纲、公共文档地图、公共质量规则与结构门；`infiltrator_contract::design_resources` 统一字重闭集 400/500/600、`TextRole`→`TypefaceSpec` 与 `IconSemantic`，`design-authority.json` 由唯一 exporter 导出，Kotlin/Slint 适配物由生成器写入；`FontFace::assert_catalog_alignment()` 双向闭合五张物理面与 catalog，Iced/Bevy 跨 crate 相对字体路径清零，Android `res/font` 出库改 Gradle 生成五张面并移除 `material-icons-extended`，Slint Tier A 全部改指 canonical Lucide SVG；标准文档、总纲、公共质量底线、文档地图与收口八问 5a 问项钉死不可绕过条款，`design-resource-authority.py` 接入结构门与 main-gate 并校验标准文档/CI 注册。证据：`cargo nextest -p infiltrator-shared -p infiltrator-iced -p infiltrator-bevy-widgets` 1102/1102 全绿；五包 `cargo check --all-targets` 通过；`cargo fmt --all --check` 0 偏差；`design-resource-authority.py --self-test`/`--skip-exporter` violations=0；`generate_design_resources.py --check` 与 `generate_shared_icons.py --check` 全绿；Gradle `generateComposeDebugSharedFonts`、`compileComposeDebugKotlin`、`testComposeDebugUnitTest` 405 项全绿；doc/closure/slint 守卫全绿。按截图认证硬门，字体/字重/图标身份变化后的三桌面 standard+compact 与 Android 三 flavor 新像素回执尚未重采，相关业务能力诚实记「部分」，本批只办结标准与代码链（3 pt），联合分母 88 pt 保持，累计 1,316 → 1,319 pt，严格归档交付率 93.3%（1,231/1,319 pt）。
 - 2026-11-04 第一百零八交付批次：`ICEDUI-001`（3 pt）Iced 布局对标 Clash Party 与全 UI 共享描述强制接入同批办结：contract 新增 `shared_copy` typed key 目录，Shared 双语文案表、产品 `.po` 与 Android 三语言 `strings.xml` 同源登记；`shared-copy-guard.py` 强制四 UI 接入、Iced 可见文案无字面量与中文文案棘轮并接入结构门；共享 locale 重复 key 清零；全仓 117 条中文条目去掉夹注英文译名（平均 21 → 6 字，总量 −72%），16 条超长说明/标题压缩为单句事实，Android `values-zh-rCN`/`values-zh-rTW` 4 条同类堆字一并收口，Iced 侧栏 `short_label()` 字符串裁剪旁路删除；Bevy/Iced 断言同批迁移（含 rules 截断说明、主出口节点、radar 等级、流量维度、托盘开关）；中文文案棘轮 145 → 28（余者均为 `dns.listen`/CIDR/TTFB 等配置字段、单位或协议标识），Iced 超长标签仅 2 条（技术占位与字体署名），产品 `.po` 521 条 msgid 0 堆字；Iced 侧栏收成「模式/开关 → 活动配置 → 主导航/紧凑计数 → 底部速率」，控制区短视口可滚动，导航与速率底栏钉住，二级导航回归命令面板/工具页；a11y 裸中文标签退役并由 Bevy 经共享 key 解析。`cargo nextest run -p infiltrator-contract -p infiltrator-application -p infiltrator-presentation -p infiltrator-shared -p infiltrator-iced --no-fail-fast` 2152/2152 全绿、Iced capture 包 `cargo check` 全绿、`cargo fmt --all --check` 0 偏差、共享文案/文档/收口守卫全绿，i18n guard 本批新增违规 0（他会话 WIP 存量违规未计）；`cargo nextest run -p infiltrator-bevy-ui -p infiltrator-bevy-widgets` 194/194 与 7/7 全绿；Iced 全矩阵 182/182，manifest 183 行。现在佛与过去佛保持 0 条 / 0 pt，联合分母 88 pt 保持，已归档 1,225 → 1,228 pt（453 → 454 条），累计 1,313 → 1,316 pt，严格归档交付率 93.3%（1,228/1,316 pt）保持。
@@ -289,7 +284,7 @@
 | 文案实现 | — | — | `interpolate` 在 `lurker-ui-presentation::copy` 与 `infiltrator-shared::i18n_interpolator` 各有一份 |
 
 
-### 已归档交付原子条目（明细 443 条 / 1,221 pt；累计 459 条 / 1,248 pt）
+### 已归档交付原子条目（明细 447 条 / 1,231 pt；累计 463 条 / 1,258 pt）
 
 > 证据等级：下表除显式标注 `C` 外均为本地 `L`（命令/run 见各行）；`cargo publish --dry-run` 目前只有 `lurker-core-contract` 取得。
 >
@@ -745,6 +740,13 @@
 | `SPACEUTIL-004` 紧凑档 / 手机档 framed 页填满页身 | 3 | 2026-11-09 第一百五十一统一验证批次：b150 实测根因（720×480 档 framed 卡止于 y407，卡下 72 行 = 480 行的 12.9% 死地；同档兄弟帧填到 y477、桌面档同页 tail 0.0%，差别只在「有没有底部导航」），裁决为「底部空气是外壳档事实，不是底栏事实」；改后三帧 tail 12.9% → **0.0%**、band 3.5%（页头呼吸位，与桌面档 3.6% 同量级），紧凑档 p90 12.9% → 6.1%，`scripts/quality/space_utilization_debt.json` 的 `frames` **清零**（台账仍只减不增）；`slint-viewport-tier-guard` 新增 chrome-fact 硬门与 planted 反例；全仓 nextest/clippy/结构门同上。 |
 | `FLCLASH-001` Core 方法面 wire 对照审计 / `ClearTrafficHistory` 真 owner 收口 | 3 | 2026-11-09 第一百五十一统一验证批次：b146 逐方法对照上游 `CoreMethod` 约 60 个 `area.verb` 后仅两处真缺陷（dispatch `Ok(())` 空操作 + capability 错映射 `ConnectionOperation::Close`）；b147 自底向上收口——domain `TrafficWaveformBuffer::reset` 保 generation/session 并递增 revision，application 发布 typed 读回，`CoreApplication` 单一持有唯一 `TrafficWaveformApplication`，桌面/Android/iOS composition 与 `ProductSurfaceReader` 共享同一 `Clone`（同一 `Arc<Mutex>`），未注入 owner 时返回 `NotReady` typed refusal；复核 Mihomo HTTP API 无 traffic-reset endpoint，故路由改 `LocalOnly` 而非虚报引擎能力；`route.watch`/`shareLink.*`/`config.decrypt` 经逐层核对为本仓已有更强实现（typed 快照读回 + revision、`ProtocolCodecApplication` 草稿↔URI 往返与保真审计），登记为存异不重复造；4 项新 nextest + 全仓 5883/5883、clippy 0、结构门 exit 0。 |
 | `FLCLASH-002` 仪表盘卡片注册表 typed 化复核（存异，本仓已更强） | 5 | 2026-11-09 第一百五十一批次补记（b148 已裁定办结、当时未落台账）：逐项核对 `infiltrator-contract::overview_layout` 确认本仓已有 typed `OverviewCardKind`（8 变体）、`region` 把 shell 侧栏控件与概览卡分开（上游 `DashboardWidget.platforms` 无此裁决）、`DEFAULT_ORDER` 与 `OverviewLayoutSnapshot` 可重排 owner + 4 项契约测试；`project_overview_layout` 纯消费、`DashboardFacts` 一次投影 11 类事实；上游平台门控在本仓无对应真实差异（`MasterSwitches` 四表面均渲染），凭空加门控只会造第二个业务真源，故按「不为办结造功能」原则不写码；统一批次全仓门 exit 0。 |
+| `SPACEUTIL-005` 视口阶梯单一真源（档界／导航形态／导航列宽／节点列数／兜底上限） | 3 | 2026-11-09 第一百五十六统一验证批次：b152 把三处各写一套的档界（契约 600/840/1200、Slint 主题 600/800/1120、判定器 700/1000）收为`responsive_viewport::TIERS` 一处导出，经 `page-structure.json` `tiers[]` 下发给生成的 `viewport-ladder.slint` 与判定器；根治的实测缺陷是判定器在 800～999px 宽度把 228u 侧栏当页身内容测量（测量盒／页边距／shell 空气三者同时错位）与同尺寸 1180×780 帧 Slint 4 列对 Iced 3 列的跨表面分歧；`ViewportTier` 变体名被门禁钉成与导出档 id 逐个相等，无人消费的生成查表函数直接判违规；发布批 `20261109T033324Z_5e108a5f55d8_dirty_1504668` 197 帧普查 123 standard/240 + 61 rail/64 + 13 bottom_nav/0 与阶梯逐个相等。 |
+| `SPACEUTIL-006` 中等档图标轨落地 + 外壳列比例标准入契约 | 3 | 2026-11-09 第一百五十六统一验证批次：b153 按上游 `canExpandSidebar`（标签只在 desktop 档放行）与本仓契约同解，`ViewportTier::shell_navigation(touch_surface)` 一处裁决导航形态，`max_nav_column_px()` 给出比例标准（图标轨 ≤ 该档最窄宽 12%、带标签列 = min(30% 份额, 下档界 − 紧凑上限)，expanded 恰为 840−600=240）；像素复核：720×480 帧 x=64 列沿亮度差 0 → **47**、轨列墨迹行签名 184 覆盖全部 medium 帧、底部带墨迹 93.8% → **26.8%**（短窗口拿回 72 行页身）；清零的第二真源四处（`compact-layout` 兼职决定挂载、`MobileDockBandFacts.compact_layout` 布尔、判定器把 medium 列宽记 0、判定器 `labelled_sidebar` 兼职决定列宽）。 |
+| `SPACEUTIL-007` 外壳几何随帧回执发布（判定器删掉最后一份镜像常量） | 2 | 2026-11-09 第一百五十六统一验证批次：b154 新模块 `infiltrator_contract::shell_receipt` 以 typed `ShellChromeFacts` 七键发布`CAPTURE_CHROME` 行（形态／列宽／页边距／上下空气／底部带／缩放），写读互逆且缺键、重复键、词表外形态一律拒解析；判定器删除 30/16/8/72 四个镜像常量并新增 `chrome_findings` 五条腿；负向证明：同一判定器指向无回执行的旧批逐帧产出 **197 条**违规，证明新腿会咬；`--self-test` 31/31、守卫 planted 21/21、`--enforce` 197 帧 violations=0、欠账台账 `frames` 保持为空。 |
+| `EDITORPERF-001` 编辑器窗口工作改按行索引计量（墙钟断言的可复现化） | 2 | 2026-11-09 第一百五十六统一验证批次：b155 实测根因——`slice_visible_lines` 每次开窗都重数窗口之上的全部换行，独立微基准 debug 1827µs／字节 seek 1364µs／行索引后同一窗口 **23µs**（release 559／418／**5µs**），而预算上限 8000µs 本就只余 1% 余量；新增 `LineIndexedDocument` 并把三处窗口入口同批改收它（旧 `&str` 轨道同批删除，全仓搜索证明其在本模块外零消费者），回执新增 `slice_lines` 与 typed `ExceededSliceWork` 并在任何计时判据之前先判；预算数字一字未放宽；行语义与 `str::lines` 对 11 种边界文本逐行等价（含尾随换行不生 phantom 行、`
+` 剥 `
+`、未终止末行保留裸 `
+`、越界窗口渲染为空）；统一批次全仓 nextest **5903/5903** 首次就此转绿。 |
 > v143 在 v142 上归档 DNS display projection ownership，共 5 pt。继承的历史明细仍比累计少 1 条 / 1 pt，旧任务 ID 与证据无法还原；当前已知切片均登记，未猜填历史记录。
 
 ## 全局研判与产品交付收口门（2026-10-11）
