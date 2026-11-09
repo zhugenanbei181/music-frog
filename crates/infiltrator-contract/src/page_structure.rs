@@ -18,9 +18,10 @@
 
 use crate::command_catalogue::ShellPage;
 use crate::responsive_viewport::{
-    DASHBOARD_FOUR_COLUMN_MIN_PX, DashboardColumns, TIERS, ViewportTier,
+    DASHBOARD_FOUR_COLUMN_MIN_PX, DashboardColumns, SidebarForm, TIERS, ViewportTier,
 };
 use crate::shell_receipt::CHROME_KEYS;
+use crate::shell_sidebar_presentation::{NavigationSeparator, separator_for_form};
 use serde::Serialize;
 
 /// The page shape a capture slug renders.
@@ -129,11 +130,12 @@ pub fn page_structure_json() -> String {
     })
     .collect();
     format!(
-        "{{\"version\":7,\"dashboard_columns\":{},\"pages\":[{}],\"slugs\":[{}],\"tiers\":{},\"chrome_keys\":{}}}\n",
+        "{{\"version\":8,\"dashboard_columns\":{},\"pages\":[{}],\"slugs\":[{}],\"tiers\":{},\"navigation_separators\":{},\"chrome_keys\":{}}}\n",
         dashboard_columns_json(),
         pages.join(","),
         slugs.join(","),
         tiers_json(),
+        navigation_separators_json(),
         chrome_keys_json()
     )
 }
@@ -170,6 +172,42 @@ fn dashboard_columns_json() -> String {
         "{{\"variants\":[{}],\"four_column_min_px\":{}}}",
         entries.join(","),
         DASHBOARD_FOUR_COLUMN_MIN_PX
+    )
+}
+
+/// The navigation separator vocabulary and the decision for every exported
+/// form. A surface reads this instead of deciding from a group label, a width
+/// or its own `labelled` boolean that a heading would look useful here.
+fn navigation_separators_json() -> String {
+    let variants: Vec<String> = NavigationSeparator::ALL
+        .iter()
+        .map(|separator| {
+            format!(
+                "{{\"id\":\"{}\",\"paints_heading\":{}}}",
+                separator.id(),
+                separator.paints_heading()
+            )
+        })
+        .collect();
+    let forms: Vec<String> = [
+        SidebarForm::BottomNav,
+        SidebarForm::Rail,
+        SidebarForm::Standard,
+        SidebarForm::Wide,
+    ]
+    .iter()
+    .map(|form| {
+        format!(
+            "{{\"id\":\"{}\",\"separator\":\"{}\"}}",
+            form.id(),
+            separator_for_form(*form).id()
+        )
+    })
+    .collect();
+    format!(
+        "{{\"variants\":[{}],\"forms\":[{}]}}",
+        variants.join(","),
+        forms.join(",")
     )
 }
 
@@ -439,7 +477,7 @@ mod tests {
     fn the_exported_document_carries_the_ladder() {
         let json = page_structure_json();
         let document: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
-        assert_eq!(document["version"], 7);
+        assert_eq!(document["version"], 8);
         // The chrome vocabulary travels with the ladder it describes, so a
         // reader that has the document already has the key list.
         assert_eq!(

@@ -160,6 +160,7 @@ pub mod shell_gesture;
 pub mod shell_navigation;
 pub mod shell_readout;
 pub mod shell_receipt;
+pub mod shell_sidebar_presentation;
 pub mod shortcuts;
 pub mod sidebar_material;
 pub mod skeleton_shimmer;

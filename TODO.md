@@ -84,6 +84,22 @@
 | **未办结联合分母** | **40** | **102** |
 
 - **严格交付率：1,258 / 1,360 = 92.5%**（archived 1,258pt / archived 1,258 + 未办结 102pt）。
+- 2026-11-10 第一百六十四交付批次（FlClash 桌面侧栏无标题导航节奏）：对照
+  `docs/reference/flclash-desktop/flclash-desktop-dashboard.png` 与
+  `prism_ui/lib/sidebar.dart` 的 `Column(destinations.indexed)`，确认上游侧栏没有
+  分组标题；本仓旧帧的两个标题把 8 行导航切成 10 个墨迹簇，并额外支付一行标题盒
+  与 16u 上空气。本批在 contract 新增 `NavigationSeparator` typed 策略，
+  `page-structure.json` 升到 version 8 并导出四种形态的 `none`，生成器投影成
+  `ViewportLadder.navigation_separator(form)`，`sidebar.slint` 纯消费且不再由
+  `labelled` 私有推导标题；`slint-sidebar-separator-guard.py`（3 项 planted 自测）
+  接入结构门。整批 197 帧重采 `20261109T192728Z_1b1ad242402f_dirty_2874792`
+  （383s）实测带标签帧墨迹簇 10 → 8、`nav_stack_bottom_px` 502 → **438**、
+  `chrome_band` 0.0%、最差 `void` 6.2%、`space_utilization --enforce`
+  violations=0；4 条 `mixin-*` 别名摘要刷新后 `screenshot-identity 574/10/0`、
+  `receipt-freshness=0`。定向证据：contract 571/571、slint 383/383、
+  两包 lib/bin clippy `-D warnings`、生成链/守卫/文档门禁全绿。全仓 fmt/clippy
+  与统一验证批次仍因另一会话未提交 Bevy WIP 未随本批宣告通过；严格交付率
+  与 5 条 `Integrated` 状态保持不变。
 - 现在这 5 条是 `MUSICFROG-001`（5 pt，`InProgress`）与四条后续缺口：
   `SPACEUTIL-008`（3 pt，概览卡列数语义分歧——**第一百六十批已交付转 `Integrated`**：
   复核发现契约 1/2/2/3 是 Bevy 包裹流每行卡数、Slint 2/4 是 span 网格份额数，两者本就不是

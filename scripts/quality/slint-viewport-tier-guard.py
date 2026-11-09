@@ -226,9 +226,17 @@ def ladder_findings(ui: pathlib.Path) -> list[str]:
 
     # The adapter must be the generator's own output, not a hand edit.
     expected = generator_module().slint_ladder({
-        "version": 7,
+        "version": 8,
         "tiers": tiers,
         "dashboard_columns": {"four_column_min_px": 860},
+        "navigation_separators": {
+            "forms": [
+                {"id": "bottom_nav", "separator": "none"},
+                {"id": "rail", "separator": "none"},
+                {"id": "standard", "separator": "none"},
+                {"id": "wide", "separator": "none"},
+            ]
+        },
     })
     if adapter != expected:
         found.append(

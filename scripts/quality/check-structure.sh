@@ -136,6 +136,8 @@ python3 scripts/quality/slint-action-label-guard.py --mode enforce
 python3 scripts/quality/slint-action-label-guard.py --self-test
 python3 scripts/quality/slint-rail-edge-dialect-guard.py --mode enforce
 python3 scripts/quality/slint-rail-edge-dialect-guard.py --self-test
+python3 scripts/quality/slint-sidebar-separator-guard.py --mode enforce
+python3 scripts/quality/slint-sidebar-separator-guard.py --self-test
 python3 scripts/quality/android-product-identity-guard.py
 python3 scripts/quality/release-build-target-guard.py --self-test
 python3 scripts/quality/release-build-target-guard.py

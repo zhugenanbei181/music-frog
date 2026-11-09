@@ -51,3 +51,16 @@ export enum NavigationForm {
     // The labelled sidebar with room for the observation destinations.
     wide,
 }
+
+// How the navigation column states a change of registry group. The variant
+// names are the ids the shared contract exports, and the generated ladder is
+// the only place a form is mapped onto one of them. FlClash's desktop sidebar
+// paints a single uninterrupted destination list, so every current form reads
+// `none`; keeping the vocabulary typed makes a future heading a contract
+// decision instead of a surface-local gap token.
+export enum NavigationSeparator {
+    // One destination list, with no heading or extra section air.
+    none,
+    // A localized group heading plus its own air.
+    heading,
+}

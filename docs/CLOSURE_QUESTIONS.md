@@ -38,6 +38,18 @@
 | 7 | 部分 | L | 彻底清除全仓 part1/part2/part3 无语义命名，重构为高内聚强语义模块（reset_recovery_and_migration、owner_switch_and_recovery、cross_process_concurrency、workspace_recovery_and_reset_tests）；文件级模块化完成（scanned=2891 violations=0，kt-line scanned=227 violations=0）；mod.rs 清退至 0；隐式状态机语义审计 + 判决台账常驻（23 条候选 0 undecided 0 open）；rem 体系 0 违规 0 debt；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | `check-structure.sh` 40+ 结构守卫、单测与工具链全部 exit 0；`cargo fmt --all --check` 0 偏差；六包定向 nextest 2179/2179 全绿；Clippy 6 包 `--all-targets -D warnings` 零警告；`screenshot-identity-guard` 550 张截图 10 aliases 0 违规；`scrollbar-contract-guard` 0 违规；`shared-copy-guard` 0 违规；`i18n-guard` 0 违规 |
 
+## 最近一批问答（2026-11-10 第一百六十四交付批次：FlClash 桌面侧栏的无标题导航节奏成为契约策略 / 整批 197 帧重采）
+
+1. x86_64/aarch64：本批新增中性 Rust 契约模块、导出物、Python 生成器/守卫、Slint 几何与文档，不写平台专用代码或 wire；`cargo nextest run -p infiltrator-contract -j 2` **571/571**、`cargo nextest run -p infiltrator-slint -j 2` **383/383**、`cargo check -q -p infiltrator-slint` 通过为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 产物未随本批复跑，`C`/`D` 待补 → 部分（L）。
+2. Windows/Linux/macOS：Linux 台架完成 KWin+Niri 后台整批 197 帧重采（`CAPTURE MATRIX PASS: 197 scenario(s) in 383s`）、发布目录摘要刷新、空间利用率与回执时效全绿；Windows/macOS 构建腿与安装包未复跑，macOS 沿用既有 `Unsupported` 登记（GAP-2.2） → 部分（L）。
+3. Android/iOS：新策略只经桌面 Slint 生成链消费，底部导航与 Android/iOS 表面不读该桌面侧栏分支；本批未跑 Android 构建腿，三 flavor 实机交互回执与 iOS 回执仍按既有条目留在外部环境看板 → 部分（L）。
+4. 各 UI：Slint 侧按真实场景与 `prism_ui/lib/sidebar.dart` 的不间断 `Column(destinations.indexed)` 改掉两枚分组标题，整个导航栈从 10 个墨迹簇收成 8 个连续行带，发布帧 `nav_stack_bottom_px` 502 → **438**；Iced/Bevy 不消费这个 Slint 呈现分支，Bevy 的另一会话 WIP 本批不碰 → 部分（L）。
+5. 复用：`shell_sidebar_presentation::NavigationSeparator` 是唯一 typed 真源，`page-structure.json` version 8 导出四种形态的 `none` 策略，生成器投影为 `ViewportLadder.navigation_separator(form)`，`sidebar.slint` 纯消费；新守卫 `--self-test` **3/3**、`--mode enforce` findings=0，并接入 `check-structure.sh`，没有第二份「有标签就画标题」推导 → 完整（L）。
+5a. 设计资源强制标准：本批无字体/字重/图标/主题身份变化，属于侧栏几何身份变化；按标准整批 197 帧重采，刷新 4 条 `mixin-*` 别名摘要，`screenshot-identity scanned=574 aliases=10 violations=0`、`receipt-freshness violations=0` → 完整（L）。
+6. 各处界面的功能接入：新发布批 `20261109T192728Z_1b1ad242402f_dirty_2874792` 实测 197/197；`space_utilization --enforce` violations=0（最差 `chrome_band` 0.0%、最差 `void` 6.2%）、判定器 45/45、`check-export` current、Slint 语法 100% PASS、梯守卫 30/30；`resolve_surface_evidence.py` 与全仓 nextest/clippy 仍待另一会话 Bevy WIP 落地后一次组团验证，不冒充本批已通过 → 部分（L）。
+7. 模块化：策略归 contract、导出归 exporter、表面词汇归 `viewport_tier.slint`、查表归生成器、呈现归 `sidebar.slint`、校验归单一守卫；`app_body.slint` 只把 typed `navigation-form` 传给侧栏，无新增布尔阶段或私有业务推导 → 完整（L）。
+8. CI 与批次效率：开发期只跑契约/Slint 两包定向测试与独立守卫，收尾期只跑一次完整 197 帧重采与一组判定腿，避免重复全仓编译；全仓统一验证与 5 条 `Integrated` 办结仍待另一会话 WIP 落地后由收口方一次跑完，严格交付率保持 **92.5%** → 部分（L）。
+
 ## 最近一批问答（2026-11-10 第一百六十三交付批次：FlClash Core 方法面的 56 条逐条裁决成为可门禁台账）
 
 1. x86_64/aarch64：本批只新增参考 TSV、Python 守卫、L3 文档与结构门接线，零 Rust/wire/契约改动，架构中性；`python3 scripts/quality/flclash-core-parity-guard.py --self-test` **8/8**、`--mode enforce` findings=0、`py_compile` 通过、`bash scripts/quality/check-structure.sh` exit 0 为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 目标产物未随本批复跑，`C`/`D` 待补证 → 部分（L）。

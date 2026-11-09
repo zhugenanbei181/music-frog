@@ -2,6 +2,7 @@ import { DesignType } from "./design-type.slint";
 import { TextRole } from "./design-type.slint";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "./theme.slint";
+import { NavigationForm, NavigationSeparator } from "./viewport_tier.slint";
 import { NavigationSlot } from "./models.slint";
 import { NavigationIcons } from "./navigation_icons.slint";
 import { PageTitles } from "./page_titles.slint";
@@ -66,12 +67,14 @@ export component DesktopSideBar inherits Rectangle {
 
     // Two shapes, one column. FlClash's 48px rail (`_compactWidth`) shows
     // nothing but glyphs and keeps its labels in a tooltip; its 220px pane
-    // (`_expandedWidth`) shows group heads and labels. This surface owns the
-    // same pair: 64u of icons where the exported form is a rail, the labelled
-    // list where it is a standard or wide column. The answer comes from the
-    // exported ladder, so a rail can never be assembled by measuring the
-    // column's own width here.
+    // (`_expandedWidth`) shows labels. This surface owns the same pair: 64u of
+    // icons where the exported form is a rail, the labelled list where it is a
+    // standard or wide column. Both forms read the contract's separator policy,
+    // which measures the reference's one uninterrupted destination list.
     property <bool> labelled: ViewportLadder.labelled_sidebar(LumenTheme.viewport-tier);
+    in property <NavigationForm> navigation-form;
+    property <NavigationSeparator> separator:
+        ViewportLadder.navigation_separator(root.navigation-form);
 
     callback navigate-to(string);
 
@@ -89,13 +92,12 @@ export component DesktopSideBar inherits Rectangle {
         for item[index] in root.navigation-items: VerticalLayout {
             spacing: 0 * LumenUiScale.unit;
 
-            // A group heading is the only separator: it owns the air above
-            // and below itself, exactly when the group changes. No hairline
-            // repeats the same boundary a second time.
-            // A rail has no room for a heading and no need for one: the icon
-            // list is eight glyphs tall and the groups are readable from the
-            // dashboard, so the heading only costs the rail its last rows.
-            if root.labelled && (index == 0 || root.navigation-items[index - 1].group != item.group): HorizontalLayout {
+            // `NavigationSeparator::heading` is the only form that may paint a
+            // group heading. Every exported desktop form currently reads
+            // `none`, matching FlClash: headings spent a line box plus 16u of
+            // air and split one navigation stack into two detached stacks.
+            if root.separator == NavigationSeparator.heading
+                && (index == 0 || root.navigation-items[index - 1].group != item.group): HorizontalLayout {
                 padding-left: root.nav-content-offset;
                 padding-top: LumenTheme.rail-section-gap;
                 padding-bottom: LumenTheme.space-1;

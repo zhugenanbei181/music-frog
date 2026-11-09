@@ -10,7 +10,7 @@
 // user zoom itself and the ladder never has an opinion about it.
 
 import { LumenUiScale } from "../lumen-ui-scale.slint";
-import { NavigationForm, ViewportTier } from "./viewport_tier.slint";
+import { NavigationForm, NavigationSeparator, ViewportTier } from "./viewport_tier.slint";
 
 export global ViewportLadder {
     // The first window width that leaves each tier behind, in design units.
@@ -35,6 +35,21 @@ export global ViewportLadder {
         if (tier == ViewportTier.medium) { return NavigationForm.rail; }
         if (tier == ViewportTier.expanded) { return NavigationForm.standard; }
         return NavigationForm.wide;
+    }
+
+    // Whether a navigation form may paint a group heading.
+    //
+    // FlClash's desktop scene and prism_ui sidebar both publish one
+    // uninterrupted destination list. A heading spends its own line box and
+    // the air above it, so it splits one navigation stack into two. The
+    // exported contract decides the separator; this generated lookup only
+    // projects that decision into the surface vocabulary.
+    public pure function navigation_separator(form: NavigationForm) -> NavigationSeparator {
+        if (form == NavigationForm.bottom-nav) { return NavigationSeparator.none; }
+        if (form == NavigationForm.rail) { return NavigationSeparator.none; }
+        if (form == NavigationForm.standard) { return NavigationSeparator.none; }
+        if (form == NavigationForm.wide) { return NavigationSeparator.none; }
+        return NavigationSeparator.none;
     }
 
     // The navigation column this tier reserves, in design units. 0 is honest
