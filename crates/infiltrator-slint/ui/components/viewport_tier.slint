@@ -64,3 +64,17 @@ export enum NavigationSeparator {
     // A localized group heading plus its own air.
     heading,
 }
+
+// The dashboard's density is a third typed fact, distinct from the window
+// tier and the navigation form. FlClash publishes it through a scope from
+// one `DashboardDensity.of(size)` decision; cards read the scope rather than
+// each measuring a width and a height. The generated ladder owns the
+// thresholds, so this enum only gives the three states their shared names.
+export enum DashboardDensity {
+    // A phone-shaped page: one centred column and mobile card metrics.
+    mobile,
+    // A desktop page whose four-share rows or short height tighten metrics.
+    compact,
+    // A desktop page with room for the full four-share card metrics.
+    standard,
+}

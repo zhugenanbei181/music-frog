@@ -201,6 +201,27 @@ infiltrator-contract::responsive_viewport（边界 + SidebarForm + 列数的类�
 `compact-layout` 从此只管页面密度，不再兼职回答导航形态（这正是 `medium`
 档以前画出手机横栏的根因，见 `SPACEUTIL-006`）。
 
+### 3.5 仪表盘密度也按页身比例裁决（b166 新增，求同 FlClash）
+
+FlClash 不把「侧栏有没有标签」当成仪表盘卡片密度的依据；它在
+`lib/views/dashboard/layout.dart` 用 `DashboardDensity.of(size)` 从
+**`LayoutBuilder` 给仪表盘页身的可用区**一次性裁决 `mobile / compact /
+standard`，再由 `DashboardDensityScope` 发布给所有卡片。四条可核对的界是：
+页宽 `<640` 为 `mobile`；四列页宽 `<1040` 为 `compact`；页高 `<824` 为
+`compact`；其余为 `standard`。本仓把这些阈值和 typed 三态统一归
+`infiltrator-contract::responsive_viewport`，经 `page-structure.json` 的
+`dashboard_density` 导出；生成器投影为
+`ViewportLadder.dashboard_density(page-width, page-height)` 与
+`dashboard_is_compact(density)`，`home_desktop_grid.slint` 只消费后者。
+页面不得拿 `labelled_sidebar(tier)`、窗口宽高或私有布尔再算一次密度；
+`slint-viewport-tier-guard.py` 把这条链和三个变体名同时钉死。
+
+这是「求同存异」：求同的是上游按页身可用区裁决、单一 scope 发布、卡片
+被动消费；存异的是本仓现有 `dense` 只切换卡片排布与字号角色，不引入上游
+`DashboardDensityScope.scale` 的第二套缩放（本仓缩放唯一真源仍是
+`LumenUiScale.unit`），也不把 640/1040/824 直接照搬成窗口档界——它们量的是
+**页身**，不是整个窗口。
+
 ### 3.4 侧栏的横向起始边界同样受比例约束（b159 新增，SPACEUTIL-010）
 
 §3.3 管的是外壳**占掉多宽**，此处管的是外壳**在自己那一列里让出多少**：导航行

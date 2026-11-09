@@ -226,9 +226,16 @@ def ladder_findings(ui: pathlib.Path) -> list[str]:
 
     # The adapter must be the generator's own output, not a hand edit.
     expected = generator_module().slint_ladder({
-        "version": 8,
+        "version": 9,
         "tiers": tiers,
         "dashboard_columns": {"four_column_min_px": 860},
+        "dashboard_density": {
+            "desktop_min_px": 640,
+            "four_column_min_px": 860,
+            "standard_four_column_min_px": 1040,
+            "standard_height_min_px": 824,
+            "mobile_max_px": 560,
+        },
         "navigation_separators": {
             "forms": [
                 {"id": "bottom_nav", "separator": "none"},
@@ -297,6 +304,76 @@ def ladder_findings(ui: pathlib.Path) -> list[str]:
     if "ViewportLadder.nav_column(" not in theme_code:
         found.append(
             "components/theme.slint: the navigation column is no longer the exported width"
+        )
+    return found
+
+
+def dashboard_density_findings(ui: pathlib.Path) -> list[str]:
+    """The dashboard asks the exported density, not the navigation form.
+
+    FlClash's `DashboardDensity.of(size)` resolves the page body's own room
+    inside a `LayoutBuilder` and publishes it through a scope. A Slint page
+    that asks `labelled_sidebar(tier)` instead would make card metrics a
+    consequence of chrome, which is a different question: a short 1180x780
+    desktop window has a labelled column but still needs compact cards.
+    """
+    found: list[str] = []
+    adapter = mask_comments((ui / "components/viewport-ladder.slint").read_text(
+        encoding="utf-8"))
+    enum_text = (ui / "components/viewport_tier.slint").read_text(
+        encoding="utf-8")
+    enum_file = mask_comments(
+        "export enum DashboardDensity {" + enum_text.split(
+            "export enum DashboardDensity {", 1)[1]
+    )
+    grid = mask_comments((ui / "pages/home_desktop_grid.slint").read_text(
+        encoding="utf-8"))
+    exported = pathlib.Path(PAGE_STRUCTURE)
+    document = json.loads(exported.read_text(encoding="utf-8"))
+    density = document.get("dashboard_density", {})
+    variants = [entry.get("id") for entry in density.get("variants", [])]
+    if variants != ["mobile", "compact", "standard"]:
+        found.append(
+            "page-structure.json: the exported dashboard density vocabulary "
+            f"is {variants}, not mobile/compact/standard"
+        )
+    for key, value in (
+        ("desktop_min_px", 640),
+        ("four_column_min_px", 860),
+        ("standard_four_column_min_px", 1040),
+        ("standard_height_min_px", 824),
+        ("mobile_max_px", 560),
+    ):
+        if density.get(key) != value:
+            found.append(
+                f"page-structure.json: dashboard density {key} is "
+                f"{density.get(key)!r}, expected {value}"
+            )
+    for variant in ("mobile", "compact", "standard"):
+        if f"DashboardDensity.{variant}" not in adapter:
+            found.append(
+                f"components/viewport-ladder.slint: DashboardDensity.{variant} "
+                "is missing"
+            )
+        if f"    {variant}," not in enum_file:
+            found.append(
+                "components/viewport_tier.slint: DashboardDensity."
+                f"{variant} is missing"
+            )
+    for needle in (
+        "property <DashboardDensity> dashboard-density:",
+        "ViewportLadder.dashboard_density(root.width, LumenTheme.page-body-height)",
+        "property <bool> dense: ViewportLadder.dashboard_is_compact(root.dashboard-density);",
+    ):
+        if needle not in grid:
+            found.append(
+                f"pages/home_desktop_grid.slint: {needle!r} is missing; "
+                "the dashboard must consume the exported density scope"
+            )
+    if "property <bool> dense: !ViewportLadder.labelled_sidebar(" in grid:
+        found.append(
+            "pages/home_desktop_grid.slint: dense is derived from the "
+            "navigation form again; dashboard density owns card metrics"
         )
     return found
 
@@ -497,7 +574,9 @@ def mask_comments(source: str) -> str:
             end = source.find("\n", index)
             end = length if end < 0 else end
             out.append(" " * (end - index))
-            index = end
+            if end < length:
+                out.append("\n")
+            index = end + 1 if end < length else end
         elif source.startswith("/*", index):
             end = source.find("*/", index + 2)
             end = length if end < 0 else end + 2
@@ -515,6 +594,7 @@ def violations(ui: pathlib.Path, dock_checks: bool = True,
     found += generated_column_findings(ui)
     if ladder_checks:
         found += ladder_findings(ui)
+        found += dashboard_density_findings(ui)
         found += tier_vocabulary_findings()
         found += navigation_mount_findings(ui)
         found += receipt_findings(ui)
@@ -835,6 +915,47 @@ class GuardSelfTest(unittest.TestCase):
         findings = self._findings_with({"viewport_tier.slint": planted})
         self.assertTrue(
             any("the navigation forms are" in item for item in findings), findings)
+
+    def test_dashboard_density_must_not_come_from_the_navigation_form(self) -> None:
+        """Card metrics are a page-room fact, not a side-column fact."""
+        grid = (UI / "pages/home_desktop_grid.slint").read_text(encoding="utf-8")
+        anchor = (
+            "property <bool> dense: "
+            "ViewportLadder.dashboard_is_compact(root.dashboard-density);"
+        )
+        assert anchor in grid, anchor
+        planted = grid.replace(
+            anchor,
+            "property <bool> dense: !ViewportLadder.labelled_sidebar(LumenTheme.viewport-tier);",
+            1,
+        )
+        findings = self._findings_with({"home_desktop_grid.slint": planted})
+        self.assertTrue(
+            any("navigation form again" in item for item in findings), findings)
+
+    def test_a_density_vocabulary_drift_is_caught(self) -> None:
+        """The three exported states must survive into the Slint enum."""
+        tier_file = TIER_FILE.read_text(encoding="utf-8")
+        marker = "export enum DashboardDensity {"
+        head, body = tier_file.split(marker, 1)
+        planted = head + marker + body.replace(
+            "    compact,\n", "    squeezed,\n", 1)
+        self.assertNotEqual(tier_file, planted)
+        real = pathlib.Path.read_text
+
+        def fake(self: pathlib.Path, *args, **kwargs):
+            if self == TIER_FILE:
+                return planted
+            return real(self, *args, **kwargs)
+
+        with unittest.mock.patch.object(
+            pathlib.Path, "read_text", autospec=True
+        ) as read:
+            read.side_effect = fake
+            findings = dashboard_density_findings(UI)
+        self.assertTrue(
+            any("DashboardDensity.compact is missing" in item
+                for item in findings), findings)
 
     def test_a_sidebar_mounted_by_page_density_is_caught(self) -> None:
         """Density says how tight the page is, not what chrome the shell mounts.

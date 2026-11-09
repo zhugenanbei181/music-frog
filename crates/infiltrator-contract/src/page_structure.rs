@@ -18,7 +18,9 @@
 
 use crate::command_catalogue::ShellPage;
 use crate::responsive_viewport::{
-    DASHBOARD_FOUR_COLUMN_MIN_PX, DashboardColumns, SidebarForm, TIERS, ViewportTier,
+    DASHBOARD_DESKTOP_MIN_PX, DASHBOARD_FOUR_COLUMN_MIN_PX, DASHBOARD_MOBILE_MAX_PX,
+    DASHBOARD_STANDARD_FOUR_COLUMN_MIN_PX, DASHBOARD_STANDARD_HEIGHT_MIN_PX, DashboardColumns,
+    DashboardDensity, SidebarForm, TIERS, ViewportTier,
 };
 use crate::shell_receipt::CHROME_KEYS;
 use crate::shell_sidebar_presentation::{NavigationSeparator, separator_for_form};
@@ -130,8 +132,9 @@ pub fn page_structure_json() -> String {
     })
     .collect();
     format!(
-        "{{\"version\":8,\"dashboard_columns\":{},\"pages\":[{}],\"slugs\":[{}],\"tiers\":{},\"navigation_separators\":{},\"chrome_keys\":{}}}\n",
+        "{{\"version\":9,\"dashboard_columns\":{},\"dashboard_density\":{},\"pages\":[{}],\"slugs\":[{}],\"tiers\":{},\"navigation_separators\":{},\"chrome_keys\":{}}}\n",
         dashboard_columns_json(),
+        dashboard_density_json(),
         pages.join(","),
         slugs.join(","),
         tiers_json(),
@@ -172,6 +175,32 @@ fn dashboard_columns_json() -> String {
         "{{\"variants\":[{}],\"four_column_min_px\":{}}}",
         entries.join(","),
         DASHBOARD_FOUR_COLUMN_MIN_PX
+    )
+}
+
+/// The peer dashboard's three typed densities and the four room thresholds.
+///
+/// `DashboardDensity::of(width, height)` owns the decision; the JSON only
+/// publishes its vocabulary and the numbers the Slint adapter needs to spell
+/// the same lookup. A surface must not compare its own window against these
+/// constants: it asks the generated adapter for the typed answer.
+fn dashboard_density_json() -> String {
+    let variants: Vec<String> = [
+        DashboardDensity::Mobile,
+        DashboardDensity::Compact,
+        DashboardDensity::Standard,
+    ]
+    .iter()
+    .map(|density| format!("{{\"id\":\"{}\"}}", density.id()))
+    .collect();
+    format!(
+        "{{\"variants\":[{}],\"desktop_min_px\":{},\"four_column_min_px\":{},\"standard_four_column_min_px\":{},\"standard_height_min_px\":{},\"mobile_max_px\":{}}}",
+        variants.join(","),
+        DASHBOARD_DESKTOP_MIN_PX,
+        DASHBOARD_FOUR_COLUMN_MIN_PX,
+        DASHBOARD_STANDARD_FOUR_COLUMN_MIN_PX,
+        DASHBOARD_STANDARD_HEIGHT_MIN_PX,
+        DASHBOARD_MOBILE_MAX_PX,
     )
 }
 
@@ -477,7 +506,7 @@ mod tests {
     fn the_exported_document_carries_the_ladder() {
         let json = page_structure_json();
         let document: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
-        assert_eq!(document["version"], 8);
+        assert_eq!(document["version"], 9);
         // The chrome vocabulary travels with the ladder it describes, so a
         // reader that has the document already has the key list.
         assert_eq!(
@@ -498,6 +527,15 @@ mod tests {
         assert_eq!(dashboard["four_column_min_px"], 860);
         assert_eq!(dashboard["variants"][0]["id"], "wrapped_cards");
         assert_eq!(dashboard["variants"][1]["id"], "grid_shares");
+        let density = &document["dashboard_density"];
+        assert_eq!(density["variants"][0]["id"], "mobile");
+        assert_eq!(density["variants"][1]["id"], "compact");
+        assert_eq!(density["variants"][2]["id"], "standard");
+        assert_eq!(density["desktop_min_px"], 640);
+        assert_eq!(density["four_column_min_px"], 860);
+        assert_eq!(density["standard_four_column_min_px"], 1040);
+        assert_eq!(density["standard_height_min_px"], 824);
+        assert_eq!(density["mobile_max_px"], 560);
         let tiers = document["tiers"].as_array().expect("the exported ladder");
         assert_eq!(tiers.len(), TIERS.len());
         assert_eq!(tiers[2]["id"], "expanded");

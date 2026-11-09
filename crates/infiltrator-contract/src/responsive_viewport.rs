@@ -76,6 +76,82 @@ pub const MAX_NAV_LEADING_SHARE_PCT: f64 = 8.0;
 /// pretending a tier boundary is a dashboard boundary.
 pub const DASHBOARD_FOUR_COLUMN_MIN_PX: u16 = 860;
 
+/// The narrowest page body that may carry the four-share desktop dashboard.
+///
+/// FlClash's `dashboard/layout.dart` uses 1040 as the lower edge of a
+/// standard-density four-column page. A page between 860 and 1040 still has
+/// four shares, but shrinks its type, tiles and subtitles.
+pub const DASHBOARD_STANDARD_FOUR_COLUMN_MIN_PX: u16 = 1040;
+
+/// The shortest page body that may carry standard dashboard density.
+pub const DASHBOARD_STANDARD_HEIGHT_MIN_PX: u16 = 824;
+
+/// The narrowest page body that owns a desktop dashboard at all.
+pub const DASHBOARD_DESKTOP_MIN_PX: u16 = 640;
+
+/// The widest page body that keeps one centred mobile column.
+pub const DASHBOARD_MOBILE_MAX_PX: u16 = 560;
+
+/// The three dashboard densities published by the peer product's layout.
+///
+/// FlClash declares this enum once beside `dashboardColumnsOf` and injects it
+/// through `DashboardDensityScope`; every card asks the scope instead of
+/// measuring the window itself. This contract keeps the same typed vocabulary
+/// so a surface cannot turn a width and a height comparison into a second,
+/// hidden state table.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DashboardDensity {
+    /// Phone-shaped pages: one centred column and mobile card metrics.
+    Mobile,
+    /// Desktop pages with narrow four-share rows or too little height.
+    #[default]
+    Compact,
+    /// Desktop pages with room for the full four-share card metrics.
+    Standard,
+}
+
+impl DashboardDensity {
+    /// Resolve the density from the page body's own width and height.
+    ///
+    /// `size` is the layout room left for the dashboard, not the outer window:
+    /// upstream calls `DashboardDensity.of(constraints.biggest / scale)` inside
+    /// a `LayoutBuilder` beneath the scaffold, so the navigation column and
+    /// title bar are already paid for. A page narrower than 640 is mobile; a
+    /// four-share page below 1040 or a short page below 824 is compact.
+    pub const fn of(width_px: f32, height_px: f32) -> Self {
+        if width_px < DASHBOARD_DESKTOP_MIN_PX as f32 {
+            Self::Mobile
+        } else if (width_px >= DASHBOARD_FOUR_COLUMN_MIN_PX as f32
+            && width_px < DASHBOARD_STANDARD_FOUR_COLUMN_MIN_PX as f32)
+            || height_px < DASHBOARD_STANDARD_HEIGHT_MIN_PX as f32
+        {
+            Self::Compact
+        } else {
+            Self::Standard
+        }
+    }
+
+    /// Whether this density paints the desktop grid rather than the phone flow.
+    pub const fn is_desktop(self) -> bool {
+        !matches!(self, Self::Mobile)
+    }
+
+    /// Whether this density tightens the desktop card metrics.
+    pub const fn is_compact(self) -> bool {
+        matches!(self, Self::Compact)
+    }
+
+    /// The stable id shared by the exporter, the Slint adapter and guards.
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::Mobile => "mobile",
+            Self::Compact => "compact",
+            Self::Standard => "standard",
+        }
+    }
+}
+
 /// The two dashboard column semantics this product actually ships.
 ///
 /// They answer different questions and must not be collapsed into one number:
@@ -685,6 +761,51 @@ mod tests {
             DashboardColumns::GridShares.count(ViewportTier::Medium, 940),
             2
         );
+    }
+
+    #[test]
+    fn dashboard_density_follows_the_reference_page_room() {
+        // FlClash resolves density from the room inside its scaffold, after
+        // the nav column and title bar are paid for: below 640 is mobile,
+        // four-share pages below 1040 are compact, and any desktop page below
+        // 824 high is compact even with a standard-width body.
+        assert_eq!(DASHBOARD_DESKTOP_MIN_PX, 640);
+        assert_eq!(DASHBOARD_STANDARD_FOUR_COLUMN_MIN_PX, 1040);
+        assert_eq!(DASHBOARD_STANDARD_HEIGHT_MIN_PX, 824);
+        assert_eq!(DASHBOARD_MOBILE_MAX_PX, 560);
+        assert_eq!(DashboardDensity::of(560.0, 900.0), DashboardDensity::Mobile);
+        assert_eq!(
+            DashboardDensity::of(DASHBOARD_DESKTOP_MIN_PX as f32 - 1.0, 900.0),
+            DashboardDensity::Mobile
+        );
+        assert_eq!(
+            DashboardDensity::of(DASHBOARD_FOUR_COLUMN_MIN_PX as f32, 900.0),
+            DashboardDensity::Compact
+        );
+        assert_eq!(
+            DashboardDensity::of(DASHBOARD_STANDARD_FOUR_COLUMN_MIN_PX as f32, 900.0),
+            DashboardDensity::Standard
+        );
+        assert_eq!(
+            DashboardDensity::of(
+                DASHBOARD_STANDARD_FOUR_COLUMN_MIN_PX as f32,
+                DASHBOARD_STANDARD_HEIGHT_MIN_PX as f32 - 1.0,
+            ),
+            DashboardDensity::Compact
+        );
+        assert_eq!(
+            DashboardDensity::of(
+                DASHBOARD_STANDARD_FOUR_COLUMN_MIN_PX as f32,
+                DASHBOARD_STANDARD_HEIGHT_MIN_PX as f32,
+            ),
+            DashboardDensity::Standard
+        );
+        assert!(!DashboardDensity::Mobile.is_desktop());
+        assert!(DashboardDensity::Compact.is_desktop());
+        assert!(DashboardDensity::Standard.is_desktop());
+        assert_eq!(DashboardDensity::Compact.id(), "compact");
+        assert_eq!(DashboardDensity::Standard.id(), "standard");
+        assert_eq!(DashboardDensity::Mobile.id(), "mobile");
     }
 
     #[test]

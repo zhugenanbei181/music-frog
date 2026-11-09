@@ -10,7 +10,7 @@
 // user zoom itself and the ladder never has an opinion about it.
 
 import { LumenUiScale } from "../lumen-ui-scale.slint";
-import { NavigationForm, NavigationSeparator, ViewportTier } from "./viewport_tier.slint";
+import { DashboardDensity, NavigationForm, NavigationSeparator, ViewportTier } from "./viewport_tier.slint";
 
 export global ViewportLadder {
     // The first window width that leaves each tier behind, in design units.
@@ -104,5 +104,24 @@ export global ViewportLadder {
         if (tier == ViewportTier.compact || tier == ViewportTier.medium) { return 2; }
         if (page-width < 860 * LumenUiScale.unit) { return 2; }
         return 4;
+    }
+
+    // The typed dashboard density for the page body's own room.
+    //
+    // FlClash resolves `DashboardDensity.of(size)` inside the scaffold's
+    // LayoutBuilder, then injects it through a scope so every card asks one
+    // fact instead of measuring the window. The exported thresholds below
+    // are that decision projected into Slint design units: a page narrower
+    // than 640 is mobile, a four-share page narrower than 1040 is compact,
+    // and a desktop page shorter than 824 is compact. `is_compact` is the
+    // only derived answer the dashboard grid consumes.
+    public pure function dashboard_density(page-width: length, page-height: length) -> DashboardDensity {
+        if (page-width < 640 * LumenUiScale.unit) { return DashboardDensity.mobile; }
+        if ((page-width >= 860 * LumenUiScale.unit && page-width < 1040 * LumenUiScale.unit) || page-height < 824 * LumenUiScale.unit) { return DashboardDensity.compact; }
+        return DashboardDensity.standard;
+    }
+
+    public pure function dashboard_is_compact(density: DashboardDensity) -> bool {
+        return density == DashboardDensity.compact;
     }
 }

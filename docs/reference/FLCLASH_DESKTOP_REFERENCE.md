@@ -124,6 +124,27 @@ Iced 的概览是纵向卡片流、不消费列数。**两种度量都成立，�
 对已发布 197 帧复核：三档（400/720/1180）的 2/2/4 结果逐个不变，故本批不改像素、
 不重采；`SPACEUTIL-008` 的登记前提由「待裁决」转为「已裁决」。
 
+**b166 复核修订（求同：密度策略下沉为共享契约）**：上游把
+`DashboardDensity.{standard, compact, mobile}` 与四条阈值集中在
+`lib/views/dashboard/layout.dart`，并在 `dashboard.dart` 的 `LayoutBuilder`
+里以 `constraints.biggest / scale`（页身可用区，已扣除外壳）调用
+`DashboardDensity.of(room)`，经 `DashboardDensityScope` 注入每张卡片；
+`traffic.dart` / `service_status.dart` / `proxy_groups.dart` /
+`connections_table.dart` / `card.dart` 等只问 density 与 scale，不各自比较窗口。
+本仓此前在 `home_desktop_grid.slint` 用 `!ViewportLadder.labelled_sidebar(tier)`
+推导 `dense`，把「导航有没有标签」当成「仪表盘卡片要多密」——同一 1180×780
+窗口若高度变短，前者不变而上游会降为 compact，这是真实的语义缺口。
+
+b166 把三态与 `640 / 860 / 1040 / 824 / 560` 五个数字收进
+`infiltrator-contract::responsive_viewport::DashboardDensity` 及
+`page_structure` 导出 `dashboard_density`，生成器投影为
+`ViewportLadder.dashboard_density(page-width, page-height)`；Slint 桌面网格
+只以 `dashboard_is_compact(density)` 给 `dense` 取一个局部别名。存异项明确：
+本仓缩放唯一真源仍是 `LumenUiScale.unit`，不引入上游 `scale` 第二通道；
+阈值量的是页身可用区，不冒充窗口档界。三档现有采集帧的结果与迁移前一致，
+因此这次只换架构真源，不改卡片几何、不重采；未来要收紧短窗口卡片高度时，
+必须先给标准/compact 双视口真实像素回执再动视觉。
+
 ## 4. Core 能力面差距（求同抽象，b146 复核修订）
 
 上游 `CoreMethod` 约 60 个 `area.verb` 方法，登记在 `core/protocol.go`，
