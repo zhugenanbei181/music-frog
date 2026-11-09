@@ -8,6 +8,7 @@
 use crate::AppWindow;
 use crate::DashboardFacts;
 use infiltrator_contract::design_tokens::OUTBOUND_STATUS_PALETTE;
+use infiltrator_contract::relative_time::RelativeTimePresentation;
 use infiltrator_contract::resources::{CoreResourceSnapshot, ResourceAvailability};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_contract::traffic_waveform::{TrafficSample, TrafficWaveformSnapshot};
@@ -16,6 +17,7 @@ use infiltrator_presentation::dashboard_hero_projection::{
     DashboardHeroProjection, ProfileQuickCardProjection, QuickSwitchesProjection,
     TrafficWaveformProjection,
 };
+use infiltrator_presentation::relative_time_projection::copy_of;
 use infiltrator_shared::byte_units::format_bytes;
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -23,6 +25,17 @@ use infiltrator_shared::locales::{Lang, Localizer};
 pub(super) fn project_dashboard_facts(window: &AppWindow, snapshot: &SurfaceSnapshot) {
     let hero = DashboardHeroProjection::from_snapshot(snapshot);
     let profile = ProfileQuickCardProjection::from_snapshot(snapshot);
+    let language = super::snapshot_language(snapshot);
+    let updated_relative = copy_of(
+        profile.update_age,
+        RelativeTimePresentation::Detailed,
+        &Lang(&language),
+    );
+    let updated_relative_compact = copy_of(
+        profile.update_age,
+        RelativeTimePresentation::Compact,
+        &Lang(&language),
+    );
 
     let quick = QuickSwitchesProjection::from_snapshot(snapshot);
     let (memory_total, memory_limit, memory_fraction) = memory_facts(snapshot);
@@ -54,7 +67,8 @@ pub(super) fn project_dashboard_facts(window: &AppWindow, snapshot: &SurfaceSnap
         profile_groups_count: profile.policy_groups_count as i32,
         profile_proxies_count: profile.proxies_count as i32,
         profile_rules_count: profile.rules_count as i32,
-        profile_updated_relative: profile.updated_relative.into(),
+        profile_updated_relative: updated_relative.into(),
+        profile_updated_relative_compact: updated_relative_compact.into(),
         // The four common-service probes come from the owner's speedtest
         // snapshot in its published order; an absent probe stays an honest "—".
         latency_google: latencies[0].clone().into(),

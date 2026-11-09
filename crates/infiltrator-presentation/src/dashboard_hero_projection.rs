@@ -1,3 +1,4 @@
+use crate::relative_time_projection::{ProfileUpdateAge, age_of};
 use infiltrator_contract::lan_share::LanShareWizardSnapshot;
 use infiltrator_contract::runtime_status::CoreProcessObservation;
 use infiltrator_contract::shell_readout::ShellObservation;
@@ -427,7 +428,7 @@ impl MemoryInfoCardProjection {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProfileQuickCardProjection {
     pub profile_name: String,
-    pub updated_relative: String,
+    pub update_age: ProfileUpdateAge,
     pub is_local: bool,
     pub policy_groups_count: usize,
     pub proxies_count: usize,
@@ -447,15 +448,9 @@ impl ProfileQuickCardProjection {
             .map(|p| p.name.clone())
             .unwrap_or_else(|| "默认配置.yaml".to_string());
 
-        let updated_relative = active_profile
-            .map(|p| {
-                if p.updated_at.is_empty() {
-                    "本地配置".to_string()
-                } else {
-                    format!("更新于 {}", p.updated_at)
-                }
-            })
-            .unwrap_or_else(|| "本地配置".to_string());
+        let update_age = active_profile
+            .map(|profile| age_of(&profile.updated_at, &snapshot.core.session))
+            .unwrap_or(ProfileUpdateAge::Unobserved);
 
         let rules_count = snapshot
             .pages
@@ -482,7 +477,7 @@ impl ProfileQuickCardProjection {
 
         Self {
             profile_name,
-            updated_relative,
+            update_age,
             is_local: active_profile.map(|p| p.url.is_empty()).unwrap_or(true),
             policy_groups_count,
             proxies_count,

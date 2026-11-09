@@ -203,6 +203,7 @@ export struct DashboardFacts {
     profile-proxies-count: int,
     profile-rules-count: int,
     profile-updated-relative: string,
+    profile-updated-relative-compact: string,
     // Service health latencies (empty/dash when unobserved)
     latency-google: string,
     latency-github: string,
@@ -252,6 +253,7 @@ export global DashboardFactsDefaults {
         profile-proxies-count: 0,
         profile-rules-count: 0,
         profile-updated-relative: "—",
+        profile-updated-relative-compact: "—",
         latency-google: "—",
         latency-github: "—",
         latency-youtube: "—",

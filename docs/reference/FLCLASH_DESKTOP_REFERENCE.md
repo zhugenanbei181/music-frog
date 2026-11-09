@@ -231,3 +231,24 @@ YumeBox 手机帧定阈值、把侧栏选中盒的 `pill_tail` 当浪费判据�
 全宽选中带是导航结构，不是内容盒，右侧空地是合法呼吸位。该腿必须按 FlClash
 桌面真实场景重裁：侧栏只判「导航行之间的地面带」与「侧栏是否混入非导航区块」，
 不再用 `pill_tail` 惩罚选中态几何。页身 `unused` 三档阈值继续有效。
+
+## 6. 配置卡更新时间（b168）
+
+上游 `lib/common/datetime.dart` 的 `getLastUpdateTimeDesc` 按
+`<1m / 分钟 / 小时 / 天 / 30 天 / 365 天` 六档把 `lastUpdateDate` 解析成
+相对时间；`lib/widgets/last_update_time_text.dart` 的
+`LastUpdateTimeText` 以一分钟节拍刷新；
+`lib/views/dashboard/widgets/profiles.dart` 在普通密度用
+`profileUpdatedAt(time)` 加「更新于」前缀，并用 `computeTextSize` 测量放不下前缀时才只留 `time` 本身。
+
+本仓逐层求同存异：contract 的 `RelativeTimeBucket`、
+`RelativeTimeObservation` 与 `RelativeTimePresentation` 只持有六档、两个
+owner 时刻与详细/紧凑模板选择；`SharedCopyKey`、shared zh/en 表、产品 `.po`
+与 Android 三语言资源持有同一组词表；presentation 的
+`relative_time_projection` 只解析 owner 发布的更新时间，并从 Core session
+已经发布的起始时刻与测得时长得到观测时刻，产出 typed
+`ProfileUpdateAge`；Slint 的 `project_dashboard_facts` 只把 typed 事实经共享
+目录本地化后交给页面，不读 `SystemTime::now()`、不拼接绝对时间、不在 UI 里
+推导档位。求同的是参考产品六档、双密度模板与可读性；存异的是本仓把时钟
+事实归 Core owner、把文案归共享目录，把刷新留给下一次 owner readback，
+而不是让每个 widget 自起 `TickBuilder`。

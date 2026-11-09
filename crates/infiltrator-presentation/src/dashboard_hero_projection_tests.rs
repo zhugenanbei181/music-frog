@@ -1,5 +1,9 @@
 use super::*;
+use infiltrator_contract::relative_time::RelativeTimeBucket;
+use infiltrator_contract::surface_snapshot::ProfilesPageSnapshot;
 use infiltrator_contract::traffic_waveform::TrafficSample;
+use lurker_core_contract::page::PageData;
+use serde_json::{from_value, json};
 
 #[test]
 fn traffic_waveform_projection_peak_and_normalization() {
@@ -131,6 +135,7 @@ fn profile_quick_card_and_connection_table_projections() {
     let card = ProfileQuickCardProjection::from_snapshot(&snap);
     assert_eq!(card.profile_name, "默认配置.yaml");
     assert!(card.is_local);
+    assert_eq!(card.update_age, ProfileUpdateAge::Unobserved);
 
     let conns = vec![ConnectionSnapshot {
         id: "1".into(),
@@ -162,6 +167,47 @@ fn profile_quick_card_and_connection_table_projections() {
     assert_eq!(table.udp_count, 0);
     assert_eq!(table.rows[0].destination, "google.com");
     assert_eq!(table.rows[0].network, "TCP");
+}
+
+#[test]
+fn profile_quick_card_publishes_one_typed_owner_update_age() {
+    use infiltrator_contract::surface::{HostKind, SurfaceKind};
+    use lurker_core_contract::error::Failure;
+
+    let mut snap = SurfaceSnapshot::unavailable(
+        SurfaceKind::SlintDesktop,
+        HostKind::Desktop,
+        Failure::unsupported("test"),
+    );
+    snap.core.session = infiltrator_contract::snapshot::CoreSessionObservation::Active {
+        started_at_epoch_ms: 600_000,
+        elapsed_ms: 0,
+    };
+    snap.pages.profiles = PageData::ready(
+        from_value::<ProfilesPageSnapshot>(json!({
+            "profiles": [{
+                "id": "profile-1",
+                "name": "Remote Profile",
+                "url": "https://example.test/profile",
+                "updated_at": "1970-01-01T00:05:00Z",
+                "upload_bytes": 0,
+                "download_bytes": 0,
+                "total_bytes": 0,
+                "is_active": true
+            }],
+            "auto_update_interval_hours": 24,
+            "updating": false
+        }))
+        .expect("typed profiles fixture"),
+    );
+
+    let card = ProfileQuickCardProjection::from_snapshot(&snap);
+    assert_eq!(
+        card.update_age,
+        ProfileUpdateAge::Observed {
+            bucket: RelativeTimeBucket::Minutes { count: 5 }
+        }
+    );
 }
 
 #[test]

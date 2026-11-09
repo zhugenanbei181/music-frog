@@ -38,6 +38,18 @@
 | 7 | 部分 | L | 彻底清除全仓 part1/part2/part3 无语义命名，重构为高内聚强语义模块（reset_recovery_and_migration、owner_switch_and_recovery、cross_process_concurrency、workspace_recovery_and_reset_tests）；文件级模块化完成（scanned=2891 violations=0，kt-line scanned=227 violations=0）；mod.rs 清退至 0；隐式状态机语义审计 + 判决台账常驻（23 条候选 0 undecided 0 open）；rem 体系 0 违规 0 debt；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | `check-structure.sh` 40+ 结构守卫、单测与工具链全部 exit 0；`cargo fmt --all --check` 0 偏差；六包定向 nextest 2179/2179 全绿；Clippy 6 包 `--all-targets -D warnings` 零警告；`screenshot-identity-guard` 550 张截图 10 aliases 0 违规；`scrollbar-contract-guard` 0 违规；`shared-copy-guard` 0 违规；`i18n-guard` 0 违规 |
 
+## 最近一批问答（2026-11-10 第一百六十八交付批次：FlClash 相对更新时间成为共享 typed 事实 / Slint 配置卡纯消费）
+
+1. x86_64/aarch64：本批只改中性 Rust 契约、共享文案、presentation 投影、Slint 消费与上游对照文档，无平台专用代码、wire 形状或设备 API；四包定向 nextest 全绿、组件化收口后两包 766/766、共享文案/i18n/typed-state/语义状态/相对时间守卫/文档守卫全绿为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 产物未随本批复跑，`C`/`D` 待补证 → 部分（L）。
+2. Windows/Linux/macOS：本机 Linux 台架完成定向 nextest、格式检查、独立守卫与整批 Slint 像素重采；Windows/macOS 构建腿与安装包未复跑，macOS 沿用既有 `Unsupported` 登记（GAP-2.2） → 部分（L）。
+3. Android/iOS：本批同步 Android `values`/`values-zh-rCN`/`values-zh-rTW` 三份 `strings.xml`，由 shared-copy/i18n 双门交叉校验；未跑 Android 构建腿，三 flavor 实机交互回执与 iOS 回执仍按既有条目留外部环境看板 → 部分（L）。
+4. 各 UI：Slint 配置卡的 `profile-updated-relative` 改读 typed `ProfileUpdateAge` 经共享目录本地化后的字符串；Iced/Bevy 继续消费同一 `ProfileQuickCardProjection` 契约而不各自拼「更新于 绝对时间」，Android 只共享同一组 copy key，本批不改其它页面布局 → 部分（L）。
+5. 复用：上游 `getLastUpdateTimeDesc` 六档归 `RelativeTimeBucket`，详细/紧凑模板归 `RelativeTimePresentation`，词表归 `SharedCopyKey` + shared zh/en + 产品 `.po` + Android 三语言资源，RFC3339/legacy 解析与 owner 观测时刻归 `relative_time_projection`，Slint 只调用 `copy_of` 并绑定一个字符串；旧硬编码绝对时间字段同批删除，无第二文案真源 → 完整（L）。
+5a. 设计资源强制标准：本批不改字体/字重/图标/主题资产，变化仅是用户可见文案身份；按身份变化整批重采 197 帧、复核 `design-resource-authority.py` 0 违规、`receipt-freshness 0` 与 `screenshot-identity 574/10/0`，不复用旧像素冒充 → 完整（L）。
+6. 各处界面的功能接入：四包定向 nextest 全绿，双语言详细/紧凑模板、边界桶、未知 owner 时刻、ProfileQuickCard typed age 均有单测；新守卫 3/3 钉死两个字段、两个模板与 compact 选择；全仓结构门、全量 clippy 与 `resolve_surface_evidence.py` 仍受另一会话 Bevy WIP 阻塞，按所有权纪律不冒充全门通过 → 部分（L）。
+7. 模块化：档位与时刻是 contract typed enum/struct，阶段表达是 `ProfileUpdateAge::{Observed,Unobserved}`，copy selection 是 `RelativeTimePresentation`，parse/project/localize/render 各归一层；`Option` 只表达可选数据而非阶段，UI 无 `SystemTime::now()`、无时钟推导、无 bool 旗标 → 完整（L）。
+8. CI 与批次效率：开发期只跑四包定向测试与本批独立守卫；可见文案改变后由同一 capture 台架一次发布整批 197 帧并集中复核空间、回执时效、截图身份与设计资源门。全仓统一验证与 5 条 `Integrated` 办结仍待另一会话 WIP 落地后由收口方一次跑完，严格交付率保持 **92.5%** → 部分（L）。
+
 ## 最近一批问答（2026-11-10 第一百六十七交付批次：FlClash 仪表盘 11 卡注册表成为可门禁台账 / Core 能力对照再补机器可读半条）
 
 1. x86_64/aarch64：本批只新增 vendored TSV、离线 Python 守卫、L3 参考文档与结构门两条接线，零 Rust/wire/UI 改动，架构中性；新守卫 planted 自测 **10/10**、enforce 11 卡 findings=0、既有 CoreMethod 守卫 8/8 与 56 条 findings=0、`py_compile` 通过、`doc-governance` 通过为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 产物未随本批复跑，`C`/`D` 待补证 → 部分（L）。

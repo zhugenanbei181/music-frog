@@ -1586,6 +1586,45 @@ msgstr "Layout density"
 msgid "capability_not_registered"
 msgstr "This capability is not registered for the current host"
 
+msgid "relative_time_just_now"
+msgstr "Just now"
+
+msgid "relative_time_minutes_ago"
+msgstr "{count} minutes ago"
+
+msgid "relative_time_hours_ago"
+msgstr "{count} hours ago"
+
+msgid "relative_time_days_ago"
+msgstr "{count} days ago"
+
+msgid "relative_time_months_ago"
+msgstr "{count} months ago"
+
+msgid "relative_time_years_ago"
+msgstr "{count} years ago"
+
+msgid "relative_time_compact_just_now"
+msgstr "Just now"
+
+msgid "relative_time_compact_minutes_ago"
+msgstr "{count}m"
+
+msgid "relative_time_compact_hours_ago"
+msgstr "{count}h"
+
+msgid "relative_time_compact_days_ago"
+msgstr "{count}d"
+
+msgid "relative_time_compact_months_ago"
+msgstr "{count}mo"
+
+msgid "relative_time_compact_years_ago"
+msgstr "{count}y"
+
+msgid "relative_time_detailed_prefix"
+msgstr "Updated {time}"
+
 msgid "来源"
 msgstr "Source"
 

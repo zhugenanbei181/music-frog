@@ -443,7 +443,12 @@ export component HomeDesktopGrid inherits VerticalLayout {
                 max-width: LumenTheme.profile-name-max-width;
                 overflow: elide;
             }
-            Text { text: root.dashboard-facts.profile-updated-relative; color: LumenTheme.text-secondary; font-size: DesignType.caption-size; font-weight: DesignType.caption-weight; }
+            Text {
+                text: root.dashboard-facts.profile-updated-relative;
+                color: LumenTheme.text-secondary;
+                font-size: DesignType.caption-size;
+                font-weight: DesignType.caption-weight;
+            }
             HorizontalLayout {
                 spacing: LumenTheme.space-2;
                 Text { text: root.dashboard-facts.profile-groups-count + " " + @tr("策略组"); color: LumenTheme.text-primary; font-size: DesignType.caption-size; font-weight: DesignType.caption-weight; }

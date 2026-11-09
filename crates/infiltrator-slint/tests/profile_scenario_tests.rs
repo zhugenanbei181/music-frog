@@ -33,7 +33,7 @@ fn profile(id: &str, name: &str, active: bool) -> ProfileSnapshot {
         "id": id,
         "name": name,
         "url": "https://example.com/sub",
-        "updated_at": "2026-10-16 12:00:00",
+        "updated_at": "2023-11-14T07:48:09Z",
         "is_active": active,
         "write_protection": "editable"
     }))

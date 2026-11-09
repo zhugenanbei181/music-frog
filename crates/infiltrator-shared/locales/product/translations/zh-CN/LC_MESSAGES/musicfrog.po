@@ -1585,6 +1585,45 @@ msgstr "布局密度"
 msgid "capability_not_registered"
 msgstr "当前宿主未登记此能力"
 
+msgid "relative_time_just_now"
+msgstr "刚刚"
+
+msgid "relative_time_minutes_ago"
+msgstr "{count} 分钟前"
+
+msgid "relative_time_hours_ago"
+msgstr "{count} 小时前"
+
+msgid "relative_time_days_ago"
+msgstr "{count} 天前"
+
+msgid "relative_time_months_ago"
+msgstr "{count} 个月前"
+
+msgid "relative_time_years_ago"
+msgstr "{count} 年前"
+
+msgid "relative_time_compact_just_now"
+msgstr "刚刚"
+
+msgid "relative_time_compact_minutes_ago"
+msgstr "{count} 分"
+
+msgid "relative_time_compact_hours_ago"
+msgstr "{count} 小时"
+
+msgid "relative_time_compact_days_ago"
+msgstr "{count} 天"
+
+msgid "relative_time_compact_months_ago"
+msgstr "{count} 月"
+
+msgid "relative_time_compact_years_ago"
+msgstr "{count} 年"
+
+msgid "relative_time_detailed_prefix"
+msgstr "更新于 {time}"
+
 msgid "来源"
 msgstr "来源"
 
