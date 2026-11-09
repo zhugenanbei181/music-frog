@@ -132,6 +132,18 @@ Iced 的概览是纵向卡片流、不消费列数。**两种度量都成立，�
 Provider/Outbound/Connection/Logs/FakeIpCache/Tun/Lifecycle/ProxyControl/
 GC/Version）。
 
+**b163 盘点改为可门禁（求同抽象的机器可读半条）**：上游 v0.9.3
+（`be847366`）的 `core/protocol.go` 实测恰有 **56** 个 `CoreMethod` 常量（此前写
+「约 60」是目测）。这 56 个方法连同逐条裁决现在登记在
+[flclash-core-methods.tsv](flclash-core-methods.tsv)（按方法名排序的 SHA-256
+`a91a3a98…`：每条必须有 `same` / `stronger` / `local` / `unsupported` / `folded`
+之一与一处本仓真源）。`scripts/quality/flclash-core-parity-guard.py` 在结构门里
+校验数量、命名、去重、摘要与「无未裁决方法」；上游版本一变或有人悄悄加一条
+未经裁决的方法，门会直接失败而不是让缺口沉默。裁决分布：8 条 `mitm.*` 与
+`core.crash` 显式不采纳（产品边界），2 条 `traffic.reset` / `connection.reset`
+为 `local`（b147 的 `LocalOnly` 真 owner），`route.watch` / `shareLink.*` /
+`config.decrypt` 等为 `stronger` / `folded`，其余为 typed `CoreOperation` 同义覆盖。
+
 **b146 首版把三项登记为「真实缺口」，逐层复核后确认是误判，现更正**——
 这是「求同存异」里"存异"的一侧，不得为办结任务而造重复能力：
 

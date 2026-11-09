@@ -1,0 +1,71 @@
+# FlClash v0.9.3 upstream CoreMethod ledger (machine-checkable audit artifact)
+# upstream: chen08209/FlClash @ be84736605527034689c95bf27828ff27d912c5e
+# source: core/protocol.go CoreMethod constants, sorted, 56 methods
+# Extracted with: rg -o '"[a-zA-Z]+\.[a-zA-Z]+"' core/protocol.go | tr -d '"' | sort -u
+# sha256 of the sorted method-name list (one per line, trailing newline):
+# a91a3a98ff8f3bdfbb97ffcc017ce4eb8cf45a710258cadc930c69f2884103d8
+# verdict vocabulary:
+#   same       = our typed operation covers the same engine capability
+#   stronger   = our typed snapshot/readback/codec covers it more rigorously
+#   local      = application-layer owner, no engine endpoint exists (b147)
+#   unsupported= deliberately excluded by our product boundary (MITM/crash)
+#   folded     = covered by a typed lifecycle/owner migration, not a method
+# Every row MUST name the one in-repo truth source; an unadjudicated method
+# is a gate failure, not a silent gap.
+method	verdict	owner
+config.decrypt	folded	ProfileDocument typed migrator + profile lifecycle
+config.read	same	CoreOperation::Profile(ProfileOperation::Validate)
+config.setup	same	CoreOperation::Profile(ProfileOperation::Apply)
+config.update	same	CoreOperation::Profile(ProfileOperation::ApplyFeature)
+config.validate	same	CoreOperation::Profile(ProfileOperation::Validate)
+connection.close	same	CoreOperation::Connection(ConnectionOperation::Close)
+connection.closeAll	same	CommandIntent::CloseAllConnections
+connection.count	stronger	CoreSnapshot readback + shell_readout_fold total_connections
+connection.list	same	CoreOperation::Connection(ConnectionOperation::List)
+connection.reset	local	CommandIntent::ClearTrafficHistory (b147, LocalOnly)
+core.crash	unsupported	crash-injection test hook, never a product capability
+core.gc	same	CoreOperation::CoreGarbageCollection(CoreGarbageCollectionOperation::Trigger)
+core.init	same	CoreOperation::Lifecycle(CoreLifecycleOperation::Start)
+core.initialized	stronger	CoreSnapshot typed lifecycle readback
+core.memory	stronger	DashboardFacts memory/core projection
+dns.clearCache	same	CoreOperation::Dns(DnsOperation::FlushCache)
+filter.validate	same	CoreOperation::Profile(ProfileOperation::Validate)
+geo.update	same	CoreOperation::Geo(GeoOperation::UpdateDatabases)
+listener.start	same	CoreOperation::Tun(TunOperation::Start)
+listener.stop	same	CoreOperation::Tun(TunOperation::Stop)
+log.start	same	CoreOperation::Logs(LogsOperation::Stream)
+log.stop	same	CoreOperation::Logs(LogsOperation::SetLevel)
+mitm.body	unsupported	MITM/script injection is outside our product boundary
+mitm.certificate	unsupported	MITM/script injection is outside our product boundary
+mitm.exchange	unsupported	MITM/script injection is outside our product boundary
+mitm.exchanges	unsupported	MITM/script injection is outside our product boundary
+mitm.generateCertificate	unsupported	MITM/script injection is outside our product boundary
+mitm.issueCertificate	unsupported	MITM/script injection is outside our product boundary
+mitm.runScript	unsupported	MITM/script injection is outside our product boundary
+mitm.validate	unsupported	MITM/script injection is outside our product boundary
+network.changed	stronger	NetworkRoamingSnapshot + FakeIpCacheOperation::Flush
+probe.outboundIp	stronger	PublicIpProbeSnapshot + DashboardFacts
+probe.services	stronger	SpeedtestSnapshot + DashboardFacts four-service latency projection
+profile.base	folded	ProfileDocument typed source of truth
+profile.build	same	CoreOperation::Profile(ProfileOperation::Apply)
+profile.clearEffect	folded	ProfileDocument typed lifecycle migration
+profile.outbounds	same	CoreOperation::Outbound(OutboundOperation::List)
+provider.get	same	CoreOperation::Provider(ProviderOperation::ListProxy)
+provider.list	same	CoreOperation::Provider(ProviderOperation::ListProxy)
+provider.sideLoad	same	CoreOperation::Subscription(SubscriptionOperation::Import)
+provider.update	same	CoreOperation::Provider(ProviderOperation::UpdateProxy)
+proxy.convert	stronger	ProtocolCodecApplication::draft_from_uri with ProtocolFidelity audit
+proxy.definition	same	CoreOperation::Outbound(OutboundOperation::List)
+proxy.list	same	CoreOperation::Outbound(OutboundOperation::List)
+proxy.select	same	CoreOperation::Outbound(OutboundOperation::Select)
+proxy.testDelay	same	CoreOperation::Outbound(OutboundOperation::Probe)
+proxy.validate	same	CoreOperation::Profile(ProfileOperation::Validate)
+route.check	stronger	CoreOperation::Rules(RulesOperation::Trace) + RuleHitAuditSnapshot
+route.watch	stronger	CoreSnapshot.revision + ActiveExitSnapshot{generation,revision} readback
+ruleSet.compile	same	CoreOperation::Rules(RulesOperation::Apply)
+ruleSet.dump	same	CoreOperation::Rules(RulesOperation::Trace)
+shareLink.decode	stronger	ProtocolCodecApplication::draft_from_uri
+shareLink.encode	stronger	ProtocolCodecApplication::uri_from_draft with fidelity audit
+traffic.current	stronger	TrafficWaveformSnapshot typed readback
+traffic.reset	local	CommandIntent::ClearTrafficHistory (b147, LocalOnly)
+traffic.total	stronger	TrafficWaveformSnapshot + DashboardFacts cumulative totals
