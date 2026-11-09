@@ -8,10 +8,23 @@
 //! size stays a surface parameter (`window_lines`): the Iced surface sizes it
 //! from the pane height, the Bevy surface keeps its render limit.
 //!
-//! Honest boundary: this is a *bounded window*, not virtual scrolling. The
-//! model never claims O(1) random access into the document, and no surface
-//! claims a frame-rate target; the closed evidence is the arithmetic itself
-//! plus counted rendered rows (see the DUAL-09-13 ledger row).
+//! Honest boundary: this is a *bounded window*, not virtual scrolling, and no
+//! surface claims a frame-rate target; the closed evidence is the arithmetic
+//! itself plus counted rendered rows (see the DUAL-09-13 ledger row).
+//!
+//! A window is read through [`LineIndexedDocument`], which spends one pass
+//! over the text on open to record where each line starts. Without it, opening
+//! a window means finding its first line, and finding a line without an index
+//! means reading every newline above it - so scrolling a large document down
+//! the middle would cost more the further a person had scrolled, which is the
+//! opposite of what a bounded window is for. With it, the work that repeats
+//! while a person scrolls or searches is the window's own lines and nothing
+//! else. That is why [`DocumentPerformanceBudget`] bounds the window rather
+//! than the document, why [`EditorViewport`] reports
+//! [`DocumentPerformanceStatus::ExceededSliceWork`] the moment a slice
+//! materialises more lines than its window renders, and why the budgets'
+//! wall-clock ceilings are unchanged: the promise is now kept by the shape of
+//! the work, not by how fast the machine happens to be.
 //!
 //! Two invariants make the window the single source of truth:
 //!
@@ -22,7 +35,7 @@
 //!   inside `0..total_lines`, so a render path can index lines directly.
 
 use serde::{Deserialize, Serialize};
-use std::ops::RangeInclusive;
+use std::ops::{Range, RangeInclusive};
 use std::time::Instant;
 
 /// Performance budget for document viewport and window operations.
@@ -30,6 +43,14 @@ use std::time::Instant;
 /// Guaranteed upper bounds ensure editor interaction (opening, scrolling,
 /// slicing visible lines, search within window) remains responsive on
 /// both standard (e.g. 4k lines) and large (e.g. 50k lines) documents.
+///
+/// They bound the work that *repeats*: opening a window over a
+/// [`LineIndexedDocument`], scrolling it, and searching inside it. The one
+/// pass that indexes a document's lines is deliberately not budgeted here -
+/// it is paid once per document, its honest bound is the document's own size
+/// rather than a frame, and what proves it is counted instead of timed: an
+/// indexed document reports the same lines as a plain `text.lines()` read of
+/// the same text.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DocumentPerformanceBudget {
     /// Maximum allowed microseconds to compute a windowed slice of lines.
@@ -88,6 +109,15 @@ pub enum DocumentPerformanceStatus {
         actual_lines: usize,
         max_lines: usize,
     },
+    /// A slice materialised more lines than its own window renders.
+    ///
+    /// This is the deterministic half of the window promise and is checked
+    /// before any timing budget: a window that renders `n` lines must never
+    /// hand back more than `n`, whatever the machine is doing.
+    ExceededSliceWork {
+        actual_lines: usize,
+        window_lines: usize,
+    },
 }
 
 impl DocumentPerformanceStatus {
@@ -102,6 +132,9 @@ impl DocumentPerformanceStatus {
 pub struct DocumentPerformanceReceipt {
     pub document_lines: usize,
     pub window_lines: usize,
+    /// Lines the slice actually materialised: the work the window is allowed
+    /// to do, counted instead of timed.
+    pub slice_lines: usize,
     pub slice_duration_micros: u64,
     pub scroll_duration_micros: u64,
     pub status: DocumentPerformanceStatus,
@@ -122,6 +155,93 @@ pub struct WindowSearchResult {
 /// this project is written with two-space indentation (the same width the
 /// AST-preserving formatter normalizes to).
 pub const INDENT_WIDTH: usize = 2;
+
+/// A document text together with the byte offset each of its lines starts at.
+///
+/// Reading a window out of a raw `&str` means finding its first line, and
+/// finding a line without an index means walking every newline above it: the
+/// cost of scrolling then grows with the document instead of the window, which
+/// is exactly what [`DocumentPerformanceBudget`] promises it will not do. This
+/// type pays that walk once, when the document is opened, and lets every later
+/// window read the lines it renders and nothing else.
+///
+/// The text stays the only truth: the offsets are derived from it at
+/// construction and the two travel together, so an index can never be paired
+/// with a different document. Line boundaries and their contents follow
+/// [`str::lines`] exactly - a trailing newline does not add a line, and a
+/// carriage return before a line feed is not part of the line - so an indexed
+/// read and a plain `text.lines()` read of the same document agree.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LineIndexedDocument<'a> {
+    text: &'a str,
+    /// Byte offset of the start of every line, including the empty segment
+    /// after a trailing newline (which [`Self::line_count`] then drops).
+    line_starts: Vec<usize>,
+    line_count: usize,
+}
+
+impl<'a> LineIndexedDocument<'a> {
+    /// Index `text` once: one pass over its bytes, no allocation per line.
+    pub fn new(text: &'a str) -> Self {
+        let mut line_starts = Vec::with_capacity(text.len() / 16 + 1);
+        if !text.is_empty() {
+            line_starts.push(0);
+        }
+        for (offset, byte) in text.bytes().enumerate() {
+            if byte == b'\n' {
+                line_starts.push(offset + 1);
+            }
+        }
+        // A trailing newline ends the last line rather than starting an empty
+        // one, which is what `str::lines` does.
+        let line_count = match line_starts.last().copied() {
+            Some(start) if start >= text.len() => line_starts.len() - 1,
+            _ => line_starts.len(),
+        };
+        Self {
+            text,
+            line_starts,
+            line_count,
+        }
+    }
+
+    /// Lines the document has, in the same counting as [`str::lines`].
+    pub fn line_count(&self) -> usize {
+        self.line_count
+    }
+
+    pub fn text(&self) -> &'a str {
+        self.text
+    }
+
+    /// The byte range of one line, or `None` when the document has no such
+    /// line. A window past the end of a document is a normal state while a
+    /// file is being replaced, so this never panics on it.
+    pub fn line_range(&self, index: usize) -> Option<Range<usize>> {
+        let start = *self.line_starts.get(index)?;
+        if start >= self.text.len() {
+            return None;
+        }
+        match self.line_starts.get(index + 1) {
+            // The line is terminated by the line feed at `feed`. A carriage
+            // return directly before it is not part of the line - but only
+            // here: an unterminated final line keeps its own trailing
+            // carriage return, exactly like `str::lines`.
+            Some(&next) => {
+                let feed = next - 1;
+                let crlf = feed > 0 && self.text.as_bytes()[feed - 1] == b'\r';
+                Some(start..if crlf { feed - 1 } else { feed })
+            }
+            None => Some(start..self.text.len()),
+        }
+    }
+
+    /// One line's text, or `None` past the end of the document.
+    pub fn line(&self, index: usize) -> Option<&'a str> {
+        let range = self.line_range(index)?;
+        self.text.get(range)
+    }
+}
 
 /// One reference-line position inside a line's leading indentation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -258,22 +378,22 @@ impl EditorViewport {
         line > self.first_line && line <= self.last_line() + 1
     }
 
-    /// Extracts only the lines in the visible window (`first_line..=last_line()`)
-    /// without materializing or cloning unrendered lines outside the window.
+    /// Extract only the lines in the visible window (`first_line..=last_line()`).
     ///
-    /// Work stops immediately once `last_line()` is reached. Returns tuples
-    /// of `(1-based line number, line_str)`.
-    pub fn slice_visible_lines<'a>(&self, full_text: &'a str) -> Vec<(usize, &'a str)> {
-        let first = self.first_line;
-        let last = self.last_line();
+    /// Each rendered line is read through the document's own line index, so
+    /// this touches the window's lines and nothing else: no line above it is
+    /// re-walked per row and no line outside it is materialised or cloned. A
+    /// window that sits past the end of the document renders nothing instead
+    /// of inventing lines. Returns tuples of `(1-based line number, line_str)`.
+    pub fn slice_visible_lines<'a>(
+        &self,
+        document: &LineIndexedDocument<'a>,
+    ) -> Vec<(usize, &'a str)> {
         let mut result = Vec::with_capacity(self.rendered_len());
-        for (index, line) in full_text.lines().enumerate() {
-            if index < first {
-                continue;
-            }
-            if index > last {
+        for index in self.first_line..=self.last_line() {
+            let Some(line) = document.line(index) else {
                 break;
-            }
+            };
             result.push((index + 1, line));
         }
         result
@@ -282,11 +402,15 @@ impl EditorViewport {
     /// Search for `query` only within the visible viewport window.
     ///
     /// Work scales with the viewport window lines rather than the full document.
-    pub fn search_in_window(&self, full_text: &str, query: &str) -> Vec<WindowSearchResult> {
+    pub fn search_in_window(
+        &self,
+        document: &LineIndexedDocument<'_>,
+        query: &str,
+    ) -> Vec<WindowSearchResult> {
         if query.is_empty() {
             return Vec::new();
         }
-        let visible = self.slice_visible_lines(full_text);
+        let visible = self.slice_visible_lines(document);
         let mut results = Vec::new();
         for (line_number, line_content) in visible {
             let mut start = 0;
@@ -304,14 +428,20 @@ impl EditorViewport {
     }
 
     /// Measure window operations against a performance budget.
+    ///
+    /// The document arrives already indexed: the budgets bound the work that
+    /// repeats while a person uses the editor, and indexing is the one pass
+    /// that is charged to opening the document instead. Its cost is still
+    /// recorded on the receipt so a regression there is visible.
     pub fn measure_performance(
         &self,
-        full_text: &str,
+        document: &LineIndexedDocument<'_>,
         budget: DocumentPerformanceBudget,
     ) -> DocumentPerformanceReceipt {
         let start_slice = Instant::now();
-        let _sliced = self.slice_visible_lines(full_text);
+        let sliced = self.slice_visible_lines(document);
         let slice_micros = start_slice.elapsed().as_micros() as u64;
+        let slice_lines = sliced.len();
 
         let start_scroll = Instant::now();
         let _scrolled = self
@@ -324,6 +454,11 @@ impl EditorViewport {
             DocumentPerformanceStatus::ExceededWindowLimit {
                 actual_lines: self.rendered_len(),
                 max_lines: budget.max_render_window_lines,
+            }
+        } else if slice_lines > self.rendered_len() {
+            DocumentPerformanceStatus::ExceededSliceWork {
+                actual_lines: slice_lines,
+                window_lines: self.rendered_len(),
             }
         } else if slice_micros > budget.max_slice_micros {
             DocumentPerformanceStatus::ExceededSliceBudget {
@@ -342,6 +477,7 @@ impl EditorViewport {
         DocumentPerformanceReceipt {
             document_lines: self.total_lines,
             window_lines: self.rendered_len(),
+            slice_lines,
             slice_duration_micros: slice_micros,
             scroll_duration_micros: scroll_micros,
             status,

@@ -85,8 +85,9 @@
 
 - **严格交付率：1,248 / 1,358 = 91.9%**（archived 1,248pt / archived 1,248 + 未办结 110pt）。
 - 现在这 8 条是 `MUSICFROG-001`（5 pt，`InProgress`）、`EDITORPERF-001`（2 pt，b154 实测
-  登记：50k 性能预算是墙钟断言，单独复跑仍 8084µs 对 8000µs 上限，邻居负载下 12031µs，
-  阻塞全仓 nextest 全绿）与六条视口阶梯／上游对照后续：
+  登记、b155 交付转 `Integrated`：窗口逐行重数上方换行导致 50k 预算只剩 1% 余量，改为
+  一次索引 + 窗口级读取并新增 `slice_lines`／`ExceededSliceWork` 确定性断言，预算数字未放宽）
+  与六条视口阶梯／上游对照后续：
   `SPACEUTIL-005`（3 pt，b152 交付转 `Integrated`）、`SPACEUTIL-006`（3 pt，b153 交付转
   `Integrated`：中等档图标轨落地，并把「外壳列最多能占多宽」的比例标准写入契约
   `max_nav_column_px`）、`SPACEUTIL-007`（2 pt，b154 交付转 `Integrated`：外壳把页边距、

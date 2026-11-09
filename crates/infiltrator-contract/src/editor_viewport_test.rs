@@ -93,7 +93,8 @@ fn window_slicing_and_search_operate_within_budget_on_large_documents() {
         .join("\n");
 
     let viewport_4k = EditorViewport::new(4_000, 28, 500);
-    let sliced_4k = viewport_4k.slice_visible_lines(&doc_4k);
+    let indexed_4k = LineIndexedDocument::new(&doc_4k);
+    let sliced_4k = viewport_4k.slice_visible_lines(&indexed_4k);
     assert_eq!(sliced_4k.len(), 28);
     assert_eq!(sliced_4k[0].0, 501);
     assert_eq!(
@@ -102,23 +103,27 @@ fn window_slicing_and_search_operate_within_budget_on_large_documents() {
     );
 
     // Search within window hits line in window, ignores lines outside.
-    let hits = viewport_4k.search_in_window(&doc_4k, "node-505");
+    let hits = viewport_4k.search_in_window(&indexed_4k, "node-505");
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].line_number, 506);
 
-    let hits_outside = viewport_4k.search_in_window(&doc_4k, "node-100");
+    let hits_outside = viewport_4k.search_in_window(&indexed_4k, "node-100");
     assert!(
         hits_outside.is_empty(),
         "query outside window must not be returned"
     );
 
     let receipt_4k =
-        viewport_4k.measure_performance(&doc_4k, DocumentPerformanceBudget::standard_4k());
+        viewport_4k.measure_performance(&indexed_4k, DocumentPerformanceBudget::standard_4k());
     assert!(
         receipt_4k.status.is_within_budget(),
         "4k performance receipt failed: {:?}",
         receipt_4k.status
     );
+    // The deterministic half of the window promise: a slice hands back exactly
+    // the lines its window renders, never the lines above it.
+    assert_eq!(receipt_4k.slice_lines, receipt_4k.window_lines);
+    assert_eq!(receipt_4k.slice_lines, 28);
 
     // 50k document scaling test
     let doc_50k = (0..50_000)
@@ -127,16 +132,149 @@ fn window_slicing_and_search_operate_within_budget_on_large_documents() {
         .join("\n");
 
     let viewport_50k = EditorViewport::new(50_000, 240, 25_000);
-    let sliced_50k = viewport_50k.slice_visible_lines(&doc_50k);
+    let indexed_50k = LineIndexedDocument::new(&doc_50k);
+    let sliced_50k = viewport_50k.slice_visible_lines(&indexed_50k);
     assert_eq!(sliced_50k.len(), 240);
     assert_eq!(sliced_50k[0].0, 25_001);
     assert_eq!(sliced_50k[239].0, 25_240);
 
     let receipt_50k =
-        viewport_50k.measure_performance(&doc_50k, DocumentPerformanceBudget::large_50k());
+        viewport_50k.measure_performance(&indexed_50k, DocumentPerformanceBudget::large_50k());
     assert!(
         receipt_50k.status.is_within_budget(),
         "50k performance receipt failed: {:?}",
         receipt_50k.status
+    );
+    assert_eq!(receipt_50k.slice_lines, receipt_50k.window_lines);
+    assert_eq!(receipt_50k.slice_lines, 240);
+}
+
+/// The window op's cost is a property of the window, not of the machine.
+///
+/// This is the half of `EDITORPERF-001` that a wall-clock number cannot prove:
+/// wherever the window sits, it materialises its own lines and nothing else,
+/// so repeated scrolling and in-window search stay bounded by the window even
+/// in a 50,000-line document.
+#[test]
+fn window_work_is_proportional_to_the_window_not_the_document() {
+    let doc = (0..50_000)
+        .map(|i| format!("  - DOMAIN-SUFFIX,node-{i}.example.com,DIRECT"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let indexed = LineIndexedDocument::new(&doc);
+    assert_eq!(indexed.line_count(), 50_000);
+
+    for first in [0usize, 1, 25_000, 49_760] {
+        // A whole line body, so the search matches one line instead of every
+        // line whose number merely starts with the same digits.
+        let window = EditorViewport::new(50_000, 240, first);
+        let lines = window.slice_visible_lines(&indexed);
+        assert_eq!(
+            lines.len(),
+            window.rendered_len(),
+            "window at {first} must render exactly its own window"
+        );
+        assert_eq!(lines[0].0, first + 1);
+        assert_eq!(lines[lines.len() - 1].0, first + lines.len());
+        assert_eq!(
+            window
+                .search_in_window(&indexed, &format!("node-{}.example.com", first + 7))
+                .len(),
+            1,
+            "the hit inside the window is found wherever the window sits"
+        );
+    }
+
+    // A hit outside the window stays invisible: the search never reads past it.
+    let middle = EditorViewport::new(50_000, 240, 25_000);
+    assert!(
+        middle
+            .search_in_window(&indexed, "node-999.example.com")
+            .is_empty(),
+        "a line outside the window must not be searched"
+    );
+}
+
+/// The index is a reading of the text, not a second version of it.
+///
+/// Every line the index reports has to be the line `str::lines` reports, and
+/// the document has to be spelled out of those same lines: if indexing ever
+/// drifts from the language's own line counting, this fails on content rather
+/// than on a timing number nobody can reproduce.
+#[test]
+fn line_index_agrees_with_the_languages_own_line_counting() {
+    let documents = [
+        "",
+        "one line",
+        "one line\n",
+        "a\nb\nc",
+        "a\nb\nc\n",
+        "a\r\nb\r\nc",
+        "a\r\n",
+        "a\n\nb",
+        "\n",
+        "\n\n\n",
+        "trailing carriage\r",
+    ];
+    for text in documents {
+        let indexed = LineIndexedDocument::new(text);
+        let expected: Vec<&str> = text.lines().collect();
+        assert_eq!(
+            indexed.line_count(),
+            expected.len(),
+            "line count for {text:?}"
+        );
+        let indexed_lines: Vec<&str> = (0..indexed.line_count())
+            .filter_map(|index| indexed.line(index))
+            .collect();
+        assert_eq!(indexed_lines, expected, "lines for {text:?}");
+        // Every byte range points back at the line it claims.
+        for index in 0..indexed.line_count() {
+            let range = indexed
+                .line_range(index)
+                .unwrap_or_else(|| panic!("{text:?} line {index}"));
+            assert_eq!(&text[range.clone()], indexed.line(index).expect("line"));
+            assert!(range.end <= text.len());
+        }
+        // One past the end is not a line.
+        assert_eq!(indexed.line(expected.len()), None);
+    }
+}
+
+/// The window and a plain `str::lines()` read of the same text agree, line for
+/// line, on every shape of ending a document has.
+#[test]
+fn window_matches_lines_semantics_at_document_edges() {
+    let short = "line-1\nline-2\nline-3";
+    let indexed_short = LineIndexedDocument::new(short);
+    assert_eq!(
+        EditorViewport::new(9, 4, 6).slice_visible_lines(&indexed_short),
+        Vec::<(usize, &str)>::new(),
+        "a window past the end renders nothing instead of inventing lines"
+    );
+    assert_eq!(
+        EditorViewport::new(3, 2, 1).slice_visible_lines(&indexed_short),
+        vec![(2, "line-2"), (3, "line-3")],
+        "a last line with no trailing newline is still a line"
+    );
+    let trailing = LineIndexedDocument::new("a\nb\n");
+    assert_eq!(
+        EditorViewport::new(4, 4, 0).slice_visible_lines(&trailing),
+        vec![(1, "a"), (2, "b")],
+        "a trailing newline does not add a phantom line"
+    );
+    let empty = LineIndexedDocument::new("");
+    assert_eq!(
+        EditorViewport::new(3, 3, 0).slice_visible_lines(&empty),
+        Vec::<(usize, &str)>::new()
+    );
+    let crlf = "a\r\nb\r\nc";
+    let indexed_crlf = LineIndexedDocument::new(crlf);
+    assert_eq!(
+        EditorViewport::new(3, 3, 0).slice_visible_lines(&indexed_crlf),
+        crlf.lines()
+            .enumerate()
+            .map(|(index, line)| (index + 1, line))
+            .collect::<Vec<_>>()
     );
 }
