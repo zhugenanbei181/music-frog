@@ -42,6 +42,12 @@ export component AppBody inherits Rectangle {
         // region and the mounted dock. The body never derives a second state.
         in property <MobileDockBandState> mobile-dock-band-state;
         in-out property <length> last-page-scroll-y: 0 * LumenUiScale.unit;
+        // Where the mounted pane's navigation stack ends, in window pixels,
+        // measured by the pane that drew it. This body only carries the value
+        // up to the shell's chrome receipt; it never counts rows, re-adds a
+        // token or derives an offset of its own, and a frame that mounts no
+        // pane leaves it at 0 - which is what the receipt's invariant requires.
+        in-out property <length> nav-stack-bottom;
 
         // One horizontal rhythm for the page body. Compact used to fork this per
         // page (Home 24, AppSettings 10, everything else 16), which meant three
@@ -341,6 +347,7 @@ export component AppBody inherits Rectangle {
             navigation-items: root.navigation-items;
             active-destination: root.active-destination;
             navigate-to(target) => { root.navigate(target); }
+            nav-stack-bottom <=> root.nav-stack-bottom;
         }
 
         main-panel := Rectangle {

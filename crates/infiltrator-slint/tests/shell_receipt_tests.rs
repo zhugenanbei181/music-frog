@@ -37,6 +37,15 @@ fn a_cold_frame_states_the_bar_it_mounts_and_the_band_it_reserves() {
     let facts = chrome_of(&window);
     assert_eq!(facts.nav_form, SidebarForm::BottomNav, "{facts:?}");
     assert_eq!(facts.nav_column_px, 0, "a bar reserves no side column");
+    assert_eq!(
+        facts.nav_stack_bottom_px, 0,
+        "a bar owns no vertical stack, so it states no stack end either"
+    );
+    assert_eq!(
+        facts.nav_stack_bottom_px > 0,
+        facts.nav_column_px > 0,
+        "the column and the stack end are one fact seen from two edges"
+    );
     assert!(facts.reserves_dock_band(), "{facts:?}");
     assert_eq!(
         facts.page_margin_px, 16,

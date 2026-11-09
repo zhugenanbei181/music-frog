@@ -70,6 +70,11 @@ pub fn shape_for_slug(slug: &str) -> Option<PageShape> {
 /// The judge is a Python script; it must not keep its own copy of the
 /// limits. This JSON is the exported truth, and the judge reads it instead
 /// of hard-coding a number.
+///
+/// Version 5 adds `nav_stack_bottom_px` to the exported chrome vocabulary, the
+/// eighth key of a frame's `CAPTURE_CHROME` line. Version 4 published seven and
+/// left the judge to guess where the nav stack ended from a fraction of the
+/// window height; version 1-3 carried no ladder at all.
 pub fn page_structure_json() -> String {
     let pages: Vec<String> = ShellPage::ALL
         .iter()
@@ -122,7 +127,7 @@ pub fn page_structure_json() -> String {
     })
     .collect();
     format!(
-        "{{\"version\":4,\"pages\":[{}],\"slugs\":[{}],\"tiers\":{},\"chrome_keys\":{}}}\n",
+        "{{\"version\":5,\"pages\":[{}],\"slugs\":[{}],\"tiers\":{},\"chrome_keys\":{}}}\n",
         pages.join(","),
         slugs.join(","),
         tiers_json(),
@@ -392,7 +397,7 @@ mod tests {
     fn the_exported_document_carries_the_ladder() {
         let json = page_structure_json();
         let document: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
-        assert_eq!(document["version"], 4);
+        assert_eq!(document["version"], 5);
         // The chrome vocabulary travels with the ladder it describes, so a
         // reader that has the document already has the key list.
         assert_eq!(
@@ -407,6 +412,7 @@ mod tests {
             document["chrome_keys"][CHROME_KEYS.len() - 1],
             "scale_percent"
         );
+        assert_eq!(document["chrome_keys"][2], "nav_stack_bottom_px");
         let tiers = document["tiers"].as_array().expect("the exported ladder");
         assert_eq!(tiers.len(), TIERS.len());
         assert_eq!(tiers[2]["id"], "expanded");

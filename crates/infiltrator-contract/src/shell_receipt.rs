@@ -34,9 +34,10 @@ pub const CHROME_PREFIX: &str = "CAPTURE_CHROME";
 /// same list in `page-structure.json`, the writer below emits exactly it, and
 /// the judge refuses a frame that does not carry all of it: a partially
 /// described frame is not judged by remembered numbers, it is reported.
-pub const CHROME_KEYS: [&str; 7] = [
+pub const CHROME_KEYS: [&str; 8] = [
     "nav_form",
     "nav_column_px",
+    "nav_stack_bottom_px",
     "page_margin_px",
     "shell_top_air_px",
     "shell_bottom_air_px",
@@ -46,25 +47,39 @@ pub const CHROME_KEYS: [&str; 7] = [
 
 /// The chrome a single captured frame painted, in device-independent pixels.
 ///
-/// Deliberately absent: where the navigation stack ends. The sidebar can be
-/// asked, but b154's first attempt published 466px on a 1180x780 frame whose
-/// last destination row really runs to 488px - a tail spacer's own offset is
-/// not the stack's extent, and a number like that would accuse the pane's last
-/// row of being a second content block. The rail axis therefore keeps its
-/// current shape-blind reading, and the measured extent is registered on the
-/// board (`SPACEUTIL-009`) instead of being guessed into a wire format.
+/// `nav_stack_bottom_px` is where the navigation stack really ends, measured by
+/// the sidebar that drew it: the bottom edge of the last destination row, in
+/// window coordinates, so a title bar above the column and the group headings
+/// inside it are already paid for. On the published corpus the desktop frame
+/// states 502 (its last row occupies 458..502) and the 720x480 icon rail states
+/// 398 for its eight glyph rows. b154's first attempt published 466px on the
+/// desktop frame because it asked the tail spacer for its own offset - a
+/// spacer's position is not the stack's extent - so the number was withdrawn
+/// rather than left to accuse a pane's last row of being a second content
+/// block. The measurement now comes from the row itself, published by
+/// `DesktopSideBar.publish-stack-bottom`, which is what finally lets the rail
+/// axis stop guessing a fraction of the window height and start reading an
+/// extent (`SPACEUTIL-009`).
+///
+/// The column and the stack end are one fact seen from two edges, and a
+/// consumer may rely on the pair: a form that reserves no column owns no
+/// vertical stack, so it states 0 for both; a form that reserves one states a
+/// bottom below it. A receipt that breaks the pair describes a shell that
+/// painted something it cannot account for, and the judge reports it.
 ///
 /// Every field is consumed by the reader, and every one is a fact this frame
 /// observed rather than a stage: `nav_form` is the typed navigation the shell
 /// mounted, `nav_column_px` is the width that form really reserved (0 for a
-/// bar), the three paddings are the page body's own box, `dock_band_px` is the
-/// band the bar reserved, and `scale_percent` says the unit the rest were
-/// measured in. Nothing here is kept "in case" a reader wants it.
+/// bar) and `nav_stack_bottom_px` is where its rows stop, the three paddings
+/// are the page body's own box, `dock_band_px` is the band the bar reserved,
+/// and `scale_percent` says the unit the rest were measured in. Nothing here is
+/// kept "in case" a reader wants it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct ShellChromeFacts {
     pub nav_form: SidebarForm,
     pub nav_column_px: u16,
+    pub nav_stack_bottom_px: u16,
     pub page_margin_px: u16,
     pub shell_top_air_px: u16,
     pub shell_bottom_air_px: u16,
@@ -85,11 +100,12 @@ impl ShellChromeFacts {
     /// The marker line for this frame, one key per declared name, in order.
     pub fn to_marker_line(&self) -> String {
         format!(
-            "{CHROME_PREFIX} nav_form={} nav_column_px={} page_margin_px={} \
+            "{CHROME_PREFIX} nav_form={} nav_column_px={} nav_stack_bottom_px={} page_margin_px={} \
              shell_top_air_px={} shell_bottom_air_px={} dock_band_px={} \
              scale_percent={}\n",
             self.nav_form.id(),
             self.nav_column_px,
+            self.nav_stack_bottom_px,
             self.page_margin_px,
             self.shell_top_air_px,
             self.shell_bottom_air_px,
@@ -131,11 +147,12 @@ impl ShellChromeFacts {
         Some(Self {
             nav_form: nav_form?,
             nav_column_px: fields[1],
-            page_margin_px: fields[2],
-            shell_top_air_px: fields[3],
-            shell_bottom_air_px: fields[4],
-            dock_band_px: fields[5],
-            scale_percent: fields[6],
+            nav_stack_bottom_px: fields[2],
+            page_margin_px: fields[3],
+            shell_top_air_px: fields[4],
+            shell_bottom_air_px: fields[5],
+            dock_band_px: fields[6],
+            scale_percent: fields[7],
         })
     }
 }
@@ -147,9 +164,11 @@ mod tests {
     use crate::responsive_viewport::TIERS;
 
     fn sample(form: SidebarForm) -> ShellChromeFacts {
+        let column = form.width_px().unwrap_or(0);
         ShellChromeFacts {
             nav_form: form,
-            nav_column_px: form.width_px().unwrap_or(0),
+            nav_column_px: column,
+            nav_stack_bottom_px: if column > 0 { 398 } else { 0 },
             page_margin_px: 16,
             shell_top_air_px: 0,
             shell_bottom_air_px: 0,
@@ -217,6 +236,26 @@ mod tests {
             ),
             None
         );
+    }
+
+    #[test]
+    fn the_column_and_the_stack_end_are_one_fact_seen_from_two_edges() {
+        // The pair the judge reads: a form with no column has no vertical
+        // stack to end, and a form with one must say where it stops. A receipt
+        // that breaks this states a geometry it cannot account for.
+        for form in [
+            SidebarForm::BottomNav,
+            SidebarForm::Rail,
+            SidebarForm::Standard,
+            SidebarForm::Wide,
+        ] {
+            let facts = sample(form);
+            assert_eq!(
+                facts.nav_stack_bottom_px > 0,
+                facts.nav_column_px > 0,
+                "{form:?} states a stack end exactly when it owns a column"
+            );
+        }
     }
 
     #[test]

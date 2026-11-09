@@ -79,13 +79,28 @@ CHROME_PREFIX = "CAPTURE_CHROME"
 # The chrome vocabulary a planted export must carry, kept in step with the
 # contract by `test_ladder_and_chrome_keys_agree` below.
 CHROME_KEYS_FOR_TEST = [
-    "nav_form", "nav_column_px", "page_margin_px", "shell_top_air_px",
-    "shell_bottom_air_px", "dock_band_px", "scale_percent",
+    "nav_form", "nav_column_px", "nav_stack_bottom_px", "page_margin_px",
+    "shell_top_air_px", "shell_bottom_air_px", "dock_band_px", "scale_percent",
 ]
 
 ROW_INK_FRACTION = 0.04
 MIN_CONTENT_RUN = 3
 GROUND_DELTA = 18
+
+# A band that paints right up to the edge of the navigation column AND keeps the
+# same colour past it cannot be the sidebar's own chrome: a surface that owns a
+# column does not paint outside it. Window overlays do - the title bar spans the
+# whole window, a notice banner is centred on it and overhangs the rail, a modal
+# scrim covers everything - and none of them is the rail spending its height on
+# a second content block. The test is geometric instead of a remembered list of
+# widget names: sample one row just inside the edge and the same row just outside
+# it, and call the band an overlay when most of its rows are ink on the inside
+# *and* the same colour over the boundary. A block parked under the nav stack
+# does not pass: either it stops short of the edge (no ink there) or it ends at
+# the edge in a different colour than the page ground beside it.
+EDGE_SAMPLE_PX = 3
+EDGE_CONTINUITY_DELTA = 8
+EDGE_CONTINUOUS_FRACTION = 0.5
 
 
 def ladder() -> list[dict]:
@@ -199,15 +214,44 @@ def nav_form(chrome: dict) -> str:
     return str(chrome["nav_form"])
 
 
-def owns_labelled_sidebar(chrome: dict) -> bool:
-    """Whether the mounted form is the labelled column the rail axis knows.
+def owns_nav_column(chrome: dict) -> bool:
+    """Whether this frame's shell mounted a vertical navigation column.
 
-    The rail axis distinguishes a navigation row from a second content block
-    inside a labelled pane; an icon rail is the same *owner* of a column but a
-    different shape, and the frame's own receipt says which one it painted, so
-    the decision is read, never inferred from the window width.
+    The rail axis judges the column whatever form it takes, so the answer is
+    the receipt's own column width, not the form name a caller remembers:
+    `nav_column_px` is the one fact both the icon rail and the labelled pane
+    publish, and the contract pins it to a measured stack end.
     """
-    return nav_form(chrome) in ("standard", "wide")
+    return int(chrome["nav_column_px"]) > 0
+
+
+def nav_stack_bottom_px(chrome: dict) -> int:
+    """Where the shell measured its navigation stack ending, in page pixels."""
+    return int(chrome["nav_stack_bottom_px"])
+
+
+def band_is_window_overlay(image: np.ndarray, ink: np.ndarray,
+                           band: tuple[int, int], column: int) -> bool:
+    """Whether a band is paint laid over the window rather than the column's own.
+
+    Two conditions, both geometric. The band has to be ink AT the column's
+    right edge - a block parked under the nav stack usually stops short of it,
+    so ground at the edge alone says "this is the column's own content" - and
+    the colour has to keep going past the edge, because a surface that owns the
+    column does not paint outside it. A notice banner, a title bar and a modal
+    scrim satisfy both: they are centred on or sized to the window and simply
+    cross the rail on their way. Charging one to the rail would accuse the
+    shell of chrome its sidebar never painted.
+    """
+    top, bottom = band
+    height, width, _ = image.shape
+    inside_x = max(0, column - EDGE_SAMPLE_PX)
+    outside_x = min(width - 1, column + EDGE_SAMPLE_PX)
+    inside = image[top:bottom + 1, inside_x].astype(int)
+    outside = image[top:bottom + 1, outside_x].astype(int)
+    continuous = (np.abs(inside - outside).sum(axis=1) <= EDGE_CONTINUITY_DELTA * 3)
+    reaches_edge = ink[top:bottom + 1, inside_x]
+    return bool((continuous & reaches_edge).mean() >= EDGE_CONTINUOUS_FRACTION)
 
 
 def fallback_limit_pct(name: str) -> float:
@@ -350,14 +394,20 @@ def rail_of(image: np.ndarray, chrome: dict) -> dict | None:
     wash plus a narrow indicator, and the empty right side is breathing room.
     What IS waste is a second content block (a status card, brand tile or
     version line) living in the rail below the nav stack - those facts already
-    have a single owner in the title bar and the dashboard. The line the stack
-    ends at is no longer guessed from a fraction of the window height: the
-    shell measured it and put it in this frame's receipt, so a pane whose rows
-    reach further down a short window is not mistaken for a chrome card.
+    have a single owner in the title bar and the dashboard.
+
+    The line the stack ends at is the receipt's measured `nav_stack_bottom_px`,
+    which the sidebar took from the last destination row's own geometry, so a
+    pane whose rows reach further down a short window is not mistaken for a
+    chrome card. Bands above that line are navigation by definition; bands
+    below it are chrome unless they paint straight across the column edge - the
+    title bar, a notice banner and a modal scrim are window overlays that
+    happen to cross the rail, not blocks the rail spent its height on.
     """
     height, width, _ = image.shape
     column = int(chrome["nav_column_px"])
-    if column == 0 or not owns_labelled_sidebar(chrome):
+    bottom = nav_stack_bottom_px(chrome)
+    if column == 0 or bottom <= 0:
         return None
     strip = image[:, 0:column].astype(int)
     ground = np.median(strip[height // 2, 4:10].reshape(-1, 3), axis=0)
@@ -367,21 +417,15 @@ def rail_of(image: np.ndarray, chrome: dict) -> dict | None:
     if not bands:
         return None
     voids = [bands[i + 1][0] - bands[i][1] - 1 for i in range(len(bands) - 1)]
-    # Navigation rows are the compact bands in the upper 70% of the rail. A
-    # bottom chrome card is a tall band (or a cluster of lines) below them.
-    # This is the last shape-blind line in the judge, and it is honest about
-    # being one: it works for a labelled pane because those rows keep their
-    # stride, and it is the reason the icon rail stays out of this axis until
-    # the shell can state where its stack ends (SPACEUTIL-009).
-    nav = [band for band in bands if band[0] < height * 0.70]
+    # Navigation is every band above the measured stack end; below it, only a
+    # band that stays inside the column is the rail's own chrome.
     chrome_band = 0.0
-    if nav:
-        nav_bottom = max(band[1] for band in nav)
-        lower = [band for band in bands if band[0] > nav_bottom]
-        if lower:
-            chrome_band = round(
-                (max(band[1] for band in lower) - min(band[0] for band in lower) + 1)
-                / height * 100, 1)
+    below = [band for band in bands
+             if band[0] >= bottom and not band_is_window_overlay(image, ink, band, column)]
+    if below:
+        chrome_band = round(
+            (max(band[1] for band in below) - min(band[0] for band in below) + 1)
+            / height * 100, 1)
     return dict(void_pct=round(max(voids, default=0) / height * 100, 1),
                 chrome_band_pct=chrome_band)
 
@@ -503,6 +547,14 @@ def chrome_findings(results: list[dict]) -> list[str]:
             found.append(
                 f"{entry['scenario']}: a {band}px dock band with form "
                 f"{nav_form(chrome)} - a band belongs to a bar, not to a page density"
+            )
+        bottom = int(chrome["nav_stack_bottom_px"])
+        if (bottom > 0) != (int(chrome["nav_column_px"]) > 0):
+            found.append(
+                f"{entry['scenario']}: a {chrome['nav_column_px']}px navigation column "
+                f"with a stack bottom of {bottom}px - the column and the stack end are "
+                "one fact seen from two edges, and a receipt that states one without the "
+                "other describes geometry it cannot account for"
             )
         if int(chrome["scale_percent"]) != 100:
             found.append(
@@ -660,6 +712,7 @@ def _chrome(width: int, height: int, **override) -> dict:
     chrome = {
         "nav_form": form,
         "nav_column_px": int(fact["nav_column_px"]),
+        "nav_stack_bottom_px": 0 if form == "bottom_nav" else (488 if labelled else 398),
         "page_margin_px": 30 if labelled else 16,
         "shell_top_air_px": 8 if labelled else 0,
         "shell_bottom_air_px": 72 if labelled else 0,
@@ -848,7 +901,9 @@ class SelfTest(unittest.TestCase):
 
     def _nav_only_rail(self, image: np.ndarray) -> None:
         """Five selected/nav rows in the upper rail, no bottom chrome."""
-        for y in (140, 230, 320, 410, 500):
+        # The rows end above the receipt's measured stack bottom (488 on the
+        # planted desktop chrome), so every band is navigation by definition.
+        for y in (100, 180, 260, 340, 420):
             _fill(image, y, y + 40, 0, 200, (220, 238, 226))
             _fill(image, y + 12, y + 28, 34, 140, INK)
 
@@ -869,7 +924,7 @@ class SelfTest(unittest.TestCase):
 
     def test_a_dark_status_card_is_caught_too(self) -> None:
         image = _desktop_body_dark()
-        for y in (140, 230, 320, 410, 500):
+        for y in (100, 180, 260, 340, 420):
             _fill(image, y, y + 40, 0, 200, (6, 73, 91))
             _fill(image, y + 12, y + 28, 34, 140, (213, 241, 248))
         _fill(image, 617, 712, 18, 210, (29, 33, 38))
@@ -892,7 +947,7 @@ class SelfTest(unittest.TestCase):
         self._nav_only_rail(light)
         _fill(light, 617, 712, 18, 210, CARD)
         dark = _desktop_body_dark()
-        for y in (140, 230, 320, 410, 500):
+        for y in (100, 180, 260, 340, 420):
             _fill(dark, y, y + 40, 0, 200, (6, 73, 91))
             _fill(dark, y + 12, y + 28, 34, 140, (213, 241, 248))
         _fill(dark, 617, 712, 18, 210, (29, 33, 38))
@@ -900,6 +955,57 @@ class SelfTest(unittest.TestCase):
         dark_entry = self.measure_one(dark, chrome=_chrome(1180, 780))
         self.assertEqual(light_entry["chrome_band_pct"], dark_entry["chrome_band_pct"],
                          (light_entry, dark_entry))
+
+    def test_a_window_overlay_across_the_column_edge_is_not_rail_chrome(self) -> None:
+        # The notice banner is laid out by the window and overhangs the rail;
+        # its colour keeps going past the column's edge, so it is not a block
+        # the rail spent its height on and must not be charged to it.
+        image = _desktop_body()
+        self._nav_only_rail(image)
+        _fill(image, 617, 712, 0, 1180, CARD)
+        entry = self.measure_one(image, chrome=_chrome(1180, 780))
+        self.assertEqual(entry["chrome_band_pct"], 0.0, entry)
+
+    def test_nav_rows_below_the_old_70pct_line_are_not_accused(self) -> None:
+        # The shape-blind line this judge used to guess (70% of the height)
+        # accused real nav rows in short windows. The receipt's measured bottom
+        # is the only line now: rows end above it, so nothing is accused.
+        image = _desktop_body()
+        for y in (100, 180, 260, 340, 420):
+            _fill(image, y, y + 44, 0, 200, (220, 238, 226))
+            _fill(image, y + 14, y + 30, 34, 140, INK)
+        entry = self.measure_one(image, chrome=_chrome(1180, 780))
+        self.assertEqual(entry["chrome_band_pct"], 0.0, entry)
+
+    def test_rail_rows_below_the_old_70pct_line_are_not_accused(self) -> None:
+        # The exact frame shape that broke the fraction: on the 720x480 rail
+        # frame the 70% line is 336 while the measured stack bottom is 398, so
+        # an extra destination row landing in between is navigation, not the
+        # bottom chrome card the old judge read it as.
+        image = _canvas(720, 480)
+        self._icon_rail(image)
+        _fill(image, 350, 386, 24, 40, INK)
+        entry = self.measure_one(image)
+        self.assertEqual(entry["chrome_band_pct"], 0.0, entry)
+
+    def test_a_stack_end_without_a_column_is_reported(self) -> None:
+        # The column and the stack end are one fact seen from two edges; a
+        # receipt that states one without the other is a shell describing
+        # geometry it cannot account for, reported rather than judged.
+        entry = self.measure_one(_canvas(400, 800),
+                                 chrome=_chrome(400, 800, nav_stack_bottom_px=398))
+        found = chrome_findings([entry])
+        self.assertTrue(any("one fact seen from two edges" in item for item in found),
+                        found)
+
+    def test_a_column_without_a_stack_end_is_reported(self) -> None:
+        # The other half of the pair: a columned frame that states no bottom
+        # would leave the rail axis blind again, so the receipt is refused.
+        entry = self.measure_one(_desktop_body(),
+                                 chrome=_chrome(1180, 780, nav_stack_bottom_px=0))
+        found = chrome_findings([entry])
+        self.assertTrue(any("one fact seen from two edges" in item for item in found),
+                        found)
 
     def test_a_published_batch_is_required_to_judge(self) -> None:
         empty = self.root / "nothing"
@@ -1016,17 +1122,18 @@ class SelfTest(unittest.TestCase):
         # bar belong to the page now. The labelled column keeps its own numbers.
         medium = _chrome(820, 480)
         self.assertEqual(painted_nav_column(820), 64)
-        self.assertFalse(owns_labelled_sidebar(medium))
+        self.assertTrue(owns_nav_column(medium))
         self.assertEqual(content_box(820, 480, medium)[0], 66)
         self.assertEqual(content_box(820, 480, medium)[2], 64 + page_margin_px(medium))
         self.assertEqual(content_box(820, 480, medium)[5], 479)
         desktop = _chrome(1180, 780)
         self.assertEqual(painted_nav_column(1180), 240)
         self.assertEqual(content_box(1180, 780, desktop)[0], 242)
-        self.assertTrue(owns_labelled_sidebar(desktop))
+        self.assertTrue(owns_nav_column(desktop))
         # And no column at all where the exported form is a bottom bar.
         phone = _chrome(400, 800)
         self.assertEqual(painted_nav_column(400), 0)
+        self.assertFalse(owns_nav_column(phone))
         self.assertEqual(content_box(400, 800, phone)[0], 2)
         self.assertTrue(phone["dock_band_px"] > 0)
 
@@ -1069,11 +1176,42 @@ class SelfTest(unittest.TestCase):
     def test_an_icon_rail_describes_itself_and_is_not_accused(self) -> None:
         # The medium frame says rail/64/no band, which is exactly what the
         # exported ladder owns for that tier, so nothing is reported - and the
-        # rail axis still declines to judge a shape it cannot tell rows from.
+        # rail axis judges it by the same receipt rule as a labelled pane: this
+        # planted canvas paints no bands at all, so there is no rail verdict,
+        # and the icon rail's real frames are judged below via the medium tier.
         entry = self.measure_one(_canvas(720, 480))
         self.assertEqual(nav_form(entry["chrome"]), "rail", entry)
         self.assertEqual(chrome_findings([entry]), [], entry)
         self.assertNotIn("chrome_band_pct", entry, entry)
+
+    def _icon_rail(self, image: np.ndarray) -> None:
+        """A medium frame's rail: background, one selected wash, eight glyphs."""
+        _fill(image, 0, image.shape[0], 0, 64, (241, 246, 237))
+        for y in (18, 62, 106, 150, 194, 238, 282, 326):
+            _fill(image, y + 10, y + 26, 24, 40, INK)
+        _fill(image, 18, 54, 0, 64, (220, 238, 226))
+
+    def test_an_icon_rail_frame_is_judged_by_the_same_receipt_rule(self) -> None:
+        # SPACEUTIL-009 opens the rail axis to the icon rail: the receipt says
+        # where the stack ends, so the medium tier is judged on the same terms
+        # as the labelled pane - rows above the measured bottom are navigation,
+        # and a card parked below it is the rail spending itself on chrome.
+        image = _canvas(720, 480)
+        self._icon_rail(image)
+        _fill(image, 404, 463, 12, 52, CARD)
+        entry = self.measure_one(image)
+        self.assertGreater(entry["chrome_band_pct"], RAIL_CHROME_BAND_LIMIT, entry)
+        self.assertNotEqual(rail_findings([entry], {"frames": {}, "rail": {}}), [])
+
+    def test_a_toast_over_the_icon_rail_is_window_overlay(self) -> None:
+        # The compact notice banner is centred by the window and overhangs the
+        # 64px rail; its paint continues across the column edge, so it is not
+        # charged to a rail that never painted it.
+        image = _canvas(720, 480)
+        self._icon_rail(image)
+        _fill(image, 404, 463, 0, 720, CARD)
+        entry = self.measure_one(image)
+        self.assertEqual(entry["chrome_band_pct"], 0.0, entry)
 
     def test_the_exported_column_never_breaches_its_own_ceiling(self) -> None:
         # The ratio standard is checked against the real export, so a tier that

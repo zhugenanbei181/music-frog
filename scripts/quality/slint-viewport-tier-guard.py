@@ -76,6 +76,9 @@ RAW_VIEWPORT = re.compile(
 )
 TIER_VARIANT = re.compile(r"^\s{4}([\w-]+),?\s*$", re.M)
 THEME_TOKEN = re.compile(r"out property <[a-z]+> ([a-z0-9-]+):")
+# Each call by which the sidebar publishes where its navigation stack ends.
+PUBLISH_STACK_BOTTOM = re.compile(
+    r"root\.publish-stack-bottom\(([^;]*)\);")
 LADDER_RESERVE = {"zinc-6", "zinc-7"}
 
 # Every dashboard fact value asks one shared role, in both tiers. The pairs are
@@ -216,7 +219,7 @@ def ladder_findings(ui: pathlib.Path) -> list[str]:
     adapter_code = mask_comments(adapter)
 
     # The adapter must be the generator's own output, not a hand edit.
-    expected = generator_module().slint_ladder({"version": 4, "tiers": tiers})
+    expected = generator_module().slint_ladder({"version": 5, "tiers": tiers})
     if adapter != expected:
         found.append(
             "components/viewport-ladder.slint is not the generated adapter; "
@@ -361,9 +364,13 @@ def receipt_findings(ui: pathlib.Path) -> list[str]:
     """
     found: list[str] = []
     app_code = mask_comments((ui / "lumen-app.slint").read_text(encoding="utf-8"))
+    rail_code = mask_comments((ui / "components/sidebar.slint").read_text(encoding="utf-8"))
+    body_code = mask_comments((ui / "components/app_body.slint").read_text(encoding="utf-8"))
     for needle, message in [
         ("out property <ReceiptChrome> receipt-chrome:",
          "lumen-app.slint: the shell no longer publishes the chrome it paints"),
+        ("nav-stack-bottom: app-body.nav-stack-bottom",
+         "lumen-app.slint: the receipt no longer reports the measured nav-stack bottom"),
         ("page-margin: app-body.page-margin",
          "lumen-app.slint: the receipt no longer reports the page margin the body binds"),
         ("shell-bottom-air: app-body.page-content-padding-bottom",
@@ -373,6 +380,27 @@ def receipt_findings(ui: pathlib.Path) -> list[str]:
     ]:
         if needle not in app_code:
             found.append(message)
+    if "nav-stack-bottom <=> root.nav-stack-bottom" not in body_code:
+        found.append(
+            "components/app_body.slint: the pane's measured stack end no longer "
+            "reaches the shell's receipt"
+        )
+    # Every publish call must state the row's bottom edge in window pixels. A
+    # call that publishes a pane-relative height, or a spacer's offset, is the
+    # number b154 had to withdraw - so the rule reads all of them, not just one.
+    publishes = PUBLISH_STACK_BOTTOM.findall(rail_code)
+    if not publishes:
+        found.append(
+            "components/sidebar.slint: the sidebar no longer measures where its "
+            "nav stack ends, so the judge would guess a fraction of the height again"
+        )
+    else:
+        for argument in publishes:
+            if "absolute-position.y + self.height" not in argument:
+                found.append(
+                    "components/sidebar.slint: a nav-stack publish does not state the "
+                    f"last row's bottom edge in window pixels ({argument.strip()})"
+                )
     judge = ROOT / "scripts/parity/space_utilization.py"
     if judge.is_file():
         text = judge.read_text(encoding="utf-8")
@@ -387,6 +415,11 @@ def receipt_findings(ui: pathlib.Path) -> list[str]:
             found.append(
                 f"space_utilization.py: the judge keeps chrome geometry again "
                 f"({remembered}); it belongs to the frame's receipt"
+            )
+        if re.search(r"height \* 0\.7", text):
+            found.append(
+                "space_utilization.py: the judge guesses the stack end from a "
+                "fraction of the window height again; the frame's receipt states it"
             )
     return found
 
@@ -769,6 +802,54 @@ class GuardSelfTest(unittest.TestCase):
         findings = self._findings_with({"space_utilization.py": planted})
         self.assertTrue(
             any("keeps chrome geometry again" in item for item in findings), findings)
+
+    def test_a_judge_that_remembered_the_stack_fraction_is_caught(self) -> None:
+        """The stack end is the receipt's measurement, not a remembered ratio.
+
+        The judge used to cut the rail at 70% of the window height; on a short
+        window that line crossed real nav rows. A fraction typed back into the
+        judge is the same fork the paddings were, so the guard bites on it.
+        """
+        judge = ROOT / "scripts/parity/space_utilization.py"
+        text = judge.read_text(encoding="utf-8")
+        planted = text.replace(
+            "def rail_of(image: np.ndarray, chrome: dict) -> dict | None:",
+            "def rail_of(image: np.ndarray, chrome: dict) -> dict | None:\n"
+            "    stack_line = window_height * 0.70",
+            1,
+        )
+        self.assertNotEqual(text, planted)
+        findings = self._findings_with({"space_utilization.py": planted})
+        self.assertTrue(
+            any("fraction of the window height" in item for item in findings), findings)
+
+    def test_a_sidebar_that_stops_measuring_its_stack_is_caught(self) -> None:
+        """The pane owns the measurement; a receipt without it goes blind."""
+        sidebar = (UI / "components/sidebar.slint").read_text(encoding="utf-8")
+        planted = sidebar.replace(
+            "root.publish-stack-bottom(self.absolute-position.y + self.height, index);",
+            "root.publish-stack-bottom(self.height, index);",
+            1,
+        )
+        self.assertNotEqual(sidebar, planted)
+        findings = self._findings_with({"sidebar.slint": planted})
+        self.assertTrue(
+            any("does not state the last row's bottom edge" in item for item in findings),
+            findings)
+
+    def test_a_sidebar_that_publishes_no_stack_end_is_caught(self) -> None:
+        # Dropping every publish leaves the receipt stating 0 for a frame that
+        # owns a column, which the contract's own invariant refuses; the guard
+        # must see that on the surface side too, not only in the pixels.
+        sidebar = (UI / "components/sidebar.slint").read_text(encoding="utf-8")
+        planted = sidebar.replace(
+            "root.publish-stack-bottom(self.absolute-position.y + self.height, index);",
+            "",
+        )
+        self.assertNotIn("publish-stack-bottom(self.absolute-position", planted)
+        findings = self._findings_with({"sidebar.slint": planted})
+        self.assertTrue(
+            any("no longer measures where its" in item for item in findings), findings)
 
     def test_live_tree_is_clean(self) -> None:
         self.assertEqual(violations(UI), [])

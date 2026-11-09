@@ -17,6 +17,39 @@ export component DesktopSideBar inherits Rectangle {
     in property <[NavigationSlot]> navigation-items;
     in property <string> active-destination;
 
+    // Where this pane's navigation stack ends, in window coordinates. The
+    // shell publishes it into the frame's chrome receipt, which is what lets
+    // the space-utilization judge tell a navigation row from a second content
+    // block parked under the stack - in a short window as well as a tall one -
+    // without re-adding row tokens in Python or guessing a fraction of the
+    // window height (`SPACEUTIL-009`). A pane that is never mounted never
+    // writes it, so a bottom-bar frame states no stack end (0), exactly as the
+    // receipt's invariant requires.
+    in-out property <length> nav-stack-bottom;
+
+    // The stack's extent is the last destination row's own bottom edge, and
+    // only that row publishes it. b157 measured every alternative against the
+    // real frames before landing here:
+    //   * the tail spacer's offset was pane coordinates, not window pixels
+    //     (b154 published 466 against a true 502 and had to withdraw it);
+    //   * reading the layouts' own `y` was measured in a diagnostic capture
+    //     and published 40 - the body's offset with the nav layout and the
+    //     free-air cell both still at 0 - where the true extent is 502; a
+    //     layout places a stretch cell once and never relocates it;
+    //   * `changed y` / `changed absolute-position` fire only for the cells a
+    //     pass actually relocates, so watching one event alone missed seven of
+    //     the eight rows on the 1180x780 frame.
+    // `init` is exact for the row the registry puts last - on the published
+    // 1180x780 frame that row occupies 458..502 in window pixels - and the
+    // `changed` handlers re-publish whenever a pass relocates it, so the pair
+    // converges on the geometry the pane really painted instead of a number
+    // remembered from tokens.
+    function publish-stack-bottom(bottom: length, row-index: int) {
+        if (row-index == root.navigation-items.length - 1) {
+            root.nav-stack-bottom = bottom;
+        }
+    }
+
     // Two shapes, one column. FlClash's 48px rail (`_compactWidth`) shows
     // nothing but glyphs and keeps its labels in a tooltip; its 220px pane
     // (`_expandedWidth`) shows group heads and labels. This surface owns the
@@ -69,6 +102,22 @@ export component DesktopSideBar inherits Rectangle {
                 height: LumenTheme.rail-row-height;
                 background: item.id == root.active-destination ? LumenTheme.nav-selected-fill : transparent;
                 border-radius: LumenTheme.radius-control;
+
+                // The last row is the stack, in window pixels. `init` is the
+                // pass that first places the row (measured exact for the last
+                // row of both the labelled pane and the icon rail); the
+                // `changed` handlers re-publish whenever a later pass
+                // relocates it, which is what the group headings do to every
+                // row below them.
+                init => {
+                    root.publish-stack-bottom(self.absolute-position.y + self.height, index);
+                }
+                changed absolute-position => {
+                    root.publish-stack-bottom(self.absolute-position.y + self.height, index);
+                }
+                changed height => {
+                    root.publish-stack-bottom(self.absolute-position.y + self.height, index);
+                }
 
                 nav-touch := TouchArea {
                     width: parent.width;
@@ -126,7 +175,8 @@ export component DesktopSideBar inherits Rectangle {
             }
         }
         // The free air belongs above the bottom of the rail, never between
-        // navigation rows.
+        // navigation rows. It stays the rail's last cell: the stack's extent is
+        // published by the last destination row itself, not read from here.
         Rectangle { vertical-stretch: 1; background: transparent; }
     }
 
