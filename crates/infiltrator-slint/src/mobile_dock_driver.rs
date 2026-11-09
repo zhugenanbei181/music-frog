@@ -33,7 +33,8 @@ fn to_contract_state(state: MobileDockBandState) -> mobile_chrome::MobileDockBan
 /// (`ViewportLadder.shell_navigation` binds the property in `.slint`), so Rust
 /// only reads the vocabulary back. A new form in either language is a compile
 /// error here, which is the point of naming the form instead of a boolean.
-fn to_contract_form(form: NavigationForm) -> SidebarForm {
+/// The capture marker reads the same form back through this one adapter.
+pub(crate) fn to_contract_form(form: NavigationForm) -> SidebarForm {
     match form {
         NavigationForm::BottomNav => SidebarForm::BottomNav,
         NavigationForm::Rail => SidebarForm::Rail,

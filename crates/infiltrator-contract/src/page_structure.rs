@@ -18,6 +18,7 @@
 
 use crate::command_catalogue::ShellPage;
 use crate::responsive_viewport::{TIERS, ViewportTier};
+use crate::shell_receipt::CHROME_KEYS;
 use serde::Serialize;
 
 /// The page shape a capture slug renders.
@@ -121,11 +122,25 @@ pub fn page_structure_json() -> String {
     })
     .collect();
     format!(
-        "{{\"version\":3,\"pages\":[{}],\"slugs\":[{}],\"tiers\":{}}}\n",
+        "{{\"version\":4,\"pages\":[{}],\"slugs\":[{}],\"tiers\":{},\"chrome_keys\":{}}}\n",
         pages.join(","),
         slugs.join(","),
-        tiers_json()
+        tiers_json(),
+        chrome_keys_json()
     )
+}
+
+/// The vocabulary of a frame's chrome line, exported so no side keeps a copy.
+///
+/// The capture host writes these keys, the judge requires them, and the guard
+/// that pins the Slint property reads the same list: three consumers of one
+/// declaration. See `crate::shell_receipt`.
+pub fn chrome_marker_keys() -> Vec<&'static str> {
+    CHROME_KEYS.to_vec()
+}
+
+fn chrome_keys_json() -> String {
+    serde_json::to_string(&chrome_marker_keys()).expect("the chrome keys are plain strings")
 }
 
 /// How a page fills its body.
@@ -377,7 +392,21 @@ mod tests {
     fn the_exported_document_carries_the_ladder() {
         let json = page_structure_json();
         let document: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
-        assert_eq!(document["version"], 3);
+        assert_eq!(document["version"], 4);
+        // The chrome vocabulary travels with the ladder it describes, so a
+        // reader that has the document already has the key list.
+        assert_eq!(
+            document["chrome_keys"]
+                .as_array()
+                .expect("the chrome keys")
+                .len(),
+            CHROME_KEYS.len()
+        );
+        assert_eq!(document["chrome_keys"][0], "nav_form");
+        assert_eq!(
+            document["chrome_keys"][CHROME_KEYS.len() - 1],
+            "scale_percent"
+        );
         let tiers = document["tiers"].as_array().expect("the exported ladder");
         assert_eq!(tiers.len(), TIERS.len());
         assert_eq!(tiers[2]["id"], "expanded");

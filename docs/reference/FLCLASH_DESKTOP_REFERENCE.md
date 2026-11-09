@@ -42,12 +42,12 @@ y455–492 / y546–579，间距约 88–91px。
 选中态为 `selectedFill = onSurface.withOpacity(0.08)` **铺满整行**，外加 3dp 宽的
 primary 色竖向指示条（16dp 高，随选中项动画移动），没有强调色实心胶囊。
 
-| 维度 | FlClash | 本仓 b145 后 | 裁决 |
+| 维度 | FlClash | 本仓现状（b154 复核） | 裁决 |
 | --- | --- | --- | --- |
-| 侧栏内容 | 纯 5–8 项导航 + 折叠钮 | 导航 + 分组标题 + 品牌块 + 状态/配置/速率/版本卡 | **求同**：删状态卡、品牌块、版本行；统计归仪表盘（本仓标题栏与仪表盘已有单一真源） |
-| 选中态 | 全宽 8% 底 + 3dp 指示条 | 120u 内容宽强调色胶囊 | **求同**：改全宽淡底 + 指示条；b145 的 `pill_tail` 判据按此作废 |
-| 行几何 | 40dp 高 / 4dp 间距 / 24dp 图标 / 12dp 标签间隙 | 44u 高 / 20u 图标 / 三套列 | **求同**：收敛到一份 `NavItemMetrics` |
-| 导航项来源 | `NavigationPort.getItems()` typed 列表 + `modes` | 9 条 `NavButton` 字面量写死在 `sidebar.slint` | **求同**：由底层投影发布 typed 导航项 |
+| 侧栏内容 | 纯 5–8 项导航 + 折叠钮 | 只有导航：`for item in navigation-items` 渲染 8 项 + 两个分组标题，状态卡/品牌块/速率/版本行已删 | **求同（已落地）**：统计归仪表盘，标题栏与仪表盘是这些事实的单一真源；判定器 `chrome_band` 0% 把这条钉成门禁（导航栈之下不得有任何区块） |
+| 选中态 | 全宽 8% 底 + 3dp 指示条 | 全宽 `nav-selected-fill`（text-primary 8%）+ 3u 宽 16u 高指示条；b145 的 120u 强调色胶囊已废 | **求同（已落地）**：`pill_tail` 判据作废，右侧空地按合法呼吸位测量 |
+| 行几何 | 40dp 高 / 4dp 间距 / 24dp 图标 / 12dp 标签间隙 | 44u 高 / 4u 间距 / 24u 图标 / 12u 标签间隙 / 3u×16u 指示条（`LumenTheme` 一处令牌，无第二套列规格） | **求同（除行高外逐个相等）**：间距、图标、标签间隙、指示条四项与上游同数；行高 44u 对 40dp 的差是本仓尚未裁决的遗留值，实测影响为 8 行 × 4u = 32u 的栈高差（短窗口 480 行的 6.7%），已按 `FLCLASH-003` 立项，不以「更宽松更好看」空判通过 |
+| 导航项来源 | `NavigationPort.getItems()` typed 列表 + `modes` | `shell_navigation::NavigationItem::items(surface)` typed 注册表（`NavigationSurface::{Desktop, Dock}` 即上游 `modes`），投影为 `NavigationSlot`（id/label/group/group-label/icon 语义名）供侧栏纯消费 | **求同（b146 已落地）**：字面量清单已删；侧栏不读任何业务快照，图标只经设计权威的 canonical 名 |
 | 折叠 | `expanded` / `compactWidth=48` 两档；`canExpandSidebar` 只在 desktop 档放行标签 | `compact-layout` 一处布尔兼职决定「有无侧栏」 | **求同（b153 推翻 b145 的「存异」判断）**：上游按档给形态，本仓同样由契约给——`compact` 底部导航、`medium` 64px 图标轨、`expanded/ultra` 带标签列。b145 当时以「避免过度工程」为由拒绝桌面折叠档，实测代价是同一 720×480 窗口在 Iced 得竖轨、在 Slint 得横栏，短窗口多付一整条 72u 底部带（480 行的 15%）；真源早已裁决（契约 `SidebarForm::Rail`），缺的是组件而非理由，故按上游补齐 |
 | 标签何时出现 | `labelOpacity = (progress − 0.4)/0.6`，轨形态不画标签，靠 tooltip 补 | 与上游同判：`ViewportLadder.labelled_sidebar(tier)` 决定行内是否画标签与分组标题 | **求同**：轨形态只画图标（图标 24u 居中、选中全宽淡底 + 3u 指示条），标签与分组标题留给带标签列 |
 | 列宽的比例依据 | 48/600 = 8.0%，220 只在 >840 使用 | 64/600 = 10.7%；240 = 840 − 600（内容地板）；280 ≤ 1200 − 600 | **求同并成标准**：上限由 `ViewportTier::max_nav_column_px()` 一处裁决并导出，判定器与 Rust 测试复算同一条不变量（比例条款归 L2 空间利用率强制标准 §3.3） |

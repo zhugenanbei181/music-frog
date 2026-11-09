@@ -7,6 +7,7 @@
 use super::DemoSettings;
 use crate::AppWindow;
 use crate::capture_scenario::CaptureBounds;
+use crate::shell_receipt_host::shell_chrome_facts;
 use std::fs::{OpenOptions, create_dir_all};
 use std::io::Write as _;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -15,7 +16,7 @@ static CAPTURE_MARKER_WRITTEN: AtomicBool = AtomicBool::new(false);
 
 pub fn write_capture_marker(
     settings: &DemoSettings,
-    _window: &AppWindow,
+    window: &AppWindow,
     activated: bool,
     bounds: Option<CaptureBounds>,
 ) {
@@ -97,9 +98,24 @@ pub fn write_capture_marker(
     if let Some(parent) = path.parent() {
         let _ = create_dir_all(parent);
     }
+    line.push_str(&chrome_line(window));
     if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path) {
         if file.write_all(line.as_bytes()).is_ok() {
             CAPTURE_MARKER_WRITTEN.store(true, Ordering::SeqCst);
         }
     }
+}
+
+/// The chrome line for this frame: what the live shell is painting right now.
+///
+/// The values are read out of the same bindings that placed the pixels - the
+/// reserved column, the page margin, the shell air above and below, the dock
+/// band, and the navigation stack's own row geometry - then divided by the ui
+/// unit those bindings used, so the receipt states logical pixels and the
+/// space-utilization judge needs no remembered constant. If the shell cannot
+/// say what it drew, the frame is reported rather than measured against a
+/// number the judge kept for itself.
+/// The chrome line for this frame: what the live shell is painting.
+fn chrome_line(window: &AppWindow) -> String {
+    shell_chrome_facts(window).to_marker_line()
 }

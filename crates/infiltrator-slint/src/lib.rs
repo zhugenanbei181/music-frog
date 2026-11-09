@@ -23,6 +23,7 @@ mod flag_assets;
 mod lumen_projection;
 pub mod mascot_driver;
 mod mobile_dock_driver;
+pub mod shell_receipt_host;
 pub mod surface;
 pub mod theme_util;
 pub mod widget_vocabulary;

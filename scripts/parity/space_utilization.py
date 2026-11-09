@@ -64,19 +64,24 @@ RAIL_VOID_LIMIT = 12.0
 FRAMED_LIMIT = 4.0
 CONTENT_LIMIT = 82.0
 
-# The chrome a surface paints around its page body, in the frame's own pixels.
+# The chrome line one frame carries, and where the shell writes it.
 #
-# These are the ONLY geometry numbers the judge keeps. They describe the
-# published Slint frames this judge measures, and the structure gate pins the
-# same numbers in the surface source (`slint-viewport-tier-guard.py` asserts
-# the page-margin and page-air bindings this pair mirrors). The tier a frame
-# is in, whether that tier owns a navigation column, how wide that column is
-# and what the frame's limit is all come from the exported ladder; a judge
-# that guessed them would measure a box no surface drew.
-LABELLED_SIDEBAR_MARGIN_PX = 30
-NARROW_SHELL_MARGIN_PX = 16
-LABELLED_SIDEBAR_TOP_AIR_PX = 8
-LABELLED_SIDEBAR_BOTTOM_AIR_PX = 72
+# The judge keeps NO chrome geometry of its own. Page margin, shell air, the
+# reserved navigation column and the end of the painted navigation stack all
+# travel with the frame, published by the shell that drew them
+# (`infiltrator_contract::shell_receipt`) and read back here per frame. A
+# mirrored constant would be a second answer to "what box did this pixel come
+# from": change a padding, a skin or a zoom and the judge would measure a box
+# no surface painted - or accuse the real one of waste it never had.
+CHROME_FILE = "marker.log"
+CHROME_PREFIX = "CAPTURE_CHROME"
+
+# The chrome vocabulary a planted export must carry, kept in step with the
+# contract by `test_ladder_and_chrome_keys_agree` below.
+CHROME_KEYS_FOR_TEST = [
+    "nav_form", "nav_column_px", "page_margin_px", "shell_top_air_px",
+    "shell_bottom_air_px", "dock_band_px", "scale_percent",
+]
 
 ROW_INK_FRACTION = 0.04
 MIN_CONTENT_RUN = 3
@@ -104,6 +109,10 @@ def ladder_problems() -> list[str]:
         return ["page-structure.json carries no viewport ladder; "
                 "rerun export_page_structure"]
     problems: list[str] = []
+    if not chrome_keys():
+        problems.append(
+            "page-structure.json carries no chrome vocabulary; the frames' "
+            "CAPTURE_CHROME lines cannot be checked against a declared key list")
     if tiers[0]["min_width_px"] != 0:
         problems.append("the exported ladder's smallest tier does not start at 0")
     if tiers[-1]["max_width_px"] is not None:
@@ -146,22 +155,59 @@ def painted_nav_column(width: int) -> int:
     return int(tier_fact(tier(width))["nav_column_px"])
 
 
-def owns_labelled_sidebar(width: int) -> bool:
-    """Whether this frame's column is the labelled shape the rail axis knows.
+def chrome_keys() -> list[str]:
+    """The declared chrome vocabulary, from the contract's export.
 
-    The rail axis below was built against FlClash's labelled pane and knows how
-    to tell a nav row from a second content block there. It does not know that
-    for a 64px icon rail, where eight rows legitimately fill a short window:
-    the nav stack's own extent is a shell geometry fact that only arrives when
-    the receipt carries it, which is SPACEUTIL-007. Reporting a rail as
-    "chrome below the navigation" would be a false accusation, so the axis
-    stays with the shape it can actually judge.
+    The writer in Rust, the Slint property that fills it and this reader all
+    check one list. A key added on one side only is a refusal here, not a
+    silently missing number there.
     """
-    return bool(tier_fact(tier(width))["labelled_sidebar"])
+    if not PAGE_STRUCTURE_FILE.is_file():
+        return []
+    document = json.loads(PAGE_STRUCTURE_FILE.read_text(encoding="utf-8"))
+    return list(document.get("chrome_keys", []))
 
 
-def has_labelled_sidebar(width: int) -> bool:
-    return bool(tier_fact(tier(width))["labelled_sidebar"])
+def chrome_of(directory: pathlib.Path) -> dict | None:
+    """The chrome the shell published for one frame.
+
+    `None` means the frame did not describe itself, which is a finding, not a
+    licence to fall back to remembered numbers.
+    """
+    marker = directory / CHROME_FILE
+    if not marker.is_file():
+        return None
+    declared = chrome_keys()
+    found: dict | None = None
+    for line in marker.read_text(encoding="utf-8").splitlines():
+        if not line.startswith(CHROME_PREFIX):
+            continue
+        values: dict[str, object] = {}
+        for pair in line.split()[1:]:
+            key, sep, value = pair.partition("=")
+            if not sep or key not in declared or key in values:
+                return None
+            values[key] = value if key == "nav_form" else int(value)
+        if sorted(values) != sorted(declared):
+            return None
+        found = values
+    return found
+
+
+def nav_form(chrome: dict) -> str:
+    """The typed navigation this frame's shell mounted."""
+    return str(chrome["nav_form"])
+
+
+def owns_labelled_sidebar(chrome: dict) -> bool:
+    """Whether the mounted form is the labelled column the rail axis knows.
+
+    The rail axis distinguishes a navigation row from a second content block
+    inside a labelled pane; an icon rail is the same *owner* of a column but a
+    different shape, and the frame's own receipt says which one it painted, so
+    the decision is read, never inferred from the window width.
+    """
+    return nav_form(chrome) in ("standard", "wide")
 
 
 def fallback_limit_pct(name: str) -> float:
@@ -169,16 +215,16 @@ def fallback_limit_pct(name: str) -> float:
     return float(tier_fact(name)["fallback_ground_limit_pct"])
 
 
-def page_margin_px(width: int) -> int:
-    return LABELLED_SIDEBAR_MARGIN_PX if has_labelled_sidebar(width) else NARROW_SHELL_MARGIN_PX
+def page_margin_px(chrome: dict) -> int:
+    return int(chrome["page_margin_px"])
 
 
-def shell_top_air_px(width: int) -> int:
-    return LABELLED_SIDEBAR_TOP_AIR_PX if has_labelled_sidebar(width) else 0
+def shell_top_air_px(chrome: dict) -> int:
+    return int(chrome["shell_top_air_px"])
 
 
-def shell_bottom_air_px(width: int) -> int:
-    return LABELLED_SIDEBAR_BOTTOM_AIR_PX if has_labelled_sidebar(width) else 0
+def shell_bottom_air_px(chrome: dict) -> int:
+    return int(chrome["shell_bottom_air_px"])
 
 
 def export_is_fresh() -> list[str]:
@@ -242,18 +288,19 @@ def limit_for(scenario: str, tier_name: str, structures: dict[str, dict],
     return fallback_limit_pct(tier_name)
 
 
-def content_box(width: int, height: int):
+def content_box(width: int, height: int, chrome: dict):
     """(ground_x0, ground_x1, content_x0, content_x1, y0, y1).
 
-    The box is the page body: the navigation column the exported ladder gives
-    this tier, then the page margin the chrome paints outside the body, then
-    the shell air above and below. A tier that owns no column gets no left
-    offset, so a bottom-bar frame is never measured as if it had a sidebar.
+    The box is the page body: the navigation column this frame reserved, then
+    the page margin its chrome paints outside the body, then the shell air it
+    keeps above and below. Every one of those numbers is the frame's own, read
+    out of the receipt the shell wrote, which is what makes the measured box
+    equal the painted box by construction instead of by agreement.
     """
-    left = painted_nav_column(width)
-    margin = page_margin_px(width)
+    left = int(chrome["nav_column_px"])
+    margin = page_margin_px(chrome)
     return (left + 2, left + margin - 2, left + margin, width - 6,
-            shell_top_air_px(width), height - 1 - shell_bottom_air_px(width))
+            shell_top_air_px(chrome), height - 1 - shell_bottom_air_px(chrome))
 
 
 def runs(mask: np.ndarray) -> list[tuple[int, int]]:
@@ -271,10 +318,10 @@ def runs(mask: np.ndarray) -> list[tuple[int, int]]:
     return found
 
 
-def row_usage(image: np.ndarray) -> np.ndarray:
+def row_usage(image: np.ndarray, chrome: dict) -> np.ndarray:
     """Per-row fraction of the page body that is not page ground."""
     height, width, _ = image.shape
-    ground_x0, ground_x1, x0, x1, y0, y1 = content_box(width, height)
+    ground_x0, ground_x1, x0, x1, y0, y1 = content_box(width, height, chrome)
     strip = image[y0:y1, ground_x0:ground_x1].astype(int)
     ground = np.median(strip.reshape(-1, 3), axis=0)
     band = image[y0:y1, x0:x1].astype(int)
@@ -296,20 +343,21 @@ def vertical(rows: np.ndarray) -> dict:
                 band_pct=round(band / total * 100, 1))
 
 
-def rail_of(image: np.ndarray) -> dict | None:
+def rail_of(image: np.ndarray, chrome: dict) -> dict | None:
     """The labelled sidebar's own utilization, or None where there is none.
 
     The reference sidebar is navigation only: the selected row is a full-width
     wash plus a narrow indicator, and the empty right side is breathing room.
     What IS waste is a second content block (a status card, brand tile or
     version line) living in the rail below the nav stack - those facts already
-    have a single owner in the title bar and the dashboard. We measure it as
-    the ink below the last navigation row, which the nav stack's own stride
-    identifies.
+    have a single owner in the title bar and the dashboard. The line the stack
+    ends at is no longer guessed from a fraction of the window height: the
+    shell measured it and put it in this frame's receipt, so a pane whose rows
+    reach further down a short window is not mistaken for a chrome card.
     """
     height, width, _ = image.shape
-    column = painted_nav_column(width)
-    if column == 0 or not owns_labelled_sidebar(width):
+    column = int(chrome["nav_column_px"])
+    if column == 0 or not owns_labelled_sidebar(chrome):
         return None
     strip = image[:, 0:column].astype(int)
     ground = np.median(strip[height // 2, 4:10].reshape(-1, 3), axis=0)
@@ -321,6 +369,10 @@ def rail_of(image: np.ndarray) -> dict | None:
     voids = [bands[i + 1][0] - bands[i][1] - 1 for i in range(len(bands) - 1)]
     # Navigation rows are the compact bands in the upper 70% of the rail. A
     # bottom chrome card is a tall band (or a cluster of lines) below them.
+    # This is the last shape-blind line in the judge, and it is honest about
+    # being one: it works for a labelled pane because those rows keep their
+    # stride, and it is the reason the icon rail stays out of this axis until
+    # the shell can state where its stack ends (SPACEUTIL-009).
     nav = [band for band in bands if band[0] < height * 0.70]
     chrome_band = 0.0
     if nav:
@@ -342,15 +394,22 @@ def measure(run: pathlib.Path) -> list[dict]:
         if not image_path.exists():
             continue
         image = np.asarray(Image.open(image_path).convert("RGB"))
-        split = vertical(row_usage(image))
+        chrome = chrome_of(scenario)
         entry = dict(scenario=scenario.name,
                      page=pages.get(scenario.name, ""),
                      tier=tier(image.shape[1]),
                      size=f"{image.shape[1]}x{image.shape[0]}",
-                     tail_pct=split["tail_pct"],
+                     chrome=chrome)
+        if chrome is None:
+            # No self-description, no box, no verdict: `chrome_findings`
+            # reports the frame instead of the judge inventing a box for it.
+            out.append(entry)
+            continue
+        split = vertical(row_usage(image, chrome))
+        entry.update(tail_pct=split["tail_pct"],
                      band_pct=split["band_pct"],
                      unused_pct=round(max(split["tail_pct"], split["band_pct"]), 1))
-        rail_info = rail_of(image)
+        rail_info = rail_of(image, chrome)
         if rail_info:
             entry.update(rail_info)
         out.append(entry)
@@ -408,11 +467,60 @@ def write_debt(document: dict, path: pathlib.Path = DEBT_FILE) -> None:
                     encoding="utf-8")
 
 
+def chrome_findings(results: list[dict]) -> list[str]:
+    """Every frame must describe its own chrome, and agree with the ladder.
+
+    Three refusals, all of the same kind: a frame that says nothing about its
+    chrome cannot be measured, a frame whose numbers contradict the ladder
+    measured a decision no contract made (the column the shell reserved against
+    the column the tier owns), and a frame that reserved a bottom band while
+    mounting a form with no bar is the exact defect SPACEUTIL-006 was written
+    for. None of these are judged by remembered numbers.
+    """
+    found: list[str] = []
+    for entry in results:
+        chrome = entry.get("chrome")
+        if chrome is None:
+            found.append(
+                f"{entry['scenario']}: the frame carries no {CHROME_PREFIX} line, so its "
+                "measurement box would be a number the judge remembered instead of the "
+                "chrome that painted these pixels"
+            )
+            continue
+        fact = tier_fact(entry["tier"])
+        if int(chrome["nav_column_px"]) != int(fact["nav_column_px"]):
+            found.append(
+                f"{entry['scenario']}: the shell reserved {chrome['nav_column_px']}px of "
+                f"navigation column but the {entry['tier']} tier owns {fact['nav_column_px']}px"
+            )
+        if nav_form(chrome) != fact["nav_form"]:
+            found.append(
+                f"{entry['scenario']}: the shell mounted {nav_form(chrome)} while the "
+                f"{entry['tier']} tier says {fact['nav_form']}"
+            )
+        band = int(chrome["dock_band_px"])
+        if (band > 0) != (nav_form(chrome) == "bottom_nav"):
+            found.append(
+                f"{entry['scenario']}: a {band}px dock band with form "
+                f"{nav_form(chrome)} - a band belongs to a bar, not to a page density"
+            )
+        if int(chrome["scale_percent"]) != 100:
+            found.append(
+                f"{entry['scenario']}: painted at {chrome['scale_percent']}% page scale, so its "
+                "chrome numbers are not the pixels being measured"
+            )
+    return found
+
+
 def frame_findings(results: list[dict], debt: dict) -> list[str]:
     found: list[str] = []
     registered = debt["frames"]
     structures = page_structures()
     for entry in results:
+        if "unused_pct" not in entry:
+            # Not measured, therefore not judged here: `chrome_findings`
+            # reports why such a frame has no box at all.
+            continue
         limit = limit_for(entry["scenario"], entry["tier"], structures, entry.get("page", ""))
         if entry["unused_pct"] <= limit:
             continue
@@ -472,6 +580,9 @@ def report(results: list[dict]) -> None:
         if not group:
             continue
         label = name
+        group = [entry for entry in group if "unused_pct" in entry]
+        if not group:
+            continue
         values = [entry["unused_pct"] for entry in group]
         structures = page_structures()
         limits = {entry["scenario"]: limit_for(entry["scenario"], name, structures,
@@ -492,6 +603,12 @@ def report(results: list[dict]) -> None:
         void = max(entry.get("void_pct", 0.0) for entry in columned)
         print(f"\n=== rail: worst non-nav chrome {chrome}% (limit {RAIL_CHROME_BAND_LIMIT}%), "
               f"worst nav void {void}% (limit {RAIL_VOID_LIMIT}%) ===")
+    described = [entry for entry in results if entry.get("chrome")]
+    print(f"\n=== chrome: {len(described)}/{len(results)} frames published their own "
+          f"geometry; column "
+          f"{sorted({int(entry['chrome']['nav_column_px']) for entry in described})}px, "
+          f"margin {sorted({page_margin_px(entry['chrome']) for entry in described})}px, "
+          f"band {sorted({int(entry['chrome']['dock_band_px']) for entry in described})}px ===")
 
 
 # ---------------------------------------------------------------------------
@@ -529,8 +646,39 @@ def _desktop_body_dark() -> np.ndarray:
     return image
 
 
+def _chrome(width: int, height: int, **override) -> dict:
+    """The chrome a planted frame of this size says it painted.
+
+    The defaults are what the published shell really draws at that width -
+    `chrome_findings` refuses a frame whose column, form, band or scale
+    contradicts the exported ladder, so a test cannot plant a geometry the
+    contract would reject without the planted frame saying so.
+    """
+    fact = tier_fact(tier(width))
+    labelled = bool(fact["labelled_sidebar"])
+    form = str(fact["nav_form"])
+    chrome = {
+        "nav_form": form,
+        "nav_column_px": int(fact["nav_column_px"]),
+        "page_margin_px": 30 if labelled else 16,
+        "shell_top_air_px": 8 if labelled else 0,
+        "shell_bottom_air_px": 72 if labelled else 0,
+        "dock_band_px": 72 if form == "bottom_nav" else 0,
+        "scale_percent": 100,
+    }
+    chrome.update(override)
+    return chrome
+
+
+def _chrome_line(chrome: dict) -> str:
+    return (CHROME_PREFIX + " "
+            + " ".join(f"{key}={chrome[key]}" for key in chrome_keys()) + "\n")
+
+
 def _write_run(root: pathlib.Path, frames: dict[str, np.ndarray],
-               pages: dict[str, str] | None = None) -> pathlib.Path:
+               pages: dict[str, str] | None = None,
+               chrome: dict | bool | None = None) -> pathlib.Path:
+    """One published batch: pixels, and the chrome line the shell wrote beside them."""
     run = root / "batch"
     run.mkdir(parents=True, exist_ok=True)
     (run / METADATA).write_text(f"scenario_count={len(frames)}\n", encoding="utf-8")
@@ -538,6 +686,17 @@ def _write_run(root: pathlib.Path, frames: dict[str, np.ndarray],
         directory = run / name
         directory.mkdir(parents=True, exist_ok=True)
         Image.fromarray(image).save(directory / "image.png")
+        # A dict that carries `nav_form` is the frame's chrome; any other dict
+        # maps scenario names to their own chrome (or False to withhold it).
+        facts = (chrome if isinstance(chrome, dict) and "nav_form" in chrome
+                 else chrome.get(name) if isinstance(chrome, dict) else chrome)
+        if facts is False:
+            continue
+        if facts is None:
+            facts = _chrome(image.shape[1], image.shape[0])
+        (directory / CHROME_FILE).write_text(
+            f"CAPTURE_READY page=overview skin=dark\n{_chrome_line(facts)}",
+            encoding="utf-8")
     if pages:
         rows = ["scenario\tpage\tskin\trequested_window\tapp_pid\twindow_id\twidth"
                 "\theight\tbytes\tsha256\tstatus"]
@@ -555,9 +714,10 @@ class SelfTest(unittest.TestCase):
         self.root = pathlib.Path(self.temporary.name)
         self.addCleanup(self.temporary.cleanup)
 
-    def measure_one(self, image: np.ndarray, page: str = "") -> dict:
+    def measure_one(self, image: np.ndarray, page: str = "",
+                    chrome: dict | bool | None = None) -> dict:
         pages = {"planted": page} if page else None
-        run = _write_run(self.root, {"planted": image}, pages)
+        run = _write_run(self.root, {"planted": image}, pages, chrome)
         return measure(run)[0]
 
     def test_a_frame_filling_card_is_not_waste(self) -> None:
@@ -696,7 +856,7 @@ class SelfTest(unittest.TestCase):
         image = _desktop_body()
         self._nav_only_rail(image)
         _fill(image, 617, 712, 18, 210, CARD)
-        entry = self.measure_one(image)
+        entry = self.measure_one(image, chrome=_chrome(1180, 780))
         self.assertGreater(entry["chrome_band_pct"], RAIL_CHROME_BAND_LIMIT, entry)
         self.assertNotEqual(rail_findings([entry], {"frames": {}, "rail": {}}), [])
 
@@ -723,7 +883,7 @@ class SelfTest(unittest.TestCase):
         image = _desktop_body()
         _fill(image, 140, 180, 0, 200, (220, 238, 226))
         _fill(image, 152, 168, 34, 140, INK)
-        entry = self.measure_one(image)
+        entry = self.measure_one(image, chrome=_chrome(1180, 780))
         self.assertEqual(entry["chrome_band_pct"], 0.0, entry)
         self.assertEqual(rail_findings([entry], {"frames": {}, "rail": {}}), [])
 
@@ -736,8 +896,8 @@ class SelfTest(unittest.TestCase):
             _fill(dark, y, y + 40, 0, 200, (6, 73, 91))
             _fill(dark, y + 12, y + 28, 34, 140, (213, 241, 248))
         _fill(dark, 617, 712, 18, 210, (29, 33, 38))
-        light_entry = self.measure_one(light)
-        dark_entry = self.measure_one(dark)
+        light_entry = self.measure_one(light, chrome=_chrome(1180, 780))
+        dark_entry = self.measure_one(dark, chrome=_chrome(1180, 780))
         self.assertEqual(light_entry["chrome_band_pct"], dark_entry["chrome_band_pct"],
                          (light_entry, dark_entry))
 
@@ -768,7 +928,8 @@ class SelfTest(unittest.TestCase):
         # This is the proof that the judge reads the exported table instead
         # of the boundaries it used to remember (700 and 1000).
         planted = self._with_export({
-            "version": 3, "pages": [], "slugs": [],
+            "version": 4, "pages": [], "slugs": [],
+            "chrome_keys": CHROME_KEYS_FOR_TEST,
             "tiers": [
                 {"id": "compact", "min_width_px": 0, "max_width_px": 500,
                  "nav_form": "bottom_nav", "nav_column_px": 0,
@@ -813,7 +974,8 @@ class SelfTest(unittest.TestCase):
         # a width that belongs to no tier, and the judge would pick a limit
         # for it anyway.
         planted = self._with_export({
-            "version": 3, "pages": [], "slugs": [],
+            "version": 4, "pages": [], "slugs": [],
+            "chrome_keys": CHROME_KEYS_FOR_TEST,
             "tiers": [
                 {"id": "compact", "min_width_px": 0, "max_width_px": 500,
                  "nav_form": "bottom_nav", "nav_column_px": 0,
@@ -841,8 +1003,8 @@ class SelfTest(unittest.TestCase):
         # answer now comes from one exported fact per tier.
         self.assertEqual(tier(820), "medium")
         self.assertEqual(tier(1180), "expanded")
-        self.assertEqual(shell_bottom_air_px(1180), 72)
-        self.assertEqual(shell_bottom_air_px(820), 0)
+        self.assertEqual(shell_bottom_air_px(_chrome(1180, 780)), 72)
+        self.assertEqual(shell_bottom_air_px(_chrome(820, 480)), 0)
         entry = self.measure_one(_canvas(820, 480))
         self.assertNotIn("chrome_band_pct", entry, entry)
 
@@ -852,17 +1014,66 @@ class SelfTest(unittest.TestCase):
         # rail's edge, and because that form owns no bar the shell reserves no
         # dock band - the 72 rows this window used to spend on a phone's bottom
         # bar belong to the page now. The labelled column keeps its own numbers.
+        medium = _chrome(820, 480)
         self.assertEqual(painted_nav_column(820), 64)
-        self.assertFalse(owns_labelled_sidebar(820))
-        self.assertEqual(content_box(820, 480)[0], 66)
-        self.assertEqual(content_box(820, 480)[2], 64 + page_margin_px(820))
-        self.assertEqual(content_box(820, 480)[5], 479)
+        self.assertFalse(owns_labelled_sidebar(medium))
+        self.assertEqual(content_box(820, 480, medium)[0], 66)
+        self.assertEqual(content_box(820, 480, medium)[2], 64 + page_margin_px(medium))
+        self.assertEqual(content_box(820, 480, medium)[5], 479)
+        desktop = _chrome(1180, 780)
         self.assertEqual(painted_nav_column(1180), 240)
-        self.assertEqual(content_box(1180, 780)[0], 242)
-        self.assertTrue(owns_labelled_sidebar(1180))
+        self.assertEqual(content_box(1180, 780, desktop)[0], 242)
+        self.assertTrue(owns_labelled_sidebar(desktop))
         # And no column at all where the exported form is a bottom bar.
+        phone = _chrome(400, 800)
         self.assertEqual(painted_nav_column(400), 0)
-        self.assertEqual(content_box(400, 800)[0], 2)
+        self.assertEqual(content_box(400, 800, phone)[0], 2)
+        self.assertTrue(phone["dock_band_px"] > 0)
+
+    def test_a_frame_that_says_nothing_about_its_chrome_is_not_measured(self) -> None:
+        # The whole point of the receipt: without it the judge would have to
+        # remember a padding, which is the second source SPACEUTIL-007 retires.
+        entry = self.measure_one(_desktop_body(), chrome=False)
+        self.assertIsNone(entry["chrome"], entry)
+        self.assertNotIn("unused_pct", entry, entry)
+        found = chrome_findings([entry])
+        self.assertTrue(any("no CAPTURE_CHROME line" in item for item in found), found)
+        # And it is not silently judged against a remembered box either.
+        self.assertEqual(frame_findings([entry], {"frames": {}, "rail": {}}), [])
+
+    def test_the_measurement_box_follows_the_receipt(self) -> None:
+        # A shell that paints a deeper margin gets a deeper box, with no edit
+        # to this file: the box is the frame's, not the judge's.
+        remembered = content_box(1180, 780, _chrome(1180, 780))
+        deeper = content_box(1180, 780, _chrome(1180, 780, page_margin_px=64))
+        self.assertEqual(remembered[2], 240 + 30)
+        self.assertEqual(deeper[2], 240 + 64)
+        self.assertEqual(deeper[4], remembered[4])
+
+    def test_a_column_that_disagrees_with_the_ladder_is_reported(self) -> None:
+        # The private 228 this surface used to keep is caught per frame now,
+        # not by pinning two source files against each other.
+        entry = self.measure_one(_desktop_body(),
+                                 chrome=_chrome(1180, 780, nav_column_px=228))
+        found = chrome_findings([entry])
+        self.assertTrue(any("reserved 228px" in item for item in found), found)
+
+    def test_a_dock_band_without_a_bar_is_reported(self) -> None:
+        # SPACEUTIL-006's defect, seen from the receipt side: a desktop frame
+        # that pays a band while mounting a column reserves air for nothing.
+        entry = self.measure_one(_desktop_body(),
+                                 chrome=_chrome(1180, 780, dock_band_px=72))
+        found = chrome_findings([entry])
+        self.assertTrue(any("a band belongs to a bar" in item for item in found), found)
+
+    def test_an_icon_rail_describes_itself_and_is_not_accused(self) -> None:
+        # The medium frame says rail/64/no band, which is exactly what the
+        # exported ladder owns for that tier, so nothing is reported - and the
+        # rail axis still declines to judge a shape it cannot tell rows from.
+        entry = self.measure_one(_canvas(720, 480))
+        self.assertEqual(nav_form(entry["chrome"]), "rail", entry)
+        self.assertEqual(chrome_findings([entry]), [], entry)
+        self.assertNotIn("chrome_band_pct", entry, entry)
 
     def test_the_exported_column_never_breaches_its_own_ceiling(self) -> None:
         # The ratio standard is checked against the real export, so a tier that
@@ -942,7 +1153,8 @@ def main(argv: list[str] | None = None) -> int:
                   "--update-debt may only shrink it", file=sys.stderr)
             return 1
         structures = page_structures()
-        frames = {entry["scenario"]: entry["unused_pct"] for entry in results
+        measured = [entry for entry in results if "unused_pct" in entry]
+        frames = {entry["scenario"]: entry["unused_pct"] for entry in measured
                   if entry["unused_pct"] > limit_for(entry["scenario"], entry["tier"],
                                                     structures, entry.get("page", ""))}
         columned = [entry for entry in results if "chrome_band_pct" in entry]
@@ -966,7 +1178,8 @@ def main(argv: list[str] | None = None) -> int:
               + (f", closed {len(lost)}: {lost}" if lost else ""))
         return 0
 
-    findings = frame_findings(results, debt) + rail_findings(results, debt)
+    findings = (chrome_findings(results) + frame_findings(results, debt)
+                + rail_findings(results, debt))
     if args.enforce:
         if findings:
             for finding in findings:

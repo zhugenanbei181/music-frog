@@ -216,7 +216,7 @@ def ladder_findings(ui: pathlib.Path) -> list[str]:
     adapter_code = mask_comments(adapter)
 
     # The adapter must be the generator's own output, not a hand edit.
-    expected = generator_module().slint_ladder({"version": 3, "tiers": tiers})
+    expected = generator_module().slint_ladder({"version": 4, "tiers": tiers})
     if adapter != expected:
         found.append(
             "components/viewport-ladder.slint is not the generated adapter; "
@@ -347,6 +347,49 @@ def navigation_mount_findings(ui: pathlib.Path) -> list[str]:
             )
     return found
 
+
+def receipt_findings(ui: pathlib.Path) -> list[str]:
+    """The chrome a frame painted travels with the frame, and nowhere else.
+
+    SPACEUTIL-007 retired the last geometry the space-utilization judge kept
+    for itself (page margin 30/16 and shell air 8/72, mirrored from the surface
+    and pinned on both sides). Now the shell publishes the same numbers it
+    bound its layout with, the host writes them into the frame's marker file,
+    and the judge measures the box the frame describes. Two ways to fail this:
+    the surface stops saying what it painted, or the judge starts remembering
+    paddings again.
+    """
+    found: list[str] = []
+    app_code = mask_comments((ui / "lumen-app.slint").read_text(encoding="utf-8"))
+    for needle, message in [
+        ("out property <ReceiptChrome> receipt-chrome:",
+         "lumen-app.slint: the shell no longer publishes the chrome it paints"),
+        ("page-margin: app-body.page-margin",
+         "lumen-app.slint: the receipt no longer reports the page margin the body binds"),
+        ("shell-bottom-air: app-body.page-content-padding-bottom",
+         "lumen-app.slint: the receipt no longer reports the shell's bottom air"),
+        ("dock-band: app-body.dock-band-height",
+         "lumen-app.slint: the receipt no longer reports the reserved dock band"),
+    ]:
+        if needle not in app_code:
+            found.append(message)
+    judge = ROOT / "scripts/parity/space_utilization.py"
+    if judge.is_file():
+        text = judge.read_text(encoding="utf-8")
+        if "CAPTURE_CHROME" not in text or "chrome_of(" not in text:
+            found.append(
+                "space_utilization.py: the judge no longer reads the chrome line "
+                "the frame carries"
+            )
+        remembered = re.findall(
+            r"^[A-Z][A-Z_]*(?:MARGIN|AIR|BAND)_PX = \d+", text, re.M)
+        if remembered:
+            found.append(
+                f"space_utilization.py: the judge keeps chrome geometry again "
+                f"({remembered}); it belongs to the frame's receipt"
+            )
+    return found
+
 def enum_variants(name: str) -> list[str]:
     text = TIER_FILE.read_text(encoding="utf-8")
     body = text.split(f"export enum {name} {{", 1)[-1].split("}", 1)[0]
@@ -383,6 +426,7 @@ def violations(ui: pathlib.Path, dock_checks: bool = True,
         found += ladder_findings(ui)
         found += tier_vocabulary_findings()
         found += navigation_mount_findings(ui)
+        found += receipt_findings(ui)
     app_code = mask_comments((ui / "lumen-app.slint").read_text(encoding="utf-8"))
     typed_dock_owner = (
         "in property <MobileDockBandState> mobile-dock-band-state:" in app_code
@@ -707,6 +751,24 @@ class GuardSelfTest(unittest.TestCase):
         self.assertTrue(
             any("a band belongs to a bar" in item for item in findings), findings)
 
+    def test_a_judge_that_remembers_chrome_paddings_is_caught(self) -> None:
+        """The chrome a frame painted travels with the frame, or it is a fork.
+
+        The judge used to keep 30/16 and 8/72 beside the surface's own
+        bindings and pinned the two against each other. A number typed back
+        into the judge is that second source, in the file that must not have one.
+        """
+        judge = ROOT / "scripts/parity/space_utilization.py"
+        text = judge.read_text(encoding="utf-8")
+        planted = text.replace(
+            "CHROME_FILE = \"marker.log\"",
+            "CHROME_FILE = \"marker.log\"\nLABELLED_SIDEBAR_MARGIN_PX = 30",
+            1,
+        )
+        self.assertNotEqual(text, planted)
+        findings = self._findings_with({"space_utilization.py": planted})
+        self.assertTrue(
+            any("keeps chrome geometry again" in item for item in findings), findings)
 
     def test_live_tree_is_clean(self) -> None:
         self.assertEqual(violations(UI), [])
@@ -739,13 +801,15 @@ class GuardSelfTest(unittest.TestCase):
         """
         body = UI / "components/app_body.slint"
         original = body.read_text(encoding="utf-8")
-        live = """        property <length> page-content-padding-bottom: root.compact-layout
+        # The air is published (`out`) because the frame's receipt reports it;
+        # the rule being planted on is unchanged.
+        live = """        out property <length> page-content-padding-bottom: root.compact-layout
             ? 0 * LumenUiScale.unit
             : 72 * LumenUiScale.unit;"""
         assert live in original
         planted = original.replace(
             live,
-            """        property <length> page-content-padding-bottom: MobileDockBandProjection.reserves_band(root.mobile-dock-band-state)
+            """        out property <length> page-content-padding-bottom: MobileDockBandProjection.reserves_band(root.mobile-dock-band-state)
             ? 0 * LumenUiScale.unit
             : 72 * LumenUiScale.unit;""",
             1,

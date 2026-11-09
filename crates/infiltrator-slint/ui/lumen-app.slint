@@ -14,7 +14,7 @@ import { MobileDockBandState, MobileDockBandProjection } from "components/mobile
 export { MobileDockBandState, MobileDockBandProjection }
 
 import { LumenUiScale } from "lumen-ui-scale.slint";
-import { ProfileCard, OverrideCard, ProfileOverrideChoice, ObservationRow, ConnectionRow, ProxyGroup, TrafficBar, HomeTrafficPoint, LicenseRow, WorkbenchItem, OverviewCardSlot, NavigationSlot, DashboardFacts, DashboardFactsDefaults } from "components/models.slint";
+import { ProfileCard, OverrideCard, ProfileOverrideChoice, ObservationRow, ConnectionRow, ProxyGroup, TrafficBar, HomeTrafficPoint, LicenseRow, WorkbenchItem, OverviewCardSlot, NavigationSlot, DashboardFacts, DashboardFactsDefaults, ReceiptChrome } from "components/models.slint";
 import { ProfileOverlays } from "components/profile_overlays.slint";
 import { OverviewOrderOverlay } from "components/overview_order.slint";
 import { SettingsOverlays } from "components/settings_overlays.slint";
@@ -43,7 +43,7 @@ export component AppWindow inherits MaterialWindow {
         // and sheds its breathing room. It used to carry both jobs, which is
         // how the medium tier ended up paying a phone's bottom band for a
         // desktop window's navigation (SPACEUTIL-006).
-        out property <NavigationForm> navigation-form: ViewportLadder.shell_navigation(LumenTheme.viewport-tier, root.android-platform); out property <bool> compact-layout: root.android-platform || !ViewportLadder.labelled_sidebar(LumenTheme.viewport-tier);
+        out property <NavigationForm> navigation-form: ViewportLadder.shell_navigation(LumenTheme.viewport-tier, root.android-platform); out property <bool> compact-layout: root.android-platform || !ViewportLadder.labelled_sidebar(LumenTheme.viewport-tier); out property <ReceiptChrome> receipt-chrome: { nav-form: root.navigation-form, nav-column: LumenTheme.rail-width, page-margin: app-body.page-margin, shell-top-air: app-body.page-content-padding-top, shell-bottom-air: app-body.page-content-padding-bottom, dock-band: app-body.dock-band-height, scale-percent: root.page-scale-percent };
         property <bool> platform-dark-mode: MaterialPalette.color-scheme == ColorScheme.dark;
         in-out property <bool> frameless: false;
         // EFFECTS-041 #167: the frameless desktop chrome's window controls.

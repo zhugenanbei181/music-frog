@@ -1,4 +1,5 @@
 import { LumenTheme } from "./theme.slint";
+import { NavigationForm } from "./viewport_tier.slint";
 
 export struct ProfileCard {
     id: string,
@@ -128,6 +129,24 @@ export struct NavigationSlot {
     icon: string,
 }
 
+// The chrome geometry one captured frame paints, as the contract types it
+// (`infiltrator_contract::shell_receipt::ShellChromeFacts`).
+//
+// The space-utilization judge measures pixels, so the paddings it builds its
+// measurement box from have to be the ones that drew them. Publishing them
+// from the live shell - not re-typing them in the judge - is what makes a
+// skin, a zoom or a chrome decision impossible to measure against a stale
+// number. Lengths stay lengths: the host divides them by the same ui unit the
+// bindings used, so the receipt states device-independent pixels.
+export struct ReceiptChrome {
+    nav-form: NavigationForm,
+    nav-column: length,
+    page-margin: length,
+    shell-top-air: length,
+    shell-bottom-air: length,
+    dock-band: length,
+    scale-percent: int,
+}
 // A fact cell as the shared contract typed it: the value, whether an owner
 // published it, how it is typeset and which edge of its column it hugs. The
 // surface renders the cell; it never invents a fallback value and never

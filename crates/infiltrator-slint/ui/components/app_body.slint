@@ -47,13 +47,13 @@ export component AppBody inherits Rectangle {
         // page (Home 24, AppSettings 10, everything else 16), which meant three
         // pages could not share a left edge even though the reference phone
         // layout keeps one 16.6dp inset everywhere.
-        property <length> page-margin: root.compact-layout
+        out property <length> page-margin: root.compact-layout
             ? LumenTheme.page-padding
             : LumenTheme.page-margin-desktop;
         // The reserved band is subtracted once from the column that carries
         // the page header and scroll viewport. The height is one theme token,
         // and the decision to use it comes from the typed state alone.
-        property <length> dock-band-height: MobileDockBandProjection.reserves_band(root.mobile-dock-band-state)
+        out property <length> dock-band-height: MobileDockBandProjection.reserves_band(root.mobile-dock-band-state)
             ? LumenTheme.bottom-bar-band-height
             : 0 * LumenUiScale.unit;
         // The air the page body keeps for itself, and it is a CHROME fact.
@@ -73,10 +73,10 @@ export component AppBody inherits Rectangle {
         // and it is exactly why the framed list pages' frame floated above a
         // band of nothing while their sibling frames filled the page. The
         // dock band is still subtracted exactly once, by the column above.
-        property <length> page-content-padding-top: root.compact-layout
+        out property <length> page-content-padding-top: root.compact-layout
             ? 0 * LumenUiScale.unit
             : 8 * LumenUiScale.unit;
-        property <length> page-content-padding-bottom: root.compact-layout
+        out property <length> page-content-padding-bottom: root.compact-layout
             ? 0 * LumenUiScale.unit
             : 72 * LumenUiScale.unit;
         // The height one page body may use. The page scroll viewport is the
