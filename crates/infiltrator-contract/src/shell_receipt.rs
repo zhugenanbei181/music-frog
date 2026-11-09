@@ -34,10 +34,11 @@ pub const CHROME_PREFIX: &str = "CAPTURE_CHROME";
 /// same list in `page-structure.json`, the writer below emits exactly it, and
 /// the judge refuses a frame that does not carry all of it: a partially
 /// described frame is not judged by remembered numbers, it is reported.
-pub const CHROME_KEYS: [&str; 8] = [
+pub const CHROME_KEYS: [&str; 9] = [
     "nav_form",
     "nav_column_px",
     "nav_stack_bottom_px",
+    "nav_content_offset_px",
     "page_margin_px",
     "shell_top_air_px",
     "shell_bottom_air_px",
@@ -67,12 +68,26 @@ pub const CHROME_KEYS: [&str; 8] = [
 /// bottom below it. A receipt that breaks the pair describes a shell that
 /// painted something it cannot account for, and the judge reports it.
 ///
+/// `nav_content_offset_px` is the other edge of a labelled column: the ground
+/// between the column's left edge and the first glyph box, the leading the rows
+/// give away before they paint anything. Only a labelled column has one - an
+/// icon rail centres its glyphs in the column, so it states 0 rather than a
+/// number no rule could judge - and the pair is checked the same way the column
+/// and the stack end are. b158 measured this leading by hand (32px of 240,
+/// 13.3%) against FlClash's shipped scene (icon box 7.2dp, label ink 44.1dp of
+/// a 220dp pane) and its source derivation (12dp / 48dp), and registered it as
+/// `SPACEUTIL-010`: the value was not wrong because the reference differs, it
+/// was wrong because nothing measured it. The shell now answers with the
+/// shipped pair (8px and 44px), and the judge holds the leading to
+/// `MAX_NAV_LEADING_SHARE_PCT` of the column it already reserved.
+///
 /// Every field is consumed by the reader, and every one is a fact this frame
 /// observed rather than a stage: `nav_form` is the typed navigation the shell
 /// mounted, `nav_column_px` is the width that form really reserved (0 for a
 /// bar) and `nav_stack_bottom_px` is where its rows stop, the three paddings
-/// are the page body's own box, `dock_band_px` is the band the bar reserved,
-/// and `scale_percent` says the unit the rest were measured in. Nothing here is
+/// are the page body's own box, `nav_content_offset_px` is the leading inside
+/// the column, `dock_band_px` is the band the bar reserved, and
+/// `scale_percent` says the unit the rest were measured in. Nothing here is
 /// kept "in case" a reader wants it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -80,6 +95,7 @@ pub struct ShellChromeFacts {
     pub nav_form: SidebarForm,
     pub nav_column_px: u16,
     pub nav_stack_bottom_px: u16,
+    pub nav_content_offset_px: u16,
     pub page_margin_px: u16,
     pub shell_top_air_px: u16,
     pub shell_bottom_air_px: u16,
@@ -97,15 +113,26 @@ impl ShellChromeFacts {
         self.dock_band_px > 0
     }
 
+    /// Whether this frame's form indents its rows from the column's left edge.
+    ///
+    /// A labelled column publishes the leading it gives away; an icon rail
+    /// centres its glyphs in the column, so it has no leading to state and
+    /// reports 0. The pair is one fact seen from two edges: a form that labels
+    /// its destinations states a leading, a form that does not states 0.
+    pub const fn insets_nav_content(self) -> bool {
+        matches!(self.nav_form, SidebarForm::Standard | SidebarForm::Wide)
+    }
+
     /// The marker line for this frame, one key per declared name, in order.
     pub fn to_marker_line(&self) -> String {
         format!(
-            "{CHROME_PREFIX} nav_form={} nav_column_px={} nav_stack_bottom_px={} page_margin_px={} \
-             shell_top_air_px={} shell_bottom_air_px={} dock_band_px={} \
-             scale_percent={}\n",
+            "{CHROME_PREFIX} nav_form={} nav_column_px={} nav_stack_bottom_px={} \
+             nav_content_offset_px={} page_margin_px={} shell_top_air_px={} \
+             shell_bottom_air_px={} dock_band_px={} scale_percent={}\n",
             self.nav_form.id(),
             self.nav_column_px,
             self.nav_stack_bottom_px,
+            self.nav_content_offset_px,
             self.page_margin_px,
             self.shell_top_air_px,
             self.shell_bottom_air_px,
@@ -148,11 +175,12 @@ impl ShellChromeFacts {
             nav_form: nav_form?,
             nav_column_px: fields[1],
             nav_stack_bottom_px: fields[2],
-            page_margin_px: fields[3],
-            shell_top_air_px: fields[4],
-            shell_bottom_air_px: fields[5],
-            dock_band_px: fields[6],
-            scale_percent: fields[7],
+            nav_content_offset_px: fields[3],
+            page_margin_px: fields[4],
+            shell_top_air_px: fields[5],
+            shell_bottom_air_px: fields[6],
+            dock_band_px: fields[7],
+            scale_percent: fields[8],
         })
     }
 }
@@ -161,14 +189,16 @@ impl ShellChromeFacts {
 mod tests {
     use super::*;
     use crate::page_structure::chrome_marker_keys;
-    use crate::responsive_viewport::TIERS;
+    use crate::responsive_viewport::{TIERS, ViewportTier};
 
     fn sample(form: SidebarForm) -> ShellChromeFacts {
         let column = form.width_px().unwrap_or(0);
+        let labelled = matches!(form, SidebarForm::Standard | SidebarForm::Wide);
         ShellChromeFacts {
             nav_form: form,
             nav_column_px: column,
             nav_stack_bottom_px: if column > 0 { 398 } else { 0 },
+            nav_content_offset_px: if labelled { 12 } else { 0 },
             page_margin_px: 16,
             shell_top_air_px: 0,
             shell_bottom_air_px: 0,
@@ -277,6 +307,50 @@ mod tests {
                 "{form:?} reserves a band exactly when it mounts a bar"
             );
         }
+    }
+
+    #[test]
+    fn the_leading_is_published_exactly_by_the_forms_that_indent_their_rows() {
+        // The other edge of the column, and the pair is checked the same way:
+        // a labelled column indents its rows, so it must state the leading it
+        // gives away; an icon rail centres its glyphs and has no leading, so
+        // stating one would describe a shell that painted something the form
+        // does not own.
+        for form in [
+            SidebarForm::BottomNav,
+            SidebarForm::Rail,
+            SidebarForm::Standard,
+            SidebarForm::Wide,
+        ] {
+            let facts = sample(form);
+            assert_eq!(
+                facts.nav_content_offset_px > 0,
+                facts.insets_nav_content(),
+                "{form:?} states a leading exactly when it labels its rows"
+            );
+        }
+    }
+
+    #[test]
+    fn the_published_leading_is_inside_its_own_column_budget() {
+        // SPACEUTIL-010: the leading was never measured, only inherited from
+        // the era when a status card used to nest inside the column. The
+        // budget is a share of the column and the numbers are pinned here so
+        // moving either one has to argue in this test.
+        for tier in TIERS {
+            let facts = sample(tier.sidebar_form());
+            assert!(
+                facts.nav_content_offset_px <= tier.nav_leading_limit_px(),
+                "{} keeps {}px of leading inside a {}-wide column",
+                tier.id(),
+                facts.nav_content_offset_px,
+                tier.nav_column_px()
+            );
+        }
+        assert_eq!(ViewportTier::Compact.nav_leading_limit_px(), 0);
+        assert_eq!(ViewportTier::Medium.nav_leading_limit_px(), 0);
+        assert_eq!(ViewportTier::Expanded.nav_leading_limit_px(), 19);
+        assert_eq!(ViewportTier::Ultra.nav_leading_limit_px(), 22);
     }
 
     #[test]

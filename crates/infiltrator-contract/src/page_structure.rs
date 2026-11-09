@@ -127,7 +127,7 @@ pub fn page_structure_json() -> String {
     })
     .collect();
     format!(
-        "{{\"version\":5,\"pages\":[{}],\"slugs\":[{}],\"tiers\":{},\"chrome_keys\":{}}}\n",
+        "{{\"version\":6,\"pages\":[{}],\"slugs\":[{}],\"tiers\":{},\"chrome_keys\":{}}}\n",
         pages.join(","),
         slugs.join(","),
         tiers_json(),
@@ -268,6 +268,11 @@ pub struct TierFact {
     /// The widest column this tier may reserve - the shell's own share limit.
     /// The judge and the Slint guard read it so the ratio standard lives once.
     pub max_nav_column_px: u16,
+    /// The widest leading the tier's own column may keep, or 0 when the form
+    /// centres its glyphs instead of indenting them. Exported as a limit rather
+    /// than a share percentage so the judge compares two numbers instead of
+    /// re-deriving the same arithmetic a second time.
+    pub nav_leading_limit_px: u16,
     pub labelled_sidebar: bool,
     pub proxy_node_columns: usize,
     pub overview_card_columns: usize,
@@ -284,6 +289,7 @@ impl TierFact {
             touch_nav_form: tier.shell_navigation(true).id(),
             nav_column_px: tier.nav_column_px(),
             max_nav_column_px: tier.max_nav_column_px(),
+            nav_leading_limit_px: tier.nav_leading_limit_px(),
             labelled_sidebar: tier.has_labelled_sidebar(),
             proxy_node_columns: tier.proxy_grid_columns(false),
             overview_card_columns: tier.overview_card_columns(),
@@ -378,6 +384,12 @@ mod tests {
                 fact.nav_column_px,
                 fact.max_nav_column_px
             );
+            assert_eq!(
+                fact.nav_leading_limit_px > 0,
+                fact.labelled_sidebar,
+                "{} budgets a leading exactly when it labels its rows",
+                fact.id
+            );
         }
         // The bottom-navigation tier has no vertical column at all. The rail
         // tier does reserve one - 64px of icon-only navigation - and it is not
@@ -386,7 +398,12 @@ mod tests {
         assert_eq!(facts[0].nav_column_px, 0);
         assert_eq!(facts[0].max_nav_column_px, 0);
         assert_eq!(facts[1].nav_column_px, 64);
+        assert_eq!(facts[1].nav_leading_limit_px, 0);
         assert!(!facts[1].labelled_sidebar);
+        // A labelled column indents its rows, so it budgets 8% of the column
+        // it already reserved: 240 -> 19, 280 -> 22.
+        assert_eq!(facts[2].nav_leading_limit_px, 19);
+        assert_eq!(facts[3].nav_leading_limit_px, 22);
         // A touch surface never gets the rail, at any tier.
         for fact in facts.iter() {
             assert_eq!(fact.touch_nav_form, "bottom_nav");
@@ -397,7 +414,7 @@ mod tests {
     fn the_exported_document_carries_the_ladder() {
         let json = page_structure_json();
         let document: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
-        assert_eq!(document["version"], 5);
+        assert_eq!(document["version"], 6);
         // The chrome vocabulary travels with the ladder it describes, so a
         // reader that has the document already has the key list.
         assert_eq!(
@@ -413,6 +430,7 @@ mod tests {
             "scale_percent"
         );
         assert_eq!(document["chrome_keys"][2], "nav_stack_bottom_px");
+        assert_eq!(document["chrome_keys"][3], "nav_content_offset_px");
         let tiers = document["tiers"].as_array().expect("the exported ladder");
         assert_eq!(tiers.len(), TIERS.len());
         assert_eq!(tiers[2]["id"], "expanded");
@@ -421,6 +439,8 @@ mod tests {
         assert_eq!(tiers[1]["nav_form"], "rail");
         assert_eq!(tiers[1]["nav_column_px"], 64);
         assert_eq!(tiers[1]["max_nav_column_px"], 72);
+        assert_eq!(tiers[1]["nav_leading_limit_px"], 0);
+        assert_eq!(tiers[2]["nav_leading_limit_px"], 19);
         assert_eq!(tiers[1]["touch_nav_form"], "bottom_nav");
         assert_eq!(tiers[3]["max_width_px"], serde_json::Value::Null);
         assert_eq!(tiers[0]["labelled_sidebar"], false);

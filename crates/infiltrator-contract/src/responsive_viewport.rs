@@ -52,6 +52,28 @@ pub const MAX_LABELLED_COLUMN_SHARE_PCT: f64 = 30.0;
 /// the tier below it, which is exactly the defect FlClash refuses to ship.
 pub const LABELLED_CONTENT_FLOOR_PX: u16 = COMPACT_MAX_PX as u16;
 
+/// The share of a labelled column that may be spent on the nav content's own
+/// leading (the ground between the column's left edge and the first glyph).
+///
+/// FlClash answers this twice and both answers fit: its shipped scene measures
+/// an icon box at 7.2dp and a label ink at 44.1dp inside a 220dp column (this
+/// shell copies that pair, 8px and 44px), while its source derives the roomier
+/// 12dp / 48dp from `min(12, (48 - 40) / 2)` plus `(40 - 24) / 2` - 5.5%. An
+/// 8% ceiling therefore admits either reading and still rejects a leading that
+/// spends more of the column than the reference ever does. It is deliberately a
+/// share rather than a fixed number of pixels: a wider column earns a wider
+/// leading, and a leading that outgrows the share is ground the column paid for
+/// twice.
+pub const MAX_NAV_LEADING_SHARE_PCT: f64 = 8.0;
+
+/// The widest leading a labelled column of `column_px` may keep.
+///
+/// The judge reads this through the exported share limit rather than keeping a
+/// copy of the number, the same way it reads the column ceiling.
+pub const fn column_leading_limit_px(column_px: u16) -> u16 {
+    share_limit(column_px, MAX_NAV_LEADING_SHARE_PCT)
+}
+
 /// `share_pct` of `lower_px`, truncated to whole pixels.
 const fn share_limit(lower_px: u16, share_pct: f64) -> u16 {
     (lower_px as f64 * share_pct / 100.0) as u16
@@ -185,6 +207,19 @@ impl ViewportTier {
         match self.sidebar_form().width_px() {
             Some(width) => width,
             None => 0,
+        }
+    }
+
+    /// The widest leading this tier's own column may keep.
+    ///
+    /// A rail centres its glyphs in the column, so it has no leading to budget
+    /// and states 0; a labelled column indents its rows and is held to
+    /// [`MAX_NAV_LEADING_SHARE_PCT`] of the column it already reserved.
+    pub const fn nav_leading_limit_px(self) -> u16 {
+        if self.has_labelled_sidebar() {
+            column_leading_limit_px(self.nav_column_px())
+        } else {
+            0
         }
     }
 

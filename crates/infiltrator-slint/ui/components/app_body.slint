@@ -49,6 +49,13 @@ export component AppBody inherits Rectangle {
         // pane leaves it at 0 - which is what the receipt's invariant requires.
         in-out property <length> nav-stack-bottom;
 
+        // The leading the mounted pane gives away inside its column, in window
+        // pixels: the ground between the column's left edge and its first glyph
+        // box. The pane pads its rows with this same value, so the receipt and
+        // the painted pixels cannot disagree; a rail centres its glyphs and a
+        // bar has no column, so both leave it at 0.
+        in-out property <length> nav-content-offset;
+
         // One horizontal rhythm for the page body. Compact used to fork this per
         // page (Home 24, AppSettings 10, everything else 16), which meant three
         // pages could not share a left edge even though the reference phone
@@ -348,6 +355,7 @@ export component AppBody inherits Rectangle {
             active-destination: root.active-destination;
             navigate-to(target) => { root.navigate(target); }
             nav-stack-bottom <=> root.nav-stack-bottom;
+            nav-content-offset <=> root.nav-content-offset;
         }
 
         main-panel := Rectangle {

@@ -185,9 +185,9 @@ def main() -> int:
         print(f"viewport ladder export is missing: {EXPORT.relative_to(ROOT)}", file=sys.stderr)
         return 1
     document = json.loads(EXPORT.read_text(encoding="utf-8"))
-    if document.get("version") != 5:
+    if document.get("version") != 6:
         print(
-            "page-structure.json is not the ladder-bearing version 5 export; "
+            "page-structure.json is not the ladder-bearing version 6 export; "
             "rerun export_page_structure",
             file=sys.stderr,
         )

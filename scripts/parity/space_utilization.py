@@ -79,8 +79,9 @@ CHROME_PREFIX = "CAPTURE_CHROME"
 # The chrome vocabulary a planted export must carry, kept in step with the
 # contract by `test_ladder_and_chrome_keys_agree` below.
 CHROME_KEYS_FOR_TEST = [
-    "nav_form", "nav_column_px", "nav_stack_bottom_px", "page_margin_px",
-    "shell_top_air_px", "shell_bottom_air_px", "dock_band_px", "scale_percent",
+    "nav_form", "nav_column_px", "nav_stack_bottom_px", "nav_content_offset_px",
+    "page_margin_px", "shell_top_air_px", "shell_bottom_air_px", "dock_band_px",
+    "scale_percent",
 ]
 
 ROW_INK_FRACTION = 0.04
@@ -128,6 +129,20 @@ def ladder_problems() -> list[str]:
         problems.append(
             "page-structure.json carries no chrome vocabulary; the frames' "
             "CAPTURE_CHROME lines cannot be checked against a declared key list")
+    if any("nav_leading_limit_px" not in entry for entry in tiers):
+        # The leading budget travels with the ladder that owns the column, so
+        # an export predating SPACEUTIL-010 cannot judge the axis at all: the
+        # judge refuses rather than comparing against a remembered number.
+        problems.append(
+            "the exported ladder carries no nav_leading_limit_px; "
+            "rerun export_page_structure")
+    for entry in tiers:
+        limit = entry.get("nav_leading_limit_px")
+        labelled = bool(entry.get("labelled_sidebar"))
+        if (limit is None) or ((limit > 0) != labelled):
+            problems.append(
+                f"the exported {entry['id']} tier budgets {limit}px of leading "
+                f"while its labelled_sidebar is {labelled}")
     if tiers[0]["min_width_px"] != 0:
         problems.append("the exported ladder's smallest tier does not start at 0")
     if tiers[-1]["max_width_px"] is not None:
@@ -228,6 +243,11 @@ def owns_nav_column(chrome: dict) -> bool:
 def nav_stack_bottom_px(chrome: dict) -> int:
     """Where the shell measured its navigation stack ending, in page pixels."""
     return int(chrome["nav_stack_bottom_px"])
+
+
+def nav_content_offset_px(chrome: dict) -> int:
+    """The leading the shell gives away inside its column, in page pixels."""
+    return int(chrome["nav_content_offset_px"])
 
 
 def band_is_window_overlay(image: np.ndarray, ink: np.ndarray,
@@ -514,12 +534,15 @@ def write_debt(document: dict, path: pathlib.Path = DEBT_FILE) -> None:
 def chrome_findings(results: list[dict]) -> list[str]:
     """Every frame must describe its own chrome, and agree with the ladder.
 
-    Three refusals, all of the same kind: a frame that says nothing about its
+    Four refusals, all of the same kind: a frame that says nothing about its
     chrome cannot be measured, a frame whose numbers contradict the ladder
     measured a decision no contract made (the column the shell reserved against
     the column the tier owns), and a frame that reserved a bottom band while
     mounting a form with no bar is the exact defect SPACEUTIL-006 was written
-    for. None of these are judged by remembered numbers.
+    for. The fourth is SPACEUTIL-010: a labelled column states the leading it
+    gives away, and the tier's exported budget - not a number this judge
+    remembers - says how much of the column that may be. None of these are
+    judged by remembered numbers.
     """
     found: list[str] = []
     for entry in results:
@@ -532,6 +555,7 @@ def chrome_findings(results: list[dict]) -> list[str]:
             )
             continue
         fact = tier_fact(entry["tier"])
+        form = nav_form(chrome)
         if int(chrome["nav_column_px"]) != int(fact["nav_column_px"]):
             found.append(
                 f"{entry['scenario']}: the shell reserved {chrome['nav_column_px']}px of "
@@ -555,6 +579,26 @@ def chrome_findings(results: list[dict]) -> list[str]:
                 f"with a stack bottom of {bottom}px - the column and the stack end are "
                 "one fact seen from two edges, and a receipt that states one without the "
                 "other describes geometry it cannot account for"
+            )
+        offset = nav_content_offset_px(chrome)
+        limit = int(fact.get("nav_leading_limit_px", 0))
+        if bool(fact.get("labelled_sidebar")):
+            if offset <= 0:
+                found.append(
+                    f"{entry['scenario']}: the {form} column labels its rows but states "
+                    "no leading, so how much of the column it gives away before the "
+                    "first glyph is unmeasured"
+                )
+            elif offset > limit:
+                found.append(
+                    f"{entry['scenario']}: the {form} column gives away {offset}px of "
+                    f"leading inside its {fact['nav_column_px']}px column, but the tier "
+                    f"budgets {limit}px - ground the column already paid for twice"
+                )
+        elif offset > 0:
+            found.append(
+                f"{entry['scenario']}: a {offset}px leading with form {form}, which "
+                "centres its glyphs in the column instead of indenting them"
             )
         if int(chrome["scale_percent"]) != 100:
             found.append(
@@ -713,6 +757,7 @@ def _chrome(width: int, height: int, **override) -> dict:
         "nav_form": form,
         "nav_column_px": int(fact["nav_column_px"]),
         "nav_stack_bottom_px": 0 if form == "bottom_nav" else (488 if labelled else 398),
+        "nav_content_offset_px": 12 if labelled else 0,
         "page_margin_px": 30 if labelled else 16,
         "shell_top_air_px": 8 if labelled else 0,
         "shell_bottom_air_px": 72 if labelled else 0,
@@ -1007,6 +1052,35 @@ class SelfTest(unittest.TestCase):
         self.assertTrue(any("one fact seen from two edges" in item for item in found),
                         found)
 
+    def test_a_leading_over_the_exported_budget_is_reported(self) -> None:
+        # SPACEUTIL-010: a labelled column may not give away more of its own
+        # width than the tier budgets. 32px was the value b158 measured by hand
+        # (13.3% of 240 against a 8% budget), so it must fail here.
+        entry = self.measure_one(_desktop_body(),
+                                 chrome=_chrome(1180, 780, nav_content_offset_px=32))
+        found = chrome_findings([entry])
+        self.assertTrue(any("already paid for twice" in item for item in found), found)
+        budget = int(tier_fact("expanded")["nav_leading_limit_px"])
+        keeps = self.measure_one(_desktop_body(),
+                                 chrome=_chrome(1180, 780, nav_content_offset_px=budget))
+        self.assertEqual(chrome_findings([keeps]), [])
+
+    def test_a_labelled_column_without_a_leading_is_reported(self) -> None:
+        # Half of the pair: a pane that labels its rows states the leading it
+        # gives away, so stating none leaves that axis unmeasured.
+        entry = self.measure_one(_desktop_body(),
+                                 chrome=_chrome(1180, 780, nav_content_offset_px=0))
+        found = chrome_findings([entry])
+        self.assertTrue(any("states no leading" in item for item in found), found)
+
+    def test_a_rail_may_not_claim_a_leading(self) -> None:
+        # The other half: an icon rail centres its glyphs in the column, so a
+        # nonzero leading describes geometry the form does not own.
+        entry = self.measure_one(_canvas(720, 480), chrome=_chrome(720, 480,
+                                                                  nav_content_offset_px=12))
+        found = chrome_findings([entry])
+        self.assertTrue(any("centres its glyphs" in item for item in found), found)
+
     def test_a_published_batch_is_required_to_judge(self) -> None:
         empty = self.root / "nothing"
         empty.mkdir()
@@ -1039,10 +1113,12 @@ class SelfTest(unittest.TestCase):
             "tiers": [
                 {"id": "compact", "min_width_px": 0, "max_width_px": 500,
                  "nav_form": "bottom_nav", "nav_column_px": 0,
+                 "max_nav_column_px": 0, "nav_leading_limit_px": 0,
                  "labelled_sidebar": False, "proxy_node_columns": 1,
                  "overview_card_columns": 1, "fallback_ground_limit_pct": 8.0},
                 {"id": "expanded", "min_width_px": 500, "max_width_px": None,
                  "nav_form": "standard", "nav_column_px": 200, "max_nav_column_px": 200,
+                 "nav_leading_limit_px": 16,
                  "labelled_sidebar": True, "proxy_node_columns": 3,
                  "overview_card_columns": 2, "fallback_ground_limit_pct": 12.0},
             ],

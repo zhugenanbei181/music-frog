@@ -46,6 +46,15 @@ fn a_cold_frame_states_the_bar_it_mounts_and_the_band_it_reserves() {
         facts.nav_column_px > 0,
         "the column and the stack end are one fact seen from two edges"
     );
+    assert_eq!(
+        facts.nav_content_offset_px, 0,
+        "a bar indents nothing, so it states no leading either"
+    );
+    assert_eq!(
+        facts.nav_content_offset_px > 0,
+        facts.insets_nav_content(),
+        "the leading is published exactly by the form that labels its rows"
+    );
     assert!(facts.reserves_dock_band(), "{facts:?}");
     assert_eq!(
         facts.page_margin_px, 16,

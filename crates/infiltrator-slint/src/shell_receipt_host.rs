@@ -45,6 +45,7 @@ pub fn shell_chrome_facts(window: &AppWindow) -> ShellChromeFacts {
         nav_form: to_contract_form(chrome.nav_form),
         nav_column_px: length_px(chrome.nav_column),
         nav_stack_bottom_px: length_px(chrome.nav_stack_bottom),
+        nav_content_offset_px: length_px(chrome.nav_content_offset),
         page_margin_px: length_px(chrome.page_margin),
         shell_top_air_px: length_px(chrome.shell_top_air),
         shell_bottom_air_px: length_px(chrome.shell_bottom_air),

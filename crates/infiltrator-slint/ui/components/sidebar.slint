@@ -27,6 +27,20 @@ export component DesktopSideBar inherits Rectangle {
     // receipt's invariant requires.
     in-out property <length> nav-stack-bottom;
 
+    // The leading this pane gives away before it paints anything, in window
+    // coordinates: the ground between the column's left edge and the first
+    // glyph box. The rows are padded with this same property, so the fact the
+    // receipt publishes and the geometry the pane paints cannot drift apart
+    // (`SPACEUTIL-010`). A rail centres its glyphs in the column instead of
+    // indenting them, so it states 0; the receipt's pair rule is that a form
+    // which labels its rows is the form that states a leading.
+    in-out property <length> nav-content-offset;
+    init => {
+        root.nav-content-offset = root.labelled
+            ? LumenTheme.rail-content-leading
+            : 0 * LumenUiScale.unit;
+    }
+
     // The stack's extent is the last destination row's own bottom edge, and
     // only that row publishes it. b157 measured every alternative against the
     // real frames before landing here:
@@ -82,7 +96,7 @@ export component DesktopSideBar inherits Rectangle {
             // list is eight glyphs tall and the groups are readable from the
             // dashboard, so the heading only costs the rail its last rows.
             if root.labelled && (index == 0 || root.navigation-items[index - 1].group != item.group): HorizontalLayout {
-                padding-left: LumenTheme.rail-content-leading;
+                padding-left: root.nav-content-offset;
                 padding-top: LumenTheme.rail-section-gap;
                 padding-bottom: LumenTheme.space-1;
                 Text {
@@ -136,7 +150,7 @@ export component DesktopSideBar inherits Rectangle {
                 }
 
                 HorizontalLayout {
-                    padding-left: root.labelled ? LumenTheme.rail-content-leading : 0 * LumenUiScale.unit;
+                    padding-left: root.nav-content-offset;
                     padding-right: root.labelled ? LumenTheme.rail-item-padding : 0 * LumenUiScale.unit;
                     spacing: LumenTheme.rail-label-gap;
                     width: parent.width;

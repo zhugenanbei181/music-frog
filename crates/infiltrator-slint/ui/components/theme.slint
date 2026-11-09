@@ -447,22 +447,30 @@ export global LumenTheme {
     //        version line that used to sit here were second copies of facts the
     //        title bar and the dashboard already own, which is why the judge holds
     //        this column to `chrome_band` 0% instead of measuring their air;
-    //   x32  nav content - a labelled row pads its content by `rail-content-leading`
-    //        (2 x `rail-item-padding`), so its 24u icon box starts there and its
-    //        label starts at x68 (32 + icon 24 + `rail-label-gap` 12), all measured
-    //        on a published frame. A group heading reads the same token, so it heads
-    //        those icons instead of becoming a stray row of its own;
+    //   x8   nav content - a labelled row pads its content by `rail-content-leading`
+    //        (`space-2`), so its 24u icon box starts there and its label starts at
+    //        x44 (8 + icon 24 + `rail-label-gap` 12). Two readings of the reference
+    //        bracket the value and the shipped one wins: its scene measures the icon
+    //        box at 7.2dp and the label ink at 44.1dp (429px pane over 220dp), which
+    //        this pair reproduces within 1u, while the source derives a roomier
+    //        12dp/48dp (`min(12, (48 - 40) / 2) + (40 - 24) / 2`). The value used to
+    //        be 2 x `rail-item-padding` (32u, 13.3% of the column) - a leftover of
+    //        the era when a status card nested inside the column, never measured
+    //        against anything; b158 registered `SPACEUTIL-010` for it and the audit
+    //        here is what closed it. A group heading reads the same token, so it
+    //        heads those icons instead of becoming a stray row of its own;
     //   x0   selected state - the wash and the 3u indicator start at the column edge
     //        and span the row; the empty right side of a selected row is breathing
     //        room, not dead air.
-    // That leading is a leftover of the card era and is not yet adjudicated against
-    // the reference: measured on FlClash's desktop scene the icon ink starts 9.2dp
-    // from the pane edge (icon box about 8dp) and its label at 44dp, against our 32u
-    // and 68u in a 240u column. Registered as SPACEUTIL-010 so the next slice
-    // measures this axis instead of guessing at it.
+    // The leading is now a judged fact rather than a remembered one: the pane
+    // publishes `nav-content-offset` with every frame, and the judge holds it to
+    // `MAX_NAV_LEADING_SHARE_PCT` (8% of the column the tier already reserved,
+    // exported per tier as `nav_leading_limit_px`; 240 -> 19u). 8u spends 3.3% of
+    // the column, and the roomier source reading (12u, 5.5%) still fits the budget,
+    // so the rule rejects only a leading that has outgrown the column.
     out property <length> rail-inset: 18 * LumenUiScale.unit;
     out property <length> rail-item-padding: space-4;
-    out property <length> rail-content-leading: 2 * root.rail-item-padding;
+    out property <length> rail-content-leading: space-2;
     // Desktop navigation geometry, one owner. The selected state is a
     // full-width wash plus a narrow indicator, matching the FlClash desktop
     // reference; there is no content-width capsule in the rail.

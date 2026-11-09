@@ -44,6 +44,10 @@ y455–492 / y546–579，间距约 88–91px。
 （44u 行 + 4u 间距）。两侧数字逐条可对：参照物 429px/1.95 = 220dp 对 240u、
 80px/1.95 = 41dp 选中带对 44u、88–91px/1.95 = 45–47dp 行距对 48u。
 
+补测（b159，同一张图同一把尺子 429px/220dp = 1.950）：选中带实测 x4–421（≈2.1–215.9dp，
+即几乎满列、两端约 2dp 的圆角内缩）、折叠钮 x10–89（5.1–45.6dp，恰为 `sideInset` 4 + 40dp 宽）；
+第二行字形盒起于 **7.2dp**、标签墨迹 **44.1dp**。
+
 上游源码常量（`sidebar.dart`）：`_compactWidth=48`、`_expandedWidth=220`、`_itemSize=40`、
 `_itemGap=4`、`_iconSize=24`、`_labelGap=12`、`_indicatorWidth=3`、`_indicatorHeight=16`；
 选中态为 `selectedFill = onSurface.withOpacity(0.08)` **铺满整行**，外加 3dp 宽的
@@ -54,6 +58,7 @@ primary 色竖向指示条（16dp 高，随选中项动画移动），没有强�
 | 侧栏内容 | 纯 5–8 项导航 + 折叠钮 | 只有导航：`for item in navigation-items` 渲染 8 项 + 两个分组标题，状态卡/品牌块/速率/版本行已删 | **求同（已落地）**：统计归仪表盘，标题栏与仪表盘是这些事实的单一真源；判定器 `chrome_band` 0% 把这条钉成门禁（导航栈之下不得有任何区块） |
 | 选中态 | 全宽 8% 底 + 3dp 指示条 | 全宽 `nav-selected-fill`（text-primary 8%）+ 3u 宽 16u 高指示条；b145 的 120u 强调色胶囊已废 | **求同（已落地）**：`pill_tail` 判据作废，右侧空地按合法呼吸位测量 |
 | 行几何 | 40dp 高 / 4dp 间距 / 24dp 图标 / 12dp 标签间隙；行内墨迹带 37–40px（19–21dp），即两侧各约 10dp 空气；参照物实测 5 行 | 44u 高 / 4u 间距 / 24u 图标 / 12u 标签间隙 / 3u×16u 指示条（`LumenTheme` 一处令牌，无第二套列规格）；行内图标墨迹 22u，即两侧各 11u 空气；本仓轨道实测 8 项 | **求同 + 一处存异（b158 实测裁决，见 §2.1）**：间距、图标、标签间隙、指示条四项与上游同数；行高 **保留 44u**，理由是三条实测量而不是观感——① 参照物那 40dp 行里的墨迹只有 19–21dp，两侧各约 10dp 空气，本仓 44u 行内 22u 墨迹给出 11u 空气；**落到 40u 会把两侧空气压到 9u，比参照物更紧**；② 40u 在这条栈上少用 32u，而 `rail-row-height` 在桌面**没有内容消费者**（实测 0 处非 compact `NavButton` 实例），这 32u 全部变成导航列内部地面，判定器按 `void` 记账（实测 6.2% → 10.0%，上限 12%，预算占用 52% → 83%），`chrome_band` 两种行高都是 0.0%；③ 本仓轨道 8 项对参照物实测 5 行，同一行高差在更长的栈上代价更大。**所以 40dp 不可移植：它在参照物里是对的，在本仓会更紧且更空。** |
+| 列内起始边界（leading） | 字形盒起于列缘 7.2dp、标签墨迹 44.1dp（场景实测）；源码推导为 12dp / 48dp（`min(12,(48−40)/2) + (40−24)/2`） | b158 实测 x32（= 2 × `rail-item-padding`）、标签 x68，占 240u 列的 13.3%，是状态卡时代的嵌套遗留，从未被任何判据审过 | **求同（b159 落地，`SPACEUTIL-010`）**：令牌改 `space-2`（8u），得字形盒 x8、标签 x44 —— **与场景实测的 7.2dp / 44.1dp 逐条对齐在 1u 内**（比源码推导的 12dp/48dp 更贴真实发布物）；列现在逐帧发布 `nav_content_offset_px`，判定器按导出的 `nav_leading_limit_px`（列宽的 8%，240 → 19u）判定，源码那组较宽松的读法（12u，5.5%）仍在预算内 |
 | 导航项来源 | `NavigationPort.getItems()` typed 列表 + `modes` | `shell_navigation::NavigationItem::items(surface)` typed 注册表（`NavigationSurface::{Desktop, Dock}` 即上游 `modes`），投影为 `NavigationSlot`（id/label/group/group-label/icon 语义名）供侧栏纯消费 | **求同（b146 已落地）**：字面量清单已删；侧栏不读任何业务快照，图标只经设计权威的 canonical 名 |
 | 折叠 | `expanded` / `compactWidth=48` 两档；`canExpandSidebar` 只在 desktop 档放行标签 | `compact-layout` 一处布尔兼职决定「有无侧栏」 | **求同（b153 推翻 b145 的「存异」判断）**：上游按档给形态，本仓同样由契约给——`compact` 底部导航、`medium` 64px 图标轨、`expanded/ultra` 带标签列。b145 当时以「避免过度工程」为由拒绝桌面折叠档，实测代价是同一 720×480 窗口在 Iced 得竖轨、在 Slint 得横栏，短窗口多付一整条 72u 底部带（480 行的 15%）；真源早已裁决（契约 `SidebarForm::Rail`），缺的是组件而非理由，故按上游补齐 |
 | 标签何时出现 | `labelOpacity = (progress − 0.4)/0.6`，轨形态不画标签，靠 tooltip 补 | 与上游同判：`ViewportLadder.labelled_sidebar(tier)` 决定行内是否画标签与分组标题 | **求同**：轨形态只画图标（图标 24u 居中、选中全宽淡底 + 3u 指示条），标签与分组标题留给带标签列 |

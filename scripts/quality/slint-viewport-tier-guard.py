@@ -79,6 +79,12 @@ THEME_TOKEN = re.compile(r"out property <[a-z]+> ([a-z0-9-]+):")
 # Each call by which the sidebar publishes where its navigation stack ends.
 PUBLISH_STACK_BOTTOM = re.compile(
     r"root\.publish-stack-bottom\(([^;]*)\);")
+# Each assignment by which the sidebar publishes its own leading, and the
+# property the rows are padded with. The two are one fact: a pane that states a
+# leading it does not paint with would describe geometry it never drew.
+PUBLISH_NAV_LEADING = re.compile(
+    r"root\.nav-content-offset = ([^;]*);")
+PADS_FROM_NAV_LEADING = "padding-left: root.nav-content-offset"
 LADDER_RESERVE = {"zinc-6", "zinc-7"}
 
 # Every dashboard fact value asks one shared role, in both tiers. The pairs are
@@ -219,7 +225,7 @@ def ladder_findings(ui: pathlib.Path) -> list[str]:
     adapter_code = mask_comments(adapter)
 
     # The adapter must be the generator's own output, not a hand edit.
-    expected = generator_module().slint_ladder({"version": 5, "tiers": tiers})
+    expected = generator_module().slint_ladder({"version": 6, "tiers": tiers})
     if adapter != expected:
         found.append(
             "components/viewport-ladder.slint is not the generated adapter; "
@@ -371,6 +377,8 @@ def receipt_findings(ui: pathlib.Path) -> list[str]:
          "lumen-app.slint: the shell no longer publishes the chrome it paints"),
         ("nav-stack-bottom: app-body.nav-stack-bottom",
          "lumen-app.slint: the receipt no longer reports the measured nav-stack bottom"),
+        ("nav-content-offset: app-body.nav-content-offset",
+         "lumen-app.slint: the receipt no longer reports the leading the pane gives away"),
         ("page-margin: app-body.page-margin",
          "lumen-app.slint: the receipt no longer reports the page margin the body binds"),
         ("shell-bottom-air: app-body.page-content-padding-bottom",
@@ -384,6 +392,11 @@ def receipt_findings(ui: pathlib.Path) -> list[str]:
         found.append(
             "components/app_body.slint: the pane's measured stack end no longer "
             "reaches the shell's receipt"
+        )
+    if "nav-content-offset <=> root.nav-content-offset" not in body_code:
+        found.append(
+            "components/app_body.slint: the pane's own leading no longer reaches "
+            "the shell's receipt"
         )
     # Every publish call must state the row's bottom edge in window pixels. A
     # call that publishes a pane-relative height, or a spacer's offset, is the
@@ -410,7 +423,7 @@ def receipt_findings(ui: pathlib.Path) -> list[str]:
                 "the frame carries"
             )
         remembered = re.findall(
-            r"^[A-Z][A-Z_]*(?:MARGIN|AIR|BAND)_PX = \d+", text, re.M)
+            r"^[A-Z][A-Z_]*(?:MARGIN|AIR|BAND|LEADING|OFFSET)_PX = \d+", text, re.M)
         if remembered:
             found.append(
                 f"space_utilization.py: the judge keeps chrome geometry again "
@@ -421,6 +434,27 @@ def receipt_findings(ui: pathlib.Path) -> list[str]:
                 "space_utilization.py: the judge guesses the stack end from a "
                 "fraction of the window height again; the frame's receipt states it"
             )
+    # The pane's leading is published and painted from one property. A pane that
+    # pads from the token directly would leave the receipt free to drift away
+    # from the pixels it describes.
+    leading_publishes = PUBLISH_NAV_LEADING.findall(rail_code)
+    if not leading_publishes:
+        found.append(
+            "components/sidebar.slint: the sidebar no longer publishes the leading "
+            "it gives away, so that axis is unmeasured again (SPACEUTIL-010)"
+        )
+    else:
+        for argument in leading_publishes:
+            if "labelled" not in argument or "rail-content-leading" not in argument:
+                found.append(
+                    "components/sidebar.slint: a nav leading publish neither reads "
+                    f"the token nor asks whether the column labels its rows ({argument.strip()})"
+                )
+    if rail_code.count(PADS_FROM_NAV_LEADING) < 2:
+        found.append(
+            "components/sidebar.slint: a nav row no longer pads itself with the "
+            "published leading, so the receipt states a number the pixels never used"
+        )
     return found
 
 def enum_variants(name: str) -> list[str]:
@@ -853,6 +887,50 @@ class GuardSelfTest(unittest.TestCase):
 
     def test_live_tree_is_clean(self) -> None:
         self.assertEqual(violations(UI), [])
+
+    def test_a_sidebar_that_stops_publishing_its_leading_is_caught(self) -> None:
+        """SPACEUTIL-010: the leading is a published fact, not a token the judge
+        is expected to remember."""
+        sidebar = (UI / "components/sidebar.slint").read_text(encoding="utf-8")
+        planted = sidebar.replace(
+            "        root.nav-content-offset = root.labelled\n"
+            "            ? LumenTheme.rail-content-leading\n"
+            "            : 0 * LumenUiScale.unit;",
+            "",
+            1,
+        )
+        self.assertNotEqual(sidebar, planted)
+        findings = self._findings_with({"sidebar.slint": planted})
+        self.assertTrue(
+            any("no longer publishes the leading" in item for item in findings), findings)
+
+    def test_a_sidebar_that_pads_from_the_token_is_caught(self) -> None:
+        """The receipt and the pixels must be one property, not two readings."""
+        sidebar = (UI / "components/sidebar.slint").read_text(encoding="utf-8")
+        planted = sidebar.replace(
+            "padding-left: root.nav-content-offset;",
+            "padding-left: LumenTheme.rail-content-leading;",
+        )
+        self.assertNotEqual(sidebar, planted)
+        findings = self._findings_with({"sidebar.slint": planted})
+        self.assertTrue(
+            any("no longer pads itself with the published leading" in item
+                for item in findings), findings)
+
+    def test_a_judge_that_remembers_the_leading_is_caught(self) -> None:
+        # The leading budget travels with the ladder; a constant here would be a
+        # second copy of the standard, exactly like the paddings b154 retired.
+        judge = ROOT / "scripts/parity/space_utilization.py"
+        text = judge.read_text(encoding="utf-8")
+        planted = text.replace(
+            "ROW_INK_FRACTION = 0.04",
+            "NAV_LEADING_PX = 12\nROW_INK_FRACTION = 0.04",
+            1,
+        )
+        self.assertNotEqual(text, planted)
+        findings = self._findings_with({"space_utilization.py": planted})
+        self.assertTrue(
+            any("keeps chrome geometry again" in item for item in findings), findings)
 
     def test_parallel_dock_wip_does_not_hide_typography_and_columns(self) -> None:
         findings = violations(UI, dock_checks=False)
