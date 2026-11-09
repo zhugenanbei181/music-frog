@@ -1583,6 +1583,9 @@ msgstr "English"
 msgid "布局密度"
 msgstr "Layout density"
 
+msgid "capability_not_registered"
+msgstr "This capability is not registered for the current host"
+
 msgid "来源"
 msgstr "Source"
 

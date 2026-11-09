@@ -38,6 +38,18 @@
 | 7 | 部分 | L | 彻底清除全仓 part1/part2/part3 无语义命名，重构为高内聚强语义模块（reset_recovery_and_migration、owner_switch_and_recovery、cross_process_concurrency、workspace_recovery_and_reset_tests）；文件级模块化完成（scanned=2891 violations=0，kt-line scanned=227 violations=0）；mod.rs 清退至 0；隐式状态机语义审计 + 判决台账常驻（23 条候选 0 undecided 0 open）；rem 体系 0 违规 0 debt；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | `check-structure.sh` 40+ 结构守卫、单测与工具链全部 exit 0；`cargo fmt --all --check` 0 偏差；六包定向 nextest 2179/2179 全绿；Clippy 6 包 `--all-targets -D warnings` 零警告；`screenshot-identity-guard` 550 张截图 10 aliases 0 违规；`scrollbar-contract-guard` 0 违规；`shared-copy-guard` 0 违规；`i18n-guard` 0 违规 |
 
+## 最近一批问答（2026-11-10 第一百六十五交付批次：未登记能力原因成为共享 typed key / 中英文界面都不再漏出英文原文）
+
+1. x86_64/aarch64：本批改中性 contract key、共享文案表、产品 `.po`、Android 三语言资源、presentation 纯投影、Slint 消费端与离线守卫，无平台专用代码/wire 形状变更；`cargo nextest run -p infiltrator-contract -p infiltrator-presentation -p infiltrator-shared -p infiltrator-slint -j 2` **1413/1413 passed**、守卫 `--self-test` 3 项 planted 全咬为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 产物未随本批复跑，`C`/`D` 待补证 → 部分（L）。
+2. Windows/Linux/macOS：本机 Linux 完成四包定向 nextest、格式检查与独立守卫；整批 Slint 像素回执按文字身份变化重采后复核，Windows/macOS 构建腿与安装包未复跑，macOS 沿用既有 `Unsupported` 登记（GAP-2.2） → 部分（L）。
+3. Android/iOS：本批同步 Android `values`/`values-zh-rCN`/`values-zh-rTW` 三份 `strings.xml`，未跑 Android 构建腿；三 flavor 实机交互回执与 iOS 回执仍按既有条目留在外部环境看板，不升级 → 部分（L）。
+4. 各 UI：Slint 的 TUN 能力详情不再直接显示 raw reason，改读 `capability_reason_projection::reason_copy`；Iced/Bevy 继续消费同一 `Availability` 契约，其 owner 自己发布的不透明原因不变，本批未改任何页面布局 → 部分（L）。
+5. 复用：`CapabilityReason::NotRegistered.key()` 是底层唯一稳定身份，`SharedCopyKey::CapabilityNotRegistered` 是唯一文案 key；shared zh/en 双表、产品 `.po`、Android 三语言资源由 `shared-copy-guard.py` 与 `i18n-guard.py` 交叉校验，presentation 是唯一 key → 文案投影，Slint 只消费该投影；owner 原文不做二次翻译 → 完整（L）。
+5a. 设计资源强制标准：本批不改字体/字重/图标/主题/几何，变化是用户可见文案；`design-resource-authority.py` 保持 0 违规，按文字身份变化整批重采 197 帧 `20261109T200718Z_909bf2372d4b_dirty_3053331`（429s）并刷新别名摘要，`screenshot-identity` 与 `receipt-freshness` 复核为零违规 → 完整（L）。
+6. 各处界面的功能接入：四包定向 1413/1413、守卫 enforce findings=0、shared-copy/i18n 双门 0 违规；`resolve_surface_evidence.py` 与全仓 nextest/clippy 仍受另一会话 Bevy WIP 阻塞，不冒充本批通过 → 部分（L）。
+7. 模块化：typed reason 归 contract、文案 key 归 `shared_copy`、资源归 shared/PO/Android、投影归 presentation、消费归 Slint、结构不变量归单一守卫；没有新增 bool/Option 阶段，也没有跨 UI 私有业务推导 → 完整（L）。
+8. CI 与批次效率：开发期只跑四包定向 nextest 与三方 Python 守卫，收尾期一次整批 197 帧重采与结构门；全仓统一验证和 5 条 `Integrated` 办结仍待另一会话 WIP 落地后由收口方一次跑完，严格交付率保持 **92.5%** → 部分（L）。
+
 ## 最近一批问答（2026-11-10 第一百六十四交付批次：FlClash 桌面侧栏的无标题导航节奏成为契约策略 / 整批 197 帧重采）
 
 1. x86_64/aarch64：本批新增中性 Rust 契约模块、导出物、Python 生成器/守卫、Slint 几何与文档，不写平台专用代码或 wire；`cargo nextest run -p infiltrator-contract -j 2` **571/571**、`cargo nextest run -p infiltrator-slint -j 2` **383/383**、`cargo check -q -p infiltrator-slint` 通过为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 产物未随本批复跑，`C`/`D` 待补 → 部分（L）。

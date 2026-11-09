@@ -17,6 +17,7 @@ pub(super) fn translate_shared_copy_en(key: &str) -> Cow<'static, str> {
         "dismiss_probe_batch" => "Close".into(),
         "layout_density" => "Layout density".into(),
         "a11y_value_prefix" => "{label}: {value}".into(),
+        "capability_not_registered" => "This capability is not registered for the current host".into(),
         _ => key.to_string().into(),
     }
 }

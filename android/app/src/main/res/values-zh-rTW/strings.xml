@@ -274,4 +274,5 @@
     <string name="dismiss_probe_batch">關閉</string>
     <string name="layout_density">版面密度</string>
     <string name="a11y_value_prefix">%1$s：%2$s</string>
+    <string name="capability_not_registered">目前宿主未登錄此能力</string>
 </resources>

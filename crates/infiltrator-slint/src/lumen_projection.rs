@@ -30,6 +30,7 @@ use infiltrator_contract::shell_navigation::{
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_contract::system_proxy::SystemProxyRecoveryStatus;
 use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
+use infiltrator_presentation::capability_reason_projection::reason_copy;
 use infiltrator_presentation::overview_page_model::{
     OverviewHost, OverviewNetworkStatus, OverviewPageModel,
 };
@@ -247,7 +248,9 @@ pub(super) fn project_snapshot(
     let tun_detail = match tun_availability {
         Availability::Supported => lang.tr("宿主支持 TUN").into_owned(),
         Availability::Experimental => lang.tr("TUN 为实验性能力").into_owned(),
-        Availability::Unsupported { reason } | Availability::Unavailable { reason } => reason,
+        Availability::Unsupported { reason } | Availability::Unavailable { reason } => {
+            reason_copy(&reason, &lang)
+        }
     };
     window.set_tun_capability_detail(tun_detail.into());
     window.set_home_current_node(active_node.clone().into());

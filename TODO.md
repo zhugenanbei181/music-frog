@@ -84,6 +84,7 @@
 | **未办结联合分母** | **40** | **102** |
 
 - **严格交付率：1,258 / 1,360 = 92.5%**（archived 1,258pt / archived 1,258 + 未办结 102pt）。
+- 2026-11-10 第一百六十五交付批次（能力原因共享本地化）：把 `CapabilitySnapshot` 未登记能力的英文原文改为 typed `CapabilityReason::NotRegistered.key()`，经 `SharedCopyKey`、shared zh/en 双表、产品 `.po`、Android 三语言资源与 presentation 唯一投影抵达 Slint；新增离线守卫钉死「契约不得回流英文原文 / 表面不得直显 raw reason」。定向四包 nextest **1413/1413**、守卫 3 项 planted 全咬、shared-copy/i18n 双门 0 违规；整批 197 帧重采发布 `20261109T200718Z_909bf2372d4b_dirty_3053331`（429s）并刷新摘要。全仓验证与 5 条 `Integrated` 仍待另一会话 WIP 落地后统一收口；严格交付率与未办结分母保持 **1,258 / 1,360 = 92.5%**。
 - 2026-11-10 第一百六十四交付批次（FlClash 桌面侧栏无标题导航节奏）：对照
   `docs/reference/flclash-desktop/flclash-desktop-dashboard.png` 与
   `prism_ui/lib/sidebar.dart` 的 `Column(destinations.indexed)`，确认上游侧栏没有

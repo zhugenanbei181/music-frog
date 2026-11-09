@@ -1582,6 +1582,9 @@ msgstr "English"
 msgid "布局密度"
 msgstr "布局密度"
 
+msgid "capability_not_registered"
+msgstr "当前宿主未登记此能力"
+
 msgid "来源"
 msgstr "来源"
 

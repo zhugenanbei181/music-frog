@@ -292,4 +292,5 @@
     <string name="dismiss_probe_batch">Close</string>
     <string name="layout_density">Layout density</string>
     <string name="a11y_value_prefix">%1$s: %2$s</string>
+    <string name="capability_not_registered">This capability is not registered for the current host</string>
 </resources>

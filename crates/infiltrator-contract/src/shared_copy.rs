@@ -18,10 +18,11 @@ pub enum SharedCopyKey {
     DismissProbeBatch,
     LayoutDensity,
     A11yValuePrefix,
+    CapabilityNotRegistered,
 }
 
 impl SharedCopyKey {
-    pub const ALL: [Self; 13] = [
+    pub const ALL: [Self; 14] = [
         Self::AppName,
         Self::AppDisplayName,
         Self::AboutBrandNote,
@@ -35,6 +36,7 @@ impl SharedCopyKey {
         Self::DismissProbeBatch,
         Self::LayoutDensity,
         Self::A11yValuePrefix,
+        Self::CapabilityNotRegistered,
     ];
 
     pub const fn key(self) -> &'static str {
@@ -52,6 +54,7 @@ impl SharedCopyKey {
             Self::DismissProbeBatch => "dismiss_probe_batch",
             Self::LayoutDensity => "layout_density",
             Self::A11yValuePrefix => "a11y_value_prefix",
+            Self::CapabilityNotRegistered => "capability_not_registered",
         }
     }
 }
@@ -70,6 +73,7 @@ pub const SHARED_COPY_KEYS: [&str; SharedCopyKey::ALL.len()] = [
     SharedCopyKey::DismissProbeBatch.key(),
     SharedCopyKey::LayoutDensity.key(),
     SharedCopyKey::A11yValuePrefix.key(),
+    SharedCopyKey::CapabilityNotRegistered.key(),
 ];
 
 #[cfg(test)]
@@ -84,5 +88,6 @@ mod tests {
         assert_eq!(SHARED_COPY_KEYS.len(), SharedCopyKey::ALL.len());
         assert!(SHARED_COPY_KEYS.contains(&"brand_name"));
         assert!(SHARED_COPY_KEYS.contains(&"a11y_value_prefix"));
+        assert!(SHARED_COPY_KEYS.contains(&"capability_not_registered"));
     }
 }

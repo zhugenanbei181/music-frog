@@ -17,6 +17,7 @@ pub(super) fn translate_shared_copy_zh(key: &str) -> Cow<'static, str> {
         "dismiss_probe_batch" => "关闭".into(),
         "layout_density" => "布局密度".into(),
         "a11y_value_prefix" => "{label}：{value}".into(),
+        "capability_not_registered" => "当前宿主未登记此能力".into(),
         _ => key.to_string().into(),
     }
 }

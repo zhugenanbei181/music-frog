@@ -150,6 +150,8 @@ python3 scripts/quality/parity-coverage-guard.py --self-test
 python3 scripts/quality/parity-coverage-guard.py --mode enforce
 python3 scripts/quality/flclash-core-parity-guard.py --self-test
 python3 scripts/quality/flclash-core-parity-guard.py --mode enforce
+python3 scripts/quality/capability-reason-localization-guard.py --self-test
+python3 scripts/quality/capability-reason-localization-guard.py
 python3 scripts/quality/platform-evidence-guard.py --self-test
 python3 scripts/quality/platform-evidence-guard.py --mode enforce
 python3 scripts/platform/build-evidence-matrix.py --check

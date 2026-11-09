@@ -203,7 +203,7 @@ pub mod yaml_snippets;
 
 #[cfg(test)]
 mod tests {
-    use super::capability::{Availability, CapabilitySnapshot, CapabilityStatus};
+    use super::capability::{Availability, CapabilityReason, CapabilitySnapshot, CapabilityStatus};
     use super::command::{CommandIntent, CommandKind, CoreLogLevel};
     use super::ipv6::Ipv6RoutingSnapshot;
     use super::lan::LanCredentials;
@@ -275,6 +275,11 @@ mod tests {
         assert!(matches!(
             capabilities.availability(Capability::SystemProxy),
             Availability::Unsupported { .. }
+        ));
+        assert!(matches!(
+            capabilities.availability(Capability::SystemProxy),
+            Availability::Unsupported { reason }
+                if reason == CapabilityReason::NotRegistered.key()
         ));
     }
 
