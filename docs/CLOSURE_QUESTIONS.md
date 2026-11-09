@@ -41,14 +41,14 @@
 ## 最近一批问答（2026-11-10 第一百六十六交付批次：FlClash 仪表盘密度按页身裁决 / 三态下沉共享契约 / Slint 纯消费导出查表）
 
 1. x86_64/aarch64：本批只改中性 Rust 契约与导出、Python 生成器/守卫、Slint 组件消费与参考文档，不写平台专用代码或 wire；`cargo nextest run -p infiltrator-contract` 两项定向新增用例通过、`cargo run --bin export_page_structure` 生成 version 9、生成链 `--check` fresh、守卫与判定器自测为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 产物未随本批复跑，`C`/`D` 待补证 → 部分（L）。
-2. Windows/Linux/macOS：本机 Linux 台架完成契约测试、导出、生成、守卫、45 项判定器 planted 与 197 帧空间判定；本批不改像素、不重采，Windows/macOS 构建腿与安装包未复跑，macOS 沿用既有 `Unsupported` 登记（GAP-2.2） → 部分（L）。
+2. Windows/Linux/macOS：本机 Linux 台架完成契约测试、导出、生成、守卫、45 项判定器 planted 与 197 帧空间判定；Linux 台架按密度身份变化整批 197 帧重采发布 `20261109T211847Z_a7a2c705124d_dirty_3344529`（606s），Windows/macOS 构建腿与安装包未复跑，macOS 沿用既有 `Unsupported` 登记（GAP-2.2） → 部分（L）。
 3. Android/iOS：新增密度查表由 Slint 桌面网格消费，手机单列流与 Android/iOS 表面不读该桌面分支；本批未跑 Android 构建腿，三 flavor 实机交互回执与 iOS 回执仍按既有条目留在外部环境看板 → 部分（L）。
 4. 各 UI：Slint 的 `home_desktop_grid.slint` 把 `dense` 从「导航是否有标签」改读页身 `DashboardDensity`；Iced/Bevy 仍消费同一契约阶梯且不拥有桌面 span 网格，本批不改其页面布局；Android 继续走既有手机流 → 部分（L）。
 5. 复用：`DashboardDensity` 三态与 `640/860/1040/824/560` 阈值唯一归 `responsive_viewport`，`page_structure` 唯一导出 `dashboard_density`，生成器唯一写入 `ViewportLadder.dashboard_density/dashboard_is_compact`，Slint 唯一消费 typed 结论；`slint-viewport-tier-guard.py` 同时钉导出词表、三态、消费链与「私有导航推导回流」 → 完整（L）。
-5a. 设计资源强制标准：本批不改字体/字重/图标/主题/几何/可见文案，只迁移密度真源；三档采集帧的 `dense` 结果与迁移前一致，沿用发布批 `20261109T200718Z_909bf2372d4b_dirty_3053331`，`receipt-freshness 0`、`screenshot-identity 574/10/0`、`design-resource-authority.py` 保持 0 违规 → 完整（L）。
-6. 各处界面的功能接入：定向契约测试、两组表面守卫 planted 32/32 与 6/6、判定器 45/45、`--check-export` current、`--enforce` 197 帧 violations=0 为 `L`；`resolve_surface_evidence.py` 与全仓 nextest/clippy 仍受另一会话 Bevy WIP 阻塞，不冒充本批通过 → 部分（L）。
+5a. 设计资源强制标准：本批不改字体面/字重/图标/主题资产，但按页身密度改变字号角色、间距与卡片 placement；整批 197 帧重采 `20261109T211847Z_a7a2c705124d_dirty_3344529`，首版实测把 4-share 桌面退回 2-share 后按真实场景拆开 `compact-metrics` 与 `wrap-cards`，复核最终短窗口帧恢复四份额、右侧无半页死地；`receipt-freshness 0`、`screenshot-identity 574/10/0`、`design-resource-authority.py` 0 违规 → 完整（L）。
+6. 各处界面的功能接入：两包定向 nextest **957/957**、两组表面守卫 planted 33/33 与 6/6、判定器 45/45、`--check-export` current、最终发布批 `--enforce` 197 帧 violations=0 为 `L`；`resolve_surface_evidence.py` 与全仓 nextest/clippy 仍受另一会话 Bevy WIP 阻塞，不冒充本批通过 → 部分（L）。
 7. 模块化：策略归 contract、导出归 exporter、表面词汇归 `viewport_tier.slint`、查表归生成器、消费归 `home_desktop_grid.slint`、结构不变量归守卫、对标裁决归 L2/L3 文档；没有新增 bool/Option 隐式阶段，也没有跨 UI 私有业务推导 → 完整（L）。
-8. CI 与批次效率：开发期只跑两包定向测试、导出/生成与三方 Python 守卫，收尾期一次重跑 197 帧空间判定；因像素身份不变省下一次 197 帧重采。全仓统一验证与 5 条 `Integrated` 办结仍待另一会话 WIP 落地后由收口方一次跑完，严格交付率保持 **92.5%** → 部分（L）。
+8. CI 与批次效率：开发期只跑两包定向测试、导出/生成与三方 Python 守卫，收尾期为修正短窗口密度与份额混淆，按身份变化完成两次整批 197 帧重采，最终一次发布并集中复核全部回执门。全仓统一验证与 5 条 `Integrated` 办结仍待另一会话 WIP 落地后由收口方一次跑完，严格交付率保持 **92.5%** → 部分（L）。
 
 1. x86_64/aarch64：本批改中性 contract key、共享文案表、产品 `.po`、Android 三语言资源、presentation 纯投影、Slint 消费端与离线守卫，无平台专用代码/wire 形状变更；`cargo nextest run -p infiltrator-contract -p infiltrator-presentation -p infiltrator-shared -p infiltrator-slint -j 2` **1413/1413 passed**、守卫 `--self-test` 3 项 planted 全咬为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 产物未随本批复跑，`C`/`D` 待补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 完成四包定向 nextest、格式检查与独立守卫；整批 Slint 像素回执按文字身份变化重采后复核，Windows/macOS 构建腿与安装包未复跑，macOS 沿用既有 `Unsupported` 登记（GAP-2.2） → 部分（L）。

@@ -363,7 +363,9 @@ def dashboard_density_findings(ui: pathlib.Path) -> list[str]:
     for needle in (
         "property <DashboardDensity> dashboard-density:",
         "ViewportLadder.dashboard_density(root.width, LumenTheme.page-body-height)",
-        "property <bool> dense: ViewportLadder.dashboard_is_compact(root.dashboard-density);",
+        "property <bool> compact-metrics:\n"
+        "        ViewportLadder.dashboard_is_compact(root.dashboard-density);",
+        "property <bool> wrap-cards: root.card-columns < 4;",
     ):
         if needle not in grid:
             found.append(
@@ -374,6 +376,11 @@ def dashboard_density_findings(ui: pathlib.Path) -> list[str]:
         found.append(
             "pages/home_desktop_grid.slint: dense is derived from the "
             "navigation form again; dashboard density owns card metrics"
+        )
+    if "root.compact-metrics ? 0 : 2" in grid or "root.compact-metrics ? 1 : 0" in grid:
+        found.append(
+            "pages/home_desktop_grid.slint: compact card metrics are driving "
+            "the span grid's row placement again; wrap-cards owns that fact"
         )
     return found
 
@@ -920,18 +927,32 @@ class GuardSelfTest(unittest.TestCase):
         """Card metrics are a page-room fact, not a side-column fact."""
         grid = (UI / "pages/home_desktop_grid.slint").read_text(encoding="utf-8")
         anchor = (
-            "property <bool> dense: "
+            "property <bool> compact-metrics:\n"
+            "        "
             "ViewportLadder.dashboard_is_compact(root.dashboard-density);"
         )
         assert anchor in grid, anchor
         planted = grid.replace(
             anchor,
-            "property <bool> dense: !ViewportLadder.labelled_sidebar(LumenTheme.viewport-tier);",
+            "property <bool> compact-metrics: !ViewportLadder.labelled_sidebar(LumenTheme.viewport-tier);",
             1,
         )
         findings = self._findings_with({"home_desktop_grid.slint": planted})
         self.assertTrue(
-            any("navigation form again" in item for item in findings), findings)
+            any("dashboard must consume the exported density scope" in item
+                for item in findings), findings)
+
+    def test_short_window_density_does_not_wrap_the_span_grid(self) -> None:
+        """A compact *metric* is not a two-share *column* decision."""
+        grid = (UI / "pages/home_desktop_grid.slint").read_text(encoding="utf-8")
+        anchor = "col: root.wrap-cards ? 0 : 2;"
+        assert anchor in grid, anchor
+        planted = grid.replace(
+            anchor, "col: root.compact-metrics ? 0 : 2;", 1)
+        findings = self._findings_with({"home_desktop_grid.slint": planted})
+        self.assertTrue(
+            any("span grid's row placement" in item for item in findings),
+            findings)
 
     def test_a_density_vocabulary_drift_is_caught(self) -> None:
         """The three exported states must survive into the Slint enum."""

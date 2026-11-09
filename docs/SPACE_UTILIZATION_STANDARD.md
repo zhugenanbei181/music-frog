@@ -222,6 +222,15 @@ standard`，再由 `DashboardDensityScope` 发布给所有卡片。四条可核�
 `LumenUiScale.unit`），也不把 640/1040/824 直接照搬成窗口档界——它们量的是
 **页身**，不是整个窗口。
 
+**b166 实测修正**：短窗口的 `compact` 密度**不得**兼任 span 网格的 2 份额开关。
+上游 `DashboardDensity.of(room)` 与 `dashboardColumnsOf(room.width)` 是两个独立
+裁决：780px 高帧会得 `compact`，但 940px 页身仍得四列。本仓第一版把
+`dense` 直接接 `dashboard_is_compact`，桌面帧因此从 4 份额退回 2 份额，右侧
+留下半页死地；逐像素复核后立即拆成 `compact-metrics`（字号、间距、控件高）
+与 `wrap-cards = card-columns < 4`（行列 placement）两个只读事实，并由
+`slint-viewport-tier-guard.py` 钉死两者不得互相代答。这正体现标准的比例硬门：
+不是按上游名字照抄，而是让上游的「短窗口紧凑」在本仓真实页身上仍然达标。
+
 ### 3.4 侧栏的横向起始边界同样受比例约束（b159 新增，SPACEUTIL-010）
 
 §3.3 管的是外壳**占掉多宽**，此处管的是外壳**在自己那一列里让出多少**：导航行

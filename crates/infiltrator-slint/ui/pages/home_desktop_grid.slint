@@ -59,7 +59,7 @@ export component HomeDesktopGrid inherits VerticalLayout {
     callback select-group(string);
 
     width: 100%;
-    spacing: root.dense ? LumenTheme.space-3 : LumenTheme.space-4;
+    spacing: root.compact-metrics ? LumenTheme.space-3 : LumenTheme.space-4;
     alignment: start;
 
     // FlClash publishes one `DashboardDensity` from the page body's own room
@@ -70,7 +70,15 @@ export component HomeDesktopGrid inherits VerticalLayout {
     // local alias for compact card metrics, not a second layout decision.
     property <DashboardDensity> dashboard-density:
         ViewportLadder.dashboard_density(root.width, LumenTheme.page-body-height);
-    property <bool> dense: ViewportLadder.dashboard_is_compact(root.dashboard-density);
+    // `compact-metrics` owns type/control density; `wrap-cards` owns whether
+    // a row pays two or four shares. FlClash keeps those two decisions apart:
+    // `DashboardDensity.of(room)` can be compact on a short window while
+    // `dashboardColumnsOf(room.width)` still answers four. Collapsing them
+    // into one `dense` boolean left half of a 1180x780 page empty in the
+    // first b166 recapture. Both facts come from generated contract lookups.
+    property <bool> compact-metrics:
+        ViewportLadder.dashboard_is_compact(root.dashboard-density);
+    property <bool> wrap-cards: root.card-columns < 4;
 
     // Row 1: Hero Card (50%) + Upload Card (25%) + Download Card (25%)
     // A non-wrapping row paid four column-shares even in the dense tier, which
@@ -79,7 +87,7 @@ export component HomeDesktopGrid inherits VerticalLayout {
     // them onto their own row, the same way row 3 already wraps its four cards.
     GridLayout {
         width: parent.width;
-        spacing: root.dense ? LumenTheme.space-3 : LumenTheme.space-4;
+        spacing: root.compact-metrics ? LumenTheme.space-3 : LumenTheme.space-4;
 
         // Hero Card (FlClash Style)
         SurfaceCard {
@@ -91,7 +99,7 @@ export component HomeDesktopGrid inherits VerticalLayout {
                 spacing: LumenTheme.card-content-gap;
                 HorizontalLayout {
                     horizontal-stretch: 1;
-                    spacing: root.dense ? LumenTheme.space-3 : LumenTheme.space-4;
+                    spacing: root.compact-metrics ? LumenTheme.space-3 : LumenTheme.space-4;
                     VerticalLayout {
                         horizontal-stretch: 1;
                         spacing: LumenTheme.space-2;
@@ -135,10 +143,10 @@ export component HomeDesktopGrid inherits VerticalLayout {
                         }
                         Text {
                             text: root.home-exit-ip;
-                            font-family: DesignType.family(root.dense ? TextRole.numericDense : TextRole.numericLarge);
+                            font-family: DesignType.family(root.compact-metrics ? TextRole.numericDense : TextRole.numericLarge);
                             color: LumenTheme.text-primary;
-                            font-size: DesignType.size(root.dense ? TextRole.numericDense : TextRole.numericLarge);
-                            font-weight: DesignType.weight(root.dense ? TextRole.numericDense : TextRole.numericLarge);
+                            font-size: DesignType.size(root.compact-metrics ? TextRole.numericDense : TextRole.numericLarge);
+                            font-weight: DesignType.weight(root.compact-metrics ? TextRole.numericDense : TextRole.numericLarge);
                             vertical-alignment: center;
                         }
                     }
@@ -191,8 +199,8 @@ export component HomeDesktopGrid inherits VerticalLayout {
 
         // Upload Card
         SurfaceCard {
-            col: root.dense ? 0 : 2;
-            row: root.dense ? 1 : 0;
+            col: root.wrap-cards ? 0 : 2;
+            row: root.wrap-cards ? 1 : 0;
             width: root.card-column-width;
             HorizontalLayout {
                 AppCardHeader {
@@ -206,10 +214,10 @@ export component HomeDesktopGrid inherits VerticalLayout {
             }
             Text {
                 text: root.stat-up;
-                font-family: DesignType.family(root.dense ? TextRole.numericDense : TextRole.numericLarge);
+                font-family: DesignType.family(root.compact-metrics ? TextRole.numericDense : TextRole.numericLarge);
                 color: LumenTheme.text-primary;
-                font-size: DesignType.size(root.dense ? TextRole.numericDense : TextRole.numericLarge);
-                font-weight: DesignType.weight(root.dense ? TextRole.numericDense : TextRole.numericLarge);
+                font-size: DesignType.size(root.compact-metrics ? TextRole.numericDense : TextRole.numericLarge);
+                font-weight: DesignType.weight(root.compact-metrics ? TextRole.numericDense : TextRole.numericLarge);
             }
             Text {
                 text: root.dashboard-facts.traffic-total-up;
@@ -226,8 +234,8 @@ export component HomeDesktopGrid inherits VerticalLayout {
 
         // Download Card
         SurfaceCard {
-            col: root.dense ? 1 : 3;
-            row: root.dense ? 1 : 0;
+            col: root.wrap-cards ? 1 : 3;
+            row: root.wrap-cards ? 1 : 0;
             width: root.card-column-width;
             HorizontalLayout {
                 AppCardHeader {
@@ -241,10 +249,10 @@ export component HomeDesktopGrid inherits VerticalLayout {
             }
             Text {
                 text: root.stat-down;
-                font-family: DesignType.family(root.dense ? TextRole.numericDense : TextRole.numericLarge);
+                font-family: DesignType.family(root.compact-metrics ? TextRole.numericDense : TextRole.numericLarge);
                 color: LumenTheme.accent;
-                font-size: DesignType.size(root.dense ? TextRole.numericDense : TextRole.numericLarge);
-                font-weight: DesignType.weight(root.dense ? TextRole.numericDense : TextRole.numericLarge);
+                font-size: DesignType.size(root.compact-metrics ? TextRole.numericDense : TextRole.numericLarge);
+                font-weight: DesignType.weight(root.compact-metrics ? TextRole.numericDense : TextRole.numericLarge);
             }
             Text {
                 text: root.dashboard-facts.traffic-total-down;
@@ -266,7 +274,7 @@ export component HomeDesktopGrid inherits VerticalLayout {
     // off the right edge of a 720-wide window.
     GridLayout {
         width: parent.width;
-        spacing: root.dense ? LumenTheme.space-3 : LumenTheme.space-4;
+        spacing: root.compact-metrics ? LumenTheme.space-3 : LumenTheme.space-4;
 
         // Outbound Mode Selector Card
         SurfaceCard {
@@ -287,9 +295,9 @@ export component HomeDesktopGrid inherits VerticalLayout {
                 Rectangle { horizontal-stretch: 1; background: transparent; }
                 HomeRouteModePills {
                     route-mode: root.route-mode;
-                    pill-width: root.dense ? 58 * LumenUiScale.unit : 72 * LumenUiScale.unit;
-                    pill-height: root.dense ? 28 * LumenUiScale.unit : 32 * LumenUiScale.unit;
-                    font-size: DesignType.size(root.dense ? TextRole.caption : TextRole.numericSmall);
+                    pill-width: root.compact-metrics ? 58 * LumenUiScale.unit : 72 * LumenUiScale.unit;
+                    pill-height: root.compact-metrics ? 28 * LumenUiScale.unit : 32 * LumenUiScale.unit;
+                    font-size: DesignType.size(root.compact-metrics ? TextRole.caption : TextRole.numericSmall);
                     select(mode) => { root.set-route-mode(mode); }
                 }
             }
@@ -297,8 +305,8 @@ export component HomeDesktopGrid inherits VerticalLayout {
 
         // System Proxy Switch Card
         SurfaceCard {
-            col: root.dense ? 0 : 2;
-            row: root.dense ? 1 : 0;
+            col: root.wrap-cards ? 0 : 2;
+            row: root.wrap-cards ? 1 : 0;
             width: root.card-column-width;
             HorizontalLayout {
                 horizontal-stretch: 1;
@@ -330,8 +338,8 @@ export component HomeDesktopGrid inherits VerticalLayout {
 
         // TUN Virtual Network Card Switch
         SurfaceCard {
-            col: root.dense ? 1 : 3;
-            row: root.dense ? 1 : 0;
+            col: root.wrap-cards ? 1 : 3;
+            row: root.wrap-cards ? 1 : 0;
             width: root.card-column-width;
             HorizontalLayout {
                 horizontal-stretch: 1;
@@ -370,7 +378,7 @@ export component HomeDesktopGrid inherits VerticalLayout {
     // per row instead of shrinking type to make a broken row fit.
     GridLayout {
         width: parent.width;
-        spacing: root.dense ? LumenTheme.space-3 : LumenTheme.space-4;
+        spacing: root.compact-metrics ? LumenTheme.space-3 : LumenTheme.space-4;
 
         // LAN IP Card
         SurfaceCard {
@@ -448,15 +456,15 @@ export component HomeDesktopGrid inherits VerticalLayout {
 
         // Service Health Card
         SurfaceCard {
-            col: root.dense ? 0 : 2;
-            row: root.dense ? 1 : 0;
+            col: root.wrap-cards ? 0 : 2;
+            row: root.wrap-cards ? 1 : 0;
             // This card carries four latency chips, so it needs the most room
             // of the four. Sharing one 330px column left every chip ~145px and
             // four-digit probes elided to "1679…"; in the dense tier it takes
             // the whole row instead, which is also how the reference keeps the
             // service matrix legible.
-            colspan: root.dense ? 2 : 1;
-            width: root.dense
+            colspan: root.wrap-cards ? 2 : 1;
+            width: root.wrap-cards
                 ? 2 * root.card-column-width + LumenTheme.overview-card-gap
                 : root.card-column-width;
             HorizontalLayout {
@@ -526,10 +534,10 @@ export component HomeDesktopGrid inherits VerticalLayout {
 
         // Memory Info Card
         SurfaceCard {
-            col: root.dense ? 0 : 3;
-            row: root.dense ? 2 : 0;
-            colspan: root.dense ? 2 : 1;
-            width: root.dense
+            col: root.wrap-cards ? 0 : 3;
+            row: root.wrap-cards ? 2 : 0;
+            colspan: root.wrap-cards ? 2 : 1;
+            width: root.wrap-cards
                 ? 2 * root.card-column-width + LumenTheme.overview-card-gap
                 : root.card-column-width;
             HorizontalLayout {
@@ -598,11 +606,11 @@ export component HomeDesktopGrid inherits VerticalLayout {
     // tile neatly in the remaining space.
     HorizontalLayout {
         width: parent.width;
-        spacing: root.dense ? LumenTheme.space-3 : LumenTheme.space-4;
+        spacing: root.compact-metrics ? LumenTheme.space-3 : LumenTheme.space-4;
 
         // Realtime Connections Card
         SurfaceCard {
-            horizontal-stretch: root.dense ? 1 : 13;
+            horizontal-stretch: root.compact-metrics ? 1 : 13;
             HomeConnectionMiniTable {
                 dashboard-facts: root.dashboard-facts;
                 connections: root.home-connection-table;
@@ -613,7 +621,7 @@ export component HomeDesktopGrid inherits VerticalLayout {
 
         // Policy Groups Card
         SurfaceCard {
-            horizontal-stretch: root.dense ? 1 : 8;
+            horizontal-stretch: root.compact-metrics ? 1 : 8;
             min-width: LumenTheme.policy-card-min-width;
             HomePolicyGroupGrid {
                 proxy-groups: root.proxy-groups;

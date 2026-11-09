@@ -145,6 +145,19 @@ b166 把三态与 `640 / 860 / 1040 / 824 / 560` 五个数字收进
 因此这次只换架构真源，不改卡片几何、不重采；未来要收紧短窗口卡片高度时，
 必须先给标准/compact 双视口真实像素回执再动视觉。
 
+**b166 发布帧实测复核（存异的关键一处）**：第一次把 `dense` 直接接到
+`dashboard_is_compact` 后，1180×780 帧页身高约 700u < 824，密度确实变
+`compact`，但 `dashboard_grid_shares` 仍按 940u 页身给 4 份额；旧 `dense`
+同时兼职「2 份额换行」，于是上传/下载与两个开关卡改用 2 份额 placement，
+整页右半变成死地。上游从不这么用密度：`dashboard.dart` 始终把
+`columns: dashboardColumnsOf(room.width)` 单独传给 `_DesktopDashboard`，
+`compact` 只改 `topHeight/controlHeight/middleHeight` 等卡片度量。故本仓把
+组件拆成 `compact-metrics`（typed density）与
+`wrap-cards = card-columns < 4`（导出的页宽份额）两个只读事实，并补守卫
+planted 禁止再用密度决定行 placement。整批 197 帧按该裁决发布后，短窗口
+恢复四份额，仍从同一 scope 取紧凑字号/间距；这是「按真实场景求同存异」，
+不是把上游常量照抄进 UI。
+
 ## 4. Core 能力面差距（求同抽象，b146 复核修订）
 
 上游 `CoreMethod` 约 60 个 `area.verb` 方法，登记在 `core/protocol.go`，
