@@ -38,6 +38,18 @@
 | 7 | 部分 | L | 彻底清除全仓 part1/part2/part3 无语义命名，重构为高内聚强语义模块（reset_recovery_and_migration、owner_switch_and_recovery、cross_process_concurrency、workspace_recovery_and_reset_tests）；文件级模块化完成（scanned=2891 violations=0，kt-line scanned=227 violations=0）；mod.rs 清退至 0；隐式状态机语义审计 + 判决台账常驻（23 条候选 0 undecided 0 open）；rem 体系 0 违规 0 debt；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | `check-structure.sh` 40+ 结构守卫、单测与工具链全部 exit 0；`cargo fmt --all --check` 0 偏差；六包定向 nextest 2179/2179 全绿；Clippy 6 包 `--all-targets -D warnings` 零警告；`screenshot-identity-guard` 550 张截图 10 aliases 0 违规；`scrollbar-contract-guard` 0 违规；`shared-copy-guard` 0 违规；`i18n-guard` 0 违规 |
 
+## 最近一批问答（2026-11-10 第一百六十二交付批次：侧栏 leading 的声明值必须与像素起笔相等 / 判定器新增像素级水平判据）
+
+1. x86_64/aarch64：本批只改判定器 Python、Slint 守卫 Python 与 L2 标准文档，零 Rust/契约/wire 改动，架构中性；`python3 -m py_compile` 两个脚本通过、`python3 scripts/parity/space_utilization.py --self-test` **45/45**、`python3 scripts/quality/slint-viewport-tier-guard.py --self-test` **30/30**、`bash scripts/quality/check-structure.sh` exit 0（含全部 quality unittests）为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 目标产物未随本批复跑，`C`/`D` 待补证 → 部分（L）。
+2. Windows/Linux/macOS：本机 Linux 台架复跑全部判定腿（`--enforce` 197 帧 violations=0、`--check-export` current、`receipt-freshness 0`、`screenshot-identity 574/10/0`、`doc-governance OK`、`closure-questions 8/8`）；本批不改像素、未重采，Windows/macOS 构建腿与安装包未复跑，macOS 沿用既有 `Unsupported` 登记（GAP-2.2） → 部分（L）。
+3. Android/iOS：像素判据只作用于桌面 capture 帧的带标签列，Android Slint flavor 与 iOS 不读不写该判据；本批未跑 Android 构建腿，三 flavor 实机交互回执与 iOS 回执按既有条目留在斗战胜佛/未来佛，不升级 → 部分（L）。
+4. 各 UI：本批不触任何表面代码，给判定器补上「声明的 leading 与画出来的 leading 是同一事实」的像素回读；发布批 197 帧中 123 个带标签帧实测起笔 x 分布 **8（120 帧）/ 9（3 帧）**，与逐帧回执 `nav_content_offset_px=8` 在 1px 内吻合，轨/横栏不缩进不受约束。Iced/Bevy/Android 继续消费既有契约，其既有回执仍是有效证据 → 部分（L）。
+5. 复用：判定入口仍唯一是 `scripts/parity/space_utilization.py`；窗口浮层排除复用 `rail_of` 已有的 `EDGE_SAMPLE_PX`/`EDGE_CONTINUITY_DELTA`/`EDGE_CONTINUOUS_FRACTION` 几何条件，未新增标题栏高度常量或第二套阈值；`slint-viewport-tier-guard.py` 同时钉死「判定器再写 `TITLE_HEIGHT` 即违规」 → 完整（L）。
+5a. 设计资源强制标准：本批无字型/字重/图标/主题/几何身份变化，不重采、不刷新别名；`design-resource-authority.py` 在结构门内 0 违规、`receipt-freshness violations=0`、`screenshot-identity 574/10/0` → 完整（L）。
+6. 各处界面的功能接入：`--enforce` 197 帧 violations=0（最差 `chrome_band` 0.0%、最差 `void` 6.2%、欠账台账 `frames` 为空），判定器六个模式与 45 项 planted 自测全绿，守卫 30/30；`resolve_surface_evidence.py` 仍被另一会话未提交的 Bevy WIP 阻塞（见台账第一百六十一批次行），未随本批复跑 → 部分（L）。
+7. 模块化：像素测量归 `painted_nav_leading()`、判定归 `leading_findings()`、装配归 `main()`，守卫只做结构词法校验；三者各一条职责，无新增布尔状态、无跨层私有推导，`SPACEUTIL-010` 的「预算」与「像素」两半由同一个判定器入口收口 → 完整（L）。
+8. CI 与批次效率：过程腿按定向原则跑（两个 Python 自测、判定器 enforce/export、四个守卫、py_compile），重型腿只跑一次 `check-structure.sh`（exit 0）；因不改像素身份，省下一次 197 帧重采（上批实测 422s）。严格交付率保持 **92.5%**，5 条 `Integrated` 待统一验证批次一并办结 → 部分（L）。
+
 ## 最近一批问答（2026-11-09 第一百六十交付批次：概览列数两种语义在契约分开 / span 网格改读导出的 860 页宽规则 / 像素结果不变）
 
 1. x86_64/aarch64：本批改共享契约、导出物、生成器、Slint 表面与守卫，架构中性；`cargo nextest run -p infiltrator-contract -p infiltrator-slint -j 2` **947 run / 947 passed / 0 skipped**（contract 564 = 562 + 两条 DashboardColumns 用例、slint 383）、`cargo clippy -p infiltrator-contract -p infiltrator-slint --all-targets -D warnings` exit 0、`cargo fmt --all --check` 0 偏差为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 目标产物未随本批复跑，`C`/`D` 待补证 → 部分（L）。

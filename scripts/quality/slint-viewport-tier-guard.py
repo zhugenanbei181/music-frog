@@ -426,6 +426,18 @@ def receipt_findings(ui: pathlib.Path) -> list[str]:
                 "space_utilization.py: the judge no longer reads the chrome line "
                 "the frame carries"
             )
+        if not ("def painted_nav_leading(" in text
+                and "leading_findings(results)" in text):
+            found.append(
+                "space_utilization.py: the declared leading is no longer held "
+                "against the pixels (SPACEUTIL-010); a budget-only judge would "
+                "accept a frame that states 8px and paints at 32px"
+            )
+        if re.search(r"(?:TITLE|title)[A-Z_]*HEIGHT\s*=\s*\d+", text):
+            found.append(
+                "space_utilization.py: the judge remembers a title-bar height "
+                "again; window overlays are excluded geometrically"
+            )
         remembered = re.findall(
             r"^[A-Z][A-Z_]*(?:MARGIN|AIR|BAND|LEADING|OFFSET)_PX = \d+", text, re.M)
         if remembered:
@@ -958,6 +970,18 @@ class GuardSelfTest(unittest.TestCase):
         findings = self._findings_with({"space_utilization.py": planted})
         self.assertTrue(
             any("keeps chrome geometry again" in item for item in findings), findings)
+
+    def test_a_judge_that_drops_the_painted_leading_leg_is_caught(self) -> None:
+        # SPACEUTIL-010's pixel half: removing either the measurement or the
+        # finding from enforcement would leave the declared leading unchecked.
+        judge = ROOT / "scripts/parity/space_utilization.py"
+        text = judge.read_text(encoding="utf-8")
+        planted = text.replace("def painted_nav_leading(", "def forgotten_leading(", 1)
+        planted = planted.replace("leading_findings(results)", "[]", 1)
+        self.assertNotEqual(text, planted)
+        findings = self._findings_with({"space_utilization.py": planted})
+        self.assertTrue(
+            any("no longer held against the pixels" in item for item in findings), findings)
 
     def test_a_span_grid_that_forgets_the_exported_lookup_is_caught(self) -> None:
         """SPACEUTIL-008: the 2/4 share grid reads a typed contract fact, not a

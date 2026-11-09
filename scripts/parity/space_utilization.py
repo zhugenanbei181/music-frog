@@ -274,6 +274,82 @@ def band_is_window_overlay(image: np.ndarray, ink: np.ndarray,
     return bool((continuous & reaches_edge).mean() >= EDGE_CONTINUOUS_FRACTION)
 
 
+def painted_nav_leading(image: np.ndarray, chrome: dict) -> int | None:
+    """Where the first navigation glyph actually starts inside the column.
+
+    A receipt that states a leading is a claim about pixels, so the judge
+    reads the pixels too. Strong ink (well above the 8% selected wash) in a
+    tall band is a glyph or a label; the 3u indicator at x0 is skipped, and
+    the first such band above the measured stack end answers. None means the
+    frame owns a column but painted no navigation in it, which the finding
+    reports rather than judging by a remembered offset.
+
+    The window's title bar crosses the column above the nav stack and carries
+    its own product label at a different x. It is a window overlay, not the
+    pane's first glyph: its ground continues unchanged past the column edge,
+    while a navigation row's pane ground stops there and the page body begins.
+    That is the same geometric test `rail_of` uses to keep a toast out of the
+    chrome band, so the judge remembers no title-bar height at all.
+    """
+    height, _, _ = image.shape
+    column = int(chrome["nav_column_px"])
+    bottom = nav_stack_bottom_px(chrome)
+    if column <= 0 or bottom <= 0:
+        return None
+    limit = min(bottom, height)
+    strip = image[:limit, 0:column].astype(int)
+    ground = np.median(image[height // 2, 4:10].reshape(-1, 3), axis=0)
+    ink = np.abs(strip - ground).max(axis=2) > 45
+    rows = ink.mean(axis=1) > 0.003
+    outside_x = min(image.shape[1] - 1, column + EDGE_SAMPLE_PX)
+    inside_x = max(0, column - EDGE_SAMPLE_PX)
+    for first, last in runs(rows):
+        if last - first + 1 < 8:
+            continue
+        inside = image[first:last + 1, inside_x].astype(int)
+        outside = image[first:last + 1, outside_x].astype(int)
+        continues = np.abs(inside - outside).sum(axis=1) <= EDGE_CONTINUITY_DELTA * 3
+        if continues.mean() >= EDGE_CONTINUOUS_FRACTION:
+            # A window overlay (title bar, notice banner, scrim): it crosses
+            # the column with the same colour on both sides of the edge.
+            continue
+        columns = np.where(ink[first:last + 1, 4:column].max(axis=0))[0]
+        if len(columns):
+            return int(columns.min()) + 4
+    return None
+
+
+def leading_findings(results: list[dict]) -> list[str]:
+    """The declared leading and the painted leading are the same fact.
+
+    `chrome_findings` holds the declared value to the exported budget; this
+    leg holds it to the pixels. A frame that claims 8px while painting its
+    glyphs at 32px would pass the budget and still waste the column's left
+    edge - exactly the SPACEUTIL-010 defect the budget alone cannot see. An
+    icon rail centres its glyphs rather than indenting them, so only labelled
+    columns are measured here.
+    """
+    found: list[str] = []
+    for entry in results:
+        chrome = entry.get("chrome")
+        if chrome is None or not bool(tier_fact(entry["tier"]).get("labelled_sidebar")):
+            continue
+        declared = nav_content_offset_px(chrome)
+        painted = entry.get("painted_nav_leading_px")
+        if painted is None:
+            found.append(
+                f"{entry['scenario']}: the labelled column states a {declared}px leading "
+                "but paints no navigation glyph, so the pixels cannot confirm it"
+            )
+        elif abs(painted - declared) > 4:
+            found.append(
+                f"{entry['scenario']}: the receipt states a {declared}px leading while "
+                f"the first glyph starts at x{painted} - the declared and painted "
+                "leading are one fact, not two"
+            )
+    return found
+
+
 def fallback_limit_pct(name: str) -> float:
     """The exported per-tier fallback, used only for a page with no shape."""
     return float(tier_fact(name)["fallback_ground_limit_pct"])
@@ -476,6 +552,9 @@ def measure(run: pathlib.Path) -> list[dict]:
         rail_info = rail_of(image, chrome)
         if rail_info:
             entry.update(rail_info)
+        if bool(tier_fact(entry["tier"]).get("labelled_sidebar")):
+            painted = painted_nav_leading(image, chrome)
+            entry["painted_nav_leading_px"] = painted
         out.append(entry)
     return out
 
@@ -740,6 +819,17 @@ def _desktop_body_dark() -> np.ndarray:
     _fill(image, 0, 780, 0, column, (20, 23, 27))
     _fill(image, 0, 780, column, 1180, (11, 13, 16))
     return image
+
+
+def _labelled_nav(image: np.ndarray, first_x: int = 8) -> None:
+    """Paint navigation glyphs starting at `first_x` in the labelled column.
+
+    The planted frame states its leading in the receipt; this helper is the
+    pixels that claim has to match, so a test can plant the two independently.
+    """
+    column = painted_nav_column(image.shape[1])
+    for y in (110, 158, 206, 254, 302, 350, 398, 446):
+        _fill(image, y, y + 20, first_x, min(first_x + 20, column), INK)
 
 
 def _chrome(width: int, height: int, **override) -> dict:
@@ -1081,6 +1171,50 @@ class SelfTest(unittest.TestCase):
         found = chrome_findings([entry])
         self.assertTrue(any("centres its glyphs" in item for item in found), found)
 
+    def test_the_painted_leading_must_match_the_declared_leading(self) -> None:
+        # SPACEUTIL-010's second half: the budget accepts 8px, but a frame
+        # that states 8px and paints at 32px is still wasting the column's
+        # left edge. chrome_findings alone cannot see this; the pixel leg can.
+        image = _desktop_body()
+        _labelled_nav(image, first_x=8)
+        honest = self.measure_one(image, chrome=_chrome(1180, 780, nav_content_offset_px=8))
+        self.assertEqual(leading_findings([honest]), [], honest)
+        lying = _desktop_body()
+        _labelled_nav(lying, first_x=32)
+        entry = self.measure_one(lying, chrome=_chrome(1180, 780, nav_content_offset_px=8))
+        self.assertEqual(chrome_findings([entry]), [], entry)
+        found = leading_findings([entry])
+        self.assertTrue(any("one fact, not two" in item for item in found), found)
+
+    def test_a_labelled_column_with_no_glyphs_is_reported(self) -> None:
+        # A receipt that states a leading in a column with no navigation ink
+        # describes pixels that were never painted; refuse instead of trusting
+        # the declaration.
+        entry = self.measure_one(_desktop_body(),
+                                 chrome=_chrome(1180, 780, nav_content_offset_px=8))
+        found = leading_findings([entry])
+        self.assertTrue(any("paints no navigation glyph" in item for item in found), found)
+
+    def test_the_painted_leading_leg_is_part_of_enforcement(self) -> None:
+        # The leg must not be a test-only ornament: the real enforcement chain
+        # has to include it. Pin the composition so removing it breaks here.
+        import inspect
+        source = inspect.getsource(main)
+        self.assertIn("leading_findings(results)", source)
+
+    def test_a_title_bar_crossing_the_column_is_not_a_nav_glyph(self) -> None:
+        # The title bar spans the whole window with the same ground on both
+        # sides of the column edge, so its product label must not be measured
+        # as the sidebar's leading. The judge uses that geometry, not a
+        # remembered title-bar height.
+        image = _desktop_body()
+        _fill(image, 0, 40, 0, 1180, (15, 17, 20))
+        _fill(image, 14, 26, 19, 60, INK)
+        _labelled_nav(image, first_x=8)
+        entry = self.measure_one(image, chrome=_chrome(1180, 780, nav_content_offset_px=8))
+        self.assertEqual(entry.get("painted_nav_leading_px"), 8, entry)
+        self.assertEqual(leading_findings([entry]), [], entry)
+
     def test_a_published_batch_is_required_to_judge(self) -> None:
         empty = self.root / "nothing"
         empty.mkdir()
@@ -1392,8 +1526,8 @@ def main(argv: list[str] | None = None) -> int:
               + (f", closed {len(lost)}: {lost}" if lost else ""))
         return 0
 
-    findings = (chrome_findings(results) + frame_findings(results, debt)
-                + rail_findings(results, debt))
+    findings = (chrome_findings(results) + leading_findings(results)
+                + frame_findings(results, debt) + rail_findings(results, debt))
     if args.enforce:
         if findings:
             for finding in findings:
