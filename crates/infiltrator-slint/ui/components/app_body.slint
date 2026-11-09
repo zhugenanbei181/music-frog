@@ -11,6 +11,7 @@ import {
         TrafficBar, HomeTrafficPoint, LicenseRow, WorkbenchItem, NavigationSlot, DashboardFacts
 } from "./models.slint";
 import { DesktopSideBar } from "./sidebar.slint";
+import { NavigationForm } from "./viewport_tier.slint";
 import { PagesRouter } from "../pages/pages_router.slint";
 import { ConnectionSort, LogLevel, NetworkMode, RouteMode, RuntimeStatus, ThemeMode, TrafficRange } from "./domain_enums.slint";
 import { MobileDockBandState, MobileDockBandProjection } from "./mobile_dock_state.slint";
@@ -21,6 +22,11 @@ export component AppBody inherits Rectangle {
         in property <string> active-destination;
         in property <string> page-origin;
         in property <bool> compact-layout;
+        // The chrome fact: what the shell mounts to navigate. The page density
+        // above says how tightly the page packs; a medium window is a packed
+        // page that still owns an icon rail, and conflating the two is what
+        // made it pay a bottom bar instead (SPACEUTIL-006).
+        in property <NavigationForm> navigation-form;
         in property <bool> primary-page;
         in property <bool> android-platform;
         in property <bool> application-dark-mode;
@@ -330,7 +336,7 @@ export component AppBody inherits Rectangle {
         height: parent.height;
         spacing: 0 * LumenUiScale.unit;
 
-        if !root.compact-layout: DesktopSideBar {
+        if root.navigation-form != NavigationForm.bottom-nav: DesktopSideBar {
             page: root.page;
             navigation-items: root.navigation-items;
             active-destination: root.active-destination;

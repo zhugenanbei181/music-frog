@@ -21,6 +21,7 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
+- 2026-11-09 第一百五十三交付批次（中等档图标轨落地 + 外壳列比例标准入契约；`SPACEUTIL-006` 3 pt 实现交付转 `Integrated`，本批不办结、不注销、不新立条目）：① **底层先裁决**：`responsive_viewport` 新增 `ViewportTier::shell_navigation(touch_surface)`（触摸面恒 `BottomNav`、桌面按档取形态，是「挂哪种导航」的唯一裁决点）、`SidebarForm::has_column()`／`shows_labels()` 两个唯一投影，以及**外壳列比例标准** `max_nav_column_px()`＝图标轨不超过该档最窄宽的 12%、带标签列取 `min(30% 份额, lower_bound − COMPACT_MAX_PX)`；`is_narrow`／`compact-layout` 的文档改回「页面密度」专责，不再兼职回答导航形态。标准数值：compact 0／medium 上限 72（实占 64，10.7%）／expanded 上限 240（实占 **240**，因 840−600 恰为内容地板）／ultra 上限 360（实占 280）。② **来源是抄的，不是拍的**：FlClash `lib/common/layout.dart` 的 `getViewMode` 断点 600/840 与本契约前两档界逐字相同，`canExpandSidebar` 原文理由「笔记本档展开侧栏会让内容比低一档的手机布局更窄」即内容地板规则；`plugins/prism_ui/lib/sidebar.dart` 的 `_compactWidth=48`（48/600=8.0%）／`_expandedWidth=220`／`_itemSize=40`／`_iconSize=24`／`_indicatorWidth=3` 是轨道几何对照值；比例条款写入 L2 空间利用率强制标准的 §3.3，逐像素对照写入 L3 桌面参照文档的 §2（均由上位文档向下导航，本板不复述路径）。③ **导出与生成**：`TierFact` 补 `touch_nav_form`／`max_nav_column_px`，导出升 **version 3**；`generate_viewport_ladder.py` 生成 typed 查表 `shell_navigation(tier, touch-surface) -> NavigationForm`（Slint 新增 `NavigationForm` 枚举，变体名由门禁钉成与导出形态 id 逐个相等）。④ **表面与宿主消费**：`lumen-app.slint` 发布唯一 typed `navigation-form`；`app_body.slint` 挂载条件由 `!compact-layout` 改为 `navigation-form != bottom-nav`；`sidebar.slint` 按导出 `labelled_sidebar(tier)` 分两形态（轨形态图标 24u 居中、无标签无分组标题，保留全宽淡底 + 3u 指示条）；presentation 的 `MobileDockBandFacts` 由 `compact_layout: bool` 改为 `navigation: SidebarForm`（消掉一个隐式状态布尔，命中质量红线），仅 `BottomNav && primary_page` 才 Reserve，`mobile_dock_driver.rs` 读 `get_navigation_form()` 并以穷尽映射单测钉死。⑤ **判定器**：`painted_nav_column()` 直读导出列宽（medium 从此记 64，测量盒左沿随像素）；新增 `owns_labelled_sidebar()` 把侧栏轴显式限制在带标签列并写明原因（图标轨 8 行在 480 高窗口合法铺满整列，导航栈几何未随回执发布前不得冒充判据），该缺口并入 `SPACEUTIL-007` 范围。⑥ **门禁**：守卫新增 `navigation_mount_findings`（`.slint` 挂载依据 + Rust 投影依据两侧同钉）与 `NavigationForm` 词表检查，planted 自测 17 → **20**；判定器自测 24 → **26**；契约新增 3 项 nextest（触摸面恒底部导航／轨是列但不声明标签／逐档列宽 ≤ 上限），导出与投影单测同步改写。⑦ **证据（L）**：`cargo nextest run -p infiltrator-contract -p infiltrator-presentation -p infiltrator-slint -j 2` **1308 run / 1308 passed / 0 failed**；`cargo clippy` 同三包 `--all-targets -D warnings` exit 0；`cargo fmt --all --check` 0 偏差；`slint-viewport-tier-guard --self-test` 20/20 且 `--mode enforce` findings=0；`slint-syntax-guard` 100% PASS；`slint-dead-input-guard` findings=0；`slint-mobile-chrome-guard --mode enforce` findings=0；`space_utilization --self-test` 26/26、`--check-export` current、`--enforce` 对发布批 `20261108T220116Z_8ae7121cdffa_dirty_137804`（197/197 帧，576s）**violations=0**；`receipt-freshness violations=0`；`screenshot-identity scanned=574 aliases=10 violations=0`；`resolve_surface_evidence.py` status=pass anchors=360 cells=180；`bash scripts/quality/check-structure.sh` exit 0。⑧ **像素复核（身份变化真的落地）**：720×480 帧 x=64 处列沿亮度差由旧批 0 → 新批 **47**，轨列墨迹行签名 **184** 在全部 61 帧 medium 出现，底部带墨迹 93.8% → **26.8%**（横栏消失，短窗口拿回 72 行页身）。⑨ **过程纪律与一次真实返工**：结构门首轮实测 `lumen-app.slint` 605 行超 SLINT-001 的 600 行预算，未拆墙也未调预算，改为把新增声明并入该文件既有的同行多语句写法并删除一条重复触发器，回到 600 行整；因改 `.slint` 会使上一批回执指纹过期，故重跑定向 nextest/clippy 后**整批重采一次**，旧批 `20261108T213116Z_8ae7121cdffa_dirty_5233` 作废不计证据。⑩ **台账重算（可核对推导）**：本批不办结、不注销、不新立，`SPACEUTIL-006` 3 pt 由 `Planned` 转 `Integrated` 仍留现在佛，故未办结分母沿用 **104 pt / 40 条**（现在佛 16 pt / 5 条 = `MUSICFROG-001` 5 + `SPACEUTIL-005` 3 + `006` 3 + `007` 2 + `008` 3；斗战胜佛 62 pt / 20 条；未来佛 26 pt / 15 条），已归档 **1,248 pt / 459 条**不变，累计 **1,352 pt** 不变，严格归档交付率 **92.3%**（1,248/1,352）保持；交付点待统一验证批次随 `SPACEUTIL-005`/`006` 一并归档。
 - 2026-11-09 第一百五十二交付批次（视口阶梯单一真源；`SPACEUTIL-005` 3 pt 实现交付转 `Integrated`，新立 `SPACEUTIL-006` 3 pt + `SPACEUTIL-007` 2 pt + `SPACEUTIL-008` 3 pt 共 8 pt；本批不办结任何条目）：① **自底向上一次做完**：契约 `responsive_viewport` 补 `TIERS` / `id()` / `lower_bound_px` / `upper_bound_px` / `has_labelled_sidebar` / `nav_column_px` / `SidebarForm::id()`；`page_structure` 新增 typed `TierFact`、`tier_ground_fallback` 与 `NARROW_TIER_GROUND_LIMIT_PCT`，导出升为 **version 2** 并带 `tiers[]`（档界 / 导航形态 / 导航列宽 / labelled_sidebar / 节点列数 / 概览列数 / 兜底上限）；新增 `scripts/generate_viewport_ladder.py` 把导出物生成为 `crates/infiltrator-slint/ui/components/viewport-ladder.slint`（与 `design-type.slint`、`layout-tokens.slint` 同一「导出真源 → 生成适配器 → 新鲜度门禁」模式）。② **表面与判定器都改读导出物**：`ViewportTier` 变体改名到契约档 id（compact/medium/expanded/ultra），`theme.slint` 阶梯链、`rail-width`、`page_proxies.slint` 节点列数、`lumen-app.slint` 的 `compact-layout` 与 `home_desktop_grid.slint` 的 `dense` 全部读生成档界/查表；判定器 `tier()` / 测量盒 / 侧栏轴开关 / 兜底上限只读 `tiers[]`，缺阶梯或有缺口即拒绝判定（不退回内存数）。③ **产品密度裁决随身份一次做完**（b150 预告的另一半）：1180×780 由 Slint 私有 wide/4 列改为契约 expanded/**3** 列（与 Iced 同解），手机档节点列数 2 → **1**（契约 Compact=1，也回到该注释原本声称的「手机保持单列可读」），导航列 228 → **240**（契约 Standard）；因此整批重采 Slint 197 帧。④ **门禁**：`slint-viewport-tier-guard.py` 新增「链内禁宽度字面量、必须逐个读生成档界、生成物手改即 stale、生成查表无人读即违规、变体名必须逐个等于导出档 id」，planted 自测 13 → **17**；判定器自测 20 → **24**。⑤ **实测登记的同类缺口立项，不藏进实现**：`SPACEUTIL-006` 契约 `medium` 档要 64px 图标轨而 Slint 仍以底部导航代答（同一 720px 窗口在 Iced 得竖轨、在 Slint 得横栏，短窗口多付一整条底部带）；`SPACEUTIL-007` 页边距 30/16 与 shell 空气 8/72 仍是判定器里镜像 Slint 源码的常量，真解是外壳几何随帧回执发布；`SPACEUTIL-008` 概览卡列数契约 1/2/2/3 对 Slint 自写 2/4，但两者度量语义不同（份额网格 vs 每行列数），必须先裁决再改。⑥ **证据（L）**：`cargo nextest run -p infiltrator-contract -p infiltrator-slint` **927 run / 927 passed / 0 failed**（contract 548 + slint 379，39 个测试二进制）；`cargo clippy -p infiltrator-contract -p infiltrator-slint --all-targets -j 2 -- -D warnings` exit 0（2m03s）；契约阶梯 4 项新 nextest（无缝铺满宽度轴 / 宽度落点唯一档 / 有列才预留列宽 / 导出确带阶梯）；`slint-viewport-tier-guard --self-test` 17/17 且 `--mode enforce` findings=0；`space_utilization --self-test` 24/24、`--check-export` current；`import hygiene 2931 scanned/0 violations`、`line budget 800/0`、`doc-governance OK`、`cargo fmt --all --check` 0 偏差；Slint 整批重采发布 `20261108T201810Z_052366b466a4_dirty_3697797`（`CAPTURE MATRIX PASS: 197 scenario(s) in 383s`）；`space_utilization --enforce` 对 197 帧 violations=0（compact 13 帧 / medium 61 帧 / expanded 123 帧，三档 0 帧超标），`receipt-freshness violations=0`，`screenshot-identity scanned=574 aliases=10 violations=0`（四条 moxin↔editor 别名摘要随新像素刷新），`resolve_surface_evidence.py` status=pass anchors=360 cells=180，`check-structure.sh` 全套结构门 **exit 0**。像素复核证实三处身份变化真的落地：`proxies-dark` 侧栏列沿由 x=228 移到 **x=240**，`proxies-mobile-dark` 一行由 2 张卡变成 **1 张整宽卡**。⑦ **台账重算（可核对推导，并更正上一批两处笔误）**：b151 记「未办结分母 93 pt」= 现在佛 5 + 斗战胜佛 62 + 未来佛 26，却把同批「新立 `SPACEUTIL-005` 3 pt」漏加分母，且条数写 35 而同一行分项 1+20+15=36。本批按看板实数重列：现在佛 = `MUSICFROG-001` 5 + `SPACEUTIL-005` 3（`Integrated`）+ `006` 3 + `007` 2 + `008` 3 = **16 pt / 5 条**；斗战胜佛 62 pt / 20 条与未来佛 26 pt / 15 条沿用既有记载（本批未动这两板）；联合分母 = **104 pt / 40 条**。已归档 1,248 pt / 459 条不变（本批不办结），累计 = 1,248 + 104 = **1,352 pt**，严格归档交付率 1,248/1,352 = **92.3%**——登记新缺口让分母变大、比率下降，是如实记账而非倒退。
 - 2026-11-09 第一百五十一统一验证批次（一次组团收口 b144～b150 全部 `Integrated`；`SPACEUTIL-001` 3 pt + `SPACEUTIL-004` 3 pt + `FLCLASH-001` 3 pt + `FLCLASH-002` 5 pt 共 14 pt 办结归档，`SPACEUTIL-002`/`SPACEUTIL-003` 共 8 pt 注销退出，新立 `SPACEUTIL-005` 3 pt）：本批零新功能，只做「改动一批一批做、验收一组一组办」的产出期集中验收。① **先修掉挡住全量门的两条本流自己的欠账**（并纠正一条错误记账）：`android/bevy-host/driver/src/owner_client_tests.rs:93` 的 `CoreSnapshot` 缺 `session` 被 b147/b148/b150 连续三批写成「他人 bevy-host 外债」，`git log -S` 证明该字段由本仓 b132/b142 自己引入后漏迁此 fixture——补齐为 `CoreSessionObservation::Unknown`（与本仓其余 20+ 处不关心会话时长的 fixture 同写法），全仓编译门从此可跑；`crates/infiltrator-bevy-widgets/tests/headless/advanced_multidimensional_tests.rs:90` 的 `assert!(WCAG_AA_NORMAL > WCAG_AA_LARGE)` 是 b142 引入的 `clippy::assertions_on_constants` 违规，改为 `const _: () = assert!(…)`，把阈值序关系从运行时升级为编译期断言（更强，不是更弱）。② **上游公告库新增一条**：RUSTSEC-2026-0441 宣告 `pin-utils` 归档（0.1.1 是最后一版，公告「No safe upgrade is available!」）；`cargo tree -i pin-utils` 实测唯一链路 `spin_on@0.1.1 ← slint-build@1.18.1（build）/ slint-macros@1.18.1（proc-macro）← 钉住的 Slint 1.18.1`，不进任何交付二进制，产品代码不用 `pin_mut!`（局部钉住一律 `core::pin::pin!`），按台账既有九条同口径在 `deny.toml` 登记完整理由与复核日期，不改代码、不静默删门。③ **统一批次一次跑完（全部 `L`）**：`cargo check --workspace --all-targets` 6m16s 零错误；`cargo nextest run --workspace --no-fail-fast` **5883 run / 5883 passed / 15 skipped / 0 failed**；`cargo clippy --workspace --all-targets -- -D warnings` exit 0；`cargo fmt --all --check` 0 偏差；`bash scripts/quality/check-structure.sh` **exit 0**（40+ 守卫 + quality 自测全绿）；`cargo deny check advisories bans licenses sources` 四项 ok；`cargo metadata --locked` ok；`resolve_surface_evidence.py` status=pass（registry/discovery True，anchors=360，cells=180）；`receipt-freshness=0`、`screenshot-identity scanned=574 aliases=10 violations=0`、`space_utilization --self-test 20/20` 与 `--enforce` 197 帧 violations=0。④ **批量办结/注销口径**：办结 4 条 / 14 pt（`SPACEUTIL-001` 3、`SPACEUTIL-004` 3、`FLCLASH-001` 3、`FLCLASH-002` 5——b148 裁定办结但当时未落台账，本批补记）；注销 2 条 / 8 pt（`SPACEUTIL-002`/`003`：b149 按页面形态重判后前提被实测推翻，同形态参考产品留白 80.6% 更宽，按「不为办结造功能」原则不计交付点）。⑤ **台账重算（给出可核对的推导，不造数）**：自第一百一十批次台账（已归档 1,234 pt / 455 条，累计 1,322 pt，联合分母 88 pt）起，b111/b144/b146 新登记 27 pt / 7 条未落账；本批归档 14 pt / 4 条、注销 8 pt / 2 条 ⇒ 已归档 1,234 → **1,248 pt**（455 → **459 条**），累计 1,322 + 27 − 8 = **1,341 pt**，未办结分母 88 + 27 − 14 − 8 = **93 pt**（现在佛 5 pt / 1 条 = `MUSICFROG-001`，斗战胜佛 62 pt / 20 条，未来佛 26 pt / 15 条），严格归档交付率 1,248/1,341 = **93.1%**。同时把 TODO.md 归档表头此前停在第一百零八批次的「累计 454 条 / 1,228 pt」与本台账对齐（表内明细分行同步 +4 条 / +14 pt），并写明这是对齐两份既有记账、不新增任何交付声明。⑥ **诚实边界**：本批不改产品行为与像素，发布回执 `20261108T164957Z_cda77dec2603_dirty_2413388` 保持新鲜；`C`（受控 CI）与 `D`（真机/目标产物）腿仍按既有条目留在斗战胜佛与未来佛，不因全量门通过而升级；下一步可推的真实缺口是新立 `SPACEUTIL-005`（视口阶梯三处真源：契约 600/840/1200、Slint 主题 600/800/1120、判定器 700/1000，实测导致判定器在 800～999px 误判侧栏归属、且同尺寸 1180×780 帧 Slint 与 Iced 节点列数不同）。
 - 2026-11-05 第一百一十交付批次（全仓统一公共字体/字号/字重闭环落地，`DSGSTD-002`，3 pt）：在 batch 109 建立 typed 权威与生成器代码链的基础上，彻底落实全仓使用统一的公共字体集合、大小、字重：① Contract `TextRole` 扩充 Subheading 与 Micro 并收敛于 `design_tokens::type_scale`，`FontFaceDocument`/`TypefaceDocument` 新增 `family_name`，导出 JSON 并在生成器中闭环；② Iced 统一由 `theme::font_for(role)` 与 `theme::role_body_text`/`role_text` 收口，裸 `.size(N)` 清零，废弃字体常量清零；③ Slint 全量 UI 迁移至 `DesignType.<role>-size/-weight/-family`，裸数字 font-size 与 font-weight 清零；④ Bevy UI 彻底删除本地私有 `Role` 枚举与私有字体尺寸表，944 处调用迁移至 `infiltrator_contract::design_resources::TextRole` 并由 `typeface(role)` 统一解析；⑤ Android Compose 业务代码裸 `fontSize`/`fontWeight`/`FontFamily` 清零，统一由 `AppTypography` 导出；⑥ 升级强化 `design-resource-authority.py` 门禁，全检四表面调用点；⑦ 修复 Iced、Bevy、Slint 三桌面卡片重排与几何裁切缺陷，三桌面全矩阵 558 张截图（Iced 182, Bevy 190, Slint 186）基于新字体全量重采，`screenshot_aliases.tsv` 摘要对齐，`screenshot-identity-guard` 零违规。证据：六包定向 nextest 2179/2179 全绿；clippy `--all-targets -D warnings` 零警告；`cargo fmt --all --check` 0 偏差；Android font 生成、编译、ktlintCheck、405 项单测全部 BUILD SUCCESSFUL；`check-structure.sh` 40+ 结构守卫与 351 项 quality unittests 全绿。现在佛与过去佛保持 0 条 / 0 pt，联合分母 88 pt 保持，已归档 1,231 → 1,234 pt（454 → 455 条），累计 1,319 → 1,322 pt，严格归档交付率 93.3%（1,234/1,322 pt）保持。
@@ -241,8 +242,8 @@
 | ID | 状态 / 优先级 | points | owner | 依赖 |
 | --- | --- | --- | --- | --- |
 | `SPACEUTIL-005` | `Integrated` / P1（b152 交付，待统一验收） | 3 | infiltrator-contract（`responsive_viewport` / `page_structure`）+ infiltrator-slint（生成的 `viewport-ladder.slint`）+ `scripts/parity/space_utilization.py` | `SPACEUTIL-004`（已办结） |
-| `SPACEUTIL-006` | `Planned` / P1 | 3 | infiltrator-slint（`components/sidebar.slint` 图标轨形态、`components/app_body.slint` 外壳选择） | `SPACEUTIL-005` |
-| `SPACEUTIL-007` | `Planned` / P2 | 2 | `scripts/parity/space_utilization.py` + `scripts/capture-slint-matrix.sh`（外壳几何随帧回执） | `SPACEUTIL-005` |
+| `SPACEUTIL-006` | `Integrated` / P1（b153 交付，待统一验收） | 3 | infiltrator-contract（`shell_navigation` / `max_nav_column_px`）+ infiltrator-slint（`viewport-ladder.slint` 生成的形态查表、`sidebar.slint` 图标轨、`app_body.slint` 挂载）+ infiltrator-presentation（`mobile_chrome_projection`） | `SPACEUTIL-005` |
+| `SPACEUTIL-007` | `Planned` / P2 | 2 | `scripts/parity/space_utilization.py` + `scripts/capture-slint-matrix.sh`（外壳几何与导航栈几何随帧回执） | `SPACEUTIL-005`、`SPACEUTIL-006` |
 | `SPACEUTIL-008` | `Planned` / P2 | 3 | infiltrator-contract（`overview_card_columns`）+ infiltrator-slint（`theme.slint` 的 `overview-card-columns`、`pages/home_*.slint` 网格）+ infiltrator-iced（概览网格） | `SPACEUTIL-005` |
 
 **`SPACEUTIL-005` 视口阶梯只有一个真源（b150 实测登记的真实缺陷）**：同一个
@@ -261,20 +262,55 @@ exporter 导出 → Slint 宿主发布 tier、主题阶梯字面量清零 → �
 会使 1120～1199 区间的节点列数从 4 变 3，这是产品密度裁决，必须与
 `proxy_grid_columns` 的契约表同批一次做完，不得拆成两半。**第一百五十二批已交付**（见下）。
 
-**`SPACEUTIL-006` 中等档必须真的给出导出阶梯所声明的图标轨（b152 实测登记的缺口）**：
+**`SPACEUTIL-006` 中等档必须真的给出导出阶梯所声明的图标轨（b152 立项，b153 交付）**：
 契约在 `medium`（600～839px）档的导航形态是 `Rail`（64px 图标轨），Iced 已经按此渲染
-（`view/sidebar.rs::sidebar_for_tier`），Slint 却仍用底部导航顶替（`compact-layout`
+（`view/sidebar.rs::sidebar_for_tier`），Slint 当时仍用底部导航顶替（`compact-layout`
 在 `!labelled_sidebar` 时为真）。这不是措辞差异而是同一档位两种外壳：同一 720×480 窗口
 在 Iced 得到竖轨、在 Slint 得到横栏，短窗口因此多付一整条 72u 底部带（480 行的 15%）。
 收口顺序照旧自底向上：底层已裁决完毕（阶梯、导航形态、列宽全部导出），只在 Slint
-表面补一个消费 `ViewportLadder.nav_column(tier)` 的图标轨组件，让 `compact-layout`
-由「导航形态」而不是「有没有侧栏宽度」决定；改动是身份变化，须整批重采 compact 档。
+表面补一个消费导出列宽的图标轨组件，并把「导航形态」与「有没有侧栏宽度」拆成两件事。
+**第一百五十三批已交付**（见下），待统一验证批次按像素与全量门办结。
 
-**`SPACEUTIL-007` 外壳几何应随帧回执发布，而不是在判定器里各留一份常量（b152 剩余项）**：
-b152 把档界、导航列宽、节点列数与兜底上限全部接入导出物，但页边距（30/16）与 shell
-空气（8/72）仍是判定器里镜像 Slint 源码的两个常量，由 `slint-viewport-tier-guard.py`
+**第一百五十三批 中等档图标轨与外壳列的比例标准（已交付 / 待统一验收，`Integrated`）**：
+承接用户「侧边栏利用率低、空隙多；必须因地制宜订立最多留多少比例的标准」与 FlClash
+上游源码实测（`plugins/prism_ui/lib/sidebar.dart` 的 `_compactWidth=48`／`_expandedWidth=220`
+／`_iconSize=24`／`_indicatorWidth=3`，`lib/common/layout.dart` 的 600/840 断点与
+`canExpandSidebar` 原文理由），自底向上一次做完。① **底层先裁决**：契约新增
+`ViewportTier::shell_navigation(touch_surface)`（触摸面恒 `BottomNav`，桌面按档取形态）、
+`SidebarForm::has_column()`／`shows_labels()` 两个唯一投影，以及**外壳列的比例标准**
+`max_nav_column_px()`＝「图标轨 ≤ 该档最窄宽的 12%」「带标签列同时受 30% 份额与内容地板
+`lower_bound − COMPACT_MAX_PX` 约束」；`is_narrow`／`compact-layout` 明确改回**页面密度**
+专责，不再兼职回答导航形态。② **导出与生成**：`page_structure` 的 `TierFact` 补
+`touch_nav_form`／`max_nav_column_px`，导出升 **version 3**；`generate_viewport_ladder.py`
+生成 typed `NavigationForm` 查表 `shell_navigation(tier, touch-surface)`（Slint 变体名由
+门禁钉成与导出形态 id 逐个相等）。③ **呈现与宿主**：`lumen-app.slint` 只发布一个
+`navigation-form`，`app_body.slint` 按 `!= bottom-nav` 挂 `DesktopSideBar`，
+`sidebar.slint` 按导出的 `labelled_sidebar(tier)` 分两形态（轨形态图标 24u 居中、无标签无
+分组标题，保留全宽淡底 + 3u 指示条）；presentation 的 `MobileDockBandFacts` 由
+`compact_layout: bool` 改为 `navigation: SidebarForm`（消除用布尔兼职状态的红灯），
+`mobile_dock_driver.rs` 读 `get_navigation_form()`，单测把四形态穷尽映射与逐档
+「有横栏才预留带」钉死。④ **判定器**：`painted_nav_column()` 改为直读导出列宽
+（medium 从此得 64，测量盒左沿随像素），新增 `owns_labelled_sidebar()` 明确
+「图标轨自己的侧栏轴尚不能判」并把它登记进 `SPACEUTIL-007`（判据需要导航栈几何随回执
+发布，否则 8 行图标在 480 高窗口合法铺满整列会被误判成「导航之下有内容」）。⑤ **门禁**：
+守卫新增 `navigation_mount_findings`（`.slint` 挂载依据 + Rust 投影依据两侧同钉）与
+`NavigationForm` 词表检查，planted 自测 17 → **20**；判定器自测 24 → **26**（新增
+「medium 付轨不付底带」「导出列宽不越自家上限」）；契约新增 3 项 nextest（触摸面恒底部导航／
+轨是列但不声明标签／逐档列宽 ≤ 上限）。⑥ **诚实边界**：本批像素身份变化（61 帧 medium
+外壳由横栏改竖轨）须整批重采，`--workspace` nextest／clippy 与受控 CI 的 `C` 腿、Android
+三 flavor 实机 `D` 腿留待统一验证批次；`SPACEUTIL-008`（概览卡列数语义分歧）仍是独立裁决，
+未在本批顺手改。
+
+**`SPACEUTIL-007` 外壳几何应随帧回执发布，而不是在判定器里各留一份常量（b152 剩余项，
+b153 扩范围）**：b152 把档界、导航列宽、节点列数与兜底上限全部接入导出物，但页边距（30/16）
+与 shell 空气（8/72）仍是判定器里镜像 Slint 源码的两个常量，由 `slint-viewport-tier-guard.py`
 在两侧分别钉住。真正的单一真源是：采集时由外壳把自己用的几何写进该帧的回执，判定器
 按帧读取，于是测量盒永远等于画出这帧像素的那套数字，换皮肤/换缩放也不漂移。
+**b153 起本条还多一项同等重要的缺口**：图标轨（medium）自身的侧栏轴判据同样依赖回执几何——
+64px 轨里 8 行图标的合法行距会铺满 480 高的短窗口，判定器若继续用「导航行在上方 70% 之内」
+这种形状盲启发式，就会把满屏轨道误判成「导航之下还有内容」。因此判定器现在只对带标签列开
+侧栏轴（`owns_labelled_sidebar()`），等回执带上导航栈的纵向几何（行数、行距、首行偏移）后
+再对轨形态开启。登记在此而不在判定器里蒙判。
 
 **`SPACEUTIL-008` 概览卡列数也只有一个真源（b152 实测登记的同类缺陷）**：b152 把档界、
 导航列宽与节点列数接到契约导出上之后，同一类问题还剩最后一处：契约

@@ -1,6 +1,7 @@
 //! Pure mobile dock-band projection shared by UI surfaces.
 
 use infiltrator_contract::mobile_chrome::{MobileDockBandIntent, MobileDockBandState};
+use infiltrator_contract::responsive_viewport::SidebarForm;
 
 /// The two binary presentation facts that decide dock-band ownership.
 ///
@@ -8,13 +9,20 @@ use infiltrator_contract::mobile_chrome::{MobileDockBandIntent, MobileDockBandSt
 /// by [`project_mobile_dock_band`] is the only stored state.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MobileDockBandFacts {
-    pub compact_layout: bool,
+    /// The navigation form the shell actually mounted.
+    ///
+    /// This used to be a `compact_layout` boolean, which conflated page
+    /// density with navigation: a 720px desktop window was "compact" because
+    /// its cards stack, so the dock reserved a phone's bottom band for a
+    /// window that navigates with an icon rail. The band belongs to the bar,
+    /// so the bar's own typed form is what decides.
+    pub navigation: SidebarForm,
     pub primary_page: bool,
 }
 
 /// Fold the observed viewport/page facts into one typed intent.
 pub fn intent_for_mobile_dock_band(facts: MobileDockBandFacts) -> MobileDockBandIntent {
-    if facts.compact_layout && facts.primary_page {
+    if facts.navigation == SidebarForm::BottomNav && facts.primary_page {
         MobileDockBandIntent::Reserve
     } else {
         MobileDockBandIntent::Close
@@ -38,9 +46,10 @@ pub fn initial_mobile_dock_band(facts: MobileDockBandFacts) -> MobileDockBandSta
 mod tests {
     use super::{MobileDockBandFacts, initial_mobile_dock_band, project_mobile_dock_band};
     use infiltrator_contract::mobile_chrome::{MobileDockBandIntent, MobileDockBandState};
+    use infiltrator_contract::responsive_viewport::SidebarForm;
 
     const FACTS: MobileDockBandFacts = MobileDockBandFacts {
-        compact_layout: true,
+        navigation: SidebarForm::BottomNav,
         primary_page: true,
     };
 
@@ -75,10 +84,27 @@ mod tests {
         );
         assert_eq!(
             super::intent_for_mobile_dock_band(MobileDockBandFacts {
-                compact_layout: false,
+                navigation: SidebarForm::Standard,
                 ..FACTS
             }),
             MobileDockBandIntent::Close
         );
+    }
+
+    #[test]
+    fn an_icon_rail_never_buys_a_bottom_band() {
+        // The rail is a medium desktop window's navigation: it owns a column,
+        // so the page keeps the band the bar would have needed. Reserving one
+        // anyway is the 72u of dead air SPACEUTIL-006 measured at 720x480.
+        for navigation in [SidebarForm::Rail, SidebarForm::Standard, SidebarForm::Wide] {
+            assert_eq!(
+                super::intent_for_mobile_dock_band(MobileDockBandFacts {
+                    navigation,
+                    primary_page: true,
+                }),
+                MobileDockBandIntent::Close,
+                "{navigation:?} mounts no bar, so it reserves no band"
+            );
+        }
     }
 }

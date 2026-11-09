@@ -21,7 +21,7 @@ import { SettingsOverlays } from "components/settings_overlays.slint";
 import { AppBottomBar, MobileDockPageGround, ClearTrafficDialog, DesktopTitleBar, NoticeBanner, SettingsMessageBanner, ProfileSettingsTypeMenu, ProfileAddTypeMenu, ProxySortMenu } from "components/app_chrome.slint";
 import { AppBody } from "components/app_body.slint";
 import { PageTitles } from "components/page_titles.slint";
-import { ViewportLadder } from "components/viewport-ladder.slint";
+import { ViewportLadder } from "components/viewport-ladder.slint"; import { NavigationForm } from "components/viewport_tier.slint"; export { NavigationForm }
 import { PageWorkbench } from "pages/page_workbench.slint";
 import { ConnectionSort, LogLevel, NetworkMode, RouteMode, RuntimeStatus, ThemeMode, TrafficRange } from "components/domain_enums.slint";
 
@@ -31,12 +31,19 @@ export component AppWindow inherits MaterialWindow {
         background: LumenTheme.zinc-0;
         disable-hover: root.android-platform || root.capture-pointer-absent;
         default-font-family: DesignType.body-family;
-        // The chrome decision reads the shared tier ladder instead of
-        // measuring the window itself: a labelled side column and a floating
-        // dock are two answers to the same question, and the exported nav
-        // form is the only place that question is answered. The Android shell
-        // is a separate fact: it is a touch surface at any window size.
-        out property <bool> compact-layout: root.android-platform || !ViewportLadder.labelled_sidebar(LumenTheme.viewport-tier);
+        // Two questions, two facts, both read from the exported ladder rather
+        // than measured here.
+        //
+        // `navigation-form` is chrome: what the shell mounts to navigate. The
+        // contract decides it from the tier and the surface kind, so a 720px
+        // desktop window gets the icon rail the ladder names and a phone gets
+        // the bottom bar - the same 720px window no longer answers twice.
+        //
+        // `compact-layout` is page density: whether the page stacks its cards
+        // and sheds its breathing room. It used to carry both jobs, which is
+        // how the medium tier ended up paying a phone's bottom band for a
+        // desktop window's navigation (SPACEUTIL-006).
+        out property <NavigationForm> navigation-form: ViewportLadder.shell_navigation(LumenTheme.viewport-tier, root.android-platform); out property <bool> compact-layout: root.android-platform || !ViewportLadder.labelled_sidebar(LumenTheme.viewport-tier);
         property <bool> platform-dark-mode: MaterialPalette.color-scheme == ColorScheme.dark;
         in-out property <bool> frameless: false;
         // EFFECTS-041 #167: the frameless desktop chrome's window controls.
@@ -343,7 +350,7 @@ export component AppWindow inherits MaterialWindow {
         changed platform-dark-mode => { if root.theme-mode == ThemeMode.system { root.application-dark-mode = root.platform-dark-mode; } }
         changed theme-mode => { LumenTheme.forest-mode = root.theme-mode == ThemeMode.forest; LumenTheme.amoled-mode = root.theme-mode == ThemeMode.amoled; if root.theme-mode == ThemeMode.system { root.application-dark-mode = root.platform-dark-mode; } else if root.theme-mode == ThemeMode.dark || root.theme-mode == ThemeMode.amoled { root.application-dark-mode = true; } else { root.application-dark-mode = false; } root.update-color-scheme(); }
         changed page-scale-percent => { LumenUiScale.unit = 1px * (root.page-scale-percent / 100.0); }
-        changed compact-layout => { LumenTheme.compact-layout = root.compact-layout; root.mobile-dock-band-state-changed(); }
+        changed compact-layout => { LumenTheme.compact-layout = root.compact-layout; root.mobile-dock-band-state-changed(); } changed navigation-form => { root.mobile-dock-band-state-changed(); }
         changed width => { LumenTheme.viewport-width = root.width; root.mobile-dock-band-state-changed(); }
         changed theme-color => { LumenTheme.user-accent = root.theme-color; MaterialPalette.schemes = LumenTheme.material-schemes; }
         changed theme-color-code => { if root.theme-color-dialog-open && !root.theme-color-code-edited { root.theme-color-code-draft = root.theme-color-input-code; root.theme-color-draft = root.theme-color-input-code; } }
@@ -413,7 +420,7 @@ export component AppWindow inherits MaterialWindow {
         }
         app-body := AppBody {
         x: root.safe-area-insets.left; y: root.safe-area-insets.top + (!root.android-platform && !root.compact-layout ? 40 * LumenUiScale.unit : 0 * LumenUiScale.unit); width: max(0 * LumenUiScale.unit, root.width - root.safe-area-insets.left - root.safe-area-insets.right); height: max(0 * LumenUiScale.unit, root.height - root.safe-area-insets.top - root.safe-area-insets.bottom - (!root.android-platform && !root.compact-layout ? 40 * LumenUiScale.unit : 0 * LumenUiScale.unit));
-        page: root.page; page-origin: root.page-origin; compact-layout: root.compact-layout; primary-page: root.primary-page; android-platform: root.android-platform; application-dark-mode: root.application-dark-mode; layout-debug-bounds: root.layout-debug-bounds;
+        page: root.page; page-origin: root.page-origin; compact-layout: root.compact-layout; navigation-form: root.navigation-form; primary-page: root.primary-page; android-platform: root.android-platform; application-dark-mode: root.application-dark-mode; layout-debug-bounds: root.layout-debug-bounds;
         mobile-dock-band-state: root.mobile-dock-band-state;
         layout-debug-tools-enabled: root.layout-debug-tools-enabled; predictive-back-enabled: root.predictive-back-enabled; predictive-back-supported: root.predictive-back-supported; safe-top: root.safe-area-insets.top; safe-bottom: root.safe-area-insets.bottom; safe-left: root.safe-area-insets.left; safe-right: root.safe-area-insets.right;
         last-page-scroll-y <=> root.last-page-scroll-y; navigation-items: root.navigation-items; active-destination: root.active-destination; runtime-status: root.runtime-status; runtime-status-label: root.runtime-status-label; runtime-detail: root.runtime-detail;

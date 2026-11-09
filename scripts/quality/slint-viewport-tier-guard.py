@@ -74,7 +74,7 @@ PAGE_STRUCTURE = ROOT / "crates/infiltrator-contract/assets/page-structure.json"
 RAW_VIEWPORT = re.compile(
     r"(?<![\w.-])(?:root|self|parent)\.(?:width|height)\s*(?:>=|<=|>|<)\s*\d+(?:\.\d+)?\s*\*\s*LumenUiScale\.unit"
 )
-TIER_VARIANT = re.compile(r"^\s{4}(\w+),?\s*$", re.M)
+TIER_VARIANT = re.compile(r"^\s{4}([\w-]+),?\s*$", re.M)
 THEME_TOKEN = re.compile(r"out property <[a-z]+> ([a-z0-9-]+):")
 LADDER_RESERVE = {"zinc-6", "zinc-7"}
 
@@ -156,6 +156,26 @@ def tier_variants() -> list[str]:
     return enum_variants("ViewportTier")
 
 
+def nav_form_variants() -> list[str]:
+    """The surface's spelling of the navigation forms the ladder exports."""
+    return enum_variants("NavigationForm")
+
+
+def exported_nav_forms() -> list[str]:
+    """The exported `nav_form` ids in Slint spelling, in tier order.
+
+    The ladder has one entry per tier, so a form shared by two tiers appears
+    once here. The order is the order the tiers introduce each form, which is
+    the order the enum declares them.
+    """
+    seen: list[str] = []
+    for entry in exported_tiers():
+        variant = str(entry["nav_form"]).replace("_", "-")
+        if variant not in seen:
+            seen.append(variant)
+    return seen
+
+
 def exported_tiers() -> list[dict]:
     """The contract's exported ladder, the only source of these boundaries."""
     if not PAGE_STRUCTURE.is_file():
@@ -196,7 +216,7 @@ def ladder_findings(ui: pathlib.Path) -> list[str]:
     adapter_code = mask_comments(adapter)
 
     # The adapter must be the generator's own output, not a hand edit.
-    expected = generator_module().slint_ladder({"version": 2, "tiers": tiers})
+    expected = generator_module().slint_ladder({"version": 3, "tiers": tiers})
     if adapter != expected:
         found.append(
             "components/viewport-ladder.slint is not the generated adapter; "
@@ -273,7 +293,59 @@ def tier_vocabulary_findings() -> list[str]:
             "components/viewport_tier.slint: the tier names are "
             f"{declared} but the exported ladder says {exported}"
         ]
+    forms = exported_nav_forms()
+    declared_forms = nav_form_variants()
+    if sorted(forms) != sorted(declared_forms):
+        return [
+            "components/viewport_tier.slint: the navigation forms are "
+            f"{declared_forms} but the exported ladder says {forms}"
+        ]
     return []
+
+
+def navigation_mount_findings(ui: pathlib.Path) -> list[str]:
+    """Navigation is mounted by the exported form, never by page density.
+
+    SPACEUTIL-006 measured what the conflation cost: `compact-layout` answered
+    "does this window have a labelled column", so the medium tier - a narrow
+    page that owns an icon rail - mounted a phone's bottom bar instead and paid
+    a 72u band across a 480-row window. The form is one typed fact out of the
+    ladder, the sidebar mounts on it, and the dock band follows the bar rather
+    than the density boolean.
+    """
+    found: list[str] = []
+    app_code = mask_comments((ui / "lumen-app.slint").read_text(encoding="utf-8"))
+    if ("out property <NavigationForm> navigation-form: "
+            "ViewportLadder.shell_navigation(") not in app_code:
+        found.append(
+            "lumen-app.slint: the shell no longer publishes the exported "
+            "navigation form"
+        )
+    body_code = mask_comments(
+        (ui / "components/app_body.slint").read_text(encoding="utf-8"))
+    mount = re.search(r"if ([^\n:]*): DesktopSideBar \{", body_code)
+    if not mount:
+        found.append("components/app_body.slint: the desktop sidebar lost its mount")
+    elif "root.navigation-form != NavigationForm.bottom-nav" not in mount.group(1):
+        found.append(
+            "components/app_body.slint: the sidebar mounts on "
+            f"{mount.group(1).strip()!r}; the exported navigation form owns "
+            "that decision"
+        )
+    driver = ROOT / "crates/infiltrator-slint/src/mobile_dock_driver.rs"
+    if driver.is_file():
+        text = driver.read_text(encoding="utf-8")
+        if "navigation: to_contract_form(window.get_navigation_form())" not in text:
+            found.append(
+                "mobile_dock_driver.rs: the dock band no longer reads the "
+                "typed navigation form"
+            )
+        if "compact_layout:" in text:
+            found.append(
+                "mobile_dock_driver.rs: the dock band still reads compact-layout; "
+                "a band belongs to a bar, not to a page density"
+            )
+    return found
 
 def enum_variants(name: str) -> list[str]:
     text = TIER_FILE.read_text(encoding="utf-8")
@@ -310,6 +382,7 @@ def violations(ui: pathlib.Path, dock_checks: bool = True,
     if ladder_checks:
         found += ladder_findings(ui)
         found += tier_vocabulary_findings()
+        found += navigation_mount_findings(ui)
     app_code = mask_comments((ui / "lumen-app.slint").read_text(encoding="utf-8"))
     typed_dock_owner = (
         "in property <MobileDockBandState> mobile-dock-band-state:" in app_code
@@ -595,6 +668,44 @@ class GuardSelfTest(unittest.TestCase):
         findings = self._findings_with({"viewport_tier.slint": planted})
         self.assertTrue(
             any("the exported ladder says" in item for item in findings), findings)
+
+    def test_a_renamed_navigation_form_in_the_surface_is_caught(self) -> None:
+        """The navigation vocabulary is exported too, not spelled per surface."""
+        tier_file = TIER_FILE.read_text(encoding="utf-8")
+        planted = tier_file.replace("    rail,", "    icon-rail,", 1)
+        self.assertNotEqual(tier_file, planted)
+        findings = self._findings_with({"viewport_tier.slint": planted})
+        self.assertTrue(
+            any("the navigation forms are" in item for item in findings), findings)
+
+    def test_a_sidebar_mounted_by_page_density_is_caught(self) -> None:
+        """Density says how tight the page is, not what chrome the shell mounts.
+
+        This is the exact line that cost the medium tier a bottom band: it read
+        `compact-layout`, which is true for a narrow page that owns a rail.
+        """
+        body = (UI / "components/app_body.slint").read_text(encoding="utf-8")
+        anchor = "if root.navigation-form != NavigationForm.bottom-nav: DesktopSideBar {"
+        assert anchor in body, anchor
+        planted = body.replace(
+            anchor, "if !root.compact-layout: DesktopSideBar {", 1)
+        findings = self._findings_with({"app_body.slint": planted})
+        self.assertTrue(
+            any("the sidebar mounts on" in item for item in findings), findings)
+
+    def test_a_dock_band_that_reads_density_is_caught(self) -> None:
+        """A band belongs to a bar. The projection reads the form or it is wrong."""
+        driver = ROOT / "crates/infiltrator-slint/src/mobile_dock_driver.rs"
+        text = driver.read_text(encoding="utf-8")
+        planted = text.replace(
+            "navigation: to_contract_form(window.get_navigation_form()),",
+            "compact_layout: window.get_compact_layout(),",
+            1,
+        )
+        self.assertNotEqual(text, planted)
+        findings = self._findings_with({"mobile_dock_driver.rs": planted})
+        self.assertTrue(
+            any("a band belongs to a bar" in item for item in findings), findings)
 
 
     def test_live_tree_is_clean(self) -> None:

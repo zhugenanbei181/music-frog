@@ -121,7 +121,7 @@ pub fn page_structure_json() -> String {
     })
     .collect();
     format!(
-        "{{\"version\":2,\"pages\":[{}],\"slugs\":[{}],\"tiers\":{}}}\n",
+        "{{\"version\":3,\"pages\":[{}],\"slugs\":[{}],\"tiers\":{}}}\n",
         pages.join(","),
         slugs.join(","),
         tiers_json()
@@ -240,7 +240,14 @@ pub struct TierFact {
     pub min_width_px: u16,
     pub max_width_px: Option<u16>,
     pub nav_form: &'static str,
+    /// The form a touch surface gets at this width. Exported, not recomputed by
+    /// a shell: Slint and Android read the same table Iced and the judge read,
+    /// so "phone or desktop navigation" cannot fork per surface.
+    pub touch_nav_form: &'static str,
     pub nav_column_px: u16,
+    /// The widest column this tier may reserve - the shell's own share limit.
+    /// The judge and the Slint guard read it so the ratio standard lives once.
+    pub max_nav_column_px: u16,
     pub labelled_sidebar: bool,
     pub proxy_node_columns: usize,
     pub overview_card_columns: usize,
@@ -254,7 +261,9 @@ impl TierFact {
             min_width_px: tier.lower_bound_px(),
             max_width_px: tier.upper_bound_px(),
             nav_form: tier.sidebar_form().id(),
+            touch_nav_form: tier.shell_navigation(true).id(),
             nav_column_px: tier.nav_column_px(),
+            max_nav_column_px: tier.max_nav_column_px(),
             labelled_sidebar: tier.has_labelled_sidebar(),
             proxy_node_columns: tier.proxy_grid_columns(false),
             overview_card_columns: tier.overview_card_columns(),
@@ -336,27 +345,48 @@ mod tests {
     fn only_the_forms_with_a_column_reserve_one() {
         let facts = tier_facts();
         for fact in facts.iter() {
-            if fact.labelled_sidebar {
-                assert!(fact.nav_column_px > 0, "{} reserves a column", fact.id);
-            }
+            assert_eq!(
+                fact.nav_column_px > 0,
+                fact.max_nav_column_px > 0,
+                "{} either owns a column or owns none",
+                fact.id
+            );
+            assert!(
+                fact.nav_column_px <= fact.max_nav_column_px,
+                "{} reserves {}px but the standard allows {}px",
+                fact.id,
+                fact.nav_column_px,
+                fact.max_nav_column_px
+            );
         }
-        // The bottom-navigation tier has no vertical column at all, and the
-        // narrow rail tier is not a labelled sidebar: a judge that measured a
-        // rail there would measure a strip of page content.
+        // The bottom-navigation tier has no vertical column at all. The rail
+        // tier does reserve one - 64px of icon-only navigation - and it is not
+        // a labelled sidebar, because a rail labels nothing: the page shape
+        // stays narrow while the navigation still owns its column.
         assert_eq!(facts[0].nav_column_px, 0);
+        assert_eq!(facts[0].max_nav_column_px, 0);
+        assert_eq!(facts[1].nav_column_px, 64);
         assert!(!facts[1].labelled_sidebar);
+        // A touch surface never gets the rail, at any tier.
+        for fact in facts.iter() {
+            assert_eq!(fact.touch_nav_form, "bottom_nav");
+        }
     }
 
     #[test]
     fn the_exported_document_carries_the_ladder() {
         let json = page_structure_json();
         let document: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
-        assert_eq!(document["version"], 2);
+        assert_eq!(document["version"], 3);
         let tiers = document["tiers"].as_array().expect("the exported ladder");
         assert_eq!(tiers.len(), TIERS.len());
         assert_eq!(tiers[2]["id"], "expanded");
         assert_eq!(tiers[2]["max_width_px"], 1200);
         assert_eq!(tiers[2]["proxy_node_columns"], 3);
+        assert_eq!(tiers[1]["nav_form"], "rail");
+        assert_eq!(tiers[1]["nav_column_px"], 64);
+        assert_eq!(tiers[1]["max_nav_column_px"], 72);
+        assert_eq!(tiers[1]["touch_nav_form"], "bottom_nav");
         assert_eq!(tiers[3]["max_width_px"], serde_json::Value::Null);
         assert_eq!(tiers[0]["labelled_sidebar"], false);
         assert_eq!(

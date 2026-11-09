@@ -133,10 +133,57 @@ infiltrator-contract::responsive_viewport（边界 + SidebarForm + 列数的类�
 - 判定器侧的门禁是 `space_utilization.py --self-test` 的 planted 阶梯：换一个导出边界，
   `tier()` 与测量盒必须跟着换；导出缺 tiers 或缺口（gapped）直接拒绝判定。
 - **仍未收口的两处**（登记看板，不藏进实现）：
-  ① Slint 在 `medium` 档目前仍用底部导航，而不是契约声明的 64px 图标轨——
-  这是缺组件，不是缺真源；② 页边距与 shell 空气的具体像素（30/16、8/72）仍是
-  Slint 外壳几何，判定器按导出的 `labelled_sidebar` 选取它们，下一步应随帧回执发布
-  而不是在两侧各留一份常量。
+  ① 页边距与 shell 空气的具体像素（30/16、8/72）仍是 Slint 外壳几何，判定器按导出的
+  `labelled_sidebar` 选取它们，下一步应随帧回执发布而不是在两侧各留一份常量
+  （`SPACEUTIL-007`）；② 同一条理由也挡住了**图标轨自己的侧栏轴**：64px 轨道里
+  8 行图标在 480 高的窗口上合法地铺满整列，判定器无从按「导航行之上/之下」区分
+  导航与第二块内容，因此在回执带上导航栈几何之前，该轴只判带标签列，
+  不冒充能判图标轨（同样登记在 `SPACEUTIL-007`）。
+
+### 3.3 外壳自己的列也必须受比例约束（b153 新增，直接抄 FlClash 的裁决）
+
+§2 把页身的空地交给形态阈值，但**外壳自己占掉的宽度**以前无人管：契约说
+`medium` 档给 64px 图标轨、`expanded` 给 240、`ultra` 给 280，凭什么这三个数
+不是随手写的？本节把依据写成一条可门禁的规则，来源是 FlClash 的两处真源，
+不是审美判断：
+
+- `plugins/prism_ui/lib/sidebar.dart`：`_compactWidth = 48`、`_expandedWidth = 220`、
+  `_itemSize = 40`、`_iconSize = 24`、`_indicatorWidth = 3`；
+- `lib/common/layout.dart`：`getViewMode` 的断点 **600 / 840**（与本契约前两档界
+  完全相同），以及 `canExpandSidebar(viewMode) => viewMode == desktop` 的理由原文
+  ——「笔记本档展开侧栏会让内容比低一档的手机布局还窄，所以标签等到桌面档」。
+
+由此得两条上限，落在 `ViewportTier::max_nav_column_px()` 并由导出物
+`tiers[].max_nav_column_px` 发布（判定器与 Rust 测试都只读导出，不再各自记数）：
+
+| 形态 | 约束 | 本仓数值 | FlClash 对照 |
+| --- | --- | --- | --- |
+| 图标轨 `rail` | 不超过该档**最窄宽度**的 `MAX_RAIL_COLUMN_SHARE_PCT = 12%` | 64 / 600 = **10.7%** | 48 / 600 = 8.0% |
+| 带标签列 `standard` | 同时受 `30%` 份额与**内容地板**约束：`lower_bound − COMPACT_MAX_PX` | min(252, 840−600) = **240** | 220，且只在 >840 展开 |
+| 带标签列 `wide` | 同上 | min(360, 1200−600) = **360**，实际 280 | — |
+| 底部导航 | 无列（0） | 0 | 手机档同样无列 |
+
+**内容地板是关键那一条**：带标签列不得让页身比「低一档最宽的窗口」更窄。
+`expanded` 档算出来正好是 840 − 600 = 240，与本仓既有列宽**分毫不差**——
+这说明 240 不是巧合而是被规则逼出来的唯一值，也让「最多只能留出多少比例」
+有了可核对的答案：**轨道档 ≤12%，标签档按内容地板（840 档恰好 28.6%）**。
+
+门禁三处，缺一不可：
+
+1. `infiltrator-contract` 的 `every_navigation_column_fits_its_tier_ceiling`：
+   逐档断言 `nav_column_px ≤ max_nav_column_px`，并把四档上限钉成具体数字，
+   改边界必须在这里一并辩护；
+2. 导出测试 `only_the_forms_with_a_column_reserve_one`：导出物里每档的列宽与
+   上限同时可见，且「有列」与「上限非零」必须一致；
+3. 判定器 `space_utilization.py --self-test` 的
+   `test_the_exported_column_never_breaches_its_own_ceiling`：读**真实导出 JSON**
+   复算同一条不变量，另钉住「触摸面每档都是底部导航」。
+
+同一批还把「谁决定挂载哪种导航」收敛为一个 typed 事实：契约
+`ViewportTier::shell_navigation(touch_surface)` 是唯一裁决点，经导出与生成器
+发布为 `ViewportLadder.shell_navigation(tier, touch-surface) -> NavigationForm`；
+`compact-layout` 从此只管页面密度，不再兼职回答导航形态（这正是 `medium`
+档以前画出手机横栏的根因，见 `SPACEUTIL-006`）。
 
 ## 4. 内容少不是豁免
 

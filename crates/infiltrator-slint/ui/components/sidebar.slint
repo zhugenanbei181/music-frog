@@ -5,6 +5,7 @@ import { LumenTheme } from "./theme.slint";
 import { NavigationSlot } from "./models.slint";
 import { NavigationIcons } from "./navigation_icons.slint";
 import { PageTitles } from "./page_titles.slint";
+import { ViewportLadder } from "./viewport-ladder.slint";
 
 // The desktop sidebar is a pure navigation surface, matching the FlClash
 // desktop reference: destinations only, no status card, no throughput, no
@@ -15,6 +16,15 @@ export component DesktopSideBar inherits Rectangle {
     in property <string> page;
     in property <[NavigationSlot]> navigation-items;
     in property <string> active-destination;
+
+    // Two shapes, one column. FlClash's 48px rail (`_compactWidth`) shows
+    // nothing but glyphs and keeps its labels in a tooltip; its 220px pane
+    // (`_expandedWidth`) shows group heads and labels. This surface owns the
+    // same pair: 64u of icons where the exported form is a rail, the labelled
+    // list where it is a standard or wide column. The answer comes from the
+    // exported ladder, so a rail can never be assembled by measuring the
+    // column's own width here.
+    property <bool> labelled: ViewportLadder.labelled_sidebar(LumenTheme.viewport-tier);
 
     callback navigate-to(string);
 
@@ -35,7 +45,10 @@ export component DesktopSideBar inherits Rectangle {
             // A group heading is the only separator: it owns the air above
             // and below itself, exactly when the group changes. No hairline
             // repeats the same boundary a second time.
-            if index == 0 || root.navigation-items[index - 1].group != item.group: HorizontalLayout {
+            // A rail has no room for a heading and no need for one: the icon
+            // list is eight glyphs tall and the groups are readable from the
+            // dashboard, so the heading only costs the rail its last rows.
+            if root.labelled && (index == 0 || root.navigation-items[index - 1].group != item.group): HorizontalLayout {
                 padding-left: LumenTheme.rail-content-leading;
                 padding-top: LumenTheme.rail-section-gap;
                 padding-bottom: LumenTheme.space-1;
@@ -74,14 +87,18 @@ export component DesktopSideBar inherits Rectangle {
                 }
 
                 HorizontalLayout {
-                    padding-left: LumenTheme.rail-content-leading;
-                    padding-right: LumenTheme.rail-item-padding;
+                    padding-left: root.labelled ? LumenTheme.rail-content-leading : 0 * LumenUiScale.unit;
+                    padding-right: root.labelled ? LumenTheme.rail-item-padding : 0 * LumenUiScale.unit;
                     spacing: LumenTheme.rail-label-gap;
                     width: parent.width;
                     height: parent.height;
                     alignment: start;
                     cross-axis-alignment: center;
 
+                    // In a rail the icon is the whole row, so it takes the
+                    // centre of the column; the stretches only ever exist to
+                    // push it there, and they vanish once there is a label.
+                    if !root.labelled: Rectangle { horizontal-stretch: 1; background: transparent; }
                     Image {
                         source: NavigationIcons.icon(item.icon);
                         width: LumenTheme.nav-icon-size;
@@ -89,7 +106,7 @@ export component DesktopSideBar inherits Rectangle {
                         image-fit: contain;
                         colorize: item.id == root.active-destination ? LumenTheme.accent-active : LumenTheme.text-secondary;
                     }
-                    Text {
+                    if root.labelled: Text {
                         // The four primary destinations are named by the
                         // shared desktop page-name owner; observation rows
                         // carry the shared copy-table label the projection
@@ -104,6 +121,7 @@ export component DesktopSideBar inherits Rectangle {
                         min-width: 0 * LumenUiScale.unit;
                         overflow: elide;
                     }
+                    if !root.labelled: Rectangle { horizontal-stretch: 1; background: transparent; }
                 }
             }
         }

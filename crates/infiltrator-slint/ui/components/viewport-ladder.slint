@@ -10,7 +10,7 @@
 // user zoom itself and the ladder never has an opinion about it.
 
 import { LumenUiScale } from "../lumen-ui-scale.slint";
-import { ViewportTier } from "./viewport_tier.slint";
+import { NavigationForm, ViewportTier } from "./viewport_tier.slint";
 
 export global ViewportLadder {
     // The first window width that leaves each tier behind, in design units.
@@ -20,6 +20,22 @@ export global ViewportLadder {
     out property <length> compact-max: 600 * LumenUiScale.unit;
     out property <length> medium-max: 840 * LumenUiScale.unit;
     out property <length> expanded-max: 1200 * LumenUiScale.unit;
+
+    // The navigation form this window's shell mounts.
+    //
+    // Two facts decide it - the tier and whether the surface is touched - and
+    // both come from the exported ladder rather than a guess made here. Before
+    // this table existed the medium window answered with a phone's bottom bar:
+    // the shell had no way to ask for the rail the contract already chose for
+    // it, so it borrowed the page-density boolean and took the wrong chrome. A
+    // short window pays a whole bottom band for that mistake.
+    public pure function shell_navigation(tier: ViewportTier, touch-surface: bool) -> NavigationForm {
+        if (touch-surface) { return NavigationForm.bottom-nav; }
+        if (tier == ViewportTier.compact) { return NavigationForm.bottom-nav; }
+        if (tier == ViewportTier.medium) { return NavigationForm.rail; }
+        if (tier == ViewportTier.expanded) { return NavigationForm.standard; }
+        return NavigationForm.wide;
+    }
 
     // The navigation column this tier reserves, in design units. 0 is honest
     // about the bottom-navigation tier: it owns no vertical column, so nothing

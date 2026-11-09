@@ -29,6 +29,34 @@ pub const TIERS: [ViewportTier; 4] = [
     ViewportTier::Ultra,
 ];
 
+/// The share of a tier's narrowest width an icon rail may reserve.
+///
+/// FlClash's rail is 48 of 600 (8.0%); this contract's is 64 of 600 (10.7%),
+/// inside the same ceiling while keeping our 24px icon and its touch target
+/// readable. Beyond this the rail stops being navigation and becomes a second
+/// sidebar paid for twice.
+pub const MAX_RAIL_COLUMN_SHARE_PCT: f64 = 12.0;
+
+/// The share of a tier's narrowest width a labelled column may reserve.
+///
+/// FlClash expands to 220px and only above its 840 boundary (26.2% at the
+/// boundary); 30% is that allowance stated once for every labelled form. The
+/// content floor below usually binds first, which is the point: the ratio is
+/// not what licenses a wide column, the content it leaves behind is.
+pub const MAX_LABELLED_COLUMN_SHARE_PCT: f64 = 30.0;
+
+/// The narrowest page body a labelled column may leave behind.
+///
+/// This is [`COMPACT_MAX_PX`]: the widest window a phone-shaped page ever gets.
+/// A column that leaves less than that makes this tier's content narrower than
+/// the tier below it, which is exactly the defect FlClash refuses to ship.
+pub const LABELLED_CONTENT_FLOOR_PX: u16 = COMPACT_MAX_PX as u16;
+
+/// `share_pct` of `lower_px`, truncated to whole pixels.
+const fn share_limit(lower_px: u16, share_pct: f64) -> u16 {
+    (lower_px as f64 * share_pct / 100.0) as u16
+}
+
 /// Four canonical responsive viewport tiers shared across desktop, tablet, and mobile.
 #[derive(
     Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
@@ -69,6 +97,21 @@ impl ViewportTier {
         }
     }
 
+    /// The navigation form a window of this tier presents on a given surface.
+    ///
+    /// A touch surface has no pointing device to hover a narrow rail with, so it
+    /// keeps the thumb-height bottom bar at every width; a desktop window reads
+    /// the tier's own form. This is the one place that choice is made: a surface
+    /// that compares its own width to decide which chrome to mount would be a
+    /// second answer to the same question, which is what `SPACEUTIL-006` removes.
+    pub const fn shell_navigation(self, touch_surface: bool) -> SidebarForm {
+        if touch_surface {
+            SidebarForm::BottomNav
+        } else {
+            self.sidebar_form()
+        }
+    }
+
     /// Outer content-region padding in pixels for this tier.
     pub const fn content_padding_px(self) -> u16 {
         match self {
@@ -80,6 +123,11 @@ impl ViewportTier {
     }
 
     /// Whether this tier is narrow enough that the shell must shed its full sidebar.
+    ///
+    /// This is page density, not navigation: the narrow tiers stack their cards
+    /// and shed the page's own breathing room. Reading it as "this window has no
+    /// navigation column" is the conflation `SPACEUTIL-006` fixes - the medium
+    /// tier is a narrow page that still owns an icon rail.
     pub const fn is_narrow(self) -> bool {
         matches!(self, Self::Compact | Self::Medium)
     }
@@ -125,10 +173,7 @@ impl ViewportTier {
     /// column. A surface choosing between a side column and a bottom bar reads
     /// this instead of comparing the window width itself.
     pub const fn has_labelled_sidebar(self) -> bool {
-        match self.sidebar_form() {
-            SidebarForm::Standard | SidebarForm::Wide => true,
-            SidebarForm::BottomNav | SidebarForm::Rail => false,
-        }
+        self.sidebar_form().shows_labels()
     }
 
     /// The width of the navigation column this tier owns, or `0` when the shell
@@ -140,6 +185,43 @@ impl ViewportTier {
         match self.sidebar_form().width_px() {
             Some(width) => width,
             None => 0,
+        }
+    }
+
+    /// The widest navigation column this tier is allowed to reserve.
+    ///
+    /// This is the space-utilization standard for the shell's own column, copied
+    /// from how FlClash reasons rather than invented here. Their
+    /// `canExpandSidebar` states the rule outright - "an expanded sidebar in the
+    /// laptop range would leave the content narrower than the mobile layout one
+    /// breakpoint below, so labels wait for desktop" (`lib/common/layout.dart`) -
+    /// and their rail is 48px inside a 600..840 window
+    /// (`plugins/prism_ui/lib/sidebar.dart`), on the same 600/840 boundaries this
+    /// contract owns. Two limits follow from that:
+    ///
+    /// * an icon rail is a cheap column, so only its share of the tier's
+    ///   narrowest width bounds it ([`MAX_RAIL_COLUMN_SHARE_PCT`]);
+    /// * a labelled column is a luxury, so it must additionally leave the page
+    ///   body at least [`LABELLED_CONTENT_FLOOR_PX`] wide - the widest window the
+    ///   tier below can be - or widening the chrome would shrink the content
+    ///   under what a narrower window already gets.
+    ///
+    /// The exported ladder carries this ceiling, so a surface that reserves more
+    /// than its tier allows fails a gate instead of winning an argument.
+    pub const fn max_nav_column_px(self) -> u16 {
+        match self.sidebar_form() {
+            SidebarForm::BottomNav => 0,
+            SidebarForm::Rail => share_limit(self.lower_bound_px(), MAX_RAIL_COLUMN_SHARE_PCT),
+            SidebarForm::Standard | SidebarForm::Wide => {
+                let lower = self.lower_bound_px();
+                let share_cap = share_limit(lower, MAX_LABELLED_COLUMN_SHARE_PCT);
+                let floor_room = lower.saturating_sub(LABELLED_CONTENT_FLOOR_PX);
+                if share_cap < floor_room {
+                    share_cap
+                } else {
+                    floor_room
+                }
+            }
         }
     }
 
@@ -227,6 +309,32 @@ impl SidebarForm {
             Self::Rail => Some(64),
             Self::Standard => Some(240),
             Self::Wide => Some(280),
+        }
+    }
+
+    /// Whether this form reserves a vertical column beside the page body.
+    ///
+    /// The mount decision for a shell: a form with a column is drawn as a side
+    /// surface, one without is drawn across the bottom. It is the same fact as
+    /// [`SidebarForm::width_px`], named once so no surface tests `is_some()` and
+    /// calls the result "compact layout".
+    pub const fn has_column(self) -> bool {
+        match self {
+            Self::BottomNav => false,
+            Self::Rail | Self::Standard | Self::Wide => true,
+        }
+    }
+
+    /// Whether this form's rows carry a text label beside the icon.
+    ///
+    /// A rail is navigation by glyph alone: labels in 64px would elide on every
+    /// destination and pay the width of a sidebar for the privilege. This is the
+    /// fact the sidebar component reads to pick its row shape, and the fact
+    /// [`ViewportTier::has_labelled_sidebar`] is built from.
+    pub const fn shows_labels(self) -> bool {
+        match self {
+            Self::BottomNav | Self::Rail => false,
+            Self::Standard | Self::Wide => true,
         }
     }
 
@@ -362,6 +470,67 @@ mod tests {
         assert!(!ViewportTier::Medium.is_compact());
         assert!(!ViewportTier::Expanded.is_compact());
         assert!(!ViewportTier::Ultra.is_compact());
+    }
+
+    #[test]
+    fn a_touch_surface_never_gets_a_column_it_cannot_hover() {
+        // The bottom bar is the touch answer at every tier; only a desktop
+        // window reads the tier's own form. This is the one place that splits,
+        // so `SPACEUTIL-006` can hold it in the shell without forking the rule.
+        for tier in TIERS {
+            assert_eq!(tier.shell_navigation(true), SidebarForm::BottomNav);
+            assert_eq!(tier.shell_navigation(false), tier.sidebar_form());
+        }
+        assert!(!SidebarForm::BottomNav.has_column());
+        assert!(SidebarForm::Rail.has_column());
+        assert!(SidebarForm::Standard.has_column());
+        assert!(SidebarForm::Wide.has_column());
+    }
+
+    #[test]
+    fn the_rail_is_a_column_that_never_claims_labels() {
+        // The two projections must stay one table: a form either has a column,
+        // shows labels, both, or neither - never a fourth combination.
+        assert!(!SidebarForm::Rail.shows_labels());
+        assert!(!SidebarForm::BottomNav.shows_labels());
+        assert!(SidebarForm::Standard.shows_labels());
+        assert!(SidebarForm::Wide.shows_labels());
+        for tier in TIERS {
+            assert_eq!(
+                tier.has_labelled_sidebar(),
+                tier.sidebar_form().shows_labels()
+            );
+            assert_eq!(tier.nav_column_px() > 0, tier.sidebar_form().has_column());
+        }
+    }
+
+    #[test]
+    fn every_navigation_column_fits_its_tier_ceiling() {
+        // The space-utilization standard for the shell's own column, stated as
+        // numbers a gate can fail on: an icon rail stays inside a small share of
+        // the narrowest window it appears in, and a labelled column leaves a
+        // phone's worth of page body behind. FlClash's 48px rail and its 220px
+        // expansion above 840 are the same two rules on the same boundaries.
+        for tier in TIERS {
+            assert!(
+                tier.nav_column_px() <= tier.max_nav_column_px(),
+                "{} reserves {}px but its ceiling is {}px",
+                tier.id(),
+                tier.nav_column_px(),
+                tier.max_nav_column_px()
+            );
+        }
+
+        // The ceiling itself, spelled out so a boundary move has to argue here.
+        assert_eq!(ViewportTier::Compact.max_nav_column_px(), 0);
+        assert_eq!(ViewportTier::Medium.max_nav_column_px(), 72);
+        // 840 - 600: the labelled column takes exactly the room this tier has
+        // above the phone boundary, and no more.
+        assert_eq!(ViewportTier::Expanded.max_nav_column_px(), 240);
+        assert_eq!(ViewportTier::Ultra.max_nav_column_px(), 360);
+        assert_eq!(ViewportTier::Medium.nav_column_px(), 64);
+        assert_eq!(ViewportTier::Expanded.nav_column_px(), 240);
+        assert_eq!(ViewportTier::Ultra.nav_column_px(), 280);
     }
 
     #[test]

@@ -30,3 +30,24 @@ export enum ViewportTier {
     // An ultra-wide window: the roomy sidebar and the densest grids.
     ultra,
 }
+
+// The shell's navigation form, in the contract's own vocabulary.
+//
+// This is a different question from "which tier is this window": the tier says
+// how tight the page is, the form says what the shell mounts to navigate it.
+// The two used to be one boolean (`compact-layout`), which is how the medium
+// window ended up with a phone's bottom bar instead of the icon rail the
+// contract had already chosen for it. The variant names are the ids
+// `SidebarForm::id()` exports, and `slint-viewport-tier-guard.py` refuses a
+// drift in either direction.
+export enum NavigationForm {
+    // Navigation across the bottom. A touch surface, or a window too narrow
+    // to stand a column beside.
+    bottom-nav,
+    // A slim icon rail: a column, but no labels to pay for.
+    rail,
+    // The labelled sidebar.
+    standard,
+    // The labelled sidebar with room for the observation destinations.
+    wide,
+}

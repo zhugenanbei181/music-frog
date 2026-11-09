@@ -134,17 +134,30 @@ def tier_fact(name: str) -> dict:
 
 
 def painted_nav_column(width: int) -> int:
-    """The labelled navigation column a frame of this width actually paints.
+    """The navigation column a frame of this width actually paints.
 
-    The exported ladder says which form a tier takes and how wide that form is;
-    this answers the narrower question the measurement box needs: is there a
-    labelled column in this frame at all. A tier whose form is a bottom bar -
-    or an icon rail this surface has not grown yet (SPACEUTIL-006) - paints no
-    such column, and measuring one there would measure a strip of page content
-    and call it chrome.
+    The exported ladder already answers this per tier: 0 where the shell mounts
+    a bottom bar, 64 where it mounts the medium tier's icon rail (the form the
+    contract chose and Slint now draws, closing SPACEUTIL-006), 240 and 280 for
+    the labelled columns. The judge takes the number instead of deciding a
+    second time which form a width gets, because a box that disagrees with the
+    painted column measures page content as chrome, or chrome as page content.
     """
-    fact = tier_fact(tier(width))
-    return int(fact["nav_column_px"]) if fact["labelled_sidebar"] else 0
+    return int(tier_fact(tier(width))["nav_column_px"])
+
+
+def owns_labelled_sidebar(width: int) -> bool:
+    """Whether this frame's column is the labelled shape the rail axis knows.
+
+    The rail axis below was built against FlClash's labelled pane and knows how
+    to tell a nav row from a second content block there. It does not know that
+    for a 64px icon rail, where eight rows legitimately fill a short window:
+    the nav stack's own extent is a shell geometry fact that only arrives when
+    the receipt carries it, which is SPACEUTIL-007. Reporting a rail as
+    "chrome below the navigation" would be a false accusation, so the axis
+    stays with the shape it can actually judge.
+    """
+    return bool(tier_fact(tier(width))["labelled_sidebar"])
 
 
 def has_labelled_sidebar(width: int) -> bool:
@@ -296,7 +309,7 @@ def rail_of(image: np.ndarray) -> dict | None:
     """
     height, width, _ = image.shape
     column = painted_nav_column(width)
-    if column == 0:
+    if column == 0 or not owns_labelled_sidebar(width):
         return None
     strip = image[:, 0:column].astype(int)
     ground = np.median(strip[height // 2, 4:10].reshape(-1, 3), axis=0)
@@ -755,14 +768,14 @@ class SelfTest(unittest.TestCase):
         # This is the proof that the judge reads the exported table instead
         # of the boundaries it used to remember (700 and 1000).
         planted = self._with_export({
-            "version": 2, "pages": [], "slugs": [],
+            "version": 3, "pages": [], "slugs": [],
             "tiers": [
                 {"id": "compact", "min_width_px": 0, "max_width_px": 500,
                  "nav_form": "bottom_nav", "nav_column_px": 0,
                  "labelled_sidebar": False, "proxy_node_columns": 1,
                  "overview_card_columns": 1, "fallback_ground_limit_pct": 8.0},
                 {"id": "expanded", "min_width_px": 500, "max_width_px": None,
-                 "nav_form": "standard", "nav_column_px": 200,
+                 "nav_form": "standard", "nav_column_px": 200, "max_nav_column_px": 200,
                  "labelled_sidebar": True, "proxy_node_columns": 3,
                  "overview_card_columns": 2, "fallback_ground_limit_pct": 12.0},
             ],
@@ -800,14 +813,14 @@ class SelfTest(unittest.TestCase):
         # a width that belongs to no tier, and the judge would pick a limit
         # for it anyway.
         planted = self._with_export({
-            "version": 2, "pages": [], "slugs": [],
+            "version": 3, "pages": [], "slugs": [],
             "tiers": [
                 {"id": "compact", "min_width_px": 0, "max_width_px": 500,
                  "nav_form": "bottom_nav", "nav_column_px": 0,
                  "labelled_sidebar": False, "proxy_node_columns": 1,
                  "overview_card_columns": 1, "fallback_ground_limit_pct": 8.0},
                 {"id": "expanded", "min_width_px": 600, "max_width_px": None,
-                 "nav_form": "standard", "nav_column_px": 200,
+                 "nav_form": "standard", "nav_column_px": 200, "max_nav_column_px": 200,
                  "labelled_sidebar": True, "proxy_node_columns": 3,
                  "overview_card_columns": 2, "fallback_ground_limit_pct": 12.0},
             ],
@@ -827,13 +840,44 @@ class SelfTest(unittest.TestCase):
         # measured as a sidebar frame even in a tier that draws none. The
         # answer now comes from one exported fact per tier.
         self.assertEqual(tier(820), "medium")
-        self.assertEqual(painted_nav_column(820), 0)
-        self.assertEqual(shell_bottom_air_px(820), 0)
         self.assertEqual(tier(1180), "expanded")
-        self.assertEqual(painted_nav_column(1180), 240)
         self.assertEqual(shell_bottom_air_px(1180), 72)
+        self.assertEqual(shell_bottom_air_px(820), 0)
         entry = self.measure_one(_canvas(820, 480))
         self.assertNotIn("chrome_band_pct", entry, entry)
+
+    def test_the_medium_tier_pays_its_rail_and_keeps_its_bottom(self) -> None:
+        # SPACEUTIL-006, measured rather than asserted: a 720x480 desktop frame
+        # reserves the exported 64px icon rail, so its page body starts at the
+        # rail's edge, and because that form owns no bar the shell reserves no
+        # dock band - the 72 rows this window used to spend on a phone's bottom
+        # bar belong to the page now. The labelled column keeps its own numbers.
+        self.assertEqual(painted_nav_column(820), 64)
+        self.assertFalse(owns_labelled_sidebar(820))
+        self.assertEqual(content_box(820, 480)[0], 66)
+        self.assertEqual(content_box(820, 480)[2], 64 + page_margin_px(820))
+        self.assertEqual(content_box(820, 480)[5], 479)
+        self.assertEqual(painted_nav_column(1180), 240)
+        self.assertEqual(content_box(1180, 780)[0], 242)
+        self.assertTrue(owns_labelled_sidebar(1180))
+        # And no column at all where the exported form is a bottom bar.
+        self.assertEqual(painted_nav_column(400), 0)
+        self.assertEqual(content_box(400, 800)[0], 2)
+
+    def test_the_exported_column_never_breaches_its_own_ceiling(self) -> None:
+        # The ratio standard is checked against the real export, so a tier that
+        # grabbed more width than the standard allows fails here rather than
+        # winning an argument about how the reference product looks.
+        for fact in ladder():
+            self.assertLessEqual(
+                fact["nav_column_px"],
+                fact["max_nav_column_px"],
+                f"{fact['id']} reserves {fact['nav_column_px']}px, ceiling "
+                f"{fact['max_nav_column_px']}px",
+            )
+            self.assertEqual(
+                fact["touch_nav_form"], "bottom_nav",
+                "a touch surface navigates with a bar at every width")
 
 
 def self_test(argv: list[str] | None = None) -> int:

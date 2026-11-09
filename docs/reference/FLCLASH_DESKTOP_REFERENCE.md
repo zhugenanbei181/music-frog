@@ -48,7 +48,9 @@ primary 色竖向指示条（16dp 高，随选中项动画移动），没有强�
 | 选中态 | 全宽 8% 底 + 3dp 指示条 | 120u 内容宽强调色胶囊 | **求同**：改全宽淡底 + 指示条；b145 的 `pill_tail` 判据按此作废 |
 | 行几何 | 40dp 高 / 4dp 间距 / 24dp 图标 / 12dp 标签间隙 | 44u 高 / 20u 图标 / 三套列 | **求同**：收敛到一份 `NavItemMetrics` |
 | 导航项来源 | `NavigationPort.getItems()` typed 列表 + `modes` | 9 条 `NavButton` 字面量写死在 `sidebar.slint` | **求同**：由底层投影发布 typed 导航项 |
-| 折叠 | `expanded` / `compactWidth=48` 两档 | 无 | **存异**：本仓 compact 档走底部 dock，桌面不做 48dp 折叠（避免过度工程） |
+| 折叠 | `expanded` / `compactWidth=48` 两档；`canExpandSidebar` 只在 desktop 档放行标签 | `compact-layout` 一处布尔兼职决定「有无侧栏」 | **求同（b153 推翻 b145 的「存异」判断）**：上游按档给形态，本仓同样由契约给——`compact` 底部导航、`medium` 64px 图标轨、`expanded/ultra` 带标签列。b145 当时以「避免过度工程」为由拒绝桌面折叠档，实测代价是同一 720×480 窗口在 Iced 得竖轨、在 Slint 得横栏，短窗口多付一整条 72u 底部带（480 行的 15%）；真源早已裁决（契约 `SidebarForm::Rail`），缺的是组件而非理由，故按上游补齐 |
+| 标签何时出现 | `labelOpacity = (progress − 0.4)/0.6`，轨形态不画标签，靠 tooltip 补 | 与上游同判：`ViewportLadder.labelled_sidebar(tier)` 决定行内是否画标签与分组标题 | **求同**：轨形态只画图标（图标 24u 居中、选中全宽淡底 + 3u 指示条），标签与分组标题留给带标签列 |
+| 列宽的比例依据 | 48/600 = 8.0%，220 只在 >840 使用 | 64/600 = 10.7%；240 = 840 − 600（内容地板）；280 ≤ 1200 − 600 | **求同并成标准**：上限由 `ViewportTier::max_nav_column_px()` 一处裁决并导出，判定器与 Rust 测试复算同一条不变量（比例条款归 L2 空间利用率强制标准 §3.3） |
 
 ## 3. 仪表盘模块对照
 
