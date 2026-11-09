@@ -85,7 +85,12 @@
 
 - **严格交付率：1,258 / 1,360 = 92.5%**（archived 1,258pt / archived 1,258 + 未办结 102pt）。
 - 现在这 5 条是 `MUSICFROG-001`（5 pt，`InProgress`）与四条后续缺口：
-  `SPACEUTIL-008`（3 pt，概览卡列数的度量语义分歧待裁决）、
+  `SPACEUTIL-008`（3 pt，概览卡列数语义分歧——**第一百六十批已交付转 `Integrated`**：
+  复核发现契约 1/2/2/3 是 Bevy 包裹流每行卡数、Slint 2/4 是 span 网格份额数，两者本就不是
+  同一度量；上游 `dashboardColumnsOf(width) => width < 860 ? 2 : 4` 回答的是后者。契约新增
+  typed `DashboardColumns::{WrappedCards, GridShares}` 与导出阈值（version 7），生成器产出
+  `dashboard_grid_shares` 供 Slint 消费，守卫 29/29 钉死三种语义不得混读；三档像素 2/2/4
+  不变故不重采），
   `SPACEUTIL-009`（2 pt，导航栈纵向范围由外壳实测发布——**第一百五十七批已交付转 `Integrated`**：
   回执第八键 `nav_stack_bottom_px` 由侧栏末行自己的下沿测得（实测 502／轨 398／横栏 0），判定器删除
   `height * 0.70` 这条形状盲启发式并开启图标轨轴（判定范围 123 → 184 帧，最差 `chrome_band` 0.0%、

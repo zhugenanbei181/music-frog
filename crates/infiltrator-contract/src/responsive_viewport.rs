@@ -66,6 +66,64 @@ pub const LABELLED_CONTENT_FLOOR_PX: u16 = COMPACT_MAX_PX as u16;
 /// twice.
 pub const MAX_NAV_LEADING_SHARE_PCT: f64 = 8.0;
 
+/// The page width at which the reference dashboard switches from two grid
+/// shares to four.
+///
+/// FlClash states this once in `lib/views/dashboard/layout.dart`:
+/// `dashboardColumnsOf(width) => width < _minFourColumnWidth ? 2 : 4` with
+/// `_minFourColumnWidth = 860`. It is a property of the **page body's width**,
+/// not of a window tier, so it cannot be derived from `ViewportTier` without
+/// pretending a tier boundary is a dashboard boundary.
+pub const DASHBOARD_FOUR_COLUMN_MIN_PX: u16 = 860;
+
+/// The two dashboard column semantics this product actually ships.
+///
+/// They answer different questions and must not be collapsed into one number:
+/// `WrappedCards` is how many equal-width cards a wrapping flow puts in one
+/// row (the tier's `overview_card_columns`, 1/2/2/3, consumed by the Bevy
+/// overview list), while `GridShares` is how many equal shares the dashboard's
+/// span grid owns at this page width (2 or 4, consumed by Slint's Hero 2-span
+/// plus half-share upload/download cards). `SPACEUTIL-008` existed precisely
+/// because one untyped `usize` was read as if it answered both questions.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum DashboardColumns {
+    /// Cards per row in a wrapping flow, by viewport tier.
+    #[default]
+    WrappedCards,
+    /// Equal spans in the dashboard grid, by page width.
+    GridShares,
+}
+
+impl DashboardColumns {
+    /// The count this semantics assigns at a given tier and page width.
+    ///
+    /// `page_width_px` is the width left for the page body after the shell took
+    /// its navigation column. A rail/phone form is held to two shares whatever
+    /// the width - a four-share row in a 720px rail window clipped its last
+    /// card off the right edge - while a labelled column uses the reference's
+    /// 860 rule on the body that remains (1180 − 240 = 940 → four shares).
+    pub fn count(self, tier: ViewportTier, page_width_px: u16) -> u16 {
+        match self {
+            Self::WrappedCards => tier.overview_card_columns() as u16,
+            Self::GridShares => {
+                if !tier.has_labelled_sidebar() || page_width_px < DASHBOARD_FOUR_COLUMN_MIN_PX {
+                    2
+                } else {
+                    4
+                }
+            }
+        }
+    }
+
+    /// The stable identity of this semantics, for the exported table.
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::WrappedCards => "wrapped_cards",
+            Self::GridShares => "grid_shares",
+        }
+    }
+}
+
 /// The widest leading a labelled column of `column_px` may keep.
 ///
 /// The judge reads this through the exported share limit rather than keeping a
@@ -566,6 +624,67 @@ mod tests {
         assert_eq!(ViewportTier::Medium.nav_column_px(), 64);
         assert_eq!(ViewportTier::Expanded.nav_column_px(), 240);
         assert_eq!(ViewportTier::Ultra.nav_column_px(), 280);
+    }
+
+    #[test]
+    fn the_two_dashboard_column_semantics_are_not_the_same_number() {
+        // SPACEUTIL-008: one untyped `usize` used to answer both "how many
+        // cards wrap in a row" (1/2/2/3, by tier) and "how many shares the
+        // dashboard span grid owns" (2/4, by page width). Reading one as the
+        // other is why a 1180 window looked like two columns in one surface
+        // and four in another. The typed enum keeps them separate.
+        assert_eq!(
+            DashboardColumns::WrappedCards.count(ViewportTier::Expanded, 940),
+            2
+        );
+        assert_eq!(
+            DashboardColumns::GridShares.count(ViewportTier::Expanded, 940),
+            4
+        );
+        assert_eq!(DashboardColumns::WrappedCards.id(), "wrapped_cards");
+        assert_eq!(DashboardColumns::GridShares.id(), "grid_shares");
+        for &tier in TIERS.iter() {
+            assert_eq!(
+                DashboardColumns::WrappedCards.count(tier, tier.lower_bound_px()),
+                tier.overview_card_columns() as u16,
+                "{} wraps its shared number of cards",
+                tier.id()
+            );
+        }
+    }
+
+    #[test]
+    fn the_dashboard_grid_follows_the_reference_page_width_rule() {
+        // FlClash: `dashboardColumnsOf(width) => width < 860 ? 2 : 4`, where
+        // width is the page body. The shell's navigation column is paid for
+        // first, so the same window with a rail gets two shares and with a
+        // labelled column gets four.
+        assert_eq!(DASHBOARD_FOUR_COLUMN_MIN_PX, 860);
+        assert_eq!(
+            DashboardColumns::GridShares.count(ViewportTier::Medium, 656),
+            2
+        );
+        assert_eq!(
+            DashboardColumns::GridShares.count(ViewportTier::Expanded, 940),
+            4
+        );
+        assert_eq!(
+            DashboardColumns::GridShares
+                .count(ViewportTier::Expanded, DASHBOARD_FOUR_COLUMN_MIN_PX - 1),
+            2
+        );
+        assert_eq!(
+            DashboardColumns::GridShares
+                .count(ViewportTier::Expanded, DASHBOARD_FOUR_COLUMN_MIN_PX),
+            4
+        );
+        // A rail form stays at two shares even with a wide page body: the
+        // three-share Hero would otherwise leave no room for the half-share
+        // cards at 720px. That is a form decision, not a second width rule.
+        assert_eq!(
+            DashboardColumns::GridShares.count(ViewportTier::Medium, 940),
+            2
+        );
     }
 
     #[test]

@@ -108,6 +108,22 @@ desktop only）在本仓没有对应真实差异——`MasterSwitches` 四表面
 （Android 走 VPNService）。因此 b146 登记的「缺 typed enum 注册表」是误判，
 `FLCLASH-002` 直接办结，不新增第二套卡片清单、不动 wire/快照/UI。
 
+**b160 复核修订（求同：`SPACEUTIL-008` 的语义分歧在契约裁决）**：上游
+`lib/views/dashboard/layout.dart` 把仪表盘列数写成一条**页身宽度**规则：
+`dashboardColumnsOf(width) => width < 860 ? 2 : 4`，另外用
+`DashboardDensity.of(size)` 给窄四列窗口降密度（1040/824 两条界）。本仓此前把
+`ViewportTier::overview_card_columns`（1/2/2/3，Bevy 包裹流每行卡数）与 Slint 的
+`overview-card-columns`（`compact-layout ? 2 : 4`，span 网格份额数）都叫「概览卡列数」，
+于是同一个 1180×780 窗口被读成两种度量。裁决不是把 4 改成 2：契约新增 typed
+`DashboardColumns::{WrappedCards, GridShares}` 与导出的
+`dashboard_columns.four_column_min_px = 860`，生成器把 2/4 规则生成为
+`ViewportLadder.dashboard_grid_shares(page-width, tier)` 供 Slint 的 span 网格消费；
+轨/手机档固定 2 份额（720px 轨帧用 4 份额会把末卡挤到窗口外，b153 实测），
+带标签列才按 860 页身规则给 4。Bevy 的 1/2/2/3 仍是包裹流的另一个 typed 事实，
+Iced 的概览是纵向卡片流、不消费列数。**两种度量都成立，错的是共用一个 untyped `usize`。**
+对已发布 197 帧复核：三档（400/720/1180）的 2/2/4 结果逐个不变，故本批不改像素、
+不重采；`SPACEUTIL-008` 的登记前提由「待裁决」转为「已裁决」。
+
 ## 4. Core 能力面差距（求同抽象，b146 复核修订）
 
 上游 `CoreMethod` 约 60 个 `area.verb` 方法，登记在 `core/protocol.go`，

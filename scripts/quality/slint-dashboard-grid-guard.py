@@ -15,7 +15,8 @@ The rules are structural:
   needs a `GridLayout` so the dense tier can move the extra cards down;
 * every card inside such a `GridLayout` states its own `col:` and `row:`, so a
   tier change re-plans the placement instead of dropping cards;
-* the dense share count and the declared dense column count are the same fact.
+* the dense share count is the generated lookup's own narrow-form arm, not a
+  private ternary in the page (SPACEUTIL-008).
 """
 
 from __future__ import annotations
@@ -33,7 +34,12 @@ GRID_FILE = UI / "pages/home_desktop_grid.slint"
 THEME = UI / "components/theme.slint"
 
 COLUMN_BASIS = re.compile(
-    r"property <int> card-columns:\s*root\.dense\s*\?\s*(\d+)\s*:\s*LumenTheme\.overview-card-columns"
+    r"if \(tier == ViewportTier\.compact \|\| tier == ViewportTier\.medium\) "
+    r"\{ return (\d+); \}"
+)
+DASHBOARD_LOOKUP = re.compile(
+    r"property <int> card-columns:\s*"
+    r"ViewportLadder\.dashboard_grid_shares\(root\.width,\s*LumenTheme\.viewport-tier\)"
 )
 SPAN_WIDTH = "width: root.card-span-width;"
 COLUMN_WIDTH = "width: root.card-column-width;"
@@ -122,7 +128,16 @@ def own_statements(block: str) -> str:
 
 
 def dense_columns(source: str) -> int | None:
-    match = COLUMN_BASIS.search(source)
+    """The narrow-form share count from the generated contract lookup.
+
+    The page must prove it consumes that lookup, and the lookup must prove the
+    value it returns. Reading the page's private literal would let the two
+    drift apart - exactly the SPACEUTIL-008 defect.
+    """
+    if not DASHBOARD_LOOKUP.search(source):
+        return None
+    ladder = (UI / "components" / "viewport-ladder.slint").read_text(encoding="utf-8")
+    match = COLUMN_BASIS.search(ladder)
     return int(match.group(1)) if match else None
 
 
@@ -182,12 +197,15 @@ def violations(grid: pathlib.Path = GRID_FILE) -> list[str]:
     return row_findings(source, grid)
 
 
-def violations_with(planted: str) -> list[str]:
+def violations_with(planted: str, ladder: str | None = None) -> list[str]:
     real = pathlib.Path.read_text
+    ladder_file = UI / "components" / "viewport-ladder.slint"
 
     def fake(self, *args, **kwargs):
         if self == GRID_FILE:
             return planted
+        if ladder is not None and self == ladder_file:
+            return ladder
         return real(self, *args, **kwargs)
 
     with unittest.mock.patch.object(pathlib.Path, "read_text", autospec=True) as read_text:
@@ -240,11 +258,10 @@ class GuardSelfTest(unittest.TestCase):
         self.assertTrue(any("without stating its own col:" in item for item in found), found)
 
     def test_a_row_that_outgrows_the_dense_basis_is_caught(self) -> None:
-        planted = self.grid.replace(
-            "property <int> card-columns: root.dense ? 2 : LumenTheme.overview-card-columns;",
-            "property <int> card-columns: root.dense ? 1 : LumenTheme.overview-card-columns;",
-            1,
-        )
+        # The dense share count now comes from the generated lookup's own
+        # narrow-form arm, so planting a smaller basis means planting that arm
+        # in the ladder file rather than editing a private page ternary.
+        planted = self.grid
         planted = planted.replace(
             """    // Row 4: Realtime Connections Mini Table (~62%) + Policy Groups Grid (~38%)""",
             """    HorizontalLayout {
@@ -260,11 +277,32 @@ class GuardSelfTest(unittest.TestCase):
     // Row 4: Realtime Connections Mini Table (~62%) + Policy Groups Grid (~38%)""",
             1,
         )
-        found = violations_with(planted)
+        ladder = (UI / "components" / "viewport-ladder.slint").read_text(encoding="utf-8")
+        ladder_one = ladder.replace(
+            "if (tier == ViewportTier.compact || tier == ViewportTier.medium) { return 2; }",
+            "if (tier == ViewportTier.compact || tier == ViewportTier.medium) { return 1; }",
+            1,
+        )
+        found = violations_with(planted, ladder_one)
         self.assertTrue(any("column shares" in item for item in found), found)
 
     def test_the_column_basis_stays_one_owner(self) -> None:
-        self.assertEqual(len(COLUMN_BASIS.findall(mask_slint_comments(self.grid))), 1)
+        ladder = (UI / "components" / "viewport-ladder.slint").read_text(encoding="utf-8")
+        self.assertEqual(len(DASHBOARD_LOOKUP.findall(mask_slint_comments(self.grid))), 1)
+        self.assertEqual(len(COLUMN_BASIS.findall(ladder)), 1)
+
+    def test_a_grid_that_forks_its_own_column_basis_is_refused(self) -> None:
+        # SPACEUTIL-008: a private ternary is a second answer to the same
+        # question, so the guard must refuse to judge the row shares at all.
+        planted = self.grid.replace(
+            "property <int> card-columns:\n"
+            "        ViewportLadder.dashboard_grid_shares(root.width, LumenTheme.viewport-tier);",
+            "property <int> card-columns: root.dense ? 2 : 4;",
+            1,
+        )
+        self.assertNotEqual(planted, self.grid)
+        found = violations_with(planted)
+        self.assertTrue(any("lost its single owner" in item for item in found), found)
 
 
 def main() -> int:

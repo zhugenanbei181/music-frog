@@ -54,10 +54,24 @@ NODE_COLUMNS_DOC = [
     "Bevy shells use at the same width, so one window never gets four",
     "columns on one surface and three on another.",
     "",
-    "The dashboard's own card count is not emitted here: Slint's overview",
-    "grid is a span layout, not a column count, and a generated lookup that",
-    "nobody calls would be a dead knob wearing the ladder's clothes. It is",
-    "registered on the board instead of silently forked.",
+    "The dashboard's own column count is a DIFFERENT typed fact, not this",
+    "lookup: see `dashboard_grid_shares` below.",
+]
+
+DASHBOARD_DOC = [
+    "How many equal shares the dashboard's span grid owns at this page width.",
+    "",
+    "The contract's `DashboardColumns::GridShares` answers this by page width",
+    "(FlClash `dashboardColumnsOf`: below 860 -> 2, at or above -> 4), while",
+    "`overview_card_columns` answers a different question - cards per row in a",
+    "wrapping flow (1/2/2/3 by tier). SPACEUTIL-008 existed because Slint's",
+    "private 2/4 and the contract's 1/2/2/3 were both called `card columns`.",
+    "A rail-form window is held to two shares regardless of width: its grid",
+    "is the compact `DashboardDensity` and a four-share row there clipped the",
+    "last card off the right edge (measured at 720px). That is a typed form",
+    "switch, not a second width rule. This lookup is generated from the",
+    "exported threshold, so neither the surface nor this generator owns a",
+    "second copy of the number.",
 ]
 
 SIDEBAR_DOC = [
@@ -151,6 +165,7 @@ def navigation_function(tiers: list[dict]) -> list[str]:
 
 def slint_ladder(document: dict) -> str:
     tiers = document["tiers"]
+    threshold = int(document["dashboard_columns"]["four_column_min_px"])
     body: list[str] = [f"    // {line}".rstrip() for line in BOUNDARY_DOC]
     body += boundary_properties(tiers)
     body.append("")
@@ -172,6 +187,21 @@ def slint_ladder(document: dict) -> str:
         tiers,
         lambda entry: "true" if entry["labelled_sidebar"] else "false",
     )
+    body += [f"    // {line}".rstrip() for line in DASHBOARD_DOC]
+    body.append(
+        "    public pure function dashboard_grid_shares("
+        "page-width: length, tier: ViewportTier) -> int {"
+    )
+    body.append(
+        "        if (tier == ViewportTier.compact || tier == ViewportTier.medium) "
+        "{ return 2; }"
+    )
+    body.append(
+        f"        if (page-width < {threshold} * LumenUiScale.unit) {{ return 2; }}"
+    )
+    body.append("        return 4;")
+    body.append("    }")
+    body.append("")
     return HEADER + "\n".join(body).rstrip() + "\n}\n"
 
 
@@ -185,9 +215,9 @@ def main() -> int:
         print(f"viewport ladder export is missing: {EXPORT.relative_to(ROOT)}", file=sys.stderr)
         return 1
     document = json.loads(EXPORT.read_text(encoding="utf-8"))
-    if document.get("version") != 6:
+    if document.get("version") != 7:
         print(
-            "page-structure.json is not the ladder-bearing version 6 export; "
+            "page-structure.json is not the ladder-bearing version 7 export; "
             "rerun export_page_structure",
             file=sys.stderr,
         )

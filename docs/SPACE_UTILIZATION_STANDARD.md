@@ -219,6 +219,13 @@ infiltrator-contract::responsive_viewport（边界 + SidebarForm + 列数的类�
 - **方向不可颠倒**：leading 是**列内**的，因此它是比例；列自身宽度是 §3.3 的比例。
   两个比例都不得用固定像素常量替代，否则换档即失效。
 
+同一原则适用于**仪表盘列数**（b160，`SPACEUTIL-008`）：`overview_card_columns`
+（1/2/2/3，包裹流每行卡数，按档）与 `dashboard_grid_shares`（2/4，span 网格份额数，
+按页身宽度，参考产品 `dashboardColumnsOf` 的 860 界）是两个 typed 事实，由契约枚举
+`DashboardColumns` 区分并导出；任何一处再把其中一个 untyped 数字读成另一个都是
+重犯「同一事实两个真源」。轨/手机档固定 2 份额不是第二个宽度规则，而是短窗口下
+4 份额会把末卡挤到窗口外的形态裁决（b153 实测）。
+
 ## 4. 内容少不是豁免
 
 这是本标准最容易被误解之处，必须写死：

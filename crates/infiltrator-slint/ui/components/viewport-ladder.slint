@@ -51,10 +51,8 @@ export global ViewportLadder {
     // Bevy shells use at the same width, so one window never gets four
     // columns on one surface and three on another.
     //
-    // The dashboard's own card count is not emitted here: Slint's overview
-    // grid is a span layout, not a column count, and a generated lookup that
-    // nobody calls would be a dead knob wearing the ladder's clothes. It is
-    // registered on the board instead of silently forked.
+    // The dashboard's own column count is a DIFFERENT typed fact, not this
+    // lookup: see `dashboard_grid_shares` below.
     public pure function proxy_node_columns(tier: ViewportTier) -> int {
         if (tier == ViewportTier.compact) { return 1; }
         if (tier == ViewportTier.medium) { return 2; }
@@ -72,5 +70,24 @@ export global ViewportLadder {
         if (tier == ViewportTier.medium) { return false; }
         if (tier == ViewportTier.expanded) { return true; }
         return true;
+    }
+
+    // How many equal shares the dashboard's span grid owns at this page width.
+    //
+    // The contract's `DashboardColumns::GridShares` answers this by page width
+    // (FlClash `dashboardColumnsOf`: below 860 -> 2, at or above -> 4), while
+    // `overview_card_columns` answers a different question - cards per row in a
+    // wrapping flow (1/2/2/3 by tier). SPACEUTIL-008 existed because Slint's
+    // private 2/4 and the contract's 1/2/2/3 were both called `card columns`.
+    // A rail-form window is held to two shares regardless of width: its grid
+    // is the compact `DashboardDensity` and a four-share row there clipped the
+    // last card off the right edge (measured at 720px). That is a typed form
+    // switch, not a second width rule. This lookup is generated from the
+    // exported threshold, so neither the surface nor this generator owns a
+    // second copy of the number.
+    public pure function dashboard_grid_shares(page-width: length, tier: ViewportTier) -> int {
+        if (tier == ViewportTier.compact || tier == ViewportTier.medium) { return 2; }
+        if (page-width < 860 * LumenUiScale.unit) { return 2; }
+        return 4;
     }
 }

@@ -259,7 +259,15 @@ export global LumenTheme {
     // two cards measured 187u and 169u and the desktop grid's four measured
     // 199u/201u/216u/216u in the same screen. Sibling cards therefore never
     // lined up on their inner edges, and every row had its own column grid.
-    out property <int> overview-card-columns: root.compact-layout ? 2 : 4;
+    // The phone quick-info grid's two-up width basis. This is NEITHER of the
+    // two dashboard answers: the span grid reads
+    // `ViewportLadder.dashboard_grid_shares(page-width)` (2/4 by page width,
+    // typed contract fact), and a wrapping card flow reads the tier's
+    // `overview_card_columns` (1/2/2/3). Keeping this one as a literal is
+    // honest: it is a fixed property of the compact quick-info row, not a
+    // responsive ladder entry. SPACEUTIL-008 existed because all three were
+    // called "card columns" and one untyped `usize` was read as the others.
+    out property <int> overview-card-columns: 2;
     out property <length> overview-card-gap: root.compact-layout ? root.space-3 : root.space-4;
     // One line box for a fact card's primary value. The roles were already
     // unified per fact kind, but a 22px numeric value and a 15px name still

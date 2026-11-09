@@ -17,14 +17,16 @@ import { HomeHeroFactRow } from "home_fact_row.slint";
 
 export component HomeDesktopGrid inherits VerticalLayout {
     in property <RuntimeStatus> runtime-status;
-    // One width basis for the whole dashboard grid: the dense tier lays two
-    // cards per row, the wide tier four, and every card - including the two
+    // One width basis for the whole dashboard grid: the exported share count
+    // (2 or 4) answers by the page body's width, which is the same rule
+    // FlClash's `dashboardColumnsOf` states. Every card - including the two
     // cards that span a pair of columns - takes whole shares of that basis.
     // `horizontal-stretch` could not do this job: it hands out the slack left
     // over after each card has taken its preferred width, so the four fact
     // cards measured 199u/201u/216u/216u in one row and their inner edges
     // never matched the row above them.
-    property <int> card-columns: root.dense ? 2 : LumenTheme.overview-card-columns;
+    property <int> card-columns:
+        ViewportLadder.dashboard_grid_shares(root.width, LumenTheme.viewport-tier);
     property <length> card-column-width: max(0 * LumenUiScale.unit,
         (self.width - (root.card-columns - 1) * LumenTheme.overview-card-gap)
             / root.card-columns);

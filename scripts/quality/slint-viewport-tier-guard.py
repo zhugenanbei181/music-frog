@@ -225,7 +225,11 @@ def ladder_findings(ui: pathlib.Path) -> list[str]:
     adapter_code = mask_comments(adapter)
 
     # The adapter must be the generator's own output, not a hand edit.
-    expected = generator_module().slint_ladder({"version": 6, "tiers": tiers})
+    expected = generator_module().slint_ladder({
+        "version": 7,
+        "tiers": tiers,
+        "dashboard_columns": {"four_column_min_px": 860},
+    })
     if adapter != expected:
         found.append(
             "components/viewport-ladder.slint is not the generated adapter; "
@@ -567,9 +571,32 @@ def violations(ui: pathlib.Path, dock_checks: bool = True,
         page = (ui / "pages" / name).read_text(encoding="utf-8")
         page_code = mask_comments(page)
         lines = page_code.splitlines()
-        for token in ("LumenTheme.overview-card-columns", "LumenTheme.overview-card-gap"):
-            if token not in page_code:
-                found.append(f"pages/{name}: the card grid no longer reads {token}")
+        if "LumenTheme.overview-card-gap" not in page_code:
+            found.append(f"pages/{name}: the card grid no longer reads the shared gap")
+        if name == "home_desktop_grid.slint":
+            # SPACEUTIL-008: the span grid reads the contract's exported share
+            # lookup by page width. A private `compact-layout ? 2 : 4`, or the
+            # wrapping flow's tier column count, would be a second answer to
+            # the same question.
+            if not re.search(
+                r"ViewportLadder\.dashboard_grid_shares\(root\.width,\s*"
+                r"LumenTheme\.viewport-tier\)",
+                page_code,
+            ):
+                found.append(
+                    "pages/home_desktop_grid.slint: the span grid no longer reads "
+                    "the exported dashboard_grid_shares lookup"
+                )
+            if "LumenTheme.overview-card-columns" in page_code:
+                found.append(
+                    "pages/home_desktop_grid.slint: the span grid reads the phone "
+                    "quick-info literal instead of its own typed contract fact"
+                )
+        elif "LumenTheme.overview-card-columns" not in page_code:
+            found.append(
+                "pages/home_compact_flow.slint: the phone quick-info grid lost "
+                "its two-up width basis"
+            )
         for index, line in enumerate(lines):
             if not line.rstrip().endswith("SurfaceCard {"):
                 continue
@@ -931,6 +958,37 @@ class GuardSelfTest(unittest.TestCase):
         findings = self._findings_with({"space_utilization.py": planted})
         self.assertTrue(
             any("keeps chrome geometry again" in item for item in findings), findings)
+
+    def test_a_span_grid_that_forgets_the_exported_lookup_is_caught(self) -> None:
+        """SPACEUTIL-008: the 2/4 share grid reads a typed contract fact, not a
+        private tier boolean."""
+        grid = (UI / "pages" / "home_desktop_grid.slint").read_text(encoding="utf-8")
+        planted = grid.replace(
+            "ViewportLadder.dashboard_grid_shares(root.width, LumenTheme.viewport-tier)",
+            "root.dense ? 2 : 4",
+            1,
+        )
+        self.assertNotEqual(grid, planted)
+        findings = self._findings_with({"home_desktop_grid.slint": planted})
+        self.assertTrue(
+            any("no longer reads the exported dashboard_grid_shares lookup" in item
+                for item in findings), findings)
+
+    def test_a_span_grid_that_reads_the_wrapping_column_count_is_caught(self) -> None:
+        # The two typed facts must stay separate: a grid that reads the
+        # phone quick-info literal is answering the wrong question.
+        grid = (UI / "pages" / "home_desktop_grid.slint").read_text(encoding="utf-8")
+        planted = grid.replace(
+            "property <int> card-columns:\n"
+            "        ViewportLadder.dashboard_grid_shares(root.width, LumenTheme.viewport-tier);",
+            "property <int> card-columns: LumenTheme.overview-card-columns;",
+            1,
+        )
+        self.assertNotEqual(grid, planted)
+        findings = self._findings_with({"home_desktop_grid.slint": planted})
+        self.assertTrue(
+            any("reads the phone quick-info literal" in item for item in findings),
+            findings)
 
     def test_parallel_dock_wip_does_not_hide_typography_and_columns(self) -> None:
         findings = violations(UI, dock_checks=False)

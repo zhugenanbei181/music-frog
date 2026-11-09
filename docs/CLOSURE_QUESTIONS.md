@@ -38,6 +38,18 @@
 | 7 | 部分 | L | 彻底清除全仓 part1/part2/part3 无语义命名，重构为高内聚强语义模块（reset_recovery_and_migration、owner_switch_and_recovery、cross_process_concurrency、workspace_recovery_and_reset_tests）；文件级模块化完成（scanned=2891 violations=0，kt-line scanned=227 violations=0）；mod.rs 清退至 0；隐式状态机语义审计 + 判决台账常驻（23 条候选 0 undecided 0 open）；rem 体系 0 违规 0 debt；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | `check-structure.sh` 40+ 结构守卫、单测与工具链全部 exit 0；`cargo fmt --all --check` 0 偏差；六包定向 nextest 2179/2179 全绿；Clippy 6 包 `--all-targets -D warnings` 零警告；`screenshot-identity-guard` 550 张截图 10 aliases 0 违规；`scrollbar-contract-guard` 0 违规；`shared-copy-guard` 0 违规；`i18n-guard` 0 违规 |
 
+## 最近一批问答（2026-11-09 第一百六十交付批次：概览列数两种语义在契约分开 / span 网格改读导出的 860 页宽规则 / 像素结果不变）
+
+1. x86_64/aarch64：本批改共享契约、导出物、生成器、Slint 表面与守卫，架构中性；`cargo nextest run -p infiltrator-contract -p infiltrator-slint -j 2` **947 run / 947 passed / 0 skipped**（contract 564 = 562 + 两条 DashboardColumns 用例、slint 383）、`cargo clippy -p infiltrator-contract -p infiltrator-slint --all-targets -D warnings` exit 0、`cargo fmt --all --check` 0 偏差为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 目标产物未随本批复跑，`C`/`D` 待补证 → 部分（L）。
+2. Windows/Linux/macOS：本机 Linux 台架复跑全部判据腿（`space_utilization --enforce` 197 帧 violations=0、`--check-export` current、生成器 `--check` fresh、两个守卫自测 41/41 与 29/29、`slint-syntax-guard` 100% PASS）；本批像素结果不变故未重采，Windows/macOS 构建腿与安装包未复跑，macOS 沿用既有 `Unsupported` 登记（GAP-2.2） → 部分（L）。
+3. Android/iOS：本批不触 Android/iOS 文件；`dashboard_grid_shares` 由桌面 Slint 消费，Android 概览是手机单列流、iOS 不读该查表。三 flavor 实机交互回执与 iOS 回执按既有条目留在斗战胜佛/未来佛，不升级 → 部分（L）。
+4. 各 UI：Slint 的 span 网格由私有 `dense ? 2 : LumenTheme.overview-card-columns` 改读契约导出的 `ViewportLadder.dashboard_grid_shares(page-width, tier)`；Bevy 的 1/2/2/3 包裹流仍是另一个 typed 事实（`sync_overview_card_columns`），Iced 概览是纵向卡片流不消费列数；三种语义不再共用一个 untyped `usize`。三档采集窗口 400/720/1180 的 2/2/4 结果逐个不变（1180−240=940 ≥ 860 → 4），已发布 197 帧回执仍为当前源码的有效证据 → 部分（L）。
+5. 复用：一条规则一处真源——契约 `DashboardColumns::{WrappedCards, GridShares}` + `DASHBOARD_FOUR_COLUMN_MIN_PX = 860` → 导出物 version 7 的 `dashboard_columns` → 生成器（唯一写入 `viewport-ladder.slint`）→ Slint span 网格；守卫同时钉死「必须读导出查表」「不得读手机 quick-info 字面量」「compact flow 仍读两列基准」，判定器 `--check-export` 拒旧版导出。上游 `dashboardColumnsOf` 的阈值以契约常量与导出字段出现，Python 生成器与 `.slint` 都从导出物取值，未留第二份数字 → 完整（L）。
+5a. 设计资源强制标准：本批无字型/字重/图标/主题/几何身份变化（三种列数结果 2/2/4 逐个相等），不重采、不刷新别名；`receipt-freshness violations=0`、`screenshot-identity scanned=574 aliases=10 violations=0`、`design-resource-authority.py` 在既有全量门内 0 违规 → 完整（L）。
+6. 各处界面的功能接入：判定器 41/41、`--enforce` 197 帧 violations=0、`--check-export` current；`slint-viewport-tier-guard` planted 自测 27 → **29/29**（删查表、让 span 网格读错的事实两条 planted 都咬）、`--mode enforce` findings=0；`slint-syntax-guard` 100% PASS；`resolve_surface_evidence.py` 与全仓结构门按组团收口纪律留待统一验证批次 → 部分（L）。
+7. 模块化：语义归属在底层 typed 枚举里裁决，生成器只做导出→适配器投影，Slint 页面只消费查表，守卫只做词法/结构校验；旧私有 ternary 与 generator 里「span 网格不生成」的过期注释同批删除，无兼容轨道、无新增布尔状态（`dense` 仍是既有真实二值事实） → 完整（L）。
+8. CI 与批次效率：本批按单一契约/表面主题定向验收（`nextest -p contract -p slint` 947、两包 clippy、fmt、两个自测、导出新鲜度、生成器新鲜度），未跨层散布改动；因像素结果可证不变，省下一次 197 帧重采（上批实测 422s），全仓 nextest/clippy/结构门与 5 条 `Integrated` 的办结统一留到组团收口批次一次跑完。严格交付率保持 **92.5%** → 部分（L）。
+
 ## 最近一批问答（2026-11-09 第一百五十九交付批次：侧栏列内 leading 按场景实测裁决 / 回执第九键与 8% 比例判据 / 整批 197 帧重采）
 
 1. x86_64/aarch64：本批改共享契约、导出物、Slint 表面、判定器、守卫与文档，架构中性；`cargo nextest run -p infiltrator-contract -j 2` **562 run / 562 passed / 0 skipped**（新增 leading 配对与逐档预算两例）、`cargo nextest run -p infiltrator-slint -j 2` **383 run / 383 passed / 0 skipped**（冷帧断言第九键为 0 且与形态配对）、`cargo fmt --all --check` 0 偏差为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 目标产物未随本批复跑，`C`/`D` 待补证 → 部分（L）。

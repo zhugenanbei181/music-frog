@@ -17,7 +17,9 @@
 //! and are projected here, tier by tier, as `TierFact`.
 
 use crate::command_catalogue::ShellPage;
-use crate::responsive_viewport::{TIERS, ViewportTier};
+use crate::responsive_viewport::{
+    DASHBOARD_FOUR_COLUMN_MIN_PX, DashboardColumns, TIERS, ViewportTier,
+};
 use crate::shell_receipt::CHROME_KEYS;
 use serde::Serialize;
 
@@ -127,7 +129,8 @@ pub fn page_structure_json() -> String {
     })
     .collect();
     format!(
-        "{{\"version\":6,\"pages\":[{}],\"slugs\":[{}],\"tiers\":{},\"chrome_keys\":{}}}\n",
+        "{{\"version\":7,\"dashboard_columns\":{},\"pages\":[{}],\"slugs\":[{}],\"tiers\":{},\"chrome_keys\":{}}}\n",
+        dashboard_columns_json(),
         pages.join(","),
         slugs.join(","),
         tiers_json(),
@@ -146,6 +149,28 @@ pub fn chrome_marker_keys() -> Vec<&'static str> {
 
 fn chrome_keys_json() -> String {
     serde_json::to_string(&chrome_marker_keys()).expect("the chrome keys are plain strings")
+}
+
+/// The dashboard's two column semantics and the one width rule that splits
+/// the share grid, exported so a surface never has to guess which `usize` a
+/// ladder entry means (see `SPACEUTIL-008`).
+fn dashboard_columns_json() -> String {
+    let variants = [DashboardColumns::WrappedCards, DashboardColumns::GridShares];
+    let entries: Vec<String> = variants
+        .iter()
+        .map(|semantics| {
+            format!(
+                "{{\"id\":\"{}\",\"four_column_min_px\":{}}}",
+                semantics.id(),
+                DASHBOARD_FOUR_COLUMN_MIN_PX
+            )
+        })
+        .collect();
+    format!(
+        "{{\"variants\":[{}],\"four_column_min_px\":{}}}",
+        entries.join(","),
+        DASHBOARD_FOUR_COLUMN_MIN_PX
+    )
 }
 
 /// How a page fills its body.
@@ -414,7 +439,7 @@ mod tests {
     fn the_exported_document_carries_the_ladder() {
         let json = page_structure_json();
         let document: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
-        assert_eq!(document["version"], 6);
+        assert_eq!(document["version"], 7);
         // The chrome vocabulary travels with the ladder it describes, so a
         // reader that has the document already has the key list.
         assert_eq!(
@@ -431,6 +456,10 @@ mod tests {
         );
         assert_eq!(document["chrome_keys"][2], "nav_stack_bottom_px");
         assert_eq!(document["chrome_keys"][3], "nav_content_offset_px");
+        let dashboard = &document["dashboard_columns"];
+        assert_eq!(dashboard["four_column_min_px"], 860);
+        assert_eq!(dashboard["variants"][0]["id"], "wrapped_cards");
+        assert_eq!(dashboard["variants"][1]["id"], "grid_shares");
         let tiers = document["tiers"].as_array().expect("the exported ladder");
         assert_eq!(tiers.len(), TIERS.len());
         assert_eq!(tiers[2]["id"], "expanded");
