@@ -1,0 +1,20 @@
+# FlClash v0.9.3 upstream DashboardWidget ledger (machine-checkable audit artifact)
+# upstream: chen08209/FlClash @ be84736605527034689c95bf27828ff27d912c5e
+# source: lib/enum/enum.dart DashboardWidget + lib/views/dashboard/widget_registry.dart
+# sha256 of the sorted widget-name list (one per line, trailing newline):
+# 711a25072bf9086cdee57c25212182a1eed23deb16a779333b314c2f660f2162
+# platforms: all | android | desktop; removable: true unless currentOutbound
+# Every row MUST name the one in-repo truth source; an unadjudicated widget
+# is a gate failure, not a silent gap.
+widget	platforms	removable	component	owner
+currentOutbound	all	false	CurrentOutboundCard	infiltrator-contract::surface_snapshot::SurfaceSnapshot + DashboardHeroProjection
+networkSpeed	all	true	NetworkSpeedCard	infiltrator-presentation::TrafficWaveformProjection
+outboundMode	all	true	OutboundModeCard	infiltrator-presentation::OutboundModeSelectorProjection
+vpnButton	android	true	VpnCard	infiltrator-contract::vpn::VpnSurfaceObservation + Android VPNService
+networkTakeover	desktop	true	NetworkTakeoverCard	infiltrator-contract::overview_layout::OverviewCardKind::MasterSwitches
+serviceStatus	all	true	ServiceStatusCard	infiltrator-contract::speedtest::SpeedtestSnapshot + DashboardFacts.services_summary
+profiles	all	true	ProfilesCard	infiltrator-presentation::ProfileQuickCardProjection
+proxyGroups	all	true	ProxyGroupsCard	infiltrator-contract::surface_snapshot::SurfaceSnapshot.outbound_inventory
+connectionStats	all	true	ConnectionStatsCard	infiltrator-contract::connection::ConnectionRateObservation
+intranetIp	all	true	IntranetIpCard	infiltrator-presentation::QuickSwitchesProjection
+memoryInfo	all	true	MemoryInfo	infiltrator-presentation::MemoryInfoCardProjection

@@ -99,6 +99,21 @@ intranetIp, memoryInfo`。
 `home_desktop_grid.slint` 已有 hero / 上传 / 下载 / 内网IP / 配置 / 服务状态 /
 内存信息 / 连接表 / 策略组网格等卡片。
 
+**b167 注册表逐条可门禁（求同抽象的机器可读半条）**：上游
+`lib/enum/enum.dart` 的 `DashboardWidget` 恰好 11 个变体；其中 `vpnButton`
+仅 Android、`networkTakeover` 仅 `desktopPlatforms`（Linux/macOS/Windows），
+`widget_registry.dart` 对每个变体给出唯一卡片组件、glyph、label 与可选
+description，并规定 `currentOutbound` 不可移除（它承载启动按钮）。本批把这
+11 个身份、平台门控、可移除性、组件名与**一处本仓真源**逐条落到
+[flclash-dashboard-widgets.tsv](flclash-dashboard-widgets.tsv)，排序词表
+SHA-256 `711a2507…`，由 `scripts/quality/flclash-dashboard-widget-guard.py`
+离线校验并接入结构门。裁决仍是「求同存异」：上游按 UI 注册表拼卡，本仓
+按 `OverviewCardKind` / `DashboardFacts` / 各 presentation 投影从 Core 快照
+发布 typed 事实；Android 的 VPN 与桌面的网络接管不是第二份侧栏状态，而是
+`VpnSurfaceObservation` 与 `MasterSwitches` 各自唯一 owner。守卫 planted 自测
+10/10 覆盖上游卡片删增、平台门控漂移、不可移除规则、组件名、owner 缺失与
+结构门接线，上游版本一变或台账出现未裁决项立即失败。
+
 **b148 复核修订（存异：本仓已更强，不写码）**：`infiltrator-contract::overview_layout`
 已有 typed `OverviewCardKind`（8 变体）、`region` 把 shell 侧栏控件与概览卡分开
 （上游 `DashboardWidget.platforms` 无此裁决）、`DEFAULT_ORDER` 默认顺序、

@@ -38,6 +38,18 @@
 | 7 | 部分 | L | 彻底清除全仓 part1/part2/part3 无语义命名，重构为高内聚强语义模块（reset_recovery_and_migration、owner_switch_and_recovery、cross_process_concurrency、workspace_recovery_and_reset_tests）；文件级模块化完成（scanned=2891 violations=0，kt-line scanned=227 violations=0）；mod.rs 清退至 0；隐式状态机语义审计 + 判决台账常驻（23 条候选 0 undecided 0 open）；rem 体系 0 违规 0 debt；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | `check-structure.sh` 40+ 结构守卫、单测与工具链全部 exit 0；`cargo fmt --all --check` 0 偏差；六包定向 nextest 2179/2179 全绿；Clippy 6 包 `--all-targets -D warnings` 零警告；`screenshot-identity-guard` 550 张截图 10 aliases 0 违规；`scrollbar-contract-guard` 0 违规；`shared-copy-guard` 0 违规；`i18n-guard` 0 违规 |
 
+## 最近一批问答（2026-11-10 第一百六十七交付批次：FlClash 仪表盘 11 卡注册表成为可门禁台账 / Core 能力对照再补机器可读半条）
+
+1. x86_64/aarch64：本批只新增 vendored TSV、离线 Python 守卫、L3 参考文档与结构门两条接线，零 Rust/wire/UI 改动，架构中性；新守卫 planted 自测 **10/10**、enforce 11 卡 findings=0、既有 CoreMethod 守卫 8/8 与 56 条 findings=0、`py_compile` 通过、`doc-governance` 通过为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 产物未随本批复跑，`C`/`D` 待补证 → 部分（L）。
+2. Windows/Linux/macOS：本机 Linux 台架跑完新守卫、旧 CoreMethod 守卫、文档治理与 `py_compile`；Windows/macOS 构建腿与安装包未复跑，macOS 沿用既有 `Unsupported` 登记（GAP-2.2） → 部分（L）。
+3. Android/iOS：台账逐条登记上游 `vpnButton(Android only)` 与 `networkTakeover(desktop only)`，本仓真源分别指向 `VpnSurfaceObservation`+VPNService 与 `MasterSwitches`；本批未跑 Android 构建腿，三 flavor 实机交互回执与 iOS 回执仍按既有条目留外部环境看板 → 部分（L）。
+4. 各 UI：本批不改任何表面；给「对标开源顶级 FlClash 的仪表盘卡注册表」补上机器可读的一半，Slint/Iced/Bevy/Android 既有回执仍是有效证据，不冒充本批复跑 → 部分（L）。
+5. 复用：pinned 上游 commit、11 卡排序词表 SHA、平台门控、可移除规则、组件名与一处本仓真源只写在 TSV；守卫只读 TSV、不克隆上游、不编译工作区；与既有 56 条 `CoreMethod` 守卫并列接入唯一结构门，没有第二套裁决词表 → 完整（L）。
+5a. 设计资源强制标准：本批不改字体/字重/图标/主题/几何/可见文案，不重采、不刷新别名；沿用发布批 `20261109T211847Z_a7a2c705124d_dirty_3344529`，`design-resource-authority.py` 0 违规、`receipt-freshness 0`、`screenshot-identity 574/10/0` 保持 → 完整（L）。
+6. 各处界面的功能接入：新守卫 10/10、旧 CoreMethod 守卫 8/8、两份台账 enforce findings=0、`doc-governance` self-test/enforce 通过为 `L`；全仓结构门因另一会话仍在写 `check-structure.sh` / Bevy WIP，本批按所有权纪律只跑独立守卫腿，不冒充全门通过 → 部分（L）。
+7. 模块化：上游身份归 TSV、校验归单一守卫、结构门只做接线、L3 文档只做导航与求同存异裁决；无 bool/Option 隐式阶段、无跨 UI 私有业务推导，也没有把上游组件清单复制进生产代码 → 完整（L）。
+8. CI 与批次效率：离线守卫仅读 11 行 TSV，自测+enforce <0.02s；本批不改像素身份，省下一次 197 帧重采。全仓统一验证与 5 条 `Integrated` 办结仍待另一会话 WIP 落地后由收口方一次跑完，严格交付率保持 **92.5%** → 部分（L）。
+
 ## 最近一批问答（2026-11-10 第一百六十六交付批次：FlClash 仪表盘密度按页身裁决 / 三态下沉共享契约 / Slint 纯消费导出查表）
 
 1. x86_64/aarch64：本批只改中性 Rust 契约与导出、Python 生成器/守卫、Slint 组件消费与参考文档，不写平台专用代码或 wire；`cargo nextest run -p infiltrator-contract` 两项定向新增用例通过、`cargo run --bin export_page_structure` 生成 version 9、生成链 `--check` fresh、守卫与判定器自测为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 产物未随本批复跑，`C`/`D` 待补证 → 部分（L）。
