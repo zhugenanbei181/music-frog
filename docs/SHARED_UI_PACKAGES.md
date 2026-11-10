@@ -16,9 +16,11 @@ Slint 当前复用共享 contract、application 与纯 presentation 投影；共
 module owner，再由产品接入；不得在本 crate 先复制通用算法或创建同义 facade。产品专属
 视图、主题与宿主适配仍由各产品持有。
 
-共享包发布于 crates.io（源码托管于私有仓库 `YellowWhiteBlackCat/zhuge-ui-kit` 单 workspace），四个包独立版本。
-根 Cargo.toml 统一声明 registry 版本范围（如 `zhuge-ui-core = "0.1.7"`）；子 crate 通过 workspace 继承。
-产品各自提交 Cargo.lock，保留独立发布周期；其他设备只需 registry 读取权限，无须固定的兄弟目录布局。
+共享包源码托管于私有仓库 `YellowWhiteBlackCat/zhuge-ui-kit` 单 workspace，四个包独立版本。
+产品根 Cargo.toml 统一声明同一个完整 Git `rev` 与兼容版本范围；子 crate 通过 workspace 继承。
+产品各自提交 Cargo.lock，锁文件必须解析到该 Git 源，保留独立升级周期；
+其他设备只需该私有仓库的只读权限，无须固定的兄弟目录布局。
+本机 `[patch]` 只用于联调，不提交产品 path 锁文件；提交前用 `--locked` 重新解析。
 
 ## 依赖方向：toolkit-neutral 契约可直达 core
 
