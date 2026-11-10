@@ -356,3 +356,41 @@ struct 字面量，而是独立组件 `crates/infiltrator-slint/ui/components/sh
 `20261110T060401Z_a58ed35be980_dirty_90070` 相比 198 帧逐字节相同，唯一差异是搜索高亮
 动画帧）。求同的是上游「按钮即列表首项」的结构；存异的是本仓把它作为 typed chrome 事实
 测量、投影并门禁，而不是让判定器或外壳各记一个数字。
+
+## 11. 折叠钮只有一个字形，词进 hover tooltip（b176）
+
+b173 接线时给折叠钮配了一个常驻的「收起」文字。本仓当时把它当作「和导航行一样
+有标签」的证据，但上游两头都不是这个意思。pinned `be847366` 的
+`test/widgets/sidebar_test.dart` 只用 `find.byTooltip('Expand')` /
+`find.byTooltip('Collapse')` 定位这个控件，并钉
+`expect(tester.getCenter(toggle).dx, sidebar.center.dx)`——rail 里它是一颗居中的
+图标；而 `expect(_rowTooltip('Proxies'), findsNothing)` 明确断言**展开态的目的地行
+没有 tooltip**，标签就是画在行上的。仓库里的发布帧同样只画一颗 chevron，墨迹
+x18..57，其后没有任何文字。
+
+b176 因此把可见身份改回上游的形状：
+
+- 常驻 `Text { @tr("收起") }` 删除，词改由 Slint 原生 `Tooltip` 元素承载，
+  展开态 `收起` / 收起态 `展开`（en 即上游的 Collapse / Expand，两词早已在产品
+  文案目录里，本批不新增 key）。
+- 按钮盒的几何不再自己拼一份内缩：它与下方目的地行使用**同一条表达式**——
+  `padding-left: root.nav-content-offset`、`padding-right: rail-item-padding`、
+  `spacing: rail-label-gap` 与同一对 stretch 单元。此前两种各自错误的拼法都被
+  像素抓到：先是一颗 `rail-inset` 定宽占位块把图标推到 x28（比目的地行的 x10
+  还内缩 18u），再是把它换成 stretch 后在 rail 里偏左 12u（图标中心 11.5 对
+  行图标 23.5）。复用行的表达式之后实测图标中心
+  **rail 23.5 == 行 23.5**、**pane 19.5 == 行 19.5**，两处都落在同一列中心。
+- 折叠钮仍只发 `ApplySidebarExpansion { intent: Toggle }`，`sidebar_toggle_px`
+  仍由按钮盒自己测量（本批实测仍是 106px），wire 与 12 键都不变。
+
+存异的边界要写清：上游「目的地行的 tooltip 只在标签被截断时出现」这一条本批
+**没有实现**，因为 Slint 1.18 的 `Text` 不暴露「是否被 elide」的事实，而本仓禁止
+在 UI 层用字号×字数去猜一个宽度测量（那会成为第二个真源）。这条已登记为
+`FLPARITY-048`，等底层给出文字宽度事实之后再接。hover 提示本身也不进像素回执：
+捕获矩阵按设计不投指针（`capture-pointer-absent`），因此折叠钮的 tooltip 只有
+源码与结构门禁可证，没有截图证据。
+
+可见身份变化（pane 少一行文字、rail 图标移位）按标准整批重采：发布批
+`20261110T090346Z_8b86599df608_dirty_1204003`（199/199，499s），
+`space-utilization --enforce` 199 帧 violations=0、`receipt-freshness 0`、
+Slint 侧 `screenshot-identity` 别名摘要全部重新核对为新鲜。

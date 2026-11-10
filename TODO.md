@@ -70,20 +70,21 @@
 13. **cargo 并行预算与分组收口（2026-10-20 起强制，仿 ZhuGeTower 组批节奏）：** 构建资源全局共享（本机两条 cargo lane），并行流的 cargo 调用必须错峰：同一时刻只允许一条流跑 cargo，其余流只写源码与测试；**重构按组推进、一组一收口**——同一主题的重构（同一 owner 结构、同一族类型、同一契约面）作为一组同时落地，由收口方统一跑一次该组验证（一次 `--workspace` nextest + 一次结构门 + 该组专属 guard），禁止每条改动各跑一遍全仓；收口顺序：各流先交付源码，最后一条流统一构建、统一验证、统一提交。
 14. **同仓多会话的所有权纪律（2026-10-20 起强制）**：同一仓库可能同时被多个会话操作——动一个文件前先以工作树未提交改动与修改时间确认它当前归谁，**正在被别的会话写的文件一律不碰**（不修、不格式化、不提交）；自己派出的并行流必须把 crate 目录写进所有权清单，跨界只读不改；宁可把半成品留在工作树等对方落地，也不要在对方写到一半时插进同一批文件——两个会话改同一文件的结果是双方都丢改动。
 
-## Points 与完成度台账（2026-11-09，第一百五十二批次登记后）
+## Points 与完成度台账（2026-11-10，第一百七十六批次登记后）
 
 本表只是[现在佛 §0 point ledger](todos/CODE_TODO.md)的渲染，真源在那一处声明一次；
 两处冲突以 point ledger 为准。
 
 | 看板 | task | points |
 | --- | ---: | ---: |
-| 现在佛 | 5 | 14 |
+| 现在佛 | 6 | 15 |
 | 过去佛 | 0 | 0 |
 | 斗战胜佛 | 20 | 62 |
 | 未来佛 | 15 | 26 |
-| **未办结联合分母** | **40** | **102** |
+| **未办结联合分母** | **41** | **103** |
 
-- **严格交付率：1,258 / 1,360 = 92.5%**（archived 1,258pt / archived 1,258 + 未办结 102pt）。
+- **严格交付率：1,258 / 1,361 = 92.4%**（archived 1,258pt / archived 1,258 + 未办结 103pt）。
+- 2026-11-10 第一百七十六交付批次（FlClash 折叠钮只有一个字形 / 词进 hover tooltip）：按 pinned `be847366` 的 `test/widgets/sidebar_test.dart`——上游只用 `byTooltip('Expand')` / `byTooltip('Collapse')` 定位折叠钮并钉住它在 rail 的列中心，同时用 `expect(_rowTooltip('Proxies'), findsNothing)` 断言展开态目的地行没有 tooltip——删除 b173 自造的常驻「收起」文字，词改由 Slint 原生 `Tooltip` 承载（复用已有 `收起`/`展开` 两 key，不新增文案）。按钮盒不再自己拼内缩，改用与目的地行同一条几何表达式；两次错误拼法都被像素抓到（图标先被推到 x28，再偏左到中心 11.5），复用行表达式后实测 **rail 23.5 == 行 23.5**、**pane 19.5 == 行 19.5**。同批立 `FLPARITY-048`（1 pt）登记「目的地行 tooltip 只在标签截断时出现」：Slint 1.18 `Text` 不暴露 elide 事实，依自底向上铁律须先由底层给 typed 宽度事实，不得在 UI 层猜测量。wire 不变（仍只发 `ApplySidebarExpansion`，`sidebar_toggle_px` 实测 106、12 键不动）。可见身份变化整批重采 199 帧发布 `20261110T090346Z_8b86599df608_dirty_1204003`（199/199，499s），空间 `--enforce` 199 帧 violations=0、回执时效 0、Slint 别名摘要刷新后身份门新鲜，Slint nextest **384/384** 与 clippy 零警告；hover tooltip 因矩阵不投指针（`capture-pointer-absent`）无截图证据，仅源码与结构门可证。全仓结构门与 5 条 `Integrated` 仍待另一会话 WIP 落地后统一收口；新立 1 pt 使未办结分母 **102 → 103 pt / 41 条**，严格交付率 **1,258 / 1,361 = 92.4%**。
 - 2026-11-10 第一百七十五交付批次（SLINT-009 的排版腿跟随绘制者 / 结构门在 HEAD 复红被修在门上）：`slint-viewport-tier-guard.py` 的 dashboard fact 腿自 b169 起一直报 6 项违规，结构门在 HEAD 就是红的：b169 把配置名与来源标签收进共享组件 `ProfileIdentityRow`（`pages/home_widgets.slint`），页面调用点只剩 `profile-name: root.active-profile;`，而判据仍在调用点 7 行窗口里找 `LumenTheme.profile-name-size`、值行盒与 bottom 对齐，于是把「事实交给共享行绘制」误报成「页面重造了角色」。本批把判据改对而不是把门放宽：页面侧只钉「必须挂载共享行并把事实交给它」，组件侧新增按 `child_blocks` 取「绘制该值的那个子块」，钉它必须读 theme 角色并 bottom 对齐，行盒仍归共享行自身。planted 自测 33 → **36**（不挂载、重造角色、丢行盒/丢对齐三类退化都咬），`--mode enforce` findings=0，`--self-test` 36/36 全绿；本批不改 Rust、不改 wire、不改像素，沿用发布批 `20261110T063442Z_a58ed35be980_dirty_309370` 并复核 `receipt-freshness 0`、空间 199 帧 violations=0、`doc-governance OK`。L0 质量底线与 L3 表面文档同步写下「判据必须跟随绘制者」的通则。全仓结构门与 5 条 `Integrated` 仍待另一会话 WIP 落地后统一收口；严格交付率与未办结分母保持 **1,258 / 1,360 = 92.5%**。
 - 2026-11-10 第一百七十四交付批次（Slint chrome 回执成为独立组件 / 外壳压回 SLINT-001 预算）：承接 b173 的折叠钮接线与按钮带实测，把 `receipt-chrome` 从 `lumen-app.slint` 内联的 struct 字面量收进 `crates/infiltrator-slint/ui/components/shell_receipt.slint`，外壳只喂 typed 事实（导航形态、偏好、触摸面、侧栏实测按钮带、栈尾、leading、页边距、页身空气、底栏带、缩放），投影与 wire 的对应关系因此可单独阅读与门禁。同一批把外壳 609 → **436** 代码行，SLINT-001 由超标转达标，`slint-dead-input` 仍 findings=0。wire 值不变，但按最终树整批重采 199 帧并发布 `20261110T063442Z_a58ed35be980_dirty_309370`（444s，与 b173 批 198/199 逐字节相同，唯一差异为搜索高亮动画帧）。Slint nextest **384/384**、contract **587/587**、`cargo clippy -p infiltrator-slint --all-targets -- -D warnings` 零警告、语法门 100% PASS、空间自测 50/50 + 199 帧 `--enforce` **violations=0**、回执时效 0、设计资源 0、owner guard 23 文件链 0 全绿；`screenshot-identity` 唯一违规属另一会话未提交的 Bevy 像素。全仓结构门与 5 条 `Integrated` 仍待另一会话 WIP 落地后统一收口；严格交付率与未办结分母保持 **1,258 / 1,360 = 92.5%**。
 - 2026-11-10 第一百七十三交付批次（FlClash 桌面折叠钮接通 / 按钮带由侧栏实测）：按 pinned `be847366` 的真实桌面场景图与 `layout.dart`「折叠钮即导航列表首项」结构，把左上折叠/展开按钮接进 Slint——按钮只发 `CommandIntent::ApplySidebarExpansion { intent: Toggle }`，偏好由设置 owner 持久化并经 `SettingsPageSnapshot.sidebar_expansion` 读回，可用性只读 b172 的 16 行 `sidebar_variants` 导出表，侧栏不保存私有 collapsed bool、不从列宽反推偏好。`CAPTURE_CHROME` 由 9 键扩到 **12 键**（新增 `sidebar_expansion`、`touch_surface`、`sidebar_toggle_px`），矩阵由 197 升到 **199 行**并新增显式第 9 列 `interaction`，补 `sidebar-collapsed-standard` / `sidebar-collapsed-compact` 两张纯外壳折叠帧；导出表使 compact 视口的 collapsed 与 expanded 像素逐字节相同，故以 `screenshot_aliases.tsv` 合法声明别名。首版按 theme token 在侧栏局部坐标猜 `sidebar_toggle_px=66`，像素证明按钮带实为 **106**（外壳把侧栏挂在 40px 标题栏之下），leading 腿整批误判 x38，同批把测量交回 `DesktopSideBar` 的 `absolute-position.y + height + rail-item-gap` 并整批重采 199 帧；判定器 planted 腿同步改 106，自测 **45 → 50**。发布批 `20261110T060401Z_a58ed35be980_dirty_90070`，复核空间 199 帧 violations=0、回执时效 0。全仓结构门与 `resolve_surface_evidence.py` 仍受另一会话 Bevy WIP 阻塞；严格交付率与未办结分母保持 **1,258 / 1,360 = 92.5%**。

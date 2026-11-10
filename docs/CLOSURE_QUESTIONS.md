@@ -24,19 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-10 第一百七十五批次；b111–b173 见下方批次八问摘要）
+## 当前状态（2026-11-10 第一百七十六批次；b111–b173 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b175 只改一条 Python 判据与三份文档，零 Rust/契约/wire/像素改动，架构中性；`py_compile`、守卫 `--mode enforce` findings=0、`--self-test` 36/36 为 `L`；交叉 `scripts/cross-check.sh`、aarch64 产物与目标设备仍由 CI runner / 设备矩阵补证（GAP-1.1） |
-| 2 | 部分 | L | 本机 Linux 完成守卫双腿、文档治理与收口门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
-| 3 | 部分 | L | b175 不触 Android/iOS 代码、资源或 wire；三 flavor 实机交互与 iOS 回执仍由外部环境看板 owner 补证 |
-| 4 | 部分 | L | 本批只修 Slint 表面的守卫判据，不改任何页面代码或像素；其它 UI 不受影响，其侧栏接线仍由各自条目推进 |
-| 5 | 完整 | L | 排版角色仍只有一个真源（`LumenTheme.profile-name-*`）；本批把「谁绘制就谁被钉」写进判据与 L0 底线，页面侧只钉挂载与交付，组件侧钉绘制该值的子块，未新增第二份 token 或放宽任何阈值 |
-| 5a | 完整 | L | 本批不改字体/字重/图标/主题/文案/几何身份，也不触 wire、快照或语料；沿用发布批 `20261110T063442Z_a58ed35be980_dirty_309370`，复核 `receipt-freshness 0`、`design-resource-authority 0`、空间 199 帧 `violations=0` |
-| 6 | 部分 | L | 守卫 `--self-test` 33 → **36/36 OK**（不挂载共享行、重造角色、丢行盒/丢对齐三类 planted 都咬），`--mode enforce` findings=0（HEAD 上原为 6 项长期误报）；`doc-governance OK`、`closure 8/8`。全仓 `check-structure.sh`、全量 clippy 与 `resolve_surface_evidence.py` 仍受另一会话 Bevy/依赖钉版 WIP 阻塞，由统一收口 owner 补证 |
-| 7 | 完整 | L | 判据的事实源分工写清：页面 = 挂载与交付，共享行 = 类型角色/行盒/对齐，theme = 角色 token；`child_blocks()` 只读顶层子块，不与调用点窗口混用；无第二份角色、无 UI 私有推导 |
-| 8 | 部分 | L | 本批把「结构门在 HEAD 长期为红」修在门上而不是关掉门，且零重采成本（不改像素）；全仓统一验证与 5 条 `Integrated` 仍由收口 owner 一次跑完，严格交付率保持 **92.5%** |
+| 1 | 部分 | L | b176 只改 Slint 呈现层一个文件与三份文档，零 Rust、零平台 API、零设备交互；`cargo check -p infiltrator-slint --all-targets` 与 Slint nextest **384/384** 为 `L`；交叉 `scripts/cross-check.sh`、aarch64 产物与目标设备仍由 CI runner / 设备矩阵补证（GAP-1.1） |
+| 2 | 部分 | L | 本机 Linux 完成 Slint 全目标编译/clippy、199 帧真实像素重采与全部独立守卫；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
+| 3 | 部分 | L | 本批不触 Android/iOS 代码、资源或 wire；折叠钮只在导出表 `toggle_available` 的非触摸桌面档绘制，三 flavor 实机交互与 iOS 产物仍按既有条目留在外部环境看板 |
+| 4 | 部分 | L | 本批只改 Slint 侧栏折叠钮的可见身份（删常驻文字 + 共享行的几何表达式 + 原生 `Tooltip`）；Iced/Bevy/Android 不消费该 `.slint`，其侧栏接线仍由各自条目推进，不用 Slint 像素冒充其它表面验收 |
+| 5 | 完整 | L | 折叠钮的盒几何不再是第二份内缩拼法：它与目的地行使用同一条表达式（`nav-content-offset` / `rail-item-padding` / `rail-label-gap` + 同一对 stretch 单元），tooltip 文案复用已有 `收起`/`展开` 两 key，本批零新增 token、零新增文案 key、零新增 UI 私有推导 |
+| 5a | 完整 | L | 本批不改字体/字重/图标/主题身份，但**改可见像素身份**（pane 少一行文字、rail 图标移位），因此按标准/compact 双视口整批重采 199 帧发布 `20261110T090346Z_8b86599df608_dirty_1204003`（199/199，499s），并刷新 Slint 侧 `mixin-*` 四条别名摘要；复核 `design-resource-authority 0`、`receipt-freshness 0`、空间 199 帧 `violations=0` |
+| 6 | 部分 | L | 折叠钮仍只发 `ApplySidebarExpansion { intent: Toggle }`，`sidebar_toggle_px` 仍由按钮盒自测（本批实测 106），`CAPTURE_CHROME` 12 键与 wire 不变；图标中心实测 rail 23.5 == 行 23.5、pane 19.5 == 行 19.5。上游「目的地行 tooltip 只在截断时出现」本批**未实现**，已按自底向上铁律立 `FLPARITY-048`（1 pt），不在 UI 层猜宽度测量。全仓 `check-structure.sh`、全量 clippy 与 `resolve_surface_evidence.py` 仍受另一会话 Bevy/依赖钉版 WIP 阻塞，由统一收口 owner 补证 |
+| 7 | 完整 | L | 改动集中在 `crates/infiltrator-slint/ui/components/sidebar.slint` 一个文件的按钮盒一个元素体；词的唯一真源仍是共享文案目录，形态结论仍只在 `page_structure` 导出表，投影仍只在 `ShellReceipt`，无第二处业务真源 |
+| 8 | 部分 | L | 本批是可见身份变化，按纪律一次整批重采（499s）而非逐场景补帧，并把「两种错误拼法都被像素抓到」写进 L3 参照基准 §11，使下一次同类改动有对照可查；全仓统一验证与 5 条 `Integrated` 仍由收口 owner 一次跑完，新立 1 pt 使严格交付率保持 **92.4%**（1,258/1,361） |
+
+## 最近一批问答（2026-11-10 第一百七十六交付批次：FlClash 折叠钮只有一个字形 / 词进 hover tooltip）
+
+1. x86_64/aarch64：本批只改 `crates/infiltrator-slint/ui/components/sidebar.slint` 的一个元素体与三份文档，零 Rust、零平台 API、零设备交互；`cargo check -p infiltrator-slint --all-targets`、`cargo clippy -p infiltrator-slint --all-targets -- -D warnings` 零警告、Slint 定向 nextest **384/384** 为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 产物仍待 CI runner / 设备矩阵补证 → 部分（L）。
+2. Windows/Linux/macOS：本机 Linux 完成 Slint 全目标编译与 clippy、199 帧真实像素重采、空间/回执/身份/设计资源与全部 Slint 结构守卫；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） → 部分（L）。
+3. Android/iOS：本批不触 Android/iOS 代码、资源或 wire；折叠钮仍只在导出表 `toggle_available` 为真的非触摸桌面档绘制，触摸面保持底栏；三 flavor 实机交互与 iOS 产物仍按既有条目留在外部环境看板 → 部分（L）。
+4. 各 UI：本批只改 Slint 表面的侧栏折叠钮可见身份（删除自造的常驻「收起」文字，词进原生 `Tooltip`；按钮盒改用与目的地行同一条几何表达式）；Iced/Bevy/Android 不消费这份 `.slint`，其侧栏接线仍由各自条目推进，本批不把 Slint 像素冒充其它表面验收 → 部分（L）。
+5. 复用：折叠钮的盒几何此前是**第二份内缩拼法**，两次各自错误的写法都被像素抓到（先被定宽占位块推到 x28，比目的地行的 x10 还内缩 18u；换 stretch 后又在 rail 偏左，图标中心 11.5 对行图标 23.5）。本批让它直接复用行的表达式——同一 leading、同一尾距、同一 spacing、同一对 stretch 单元，实测图标中心 **rail 23.5 == 行 23.5**、**pane 19.5 == 行 19.5**。tooltip 用词复用产品文案目录已有的 `收起`/`展开`，本批零新增 key、零新增 token、零新增 UI 私有推导 → 完整（L）。
+5a. 设计资源强制标准：本批不改字体/字重/图标族/主题身份，但改的是**可见像素身份**（pane 少一行文字、rail 图标移位），因此不沿用旧回执：按标准/compact 双视口整批重采 199 帧发布 `20261110T090346Z_8b86599df608_dirty_1204003`（199/199，499s），`mixin-*` 四条别名摘要按新像素刷新，复核 `design-resource-authority 0`、`receipt-freshness 0`、`space_utilization --enforce` 199 帧 **violations=0** → 完整（L）。
+6. 各处界面的功能接入：折叠钮仍只发 `ApplySidebarExpansion { intent: Toggle }`，`sidebar_toggle_px` 仍由按钮盒自己测量（本批实测仍为 106px），`CAPTURE_CHROME` 12 键与 wire 语义不变；守卫侧 syntax / dead-input / viewport-tier / sidebar-separator / sidebar-expansion-owner / rail-edge-dialect / i18n / shared-copy / design-resource / typed-state 全 findings=0、implicit-state 23/0/0、`doc-governance OK`。诚实边界两条：① hover tooltip 不进像素回执，捕获矩阵按设计不投指针（`capture-pointer-absent`），该提示只有源码与结构门禁可证；② 上游「目的地行的 tooltip 只在标签被截断时出现」本批未实现——Slint 1.18 `Text` 不暴露 elide 事实，本仓禁止 UI 层用字号×字数猜宽度测量，已按自底向上铁律立 `FLPARITY-048`（1 pt）等底层给 typed 宽度事实 → 部分（L）。
+7. 模块化：改动落在 `sidebar.slint` 一个文件的一个元素体，文字事实回归共享文案目录的唯一真源，形态结论仍只在 `page_structure` 导出表，chrome 投影仍只在 `ShellReceipt`；侧栏不保存私有 collapsed 布尔、不从列宽反推偏好，`slint-rail-edge-dialect` 与 `sidebar-expansion-owner` 两条长腿守卫均不回归 → 完整（L）。
+8. CI 与批次效率：本批属可见身份变化，按「身份改动集中一次做完」一次整批重采（499s），不逐场景补帧、不留新旧双轨；把两次错误拼法的实测数字写进 L3 参照基准 §11，使同类改动有可查对照。全仓统一验证与 5 条 `Integrated` 仍由收口 owner 一次跑完；新立 `FLPARITY-048` 1 pt 使未办结分母 102 → **103 pt / 41 条**、累计 1,361 pt，严格交付率 **1,258 / 1,361 = 92.4%** → 部分（L）。
 
 ## 最近一批问答（2026-11-10 第一百七十五交付批次：SLINT-009 的排版腿跟随绘制者 / 把误判修在门上）
 

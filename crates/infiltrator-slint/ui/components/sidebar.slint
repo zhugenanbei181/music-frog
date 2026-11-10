@@ -119,16 +119,30 @@ export component DesktopSideBar inherits Rectangle {
                 clicked => { root.toggle-sidebar-expansion(); }
             }
 
+            // FlClash's toggle is one glyph and nothing else. Its own
+            // `sidebar_test.dart` finds it by `byTooltip('Expand')` /
+            // `byTooltip('Collapse')` and pins the glyph's centre onto the
+            // column's centre in the rail, while the pinned reference frame
+            // starts its ink at the same x as the first destination glyph. A
+            // permanent "收起" label was this surface's invention: it made the
+            // affordance read as a destination row and charged the pane a text
+            // run no reference paints. The word now travels in the hover
+            // tooltip.
             HorizontalLayout {
-                padding-left: 0 * LumenUiScale.unit;
-                padding-right: 0 * LumenUiScale.unit;
+                // One geometry expression, shared with the destination rows
+                // below: the same leading, the same trailing inset, the same
+                // spacing and the same stretch cells. A second spelling of the
+                // inset is how this affordance ended up 14u left of the glyphs
+                // it sits above.
+                padding-left: root.nav-content-offset;
+                padding-right: root.labelled ? LumenTheme.rail-item-padding : 0 * LumenUiScale.unit;
                 spacing: LumenTheme.rail-label-gap;
                 width: parent.width;
                 height: parent.height;
                 alignment: start;
                 cross-axis-alignment: center;
 
-                Rectangle { width: root.labelled ? LumenTheme.rail-inset : 0 * LumenUiScale.unit; background: transparent; }
+                if !root.labelled: Rectangle { horizontal-stretch: 1; background: transparent; }
                 Image {
                     source: root.labelled
                         ? @image-url("../../../infiltrator-shared/assets/ui/iced/svg/chevron-left.svg")
@@ -138,18 +152,10 @@ export component DesktopSideBar inherits Rectangle {
                     image-fit: contain;
                     colorize: LumenTheme.text-secondary;
                 }
-                if root.labelled: Text {
-                    text: @tr("收起");
-                    color: LumenTheme.text-secondary;
-                    font-size: DesignType.size(TextRole.label);
-                    font-weight: DesignType.weight(TextRole.label);
-                    font-family: DesignType.family(TextRole.label);
-                    vertical-alignment: center;
-                    horizontal-stretch: 1;
-                    min-width: 0 * LumenUiScale.unit;
-                    overflow: elide;
-                }
                 if !root.labelled: Rectangle { horizontal-stretch: 1; background: transparent; }
+            }
+            Tooltip {
+                text: @markdown("\{root.labelled ? @tr("收起") : @tr("展开")}");
             }
         }
 
