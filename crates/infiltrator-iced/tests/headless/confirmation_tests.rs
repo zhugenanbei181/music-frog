@@ -8,6 +8,7 @@ use iced_runtime::Action;
 use iced_runtime::task::into_stream;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_catalogue::CommandTarget;
+use infiltrator_contract::shell_sidebar_preference::SidebarExpansionPreference;
 use infiltrator_iced::capture_section::CaptureSection;
 use infiltrator_iced::demo::DemoEnv;
 use infiltrator_iced::state::AppState;
@@ -29,6 +30,7 @@ fn close_all_confirmation_cancel_keeps_connections_and_schedules_no_work() {
         window_size: (1180.0, 780.0),
         capture_marker: None,
         scenario: None,
+        sidebar_expansion: SidebarExpansionPreference::default(),
     };
     let (mut state, _) = AppState::demo(&env);
     let (application, handler) = recording_application();

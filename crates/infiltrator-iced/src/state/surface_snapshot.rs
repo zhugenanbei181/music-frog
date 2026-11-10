@@ -281,6 +281,13 @@ impl AppState {
         // so a readback the owner never published stays "unobserved" instead
         // of being reported as "off".
         observe_settings_page(&mut self.runtime.settings_model, &snapshot);
+        // The persisted desktop sidebar preference has one owner (the settings
+        // readback). The shell mirrors it so the pane and the frame receipt
+        // resolve the same fact; the surface never keeps an expansion boolean
+        // of its own, which is what `SPACEUTIL-011` needed to retire.
+        if let Some(settings) = snapshot.pages.settings.data.as_ref() {
+            self.shell.sidebar_expansion = settings.sidebar_expansion;
+        }
         if let Some(settings) = snapshot.pages.settings.data.as_ref()
             && snapshot.runtime_control.status == RuntimeControlStatus::Ready
         {

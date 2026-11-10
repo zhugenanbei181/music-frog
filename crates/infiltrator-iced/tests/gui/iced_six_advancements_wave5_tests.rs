@@ -18,6 +18,7 @@ use infiltrator_contract::provider_cache::ProviderCachePurge;
 use infiltrator_contract::rule_hit_audit::{RuleDeadEntry, RuleDeadReason, RuleHitAuditSnapshot};
 use infiltrator_contract::rule_tracer::RuleTracerSnapshot;
 use infiltrator_contract::runtime_control::{RuntimeControlSnapshot, RuntimeControlStatus};
+use infiltrator_contract::shell_sidebar_preference::SidebarExpansionPreference;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{
     RulesPageSnapshot, SettingsPageSnapshot, SurfaceSnapshot,
@@ -233,6 +234,7 @@ fn test_advancement_w5_2_typed_outbound_latency_history_is_observed_and_probe_fa
         window_size: (1180.0, 780.0),
         capture_marker: None,
         scenario: None,
+        sidebar_expansion: SidebarExpansionPreference::default(),
     };
     let (mut state, _) = AppState::demo(&env);
     let outbound_id = state

@@ -41,6 +41,7 @@ pub mod port_conflict_application;
 pub mod routing_application;
 pub mod settings_store;
 pub mod shortcuts_store;
+pub mod sidebar_chrome;
 pub mod snapshot_commands;
 pub mod state;
 pub(crate) mod state_ops;

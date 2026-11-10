@@ -4,6 +4,7 @@ use crate::admin_server::{AdminServerManager, AdminSharedRuntime, SharedAdminCom
 use crate::animation::AnimationCoordinator;
 use crate::capture_frame::CaptureFrameGate;
 use crate::capture_section::CaptureSection;
+use crate::sidebar_chrome::SidebarChromeReceipt;
 use crate::tray::SharedTrayEventReceiver;
 use crate::types::app::{ConfirmAction, Route, RouteHistory, ToastStatus};
 use crate::view::theme::theme_for_skin;
@@ -16,6 +17,7 @@ use infiltrator_contract::mini_hud::{MiniHudDisplay, MiniHudPlacement};
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::responsive_viewport::ResponsiveViewportSnapshot;
 use infiltrator_contract::shell_readout::ShellReadoutSnapshot;
+use infiltrator_contract::shell_sidebar_preference::SidebarExpansionPreference;
 use infiltrator_contract::shortcuts::{ShortcutAction, ShortcutRegistry};
 use infiltrator_contract::theme::{SystemAppearance, ThemePreference};
 use infiltrator_contract::theme_palette::{ResolvedThemePalette, SystemDynamicColor};
@@ -88,6 +90,14 @@ pub struct ShellState {
     pub capture_section: CaptureSection,
     pub capture_marker_written: AtomicBool,
     pub capture_frame: CaptureFrameGate,
+    /// The user's persisted desktop sidebar preference, as the settings owner
+    /// last published it. The pane never keeps a boolean of its own: the form
+    /// it paints is [`SidebarPresentation`]'s resolution of this fact against
+    /// the viewport, which is also what the frame receipt publishes.
+    pub sidebar_expansion: SidebarExpansionPreference,
+    /// The boxes the sidebar's own layout measured, rewritten by the capture
+    /// geometry probe until the frame they describe is published.
+    pub sidebar_chrome: SidebarChromeReceipt,
     pub command_palette_open: bool,
     pub command_query: String,
     pub command_selected_index: usize,

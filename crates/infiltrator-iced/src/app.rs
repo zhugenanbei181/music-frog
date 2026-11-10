@@ -5,6 +5,7 @@ use crate::host::desktop::{read_system_proxy_state, system_proxy_port};
 use crate::mini_hud_window::install_host_handle;
 use crate::notify::startup_probe_task;
 use crate::settings_store::load_hydrated;
+use crate::sidebar_chrome::SidebarChromeReceipt;
 use crate::state::AppState;
 use crate::state::diagnostics::DiagnosticsState;
 use crate::state::editor::ConfigEditorState;
@@ -39,6 +40,7 @@ use infiltrator_contract::mini_hud::MiniHudPlacement;
 use infiltrator_contract::overview_layout::OverviewCardKind;
 use infiltrator_contract::privileged_network::PrivilegedNetworkSnapshot;
 use infiltrator_contract::responsive_viewport::ResponsiveViewportSnapshot;
+use infiltrator_contract::shell_sidebar_preference::SidebarExpansionPreference;
 use infiltrator_contract::shortcuts::ShortcutRegistry;
 use infiltrator_contract::snapshot_history::SNAPSHOT_DEFAULT_KEEP;
 use infiltrator_contract::system_toggle::SystemToggleSnapshot;
@@ -516,6 +518,8 @@ impl AppState {
                 capture_section: Default::default(),
                 capture_marker_written: AtomicBool::new(false),
                 capture_frame: Default::default(),
+                sidebar_expansion: SidebarExpansionPreference::default(),
+                sidebar_chrome: SidebarChromeReceipt::default(),
                 readout: Default::default(),
                 command_palette_open: false,
                 command_query: String::new(),

@@ -2,8 +2,12 @@
 //! A view or stale readback cannot publish a frame receipt; a frame the
 //! surface has not settled on cannot publish one either.
 use super::*;
+use crate::sidebar_chrome::{SidebarChromeReceipt, shell_chrome_facts};
+use crate::view::sidebar::sidebar_presentation;
+use iced::Rectangle;
 use iced::Size;
 use image::open;
+use infiltrator_contract::responsive_viewport::ResponsiveViewportSnapshot;
 use std::env::temp_dir;
 use std::fs::{create_dir_all, read_to_string, remove_dir_all};
 use std::path::PathBuf;
@@ -39,9 +43,35 @@ fn capture_state(directory: &CaptureDirectory) -> AppState {
     let (mut state, _) = AppState::new();
     state.shell.demo = true;
     state.shell.capture_marker = Some(directory.marker());
-    state.shell.viewport.width_px = 720.0;
-    state.shell.viewport.height_px = 480.0;
+    // The viewport is resolved the way a real resize resolves it, so the tier
+    // the receipt publishes is the tier of the frame's own width.
+    state.shell.viewport = ResponsiveViewportSnapshot::from_dimensions(720.0, 480.0);
+    // The sidebar's boxes are measured from the live layout by the capture
+    // geometry probe; a unit test has no widget tree to walk, so it stands in
+    // for the probe with the boxes the 720x480 icon rail paints.
+    state.shell.sidebar_chrome = SidebarChromeReceipt {
+        stack_end: Some(Rectangle {
+            x: 0.0,
+            y: 54.0,
+            width: 64.0,
+            height: 344.0,
+        }),
+        ..Default::default()
+    };
     state
+}
+
+/// The receipt line the frame above describes itself with, built from the same
+/// contract helper the host uses so the assertion cannot drift from the format.
+fn expected_chrome_line(state: &AppState) -> String {
+    let presentation = sidebar_presentation(state);
+    shell_chrome_facts(
+        presentation,
+        state.shell.sidebar_chrome,
+        state.shell.viewport.tier,
+    )
+    .expect("the measured rail describes its own chrome")
+    .to_marker_line()
 }
 
 /// Arm the native readback: the gate waits for the rebuilt view before it
@@ -87,13 +117,45 @@ fn redraw_gate_rejects_stale_or_malformed_readback_and_saves_the_current_native_
     arm(&mut state);
     state.finish_capture_frame(revision, None, screenshot.clone());
     let line = read_to_string(directory.marker()).unwrap();
-    assert_eq!(line, "CAPTURE_READY page=overview skin=dark\n");
+    assert_eq!(
+        line,
+        format!(
+            "CAPTURE_READY page=overview skin=dark\n{}",
+            expected_chrome_line(&state)
+        )
+    );
+    assert!(line.contains("CAPTURE_CHROME nav_form=rail nav_column_px=64"));
     assert_eq!(
         open(directory.readback()).unwrap().to_rgba8().into_raw(),
         bytes
     );
     state.finish_capture_frame(revision, None, screenshot);
     assert_eq!(read_to_string(directory.marker()).unwrap(), line);
+}
+
+/// A frame that cannot state its sidebar's own geometry publishes nothing.
+///
+/// The chrome line is the frame's description of the pane behind its pixels,
+/// and a partial description is a refusal rather than a default: a marker
+/// written before the geometry probe measured the stack end would put a
+/// remembered number into the space-utilization judge's measurement box.
+#[test]
+fn a_frame_whose_sidebar_boxes_were_never_measured_publishes_nothing() {
+    let directory = CaptureDirectory::new();
+    let mut state = capture_state(&directory);
+    state.shell.sidebar_chrome = SidebarChromeReceipt::default();
+    let revision = state.surface.revision();
+    let bytes = [31u8, 61, 91, 255].repeat(720 * 480);
+    let screenshot = Screenshot::new(bytes, Size::new(720, 480), 1.0);
+    let _ = state.view();
+    for _ in 0..=(SETTLED_READBACKS + 1) {
+        arm(&mut state);
+        state.finish_capture_frame(revision, None, screenshot.clone());
+    }
+    assert!(
+        !directory.marker().exists(),
+        "an unmeasured sidebar must not be described by a frame"
+    );
 }
 
 #[test]
@@ -138,6 +200,9 @@ fn a_frame_the_surface_still_changes_never_publishes_a_receipt() {
     state.finish_capture_frame(revision, None, screenshot.clone());
     assert_eq!(
         read_to_string(directory.marker()).unwrap(),
-        "CAPTURE_READY page=overview skin=dark\n"
+        format!(
+            "CAPTURE_READY page=overview skin=dark\n{}",
+            expected_chrome_line(&state)
+        )
     );
 }

@@ -6,6 +6,7 @@
 //! exactly like any external consumer.
 //! test-intent: behavior
 
+use infiltrator_contract::shell_sidebar_preference::SidebarExpansionPreference;
 use infiltrator_iced::capture_section::CaptureSection;
 use infiltrator_iced::demo::{DemoEnv, parse_skin};
 use infiltrator_iced::state::AppState;
@@ -29,6 +30,7 @@ pub fn demo_env(page: Route) -> DemoEnv {
         window_size: DEFAULT_WINDOW,
         capture_marker: None,
         scenario: None,
+        sidebar_expansion: SidebarExpansionPreference::default(),
     }
 }
 

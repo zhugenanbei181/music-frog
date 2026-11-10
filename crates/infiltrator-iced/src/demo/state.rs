@@ -68,6 +68,11 @@ impl AppState {
         state.shell.lang = env.lang.clone();
         state.shell.viewport =
             ResponsiveViewportSnapshot::from_dimensions(env.window_size.0, env.window_size.1);
+        // The demo fixture is the settings owner's readback stand-in, so the
+        // expansion preference a capture names is seeded here and nowhere else:
+        // the pane resolves it into a form and the frame receipt publishes that
+        // same answer.
+        state.shell.sidebar_expansion = env.sidebar_expansion;
 
         // ---- runtime status -------------------------------------------
         state.runtime.status = RuntimeStatus::Stopped;

@@ -1,5 +1,8 @@
 //! Read native widget layout after rendering. A route or state flag never proves visible controls.
 use crate::capture_section::CaptureSection;
+use crate::sidebar_chrome::{
+    SIDEBAR_DOCK_ID, SIDEBAR_STACK_END_ID, SIDEBAR_TOGGLE_ID, SidebarChromeReceipt,
+};
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::view::app_routing::APP_ROUTING_SCROLL_ID;
@@ -134,6 +137,44 @@ impl Operation<Option<Rectangle>> for AlignSection {
             Some(visible) if visible.height > 0.0 => Outcome::Some(Some(visible)),
             _ => Outcome::Some(None),
         }
+    }
+}
+
+/// The sidebar's own boxes, measured from the widget tree it just laid out.
+///
+/// The pane tags three boxes with the ids in `sidebar_chrome`; this operation
+/// reports their layout rectangles in window coordinates, which is the
+/// language the frame receipt speaks. It measures the layout, not the visible
+/// head: the sidebar is not inside a scrollable, so the two are the same box,
+/// and a form that mounted no box for one of the three ids simply leaves that
+/// field empty - the receipt then refuses to describe the frame rather than
+/// inventing a number for it.
+struct SidebarChromeBoxes {
+    stack_end: Option<Rectangle>,
+    toggle: Option<Rectangle>,
+    dock: Option<Rectangle>,
+}
+
+impl Operation<SidebarChromeReceipt> for SidebarChromeBoxes {
+    fn traverse(&mut self, visit: &mut dyn FnMut(&mut dyn Operation<SidebarChromeReceipt>)) {
+        visit(self);
+    }
+
+    fn container(&mut self, id: Option<&Id>, bounds: Rectangle) {
+        match id {
+            Some(id) if id == &Id::new(SIDEBAR_STACK_END_ID) => self.stack_end = Some(bounds),
+            Some(id) if id == &Id::new(SIDEBAR_TOGGLE_ID) => self.toggle = Some(bounds),
+            Some(id) if id == &Id::new(SIDEBAR_DOCK_ID) => self.dock = Some(bounds),
+            _ => {}
+        }
+    }
+
+    fn finish(&self) -> Outcome<SidebarChromeReceipt> {
+        Outcome::Some(SidebarChromeReceipt {
+            stack_end: self.stack_end,
+            toggle: self.toggle,
+            dock: self.dock,
+        })
     }
 }
 
@@ -671,6 +712,26 @@ impl AppState {
 }
 
 impl AppState {
+    /// The sidebar's own chrome boxes, measured before a frame is published.
+    ///
+    /// A frame's receipt is only honest while its numbers come from the layout
+    /// that painted the frame, and the sidebar is the one part of the shell
+    /// whose extent depends on the registry, the tier and the user's expansion
+    /// preference at once. The probe walks the live tree on every capture tick,
+    /// so a relayout - a resize, a collapse - can never leave the frame
+    /// describing the sidebar that was there before it.
+    pub(crate) fn capture_sidebar_chrome_task(&self) -> Task<Message> {
+        if !self.capture_geometry_pending() {
+            return Task::none();
+        }
+        operate(SidebarChromeBoxes {
+            stack_end: None,
+            toggle: None,
+            dock: None,
+        })
+        .map(Message::CaptureSidebarMeasured)
+    }
+
     /// Page-variant captures align their named section with the top of the
     /// page's clip before the marker is written; the route default keeps the
     /// page top.

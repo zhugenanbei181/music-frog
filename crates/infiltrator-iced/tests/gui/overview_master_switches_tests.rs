@@ -1,7 +1,7 @@
 use super::*;
+use infiltrator_contract::system_toggle::{SystemToggleSnapshot, SystemToggleState};
 use infiltrator_shared::locales::Lang;
 use lurker_core_contract::error::Failure;
-use infiltrator_contract::system_toggle::{SystemToggleSnapshot, SystemToggleState};
 
 /// The card the user clicks and the owner that answers share one no-reentry
 /// rule: while a request is in flight a second click cannot enqueue a

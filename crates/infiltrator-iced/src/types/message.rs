@@ -7,6 +7,7 @@ use super::app::{
 use super::dns::AdvancedConfigsBundle;
 use super::runtime::{IpProbeResult, RuntimeStreamKind, RuntimeStreamState};
 use crate::admin_server::AdminHostCommand;
+use crate::sidebar_chrome::SidebarChromeReceipt;
 use crate::state::core_operations::{CoreDownloadRunId, CoreUpdateCheckId};
 use crate::types::{
     app::SnapshotDiffMode,
@@ -420,6 +421,11 @@ pub enum Message {
     TickRuntimeRefresh,
     TickFrame(Instant),
     CaptureRegionMeasured(Option<Rectangle>),
+    /// The sidebar's own boxes, measured from the live layout by the capture
+    /// geometry probe: where the destination stack ends, where the collapse
+    /// affordance sits, and how tall the compact bar is. The frame receipt is
+    /// written from these, never from a remembered token.
+    CaptureSidebarMeasured(SidebarChromeReceipt),
     CaptureFrameRendered {
         revision: u64,
         bounds: Option<Rectangle>,
@@ -587,6 +593,10 @@ pub enum Message {
     RuntimePanelSettingsSaved(Result<(), InfiltratorError>),
     ClearConfigurationSaveState,
     TogglePerfPanel,
+    /// The sidebar's collapse/expand affordance was pressed. The surface owns
+    /// no expansion boolean: it sends the contract's one typed intent to the
+    /// settings owner and paints whatever the readback publishes next.
+    ToggleSidebarExpansion,
     ToggleTheme,
     SetTheme(String),
     /// The OS appearance changed.

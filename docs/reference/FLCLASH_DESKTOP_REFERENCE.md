@@ -460,3 +460,42 @@ b177 把形状与清单一次改回事实：`FlagImages.flags` 逐条消费 cata
 其余 185 帧逐字节不变。`space_utilization --enforce` 199 帧 `violations=0`、
 `receipt-freshness 0`、Slint nextest 386/386；`sidebar-collapsed-compact` 别名摘要
 按新字节刷新（`ecbbfb24…`，与 canonical `overview-compact-dark` 逐字节相等）。
+
+## 14. Iced 侧栏发布自己的 chrome 回执，行几何对齐参照物（b187）
+
+判定器的像素腿此前只覆盖 Slint：Iced 的 `marker.log` 只有
+`CAPTURE_READY page=… skin=…`，没有 `CAPTURE_CHROME`，「Iced 侧的空间利用率」
+一直没有判据。b187 补上这条腿的两半——Iced 会发布回执，判定器能读第二张表面
+（`--surface {slint,iced}`，各自采集根与欠账台账）——并借这次把 Iced 的导航行
+几何对齐到 §13 已经量过的参照行：
+
+- **行几何**：参照的目的地行是「整列宽的行面 + 24dp 字形 + 起笔 8」——Slint 侧已
+  实测 `rail-row-height` 44u、`nav-icon-size` 24u、`rail-content-leading` 8u
+  （`space-2`），标签起笔 x44。Iced 侧此前是 38px 行、18px 字形、内容左内边距 24px：
+  既不是参照行，起笔也超出该档导出预算（240 列 → `nav_leading_limit_px` 19u）。
+  现在行面是整列（选中洗色起于列缘），指示条 3×16 画在 x0 的独立图层上，内容起笔
+  恰好 `sidebar_chrome::NAV_CONTENT_OFFSET_PX`（共享阶梯的 8），字形 24，
+  标签起笔 8 + 24 + 12 = 44，与参照物同列。
+- **折叠钮**：参照的桌面场景在目的地列表之上放一枚折叠钮，字形随形态居中或左对齐，
+  词只出现在 hover tooltip。Iced 侧此前没有这个控件，而导出变体表对
+  `(expanded, expanded, touch=false)` 要求 `toggle_available=true`，所以它不只是
+  观感缺口，还是回执的硬前提：现在钮只有一枚 chevron（展开态朝左、折叠态朝右），
+  词走 tooltip，其带由回执发布（`sidebar_toggle_px`），判定器据此把钮的起笔排除在
+  「导航起笔」之外。Iced 轨道行也补上了参照的 hover tooltip（此前注释声称有、
+  代码没有），标签来自同一条注册表行。
+- **偏好只有一个 owner**：`sidebar_expansion` 由设置 readback 持有，Iced 只镜像它，
+  并把 `resolve_sidebar_expansion(偏好, 档位能力)` 的答案画成形态；钮按下时发出契约
+  的 `ApplySidebarExpansion { Toggle }`，UI 不持布尔。于是「展开态 240 列 / 折叠态
+  64 轨道」不是本地推导，而是与判定器读的同一张导出表。
+- **回执的每个数都来自活的布局**：`crates/infiltrator-iced/src/sidebar_chrome.rs`
+  定义三个 widget id（栈底、折叠钮、底栏），采集期的几何探针逐帧量出它们的窗口矩形；
+  任一格没量到就不写 marker——残缺回执是拒绝，不是默认值。
+- **判定器分账**：`--surface` 默认仍是 slint（结构门的裸调用口径不变），Iced 侧自己的
+  台账是 `scripts/quality/space_utilization_debt_iced.json`；清单里的 `page` 若不在
+  契约导出表内，判定器报「用了没人声明过的上限」，不再静默退回档位兜底。
+
+诚实边界（b188 待办，不是本批结论）：Iced 侧矩阵只有 `1180x780` 与 `720x480`
+两档（后者 medium 是 64 轨道、无折叠钮），**没有 compact 帧**，折叠态也还没有真实
+像素回执；Iced 清单的 `page` 列还是路由名而非形态 slug（`filter`/`mixin`/
+`rules-providers` 三处 12 帧不在导出表内），要先把这列改成契约形态（或为确实独立的
+页补形态）才能让 `--surface iced --enforce` 通过。

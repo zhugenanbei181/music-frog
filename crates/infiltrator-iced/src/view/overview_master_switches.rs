@@ -1,7 +1,7 @@
 //! Iced adapter for Overview's large system proxy/TUN master controls.
 
-use crate::state::AppState;
 use crate::accessibility::labelled;
+use crate::state::AppState;
 use crate::types::message::Message;
 use crate::view::components::card_surface;
 use crate::view::svg_icons::{Icon, icon_themed};

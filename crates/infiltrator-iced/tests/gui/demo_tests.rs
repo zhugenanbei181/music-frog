@@ -6,15 +6,19 @@
 use super::*;
 use crate::admin_server::ADMIN_DEFAULT_PORT;
 use crate::capture_frame::SETTLED_READBACKS;
+use crate::sidebar_chrome::{SidebarChromeReceipt, shell_chrome_facts};
 use crate::types::options::EditorPane;
 use crate::types::runtime::RuntimeStatus;
+use crate::view::sidebar::sidebar_presentation;
 use crate::view::theme::skins::FOREST;
 use crate::view::theme::{forest_theme, is_forest, theme_to_name, tokens};
+use iced::Rectangle;
 use iced::Size;
 use iced::window::Screenshot;
 use infiltrator_contract::mini_hud::MiniHudWaveformStrip;
 use infiltrator_contract::resources::CoreResourceSnapshot;
 use infiltrator_contract::resources::ResourceAvailability;
+use infiltrator_contract::shell_sidebar_preference::SidebarExpansionPreference;
 use lurker_core_contract::outbound::inventory::OutboundInventoryState;
 use lurker_core_contract::routing_intent::RoutingIntent;
 use std::env::temp_dir;
@@ -34,6 +38,7 @@ fn demo_env(page: Route) -> DemoEnv {
         window_size: DEFAULT_WINDOW,
         capture_marker: None,
         scenario: None,
+        sidebar_expansion: SidebarExpansionPreference::default(),
     }
 }
 
@@ -176,6 +181,24 @@ fn capture_marker_is_idempotent_and_formats_the_contract_line() {
     let mut env = demo_env(Route::Proxies);
     env.capture_marker = Some(path.clone());
     let (mut state, _) = AppState::demo(&env);
+    // The capture geometry probe measures the sidebar's own boxes from the live
+    // layout; this harness has no widget tree to walk, so it stands in for the
+    // probe with the boxes the 1180x780 labelled pane paints.
+    state.shell.sidebar_chrome = SidebarChromeReceipt {
+        stack_end: Some(Rectangle {
+            x: 0.0,
+            y: 86.0,
+            width: 240.0,
+            height: 382.0,
+        }),
+        toggle: Some(Rectangle {
+            x: 0.0,
+            y: 54.0,
+            width: 240.0,
+            height: 28.0,
+        }),
+        ..Default::default()
+    };
 
     // Constructing the real view must not announce a rendered frame.
     let _ = state.view();
@@ -203,7 +226,24 @@ fn capture_marker_is_idempotent_and_formats_the_contract_line() {
     state.write_capture_marker();
 
     let content = read_to_string(&path).expect("marker file exists");
-    assert_eq!(content, "CAPTURE_READY page=proxies skin=dark\n");
+    let chrome = shell_chrome_facts(
+        sidebar_presentation(&state),
+        state.shell.sidebar_chrome,
+        state.shell.viewport.tier,
+    )
+    .expect("the measured pane describes its own chrome");
+    assert_eq!(
+        content,
+        format!(
+            "CAPTURE_READY page=proxies skin=dark\n{}",
+            chrome.to_marker_line()
+        )
+    );
+    assert!(content.contains("CAPTURE_CHROME nav_form=standard nav_column_px=240"));
+    assert!(
+        content.contains("sidebar_toggle_px=86"),
+        "the affordance's own band travels with the frame: {content}"
+    );
     remove_dir_all(directory).unwrap();
 }
 

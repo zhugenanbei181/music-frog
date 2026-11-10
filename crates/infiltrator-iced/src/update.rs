@@ -475,7 +475,9 @@ impl AppState {
             | Message::ShortcutsUpdated(_)
             | Message::TickFrame(_)
             | Message::CaptureRegionMeasured(_)
+            | Message::CaptureSidebarMeasured(_)
             | Message::CaptureFrameRendered { .. }
+            | Message::ToggleSidebarExpansion
             | Message::WindowClosed(_)
             | Message::HideWindow
             | Message::ShowWindow

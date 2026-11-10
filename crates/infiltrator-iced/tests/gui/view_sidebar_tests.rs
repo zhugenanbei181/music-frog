@@ -118,4 +118,3 @@ fn test_sidebar_rail_render_smoke() {
     let _rail = sidebar_rail(&state);
     assert_eq!(RAIL_WIDTH, 64.0);
 }
-

@@ -296,7 +296,10 @@ fn nonanimated_proxy_capture_requests_real_frames_until_the_published_frame_is_c
     state.shell.capture_marker = Some(PathBuf::from("unused-native-layout-receipt"));
     state.shell.capture_scenario = Some(FeatureId::ProxiesGroupExpanded);
     assert_eq!(state.subscription().units(), baseline + 1);
-    assert_eq!(state.update(Message::TickFrame(Instant::now())).units(), 1);
+    // Two live probes while the capture is open: the scenario's own region and
+    // the sidebar's chrome boxes, both measured from the layout the frame will
+    // publish. The frame path itself arms its readback on the next tick.
+    assert_eq!(state.update(Message::TickFrame(Instant::now())).units(), 2);
     state
         .shell
         .capture_marker_written

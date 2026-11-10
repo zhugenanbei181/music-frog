@@ -29,6 +29,8 @@ fn translate_en_primary(key: &str) -> Cow<'static, str> {
         "nav_dns" => "DNS Settings".into(),
         "nav_sync" => "Sync".into(),
         "nav_settings" => "Settings".into(),
+        "nav_sidebar_toggle_collapse" => "Collapse".into(),
+        "nav_sidebar_toggle_expand" => "Expand".into(),
         "sync_title" => "WebDAV Sync".into(),
         "sync_url" => "Server URL".into(),
         "sync_user" => "Username".into(),

@@ -11,7 +11,9 @@ use crate::types::rule_trace::RuleTraceAction;
 use iced::widget::text_editor::Content;
 use iced::{Task, clipboard, window};
 use infiltrator_application::connection_rate_application::project_connection;
+use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::command_catalogue::CommandTarget;
+use infiltrator_contract::shell_sidebar_preference::SidebarExpansionIntent;
 use infiltrator_domain::connection_rate::PULSE_BREATH_HZ;
 use infiltrator_domain::connection_view::{ConnectionRuleSpec, append_draft_rule};
 use infiltrator_domain::yaml_edit::format::format_yaml;
@@ -172,6 +174,30 @@ impl AppState {
                 }
                 Task::none()
             }
+            Message::CaptureSidebarMeasured(receipt) => {
+                if self.shell.demo {
+                    self.shell.sidebar_chrome = receipt;
+                }
+                Task::none()
+            }
+            Message::ToggleSidebarExpansion => {
+                // The surface owns no expansion boolean: it forwards the one
+                // typed intent to the settings owner, which persists it and
+                // publishes the readback the pane paints from.
+                let Some(ingress) = self.command_ingress() else {
+                    return Task::none();
+                };
+                Task::perform(
+                    async move {
+                        ingress
+                            .execute(CommandIntent::ApplySidebarExpansion {
+                                intent: SidebarExpansionIntent::Toggle,
+                            })
+                            .await;
+                    },
+                    |_| Message::Noop,
+                )
+            }
             Message::CaptureFrameRendered {
                 revision,
                 bounds,
@@ -222,7 +248,11 @@ impl AppState {
                     self.diag.perf_nav_route = None;
                 }
 
-                Task::batch([self.capture_geometry_task(), self.capture_frame_task()])
+                Task::batch([
+                    self.capture_geometry_task(),
+                    self.capture_sidebar_chrome_task(),
+                    self.capture_frame_task(),
+                ])
             }
             Message::TogglePerfPanel => {
                 self.diag.perf_panel_visible = !self.diag.perf_panel_visible;

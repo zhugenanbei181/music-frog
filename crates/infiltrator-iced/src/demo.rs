@@ -32,6 +32,7 @@ use crate::view::theme::{theme_from_name, theme_to_name};
 use crate::window_chrome::{MIN_WINDOW_SIZE, window_settings};
 use iced::Task;
 use infiltrator_contract::parity::FeatureId;
+use infiltrator_contract::shell_sidebar_preference::SidebarExpansionPreference;
 use infiltrator_shared::effect_assets::FontFace;
 use std::env::{args, var};
 mod app_routing;
@@ -93,6 +94,11 @@ pub struct DemoEnv {
     pub window_size: (f32, f32),
     pub capture_marker: Option<PathBuf>,
     pub scenario: Option<FeatureId>,
+    /// The sidebar-expansion preference this fixture publishes, parsed from
+    /// `INFILTRATOR_SIDEBAR_EXPANSION` exactly as the Slint capture rig parses
+    /// it. The demo is the owner's readback stand-in: an unknown or absent
+    /// value keeps the owner's default instead of guessing a second state.
+    pub sidebar_expansion: SidebarExpansionPreference,
 }
 
 impl DemoEnv {
@@ -141,6 +147,10 @@ impl DemoEnv {
                 .ok()
                 .filter(|v| !v.is_empty())
                 .map(|raw| interaction::parse(&raw)),
+            sidebar_expansion: var("INFILTRATOR_SIDEBAR_EXPANSION")
+                .ok()
+                .and_then(|raw| SidebarExpansionPreference::from_wire_value(&raw))
+                .unwrap_or_default(),
         }
     }
 }

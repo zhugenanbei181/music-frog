@@ -27,11 +27,11 @@ use crate::view::web_dash_card::web_dash_card;
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
+use infiltrator_contract::command_catalogue::ShellPage;
+use infiltrator_contract::shell_navigation::pages_folded_under;
 use infiltrator_ports::host_runtime::TunServiceStatus;
 use infiltrator_presentation::profiles_page_model::ProfilesOperation;
 use infiltrator_presentation::settings_status_projection::format_runtime_status;
-use infiltrator_contract::command_catalogue::ShellPage;
-use infiltrator_contract::shell_navigation::pages_folded_under;
 
 use infiltrator_shared::locales::{Lang, Localizer};
 use integration::{CORE_CHANNEL_OPTIONS, secondary_text};

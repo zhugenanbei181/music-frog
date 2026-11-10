@@ -16,6 +16,7 @@ use infiltrator_contract::privileged_network::PrivilegedNetworkState;
 use infiltrator_contract::reconnect_mask::ReconnectMaskStatus;
 use infiltrator_contract::rules_workspace::RulesTab;
 use infiltrator_contract::shell_readout::ShellObservation;
+use infiltrator_contract::shell_sidebar_preference::SidebarExpansionPreference;
 use infiltrator_contract::snapshot::CoreWatchdogState;
 use infiltrator_contract::speedtest::SpeedtestRunState;
 use infiltrator_domain::app_routing::AppRoutingRule;
@@ -38,6 +39,7 @@ fn demo_env(page: Route, scenario: FeatureId) -> DemoEnv {
         window_size: DEFAULT_WINDOW,
         capture_marker: None,
         scenario: Some(scenario),
+        sidebar_expansion: SidebarExpansionPreference::default(),
     }
 }
 

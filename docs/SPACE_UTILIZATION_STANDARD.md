@@ -53,6 +53,17 @@
    `crates/infiltrator-contract/assets/page-structure.json` 的 `tiers[]`；
    判定器与 Slint 读同一份导出（见 §3.2），因此「测量盒」「页边距」「shell 空气」
    三者不可能各自认同一个不同的窗口档。
+   **b187 追加**：回执归「谁画的谁发布」，判定按表面分账。判定器新增
+   `--surface {slint,iced}`（默认 `slint`，结构门里的裸调用口径一字不变），
+   由它选采集根；两个矩阵复用场景名（`app-routing-policy-editor-standard`
+   两边都有），而欠账台账以场景名为键，所以每个表面各有自己的台账
+   （`scripts/quality/space_utilization_debt.json` 与
+   `scripts/quality/space_utilization_debt_iced.json`），共用会让一侧替另一侧
+   背书。Iced 侧的回执由 `crates/infiltrator-iced/src/sidebar_chrome.rs` 从活的
+   布局量出（导航栈底、折叠钮带、底栏带），任何一格没量到，该帧就不发布：
+   残缺的回执是拒绝，不是默认值。清单里的 `page` 若写了契约导出表没有的形态，
+   判定器按「用了没人声明过的上限」报违规，不再静默退回档位兜底；空 `page`
+   （没有清单行）是「没有声明形态」，不属此列。
    **外壳档的判据是导出阶梯的 `labelled_sidebar`**（b152）：有带标签侧栏的档
    付空气，没有的档不付。判定器不再自己记「宽度 ≥1000 就算桌面」，见 §3.2。
 2. **页面底色的参考取自页身左缘的 margin 条**，绝不取自盒内出现最多的颜色。

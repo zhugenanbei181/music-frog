@@ -55,6 +55,19 @@ pub const R_CHIP: f32 = R_PILL;
 /// constant so the Iced hairline and the Bevy widget mirror can never drift.
 pub const HAIRLINE: f32 = metrics::HAIRLINE;
 
+/// Desktop navigation geometry, one owner for this surface.
+///
+/// The reference's destination list is a full-width row of 44dp carrying a
+/// 24dp glyph, and a labelled row's content starts at the shared ladder's
+/// default gap (`sidebar_chrome::NAV_CONTENT_OFFSET_PX`), which is also the
+/// leading the frame publishes. The label therefore starts at 8 + 24 + 12 = 44,
+/// the reference's own column, and the two forms of one destination list keep
+/// one rhythm instead of two - the Iced pane drew a 38px row with an 18px
+/// glyph and a 24px content inset before `SPACEUTIL-011`, which is neither the
+/// reference's row nor a leading its own budget could accept.
+pub const NAV_ICON_SIZE: f32 = 24.0;
+pub const NAV_ROW_PADDING: f32 = 10.0;
+
 /// Shared typography scale (logical pixels), mirroring `design_tokens::type_scale`.
 pub mod type_scale {
     use infiltrator_contract::design_tokens::type_scale;

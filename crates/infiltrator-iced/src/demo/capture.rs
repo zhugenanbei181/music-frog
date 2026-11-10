@@ -3,7 +3,9 @@
 
 use super::{route_env_name, skin_name};
 use crate::capture_scenario;
+use crate::sidebar_chrome::shell_chrome_facts;
 use crate::state::AppState;
+use crate::view::sidebar::sidebar_presentation;
 use std::fs::{OpenOptions, create_dir_all};
 use std::sync::atomic::Ordering;
 
@@ -42,6 +44,20 @@ impl AppState {
         if let Some(parent) = path.parent() {
             let _ = create_dir_all(parent);
         }
+        // The frame describes its own chrome: the numbers the space-utilization
+        // judge builds its measurement box from travel with the pixels instead
+        // of living in a script's memory. The gate has already refused any frame
+        // whose sidebar boxes were not measured, so the facts are complete here
+        // by construction; a frame that cannot state them publishes nothing
+        // rather than a partial line the judge would have to reject.
+        let Some(facts) = shell_chrome_facts(
+            sidebar_presentation(self),
+            self.shell.sidebar_chrome,
+            self.shell.viewport.tier,
+        ) else {
+            return;
+        };
+        line.push_str(&facts.to_marker_line());
         if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path) {
             use std::io::Write as _;
             if file.write_all(line.as_bytes()).is_ok() {

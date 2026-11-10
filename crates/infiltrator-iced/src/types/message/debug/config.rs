@@ -188,6 +188,9 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         Message::TickWebDavSync => write!(f, "TickWebDavSync"),
         Message::TickRuntimeRefresh => write!(f, "TickRuntimeRefresh"),
         Message::CaptureRegionMeasured(bounds) => write!(f, "CaptureRegionMeasured({bounds:?})"),
+        Message::CaptureSidebarMeasured(receipt) => {
+            write!(f, "CaptureSidebarMeasured({receipt:?})")
+        }
         Message::CaptureFrameRendered { revision, .. } => {
             write!(f, "CaptureFrameRendered({revision})")
         }
@@ -397,6 +400,7 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         }
         Message::ClearConfigurationSaveState => write!(f, "ClearConfigurationSaveState"),
         Message::TogglePerfPanel => write!(f, "TogglePerfPanel"),
+        Message::ToggleSidebarExpansion => write!(f, "ToggleSidebarExpansion"),
         Message::ToggleTheme => write!(f, "ToggleTheme"),
         Message::SetTheme(t) => write!(f, "SetTheme({t})"),
         Message::SystemThemeChanged(appearance) => write!(f, "SystemThemeChanged({appearance:?})"),

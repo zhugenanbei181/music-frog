@@ -44,7 +44,9 @@ fn catalog_tables() -> Vec<String> {
         .filter_map(|entry| entry.ok())
         .map(|entry| entry.file_name().to_string_lossy().into_owned())
         .filter(|name| {
-            name.starts_with("locales_table") && name.ends_with(".rs") && name != "locales_table_tests.rs"
+            name.starts_with("locales_table")
+                && name.ends_with(".rs")
+                && name != "locales_table_tests.rs"
         })
         .collect();
     tables.sort();

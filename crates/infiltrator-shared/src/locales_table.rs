@@ -32,6 +32,8 @@ fn translate_zh_cn_primary(key: &str) -> Cow<'static, str> {
         "nav_dns" => "DNS 设置".into(),
         "nav_sync" => "数据同步".into(),
         "nav_settings" => "系统设置".into(),
+        "nav_sidebar_toggle_collapse" => "收起".into(),
+        "nav_sidebar_toggle_expand" => "展开".into(),
         "sync_title" => "WebDAV 同步".into(),
         "sync_url" => "服务器地址".into(),
         "sync_user" => "用户名".into(),

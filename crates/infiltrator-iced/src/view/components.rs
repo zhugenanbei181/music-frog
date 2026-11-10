@@ -4,6 +4,9 @@
 //! are both first-class. Page views should compose these primitives instead
 //! of hand-rolling containers with hardcoded colors.
 
+use crate::sidebar_chrome::{
+    NAV_CONTENT_OFFSET_PX, NAV_INDICATOR_HEIGHT_PX, NAV_INDICATOR_WIDTH_PX,
+};
 use crate::types::app::Route;
 use crate::types::message::Message;
 use crate::view::component_card::card;
@@ -12,7 +15,9 @@ use crate::view::theme::{Elevation, Tokens, skins};
 use crate::view::{scrollbar, svg_icons, theme};
 use canvas::gradient::Linear;
 use iced::advanced::text::Renderer;
-use iced::widget::{Scrollable, Space, button, canvas, column, container, row, text, toggler};
+use iced::widget::{
+    Scrollable, Space, Stack, button, canvas, column, container, row, text, toggler, tooltip,
+};
 use iced::{
     Border, Color, Element, Length, Point, Rectangle, Shadow, Theme, Vector, border, mouse,
 };
@@ -746,21 +751,25 @@ pub fn nav_button<'a>(
 ) -> Element<'a, Message> {
     let is_active = route == *current_route;
 
-    let indicator =
-        container(Space::new().width(4).height(18)).style(move |t: &Theme| container::Style {
-            background: if is_active {
-                Some(theme::tokens(t).accent.into())
-            } else {
-                None
-            },
-            border: Border {
-                radius: border::Radius::from(theme::R_PILL),
-                ..Default::default()
-            },
+    let indicator = container(
+        Space::new()
+            .width(NAV_INDICATOR_WIDTH_PX)
+            .height(NAV_INDICATOR_HEIGHT_PX),
+    )
+    .style(move |t: &Theme| container::Style {
+        background: if is_active {
+            Some(theme::tokens(t).accent.into())
+        } else {
+            None
+        },
+        border: Border {
+            radius: border::Radius::from(theme::R_PILL),
             ..Default::default()
-        });
+        },
+        ..Default::default()
+    });
 
-    let glyph = svg_icons::icon_themed(icon, 18.0, move |t: &Theme| {
+    let glyph = svg_icons::icon_themed(icon, theme::NAV_ICON_SIZE, move |t: &Theme| {
         let tk = theme::tokens(t);
         if is_active {
             tk.accent
@@ -774,16 +783,41 @@ pub fn nav_button<'a>(
     } else {
         theme::font_for(TextRole::Label)
     });
+
+    // The reference row, in one geometry: the face is the whole column (the
+    // wash spans it, the empty right side is breathing room), the content is
+    // inset by exactly the leading the receipt publishes
+    // (`sidebar_chrome::NAV_CONTENT_OFFSET_PX`, the shared ladder's default
+    // gap) and the trailing inset is the reference's own, so the first glyph
+    // box starts where the frame says it starts (`SPACEUTIL-011`). The
+    // indicator is painted AT the column's left edge on its own layer: a
+    // content-width capsule was the wrong geometry for a navigation rail, and
+    // an in-flow indicator would have made the painted leading ambiguous.
     let content = container(
-        row![indicator, glyph, label_text]
+        row![glyph, label_text]
             .spacing(theme::SP_MD)
             .align_y(iced::Alignment::Center),
     )
     .width(Length::Fill)
-    .padding([10, 12]);
-
-    button(content)
+    .padding(iced::Padding {
+        top: theme::NAV_ROW_PADDING,
+        right: theme::SP_LG,
+        bottom: theme::NAV_ROW_PADDING,
+        left: NAV_CONTENT_OFFSET_PX as f32,
+    });
+    let indicator_layer = container(indicator)
         .width(Length::Fill)
+        .height(Length::Fill)
+        .align_x(iced::Alignment::Start)
+        .align_y(iced::Alignment::Center);
+    let face = Stack::new()
+        .push(content)
+        .push(indicator_layer)
+        .width(Length::Fill);
+
+    button(face)
+        .width(Length::Fill)
+        .padding(0)
         .style(move |t, status| {
             let tk = theme::tokens(t);
             let mut style = button::Style {
@@ -823,11 +857,18 @@ mod toggle_switch_tests;
 
 /// Compact icon button for the responsive rail mode sidebar. The glyph comes
 /// from the same registry row as the labelled form, so the two morphologies of
-/// one destination can never disagree.
-pub fn nav_rail_icon<'a>(route: Route, current_route: &Route, icon: Icon) -> Element<'a, Message> {
+/// one destination can never disagree, and the registry's label travels in the
+/// hover tooltip - a rail is navigation by glyph alone, so the word has to live
+/// somewhere a pointer can reach it.
+pub fn nav_rail_icon<'a>(
+    label: String,
+    route: Route,
+    current_route: &Route,
+    icon: Icon,
+) -> Element<'a, Message> {
     let is_active = route == *current_route;
 
-    let glyph = svg_icons::icon_themed(icon, 18.0, move |t: &Theme| {
+    let glyph = svg_icons::icon_themed(icon, theme::NAV_ICON_SIZE, move |t: &Theme| {
         let tk = theme::tokens(t);
         if is_active {
             tk.accent
@@ -836,8 +877,8 @@ pub fn nav_rail_icon<'a>(route: Route, current_route: &Route, icon: Icon) -> Ele
         }
     });
 
-    button(glyph)
-        .padding([8, 8])
+    let face = button(glyph)
+        .padding([theme::NAV_ROW_PADDING, theme::SP_SM])
         .style(move |t: &Theme, status| {
             let tk = theme::tokens(t);
             // #120: the active row wears the control wash and the highlight
@@ -863,6 +904,15 @@ pub fn nav_rail_icon<'a>(route: Route, current_route: &Route, icon: Icon) -> Ele
                 ..Default::default()
             }
         })
-        .on_press(Message::Navigate(route))
-        .into()
+        .on_press(Message::Navigate(route));
+
+    tooltip(
+        face,
+        container(theme::role_body_text(label))
+            .padding(6)
+            .style(container::rounded_box),
+        tooltip::Position::Right,
+    )
+    .gap(4.0)
+    .into()
 }

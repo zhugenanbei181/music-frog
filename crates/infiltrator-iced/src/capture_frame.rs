@@ -3,6 +3,7 @@
 use crate::capture_scenario;
 use crate::state::AppState;
 use crate::types::message::Message;
+use crate::view::sidebar::sidebar_presentation;
 use iced::window::Screenshot;
 use iced::{Rectangle, Task, window};
 use image::{ImageFormat, RgbaImage};
@@ -53,6 +54,13 @@ impl AppState {
         self.shell.demo
             && self.shell.capture_marker.is_some()
             && !self.shell.capture_marker_written.load(Ordering::SeqCst)
+            // The frame describes its own chrome, so the boxes that description
+            // names have to exist first: a marker written before the sidebar
+            // probe ran would publish a geometry no frame measured.
+            && self
+                .shell
+                .sidebar_chrome
+                .is_complete(sidebar_presentation(self))
             && self
                 .shell
                 .capture_section

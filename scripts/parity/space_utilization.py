@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Judge: the space utilization of a published Slint capture batch.
+"""Judge: the space utilization of a published capture batch.
 
 `docs/SPACE_UTILIZATION_STANDARD.md` owns the rules; this module is the only
 measurement that decides them. The standard is a ratio, so the verdict comes
 from the real pixels of a published receipt batch, never from a code read.
+`--surface` picks whose batch is judged; every surface is measured against the
+same exported contract, so the verdict is the surface's pixels either way.
 
 How a frame is measured
 -----------------------
@@ -27,6 +29,7 @@ How a frame is measured
 
 Modes
 -----
+    --surface           which surface's published batch to judge (default slint)
     --report            print the distribution and the worst frames
     --enforce           fail on any frame over its tier limit that is not
                         registered in the debt inventory
@@ -38,7 +41,9 @@ Modes
 from __future__ import annotations
 
 import argparse
+import contextlib
 import csv
+import io
 import json
 import pathlib
 import statistics
@@ -54,6 +59,40 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 CAPTURES = ROOT / ".evidence/captures/slint"
 METADATA = "capture-metadata.txt"
 DEBT_FILE = ROOT / "scripts/quality/space_utilization_debt.json"
+
+# Which surface's published batch this judge measures. Each surface keeps its
+# own capture root and its own debt inventory: the two matrices reuse scenario
+# names (`app-routing-policy-editor-standard` exists on both), and the debt's
+# `frames` dict is keyed by scenario name, so a single inventory would let an
+# Iced frame inherit the Slint frame's registered debt for the same name. The
+# default stays `slint`, the surface this judge was written for, so a caller
+# that passes no flag - `check-structure.sh` is one - measures exactly the
+# pixels it measured before.
+SURFACE_SLINT = "slint"
+SURFACE_ICED = "iced"
+CAPTURES_ROOT = {
+    SURFACE_SLINT: CAPTURES,
+    SURFACE_ICED: ROOT / ".evidence/captures/iced",
+}
+DEBT_FILE_BY_SURFACE = {
+    SURFACE_SLINT: DEBT_FILE,
+    SURFACE_ICED: ROOT / "scripts/quality/space_utilization_debt_iced.json",
+}
+
+
+def surface_captures(surface: str) -> pathlib.Path:
+    """The published batch root a surface's frames live under."""
+    return CAPTURES_ROOT[surface]
+
+
+def surface_debt(surface: str) -> pathlib.Path:
+    """The debt inventory that belongs to one surface's own frames.
+
+    Not shared: `frames` is keyed by scenario name and the two matrices reuse
+    names, so one inventory would register Iced's debt under Slint's keys.
+    """
+    return DEBT_FILE_BY_SURFACE[surface]
+
 
 PAGE_STRUCTURE_FILE = ROOT / "crates/infiltrator-contract/assets/page-structure.json"
 RAIL_CHROME_BAND_LIMIT = 0.0
@@ -778,6 +817,32 @@ def frame_findings(results: list[dict], debt: dict) -> list[str]:
     return found
 
 
+def page_shape_findings(results: list[dict]) -> list[str]:
+    """A frame whose manifest names a page shape the contract does not own.
+
+    `limit_for` falls back to the tier limit when it cannot resolve the slug.
+    That fallback is right for a frame that declares no shape at all - "no
+    shape declared" is not "a shape nobody owns" - but a manifest `page` that
+    names a slug outside the exported table leaves the judge measuring against
+    a limit nobody declared: the frame says it is a `filter` page and the
+    contract's table has never heard of `filter`. Reporting it here means a
+    batch that renames or invents its pages cannot pass `--enforce` on the
+    weaker tier fallback. An empty `page` is deliberately NOT reported.
+    """
+    structures = page_structures()
+    found: list[str] = []
+    for entry in results:
+        slug = entry.get("page", "")
+        if not slug or slug in structures:
+            continue
+        found.append(
+            f"{entry['scenario']}: the manifest names page shape {slug!r}, which "
+            "the contract's exported table does not own - the frame would be "
+            "judged by a limit nobody declared"
+        )
+    return found
+
+
 def rail_findings(results: list[dict], debt: dict) -> list[str]:
     """Judge the navigation column of every frame that owns one.
 
@@ -810,7 +875,8 @@ def rail_findings(results: list[dict], debt: dict) -> list[str]:
     return found
 
 
-def report(results: list[dict]) -> None:
+def report(results: list[dict], surface: str = SURFACE_SLINT) -> None:
+    print(f"=== surface: {surface} ===")
     for name in [entry["id"] for entry in ladder()]:
         group = [entry for entry in results if entry["tier"] == name]
         if not group:
@@ -1025,7 +1091,10 @@ class SelfTest(unittest.TestCase):
         self.assertLessEqual(entry["unused_pct"], limit, entry)
         self.assertEqual(frame_findings([entry], {"frames": {}, "rail": {}}), [])
 
-    def test_an_unknown_page_falls_back_to_the_tier_limit(self) -> None:
+    def test_a_frame_with_no_declared_shape_falls_back_to_the_tier_limit(self) -> None:
+        # An empty `page` means the manifest declared no shape, which is the
+        # one case the tier fallback exists for; an undeclared *slug* is a
+        # different fact and is reported by `page_shape_findings`.
         image = _desktop_body()
         _fill(image, 96, 300, 258, 1150, CARD)
         entry = self.measure_one(image)
@@ -1321,6 +1390,123 @@ class SelfTest(unittest.TestCase):
         chosen = published_run(captures)
         self.assertEqual(chosen, full)
 
+    # --- the surface selector -------------------------------------------
+    #
+    # The Iced and Slint matrices reuse scenario names, so the selector must
+    # route the captures root AND the debt inventory together. Judging one
+    # surface against the other's frames, or against the other's inventory,
+    # is the fork this selector retires.
+
+    def test_the_default_surface_is_slint(self) -> None:
+        self.assertEqual(build_parser().parse_args([]).surface, SURFACE_SLINT)
+        self.assertEqual(build_parser().parse_args(["--report"]).surface, SURFACE_SLINT)
+        # The literal callers pass no flag against is the CLI's `slint`.
+        self.assertEqual(SURFACE_SLINT, "slint")
+
+    def test_the_surface_selector_pins_the_two_roots(self) -> None:
+        self.assertEqual(surface_captures("slint"), CAPTURES)
+        self.assertEqual(surface_debt("slint"), DEBT_FILE)
+        self.assertEqual(surface_captures("iced"), ROOT / ".evidence/captures/iced")
+        self.assertEqual(surface_debt("iced"),
+                         ROOT / "scripts/quality/space_utilization_debt_iced.json")
+        # Not the same root and not the same inventory: a shared one would let
+        # one surface's frames or debt answer for the other's.
+        self.assertNotEqual(surface_captures("iced"), CAPTURES)
+        self.assertNotEqual(surface_debt("iced"), DEBT_FILE)
+        args = build_parser().parse_args(["--surface", "iced"])
+        self.assertEqual(surface_captures(args.surface), ROOT / ".evidence/captures/iced")
+        self.assertEqual(build_parser().parse_args(["--surface", "iced"]).surface, "iced")
+
+    def test_the_surface_selector_routes_the_root_and_the_debt(self) -> None:
+        # End to end: the same scenario name is registered in the SLINT
+        # inventory and absent from the ICED one. A selector that mixed them
+        # would pass the first half; routing both is what makes it fail.
+        slint_root = self.root / "slint-batch-root"
+        iced_root = self.root / "iced-batch-root"
+        image = _desktop_body()
+        _labelled_nav(image, first_x=8)
+        _fill(image, 96, 300, 258, 1150, CARD)
+        _fill(image, 110, 128, 270, 1140, INK)
+        chrome = _chrome(1180, 780, nav_content_offset_px=8)
+        _write_run(slint_root, {"shared-name": image}, chrome=chrome)
+        _write_run(iced_root, {"shared-name": image}, chrome=chrome)
+        slint_debt = self.root / "slint-debt.json"
+        iced_debt = self.root / "iced-debt.json"
+        write_debt({"frames": {"shared-name": 100.0}, "rail": {}}, slint_debt)
+        write_debt({"frames": {}, "rail": {}}, iced_debt)
+        global CAPTURES_ROOT, DEBT_FILE_BY_SURFACE
+        kept_root, kept_debt = CAPTURES_ROOT, DEBT_FILE_BY_SURFACE
+        CAPTURES_ROOT = {"slint": slint_root, "iced": iced_root}
+        DEBT_FILE_BY_SURFACE = {"slint": slint_debt, "iced": iced_debt}
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                errors = io.StringIO()
+                with contextlib.redirect_stderr(errors):
+                    code = main(["--surface", "iced", "--enforce"])
+            self.assertEqual(code, 1, errors.getvalue())
+            self.assertIn("not registered debt", errors.getvalue())
+            # Registered in the ICED inventory, the same frame passes.
+            write_debt({"frames": {"shared-name": 100.0}, "rail": {}}, iced_debt)
+            with contextlib.redirect_stdout(io.StringIO()):
+                errors = io.StringIO()
+                with contextlib.redirect_stderr(errors):
+                    code = main(["--surface", "iced", "--enforce"])
+            self.assertEqual(code, 0, errors.getvalue())
+        finally:
+            CAPTURES_ROOT = kept_root
+            DEBT_FILE_BY_SURFACE = kept_debt
+
+    # --- page-shape honesty ---------------------------------------------
+
+    def test_a_manifest_page_the_contract_does_not_own_is_reported(self) -> None:
+        # `limit_for` would fall back to the tier limit, i.e. judge the frame
+        # by a number nobody declared for this shape. Reported instead.
+        run = _write_run(self.root, {"planted": _desktop_body()},
+                         {"planted": "not-a-shape"})
+        entry = measure(run)[0]
+        found = page_shape_findings([entry])
+        self.assertTrue(any("does not own" in item for item in found), found)
+
+    def test_a_declared_shape_the_contract_owns_is_not_reported(self) -> None:
+        run = _write_run(self.root, {"planted": _desktop_body()}, {"planted": "logs"})
+        entry = measure(run)[0]
+        self.assertEqual(entry["page"], "logs")
+        self.assertEqual(page_shape_findings([entry]), [], entry)
+
+    def test_a_frame_that_declares_no_shape_keeps_the_fallback(self) -> None:
+        # No manifest row at all is "no shape declared", not "a shape nobody
+        # owns": the tier fallback is right there and must not be reported.
+        entry = self.measure_one(_desktop_body())
+        self.assertEqual(entry["page"], "")
+        self.assertEqual(page_shape_findings([entry]), [], entry)
+
+    def test_the_page_shape_leg_is_part_of_enforcement(self) -> None:
+        # Not a test-only ornament: removing it from `main` breaks here.
+        import inspect
+        source = inspect.getsource(main)
+        self.assertIn("page_shape_findings(results)", source)
+
+    # --- one judge, two surfaces ----------------------------------------
+
+    def test_an_iced_frame_passes_the_same_receipt_checks_as_a_slint_frame(self) -> None:
+        # The judge is surface-blind: a frame whose receipt and pixels agree is
+        # judged the same whichever surface painted it. The Iced matrix
+        # publishes the same 1180x780 labelled pane and 720x480 icon rail, so
+        # both planted Iced shapes must come back clean on the receipt axes.
+        image = _desktop_body()
+        _labelled_nav(image, first_x=8)
+        labelled = self.measure_one(image, chrome=_chrome(1180, 780,
+                                                          nav_content_offset_px=8))
+        self.assertEqual(chrome_findings([labelled]), [], labelled)
+        self.assertEqual(leading_findings([labelled]), [], labelled)
+        self.assertEqual(labelled["painted_nav_leading_px"], 8, labelled)
+        self.assertEqual(rail_findings([labelled], {"frames": {}, "rail": {}}), [], labelled)
+        rail = _canvas(720, 480)
+        self._icon_rail(rail)
+        medium = self.measure_one(rail)
+        self.assertEqual(chrome_findings([medium]), [], medium)
+        self.assertEqual(rail_findings([medium], {"frames": {}, "rail": {}}), [], medium)
+
     def _with_export(self, document: dict):
         """Point the judge at a planted export for the body of a test."""
         path = self.root / "planted-structure.json"
@@ -1571,9 +1757,14 @@ def self_test(argv: list[str] | None = None) -> int:
 
 
 
-def main(argv: list[str] | None = None) -> int:
+def build_parser() -> argparse.ArgumentParser:
+    """The judge's command line, so the default surface is testable."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--run", type=pathlib.Path)
+    parser.add_argument("--surface", choices=[SURFACE_SLINT, SURFACE_ICED],
+                        default=SURFACE_SLINT,
+                        help="which surface's published batch to judge "
+                             "(default: slint)")
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--report", action="store_true")
     parser.add_argument("--enforce", action="store_true")
@@ -1583,7 +1774,11 @@ def main(argv: list[str] | None = None) -> int:
                         help="allow the first debt baseline to be written")
     parser.add_argument("--check-export", action="store_true",
                         help="check that the exported page-shape table is current")
-    args = parser.parse_args(argv)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
 
     if args.self_test:
         return self_test()
@@ -1595,7 +1790,8 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         print("space-utilization: the exported page-shape table is current")
         return 0
-    run = args.run or published_run()
+    surface = args.surface
+    run = args.run or published_run(surface_captures(surface))
     if run is None or not run.is_dir():
         print("space-utilization: no published full-matrix batch; the pixel leg "
               "cannot judge until a capture batch exists", file=sys.stderr)
@@ -1609,16 +1805,17 @@ def main(argv: list[str] | None = None) -> int:
             print(f"space-utilization: {problem}", file=sys.stderr)
         return 1
     results = measure(run)
-    debt = read_debt()
+    debt = read_debt(surface_debt(surface))
 
     if args.json:
-        print(json.dumps(dict(run=run.name, results=results), ensure_ascii=False))
+        print(json.dumps(dict(run=run.name, surface=surface, results=results),
+                         ensure_ascii=False))
         return 0
     if args.report:
-        report(results)
+        report(results, surface)
         return 0
     if args.update_debt:
-        first_baseline = not DEBT_FILE.is_file()
+        first_baseline = not surface_debt(surface).is_file()
         if first_baseline and not args.bootstrap:
             print("space-utilization: the debt inventory does not exist; pass "
                   "--bootstrap once to write the first baseline, afterwards "
@@ -1645,13 +1842,14 @@ def main(argv: list[str] | None = None) -> int:
                   f"({len(frames)} frame(s))")
         lost = sorted(set(debt["frames"]) - set(frames))
         document = dict(version=1, frames=frames, rail=rail)
-        write_debt(document)
+        write_debt(document, surface_debt(surface))
         print(f"space-utilization: debt inventory now {len(frames)} frame(s)"
               + (f", closed {len(lost)}: {lost}" if lost else ""))
         return 0
 
     findings = (chrome_findings(results) + leading_findings(results)
-                + frame_findings(results, debt) + rail_findings(results, debt))
+                + frame_findings(results, debt) + page_shape_findings(results)
+                + rail_findings(results, debt))
     if args.enforce:
         if findings:
             for finding in findings:
@@ -1660,7 +1858,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"space-utilization: {len(results)} frames judged against "
               f"{run.name}, violations={len(findings)}")
         return 0
-    report(results)
+    report(results, surface)
     for finding in findings:
         print(f"  finding: {finding}")
     return 0
