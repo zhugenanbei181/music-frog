@@ -20,6 +20,26 @@ def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def uncompiled_component_findings(source_root: pathlib.Path, files: dict) -> list[str]:
+    """Every vendored `.slint` the build compiles must carry a manifest record.
+
+    A patched file whose record still points at its pristine copy is invisible
+    to this guard: the pristine bytes match, so the gate stays green while the
+    file the compiler actually reads is unaccounted for. Enumerating the build
+    inputs closes that hole.
+    """
+    destinations = {record.get("path") for record in files.values()}
+    findings: list[str] = []
+    for component in sorted((source_root / "material-1.1.0").rglob("*.slint")):
+        relative = str(component.relative_to(source_root))
+        if relative not in destinations:
+            findings.append(
+                f"{relative}: compiled vendored component has no manifest record; "
+                "register the patched file (the pristine copy may then be dropped)"
+            )
+    return findings
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -67,6 +87,8 @@ def main() -> int:
 
     if total_bytes != manifest.get("imported_bytes"):
         errors.append("manifest byte count does not match the preserved source files")
+
+    errors.extend(uncompiled_component_findings(SOURCE_ROOT, files))
 
     if args.archive is not None:
         try:

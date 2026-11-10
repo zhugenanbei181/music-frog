@@ -6,6 +6,14 @@ import { MaterialSchemes, MaterialScheme } from "material_schemes.slint";
 
 export global MaterialPalette {
     out property <ColorScheme> color-scheme: Palette.color_scheme;
+    // The single light/dark channel of this build. The application decides it
+    // (`LumenTheme.dark-mode`, resolved from the user's theme preference); the
+    // platform style is only the fallback when the preference is "system".
+    // Selecting the scheme from `Palette.color_scheme` here gave the same fact
+    // a second owner, so every `@material` component painted the light scheme
+    // inside a dark page - the app's own tokens and these components then
+    // disagreed on ink. The window writes this property beside `schemes`.
+    in property <bool> application-dark-mode: false;
     out property <color> primary: root.scheme.primary;
     out property <color> surface_tint: root.scheme.surfaceTint;
     out property <color> on_primary: root.scheme.onPrimary;
@@ -170,5 +178,5 @@ export global MaterialPalette {
         },
     };
 
-    property <MaterialScheme> scheme: Palette.color_scheme == ColorScheme.dark ? root.schemes.dark : root.schemes.light;
+    property <MaterialScheme> scheme: root.application-dark-mode ? root.schemes.dark : root.schemes.light;
 }

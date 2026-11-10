@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT
 
 import { LumenUiScale } from "../../../ui/ui-scale.slint";
-import { Palette } from "std-widgets.slint";
 import { MaterialWindow } from "material_window.slint";
 import { MaterialPalette } from "../styling/material_palette.slint";
 
@@ -11,7 +10,9 @@ export component Elevation {
     in property <length> border_radius;
     in property <int> level;
 
-    property <bool> dark: Palette.color_scheme == ColorScheme.dark;
+    // Shadows follow the same single light/dark channel as the colour scheme,
+    // so a raised surface never dims for a light page it is not on.
+    property <bool> dark: MaterialPalette.application-dark-mode;
 
     outer_shadow := Rectangle {
         border_radius: root.border_radius;

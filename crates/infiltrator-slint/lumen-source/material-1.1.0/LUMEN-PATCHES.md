@@ -7,8 +7,17 @@ The library is vendored from the official 1.1.0 release and retains its MIT lice
 `ui/styling/material_palette.slint` exposes the existing platform-selected
 `Palette.color_scheme` as a read-only `MaterialPalette.color-scheme` output so
 the MusicFrog root can follow desktop/Android system light and dark changes when
-the shared theme preference is `system`. The original palette selection and
-color values remain unchanged.
+the shared theme preference is `system`. That output is unchanged. The scheme
+*selection* is patched: `scheme` and `Elevation.dark` used to read
+`Palette.color_scheme` directly, which gave the light/dark fact a second owner
+inside a vendored library. The application already resolves that fact once —
+from the user's theme preference, falling back to the platform only when the
+preference is `system` — so `MaterialPalette.application-dark-mode` is now the
+single channel the root writes beside `schemes`, and both selectors read it.
+Without this, every `@material` component painted its light scheme inside a dark
+page: on the published `proxies-dark` receipt the page-header action ink measured
+rgb(65, 73, 75) on rgb(10, 11, 14) — about 2.1:1 — where the app's own dark
+`onSurfaceVariant` token is `#A5B0BC` at about 7.4:1. Colour values are unchanged.
 
 `ui/components/navigation_bar.slint` adds opt-in `compact` and `show_layout_bounds` inputs alongside `border_radius`. The compact phone bar is 56 px high, with 22 px icons, 12 px labels, and a 48 px high selected pill. After 4 px padding on each side, every item gets exactly one equal share of the available width. It retains BaseNavigation accessibility and ExtendedTouchArea keyboard activation. The regular navigation/rail branch remains available. The compact branch bypasses the regular icon row's 20 px padding on each side: four 26+40 px items, 24 px of gaps, and 16 px outer padding previously required at least 304 px inside a roughly 280 px bar. That minimum-size conflict clipped the fourth item; clip alone hid the error. Debug frames now show the actual slot, icon, and label bounds.
 

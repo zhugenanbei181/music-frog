@@ -96,7 +96,7 @@ export component AppWindow inherits MaterialWindow {
         property <length> profile-settings-sheet-height: min(root.profile-settings-type-index == 1 ? 640 * LumenUiScale.unit : root.profile-settings-kind == "remote_subscription" ? 520 * LumenUiScale.unit : 340 * LumenUiScale.unit, max(0 * LumenUiScale.unit, root.height - root.safe-area-insets.top - root.safe-area-insets.bottom - 52 * LumenUiScale.unit));
         out property <bool> primary-page: root.page == "Home" || root.page == "Proxy" || root.page == "Config" || root.page == "Settings" || root.page == "SettingsWorkbench";
         init => {
-        MaterialPalette.schemes = LumenTheme.material-schemes; LumenTheme.show-layout-bounds = root.layout-debug-bounds; LumenTheme.viewport-width = root.width; LumenTheme.sidebar-expansion = root.sidebar-expansion;
+        MaterialPalette.schemes = LumenTheme.material-schemes; MaterialPalette.application-dark-mode = root.application-dark-mode; LumenTheme.show-layout-bounds = root.layout-debug-bounds; LumenTheme.viewport-width = root.width; LumenTheme.sidebar-expansion = root.sidebar-expansion;
         LumenTheme.touch-surface = root.android-platform; LumenTheme.compact-layout = root.compact-layout; LumenUiScale.unit = 1px * (root.page-scale-percent / 100.0); LumenTheme.dark-mode = root.application-dark-mode;
         LumenTheme.user-accent = root.theme-color; LumenTheme.forest-mode = root.theme-mode == ThemeMode.forest; LumenTheme.amoled-mode = root.theme-mode == ThemeMode.amoled;
         if root.theme-mode == ThemeMode.system { root.application-dark-mode = root.platform-dark-mode; }
@@ -213,7 +213,7 @@ export component AppWindow inherits MaterialWindow {
         changed profiles => { if root.profile-add-open && root.profiles.length > root.profile-count-at-open { root.close-profile-add(); } }
         changed overview-order-open => { if root.overview-order-open { overview-order-overlay.show-order(); } else { overview-order-overlay.close-order(); } }
 
-        function update-color-scheme() { LumenTheme.dark-mode = root.application-dark-mode; MaterialPalette.schemes = LumenTheme.material-schemes; root.color-scheme-changed(root.application-dark-mode); }
+        function update-color-scheme() { LumenTheme.dark-mode = root.application-dark-mode; MaterialPalette.schemes = LumenTheme.material-schemes; MaterialPalette.application-dark-mode = root.application-dark-mode; root.color-scheme-changed(root.application-dark-mode); }
 
         // The window's own gesture entry points for the toolkit popups it owns.
         // The popups own their open state, so these functions are the only way in.

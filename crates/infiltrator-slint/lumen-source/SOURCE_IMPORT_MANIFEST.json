@@ -2,7 +2,7 @@
   "source_archive": "re-Lumen (1).zip",
   "archive_sha256": "4a5195d205b8e23e00694764e8c5d105a6ba4d43085d6b5533de42d4cfa295e4",
   "imported_files": 718,
-  "imported_bytes": 8725428,
+  "imported_bytes": 8726178,
   "files": {
     "assets/flags/ac.svg": {
       "path": "assets/flags/ac.svg",
@@ -3060,8 +3060,8 @@
     },
     "material-1.1.0/ui/components/elevation.slint": {
       "path": "material-1.1.0/ui/components/elevation.slint",
-      "bytes": 5769,
-      "sha256": "4dc9c60d5b12a045447fb9eb18fb6967da7dd0a9fcd98581c25d8394dc2039f3",
+      "bytes": 5869,
+      "sha256": "7f7a3ae03d7b94517f2923b4974b3902d2be86b29ea2f899cde338e600e886fe",
       "original_bytes": 5770,
       "original_sha256": "edf336ad165148f220212bb1af823fb1d2bc7acfa1aafb1a47a6d9f7b1ac8afb",
       "patched": true,
@@ -3407,9 +3407,13 @@
       "sha256": "f928e7c94f560230d9ee9c524e23936fd434fc1bc951743bc32b29f1348c7c94"
     },
     "material-1.1.0/ui/styling/material_palette.slint": {
-      "path": "reference-material-1.1.0/ui/styling/material_palette.slint.source",
-      "bytes": 8952,
-      "sha256": "7c4f71ffb7aa964ae8f1bb2464b7cb215836d45abe7cc6f2a7a3d8600cd5e6d7"
+      "path": "material-1.1.0/ui/styling/material_palette.slint",
+      "bytes": 9602,
+      "sha256": "55c5b2c1b1bd5bd6134cce67de937aba12ae1f1ad951ef672affb90660ce843a",
+      "original_bytes": 8952,
+      "original_sha256": "7c4f71ffb7aa964ae8f1bb2464b7cb215836d45abe7cc6f2a7a3d8600cd5e6d7",
+      "patched": true,
+      "patch_source": "material-1.1.0/LUMEN-PATCHES.md"
     },
     "material-1.1.0/ui/styling/material_schemes.slint": {
       "path": "material-1.1.0/ui/styling/material_schemes.slint",

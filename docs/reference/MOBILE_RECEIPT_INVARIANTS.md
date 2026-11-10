@@ -198,4 +198,13 @@ bash scripts/quality/check-structure.sh
 - b127 像素已对齐的是：四页无可见滚动条、dock 胶囊外侧 / 空气带 / 下沿全为页面底色、胶囊采用 contract alpha 玻璃 veil（非遮盖实心块）、滚动到底无双重空白带、状态卡青蛙与按钮不出圈、工具页分隔线比例、配置 / 代理卡几何和选中色。
 - b127 的真实差距是：配置页只有 2 卡并形成 516u（64.5%H）空带；代理页形成 374u（46.8%H）空带；运行时长已由 owner 发布真实会话时长（回执 `03:04:49`），相对更新时间仍是底层事实缺位；暗色代理 / 配置页头动作可读性偏弱；参考标题折算 22u 与本仓 19–20u 墨迹带仍有层级差；emoji 与超 600 字重必须拒绝照抄。
 - 当前 16:06 帧因源码 WIP 已失效；主收口方统一重采前，任何「已实现 / 已验证」结论都只能写「历史 b127 帧显示」或「部分」，不能写完整。dock 长效机制由另一并行流实现，本审计不碰其文件，也不替它宣告通过。
+- **b181 更正（本文只写「可读性偏弱」，未定位根因）**：那条差距的根因不是页头几何或字色 token，而是 vendored `@material` 组件的明暗通道分叉——
+  `material_palette.slint` 的 `scheme` 与 `elevation.slint` 的 `dark` 直接读**平台** `Palette.color_scheme`，
+  而全站其余部分跟随 `LumenTheme.dark-mode`（用户主题偏好，仅 `system` 时回落平台）。
+  平台为浅色、皮肤为 dark 的帧里，`IconButton` 等就画成浅色方案：`proxies-dark` 页头动作墨迹实测
+  rgb(65,73,75) 落在 rgb(10,11,14) 地面上 ≈ **2.14:1**，而本表面暗色 `onSurfaceVariant` 应为 `#A5B0BC` ≈ 7.4:1。
+  修复是把明暗结论交回唯一 owner（新增 `MaterialPalette.application-dark-mode`，由根窗口与 `schemes` 同时写入），
+  同批实测 `proxies-dark` 页头动作对比度 **2.14:1 → 8.94:1**，且 `proxies-light` 帧逐字节不变——
+  只有「应用明暗 ≠ 平台明暗」的帧（dark / amoled）受影响，故这是纠错而非整体调暗。
+  本文其余结论按 b127 帧解释，仍以其自身时效规则为准。
 - 建议把第 3 节 `S-*` / `P-*` ID 作为台账条目的稳定锚点：静态 guard 与像素 guard 分别验收，统一验证批次只跑一次；新增 forest / amoled mobile 或 light end 帧时扩展适用集合，而不是复制第二套阈值。
