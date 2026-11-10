@@ -288,4 +288,9 @@
     <string name="relative_time_compact_months_ago">%1$d 月</string>
     <string name="relative_time_compact_years_ago">%1$d 年</string>
     <string name="relative_time_detailed_prefix">更新於 %1$s</string>
+    <string name="profile_source_local">本地</string>
+    <string name="profile_source_subscription">遠端</string>
+    <string name="profile_source_imported">匯入</string>
+    <string name="profile_source_synchronized">同步</string>
+    <string name="profile_source_unobserved">來源未知</string>
 </resources>

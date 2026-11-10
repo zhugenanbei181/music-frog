@@ -348,12 +348,12 @@ pub fn aggregation_report() -> AggregationReport {
 ///
 /// The filter editor reads its source from the owner snapshot, so the capture
 /// publishes a real document identity instead of an empty source.
-pub fn profile_workspace_identity() -> ProfileWorkspaceIdentity {
+pub fn profile_workspace_identity(kind: ProfileDocumentSourceKind) -> ProfileWorkspaceIdentity {
     let document = ProfileDocumentIdentity::new(
         ProfileId::new("profile-1").expect("valid profile id"),
         EngineId::new("mihomo").expect("valid engine id"),
         ProfileDocumentSourceIdentity::new(
-            ProfileDocumentSourceKind::Local,
+            kind,
             ProfileSourceId::new("demo-fixture").expect("valid source id"),
         ),
         ProfileDocumentRevision::new("demo-revision").expect("valid revision"),

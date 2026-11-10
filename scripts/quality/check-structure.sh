@@ -154,6 +154,8 @@ python3 scripts/quality/flclash-dashboard-widget-guard.py --self-test
 python3 scripts/quality/flclash-dashboard-widget-guard.py --mode enforce
 python3 scripts/quality/slint-relative-time-guard.py --self-test
 python3 scripts/quality/slint-relative-time-guard.py --mode enforce
+python3 scripts/quality/slint-profile-source-guard.py --self-test
+python3 scripts/quality/slint-profile-source-guard.py --mode enforce
 python3 scripts/quality/capability-reason-localization-guard.py --self-test
 python3 scripts/quality/capability-reason-localization-guard.py
 python3 scripts/quality/platform-evidence-guard.py --self-test

@@ -32,10 +32,15 @@ pub enum SharedCopyKey {
     RelativeTimeCompactMonthsAgo,
     RelativeTimeCompactYearsAgo,
     RelativeTimeDetailedPrefix,
+    ProfileSourceLocal,
+    ProfileSourceSubscription,
+    ProfileSourceImported,
+    ProfileSourceSynchronized,
+    ProfileSourceUnobserved,
 }
 
 impl SharedCopyKey {
-    pub const ALL: [Self; 27] = [
+    pub const ALL: [Self; 32] = [
         Self::AppName,
         Self::AppDisplayName,
         Self::AboutBrandNote,
@@ -63,6 +68,11 @@ impl SharedCopyKey {
         Self::RelativeTimeCompactMonthsAgo,
         Self::RelativeTimeCompactYearsAgo,
         Self::RelativeTimeDetailedPrefix,
+        Self::ProfileSourceLocal,
+        Self::ProfileSourceSubscription,
+        Self::ProfileSourceImported,
+        Self::ProfileSourceSynchronized,
+        Self::ProfileSourceUnobserved,
     ];
 
     pub const fn key(self) -> &'static str {
@@ -94,6 +104,11 @@ impl SharedCopyKey {
             Self::RelativeTimeCompactMonthsAgo => "relative_time_compact_months_ago",
             Self::RelativeTimeCompactYearsAgo => "relative_time_compact_years_ago",
             Self::RelativeTimeDetailedPrefix => "relative_time_detailed_prefix",
+            Self::ProfileSourceLocal => "profile_source_local",
+            Self::ProfileSourceSubscription => "profile_source_subscription",
+            Self::ProfileSourceImported => "profile_source_imported",
+            Self::ProfileSourceSynchronized => "profile_source_synchronized",
+            Self::ProfileSourceUnobserved => "profile_source_unobserved",
         }
     }
 }
@@ -126,6 +141,11 @@ pub const SHARED_COPY_KEYS: [&str; SharedCopyKey::ALL.len()] = [
     SharedCopyKey::RelativeTimeCompactMonthsAgo.key(),
     SharedCopyKey::RelativeTimeCompactYearsAgo.key(),
     SharedCopyKey::RelativeTimeDetailedPrefix.key(),
+    SharedCopyKey::ProfileSourceLocal.key(),
+    SharedCopyKey::ProfileSourceSubscription.key(),
+    SharedCopyKey::ProfileSourceImported.key(),
+    SharedCopyKey::ProfileSourceSynchronized.key(),
+    SharedCopyKey::ProfileSourceUnobserved.key(),
 ];
 
 #[cfg(test)]
@@ -144,5 +164,7 @@ mod tests {
         assert!(SHARED_COPY_KEYS.contains(&"relative_time_just_now"));
         assert!(SHARED_COPY_KEYS.contains(&"relative_time_compact_just_now"));
         assert!(SHARED_COPY_KEYS.contains(&"relative_time_detailed_prefix"));
+        assert!(SHARED_COPY_KEYS.contains(&"profile_source_subscription"));
+        assert!(SHARED_COPY_KEYS.contains(&"profile_source_unobserved"));
     }
 }

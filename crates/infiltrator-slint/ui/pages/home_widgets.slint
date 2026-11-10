@@ -207,6 +207,41 @@ export component HomeMetaChip inherits Rectangle {
     }
 }
 
+// The profile card's identity row, shaped after FlClash's `ProfilesCard`:
+// the name owns the slack while the shared owner's localized origin sits at
+// the end of the same baseline. One component keeps desktop and phone from
+// inventing two placements for the same fact.
+export component ProfileIdentityRow inherits HorizontalLayout {
+    in property <string> profile-name;
+    in property <string> source-label;
+
+    spacing: LumenTheme.space-2;
+    height: LumenTheme.fact-value-line-height;
+    alignment: center;
+
+    Text {
+        text: root.profile-name;
+        color: LumenTheme.text-primary;
+        font-size: LumenTheme.profile-name-size;
+        font-weight: LumenTheme.profile-name-weight;
+        horizontal-stretch: 1;
+        min-width: 0 * LumenUiScale.unit;
+        overflow: elide;
+        vertical-alignment: bottom;
+    }
+    Text {
+        text: root.source-label;
+        color: LumenTheme.text-secondary;
+        font-size: DesignType.caption-size;
+        font-weight: DesignType.caption-weight;
+        horizontal-stretch: 0;
+        min-width: 0 * LumenUiScale.unit;
+        max-width: LumenTheme.profile-name-max-width / 2;
+        vertical-alignment: bottom;
+        overflow: elide;
+    }
+}
+
 // The dashboard's live connection mini table: the owner's active connection
 // rows, the shared counters and no row the owner did not publish.
 export component HomeConnectionMiniTable inherits VerticalLayout {

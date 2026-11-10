@@ -12,7 +12,7 @@ import { LayoutTokens } from "../components/layout-tokens.slint";
 import { HomeProfileBadge, StatusBadge, SurfaceCard } from "../components/cards.slint";
 import {
     AppCardHeader, HomeHeroActionButton, HomeLatencyChip, HomePolicyGroupGrid,
-    HomeMetaChip, HomeRouteModePills, HomeWaveBand,
+    HomeMetaChip, HomeRouteModePills, HomeWaveBand, ProfileIdentityRow,
 } from "home_widgets.slint";
 import { DashboardFacts } from "../components/models.slint";
 import { HomeHeroFactRow } from "home_fact_row.slint";
@@ -315,15 +315,9 @@ export component HomeCompactFlow inherits VerticalLayout {
                     horizontal-stretch: 1;
                 }
             }
-            Text {
-                text: root.active-profile;
-                color: LumenTheme.text-primary;
-                font-size: LumenTheme.profile-name-size;
-                font-weight: LumenTheme.profile-name-weight;
-                height: LumenTheme.fact-value-line-height;
-                vertical-alignment: bottom;
-                max-width: LumenTheme.profile-name-max-width;
-                overflow: elide;
+            ProfileIdentityRow {
+                profile-name: root.active-profile;
+                source-label: root.dashboard-facts.profile-source-label;
             }
             Text { text: root.dashboard-facts.profile-groups-count + @tr("策略 · ") + root.dashboard-facts.profile-proxies-count + @tr("节点 · ") + root.dashboard-facts.profile-rules-count + @tr("规则"); color: LumenTheme.text-secondary; font-size: DesignType.caption-size; font-weight: DesignType.caption-weight; overflow: elide; }
         }

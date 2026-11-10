@@ -249,6 +249,32 @@ owner 时刻与详细/紧凑模板选择；`SharedCopyKey`、shared zh/en 表、
 已经发布的起始时刻与测得时长得到观测时刻，产出 typed
 `ProfileUpdateAge`；Slint 的 `project_dashboard_facts` 只把 typed 事实经共享
 目录本地化后交给页面，不读 `SystemTime::now()`、不拼接绝对时间、不在 UI 里
-推导档位。求同的是参考产品六档、双密度模板与可读性；存异的是本仓把时钟
-事实归 Core owner、把文案归共享目录，把刷新留给下一次 owner readback，
-而不是让每个 widget 自起 `TickBuilder`。
+推导档位。求同的是参考产品六档、双模板与一分钟可读的相对时间；存异的是
+本仓把时钟事实归 Core owner、把文案归共享目录，把刷新留给下一次 owner
+readback，也不把页面密度冒充上游 `computeTextSize` 得到的文字宽度事实——
+桌面卡消费详细模板，紧凑模板保留给真正发布测量结论的表面。
+
+## 7. 配置卡来源标签（b169）
+
+上游真实场景图 `docs/reference/flclash-desktop/flclash-desktop-dashboard.png`
+的配置卡在名称 `3980.yaml` 右侧显示「本地」；源码
+`lib/views/dashboard/widgets/profiles.dart` 的 `_sourceOf` 用
+`ProfileType.{url,file,custom}` 映射到 `remote/local/custom`。上游 `Profile`
+的 `type` 是配置身份本身，而不是通过 `url.isEmpty()` 临时猜出来的展示字段。
+
+本仓已有更细的 owner 事实：`ProfileSnapshot.filter_source` 携带
+`ProfileWorkspaceIdentity.document.source.kind`，即 engine-neutral 的
+`ProfileDocumentSourceKind::{Local,Subscription,Imported,Synchronized}`。
+b169 不新增 wire 字段，只把这份已发布事实投影为
+`ProfileSourceObservation`，由 `SharedCopyKey` 与四份本地化资源给每个来源
+一个稳定文案；`ProfileQuickCardProjection` 删除 `is_local: bool` 与 URL
+字符串判定；Slint 新增桌面/手机共用的 `ProfileIdentityRow`，在配置名同一行
+右侧绑定 owner 本地化后的来源标签。求同的是「名称 + 来源」同一行组件与
+typed 来源身份；存异的是本仓保留四种真实来源和显式 `Unobserved`，不伪造
+上游 `custom` 档，也不把写保护、URL 或平台形态当成第二个来源真源。
+
+最终 b169 发布批 `20261110T002611Z_536f4a1c8930_dirty_56001`（197 帧，999s）
+的标准桌面与手机 `overview` 实图均可见配置名、来源「远程」与 b168 的
+「更新于 17 小时前」；本仓 active fixture 是订阅配置，所以来源应显示「远程」
+而非参考图里的「本地」，两者都由各自配置身份发布。该批实测空间利用率
+197 帧 0 违规、回执时效 0、截图身份 574/10/0、设计资源 0 违规。

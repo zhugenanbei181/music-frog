@@ -20,7 +20,9 @@ use lurker_core_contract::outbound::preferences::{
     OutboundUiPreferenceIntent, OutboundUiPreferencesSnapshot, OutboundUiPreferencesValues,
 };
 use lurker_core_contract::page::PageData;
-use lurker_core_contract::profile_document_identity::{ProfileDocumentRevision, ProfileId};
+use lurker_core_contract::profile_document_identity::{
+    ProfileDocumentRevision, ProfileDocumentSourceKind, ProfileId,
+};
 
 /// Answers one owner action the way the capture's business needs it.
 pub fn respond(
@@ -102,7 +104,8 @@ fn respond_to_intent(
             let mut diff = fixtures::yaml_ast_diff();
             diff.target_id = target.profile.clone();
             diff.source_path = Some(target.snapshot_id.clone());
-            let mut workspace = fixtures::profile_workspace_identity();
+            let mut workspace =
+                fixtures::profile_workspace_identity(ProfileDocumentSourceKind::Local);
             let profile_id =
                 ProfileId::new(&target.profile).unwrap_or(workspace.document.profile_id);
             workspace.document.profile_id = profile_id;

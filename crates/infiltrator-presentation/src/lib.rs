@@ -76,6 +76,7 @@ pub mod profile_edit_status_projection;
 pub mod profile_editor_projection;
 pub mod profile_metadata_projection;
 pub mod profile_preview;
+pub mod profile_source_projection;
 pub mod profiles_page_model;
 pub mod protocol_editor_operation;
 pub mod protocol_form;

@@ -134,7 +134,7 @@ fn profile_quick_card_and_connection_table_projections() {
 
     let card = ProfileQuickCardProjection::from_snapshot(&snap);
     assert_eq!(card.profile_name, "默认配置.yaml");
-    assert!(card.is_local);
+    assert_eq!(card.source, ProfileSourceObservation::Unobserved);
     assert_eq!(card.update_age, ProfileUpdateAge::Unobserved);
 
     let conns = vec![ConnectionSnapshot {

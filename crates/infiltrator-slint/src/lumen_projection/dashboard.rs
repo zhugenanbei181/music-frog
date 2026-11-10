@@ -36,6 +36,7 @@ pub(super) fn project_dashboard_facts(window: &AppWindow, snapshot: &SurfaceSnap
         RelativeTimePresentation::Compact,
         &Lang(&language),
     );
+    let profile_source_label = profile.source.copy(&Lang(&language));
 
     let quick = QuickSwitchesProjection::from_snapshot(snapshot);
     let (memory_total, memory_limit, memory_fraction) = memory_facts(snapshot);
@@ -69,6 +70,7 @@ pub(super) fn project_dashboard_facts(window: &AppWindow, snapshot: &SurfaceSnap
         profile_rules_count: profile.rules_count as i32,
         profile_updated_relative: updated_relative.into(),
         profile_updated_relative_compact: updated_relative_compact.into(),
+        profile_source_label: profile_source_label.into(),
         // The four common-service probes come from the owner's speedtest
         // snapshot in its published order; an absent probe stays an honest "—".
         latency_google: latencies[0].clone().into(),

@@ -31,6 +31,11 @@ pub(super) fn translate_shared_copy_en(key: &str) -> Cow<'static, str> {
         "relative_time_compact_months_ago" => "{count}mo".into(),
         "relative_time_compact_years_ago" => "{count}y".into(),
         "relative_time_detailed_prefix" => "Updated {time}".into(),
+        "profile_source_local" => "Local".into(),
+        "profile_source_subscription" => "Remote".into(),
+        "profile_source_imported" => "Imported".into(),
+        "profile_source_synchronized" => "Synced".into(),
+        "profile_source_unobserved" => "Source unknown".into(),
         _ => key.to_string().into(),
     }
 }

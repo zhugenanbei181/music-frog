@@ -1625,6 +1625,21 @@ msgstr "{count}y"
 msgid "relative_time_detailed_prefix"
 msgstr "Updated {time}"
 
+msgid "profile_source_local"
+msgstr "Local"
+
+msgid "profile_source_subscription"
+msgstr "Remote"
+
+msgid "profile_source_imported"
+msgstr "Imported"
+
+msgid "profile_source_synchronized"
+msgstr "Synced"
+
+msgid "profile_source_unobserved"
+msgstr "Source unknown"
+
 msgid "来源"
 msgstr "Source"
 

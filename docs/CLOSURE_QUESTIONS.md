@@ -24,29 +24,41 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-07 第一百二十八批次；b111–b128 见下方批次八问摘要）
+## 当前状态（2026-11-10 第一百六十九批次；b111–b169 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | 中性内核 x64/arm64 × Windows/Linux/Android/macOS **八个组合**全部通过；本机交叉复跑入口 `scripts/cross-check.sh`（zig 0.14.1 + `cargo-zigbuild`、`cargo-xwin`）与 `scripts/android-check.sh`（NDK 29.0.14206865）保持全绿；本批修掉了交叉腿实测报出的一个真实缺陷（`infiltrator-slint` 的 `clippy::missing-const-for-thread-local`，已改为 `const { Cell::new(false) }` 初始化），该腿由 `scripts/blocked/foreign-target-evidence.sh` 复跑验证；最终安装包与目标设备证据仍缺，由 CI runner 与设备矩阵取证（GAP-1.1） |
-| 2 | 部分 | C（旧 commit）+ L | Windows/Linux v0.42.6 四条腿 success（旧源码）；macOS `Unsupported`（无 CI/无产物，GAP-2.2）；安装包未验证（GAP-2.1）；Windows 安装包与 macOS/iOS 目标机腿已整条迁入斗战胜佛并写明阻塞方，Linux 打包腿在现在佛 `APPID-001.3`；**本批：release 作业的签名前置改为 fail closed**——缺 secret 时在昂贵的三 flavor release 构建之前就明确失败，桌面产物不再由 debug key 背书 |
-| 3 | 部分 | L | Android 源码级接通；在线模拟器 `emulator-5554` 驱动 Compose/Bevy/Slint 三 flavor 完整交互取证，Compose 6/6 step 全绿，`android-interaction-receipt-guard.py --mode enforce` 0 违规 100% 通过；修复 CoreLaunchSpecSource 绑定 Core owner 后的 legacy active-profile 幂等读取；消除全仓 part1/part2 无语义模块，重构为高内聚的 reset_recovery_and_migration、owner_switch_and_recovery 与 cross_process_concurrency 模块；Android 单测 192 core host + 391 app 全绿；release 变体持久 keystore 约束生效；ARM64 真机与 iOS 仍在斗战胜佛 |
-| 4 | 部分 | L | Iced/Bevy/Slint/Compose 全量接入，四表面使用 `SurfaceReader` + `CommandSink`。**第一百零八交付批次：ICEDUI-001（3 pt）同批实现并办结；Iced 侧栏对标 Clash Party 收成「模式/开关 → 活动配置 → 主导航/紧凑计数 → 底部速率」，用户可见描述全部经 `shared_copy` key；现在佛与过去佛保持 0 条 / 0 pt，斗战胜佛 20 条 / 62 pt，未来佛 15 条 / 26 pt，未办结分母 35 条 / 88 pt，严格归档交付率 93.3% 即 1,228/1,316 pt）** |
-| 5 | 部分 | L | 共享 ports/kernel/kits 与 `infiltrator-contract::shared_copy` 已复用；`shared-copy-guard.py` 强制 Rust/PO/Slint/Android 同名 key，a11y 裸中文标签退役，Bevy/Iced 均经共享本地化资源解析；零第二份产品文案，事实单一真源 |
-| 5a | 部分 | L | `design_resources` 权威、生成物、字体字节 owner 与 Tier A 图标全部落地四表面；`design-resource-authority.py` violations=0，六包定向 nextest 2179/2179 全绿，Kotlin 405 项单测与 Compose 编译通过，ktlintCheck 0 违规；三桌面全矩阵 558 张截图（Iced 182, Bevy 190, Slint 186）基于新统一字体全量重采并全部通过 `screenshot-identity-guard` 零违规认证；Android 三 flavor 真机回执留待真实环境 → 部分（L） |
-| 6 | 部分 | L | **跨表面公共设计资源彻底落地：第一百一十批次办结 DSGSTD-002（3 pt），全仓全部可推任务仍 100% 办结退出（现在佛 0 条 / 0 pt，过去佛 0 条 / 0 pt）。** 平价覆盖矩阵 360/360 单元格保持 100% anchored（0 pending，0 missing）。三桌面 558 张四主题与双视口实图在库且摘要刷新完毕；Android 交互回执已由 PARITY-001.4 闭环 |
-| 7 | 部分 | L | 彻底清除全仓 part1/part2/part3 无语义命名，重构为高内聚强语义模块（reset_recovery_and_migration、owner_switch_and_recovery、cross_process_concurrency、workspace_recovery_and_reset_tests）；文件级模块化完成（scanned=2891 violations=0，kt-line scanned=227 violations=0）；mod.rs 清退至 0；隐式状态机语义审计 + 判决台账常驻（23 条候选 0 undecided 0 open）；rem 体系 0 违规 0 debt；无跨 UI 私有业务真源 |
-| 8 | 部分 | L | `check-structure.sh` 40+ 结构守卫、单测与工具链全部 exit 0；`cargo fmt --all --check` 0 偏差；六包定向 nextest 2179/2179 全绿；Clippy 6 包 `--all-targets -D warnings` 零警告；`screenshot-identity-guard` 550 张截图 10 aliases 0 违规；`scrollbar-contract-guard` 0 违规；`shared-copy-guard` 0 违规；`i18n-guard` 0 违规 |
+| 1 | 部分 | L | b169 是中性 shared copy / presentation / Slint 组件与守卫，四包定向 nextest 1424/1424 与独立守卫为本地证据；交叉 `scripts/cross-check.sh`、aarch64 产物与目标设备仍由 CI runner / 设备矩阵补证（GAP-1.1） |
+| 2 | 部分 | L | 本机 Linux 完成定向测试、格式检查、独立守卫与最终 197 帧重采 `20261110T002611Z_536f4a1c8930_dirty_56001`（999s）；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
+| 3 | 部分 | L | b169 同步 Android 三份 `strings.xml` 并由 shared-copy/i18n 双门校验；未跑 Android 构建腿，三 flavor 实机交互与 iOS 回执仍由外部环境看板 owner 补证 |
+| 4 | 部分 | L | Slint 桌面与手机共用 `ProfileIdentityRow`；Iced/Bevy 消费同一 `ProfileQuickCardProjection`，Android 共享 copy key。其它 UI 的编译与功能复核待另一会话 Bevy WIP 落地后统一验收 |
+| 5 | 完整 | L | `ProfileDocumentSourceKind` 是唯一来源 owner，`ProfileSourceObservation` 是唯一 key → 文案投影；`SharedCopyKey`、shared zh/en、产品 `.po`、Android 三语言资源由双门校验；`is_local: bool` 与 `url.is_empty()` 同批删除，没有第二来源真源 |
+| 5a | 完整 | L | 可见来源文案与名称行布局变化按标准/compact 双视口整批重采 197 帧；最终发布批 `20261110T002611Z_536f4a1c8930_dirty_56001`（999s）复核 `design-resource-authority.py` 0 违规、`receipt-freshness` 0、`screenshot-identity` 574/10/0、空间 197 帧 violations=0 |
+| 6 | 部分 | L | 四包定向 nextest 1424/1424、typed-state 0、implicit-state 23/0/0、来源守卫 2/2 与 enforce 0、Slint 三结构门、文档/收口门均绿；全仓结构门、全量 clippy 与 `resolve_surface_evidence.py` 仍受另一会话 Bevy WIP 阻塞，由统一收口 owner 补证 |
+| 7 | 完整 | L | owner 身份、typed 来源阶段、共享词表、presentation 投影、`ProfileIdentityRow` 组件与离线守卫分层明确；UI 无 URL 判定、无 bool 旗标、无跨页面重复布局，隐式状态审计 0 undecided / 0 open |
+| 8 | 部分 | L | 开发期只跑四包定向测试与独立守卫；最终发布批一次 197 帧重采（999s）后组团复核空间、回执、身份、设计资源、文案与状态门。全仓统一验证与 5 条 `Integrated` 办结仍由收口 owner 一次跑完，严格交付率保持 92.5% |
+
+## 最近一批问答（2026-11-10 第一百六十九交付批次：FlClash 配置卡来源标签成为共享身份行 / URL 猜测退役）
+
+1. x86_64/aarch64：本批只新增中性 shared copy key、presentation 来源投影、Slint 共享组件与守卫，复用 `ProfileSnapshot.filter_source` 已有 wire 事实，不改平台 API；四包定向 nextest **1424/1424**、shared-copy/i18n/来源守卫/文档治理/收口守卫全绿为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 产物未随本批复跑，`C`/`D` 待补证 → 部分（L）。
+2. Windows/Linux/macOS：本机 Linux 台架完成定向 nextest、格式检查、独立守卫与整批 Slint 像素重采；Windows/macOS 构建腿与安装包未复跑，macOS 沿用既有 `Unsupported` 登记（GAP-2.2） → 部分（L）。
+3. Android/iOS：本批同步 Android `values`/`values-zh-rCN`/`values-zh-rTW` 三份 `strings.xml`，由 shared-copy/i18n 双门交叉校验；未跑 Android 构建腿，三 flavor 实机交互回执与 iOS 回执仍按既有条目留外部环境看板 → 部分（L）。
+4. 各 UI：Slint 桌面与手机配置卡共用 `ProfileIdentityRow`，右侧来源标签来自 `DashboardFacts.profile-source-label`；Iced/Bevy 继续消费同一 `ProfileQuickCardProjection` 而不各自推导来源，Android 只共享同一组 copy key，本批不改其它页面布局 → 部分（L）。
+5. 复用：上游 `_sourceOf(ProfileType)` 的三态语义归本仓已有的 `ProfileDocumentSourceKind`，`ProfileSourceObservation` 是唯一 key → 文案投影，`SharedCopyKey` + shared zh/en + 产品 `.po` + Android 三语言资源持有词表，`ProfileQuickCardProjection.source` 是配置卡唯一 typed 来源字段；`is_local: bool` 与 `url.is_empty()` 同批删除，无第二来源真源 → 完整（L）。
+5a. 设计资源强制标准：本批不改字体/字重/图标/主题资产，变化是用户可见来源文案与配置名行布局；按身份变化整批重采 197 帧，最终发布批 `20261110T002611Z_536f4a1c8930_dirty_56001`（999s）复核 `design-resource-authority.py` 0 违规、`receipt-freshness 0`、`screenshot-identity 574/10/0`、`space-utilization --enforce` 197 帧 violations=0；桌面与手机 `overview` 实图均显示「远程」与「更新于 17 小时前」，不复用旧像素冒充 → 完整（L）。
+6. 各处界面的功能接入：四包定向 nextest **1424/1424** 全绿，typed source 映射、双语言、未知 workspace 与旧 `is_local` 退役均有单测/守卫；`slint-profile-source-guard` 2/2 钉死 shared key、owner identity、`DashboardFacts` 字段与桌面/手机共用组件；最终批的 shared-copy 32 key、i18n 0 违规、Slint 语法/死输入/仪表盘网格、typed-state、隐式状态、文档与收口八问全绿；全仓结构门、全量 clippy 与 `resolve_surface_evidence.py` 仍受另一会话 Bevy WIP 阻塞，按所有权纪律不冒充全门通过 → 部分（L）。
+7. 模块化：身份是 owner 的 `ProfileDocumentSourceKind`，阶段表达是 `ProfileSourceObservation::{Local,Subscription,Imported,Synchronized,Unobserved}`，词表归 shared copy，投影归 presentation，名称/来源行归 `ProfileIdentityRow`，结构不变量归守卫；UI 无 URL 字符串判定、无 bool 来源旗标、无跨页面重复布局 → 完整（L）。
+8. CI 与批次效率：开发期只跑四包定向测试与本批独立守卫；可见文案/布局改变后由同一 capture 台架整批 197 帧重采，最终发布批 `20261110T002611Z_536f4a1c8930_dirty_56001`（999s）一次集中复核空间、回执时效、截图身份、设计资源、文案与状态门。全仓统一验证与 5 条 `Integrated` 办结仍待另一会话 WIP 落地后由收口方一次跑完，严格交付率保持 **92.5%** → 部分（L）。
 
 ## 最近一批问答（2026-11-10 第一百六十八交付批次：FlClash 相对更新时间成为共享 typed 事实 / Slint 配置卡纯消费）
 
-1. x86_64/aarch64：本批只改中性 Rust 契约、共享文案、presentation 投影、Slint 消费与上游对照文档，无平台专用代码、wire 形状或设备 API；四包定向 nextest 全绿、组件化收口后两包 766/766、共享文案/i18n/typed-state/语义状态/相对时间守卫/文档守卫全绿为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 产物未随本批复跑，`C`/`D` 待补证 → 部分（L）。
+1. x86_64/aarch64：本批只改中性 Rust 契约、共享文案、presentation 投影、Slint 消费与上游对照文档，无平台专用代码、wire 形状或设备 API；四包定向 nextest **1424/1424** 全绿、组件化收口后两包 766/766、共享文案/i18n/typed-state/语义状态/相对时间守卫/文档守卫全绿为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 产物未随本批复跑，`C`/`D` 待补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 台架完成定向 nextest、格式检查、独立守卫与整批 Slint 像素重采；Windows/macOS 构建腿与安装包未复跑，macOS 沿用既有 `Unsupported` 登记（GAP-2.2） → 部分（L）。
 3. Android/iOS：本批同步 Android `values`/`values-zh-rCN`/`values-zh-rTW` 三份 `strings.xml`，由 shared-copy/i18n 双门交叉校验；未跑 Android 构建腿，三 flavor 实机交互回执与 iOS 回执仍按既有条目留外部环境看板 → 部分（L）。
 4. 各 UI：Slint 配置卡的 `profile-updated-relative` 改读 typed `ProfileUpdateAge` 经共享目录本地化后的字符串；Iced/Bevy 继续消费同一 `ProfileQuickCardProjection` 契约而不各自拼「更新于 绝对时间」，Android 只共享同一组 copy key，本批不改其它页面布局 → 部分（L）。
 5. 复用：上游 `getLastUpdateTimeDesc` 六档归 `RelativeTimeBucket`，详细/紧凑模板归 `RelativeTimePresentation`，词表归 `SharedCopyKey` + shared zh/en + 产品 `.po` + Android 三语言资源，RFC3339/legacy 解析与 owner 观测时刻归 `relative_time_projection`，Slint 只调用 `copy_of` 并绑定一个字符串；旧硬编码绝对时间字段同批删除，无第二文案真源 → 完整（L）。
 5a. 设计资源强制标准：本批不改字体/字重/图标/主题资产，变化仅是用户可见文案身份；按身份变化整批重采 197 帧、复核 `design-resource-authority.py` 0 违规、`receipt-freshness 0` 与 `screenshot-identity 574/10/0`，不复用旧像素冒充 → 完整（L）。
-6. 各处界面的功能接入：四包定向 nextest 全绿，双语言详细/紧凑模板、边界桶、未知 owner 时刻、ProfileQuickCard typed age 均有单测；新守卫 3/3 钉死两个字段、两个模板与 compact 选择；全仓结构门、全量 clippy 与 `resolve_surface_evidence.py` 仍受另一会话 Bevy WIP 阻塞，按所有权纪律不冒充全门通过 → 部分（L）。
+6. 各处界面的功能接入：四包定向 nextest **1424/1424** 全绿，双语言详细/紧凑模板、边界桶、未知 owner 时刻、ProfileQuickCard typed age 均有单测；新守卫 3/3 钉死两个字段、两个模板与 compact 选择；全仓结构门、全量 clippy 与 `resolve_surface_evidence.py` 仍受另一会话 Bevy WIP 阻塞，按所有权纪律不冒充全门通过 → 部分（L）。
 7. 模块化：档位与时刻是 contract typed enum/struct，阶段表达是 `ProfileUpdateAge::{Observed,Unobserved}`，copy selection 是 `RelativeTimePresentation`，parse/project/localize/render 各归一层；`Option` 只表达可选数据而非阶段，UI 无 `SystemTime::now()`、无时钟推导、无 bool 旗标 → 完整（L）。
 8. CI 与批次效率：开发期只跑四包定向测试与本批独立守卫；可见文案改变后由同一 capture 台架一次发布整批 197 帧并集中复核空间、回执时效、截图身份与设计资源门。全仓统一验证与 5 条 `Integrated` 办结仍待另一会话 WIP 落地后由收口方一次跑完，严格交付率保持 **92.5%** → 部分（L）。
 
@@ -75,14 +87,14 @@
 8. CI 与批次效率：开发期只跑两包定向测试、导出/生成与三方 Python 守卫，收尾期为修正短窗口密度与份额混淆，按身份变化完成两次整批 197 帧重采，最终一次发布并集中复核全部回执门。全仓统一验证与 5 条 `Integrated` 办结仍待另一会话 WIP 落地后由收口方一次跑完，严格交付率保持 **92.5%** → 部分（L）。
 
 1. x86_64/aarch64：本批改中性 contract key、共享文案表、产品 `.po`、Android 三语言资源、presentation 纯投影、Slint 消费端与离线守卫，无平台专用代码/wire 形状变更；`cargo nextest run -p infiltrator-contract -p infiltrator-presentation -p infiltrator-shared -p infiltrator-slint -j 2` **1413/1413 passed**、守卫 `--self-test` 3 项 planted 全咬为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 产物未随本批复跑，`C`/`D` 待补证 → 部分（L）。
-2. Windows/Linux/macOS：本机 Linux 完成四包定向 nextest、格式检查与独立守卫；整批 Slint 像素回执按文字身份变化重采后复核，Windows/macOS 构建腿与安装包未复跑，macOS 沿用既有 `Unsupported` 登记（GAP-2.2） → 部分（L）。
+2. Windows/Linux/macOS：本机 Linux 完成四包定向 nextest **1424/1424**、格式检查与独立守卫；整批 Slint 像素回执按文字身份变化重采后复核，Windows/macOS 构建腿与安装包未复跑，macOS 沿用既有 `Unsupported` 登记（GAP-2.2） → 部分（L）。
 3. Android/iOS：本批同步 Android `values`/`values-zh-rCN`/`values-zh-rTW` 三份 `strings.xml`，未跑 Android 构建腿；三 flavor 实机交互回执与 iOS 回执仍按既有条目留在外部环境看板，不升级 → 部分（L）。
 4. 各 UI：Slint 的 TUN 能力详情不再直接显示 raw reason，改读 `capability_reason_projection::reason_copy`；Iced/Bevy 继续消费同一 `Availability` 契约，其 owner 自己发布的不透明原因不变，本批未改任何页面布局 → 部分（L）。
 5. 复用：`CapabilityReason::NotRegistered.key()` 是底层唯一稳定身份，`SharedCopyKey::CapabilityNotRegistered` 是唯一文案 key；shared zh/en 双表、产品 `.po`、Android 三语言资源由 `shared-copy-guard.py` 与 `i18n-guard.py` 交叉校验，presentation 是唯一 key → 文案投影，Slint 只消费该投影；owner 原文不做二次翻译 → 完整（L）。
 5a. 设计资源强制标准：本批不改字体/字重/图标/主题/几何，变化是用户可见文案；`design-resource-authority.py` 保持 0 违规，按文字身份变化整批重采 197 帧 `20261109T200718Z_909bf2372d4b_dirty_3053331`（429s）并刷新别名摘要，`screenshot-identity` 与 `receipt-freshness` 复核为零违规 → 完整（L）。
 6. 各处界面的功能接入：四包定向 1413/1413、守卫 enforce findings=0、shared-copy/i18n 双门 0 违规；`resolve_surface_evidence.py` 与全仓 nextest/clippy 仍受另一会话 Bevy WIP 阻塞，不冒充本批通过 → 部分（L）。
 7. 模块化：typed reason 归 contract、文案 key 归 `shared_copy`、资源归 shared/PO/Android、投影归 presentation、消费归 Slint、结构不变量归单一守卫；没有新增 bool/Option 阶段，也没有跨 UI 私有业务推导 → 完整（L）。
-8. CI 与批次效率：开发期只跑四包定向 nextest 与三方 Python 守卫，收尾期一次整批 197 帧重采与结构门；全仓统一验证和 5 条 `Integrated` 办结仍待另一会话 WIP 落地后由收口方一次跑完，严格交付率保持 **92.5%** → 部分（L）。
+8. CI 与批次效率：开发期只跑四包定向 nextest **1424/1424** 与三方 Python 守卫，收尾期一次整批 197 帧重采与结构门；全仓统一验证和 5 条 `Integrated` 办结仍待另一会话 WIP 落地后由收口方一次跑完，严格交付率保持 **92.5%** → 部分（L）。
 
 ## 最近一批问答（2026-11-10 第一百六十五交付批次：未登记能力原因成为共享 typed key / 中英文界面都不再漏出英文原文）
 

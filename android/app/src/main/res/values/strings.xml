@@ -306,4 +306,9 @@
     <string name="relative_time_compact_months_ago">%1$dmo</string>
     <string name="relative_time_compact_years_ago">%1$dy</string>
     <string name="relative_time_detailed_prefix">Updated %1$s</string>
+    <string name="profile_source_local">Local</string>
+    <string name="profile_source_subscription">Remote</string>
+    <string name="profile_source_imported">Imported</string>
+    <string name="profile_source_synchronized">Synced</string>
+    <string name="profile_source_unobserved">Source unknown</string>
 </resources>

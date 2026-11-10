@@ -1,3 +1,4 @@
+use crate::profile_source_projection::ProfileSourceObservation;
 use crate::relative_time_projection::{ProfileUpdateAge, age_of};
 use infiltrator_contract::lan_share::LanShareWizardSnapshot;
 use infiltrator_contract::runtime_status::CoreProcessObservation;
@@ -429,7 +430,7 @@ impl MemoryInfoCardProjection {
 pub struct ProfileQuickCardProjection {
     pub profile_name: String,
     pub update_age: ProfileUpdateAge,
-    pub is_local: bool,
+    pub source: ProfileSourceObservation,
     pub policy_groups_count: usize,
     pub proxies_count: usize,
     pub rules_count: usize,
@@ -451,6 +452,7 @@ impl ProfileQuickCardProjection {
         let update_age = active_profile
             .map(|profile| age_of(&profile.updated_at, &snapshot.core.session))
             .unwrap_or(ProfileUpdateAge::Unobserved);
+        let source = ProfileSourceObservation::from_profile(active_profile);
 
         let rules_count = snapshot
             .pages
@@ -478,7 +480,7 @@ impl ProfileQuickCardProjection {
         Self {
             profile_name,
             update_age,
-            is_local: active_profile.map(|p| p.url.is_empty()).unwrap_or(true),
+            source,
             policy_groups_count,
             proxies_count,
             rules_count,

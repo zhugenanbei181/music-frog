@@ -43,6 +43,7 @@ use lurker_core_contract::identity::EngineId;
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::outbound::identity::OutboundId;
 use lurker_core_contract::page::{PageData, SurfaceOrigin};
+use lurker_core_contract::profile_document_identity::ProfileDocumentSourceKind;
 use lurker_core_contract::profile_protection::ProfileWriteProtection;
 use lurker_core_contract::routing_intent::RoutingIntentSnapshot;
 use std::cell::Cell;
@@ -432,7 +433,9 @@ fn build_demo_snapshot(settings: &DemoSettings) -> SurfaceSnapshot {
                 next_update: None,
                 auto_reload_core: true,
                 filter: fixtures::subscription_filter(),
-                filter_source: Ok(fixtures::profile_workspace_identity()),
+                filter_source: Ok(fixtures::profile_workspace_identity(
+                    ProfileDocumentSourceKind::Subscription,
+                )),
                 write_protection: ProfileWriteProtection::RemoteSubscription,
             },
             ProfileSnapshot {
@@ -455,7 +458,9 @@ fn build_demo_snapshot(settings: &DemoSettings) -> SurfaceSnapshot {
                 next_update: None,
                 auto_reload_core: false,
                 filter: Default::default(),
-                filter_source: Ok(fixtures::profile_workspace_identity()),
+                filter_source: Ok(fixtures::profile_workspace_identity(
+                    ProfileDocumentSourceKind::Local,
+                )),
                 write_protection: ProfileWriteProtection::Editable,
             },
             ProfileSnapshot {
@@ -478,7 +483,9 @@ fn build_demo_snapshot(settings: &DemoSettings) -> SurfaceSnapshot {
                 next_update: None,
                 auto_reload_core: true,
                 filter: Default::default(),
-                filter_source: Ok(fixtures::profile_workspace_identity()),
+                filter_source: Ok(fixtures::profile_workspace_identity(
+                    ProfileDocumentSourceKind::Subscription,
+                )),
                 write_protection: ProfileWriteProtection::RemoteSubscription,
             },
             ProfileSnapshot {
@@ -501,7 +508,9 @@ fn build_demo_snapshot(settings: &DemoSettings) -> SurfaceSnapshot {
                 next_update: None,
                 auto_reload_core: false,
                 filter: Default::default(),
-                filter_source: Ok(fixtures::profile_workspace_identity()),
+                filter_source: Ok(fixtures::profile_workspace_identity(
+                    ProfileDocumentSourceKind::Local,
+                )),
                 write_protection: ProfileWriteProtection::Editable,
             },
         ],

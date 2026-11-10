@@ -31,6 +31,11 @@ pub(super) fn translate_shared_copy_zh(key: &str) -> Cow<'static, str> {
         "relative_time_compact_months_ago" => "{count} 月".into(),
         "relative_time_compact_years_ago" => "{count} 年".into(),
         "relative_time_detailed_prefix" => "更新于 {time}".into(),
+        "profile_source_local" => "本地".into(),
+        "profile_source_subscription" => "远程".into(),
+        "profile_source_imported" => "导入".into(),
+        "profile_source_synchronized" => "同步".into(),
+        "profile_source_unobserved" => "来源未知".into(),
         _ => key.to_string().into(),
     }
 }

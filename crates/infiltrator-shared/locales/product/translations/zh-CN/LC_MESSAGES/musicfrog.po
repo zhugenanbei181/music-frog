@@ -1624,6 +1624,21 @@ msgstr "{count} 年"
 msgid "relative_time_detailed_prefix"
 msgstr "更新于 {time}"
 
+msgid "profile_source_local"
+msgstr "本地"
+
+msgid "profile_source_subscription"
+msgstr "远程"
+
+msgid "profile_source_imported"
+msgstr "导入"
+
+msgid "profile_source_synchronized"
+msgstr "同步"
+
+msgid "profile_source_unobserved"
+msgstr "来源未知"
+
 msgid "来源"
 msgstr "来源"
 
