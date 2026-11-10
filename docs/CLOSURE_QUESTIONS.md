@@ -24,19 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-11 第一百八十八批次；b111–b187 见下方批次八问摘要）
+## 当前状态（2026-11-11 第一百八十九批次；b111–b188 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b188 只改 Slint 表面（`ui/lumen-flags.slint`、`ui/components/country_chip.slint`、`ui/components/theme.slint`、`ui/pages/page_about.slint`）、共享资产与目录（`assets/flags/` 258 个 SVG + `asset-catalog.json` + `NOTICE.md`）、文案表（zh/en 两份 `.po`）、守卫 `slint-flag-shape-guard.py`、别名摘要与文档，零平台 API、零设备交互；`cargo check -p infiltrator-slint` exit 0、Slint nextest **386/386**、199 帧重采与三条判据为 `L`；交叉 `scripts/cross-check.sh`、aarch64 与目标机仍由 CI / 设备矩阵补证（GAP-1.1） |
-| 2 | 部分 | L | 本机 Linux 完成编译、定向 nextest、199 帧整批重采（358s）与守卫批；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
-| 3 | 部分 | L | 不触 Android/iOS 代码、资源或 wire。Android 不消费该清单，Iced/Bevy 走 emoji / 国家代码（各自条目收口），故三端产物与实机回执都不受本批影响，也无本批实机可声称 |
-| 4 | 部分 | L | Slint 侧身份块几何统一：`FlagIcon` 4:3（`size * 3 / 4`）、`CountryChip` 取 `side * 3 / 4` 且无圆角、退役 `country-chip-radius`；Iced/Bevy/Android 未接入该清单，本批未改其旗面形态（各自条目收口） |
-| 5 | 完整 | L | 一份清单（`FlagImages.flags` 逐条等于 catalog `flag.*` 顺序、`flag_assets::index_for_code` 与之一致）、一个几何（每个 SVG `0 0 640 480` 全出血直角，由守卫逐文件钉住）、一个 owner（`FlagIcon` 画板、`CountryChip` 取矩形）、零圆角令牌（`country-chip-radius` 删除且守卫拒绝其回归） |
-| 5a | 完整 | L | 本批是**视觉资产身份变化**（258 面旗帜整体换族 + 许可/归属变化）：`asset-catalog.json` 的 `license`/`license_path`/`source`、`flags/NOTICE.md`、`LICENSE-FLAG-ICONS`、根第三方声明文件 §6、About 归属文案与 zh/en `.po`、`DESIGN_RESOURCE_STANDARD.md` §3.1 同批更新；Slint 双视口真实像素回执 `20261110T220049Z_7c92aaf890f3_dirty_2457766`（199/199，27 帧 PNG 变化，全部为带旗/带归属帧）；`design-resource-authority violations=0` |
-| 6 | 部分 | L | 门禁把用户要求钉成判据：持旗容器任何圆角即违规、`FlagIcon` 必须 4:3、chip 必须 `side * 3 / 4`、退役令牌回 theme 即违规、清单每个 SVG 必须 `0 0 640 480` 且不得含 Twemoji 圆角模板曲线（planted 自测 24/24）。诚实边界：Iced/Bevy 的 emoji 旗形态仍在各自条目，本批不声称三端一致 |
-| 7 | 完整 | L | 资产归资产（`assets/flags/` + catalog）、几何归组件（`FlagIcon` / `CountryChip` 各一处常量）、门禁归守卫（清单/组件/主题三层判据）；没有第二套清单、私有容器或圆角令牌；本批顺带清掉一次误夹带的矩阵重排（还原 `capture_slint_scenarios.tsv` 到 HEAD 后重采） |
-| 8 | 部分 | L | 一次构建 + 一次 199 帧重采（358s）+ 一批守卫，改动面限定在 Slint 一包、共享资产、文案表与文档；**未跑全仓统一验证批次**（`cargo nextest --workspace --no-fail-fast` 与结构门全腿留待收口批次） |
+| 1 | 部分 | L | b189 改 Iced 表面（`view_root/modals/dns_query.rs` 滚动区 id、`view_root/modals.rs` 再导出、`capture_geometry.rs` 探针与亚像素容差）、捕获装置（`scripts/parity/generate_unified_matrix.py`、`scripts/capture-iced-matrix.sh`、`scripts/capture_iced_scenarios.tsv`、`scripts/parity/space_utilization.py`、两份别名表）、Iced 语料 185 个文件与文档，零平台 API、零设备交互；`cargo check -p infiltrator-iced --features capture-tools` exit 0、Iced nextest **636/636**、184 帧重采与双表面判定为 `L`；交叉 `scripts/cross-check.sh`、aarch64 与目标机仍由 CI / 设备矩阵补证（GAP-1.1） |
+| 2 | 部分 | L | 本机 Linux 完成编译、定向 nextest、定向 clippy、`cargo fmt --check`、Iced 整批重采（184/184，268s）与守卫批；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
+| 3 | 部分 | L | 不触 Android/iOS 代码、资源或 wire。Iced 是桌面表面，矩阵/回执/判定器选择器只在桌面语料生效；Android Compose 与 iOS 产物不受影响，本批亦无实机回执可声称 |
+| 4 | 部分 | L | Iced 侧首次拿到自己的像素认证：184/184 帧发布几何、`--surface iced --enforce` violations=0、欠账基线 19 帧；Slint 侧输出逐字不变（199 帧 0 违规）。Bevy 仍未接入判定器（其矩阵由另一会话重写中） |
+| 5 | 完整 | L | 三处事实各只有一个 owner：矩阵生成器（生成行 + 行锚定/按列合并的表面行）、采集脚本（七字段校验与 manifest 形态列）、判定器（形态上限与欠账按表面分账）；`page`/`shape` 两列不再互相冒充，夹具不再由场景名推导，折叠偏好只有矩阵与 owner 两个写者 |
+| 5a | 完整 | L | 本批无新字体 / 字重 / 图标族 / 视觉资产（改的是捕获装置与两处布局缺陷），但 Iced 语料整体重采：184 帧真实像素回执 + 4 条 `about≡settings` 别名登记（同一面板事实）+ `sync-restore-confirm` 两条摘要刷新，Iced 侧身份门 0 违规；`design-resource-authority` 无身份变更项 |
+| 6 | 部分 | L | 回执腿真正闭环：Iced 发布 12 键几何（b187）→ 判定器按 `shape` 选上限 → 超标帧登记欠账 → `--enforce` 接入结构门；同批修好两条真实缺陷（DNS 弹窗 reveal 目标缺失、几何判定缺亚像素容差）与一条判定器缺陷（同色栏底的覆盖层误判），都有该帧的真实发布为证。诚实边界：Iced 密度缺口 19 帧据实新立 `SPACEUTIL-013`，Bevy 尚未接入 |
+| 7 | 完整 | L | Iced 的「采集装置」与「表面」分开：矩阵生成器只写它拥有的列、采集脚本只做校验与转发、判定器只读回执与像素；`capture_geometry` 的亚像素容差是一个文档化常量而不是散落的魔数；DNS 滚动区 id 与 reveal 目标都收在组件自身的常量里，探针只引用它 |
+| 8 | 部分 | L | 一次 Iced 构建 + 一次 184 帧重采（268s）+ 一批守卫（判定器 59/59 双表面、矩阵 `--check` 7/7、接收新鲜度 0、身份门）；**未跑全仓统一验证批次**（`cargo nextest --workspace`、全量结构门由收口批次一次跑完） |
+
+## 最近一批问答（2026-11-11 第一百八十九交付批次：Iced 的第一份空间利用率回执 / 矩阵带契约形态列）
+
+1. x86_64/aarch64：本批只改 Iced 表面与捕获装置（`view_root/modals/dns_query.rs`、`view_root/modals.rs`、`capture_geometry.rs`、`scripts/parity/generate_unified_matrix.py`、`scripts/capture-iced-matrix.sh`、`scripts/capture_iced_scenarios.tsv`、`scripts/parity/space_utilization.py`、别名表、Iced 语料与文档），不含平台 API；`cargo check -p infiltrator-iced --features capture-tools` exit 0、Iced nextest **636/636** 为 `L`。交叉构建与 aarch64 目标产物仍由 CI / 设备矩阵补证 → 部分（L）。
+2. Windows/Linux/macOS：本机 Linux 完成编译、定向 nextest、定向 clippy、`cargo fmt --check`、Iced 整批重采（184/184，268s）与守卫批（判定器 `--self-test` **59/59**、双表面 `--enforce` violations=0、`receipt-freshness 0`、矩阵 `--check` OK）；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
+3. Android/iOS：本批不触 Android/iOS 代码、资源或 wire；矩阵、回执与判定器选择器只作用于桌面语料，Android Compose 与 iOS 产物不受影响，也没有本批实机回执 → 部分（L）。
+4. 各 UI：Iced 首次拿到自己的像素认证链——矩阵新增 `shape`（契约形态）、`interaction`（业务夹具）、`sidebar_expansion`（owner 偏好）三列与两行折叠帧，采集脚本把形态写进 manifest 的 `page` 列，判定器读形态选上限，184/184 帧发布几何、`--surface iced --enforce` violations=0。Slint 侧输出逐字不变；Bevy 尚未接入 → 部分（L）。
+5. 复用：每个事实只有一个 owner。矩阵生成器拥有生成行与合并规则（行锚定 + 按列合并，`--check` 逐行钉住），`page`/`shape` 两列不再互相冒充，夹具不再由场景名推导（推导曾让非业务行把夹具打 panic），折叠偏好只由矩阵与 owner 发布，判定器的采集根与欠账台账按表面分账，DNS 滚动区 id 收在 `dns_query.rs` 自己的常量里供探针引用 → 完整（L）。
+5a. 设计资源强制标准：本批无新字体 / 字重 / 图标族 / 视觉资产（改动是捕获装置与两处布局缺陷），但 Iced 语料整体重采是真实像素身份：184 帧回执 + 4 条 `about≡settings` 别名登记（Iced 的 About 经设置面板打开，像素逐字节相同）+ `sync-restore-confirm` 两条摘要刷新，Iced 侧身份门 0 违规（全仓仅余另一会话未提交的 Bevy 像素）；`design-resource-authority` 无身份变更项 → 完整（L）。
+6. 各处界面的功能接入：回执腿闭环且是真实控件行为的证据——折叠偏好经 `INFILTRATOR_SIDEBAR_EXPANSION` 从矩阵进入 owner，实测 1180 档 rail 64px（对照 240px 展开档）；判定器按契约形态选密度上限；超标帧登记欠账而豁免不含糊。同批修好三条真实缺陷：DNS 弹窗探针漏声明 reveal 目标且滚动区无 id（紧凑档记录区被裁 0.8px、帧永不发布）、几何判定缺亚像素容差（doctor 恢复面板边缘正落裁剪边界被判「被裁」）、判定器把同色栏底的导航行误判成窗口覆盖层（15 帧假违规）。诚实边界：Iced 密度缺口 19 帧据实新立 `SPACEUTIL-013` → 部分（L）。
+7. 模块化：采集装置与表面分开——生成器只写它拥有的列、脚本只校验与转发、判定器只读回执与像素；亚像素容差是文档化常量而非散落魔数；DNS 滚动区 identity 与 reveal 目标都由组件自身发布，探针只引用 → 完整（L）。
+8. CI 与批次效率：一次构建 + 一次 184 帧重采（268s）+ 一批守卫，改动面限定在 Iced 一包、捕获装置、语料与文档；判定器两条腿与新矩阵腿已接入结构门。**未跑全仓统一验证批次**；`--features capture-tools` 下 `tests/capture_marker_tests.rs` 的既有编译失败按 b154/b180 记录仍属他人欠账、本批不越权修 → 部分（L）。
 
 ## 最近一批问答（2026-11-11 第一百八十八交付批次：国旗资产族整体方化 / 组件与令牌零圆角）
 

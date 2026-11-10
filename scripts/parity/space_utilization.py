@@ -370,6 +370,14 @@ def painted_nav_leading(image: np.ndarray, chrome: dict) -> int | None:
     destinations. Its band is a typed shell fact, not a remembered row height:
     the judge starts below `sidebar_toggle_px`, so the affordance's own inset
     cannot be misread as the labelled rows' leading.
+
+    When that band is declared, everything between it and the stack end IS the
+    destination list - a typed fact, not a colour guess - so the geometric
+    overlay test is skipped there. It has to be: in the dark and amoled skins
+    the rail ground and the page body are the same colour, which made every
+    navigation row look like a window overlay and left fifteen real frames
+    unjudgeable. Columns that declare no band keep the geometric test, which is
+    the only thing standing between them and the title bar's own label.
     """
     height, _, _ = image.shape
     column = int(chrome["nav_column_px"])
@@ -383,18 +391,20 @@ def painted_nav_leading(image: np.ndarray, chrome: dict) -> int | None:
     ink = np.abs(strip - ground).max(axis=2) > 45
     rows = ink.mean(axis=1) > 0.003
     rows[:min(toggle_band, limit)] = False
+    typed_stack = toggle_band > 0
     outside_x = min(image.shape[1] - 1, column + EDGE_SAMPLE_PX)
     inside_x = max(0, column - EDGE_SAMPLE_PX)
     for first, last in runs(rows):
         if last - first + 1 < 8:
             continue
-        inside = image[first:last + 1, inside_x].astype(int)
-        outside = image[first:last + 1, outside_x].astype(int)
-        continues = np.abs(inside - outside).sum(axis=1) <= EDGE_CONTINUITY_DELTA * 3
-        if continues.mean() >= EDGE_CONTINUOUS_FRACTION:
-            # A window overlay (title bar, notice banner, scrim): it crosses
-            # the column with the same colour on both sides of the edge.
-            continue
+        if not typed_stack:
+            inside = image[first:last + 1, inside_x].astype(int)
+            outside = image[first:last + 1, outside_x].astype(int)
+            continues = np.abs(inside - outside).sum(axis=1) <= EDGE_CONTINUITY_DELTA * 3
+            if continues.mean() >= EDGE_CONTINUOUS_FRACTION:
+                # A window overlay (title bar, notice banner, scrim): it crosses
+                # the column with the same colour on both sides of the edge.
+                continue
         columns = np.where(ink[first:last + 1, 4:column].max(axis=0))[0]
         if len(columns):
             return int(columns.min()) + 4
@@ -1315,6 +1325,34 @@ class SelfTest(unittest.TestCase):
         self.assertTrue(any("centres its glyphs" in item for item in found), found)
 
     def test_the_painted_leading_must_match_the_declared_leading(self) -> None:
+        # A labelled column whose rail ground IS the page ground (the dark and
+        # amoled skins paint both `#0F1114`) still has navigation in it. The
+        # geometric overlay test cannot see that - every row crosses the column
+        # edge in the same colour - so the declared toggle band, a typed shell
+        # fact, is what makes the rows judgeable.
+        image = _canvas(1180, 780)
+        column = painted_nav_column(1180)
+        _fill(image, 0, 780, 0, 1180, (15, 17, 20))
+        for y in (110, 158, 206, 254, 302, 350, 398, 446):
+            _fill(image, y, y + 20, 8, 34, (233, 233, 233))
+        honest = self.measure_one(image, chrome=_chrome(1180, 780, nav_content_offset_px=8))
+        self.assertEqual(honest.get("painted_nav_leading_px"), 8, honest)
+        self.assertEqual(leading_findings([honest]), [], honest)
+
+    def test_a_column_without_a_declared_band_still_excludes_the_title_bar(self) -> None:
+        # The other half: with no typed band the geometric test is all there is,
+        # so a window overlay that carries its own label inside the column is
+        # not read as the pane's first navigation glyph.
+        image = _canvas(1180, 780)
+        _fill(image, 0, 780, 0, 1180, (15, 17, 20))
+        _fill(image, 96, 130, 0, 1180, (32, 36, 42))
+        _fill(image, 104, 122, 10, 30, INK)
+        entry = self.measure_one(
+            image,
+            chrome=_chrome(1180, 780, nav_content_offset_px=8, sidebar_toggle_px=0),
+        )
+        self.assertIsNone(entry.get("painted_nav_leading_px"), entry)
+
         # SPACEUTIL-010's second half: the budget accepts 8px, but a frame
         # that states 8px and paints at 32px is still wasting the column's
         # left edge. chrome_findings alone cannot see this; the pixel leg can.

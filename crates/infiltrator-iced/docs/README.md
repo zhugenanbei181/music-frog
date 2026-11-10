@@ -25,6 +25,25 @@ INFILTRATOR_CAPTURE_SCENARIOS='<scenario>' bash scripts/capture-iced-matrix.sh
 
 场景参数来自 `scripts/capture_iced_scenarios.tsv`。发布截图位于本目录的 `screenshots/`，最近运行的清单由脚本生成；完整运行日志与原始证据保存在 `.evidence/captures/iced/`。
 
+矩阵一行是 `name page shape skin window_size interaction sidebar_expansion`：`page`
+是表面打开的路线（`runtime`/`mixin`/`settings`），`shape` 是**契约页形态**——
+判定器按它选密度上限，所以 manifest 的 `page` 列写的是形态而不是路线；`interaction`
+是这条行要打开的业务夹具（空＝只开页），不再由场景名推导（推导曾让「折叠侧栏」这种
+非业务行的夹具 panic）；`sidebar_expansion` 是夹具发布的 owner 偏好，只有本表面
+自己的两行折叠帧填它。三列都参与校验：形态必须在契约导出表里，夹具必须是
+`parity.rs` 登记的业务，偏好只能是 `expanded`/`collapsed` 或空。空列在
+`IFS=$'\t'` 下会被 shell 折叠成错位（Slint 侧早已踩过），两个循环都用 `awk`
+把空字段换成占位符后再读。
+
+**b189 追加**：Iced 的第一批真实像素回执（184/184 帧）由
+`python3 scripts/parity/space_utilization.py --surface iced --enforce` 判定，
+欠账台账 `scripts/quality/space_utilization_debt_iced.json` 首份基线 19 帧；两条腿
+已接入结构门。同批修好两个真实缺陷：DNS 查询弹窗的探针要求 5 个区域却漏声明
+reveal 目标（滚动区也没有 id），于是紧凑档的记录区永远被裁掉 0.8px、该帧永不发布；
+以及几何判定里缺亚像素容差——布局是分数像素，区域边缘正好落在裁剪边界上时会被
+浮点尘埃判成「被裁掉」，而 doctor 页的恢复面板正是如此（边界 458.3 / 456.0，
+滚动区全部行程就是这 2.3px）。两处都修在根因，并有该帧的真实发布为证。
+
 Overview（含 dark/forest/light 三套主题）与各业务场景 standard/compact 双视口截图已由捕获流水线完成捕获并登记入 `screenshots/manifest.tsv`；截图严格绑定当前产品构建，严禁引用旧版缓存图作为当前界面证据。
 
 ### 验收约束

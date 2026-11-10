@@ -19,6 +19,7 @@ use crate::view::settings::SETTINGS_SCROLL_ID;
 use crate::view::sync::SYNC_SCROLL_ID;
 use crate::view_root::aggregator_modal::AGGREGATOR_SCROLL_ID;
 use crate::view_root::interaction_regions::InteractionRegion;
+use crate::view_root::modals::DNS_QUERY_SCROLL_ID;
 use iced::advanced::widget::operation::{Outcome, Scrollable};
 use iced::advanced::widget::{Id, Operation, operate};
 use iced::widget::scrollable::AbsoluteOffset;
@@ -28,6 +29,18 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 static CLIPPED_REGION_REPORTED: AtomicBool = AtomicBool::new(false);
 static INCOMPLETE_REGION_REPORTED: AtomicBool = AtomicBool::new(false);
+
+/// Half a logical pixel of slack where a measured edge lands on a clip edge.
+///
+/// Layout here is fractional (text heights and `Fill` shares divide the
+/// viewport), so a region can end up exactly on its clip boundary and still be
+/// reported as cut by float dust - and a scroll region can only ever close that
+/// gap to the exact boundary, which is why the doctor page's recovery panel
+/// never published: bounds bottom 458.3, clip bottom 456.0, and a scrollable
+/// whose whole range was that same 2.3px. At the receipt's 1x resolution half a
+/// pixel cannot hide any ink, so the measured region is the region. Anything
+/// past this tolerance is still a clipped region and still fails the receipt.
+const EDGE_TOLERANCE_PX: f32 = 0.5;
 
 struct RevealScrollable {
     id: Id,
@@ -286,14 +299,15 @@ impl Operation<Option<Rectangle>> for VisibleRegion {
                 .all(|v| v.is_finite())
                 && bounds.width > 0.0
                 && bounds.height > 0.0
-                && bounds.x >= self.clip.x
-                && bounds.x + bounds.width <= self.clip.x + self.clip.width
+                && bounds.x >= self.clip.x - EDGE_TOLERANCE_PX
+                && bounds.x + bounds.width <= self.clip.x + self.clip.width + EDGE_TOLERANCE_PX
             {
                 // Fully visible reports keep their measured size; a report
                 // taller than the clip is proven by its top-aligned head, so
                 // only the visible part is the measured region.
-                let fits_height = bounds.y >= self.clip.y
-                    && bounds.y + bounds.height <= self.clip.y + self.clip.height;
+                let fits_height = bounds.y >= self.clip.y - EDGE_TOLERANCE_PX
+                    && bounds.y + bounds.height
+                        <= self.clip.y + self.clip.height + EDGE_TOLERANCE_PX;
                 let head_only = !fits_height
                     && bounds.height > self.clip.height
                     && bounds.y + 1.0 >= self.clip.y
@@ -390,10 +404,12 @@ impl Operation<Option<Rectangle>> for VisibleRegion {
                     required.visits == 1
                         && required.found.is_some_and(|child| {
                             !required.contained
-                                || (child.x >= parent.x
-                                    && child.y >= parent.y
-                                    && child.x + child.width <= parent.x + parent.width
-                                    && child.y + child.height <= parent.y + parent.height)
+                                || (child.x >= parent.x - EDGE_TOLERANCE_PX
+                                    && child.y >= parent.y - EDGE_TOLERANCE_PX
+                                    && child.x + child.width
+                                        <= parent.x + parent.width + EDGE_TOLERANCE_PX
+                                    && child.y + child.height
+                                        <= parent.y + parent.height + EDGE_TOLERANCE_PX)
                         })
                 })
         });
@@ -598,6 +614,7 @@ impl AppState {
         }
         if feature == FeatureId::DnsQueryDetails {
             probe = probe
+                .revealing(Id::new(DNS_QUERY_SCROLL_ID))
                 .requiring(InteractionRegion::DnsQueryTabs.id())
                 .requiring(InteractionRegion::DnsQueryName.id())
                 .requiring(InteractionRegion::DnsQueryRecords.id())

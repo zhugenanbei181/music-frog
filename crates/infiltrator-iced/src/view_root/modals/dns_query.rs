@@ -9,6 +9,7 @@ use crate::view::scrollbar::auto_hide_scrollable;
 use crate::view::theme;
 use crate::view::theme::tokens;
 use crate::view_root::interaction_regions::InteractionRegion;
+use iced::advanced::widget::Id;
 use iced::widget::{Space, button, column, container, pick_list, row, text, text_input};
 use iced::{Element, Length, Theme};
 use infiltrator_contract::dns_query::DnsRecordType;
@@ -16,6 +17,12 @@ use infiltrator_presentation::dns_query_actions::QuerySection;
 use infiltrator_presentation::dns_query_projection::project_query;
 use infiltrator_shared::dns_observation::DnsObservationTone;
 use infiltrator_shared::locales::{Lang, Localizer};
+
+/// The results list's scroll region, named so the capture rig can reveal a
+/// record that lands below the dialog's viewport. The dialog's receipt requires
+/// five regions, four of them above the list; without an id the rig could not
+/// scroll the fifth one clear, and the frame was never published.
+pub(crate) const DNS_QUERY_SCROLL_ID: &str = "dns-query-scroll";
 
 pub fn query_modal(state: &AppState) -> Element<'_, Message> {
     let model = &state.diag.dns_query;
@@ -105,7 +112,9 @@ pub fn query_modal(state: &AppState) -> Element<'_, Message> {
         .spacing(8),
         status,
         container(tabs).id(InteractionRegion::DnsQueryTabs.id()),
-        auto_hide_scrollable(results).height(Length::Fill),
+        auto_hide_scrollable(results)
+            .height(Length::Fill)
+            .id(Id::new(DNS_QUERY_SCROLL_ID)),
         row![
             button(theme::role_body_text(lang.tr("dns_query_previous_page")))
                 .style(style_ghost)

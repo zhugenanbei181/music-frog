@@ -1,0 +1,28 @@
+{
+  "frames": {
+    "connections-amoled": 5.1,
+    "connections-dark": 5.1,
+    "connections-forest": 5.3,
+    "connections-light": 8.2,
+    "connections-search-highlight-compact": 5.0,
+    "connections-search-highlight-standard": 5.1,
+    "logs-amoled": 5.1,
+    "logs-dark": 5.1,
+    "logs-forest": 5.1,
+    "logs-light": 10.8,
+    "logs-search-highlight-compact": 5.0,
+    "logs-search-highlight-standard": 5.1,
+    "overview-light": 13.2,
+    "rules-amoled": 6.0,
+    "rules-dark": 6.0,
+    "rules-forest": 6.0,
+    "rules-light": 7.1,
+    "rules-search-highlight-compact": 8.1,
+    "rules-search-highlight-standard": 40.8
+  },
+  "rail": {
+    "chrome_band_pct": 0.0,
+    "void_pct": 6.2
+  },
+  "version": 1
+}

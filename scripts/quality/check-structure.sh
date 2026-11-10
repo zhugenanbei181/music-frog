@@ -132,6 +132,11 @@ python3 scripts/quality/slint-list-page-guard.py --self-test
 python3 scripts/parity/space_utilization.py --self-test
 python3 scripts/parity/space_utilization.py --check-export
 python3 scripts/parity/space_utilization.py --enforce
+python3 scripts/parity/space_utilization.py --surface iced --enforce
+# The unified matrix is a committed artifact: this leg proves the generated
+# rows are still there, in generated order, with the columns they own. The
+# Bevy matrix is left out until its own session lands the current rewrite.
+python3 scripts/parity/generate_unified_matrix.py --check --surface=slint --surface=iced
 python3 scripts/quality/slint-workbench-row-guard.py --mode enforce
 python3 scripts/quality/slint-workbench-row-guard.py --self-test
 python3 scripts/quality/slint-selector-segment-guard.py --mode enforce

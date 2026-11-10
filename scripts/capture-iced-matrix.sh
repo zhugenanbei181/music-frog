@@ -197,9 +197,40 @@ if [ -n "$SCENARIO_FILTER" ]; then
   }
 fi
 
-while IFS=$'\t' read -r name page skin window_size; do
+SHAPES="$(python3 - <<'PY'
+import json, pathlib
+document = json.loads(
+    pathlib.Path("crates/infiltrator-contract/assets/page-structure.json").read_text(encoding="utf-8")
+)
+print(" ".join(sorted(entry["slug"] for entry in document["slugs"])))
+PY
+)"
+
+FEATURES="$(python3 - <<'PY'
+import pathlib, sys
+sys.path.insert(0, str(pathlib.Path("scripts/parity").resolve()))
+import generate_unified_matrix as matrix
+print(" ".join(sorted(feature[0] for feature in matrix.parse_features())))
+PY
+)"
+
+# A row is `name page shape skin window_size interaction sidebar_expansion`:
+# the surface's route, the contract page shape the frame is judged by, the
+# parity interaction fixture it opens (empty for a plain page), and the owner
+# sidebar preference it publishes (empty for everything but the two rows the
+# rig owns itself). A shell-form receipt has no interaction; deriving one from
+# the scenario name asked the demo to open a business the row never named, and
+# the fixture panicked on it.
+awk -F '\t' 'NR > 1 && $1 != "" && NF != 7 {
+  printf "invalid scenario row (expected 7 columns, found %d): %s\n", NF, $0 > "/dev/stderr"
+  bad = 1
+} END { exit bad + 0 }' "$MATRIX" || exit 2
+
+while IFS=$'\t' read -r name page shape skin window_size interaction sidebar_expansion; do
   [ "$name" = name ] && continue
   [ -n "$name" ] || continue
+  [ "$interaction" = "-" ] && interaction=""
+  [ "$sidebar_expansion" = "-" ] && sidebar_expansion=""
   [[ "$window_size" =~ ^[0-9]+x[0-9]+$ ]] || {
     printf 'invalid scenario row (bad window_size): %s\n' "$name" >&2
     exit 2
@@ -211,6 +242,14 @@ while IFS=$'\t' read -r name page skin window_size; do
     exit 2
     ;;
   esac
+  case " $SHAPES " in
+  *" $shape "*) ;;
+  *)
+    printf 'invalid scenario row (page shape the contract does not own): %s -> %s\n' \
+      "$name" "$shape" >&2
+    exit 2
+    ;;
+  esac
   case "$skin" in
   light | dark | forest | amoled) ;;
   *)
@@ -218,7 +257,28 @@ while IFS=$'\t' read -r name page skin window_size; do
     exit 2
     ;;
   esac
-done <"$MATRIX"
+  case "$sidebar_expansion" in
+  "" | expanded | collapsed) ;;
+  *)
+    printf 'invalid scenario row (bad sidebar_expansion): %s -> %s\n' \
+      "$name" "$sidebar_expansion" >&2
+    exit 2
+    ;;
+  esac
+  case "$interaction" in
+  "") ;;
+  *)
+    case " $FEATURES " in
+    *" $interaction "*) ;;
+    *)
+      printf 'invalid scenario row (interaction is not a parity feature): %s -> %s\n' \
+        "$name" "$interaction" >&2
+      exit 2
+      ;;
+    esac
+    ;;
+  esac
+done < <(awk -F '\t' 'BEGIN { OFS="\t" } { for (i = 1; i <= NF; i++) if ($i == "") $i = "-"; print }' "$MATRIX")
 
 SCENARIO_COUNT="$(awk -F '\t' 'NR > 1 && $1 != "" { count += 1 } END { print count + 0 }' "$MATRIX")"
 [ "$SCENARIO_COUNT" -gt 0 ] || {
@@ -258,6 +318,10 @@ CAPTURED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   printf 'niri_host=kwin-wayland-virtual\n'
   printf 'command=bash scripts/capture-iced-matrix.sh\n'
 } >"$METADATA"
+# The manifest's `page` column is the contract page SHAPE the frame is judged
+# by, not the route the surface opened: `space_utilization.py` reads it to pick
+# the shape's density budget, and a route (`runtime`, `mixin`) is not a shape.
+# The matrix carries both columns, so the selector stays in the run log.
 printf 'scenario\tpage\tskin\trequested_window\tapp_pid\twindow_id\twidth\theight\tbytes\tsha256\tstatus\n' >"$MANIFEST"
 
 # ------------------------------------------------------- niri config (KDL) --
@@ -419,12 +483,11 @@ printf 'compositor: ready (wayland=%s ipc=%s)\n' "$NIRI_SOCK" "$NIRI_IPC"
 
 # -------------------------------------------------------------- per scenario --
 capture_one() {
-  local name="$1" page="$2" skin="$3" window_size="$4"
-  local interaction=""
-  case "$name" in
-    *-standard) interaction="${name%-standard}" ;;
-    *-compact) interaction="${name%-compact}" ;;
-  esac
+  local name="$1" page="$2" shape="$3" skin="$4" window_size="$5"
+  # The interaction fixture is the matrix's business, not a guess derived from
+  # the scenario name: a surface-owned row (the collapsed sidebar) opens no
+  # interaction, and a name-derived guess made the fixture panic on it.
+  local interaction="$6" sidebar_expansion="$7"
   # The app's marker names the ROUTE (`route_env_name`); scenario pages that
   # are route variants (mixin = editor + Mixin pane) wait on the route name.
   local marker_page="$page"
@@ -471,8 +534,8 @@ capture_one() {
     bytes=0
     hash="-"
 
-    printf '  start %-22s page=%-8s skin=%-5s window=%s\n' \
-      "$name" "$page" "$skin" "$window_size"
+    printf '  start %-22s page=%-8s shape=%-14s skin=%-5s window=%-8s sidebar=%s\n' \
+      "$name" "$page" "$shape" "$skin" "$window_size" "${sidebar_expansion:-owner-default}"
     XDG_RUNTIME_DIR="$RUNTIME_DIR" WAYLAND_DISPLAY="$NIRI_SOCK" DISPLAY= \
       LIBGL_ALWAYS_SOFTWARE=1 \
       INFILTRATOR_DEMO=1 \
@@ -480,6 +543,7 @@ capture_one() {
       INFILTRATOR_PAGE="$page" \
       INFILTRATOR_SCENARIO="$interaction" \
       INFILTRATOR_SKIN="$skin" \
+      INFILTRATOR_SIDEBAR_EXPANSION="$sidebar_expansion" \
       INFILTRATOR_WINDOW_SIZE="$window_size" \
       INFILTRATOR_CAPTURE_MARKER="$marker" \
       setsid "$APP" --demo >"$log" 2>&1 &
@@ -612,7 +676,7 @@ capture_one() {
   grep 'CAPTURE_READY' "$marker" 2>/dev/null | sed "s/^/$name\t/" \
     >>"$RUN_DIR/capture-markers.log" || true
   printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-    "$name" "$page" "$skin" "$window_size" \
+    "$name" "$shape" "$skin" "$window_size" \
     "$APP_PID" "$window_id" "$width" "$height" "$bytes" "$hash" "$action_status" \
     >>"$MANIFEST"
 
@@ -630,14 +694,16 @@ capture_one() {
 : >"$RUN_DIR/capture-markers.log"
 FAILURES=0
 FAILED_NAMES=""
-while IFS=$'\t' read -r name page skin window_size; do
+while IFS=$'\t' read -r name page shape skin window_size interaction sidebar_expansion; do
   [ "$name" = name ] && continue
   [ -n "$name" ] || continue
-  if ! capture_one "$name" "$page" "$skin" "$window_size"; then
+  [ "$interaction" = "-" ] && interaction=""
+  [ "$sidebar_expansion" = "-" ] && sidebar_expansion=""
+  if ! capture_one "$name" "$page" "$shape" "$skin" "$window_size" "$interaction" "$sidebar_expansion"; then
     FAILURES=$((FAILURES + 1))
     FAILED_NAMES="$FAILED_NAMES $name"
   fi
-done <"$MATRIX"
+done < <(awk -F '\t' 'BEGIN { OFS="\t" } { for (i = 1; i <= NF; i++) if ($i == "") $i = "-"; print }' "$MATRIX")
 
 # ----------------------------------------------------------------- summary --
 install -m 644 "$MANIFEST" "$MANIFEST_PUBLISHED"
