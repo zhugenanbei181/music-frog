@@ -3,7 +3,7 @@ import { AppPreferenceSwitch } from "../components/preferences.slint";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "../components/theme.slint";
 import { NetworkMode, RouteMode, RuntimeStatus } from "../components/domain_enums.slint";
-import { FlagIcon } from "../lumen-flags.slint";
+import { CountryChip } from "../components/country_chip.slint";
 import { ViewportLadder } from "../components/viewport-ladder.slint";
 import { DashboardDensity } from "../components/viewport_tier.slint";
 import { ProfileCard, ProxyGroup } from "../components/models.slint";
@@ -119,27 +119,11 @@ export component HomeDesktopGrid inherits VerticalLayout {
                     }
                     HorizontalLayout {
                         spacing: LumenTheme.space-3;
-                        Rectangle {
-                            width: 38 * LumenUiScale.unit;
-                            height: 38 * LumenUiScale.unit;
-                            border-radius: 19 * LumenUiScale.unit;
-                            background: LumenTheme.zinc-4;
-                            // The reference shows a round flag here. Use the
-                            // owner's flag asset, and keep the country code as
-                            // the honest fallback when no flag resolved.
-                            if root.home-exit-flag-index >= 0: FlagIcon {
-                                index: root.home-exit-flag-index;
-                                country-code: root.home-exit-country-code;
-                                size: 38 * LumenUiScale.unit;
-                            }
-                            if root.home-exit-flag-index < 0: Text {
-                                text: root.home-exit-country-code != "" ? root.home-exit-country-code.to_uppercase() : "—";
-                                color: LumenTheme.text-primary;
-                                font-size: DesignType.label-size;
-                                font-weight: DesignType.label-weight;
-                                x: (parent.width - self.width) / 2;
-                                y: (parent.height - self.height) / 2;
-                            }
+                        CountryChip {
+                            side: 38 * LumenUiScale.unit;
+                            flag-index: root.home-exit-flag-index;
+                            country-code: root.home-exit-country-code;
+                            code-role: TextRole.label;
                         }
                         Text {
                             text: root.home-exit-ip;

@@ -1,0 +1,42 @@
+import { DesignType, TextRole } from "./design-type.slint";
+import { LumenUiScale } from "../lumen-ui-scale.slint";
+import { LumenTheme } from "theme.slint";
+import { FlagIcon } from "../lumen-flags.slint";
+
+// The one owner of a country's identity chip: a square chip that paints the
+// owner's flag plate, or the country code when no flag resolved.
+//
+// The chip is a square with a rounded corner, never a disc. A flag is
+// rectangular artwork: a round container crops the plate and leaves two
+// crescents of container paint, which read as a medallion rather than as a
+// country. The reference draws its identity tile as a square too - a
+// `SizedBox.square` with a corner near 31% of the side and no `ClipOval` - so
+// the corner is `LumenTheme.country-chip-radius` and the two home rows that
+// used to own a private circle now consume this one component.
+export component CountryChip inherits Rectangle {
+    in property <length> side: 38 * LumenUiScale.unit;
+    // The owner's resolved flag; negative is "no flag resolved", which is the
+    // only state that paints the code.
+    in property <int> flag-index: -1;
+    in property <string> country-code;
+    // The row that holds the chip decides how large its code reads.
+    in property <TextRole> code-role: TextRole.label;
+
+    width: root.side;
+    height: root.side;
+    border-radius: LumenTheme.country-chip-radius;
+    background: LumenTheme.zinc-4;
+    if root.flag-index >= 0: FlagIcon {
+        index: root.flag-index;
+        country-code: root.country-code;
+        size: root.side;
+    }
+    if root.flag-index < 0: Text {
+        text: root.country-code != "" ? root.country-code.to_uppercase() : "—";
+        color: LumenTheme.text-primary;
+        font-size: DesignType.size(root.code-role);
+        font-weight: DesignType.weight(root.code-role);
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+    }
+}

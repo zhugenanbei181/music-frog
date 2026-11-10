@@ -28,6 +28,15 @@ The rules this guard holds:
 3. `FlagIcon` draws a square plate: no clip, no radius, `image-fit: contain`,
    and its size input is `size`. `diameter` is a retired entry, so a call site
    that feeds it again is caught rather than silently ignored.
+4. A call site never wraps a plate in a container of its own: the two home
+   rows each declared a private `Rectangle` with a `background`, which is how
+   they drifted from the shared chip and kept a circle nobody else drew. The
+   shared `CountryChip` is the only element that may paint behind a plate.
+5. No container that holds a plate may declare a corner that reaches half its
+   side. `border-radius: side / 2` on a square is a disc, and a disc crops a
+   rectangular flag.
+6. That corner is `LumenTheme.country-chip-radius`, and both of its values
+   stay under half of the smallest chip side any call site feeds.
 """
 
 from __future__ import annotations
@@ -46,12 +55,21 @@ CATALOG = ROOT / "crates/infiltrator-shared/assets/asset-catalog.json"
 SHARED_CIRCLE_DIR = ROOT / "crates/infiltrator-shared/assets/flags/circle-png"
 UI_ROOT = ROOT / "crates/infiltrator-slint/ui"
 PILL = ROOT / "crates/infiltrator-slint/ui/components/proxy_picker.slint"
+CHIP = ROOT / "crates/infiltrator-slint/ui/components/country_chip.slint"
+THEME = ROOT / "crates/infiltrator-slint/ui/components/theme.slint"
 
 SVG_ENTRY = re.compile(r'@image-url\("\.\./\.\./infiltrator-shared/assets/flags/([a-z]{2})\.svg"\)')
 CIRCLE_ENTRY = re.compile(r"flags/circle-png/([a-z]{2})\.png")
 RUST_INDEX = re.compile(r'"([a-z]{2})" => Some\((\d+)\)')
 COMPONENT_RE = re.compile(r"export component FlagIcon inherits Rectangle \{")
+CHIP_COMPONENT_RE = re.compile(r"export component CountryChip inherits Rectangle \{")
 RETIRED_SIZE_ENTRY = re.compile(r"\bdiameter\s*:")
+FLAG_CHILD_RE = re.compile(r"(?:^|:)\s*FlagIcon$")
+LENGTH_DECL_RE = re.compile(
+    r"\b(width|height|border-radius)\s*:\s*(\d+(?:\.\d+)?)\s*\*\s*LumenUiScale\.unit\s*;"
+)
+CHIP_RADIUS_RE = re.compile(r"country-chip-radius\s*:\s*([^;]+);")
+CHIP_SIDE_RE = re.compile(r"CountryChip\s*\{[^}]*?\bside:\s*(\d+(?:\.\d+)?)\s*\*", re.S)
 
 
 def mask_comments(source: str) -> str:
@@ -88,8 +106,8 @@ def catalog_square_codes() -> list[str]:
     ]
 
 
-def component_body(code: str) -> str:
-    start = COMPONENT_RE.search(code)
+def component_body(code: str, pattern: re.Pattern[str] = COMPONENT_RE) -> str:
+    start = pattern.search(code)
     if start is None:
         return ""
     depth = 0
@@ -137,8 +155,148 @@ def call_site_findings(files: dict[pathlib.Path, str]) -> list[str]:
     return found
 
 
+def mask_strings(source: str) -> str:
+    """Blank string literal contents, so a brace or `;` inside text is not syntax."""
+    out: list[str] = []
+    in_string = False
+    for char in source:
+        if char == '"':
+            in_string = not in_string
+            out.append(" ")
+            continue
+        out.append(" " if in_string else char)
+    return "".join(out)
+
+
+def brace_blocks(text: str) -> list[dict]:
+    """Every `Header { body }` block, carrying the header that opened it.
+
+    A plate's container is the block that holds the plate as a *direct* child,
+    so these checks need the nesting rather than a flat search: the row that
+    holds the chip in `cards.slint` paints a background too, and it is not what
+    wraps a flag.
+    """
+    roots: list[dict] = []
+    stack: list[dict] = []
+    header_start = 0
+    for index, char in enumerate(text):
+        if char == "{":
+            block: dict = {"header": text[header_start:index].strip(), "open": index, "children": []}
+            (stack[-1]["children"] if stack else roots).append(block)
+            stack.append(block)
+            header_start = index + 1
+        elif char == "}":
+            if stack:
+                stack.pop()["close"] = index
+            header_start = index + 1
+        elif char == ";":
+            header_start = index + 1
+    return roots
+
+
+def all_blocks(text: str) -> list[dict]:
+    found: list[dict] = []
+    pending = brace_blocks(text)
+    while pending:
+        block = pending.pop()
+        if "close" in block:
+            found.append(block)
+        pending.extend(block["children"])
+    return found
+
+
+def own_declarations(block: dict, text: str) -> str:
+    """A block's own statements, with every nested child block cut out."""
+    pieces: list[str] = []
+    cursor = block["open"] + 1
+    for child in block["children"]:
+        if "close" not in child:
+            continue
+        pieces.append(text[cursor : child["open"]])
+        cursor = child["close"] + 1
+    pieces.append(text[cursor : block["close"]])
+    return "".join(pieces)
+
+
+def disc_corner(own: str) -> tuple[float, float] | None:
+    """The (radius, side) of a container whose corner reaches half its side."""
+    declarations = {name: float(value) for name, value in LENGTH_DECL_RE.findall(own)}
+    radius = declarations.get("border-radius")
+    if radius is None or "width" not in declarations or "height" not in declarations:
+        return None
+    side = min(declarations["width"], declarations["height"])
+    return (radius, side) if radius * 2 >= side else None
+
+
+def plate_container_findings(files: dict[pathlib.Path, str], chip: pathlib.Path) -> list[str]:
+    """No call site paints behind a plate, and no container is a disc."""
+    found: list[str] = []
+    for path, raw in sorted(files.items()):
+        if path == chip:
+            continue
+        code = mask_strings(mask_comments(raw))
+        relative = path.relative_to(ROOT)
+        for block in all_blocks(code):
+            if not any(FLAG_CHILD_RE.search(child["header"]) for child in block["children"]):
+                continue
+            own = own_declarations(block, code)
+            if re.search(r"\bbackground\s*:", own):
+                found.append(
+                    f"{relative}: a hand-written container paints behind a flag plate; "
+                    "`CountryChip` is the one owner of a plate's container"
+                )
+            corner = disc_corner(own)
+            if corner is not None:
+                found.append(
+                    f"{relative}: a plate's container declares a {corner[0]}u corner on a "
+                    f"{corner[1]}u side, which is a disc: a rectangle inside a circle is "
+                    "cropped into a medallion"
+                )
+    return found
+
+
+def chip_findings(chip_text: str) -> list[str]:
+    """The shared chip exists, takes its corner from the theme and never clips."""
+    code = mask_comments(chip_text)
+    body = component_body(code, CHIP_COMPONENT_RE)
+    if not body:
+        return ["the shared country chip is gone; a flag slot would own a private container again"]
+    found: list[str] = []
+    if "border-radius: LumenTheme.country-chip-radius;" not in body:
+        found.append("CountryChip no longer takes its corner from `LumenTheme.country-chip-radius`")
+    if re.search(r"\bclip:\s*true", body):
+        found.append("CountryChip clips its plate; a square plate needs no clip")
+    return found
+
+
+def chip_corner_findings(theme_text: str, call_sites: dict[pathlib.Path, str]) -> list[str]:
+    """One corner token, and no chip side small enough to make it a disc."""
+    match = CHIP_RADIUS_RE.search(mask_comments(theme_text))
+    if match is None:
+        return ["`LumenTheme.country-chip-radius` is gone; the chip corner would be a literal"]
+    radii = [float(value) for value in re.findall(r"(\d+(?:\.\d+)?)\s*\*", match.group(1))]
+    if not radii:
+        return ["`LumenTheme.country-chip-radius` carries no length literal to check"]
+    sides = [
+        float(value)
+        for text in call_sites.values()
+        for value in CHIP_SIDE_RE.findall(mask_comments(text))
+    ]
+    if sides and max(radii) * 2 >= min(sides):
+        return [
+            f"`LumenTheme.country-chip-radius` reaches {max(radii)}u against the smallest "
+            f"chip side {min(sides)}u, which is half the side: that is the disc again"
+        ]
+    return []
+
+
 def violations(
-    slint_text: str, rust_text: str, codes: list[str], call_sites: dict[pathlib.Path, str]
+    slint_text: str,
+    rust_text: str,
+    codes: list[str],
+    call_sites: dict[pathlib.Path, str],
+    chip_text: str,
+    theme_text: str,
 ) -> list[str]:
     found: list[str] = []
     code = mask_comments(slint_text)
@@ -182,14 +340,20 @@ def violations(
         if "in property <length> size:" not in body:
             found.append("FlagIcon no longer names its plate side `size`")
 
-    return found + call_site_findings(call_sites)
+    return (
+        found
+        + call_site_findings(call_sites)
+        + plate_container_findings(call_sites, CHIP)
+        + chip_findings(chip_text)
+        + chip_corner_findings(theme_text, call_sites)
+    )
 
 
 def ui_call_site_texts() -> dict[pathlib.Path, str]:
     """Every hand-written `.slint` except the flag inventory itself."""
     files: dict[pathlib.Path, str] = {}
     for path in sorted(UI_ROOT.rglob("*.slint")):
-        if path == SLINT or "lumen-source" in path.parts:
+        if path in (SLINT, CHIP) or "lumen-source" in path.parts:
             continue
         files[path] = path.read_text(encoding="utf-8")
     return files
@@ -201,6 +365,8 @@ def live_violations() -> list[str]:
         RUST.read_text(encoding="utf-8"),
         catalog_square_codes(),
         ui_call_site_texts(),
+        CHIP.read_text(encoding="utf-8"),
+        THEME.read_text(encoding="utf-8"),
     )
 
 
@@ -210,6 +376,8 @@ class GuardSelfTest(unittest.TestCase):
         self.rust = RUST.read_text(encoding="utf-8")
         self.codes = catalog_square_codes()
         self.call_sites = {PILL: PILL.read_text(encoding="utf-8")}
+        self.chip = CHIP.read_text(encoding="utf-8")
+        self.theme = THEME.read_text(encoding="utf-8")
 
     def findings(
         self,
@@ -217,12 +385,16 @@ class GuardSelfTest(unittest.TestCase):
         rust: str | None = None,
         codes: list[str] | None = None,
         call_sites: dict[pathlib.Path, str] | None = None,
+        chip: str | None = None,
+        theme: str | None = None,
     ) -> list[str]:
         return violations(
             self.slint if slint is None else slint,
             self.rust if rust is None else rust,
             self.codes if codes is None else codes,
             self.call_sites if call_sites is None else call_sites,
+            self.chip if chip is None else chip,
+            self.theme if theme is None else theme,
         )
 
     def test_live_tree_is_clean(self) -> None:
@@ -316,6 +488,76 @@ class GuardSelfTest(unittest.TestCase):
             1,
         )
         self.assertEqual(self.findings(call_sites={PILL: planted}), [])
+
+    def test_a_private_container_behind_a_plate_is_caught(self) -> None:
+        """The two home rows each declared their own chip; that is the drift."""
+        planted = {
+            ROOT / "planted.slint": (
+                "HorizontalLayout {\n"
+                "    Rectangle {\n"
+                "        width: 38 * LumenUiScale.unit;\n"
+                "        height: 38 * LumenUiScale.unit;\n"
+                "        border-radius: LumenTheme.country-chip-radius;\n"
+                "        background: LumenTheme.zinc-4;\n"
+                "        if index >= 0: FlagIcon { index: index; }\n"
+                "    }\n"
+                "}\n"
+            )
+        }
+        found = self.findings(call_sites=planted)
+        self.assertTrue(any("hand-written container" in item for item in found), found)
+
+    def test_a_disc_corner_around_a_plate_is_caught(self) -> None:
+        """`border-radius: side / 2` on a square is the medallion this guard bans."""
+        planted = {
+            ROOT / "planted.slint": (
+                "Rectangle {\n"
+                "    width: 38 * LumenUiScale.unit;\n"
+                "    height: 38 * LumenUiScale.unit;\n"
+                "    border-radius: 19 * LumenUiScale.unit;\n"
+                "    if index >= 0: FlagIcon { index: index; }\n"
+                "}\n"
+            )
+        }
+        found = self.findings(call_sites=planted)
+        self.assertTrue(any("which is a disc" in item for item in found), found)
+
+    def test_a_rounded_container_under_half_the_side_is_clean(self) -> None:
+        planted = {
+            ROOT / "planted.slint": (
+                "Rectangle {\n"
+                "    width: 32 * LumenUiScale.unit;\n"
+                "    height: 32 * LumenUiScale.unit;\n"
+                "    border-radius: 10 * LumenUiScale.unit;\n"
+                "    if index >= 0: FlagIcon { index: index; }\n"
+                "}\n"
+            )
+        }
+        found = [item for item in self.findings(call_sites=planted) if "planted.slint" in item]
+        self.assertEqual(found, [])
+
+    def test_a_chip_corner_that_reaches_half_the_side_is_caught(self) -> None:
+        planted_theme = self.theme.replace(
+            "country-chip-radius: root.compact-layout ? 10 * LumenUiScale.unit : 12 * LumenUiScale.unit;",
+            "country-chip-radius: root.compact-layout ? 16 * LumenUiScale.unit : 16 * LumenUiScale.unit;",
+            1,
+        )
+        self.assertNotEqual(planted_theme, self.theme)
+        planted_sites = {
+            ROOT / "planted.slint": "CountryChip {\n    side: 32 * LumenUiScale.unit;\n}\n"
+        }
+        found = self.findings(call_sites=planted_sites, theme=planted_theme)
+        self.assertTrue(any("that is the disc again" in item for item in found), found)
+
+    def test_a_chip_corner_that_is_not_the_token_is_caught(self) -> None:
+        planted = self.chip.replace(
+            "border-radius: LumenTheme.country-chip-radius;",
+            "border-radius: 12 * LumenUiScale.unit;",
+            1,
+        )
+        self.assertNotEqual(planted, self.chip)
+        found = self.findings(chip=planted)
+        self.assertTrue(any("no longer takes its corner" in item for item in found), found)
 
     def test_the_shared_circle_derivative_stays_retired(self) -> None:
         self.assertFalse(

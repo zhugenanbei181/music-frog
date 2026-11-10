@@ -122,6 +122,7 @@
      - `ui/components/models.slint`：跨端结构体定义；
      - `ui/components/base_widgets.slint`：基础交互原子组件（按钮、开关、滑块、输入框等）；
      - `ui/components/cards.slint`：领域卡片与容器；
+     - `ui/components/country_chip.slint`：国家身份块（`CountryChip`）的唯一 owner——方板形状的落地盒，画 owner 解析出的旗帜，未解析出时画国家代码，圆角只读 `LumenTheme.country-chip-radius`；
      - `ui/components/sidebar.slint`：桌面侧边导航栏；
      - `ui/components/profile_sheets.slint` 与 `profile_overlays.slint`：配置添加、操作、分享、删除与设置抽屉；
      - `ui/components/settings_sheets.slint` 与 `settings_overlays.slint`：配色、缩放、User-Agent 抽屉与网络接管切换确认弹窗；
