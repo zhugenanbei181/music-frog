@@ -110,7 +110,7 @@ export component HomeCompactFlow inherits VerticalLayout {
                         if root.home-exit-flag-index >= 0: FlagIcon {
                             index: root.home-exit-flag-index;
                             country-code: root.home-exit-country-code;
-                            diameter: 32 * LumenUiScale.unit;
+                            size: 32 * LumenUiScale.unit;
                         }
                         if root.home-exit-flag-index < 0: Text {
                             text: root.home-exit-country-code != "" ? root.home-exit-country-code.to_uppercase() : "—";

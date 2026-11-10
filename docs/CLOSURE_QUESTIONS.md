@@ -19,24 +19,36 @@
 | 3 | Android / iOS 是否都支持？ | APK/应用包产物（C/D）或显式 `Unsupported` |
 | 4 | 各个 UI 是否都接入了？ | 每个 UI 的编译证据 + 功能验收范围；薄壳必须写「最小接入」 |
 | 5 | 该复用的是否都复用了？ | 共享 owner 清单；已知重复实现必须清零或立项 |
-| 5a | 设计资源是否按强制标准验证？ | [DESIGN_RESOURCE_STANDARD.md](DESIGN_RESOURCE_STANDARD.md) 的九项门禁证据；身份变化需双视口像素回执，复用旧回执即不合格 |
+| 5a | 设计资源是否按强制标准验证？ | [DESIGN_RESOURCE_STANDARD.md](DESIGN_RESOURCE_STANDARD.md) §5 判定项清单（条数随标准增减，以该节为准）的证据；身份变化需双视口像素回执，复用旧回执即不合格 |
 | 6 | 各处界面的功能是否都接入了？ | parity cell 或平台矩阵状态；`Unsupported` 必须显式列出 |
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-10 第一百七十六批次；b111–b173 见下方批次八问摘要）
+## 当前状态（2026-11-10 第一百七十七批次；b111–b173 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b176 只改 Slint 呈现层一个文件与三份文档，零 Rust、零平台 API、零设备交互；`cargo check -p infiltrator-slint --all-targets` 与 Slint nextest **384/384** 为 `L`；交叉 `scripts/cross-check.sh`、aarch64 产物与目标设备仍由 CI runner / 设备矩阵补证（GAP-1.1） |
-| 2 | 部分 | L | 本机 Linux 完成 Slint 全目标编译/clippy、199 帧真实像素重采与全部独立守卫；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
-| 3 | 部分 | L | 本批不触 Android/iOS 代码、资源或 wire；折叠钮只在导出表 `toggle_available` 的非触摸桌面档绘制，三 flavor 实机交互与 iOS 产物仍按既有条目留在外部环境看板 |
-| 4 | 部分 | L | 本批只改 Slint 侧栏折叠钮的可见身份（删常驻文字 + 共享行的几何表达式 + 原生 `Tooltip`）；Iced/Bevy/Android 不消费该 `.slint`，其侧栏接线仍由各自条目推进，不用 Slint 像素冒充其它表面验收 |
-| 5 | 完整 | L | 折叠钮的盒几何不再是第二份内缩拼法：它与目的地行使用同一条表达式（`nav-content-offset` / `rail-item-padding` / `rail-label-gap` + 同一对 stretch 单元），tooltip 文案复用已有 `收起`/`展开` 两 key，本批零新增 token、零新增文案 key、零新增 UI 私有推导 |
-| 5a | 完整 | L | 本批不改字体/字重/图标/主题身份，但**改可见像素身份**（pane 少一行文字、rail 图标移位），因此按标准/compact 双视口整批重采 199 帧发布 `20261110T090346Z_8b86599df608_dirty_1204003`（199/199，499s），并刷新 Slint 侧 `mixin-*` 四条别名摘要；复核 `design-resource-authority 0`、`receipt-freshness 0`、空间 199 帧 `violations=0` |
-| 6 | 部分 | L | 折叠钮仍只发 `ApplySidebarExpansion { intent: Toggle }`，`sidebar_toggle_px` 仍由按钮盒自测（本批实测 106），`CAPTURE_CHROME` 12 键与 wire 不变；图标中心实测 rail 23.5 == 行 23.5、pane 19.5 == 行 19.5。上游「目的地行 tooltip 只在截断时出现」本批**未实现**，已按自底向上铁律立 `FLPARITY-048`（1 pt），不在 UI 层猜宽度测量。全仓 `check-structure.sh`、全量 clippy 与 `resolve_surface_evidence.py` 仍受另一会话 Bevy/依赖钉版 WIP 阻塞，由统一收口 owner 补证 |
-| 7 | 完整 | L | 改动集中在 `crates/infiltrator-slint/ui/components/sidebar.slint` 一个文件的按钮盒一个元素体；词的唯一真源仍是共享文案目录，形态结论仍只在 `page_structure` 导出表，投影仍只在 `ShellReceipt`，无第二处业务真源 |
-| 8 | 部分 | L | 本批是可见身份变化，按纪律一次整批重采（499s）而非逐场景补帧，并把「两种错误拼法都被像素抓到」写进 L3 参照基准 §11，使下一次同类改动有对照可查；全仓统一验证与 5 条 `Integrated` 仍由收口 owner 一次跑完，新立 1 pt 使严格交付率保持 **92.4%**（1,258/1,361） |
+| 1 | 部分 | L | b177 改 Slint 呈现层（`lumen-flags.slint` 清单与 `FlagIcon`）、shared 资产清单（catalog + 退役 258 个圆形 PNG）与新 Python 守卫，零平台 API、零设备交互；`cargo check -p infiltrator-slint --all-targets`、`cargo clippy -p infiltrator-slint -p infiltrator-shared --all-targets -- -D warnings` 零警告、Slint nextest **384/384**、shared nextest **79/79** 为 `L`；交叉 `scripts/cross-check.sh`、aarch64 产物与目标设备仍由 CI runner / 设备矩阵补证（GAP-1.1） |
+| 2 | 部分 | L | 本机 Linux 完成编译/clippy/nextest、199 帧真实像素重采与全部守卫；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）；资产退役只删本仓 shared 副本，`lumen-source/` 供应商快照逐字节保留 |
+| 3 | 部分 | L | 本批不触 Android/iOS 代码、资源或 wire；Slint 的 Android 后端同样经 `i-slint-renderer-skia` 启用 `i-slint-core/svg`，方形矢量可渲染，但三 flavor 实机交互与 iOS 产物仍按既有条目留在外部环境看板 |
+| 4 | 部分 | L | 本批只改 Slint 表面的国旗清单与容器；Iced/Bevy/Android 不消费这份 `.slint` 清单，其国旗形状仍由各自条目收口，不用 Slint 像素冒充其它表面验收 |
+| 5 | 完整 | L | 国旗从两份库存（`variant: "circle-144"` 栅格 + `variant: "source"` 方形矢量）收敛为 catalog 唯一清单；`FlagImages.flags` 顺序、`flag_assets::index_for_code` 与 catalog 三者一致并由 SLINT-020 钉死；`FlagIcon` 是唯一的旗帜板 owner，尺寸入口 `size` 一处真源，退役 `diameter` 不留兼容分支 |
+| 5a | 完整 | L | 资产身份变化（旗帜形状与来源文件）按标准/compact 双视口整批重采：发布 `20261110T102949Z_4a1293928702_dirty_1766474`（199/199，413s），23 帧变化全部落在带旗帜的 overview / proxies / sidebar-collapsed 帧，`sidebar-collapsed-compact` 别名摘要按新像素刷新；复核 `design-resource-authority --skip-exporter 0`、`receipt-freshness 0`、`space_utilization --enforce` 199 帧 violations=0 |
+| 6 | 部分 | L | 新增 `scripts/quality/slint-flag-shape-guard.py`（SLINT-020）planted 自测 **14/14**、`--mode enforce` findings=0，enforce + self-test 双腿接入 `check-structure.sh`；19 条 Slint 守卫、shared-copy / i18n / typed-state 全 findings=0、implicit-state 23/0/0、`doc-governance OK`、`closure-questions 8/8`。全仓 `check-structure.sh`、全量 clippy 与 `resolve_surface_evidence.py` 仍受另一会话 Bevy/依赖钉版 WIP 阻塞，由统一收口 owner 补证 |
+| 7 | 完整 | L | 形状事实只在 catalog 一处（`flag.<code>` / `source`）、清单只在 `lumen-flags.slint` 一处、索引只在 `flag_assets.rs` 一处、绘制只在 `FlagIcon` 一处；守卫是独立文件，不与 SLINT-013~019 重叠；退役副本由 `slint-source-import-guard.py` 与 `SOURCE_IMPORT_MANIFEST.json` 继续钉为供应商快照 |
+| 8 | 部分 | L | 本批一次整批重采（413s）而非逐场景补帧，并删掉 1.7MB 重复资产与 258 条 catalog 记录，资产面与判定面同时变小；全仓统一验证与 5 条 `Integrated` 仍由收口 owner 一次跑完，`SLINT-020` 2 pt 入现在佛后严格交付率 **1,258 / 1,363 = 92.3%** |
+
+## 最近一批问答（2026-11-10 第一百七十七交付批次：国旗是方形资产 / 清单、容器与门禁一次改回事实）
+
+1. x86_64/aarch64：本批改 Slint 呈现层（`ui/lumen-flags.slint` 的清单与 `FlagIcon`）、shared 资产清单（`asset-catalog.json` 与退役 `assets/flags/circle-png/`）、五个调用点与新 Python 守卫，零平台 API、零设备交互；`cargo check -p infiltrator-slint --all-targets`、`cargo clippy -p infiltrator-slint -p infiltrator-shared --all-targets -- -D warnings` 零警告、Slint nextest **384/384**、shared nextest **79/79** 为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 产物仍待 CI runner / 设备矩阵补证 → 部分（L）。
+2. Windows/Linux/macOS：本机 Linux 完成编译、clippy、定向 nextest、199 帧真实像素重采与全部守卫；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） → 部分（L）。
+3. Android/iOS：本批不触 Android/iOS 代码、资源或 wire。Slint 的 Android 后端 `i-slint-backend-android-activity` 经 `i-slint-renderer-skia` 启用 `i-slint-core` 的 `svg` 特性，方形矢量在该通道可渲染（桌面 femtovg 腿同样启用，且本仓 UI 早已消费 96 处 SVG 引用）；三 flavor 实机交互与 iOS 产物仍按既有条目留在外部环境看板 → 部分（L）。
+4. 各 UI：本批只改 Slint 表面的国旗清单与容器形状；Iced/Bevy/Android 不消费这份 `.slint` 清单，其国旗形状仍由各自条目收口，本批不把 Slint 像素冒充其它表面验收 → 部分（L）。
+5. 复用：国旗此前有**两份库存**——catalog `variant: "circle-144"` 的 258 个 144px 圆形栅格与同一 catalog 里 258 面 `variant: "source"` 方形 Twemoji 矢量，UI 又在圆形栅格上做了第二次圆形裁切。本批把清单、索引与绘制收敛为各一处：`FlagImages.flags` 逐条等于 catalog `flag.*` / `source` 顺序，`flag_assets::index_for_code` 与之一致（这条索引是 owner ISO 代码与清单之间唯一的桥，漂移会让一个国家代码画出别国旗帜），`FlagIcon` 是唯一旗帜板 owner 且尺寸入口只剩 `size`，退役 `diameter` 不留兼容分支。1.7MB 重复资产与 258 条 catalog 记录同批删除 → 完整（L）。
+5a. 设计资源强制标准：旗帜形状与来源文件属**资产身份变化**，不沿用旧回执：按标准/compact 双视口整批重采 199 帧发布 `20261110T102949Z_4a1293928702_dirty_1766474`（199/199，413s），相对 b176 批 23 帧变化且全部落在带旗帜的 overview / proxies / sidebar-collapsed 帧，`sidebar-collapsed-compact` 别名摘要按新像素刷新；`design-resource-authority --skip-exporter` violations=0、`receipt-freshness 0`、`space_utilization --enforce` 199 帧 violations=0。形状判据另有像素实测：诊断批 `20261110T101632Z_4a1293928702_dirty_1685609` 量得旗帜墨迹盒 20×16px、连通率 **0.975**（圆形容器约 0.785、顶行只剩 2–3px） → 完整（L）。
+6. 各处界面的功能接入：新增 `scripts/quality/slint-flag-shape-guard.py`（SLINT-020）把「清单=catalog 顺序」「索引与清单一致」「不得 clip/圆角/cover」「尺寸入口必须是 `size`」「调用点不得喂退役 `diameter`」「圆形派生物（文件或 catalog 记录）不得回归」钉成结构不变量，planted 自测 **14/14**、`--mode enforce` findings=0，enforce + self-test 双腿接入 `check-structure.sh`；19 条 Slint 守卫、shared-copy / i18n / typed-state 全 findings=0、implicit-state 23/0/0、`doc-governance OK`、`closure-questions 8/8`。诚实边界：全仓 `check-structure.sh`、全量 clippy 与 `resolve_surface_evidence.py` 仍受另一会话 Bevy/依赖钉版 WIP 阻塞 → 部分（L）。
+7. 模块化：形状事实只在 catalog 一处、清单只在 `lumen-flags.slint` 一处、索引只在 `src/flag_assets.rs` 一处、绘制只在 `FlagIcon` 一处；守卫独立成 SLINT-020，不与 SLINT-013~019 重叠；`lumen-source/` 内的圆形副本按逐字节供应商导入快照保留，由 `slint-source-import-guard.py` 与 `SOURCE_IMPORT_MANIFEST.json` 钉住，不是本仓可消费清单。选中态对勾仍是圆形——那是徽记，不是旗帜 → 完整（L）。
+8. CI 与批次效率：本批一次整批重采（413s）而非逐场景补帧，并同批删除 1.7MB 重复资产与 258 条 catalog 记录，资产面与判定面同时变小；裁决与实测写进 L2 设计资源标准 §3.1、L3 Slint 表面契约与 L3 桌面参照基准 §12，使其它表面收口时有同一判据。全仓统一验证与 5 条 `Integrated` 仍由收口 owner 一次跑完；`SLINT-020` 2 pt 入现在佛，未办结分母 103 → **105 pt / 42 条**，严格交付率 **1,258 / 1,363 = 92.3%** → 部分（L）。
 
 ## 最近一批问答（2026-11-10 第一百七十六交付批次：FlClash 折叠钮只有一个字形 / 词进 hover tooltip）
 

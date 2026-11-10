@@ -74,7 +74,7 @@ export component ProxyGroupPill inherits Rectangle {
         if root.group.current-flag-index >= 0: FlagIcon {
             index: root.group.current-flag-index;
             country-code: root.group.current-flag-code;
-            diameter: ProxyPillMetrics.pill-identity-size;
+            size: ProxyPillMetrics.pill-identity-size;
         }
         if root.group.current-flag-index < 0: Rectangle {
             width: ProxyPillMetrics.pill-identity-size;
@@ -179,7 +179,7 @@ export component ProxyNodeCard inherits Rectangle {
             if root.node.flag-index >= 0: FlagIcon {
                 index: root.node.flag-index;
                 country-code: root.node.flag-code;
-                diameter: ProxyPillMetrics.node-card-flag-size;
+                size: ProxyPillMetrics.node-card-flag-size;
             }
             Text {
                 text: root.node.title;

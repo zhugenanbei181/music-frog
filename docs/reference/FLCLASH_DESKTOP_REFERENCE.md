@@ -394,3 +394,39 @@ b176 因此把可见身份改回上游的形状：
 `20261110T090346Z_8b86599df608_dirty_1204003`（199/199，499s），
 `space-utilization --enforce` 199 帧 violations=0、`receipt-freshness 0`、
 Slint 侧 `screenshot-identity` 别名摘要全部重新核对为新鲜。
+
+## 12. 上游不画圆形国旗，本仓的圆旗是自造（b177）
+
+用户反馈「一般国旗都是方形 最好不要做这种圆形旗帜图案容器」，并附了一张回执裁图：
+香港旗帜是一枚红色奖章。对照上游源码（`/tmp/flclash_src2`，与本仓 pinned 参照同源）：
+
+- `lib/widgets/icon.dart::CommonTargetIcon` 画节点/分组的身份图块，两条通道分别是
+  base64 图标字节与远端图片缓存，**没有任何圆形裁剪**；空/坏图回落
+  `_ImagePlaceholder`，`GroupMonogram` 则取名称首字母大写。两者都装在
+  `SizedBox.square(dimension: size)` 里——上游给身份图块的形状是**方盒**。
+- `lib/views/proxies/list.dart` 的三个图标样式（`contained` / `plain` / `hidden`）
+  只是方盒的容器装饰（`AppShape.all(AppCorner.xl)` 圆角矩形）与显隐，没有 `ClipOval`。
+- 全仓 `BoxShape.circle` 只有三处（`about.dart` 两枚、`backup_and_restore.dart` 一枚），
+  都是头像/徽记，**没有一处用于国旗**。也就是说圆形国旗从来不是对标结论。
+
+本仓的圆形来自两层叠加，都不是审美选择：
+
+1. `FlagIcon` 把资产画进 `border-radius: diameter / 2` + `clip: true` 的容器；
+2. 它消费的清单本身已经是圆形栅格（`variant: "circle-144"`，144px PNG），
+   而 catalog 早已把同样 258 面旗帜按 `flag.<code>` / `variant: "source"` 登记为
+   Twemoji 方形矢量——同一个事实两份库存，UI 又对圆形资产做了第二次圆形裁切。
+
+b177 把形状与清单一次改回事实：`FlagImages.flags` 逐条消费 catalog 的方形矢量；
+`circle-144` 的 258 条记录与 `assets/flags/circle-png/` 从 shared 资产面整体退役；
+`FlagIcon` 画方盒（无 clip、无圆角、`image-fit: contain`），尺寸入口按事实改名
+`size`，五个调用点同批迁移且不留 `diameter` 兼容分支。`lumen-source/` 内的圆形副本
+是逐字节保存的供应商导入快照，由 `slint-source-import-guard.py` 钉住，不属于本仓清单。
+
+实测判据（诊断批 `20261110T101632Z_4a1293928702_dirty_1685609`，`proxies-dark`）：
+组胶囊三枚旗帜墨迹盒 **20×16px、连通率 0.975**，顶行跨度 16 对中行跨度 20——
+圆形容器的顶行只会剩 2–3px 且连通率约 0.785。节点卡旗帜同为 18×14 / 0.984。
+选中态对勾徽记仍是圆形：那是徽记，不是旗帜。
+
+长效机制是 `scripts/quality/slint-flag-shape-guard.py`（SLINT-020，14 项 planted 自测）：
+清单顺序、`flag_assets::index_for_code` 一致性、圆形派生物回归、clip/圆角/cover 与
+退役入口回归全部被咬；`--mode enforce` 与 `--self-test` 双腿接入结构门。

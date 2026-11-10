@@ -83,8 +83,8 @@ copies of upstream path data and are distributed with this project's license.
 For attribution of inspiration: <https://lucide.dev> (ISC).
 
 The 10 white-ink 64px PNG plates in `assets/ui/bevy/png/` are renderer-ready
-rasters derived from that SVG set. The imported Lumen SVGs and flag source/runtime
-assets carry the license files beside the shared catalog entries; their exact
+rasters derived from that SVG set. The imported Lumen SVGs and the flag
+source assets carry the license files beside the shared catalog entries; their exact
 IDs, formats, variants, and provenance are recorded in
 `crates/infiltrator-shared/assets/asset-catalog.json`.
 

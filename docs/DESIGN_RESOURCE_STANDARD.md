@@ -47,6 +47,27 @@
 - 允许存异的前提是写入 `PLATFORM_NATIVE_ICONS` 且带理由。当前仅登记：国旗全彩资产、产品启动图标 OS 密度/ICO 变体、Android 通知/磁贴小图标、Slint 测速旋转帧。未登记差异一律视为违规。
 - 禁止 `-dark.svg`、`-active.svg`、`-white.svg` 等颜色/状态派生文件作为独立资产入库；颜色、active、disabled 由 renderer `colorize`/tint 表达。禁止 `material-icons-extended` 或任何第二套通用图标族进入产品依赖。
 
+### 3.1 国旗是方形资产，只有一个清单（b177 裁决）
+
+- 用户反馈「一般国旗都是方形 最好不要做这种圆形旗帜图案容器」。`flag.<code>` 的
+  **唯一清单**是 `crates/infiltrator-shared/assets/flags/<code>.svg`（258 面 Twemoji
+  方形矢量，`variant: "source"`）。曾经并存的 `variant: "circle-144"` 圆形 144px 栅格
+  派生物（同 258 个 ID 的第二份 artwork）已从 catalog 与 shared 资产目录**整体退役**：
+  同一事实两份库存就是第二个真源，而方形 artwork 再套一层圆容器读起来是奖章而不是旗帜。
+- 呈现侧同样只有一个 owner：`FlagIcon` 画方盒（无 `clip`、无 `border-radius`、
+  `image-fit: contain`），尺寸入口名为 `size`（方盒边长）。旧 `diameter` 是供应商给
+  圆形容器取的名字，本仓已退役该入口——调用点再喂 `diameter` 会被当成「声明了却没人喂的
+  输入」静默忽略，因此 `scripts/quality/slint-flag-shape-guard.py`（SLINT-020）把它钉成
+  结构违规。
+- 索引是 owner ISO 代码与这份清单之间唯一的桥：`FlagImages.flags` 的顺序必须等于 catalog
+  `flag.*` 的顺序，且 `infiltrator-slint` 的 `flag_assets::index_for_code` 必须与之一致；
+  任一漂移都会让一个国家代码画出另一个国家的旗帜，守卫两侧都咬。
+- `crates/infiltrator-slint/lumen-source/assets/flags/circle-png/` 里的圆形副本**保留**：
+  那是逐字节保存的供应商导入快照（由 `slint-source-import-guard.py` 与
+  `SOURCE_IMPORT_MANIFEST.json` 钉住），不是本仓清单，不得被当作可消费的资产。
+- 上游 FlClash 根本不画圆形国旗（行内是 emoji 或两字母文字徽记），因此这条不是「存异」，
+  而是把本仓自造的容器形状改回事实：旗帜归旗帜、圆徽归徽记（选中态对勾仍是圆形）。
+
 ## 4. 适配物生成（唯一写入者）
 
 - `scripts/generate_design_resources.py` 是 Kotlin 字体/字重/排版/语义枚举与 Slint `DesignType` global 的唯一写入者；`scripts/generate_shared_icons.py` 是 Android canonical `ImageVector` 的唯一写入者。
@@ -67,6 +88,7 @@
 8. `IconSemantic` 全部为 Canonical 且每个 catalog ID/文件存在；`PLATFORM_NATIVE_ICONS` 每项理由非空；
 9. Android 语义枚举与 resolver 穷尽覆盖 contract 目录，不创造未登记语义。
 10. 吉祥物主 plate ≥1024px 且通过透明角、alpha (0,255)、真实高频边缘细节门；同一 catalog ID 的 512px hero 绘制档由 shared owner 唯一登记，生成适配物字节一致，surface 目录无第二份青蛙 PNG；资产身份变化必须重采双视口真实像素回执。
+11. 国旗清单只有一个形状（§3.1）：由 `scripts/quality/slint-flag-shape-guard.py`（SLINT-020）在结构门强制——`FlagImages.flags` 必须逐条等于 catalog `flag.*` / `source` 的顺序、`flag_assets::index_for_code` 必须与之一致、shared 目录不得再有 `circle-144` 记录或 `flags/circle-png/`、`FlagIcon` 不得 `clip`/圆角/`cover`，调用点不得喂退役的 `diameter` 入口。
 
 验收证据最少包含：
 
