@@ -494,8 +494,53 @@ b177 把形状与清单一次改回事实：`FlagImages.flags` 逐条消费 cata
   台账是 `scripts/quality/space_utilization_debt_iced.json`；清单里的 `page` 若不在
   契约导出表内，判定器报「用了没人声明过的上限」，不再静默退回档位兜底。
 
-诚实边界（b188 待办，不是本批结论）：Iced 侧矩阵只有 `1180x780` 与 `720x480`
+诚实边界（b189 待办，不是本批结论）：Iced 侧矩阵只有 `1180x780` 与 `720x480`
 两档（后者 medium 是 64 轨道、无折叠钮），**没有 compact 帧**，折叠态也还没有真实
 像素回执；Iced 清单的 `page` 列还是路由名而非形态 slug（`filter`/`mixin`/
 `rules-providers` 三处 12 帧不在导出表内），要先把这列改成契约形态（或为确实独立的
 页补形态）才能让 `--surface iced --enforce` 通过。
+
+## 15. 第三轮反馈：换掉资产族本身，旗帜才是矩形（b188）
+
+同一条用户反馈在 b183（收掉两个调用点的私有圆盘）、b185（收掉方地面与 31% 圆角）之后
+**第三次**出现（2026-11-11，随附当前回执裁图）。这次先把裁图量成事实，避免再按错误的
+模型修：红色像素盒 **76×56**，正是本面身份块的 **38×28 在 2× 显示缩放**下的尺寸，顶行
+内缩约 12 物理像素（≈6u）——即资产自带的 **4-of-36 圆角**加上抗锯齿。b185 之后组件已经
+不再画地面，回执里剩下的「容器」感只可能来自**资产自己**：一幅矩形旗帜外面包着圆角，
+那层圆角就是容器本身。
+
+参照物侧再把三条硬事实对齐（`docs/reference/flclash-desktop/flclash-desktop-dashboard.png`，
+2265×1665 真实桌面截图）：① 侧栏是「字形 + 文字」的目的地行，行内不出现任何旗帜；
+② 活动出口的身份块是一枚 **squircle 底 + 两位国家代码文字**（实测 "US"），不是旗帜图；
+③ 连接表行内是**系统 emoji 旗本身**，没有任何圆形容器。也就是说圆形/圆角旗容器在本仓
+是自造物，参照物从来没有过——与前两轮结论一致。
+
+本仓据此换掉资产族本身，而不是再调一次组件圆角：
+
+- **资产**：`crates/infiltrator-shared/assets/flags/<code>.svg` 统一为 `0 0 640 480` 的
+  **4:3 全出血直角矩形**。255 面取自 [flag-icons](https://github.com/lipis/flag-icons)
+  `flags/4x3/`（MIT，许可文本 `LICENSE-FLAG-ICONS`）；flag-icons 未发布的 `ac`/`ea`/`ta`
+  三面由 Twemoji 原作（CC BY 4.0，`LICENSE-GRAPHICS`）按同一矩形重新铺板。目录说明
+  `flags/NOTICE.md`、根 根第三方声明文件 §6、`asset-catalog.json` 的
+  `license`/`license_path`/`source` 与 About 页归属文案同批更新。
+- **组件**：`FlagIcon` 画 4:3 盒（高 = `size * 3 / 4`，`image-fit: contain`、不 clip、
+  不圆角）；`CountryChip` 取 `side * 3 / 4` 且**不声明任何圆角**；
+  `LumenTheme.country-chip-radius` 作为退役符号删除。b185 的「不超过边长八分之一」随之
+  零容忍化——资产自己都不带圆角了，任何容器圆角都是重犯。
+- **门禁**（SLINT-020 第三版）：持旗容器声明**任何**圆角即违规；`FlagIcon` 必须是 4:3；
+  `CountryChip` 必须取 `side * 3 / 4`；`country-chip-radius` 回到 theme 即违规；清单中
+  每个 SVG 的 viewBox 必须是 `0 0 640 480` 且不得含 Twemoji 圆角模板曲线。
+  planted 自测 21 → **26/26 OK**，`--mode enforce` findings=0。
+- **像素回执**：整批重采发布 `20261110T220049Z_7c92aaf890f3_dirty_2457766`
+  （**199/199，358s**），**28 帧**变化且全部是带旗帜或带归属文案的帧（`overview-*` 10、
+  `proxies-*` 8、`about-*` 4 归属文案、`sidebar-collapsed-*` 2 与
+  `proxies-search-highlight-*` 2），其余 171 帧逐字节不变。旗面指纹：可见红盒仍为
+  **38×28**，但顶行跨度 **32 → 38px**（内缩 3 → 0），即四角完全方化；
+  `space_utilization --enforce` 199 帧 **violations=0**、`receipt-freshness 0`、
+  Slint 侧身份门 0 违规、Slint nextest **386/386**。
+
+顺带记一条工程教训：这批的第一次采集用了工作树里上一轮未提交的**矩阵重排**版本
+（`scripts/capture_slint_scenarios.tsv` 被生成器重写成 4 列、12 个手工附录场景行丢失），
+采集脚本按「不在清单里即过期」删掉了 12 个已发布帧。发现后把该文件还原到 HEAD 再重采：
+199 行齐全、28 帧变化、三条判据全绿。生成器的「保留手工附录行」需要修在它自己身上
+（这批不再夹带矩阵重排），记在 b189。

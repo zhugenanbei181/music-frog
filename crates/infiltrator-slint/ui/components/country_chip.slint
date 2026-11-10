@@ -11,10 +11,11 @@ import { FlagIcon } from "../lumen-flags.slint";
 // rows each painted a private circle around the plate, and the chip that
 // replaced them was a square whose ground still showed as two bands above and
 // below the 36x26 plate, which read as a medallion rather than as a country.
-// The shared assets are 36x36 canvases whose plate occupies rows 5..31, so the
-// chip takes that rectangle's height, shifts the canvas up by its own leading
-// blank, and paints its ground only in the code fallback: a resolved flag is
-// the whole visual. The corner is `LumenTheme.country-chip-radius`.
+// Then the inventory itself still baked a 4-of-36 corner into every asset, and
+// that corner still read as a container. The shared assets are now full-bleed
+// 4:3 artwork with square corners: the chip takes that exact rectangle,
+// declares no corner of its own, and paints a ground only in the code fallback
+// - a resolved flag is the whole visual.
 export component CountryChip inherits Rectangle {
     in property <length> side: 38 * LumenUiScale.unit;
     // The owner's resolved flag; negative is "no flag resolved", which is the
@@ -24,21 +25,16 @@ export component CountryChip inherits Rectangle {
     // The row that holds the chip decides how large its code reads.
     in property <TextRole> code-role: TextRole.label;
 
-    // The plate's share of the 36x36 canvas, in the artwork's own numbers.
-    private property <length> plate-height: root.side * 26 / 36;
-    private property <length> canvas-lead: root.side * 5 / 36;
+    // The plate's own 4:3 geometry, in the artwork's own numbers.
+    private property <length> plate-height: root.side * 3 / 4;
 
     width: root.side;
     height: root.plate-height;
-    border-radius: LumenTheme.country-chip-radius;
     background: root.flag-index >= 0 ? transparent : LumenTheme.zinc-4;
     if root.flag-index >= 0: FlagIcon {
         index: root.flag-index;
         country-code: root.country-code;
         size: root.side;
-        // The canvas's own leading blank, so the plate lands on the chip's
-        // edges instead of leaving a band of chip above and below it.
-        y: -root.canvas-lead;
     }
     if root.flag-index < 0: Text {
         text: root.country-code != "" ? root.country-code.to_uppercase() : "—";

@@ -47,18 +47,24 @@
 - 允许存异的前提是写入 `PLATFORM_NATIVE_ICONS` 且带理由。当前仅登记：国旗全彩资产、产品启动图标 OS 密度/ICO 变体、Android 通知/磁贴小图标、Slint 测速旋转帧。未登记差异一律视为违规。
 - 禁止 `-dark.svg`、`-active.svg`、`-white.svg` 等颜色/状态派生文件作为独立资产入库；颜色、active、disabled 由 renderer `colorize`/tint 表达。禁止 `material-icons-extended` 或任何第二套通用图标族进入产品依赖。
 
-### 3.1 国旗是方形资产，只有一个清单（b177 裁决）
+### 3.1 国旗是矩形资产，只有一个几何（b177 → b185 → b189 裁决）
 
-- 用户反馈「一般国旗都是方形 最好不要做这种圆形旗帜图案容器」。`flag.<code>` 的
-  **唯一清单**是 `crates/infiltrator-shared/assets/flags/<code>.svg`（258 面 Twemoji
-  方形矢量，`variant: "source"`）。曾经并存的 `variant: "circle-144"` 圆形 144px 栅格
-  派生物（同 258 个 ID 的第二份 artwork）已从 catalog 与 shared 资产目录**整体退役**：
-  同一事实两份库存就是第二个真源，而方形 artwork 再套一层圆容器读起来是奖章而不是旗帜。
-- 呈现侧同样只有一个 owner：`FlagIcon` 画方盒（无 `clip`、无 `border-radius`、
-  `image-fit: contain`），尺寸入口名为 `size`（方盒边长）。旧 `diameter` 是供应商给
-  圆形容器取的名字，本仓已退役该入口——调用点再喂 `diameter` 会被当成「声明了却没人喂的
-  输入」静默忽略，因此 `scripts/quality/slint-flag-shape-guard.py`（SLINT-020）把它钉成
-  结构违规。
+- 用户反馈「一般国旗都是方形 最好不要做这种圆形旗帜图案容器」，在 b177（改回方板清单）、
+  b185（去掉私有圆盘与方地面）之后仍被同一条回执复述一次。三次反馈的唯一现实结论：**旗帜
+  是矩形，容器就是这块矩形本身**——只要组件或资产里还留着圆角，回执读到的就是奖章。
+- `flag.<code>` 的**唯一清单**是 `crates/infiltrator-shared/assets/flags/<code>.svg`，且
+  **只有一个几何**：`0 0 640 480` viewBox 的 4:3 全出血矩形、直角。255 面来自 flag-icons
+  （MIT，`LICENSE-FLAG-ICONS`）；`ac`/`ea`/`ta` 三面 flag-icons 未发布，是 Twemoji 原作
+  （CC BY 4.0，`LICENSE-GRAPHICS`）按同一矩形重新铺板的派生件。b177 已退役的
+  `variant: "circle-144"` 圆形 144px 栅格派生物（同 258 个 ID 的第二份 artwork）不得回归。
+- 呈现侧同样只有一个 owner：`FlagIcon` 画 4:3 盒（无 `clip`、无 `border-radius`、
+  `image-fit: contain`、高 = `size * 3 / 4`），尺寸入口名为 `size`（矩形宽）。旧 `diameter`
+  是供应商给圆形容器取的名字，本仓已退役该入口——调用点再喂 `diameter` 会被当成「声明了却
+  没人喂的输入」静默忽略，因此 `scripts/quality/slint-flag-shape-guard.py`（SLINT-020）把它
+  钉成结构违规。
+- **任何持旗容器不得声明圆角**（b185 的「不超过边长八分之一」已在 b189 收紧为零容忍，因为
+  资产自己也不再带圆角），`LumenTheme.country-chip-radius` 作为退役符号不得回到 theme。
+  加重即违规：容器一圆，矩形立刻变奖章。
 - 索引是 owner ISO 代码与这份清单之间唯一的桥：`FlagImages.flags` 的顺序必须等于 catalog
   `flag.*` 的顺序，且 `infiltrator-slint` 的 `flag_assets::index_for_code` 必须与之一致；
   任一漂移都会让一个国家代码画出另一个国家的旗帜，守卫两侧都咬。
@@ -67,6 +73,8 @@
   `SOURCE_IMPORT_MANIFEST.json` 钉住），不是本仓清单，不得被当作可消费的资产。
 - 上游 FlClash 根本不画圆形国旗（行内是 emoji 或两字母文字徽记），因此这条不是「存异」，
   而是把本仓自造的容器形状改回事实：旗帜归旗帜、圆徽归徽记（选中态对勾仍是圆形）。
+- Android / Iced / Bevy 目前不消费这份 Slint 清单（各端旗面由各自条目收口）；一旦接入，
+  只能消费同一矩形几何与同一 owner，不得另建第二套圆角或裁剪。
 
 ## 4. 适配物生成（唯一写入者）
 

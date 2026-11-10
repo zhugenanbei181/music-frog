@@ -2,11 +2,11 @@ import { LumenUiScale } from "lumen-ui-scale.slint";
 import { LumenTheme } from "./components/theme.slint";
 
 export global FlagImages {
-    // One square vector flag per country, in the catalog order of
+    // One rectangular vector flag per country, in the catalog order of
     // `flag.<code>` / variant `source`; `flag_assets::index_for_code` maps the
-    // owner ISO code onto this list. The circular 144px raster derivative is
-    // retired: national flags are rectangular artwork, and a square asset
-    // clipped by a round container reads as a medallion, not a flag.
+    // owner ISO code onto this list. Every asset is the same full-bleed 4:3
+    // plate with square corners: the flag is the artwork, and no container
+    // rounds, clips, or letterboxes it.
     out property <[image]> flags: [
         @image-url("../../infiltrator-shared/assets/flags/ac.svg"),
         @image-url("../../infiltrator-shared/assets/flags/ad.svg"),
@@ -272,12 +272,11 @@ export global FlagImages {
 export component FlagIcon inherits Rectangle {
     in property <int> index: -1;
     in property <string> country-code;
-    // A flag is a square plate, so the box is named for what it is: the side
-    // of the square. `diameter` was the vendor's name for a circle this
-    // surface no longer draws.
+    // A flag is a 4:3 rectangle, so the box is named for its width. `diameter`
+    // was the vendor's name for a circle this surface never draws again.
     in property <length> size: 28 * LumenUiScale.unit;
     width: root.size;
-    height: root.size;
+    height: root.size * 3 / 4;
     background: transparent;
     border-width: 0 * LumenUiScale.unit;
     accessible-role: image;

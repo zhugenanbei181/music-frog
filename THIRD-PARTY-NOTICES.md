@@ -88,6 +88,15 @@ source assets carry the license files beside the shared catalog entries; their e
 IDs, formats, variants, and provenance are recorded in
 `crates/infiltrator-shared/assets/asset-catalog.json`.
 
+## 6. Country flags (`crates/infiltrator-shared/assets/flags/`)
+
+The shared flag inventory is drawn from **flag-icons** (`flags/4x3/`, MIT;
+license kept as `flags/LICENSE-FLAG-ICONS`), renamed to ISO 3166-1 alpha-2
+codes. Three codes flag-icons does not publish (`ac`, `ea`, `ta`) keep squared
+derivatives of the former Twemoji artwork (CC BY 4.0; license kept as
+`flags/LICENSE-GRAPHICS`). Every file is one full-bleed 4:3 rectangle with
+square corners; per-file provenance is recorded in the shared asset catalog.
+
 The imported Slint screen and its reference source are retained under
 `crates/infiltrator-slint/lumen-source/`; the archive hash and per-file import
 manifest are recorded in `lumen-source/SOURCE_IMPORT_MANIFEST.json`. The

@@ -122,7 +122,7 @@
      - `ui/components/models.slint`：跨端结构体定义；
      - `ui/components/base_widgets.slint`：基础交互原子组件（按钮、开关、滑块、输入框等）；
      - `ui/components/cards.slint`：领域卡片与容器；
-     - `ui/components/country_chip.slint`：国家身份块（`CountryChip`）的唯一 owner——**旗帜自己的矩形**（共享资产是 36×36 画布、旗面为其中第 5..31 行的 36×26 矩形，故 chip 取该矩形高度、并把画布上移自身留白，使旗面正好落在 chip 边缘），画 owner 解析出的旗帜，**未解析出时**才画国家代码与底色，圆角只读 `LumenTheme.country-chip-radius`（= 旗面自身 4/36 的圆角，绝不超过边长八分之一）；
+     - `ui/components/country_chip.slint`：国家身份块（`CountryChip`）的唯一 owner——**旗帜自己的矩形**（共享清单已统一为 `0 0 640 480` 的 4:3 全出血直角资产，chip 就取该矩形的 `side * 3 / 4`），画 owner 解析出的旗帜，**未解析出时**才画国家代码与底色；chip 自己不声明任何圆角（`LumenTheme.country-chip-radius` 已随 b188 退役），圆角一旦回到组件或资产，回执就又会读成奖章；
      - `ui/components/sidebar.slint`：桌面侧边导航栏；
      - `ui/components/profile_sheets.slint` 与 `profile_overlays.slint`：配置添加、操作、分享、删除与设置抽屉；
      - `ui/components/settings_sheets.slint` 与 `settings_overlays.slint`：配色、缩放、User-Agent 抽屉与网络接管切换确认弹窗；

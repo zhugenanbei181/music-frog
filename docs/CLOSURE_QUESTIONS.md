@@ -24,19 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-11 第一百八十七批次；b111–b186 见下方批次八问摘要）
+## 当前状态（2026-11-11 第一百八十八批次；b111–b187 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b187 只改 Iced 表面（`src/sidebar_chrome.rs` 新增、`capture_geometry.rs` / `capture_frame.rs` / `demo.rs` / `demo/capture.rs` / `demo/state.rs` / `state/shell.rs` / `state/surface_snapshot.rs` / `types/message.rs` / `update/ui.rs` / `view/sidebar.rs` / `view/components.rs` / `view/theme.rs` 与测试）、判定器脚本、两份共享文案表条目与三份文档，零平台 API、零设备交互；`cargo check -p infiltrator-iced --all-targets --features capture-tools` exit 0、Iced nextest **636/636**、`cargo clippy -p infiltrator-iced --all-targets --features capture-tools -- -D warnings` exit 0 为 `L`；交叉 `scripts/cross-check.sh`、aarch64 产物与目标设备仍由 CI runner / 设备矩阵补证（GAP-1.1） |
-| 2 | 部分 | L | 本机 Linux 完成编译、定向 nextest、定向 clippy、`cargo fmt --check` 与守卫批；本批**无像素重采**（Iced 语料仍是旧批，重采与首份欠账基线是 `SPACEUTIL-012`），Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
-| 3 | 部分 | L | b187 不触 Android/iOS 代码、资源或 wire。Iced 是桌面表面，侧栏回执与判定器选择器只在桌面语料生效；Android Compose 导航与 iOS 产物不受影响，但也没有实机回执可声称 |
-| 4 | 部分 | L | 本批让 Iced 侧栏**开始发布自己的 12 键回执**（`sidebar_chrome.rs` 装配 + `capture_geometry.rs` 三格探针 + `capture_state_ready` 的量全才放行），消费设置 owner 的展开偏好（`resolve_sidebar_expansion` 唯一解析，折叠钮只发 typed intent），并把行几何对齐参照行：整列宽行面、x0 的 3×16 指示条、内容起笔 8、右侧 16、字形 24、行高 44 ⇒ 标签 x44；判定器新增 `--surface {slint,iced}` 并按表面分账。**像素回执仍缺**（见 5a）：Iced 语料仍是 b186 前的旧批，`space_utilization --surface iced` 现在能读回执但还没有带 `CAPTURE_CHROME` 的帧可判 |
-| 5 | 完整 | L | 12 键的键名与线格式只在 `infiltrator_contract::shell_receipt` 一处（Iced 用同一 `to_marker_line()`）；形态解析只在契约 `resolve_sidebar_expansion` 一处，Iced 删掉了「按档位直接选形态」的第二条路径；行几何的起笔取共享阶梯（`NAV_CONTENT_OFFSET_PX` = `space::SM`），字形与行高取本表面 `theme` 的单一份令牌；三个 widget id 与 12 键装配只在 `sidebar_chrome.rs`；判定器的采集根与欠账台账按表面分账（Iced 侧 `space_utilization_debt_iced.json`），Slint 侧输出逐字不变（实测 `199 frames judged … violations=0`） |
-| 5a | 部分 | L | 本批无新字体 / 字重 / 图标族 / 视觉资产（折叠钮复用既有 Lucide chevron 与 `LumenTheme` 令牌，新增两个 ASCII 文案 key），但它是 **Iced 侧栏的可见像素身份变化**（行面改整列宽、起笔 24 → 8、字形 18 → 24、行高 38 → 44、新增折叠钮），**没有 Iced 像素回执**，故按「未取回执」记账＝部分；`design-resource-authority` 无身份变更项；重采与 Iced 首份欠账基线由 `SPACEUTIL-012` 负责 |
-| 6 | 部分 | L | 折叠钮是真实控件而非装饰：它发 `CommandIntent::ApplySidebarExpansion { intent: Toggle }`，偏好由设置 owner 持久化并经 `SettingsPageSnapshot.sidebar_expansion` 读回（`apply_shared_surface_snapshot` 是唯一写入点；demo 由 `INFILTRATOR_SIDEBAR_EXPANSION` 播种）；回执的三格由探针逐帧测量，量不全就不写 marker（新增单测证明）；判定器新增「清单 `page` 形态没人声明即报违规」的诚实腿。诚实边界：`--surface iced --enforce` 现在会对 `filter`/`mixin`/`rules-providers` 三处 12 帧报违规（待 `SPACEUTIL-012` 改清单）；全仓 `screenshot-identity` 剩 1 条仍属另一会话未提交的 Bevy `overview-dark` 像素 |
-| 7 | 完整 | L | 侧栏的「形态 + 回执」从视图里拆出：`sidebar_chrome.rs` 只做偏好×视口的唯一解析、12 键装配与 widget id 常量，探针在 `capture_geometry.rs`，视图只画解析结果并向 owner 发 typed intent；判定器的 Slint 假设被参数化成「表面」而不是复制成第二份判定器（`--surface` 选择根与台账，判定逻辑共用） |
-| 8 | 部分 | L | 本批无像素重采，开销集中在三次定向 nextest、两次定向 clippy、一次 `cargo fmt --check` 与守卫批（同批顺手修掉 b186 留下的 3 处 rustfmt 偏差，使命中路径回到绿）；**未跑全仓统一验证批次**（`cargo nextest --workspace`、`cargo clippy --workspace`、结构门全腿、`resolve_surface_evidence.py`），按仓库纪律留给收口批次一次跑完。本批新立 `SPACEUTIL-012` 2 pt，未办结分母 **115 → 117 pt / 47 → 48 条**（现在佛 12 → 13 条 / 27 → 29 pt），已归档 **1,258 pt / 463 条** 保持，累计 **1,375 pt**，严格交付率 **91.6% → 91.5%** |
+| 1 | 部分 | L | b188 只改 Slint 表面（`ui/lumen-flags.slint`、`ui/components/country_chip.slint`、`ui/components/theme.slint`、`ui/pages/page_about.slint`）、共享资产与目录（`assets/flags/` 258 个 SVG + `asset-catalog.json` + `NOTICE.md`）、文案表（zh/en 两份 `.po`）、守卫 `slint-flag-shape-guard.py`、别名摘要与文档，零平台 API、零设备交互；`cargo check -p infiltrator-slint` exit 0、Slint nextest **386/386**、199 帧重采与三条判据为 `L`；交叉 `scripts/cross-check.sh`、aarch64 与目标机仍由 CI / 设备矩阵补证（GAP-1.1） |
+| 2 | 部分 | L | 本机 Linux 完成编译、定向 nextest、199 帧整批重采（358s）与守卫批；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
+| 3 | 部分 | L | 不触 Android/iOS 代码、资源或 wire。Android 不消费该清单，Iced/Bevy 走 emoji / 国家代码（各自条目收口），故三端产物与实机回执都不受本批影响，也无本批实机可声称 |
+| 4 | 部分 | L | Slint 侧身份块几何统一：`FlagIcon` 4:3（`size * 3 / 4`）、`CountryChip` 取 `side * 3 / 4` 且无圆角、退役 `country-chip-radius`；Iced/Bevy/Android 未接入该清单，本批未改其旗面形态（各自条目收口） |
+| 5 | 完整 | L | 一份清单（`FlagImages.flags` 逐条等于 catalog `flag.*` 顺序、`flag_assets::index_for_code` 与之一致）、一个几何（每个 SVG `0 0 640 480` 全出血直角，由守卫逐文件钉住）、一个 owner（`FlagIcon` 画板、`CountryChip` 取矩形）、零圆角令牌（`country-chip-radius` 删除且守卫拒绝其回归） |
+| 5a | 完整 | L | 本批是**视觉资产身份变化**（258 面旗帜整体换族 + 许可/归属变化）：`asset-catalog.json` 的 `license`/`license_path`/`source`、`flags/NOTICE.md`、`LICENSE-FLAG-ICONS`、根第三方声明文件 §6、About 归属文案与 zh/en `.po`、`DESIGN_RESOURCE_STANDARD.md` §3.1 同批更新；Slint 双视口真实像素回执 `20261110T220049Z_7c92aaf890f3_dirty_2457766`（199/199，28 帧变化，全部为带旗/带归属帧）；`design-resource-authority violations=0` |
+| 6 | 部分 | L | 门禁把用户要求钉成判据：持旗容器任何圆角即违规、`FlagIcon` 必须 4:3、chip 必须 `side * 3 / 4`、退役令牌回 theme 即违规、清单每个 SVG 必须 `0 0 640 480` 且不得含 Twemoji 圆角模板曲线（planted 自测 26/26）。诚实边界：Iced/Bevy 的 emoji 旗形态仍在各自条目，本批不声称三端一致 |
+| 7 | 完整 | L | 资产归资产（`assets/flags/` + catalog）、几何归组件（`FlagIcon` / `CountryChip` 各一处常量）、门禁归守卫（清单/组件/主题三层判据）；没有第二套清单、私有容器或圆角令牌；本批顺带清掉一次误夹带的矩阵重排（还原 `capture_slint_scenarios.tsv` 到 HEAD 后重采） |
+| 8 | 部分 | L | 一次构建 + 一次 199 帧重采（358s）+ 一批守卫，改动面限定在 Slint 一包、共享资产、文案表与文档；**未跑全仓统一验证批次**（`cargo nextest --workspace --no-fail-fast` 与结构门全腿留待收口批次） |
+
+## 最近一批问答（2026-11-11 第一百八十八交付批次：国旗资产族整体方化 / 组件与令牌零圆角）
+
+1. x86_64/aarch64：本批只改 Slint 表面（`ui/lumen-flags.slint`、`ui/components/country_chip.slint`、`ui/components/theme.slint`、`ui/pages/page_about.slint`）、共享资产与目录（`assets/flags/` 258 个 SVG、`asset-catalog.json`、`NOTICE.md`、新增 `LICENSE-FLAG-ICONS`）、zh/en 两份 `.po`、`scripts/quality/slint-flag-shape-guard.py`、`scripts/parity/screenshot_aliases.tsv` 与文档，不含任何架构相关或平台相关代码；`cargo check -p infiltrator-slint` exit 0、Slint nextest **386/386** 为 `L`。交叉 `scripts/cross-check.sh` 与 aarch64 目标产物仍由 CI runner / 设备矩阵补证，故只能写「部分（L）」。
+2. Windows/Linux/macOS：本机 Linux 完成编译、定向 nextest、199 帧整批重采（199/199，358s）与守卫批（`slint-flag-shape-guard --self-test 26/26`、`--mode enforce findings=0`、`space_utilization --enforce violations=0`、`receipt-freshness 0`）；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
+3. Android/iOS：本批不触 Android/iOS 代码、资源或 wire——Android 不消费这份 Slint 清单，Iced/Bevy 走 emoji 与国家代码文本（其旗面形态由各自条目收口），因此三端产物与实机回执均不受影响，也没有本批可取的实机回执 → 部分（L）。
+4. 各 UI：Slint 侧身份块几何一次统一——`FlagIcon` 画 4:3 盒（高 `size * 3 / 4`、`image-fit: contain`、不 clip 不圆角），`CountryChip` 取 `side * 3 / 4` 且不声明任何圆角，`LumenTheme.country-chip-radius` 退役；Iced/Bevy 未接入该清单，本批未改其形态 → 部分（L）。
+5. 复用：每个事实仍只有一个 owner。资产只有 `crates/infiltrator-shared/assets/flags/<code>.svg` 一份（`FlagImages.flags` 逐条等于 catalog `flag.*` 顺序，`flag_assets::index_for_code` 与之一致）；几何只有 `FlagIcon` 的 `size * 3 / 4` 与 `CountryChip` 的 `side * 3 / 4` 两处派生，且都由守卫钉住；圆角令牌 `country-chip-radius` 从 theme 删除，守卫拒绝其回归；持旗容器不再是任何页面的私有内容 → 完整（L）。
+5a. 设计资源强制标准：这是**视觉资产身份变化**（258 面旗帜整体换成 flag-icons 4:3 直角族，255 面 MIT + `ac`/`ea`/`ta` 三面 Twemoji 衍生 CC BY 4.0），因此 `asset-catalog.json` 的 `license`/`license_path`/`source`、`flags/NOTICE.md`、新增 `LICENSE-FLAG-ICONS`、根 根第三方声明文件 §6、About 归属文案与 zh/en 两份 `.po`、`DESIGN_RESOURCE_STANDARD.md` §3.1 同批更新，并取回 **Slint 双视口真实像素回执** `20261110T220049Z_7c92aaf890f3_dirty_2457766`（199/199，358s，28 帧变化且全部为带旗帜或带归属文案的帧）。`design-resource-authority violations=0`、`i18n-guard` 与 `shared-copy-guard` 0 违规 → 完整（L）。
+6. 各处界面的功能接入：门禁把用户要求钉成判据而不是注释——持旗容器声明**任何**圆角即违规（b185 的「不超过边长八分之一」零容忍化）、`FlagIcon` 必须 4:3、`CountryChip` 必须取 `side * 3 / 4`、`country-chip-radius` 回到 theme 即违规、清单中每个 SVG 的 viewBox 必须 `0 0 640 480` 且不得含 Twemoji 圆角模板曲线，全部有对应 planted 负例（自测 21 → **26/26 OK**）。诚实边界：Iced/Bevy 的 emoji 旗形态仍在各自条目，本批不声称三端一致 → 部分（L）。
+7. 模块化：资产归资产（`assets/flags/` + catalog 单一清单）、几何归组件（`FlagIcon` / `CountryChip` 各一处派生）、门禁归守卫（清单几何 / 组件 / 主题三层判据各一条腿），页面不再持有任何容器或兜底文案；本批还顺带清掉一次误夹带的矩阵重排（发现 `capture_slint_scenarios.tsv` 被生成器重写成 4 列并丢掉 12 个手工附录场景行后，还原到 HEAD 再重采） → 完整（L）。
+8. CI 与批次效率：一次构建 + 一次 199 帧重采（358s）+ 一批守卫，改动面限定在 Slint 一包、共享资产、文案表、守卫与文档，符合「一组一收口」；**未跑全仓统一验证批次**（`cargo nextest --workspace --no-fail-fast`、clippy 与结构门全腿由收口批次一次跑完），且 `--features capture-tools` 下 `tests/capture_marker_tests.rs` 的既有编译失败按 b154/b180 记录仍属他人欠账、本批不越权修 → 部分（L）。
 
 ## 最近一批问答（2026-11-11 第一百八十七交付批次：Iced 侧栏发布自己的 chrome 回执 / 行几何对齐参照行）
 

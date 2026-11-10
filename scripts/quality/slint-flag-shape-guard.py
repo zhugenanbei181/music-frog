@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SLINT-020: national flags are square artwork, painted from one inventory.
+"""SLINT-020: national flags are rectangular artwork, painted from one inventory.
 
 User feedback 2026-11-10: "一般国旗都是方形 最好不要做这种圆形旗帜图案容器" -
 the receipt showed the Hong Kong flag as a red medallion. Three things were
@@ -21,8 +21,14 @@ wrong at once, and they were not cosmetic:
   same complaint, which is why the ground is now the fallback's alone and the
   corner is held at or below an eighth of the chip side.
 
-FlClash paints no circular flag at all: its rows carry an emoji or a two-letter
-text badge, so the circle was never a parity decision either.
+The same feedback held a third time (2026-11-11, the receipt of that second
+pass): keeping the artwork's own 4-of-36 corner still read as a container at
+UI scale, because a rounded rectangle around a flag IS the container. The
+inventory was therefore replaced by the square-corner flag-icons 4:3 set, the
+chip declares no corner at all, and the corner token is retired so no surface
+can reintroduce one. FlClash paints no circular flag either: its rows carry an
+emoji or a two-letter text badge, so a rounded plate was never a parity
+decision.
 
 The rules this guard holds:
 
@@ -33,22 +39,24 @@ The rules this guard holds:
    catalog and no `flags/circle-png/` directory. The verbatim Lumen import under
    `lumen-source/` keeps its own copy - that is the vendor snapshot, not ours.
 3. `FlagIcon` draws a square plate: no clip, no radius, `image-fit: contain`,
-   and its size input is `size`. `diameter` is a retired entry, so a call site
-   that feeds it again is caught rather than silently ignored.
+   and its size input is `size`, whose height is the artwork's own 3/4 ratio.
+   `diameter` is a retired entry, so a call site that feeds it again is caught
+   rather than silently ignored.
 4. A call site never wraps a plate in a container of its own: the two home
    rows each declared a private `Rectangle` with a `background`, which is how
    they drifted from the shared chip and kept a circle nobody else drew. The
    shared `CountryChip` is the only element that may paint behind a plate.
-5. No container that holds a plate may declare a corner over an eighth of its
-   side. `border-radius: side / 2` on a square is a disc, and even the
-   reference's 31% corner crops a rectangular flag into a medallion.
-6. That corner is `LumenTheme.country-chip-radius`, and both of its values are
-   at or below an eighth of the smallest chip side any call site feeds - the
-   artwork's own corner is 4 of 36, so the chip never rounds more than its
-   plate.
+5. No container that holds a plate may declare a corner at all. A rectangle
+   inside a rounded container reads as a medallion whatever the radius is, so
+   the eighth-of-the-side allowance is gone with the rounded artwork.
+6. `LumenTheme.country-chip-radius` is retired: a corner token that exists is a
+   corner waiting to be spent, and the chip must not name one.
 7. The chip declares its ground (`background`) conditionally on the flag
    index: a resolved flag is the whole visual, and only the code fallback
    paints a tile.
+8. The inventory is one geometry: every `flags/*.svg` is a `0 0 640 480`
+   viewBox carrying a full-bleed plate, and no file reintroduces the Twemoji
+   rounded-plate curve that started this.
 """
 
 from __future__ import annotations
@@ -59,12 +67,14 @@ import pathlib
 import re
 import sys
 import unittest
+import xml.etree.ElementTree as ET
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 SLINT = ROOT / "crates/infiltrator-slint/ui/lumen-flags.slint"
 RUST = ROOT / "crates/infiltrator-slint/src/flag_assets.rs"
 CATALOG = ROOT / "crates/infiltrator-shared/assets/asset-catalog.json"
 SHARED_CIRCLE_DIR = ROOT / "crates/infiltrator-shared/assets/flags/circle-png"
+FLAGS_DIR = ROOT / "crates/infiltrator-shared/assets/flags"
 UI_ROOT = ROOT / "crates/infiltrator-slint/ui"
 PILL = ROOT / "crates/infiltrator-slint/ui/components/proxy_picker.slint"
 CHIP = ROOT / "crates/infiltrator-slint/ui/components/country_chip.slint"
@@ -77,11 +87,9 @@ COMPONENT_RE = re.compile(r"export component FlagIcon inherits Rectangle \{")
 CHIP_COMPONENT_RE = re.compile(r"export component CountryChip inherits Rectangle \{")
 RETIRED_SIZE_ENTRY = re.compile(r"\bdiameter\s*:")
 FLAG_CHILD_RE = re.compile(r"(?:^|:)\s*FlagIcon$")
-LENGTH_DECL_RE = re.compile(
-    r"\b(width|height|border-radius)\s*:\s*(\d+(?:\.\d+)?)\s*\*\s*LumenUiScale\.unit\s*;"
-)
-CHIP_RADIUS_RE = re.compile(r"country-chip-radius\s*:\s*([^;]+);")
-CHIP_SIDE_RE = re.compile(r"CountryChip\s*\{[^}]*?\bside:\s*(\d+(?:\.\d+)?)\s*\*", re.S)
+CORNER_DECL_RE = re.compile(r"\bborder-radius\s*:\s*([^;]+);")
+FLAG_VIEWBOX = "0 0 640 480"
+ROUNDED_PLATE_MARKER = "2.209-1.791 4-4 4"
 
 
 def mask_comments(source: str) -> str:
@@ -230,14 +238,15 @@ def own_declarations(block: dict, text: str) -> str:
     return "".join(pieces)
 
 
-def disc_corner(own: str) -> tuple[float, float] | None:
-    """The (radius, side) of a container whose corner exceeds an eighth of its side."""
-    declarations = {name: float(value) for name, value in LENGTH_DECL_RE.findall(own)}
-    radius = declarations.get("border-radius")
-    if radius is None or "width" not in declarations or "height" not in declarations:
-        return None
-    side = min(declarations["width"], declarations["height"])
-    return (radius, side) if radius * 8 > side else None
+def container_corner(own: str) -> str | None:
+    """The radius literal of a container that rounds itself, whatever it is.
+
+    The old rule allowed a corner up to an eighth of the side, because the
+    artwork carried its own 4-of-36 corner. The artwork no longer carries one,
+    so any corner a container declares is a corner nobody asked for.
+    """
+    match = CORNER_DECL_RE.search(own)
+    return " ".join(match.group(1).split()) if match else None
 
 
 def plate_container_findings(files: dict[pathlib.Path, str], chip: pathlib.Path) -> list[str]:
@@ -257,26 +266,35 @@ def plate_container_findings(files: dict[pathlib.Path, str], chip: pathlib.Path)
                     f"{relative}: a hand-written container paints behind a flag plate; "
                     "`CountryChip` is the one owner of a plate's container"
                 )
-            corner = disc_corner(own)
+            corner = container_corner(own)
             if corner is not None:
                 found.append(
-                    f"{relative}: a plate's container declares a {corner[0]}u corner on a "
-                    f"{corner[1]}u side, over an eighth of the side: a rectangle inside a "
-                    "corner that round reads as a medallion"
+                    f"{relative}: a plate's container declares `border-radius: {corner}`; a "
+                    "flag is a rectangle, and any rounded container around it reads as a "
+                    "medallion"
                 )
     return found
 
 
 def chip_findings(chip_text: str) -> list[str]:
-    """The shared chip exists, takes its corner from the theme, never clips, and
-    paints its ground only for the code fallback."""
+    """The shared chip exists, declares no corner, takes the plate's own 4:3
+    rectangle, never clips, and paints its ground only for the code fallback."""
     code = mask_comments(chip_text)
     body = component_body(code, CHIP_COMPONENT_RE)
     if not body:
         return ["the shared country chip is gone; a flag slot would own a private container again"]
     found: list[str] = []
-    if "border-radius: LumenTheme.country-chip-radius;" not in body:
-        found.append("CountryChip no longer takes its corner from `LumenTheme.country-chip-radius`")
+    corner = CORNER_DECL_RE.search(body)
+    if corner is not None:
+        found.append(
+            f"CountryChip declares `border-radius: {' '.join(corner.group(1).split())}`; a flag "
+            "chip is the plate's own rectangle and has no corner to round"
+        )
+    if "plate-height: root.side * 3 / 4;" not in body:
+        found.append(
+            "CountryChip no longer takes the plate's own 4:3 geometry (`side * 3 / 4`); the "
+            "inventory is one full-bleed 640x480 rectangle"
+        )
     if re.search(r"\bclip:\s*true", body):
         found.append("CountryChip clips its plate; a square plate needs no clip")
     ground = re.search(r"\bbackground\s*:\s*([^;]+);", body)
@@ -290,25 +308,49 @@ def chip_findings(chip_text: str) -> list[str]:
     return found
 
 
-def chip_corner_findings(theme_text: str, call_sites: dict[pathlib.Path, str]) -> list[str]:
-    """One corner token, and no chip side small enough for it to be a medallion."""
-    match = CHIP_RADIUS_RE.search(mask_comments(theme_text))
-    if match is None:
-        return ["`LumenTheme.country-chip-radius` is gone; the chip corner would be a literal"]
-    radii = [float(value) for value in re.findall(r"(\d+(?:\.\d+)?)\s*\*", match.group(1))]
-    if not radii:
-        return ["`LumenTheme.country-chip-radius` carries no length literal to check"]
-    sides = [
-        float(value)
-        for text in call_sites.values()
-        for value in CHIP_SIDE_RE.findall(mask_comments(text))
-    ]
-    if sides and max(radii) * 8 > min(sides):
+def theme_token_findings(theme_text: str) -> list[str]:
+    """The retired corner token must not come back: a token is a corner waiting
+    to be spent on the medallion the receipts already rejected twice."""
+    if re.search(r"country-chip-radius", mask_comments(theme_text)):
         return [
-            f"`LumenTheme.country-chip-radius` reaches {max(radii)}u against the smallest "
-            f"chip side {min(sides)}u, over an eighth of the side: that is the medallion again"
+            "`LumenTheme.country-chip-radius` is back in the theme; the chip has no corner, so "
+            "the token is a retired entry"
         ]
     return []
+
+
+def inventory_findings(entries: dict[str, str]) -> list[str]:
+    """Every flag asset is one geometry: a full-bleed 4:3 rectangle.
+
+    The proof that the plate has square corners is a pixel receipt; this is the
+    cheap half - the family that started this (36x36 canvases with a rounded
+    plate) cannot come back unnoticed, and neither can the corner curve itself.
+    """
+    found: list[str] = []
+    for name, text in sorted(entries.items()):
+        try:
+            root = ET.fromstring(text)
+        except ET.ParseError as exc:
+            found.append(f"{name}: not parseable SVG ({exc})")
+            continue
+        viewbox = root.get("viewBox")
+        if viewbox != FLAG_VIEWBOX:
+            found.append(
+                f"{name}: viewBox {viewbox!r} is not the shared {FLAG_VIEWBOX} rectangle"
+            )
+        if ROUNDED_PLATE_MARKER in text:
+            found.append(
+                f"{name}: the rounded Twemoji plate curve is back; the plate is a full-bleed "
+                "rectangle with square corners"
+            )
+    return found
+
+
+def flag_inventory() -> dict[str, str]:
+    return {
+        path.name: path.read_text(encoding="utf-8")
+        for path in sorted(FLAGS_DIR.glob("*.svg"))
+    }
 
 
 def violations(
@@ -318,6 +360,7 @@ def violations(
     call_sites: dict[pathlib.Path, str],
     chip_text: str,
     theme_text: str,
+    flags: dict[str, str],
 ) -> list[str]:
     found: list[str] = []
     code = mask_comments(slint_text)
@@ -350,23 +393,29 @@ def violations(
         found.append("FlagIcon is missing; the surface has no single flag plate owner")
     else:
         if re.search(r"\bclip:\s*true", body):
-            found.append("FlagIcon clips its plate: a flag is a square, not a circle")
+            found.append("FlagIcon clips its plate: a flag is a rectangle, not a circle")
         if re.search(r"border-radius:", body):
             found.append("FlagIcon rounds its plate: the artwork owns its own corners")
         if "image-fit: contain" not in body:
             found.append(
-                "FlagIcon must draw the square with image-fit: contain; cover on a square "
-                "asset crops the artwork itself"
+                "FlagIcon must draw the plate with image-fit: contain; cover on a 4:3 asset "
+                "crops the artwork itself"
             )
         if "in property <length> size:" not in body:
             found.append("FlagIcon no longer names its plate side `size`")
+        if "height: root.size * 3 / 4;" not in body:
+            found.append(
+                "FlagIcon no longer takes the artwork's own 3/4 ratio; a square box would "
+                "letterbox every flag it draws"
+            )
 
     return (
         found
         + call_site_findings(call_sites)
         + plate_container_findings(call_sites, CHIP)
         + chip_findings(chip_text)
-        + chip_corner_findings(theme_text, call_sites)
+        + theme_token_findings(theme_text)
+        + inventory_findings(flags)
     )
 
 
@@ -388,6 +437,7 @@ def live_violations() -> list[str]:
         ui_call_site_texts(),
         CHIP.read_text(encoding="utf-8"),
         THEME.read_text(encoding="utf-8"),
+        flag_inventory(),
     )
 
 
@@ -399,6 +449,7 @@ class GuardSelfTest(unittest.TestCase):
         self.call_sites = {PILL: PILL.read_text(encoding="utf-8")}
         self.chip = CHIP.read_text(encoding="utf-8")
         self.theme = THEME.read_text(encoding="utf-8")
+        self.flags = flag_inventory()
 
     def findings(
         self,
@@ -408,6 +459,7 @@ class GuardSelfTest(unittest.TestCase):
         call_sites: dict[pathlib.Path, str] | None = None,
         chip: str | None = None,
         theme: str | None = None,
+        flags: dict[str, str] | None = None,
     ) -> list[str]:
         return violations(
             self.slint if slint is None else slint,
@@ -416,6 +468,7 @@ class GuardSelfTest(unittest.TestCase):
             self.call_sites if call_sites is None else call_sites,
             self.chip if chip is None else chip,
             self.theme if theme is None else theme,
+            self.flags if flags is None else flags,
         )
 
     def test_live_tree_is_clean(self) -> None:
@@ -481,6 +534,14 @@ class GuardSelfTest(unittest.TestCase):
             self.findings(slint=planted),
         )
 
+    def test_a_square_plate_box_is_caught(self) -> None:
+        planted = self.slint.replace("height: root.size * 3 / 4;", "height: root.size;", 1)
+        self.assertNotEqual(planted, self.slint)
+        self.assertTrue(
+            any("3/4 ratio" in item for item in self.findings(slint=planted)),
+            self.findings(slint=planted),
+        )
+
     def test_an_index_that_disagrees_with_the_inventory_is_caught(self) -> None:
         # Moving one code to the end of the ladder is the real failure mode: the
         # owner resolves a country, and the surface paints another country.
@@ -541,7 +602,7 @@ class GuardSelfTest(unittest.TestCase):
             )
         }
         found = self.findings(call_sites=planted)
-        self.assertTrue(any("over an eighth of the side" in item for item in found), found)
+        self.assertTrue(any("reads as a medallion" in item for item in found), found)
 
     def test_the_reference_tile_corner_is_caught(self) -> None:
         """The reference's 31% tile is the medallion the receipt showed."""
@@ -556,10 +617,10 @@ class GuardSelfTest(unittest.TestCase):
             )
         }
         found = self.findings(call_sites=planted)
-        self.assertTrue(any("over an eighth of the side" in item for item in found), found)
+        self.assertTrue(any("reads as a medallion" in item for item in found), found)
 
-    def test_a_plate_corner_container_is_clean(self) -> None:
-        """An eighth of the side is the artwork's own corner, so it is allowed."""
+    def test_the_artworks_own_old_corner_is_caught_too(self) -> None:
+        """The 4-of-36 corner the third receipt rejected is now a finding as well."""
         planted = {
             ROOT / "planted.slint": (
                 "Rectangle {\n"
@@ -570,21 +631,15 @@ class GuardSelfTest(unittest.TestCase):
                 "}\n"
             )
         }
-        found = [item for item in self.findings(call_sites=planted) if "planted.slint" in item]
-        self.assertEqual(found, [])
+        found = self.findings(call_sites=planted)
+        self.assertTrue(any("reads as a medallion" in item for item in found), found)
 
-    def test_a_chip_corner_that_reaches_half_the_side_is_caught(self) -> None:
-        planted_theme = self.theme.replace(
-            "country-chip-radius: root.compact-layout ? 3.5 * LumenUiScale.unit : 4 * LumenUiScale.unit;",
-            "country-chip-radius: root.compact-layout ? 8 * LumenUiScale.unit : 8 * LumenUiScale.unit;",
-            1,
+    def test_the_retired_corner_token_coming_back_is_caught(self) -> None:
+        planted_theme = self.theme + (
+            "    out property <length> country-chip-radius: 4 * LumenUiScale.unit;\n"
         )
-        self.assertNotEqual(planted_theme, self.theme)
-        planted_sites = {
-            ROOT / "planted.slint": "CountryChip {\n    side: 32 * LumenUiScale.unit;\n}\n"
-        }
-        found = self.findings(call_sites=planted_sites, theme=planted_theme)
-        self.assertTrue(any("that is the medallion again" in item for item in found), found)
+        found = self.findings(theme=planted_theme)
+        self.assertTrue(any("retired entry" in item for item in found), found)
 
     def test_a_chip_ground_behind_a_resolved_flag_is_caught(self) -> None:
         """The chip's ground is the fallback's alone; a flag is the whole visual."""
@@ -597,15 +652,34 @@ class GuardSelfTest(unittest.TestCase):
         found = self.findings(chip=planted)
         self.assertTrue(any("one ground for both states" in item for item in found), found)
 
-    def test_a_chip_corner_that_is_not_the_token_is_caught(self) -> None:
+    def test_a_chip_that_rounds_itself_is_caught(self) -> None:
         planted = self.chip.replace(
-            "border-radius: LumenTheme.country-chip-radius;",
+            "    background: root.flag-index >= 0 ? transparent : LumenTheme.zinc-4;",
             "border-radius: 12 * LumenUiScale.unit;",
             1,
         )
         self.assertNotEqual(planted, self.chip)
         found = self.findings(chip=planted)
-        self.assertTrue(any("no longer takes its corner" in item for item in found), found)
+        self.assertTrue(any("no corner to round" in item for item in found), found)
+
+    def test_a_rounded_inventory_file_is_caught(self) -> None:
+        """The family that started this: a 36x36 canvas with the rounded plate."""
+        planted = dict(self.flags)
+        planted["zz.svg"] = (
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36">'
+            '<path fill="#DE2910" d="M36 27c0 2.209-1.791 4-4 4H4c-2.209 0-4-1.791-4-4V9'
+            'c0-2.209 1.791-4 4-4h28c2.209 0 4 1.791 4 4v18z"/></svg>'
+        )
+        found = self.findings(flags=planted)
+        self.assertTrue(any("zz.svg" in item and "rectangle" in item for item in found), found)
+
+    def test_a_plate_whose_ratio_drifted_is_caught(self) -> None:
+        planted = self.chip.replace(
+            "plate-height: root.side * 3 / 4;", "plate-height: root.side * 26 / 36;", 1
+        )
+        self.assertNotEqual(planted, self.chip)
+        found = self.findings(chip=planted)
+        self.assertTrue(any("4:3 geometry" in item for item in found), found)
 
     def test_the_shared_circle_derivative_stays_retired(self) -> None:
         self.assertFalse(

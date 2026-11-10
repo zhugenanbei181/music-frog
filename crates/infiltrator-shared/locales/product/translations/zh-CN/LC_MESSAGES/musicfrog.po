@@ -163,8 +163,8 @@ msgstr "打断连接"
 msgid "代理"
 msgstr "代理"
 
-msgid "代理节点旗帜图形使用 Twemoji，© Twitter, Inc. 和贡献者，CC BY 4.0。"
-msgstr "代理节点旗帜图形使用 Twemoji，© Twitter, Inc. 和贡献者，CC BY 4.0。"
+msgid "代理节点旗帜图形使用 flag-icons（MIT），ac/ea/ta 三面为 Twemoji 方形化衍生（CC BY 4.0）。"
+msgstr "代理节点旗帜图形使用 flag-icons（MIT），ac/ea/ta 三面为 Twemoji 方形化衍生（CC BY 4.0）。"
 
 msgid "代理链路"
 msgstr "代理链路"
