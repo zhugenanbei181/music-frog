@@ -916,7 +916,7 @@ def _chrome(width: int, height: int, **override) -> dict:
         "scale_percent": 100,
         "sidebar_expansion": "expanded",
         "touch_surface": 0,
-        "sidebar_toggle_px": 66 if labelled and form != "bottom_nav" else 0,
+        "sidebar_toggle_px": 106 if labelled and form != "bottom_nav" else 0,
     }
     chrome.update(override)
     return chrome
@@ -1271,9 +1271,9 @@ class SelfTest(unittest.TestCase):
 
     def test_a_shell_toggle_band_is_not_the_navigation_leading(self) -> None:
         image = _desktop_body()
-        _fill(image, 40, 56, 38, 42, INK)
+        _fill(image, 80, 96, 38, 42, INK)
         _labelled_nav(image, first_x=8)
-        chrome = _chrome(1180, 780, nav_content_offset_px=8, sidebar_toggle_px=66)
+        chrome = _chrome(1180, 780, nav_content_offset_px=8, sidebar_toggle_px=106)
         entry = self.measure_one(image, chrome=chrome)
         self.assertEqual(entry.get("painted_nav_leading_px"), 8, entry)
         self.assertEqual(leading_findings([entry]), [], entry)

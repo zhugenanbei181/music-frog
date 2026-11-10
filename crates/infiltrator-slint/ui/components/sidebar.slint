@@ -41,9 +41,7 @@ export component DesktopSideBar inherits Rectangle {
         root.nav-content-offset = root.labelled
             ? LumenTheme.rail-content-leading
             : 0 * LumenUiScale.unit;
-        root.sidebar-toggle = LumenTheme.sidebar-toggle-available
-            ? LumenTheme.rail-vertical-inset + LumenTheme.rail-row-height + LumenTheme.rail-item-gap
-            : 0 * LumenUiScale.unit;
+        root.sidebar-toggle = 0 * LumenUiScale.unit;
     }
 
     // The stack's extent is the last destination row's own bottom edge, and
@@ -101,6 +99,18 @@ export component DesktopSideBar inherits Rectangle {
         if LumenTheme.sidebar-toggle-available: Rectangle {
             height: LumenTheme.rail-row-height;
             background: transparent;
+            init => {
+                root.sidebar-toggle = self.absolute-position.y + self.height
+                    + LumenTheme.rail-item-gap;
+            }
+            changed absolute-position => {
+                root.sidebar-toggle = self.absolute-position.y + self.height
+                    + LumenTheme.rail-item-gap;
+            }
+            changed height => {
+                root.sidebar-toggle = self.absolute-position.y + self.height
+                    + LumenTheme.rail-item-gap;
+            }
 
             toggle-touch := TouchArea {
                 width: parent.width;
