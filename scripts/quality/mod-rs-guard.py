@@ -5,6 +5,12 @@ Under Rust 2018+ module resolution rules and this repository's architectural sta
 the legacy Rust 2015 `foo/mod.rs` layout is strictly forbidden.
 All modules must be organized using the standard `foo.rs` (+ optional `foo/` directory) pattern.
 
+The scanned tree is the product tree. Hidden directories are tool/configuration
+trees (`.git`, `.cargo`, `.github`, `.config`, `.claude`) or the gitignored local
+staging area L0 designates for work in progress (`.evidence/`), so a vendor
+checkout parked under `.evidence/wip/` must not be able to redden the gate. No
+tracked file lives under a hidden directory, so this narrows nothing real.
+
 Usage:
     python3 scripts/quality/mod-rs-guard.py [--mode report|enforce]
     python3 scripts/quality/mod-rs-guard.py --self-test
@@ -32,9 +38,12 @@ def find_mod_rs_violations(root: Path) -> list[Path]:
     """Scan root for any mod.rs files outside of excluded directories."""
     violations: list[Path] = []
     for path in root.rglob("mod.rs"):
-        if any(part in EXCLUDED_PARTS for part in path.parts):
+        relative = path.relative_to(root)
+        if any(part in EXCLUDED_PARTS for part in relative.parts):
             continue
-        violations.append(path.relative_to(root))
+        if any(part.startswith(".") for part in relative.parts):
+            continue
+        violations.append(relative)
     return sorted(violations)
 
 
@@ -100,6 +109,21 @@ class TestModRsGuard(unittest.TestCase):
 
             violations = find_mod_rs_violations(tmppath)
             self.assertEqual(violations, [])
+
+    def test_find_mod_rs_violations_ignores_hidden_staging_trees(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir)
+            scratch = tmppath / ".evidence" / "wip" / "vendor" / "src" / "foo" / "mod.rs"
+            scratch.parent.mkdir(parents=True)
+            scratch.write_text("// another session's checkout", encoding="utf-8")
+            real = tmppath / "crates" / "demo" / "src" / "bar" / "mod.rs"
+            real.parent.mkdir(parents=True)
+            real.write_text("// product source", encoding="utf-8")
+
+            violations = find_mod_rs_violations(tmppath)
+            self.assertEqual(violations, [Path("crates/demo/src/bar/mod.rs")])
 
 
 if __name__ == "__main__":

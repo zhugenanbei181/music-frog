@@ -24,19 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-10 第一百七十八批次；b111–b173 见下方批次八问摘要）
+## 当前状态（2026-11-10 第一百八十批次；b111–b173 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b178 只改一条 Python 判据的测量域与守卫自测，零 Rust、零平台 API、零设备交互；`py_compile`、`--mode enforce`（5 registered boundaries, 5 sites, no panic=abort）与 `--self-test` **5/5 OK** 为 `L`；交叉 `scripts/cross-check.sh`、aarch64 产物与目标设备仍由 CI runner / 设备矩阵补证（GAP-1.1） |
-| 2 | 部分 | L | 本机 Linux 完成守卫双腿、367 项质量脚本单测、文档治理与收口门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
-| 3 | 部分 | L | b178 不触 Android/iOS 代码、资源或 wire；三 flavor 实机交互与 iOS 回执仍由外部环境看板 owner 补证 |
-| 4 | 部分 | L | 本批只修 panic 守卫的扫描域，不改任何 UI 表面或像素；各表面验收仍由各自条目推进 |
-| 5 | 完整 | L | 两条腿（`catch_unwind` 源码扫描与 `panic = "abort"` manifest 扫描）现在共用同一份 `SCAN_ROOTS` 声明，测量域只有一处定义；未新增常量、未新增第二份扫描根 |
+| 1 | 部分 | L | b180 只重排 Slint 演示宿主的快照构建源码与一条 Python 判据的扫描域，零平台 API、零设备交互；`cargo check -p infiltrator-slint`（默认特性）零警告、`cargo clippy -p infiltrator-slint --all-targets -- -D warnings` **exit 0**、Slint nextest **384/384** 为 `L`；交叉 `scripts/cross-check.sh`、aarch64 产物与目标设备仍由 CI runner / 设备矩阵补证（GAP-1.1） |
+| 2 | 部分 | L | 本机 Linux 完成编译、clippy、定向 nextest 与 `check-structure.sh` 的 176/177 条腿；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
+| 3 | 部分 | L | b180 不触 Android/iOS 代码、资源或 wire；三 flavor 实机交互与 iOS 回执仍由外部环境看板 owner 补证 |
+| 4 | 部分 | L | 本批只把演示宿主的快照构建沿业务缝拆开，不改任何页面几何、文案、wire 或像素；各表面验收仍由各自条目推进 |
+| 5 | 完整 | L | 搬移后每个事实仍只有一个写者——运行时基线归 `demo/baseline.rs`、六个页面读模型归 `demo/pages.rs`、`demo.rs` 只做装配；原先写在函数内的 `MB` 常量提升为两个子模块共用的一处声明；同批删掉 `DemoProductHost::new` 里对 `snapshot.origin` 的第二处重复赋值（`apply_runtime_baseline` 已发布同一 value，幂等），重复写者清零 |
 | 5a | 完整 | L | 本批不改字体/字重/图标/主题/资产身份，也不触 wire、快照或语料；沿用 b177 发布批 `20261110T102949Z_4a1293928702_dirty_1766474`，复核 `receipt-freshness 0`、`design-resource-authority 0`、空间 199 帧 `violations=0` |
-| 6 | 部分 | L | 守卫 planted 自测 4 → **5/5**（`.evidence/wip/` 暂存树不被扫这条新负例被咬，产品路径两条旧负例原样保留），`python3 -m unittest discover -s scripts/quality/tests` **367/367 OK**（此前 2 failed）；全仓 `check-structure.sh`、全量 clippy 与 `resolve_surface_evidence.py` 仍受另一会话 Bevy/依赖钉版 WIP 阻塞，由统一收口 owner 补证 |
-| 7 | 完整 | L | 改动集中在 `scripts/quality/panic-boundary-guard.py` 一个文件的 `_manifests()` 与一条 planted 自测；扫描根仍是模块级唯一声明，与 `scan()` 共用，无第二份域定义 |
-| 8 | 部分 | L | 本批把「gitignored 暂存区能让结构门判红」修在门上而不是放宽判据，且零重采成本（不改像素）；全仓统一验证与 5 条 `Integrated`（含 b177 的 `SLINT-020`）仍由收口 owner 一次跑完，严格交付率保持 **92.3%**（1,258/1,363） |
+| 6 | 部分 | L | `line-guard --mode enforce` 2946 文件 **violations=0**（原 1）、`import-guard --mode enforce` 2946 文件 **0**、`mod-rs-guard --self-test` **3/3 OK** 且 `--mode enforce` OK（原 6）；`check-structure.sh` 177 腿里 **176 腿绿**，唯一红腿 `screenshot-identity-guard` 的归属由字节证明——HEAD 上 `bevy/runtime-dark.png` 与 `bevy/overview-dark.png` 的 sha256 同为 `4006cda9659a…`（别名成立），工作树里前者未变、后者已被另一会话改动，本批零 Bevy 改动，且把该腿之后的 **152 条腿**单独跑完为 **exit 0**；全仓 `--workspace` nextest/clippy 与 `resolve_surface_evidence.py` 仍受该 WIP 阻塞 |
+| 7 | 完整 | L | `demo.rs` **822 → 311** 非注释行（总行 958 → 403），新增 `demo/baseline.rs`（142 非注释行）与 `demo/pages.rs`（413 非注释行），三者均落在 800 行预算内且沿业务缝而非按行数切分；搬移前后 `demo*` 代码行（去注释去空行）多重集比对显示移除行与新增行只有导入、函数签名、`PageData::ready(...)` 包装与 `}` 收尾等胶水，**零数据字面量改变**（纯搬移）；`mod-rs-guard` 扫描域同时收窄为产品树，实测 `git ls-files` 下隐藏目录内 `*.rs` 0 条、全仓被跟踪 `mod.rs` 0 条，无跨 UI 私有业务真源 |
+| 8 | 部分 | L | 本批把两条红腿（`line-guard` 的 822 行模块预算、`mod-rs-guard` 把 gitignored `.evidence/` 暂存树算进产品树）都修在门上而不是放宽判据，且不改像素因此零重采成本；`mod-rs-guard` planted 自测 2 → **3/3**（新增「隐藏暂存树里的 `mod.rs` 不被扫、同一棵树里非隐藏路径仍被咬」）。全仓统一验证与 5 条 `Integrated`（含 b177 的 `SLINT-020`）仍由收口 owner 一次跑完，严格交付率保持 **1,258 / 1,363 = 92.3%** |
+
+## 最近一批问答（2026-11-10 第一百八十交付批次：demo 快照沿业务缝拆成 baseline/pages / 结构门 line 预算与 `mod.rs` 扫描域回到绿）
+
+1. x86_64/aarch64：本批只重排 `crates/infiltrator-slint/src/demo*` 的源码结构与一条 Python 判据的扫描域，零平台 API、零设备交互；`cargo check -p infiltrator-slint`（默认特性）零警告、`cargo clippy -p infiltrator-slint --all-targets -- -D warnings` **exit 0**、Slint nextest **384/384** 为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 产物仍待 CI runner / 设备矩阵补证 → 部分（L）。
+2. Windows/Linux/macOS：本机 Linux 完成编译、clippy、定向 nextest 与 `check-structure.sh` 的 176/177 条腿；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） → 部分（L）。
+3. Android/iOS：本批不触 Android/iOS 代码、资源或 wire；三 flavor 实机交互与 iOS 产物仍按既有条目留在外部环境看板 → 部分（L）。
+4. 各 UI：本批不改任何页面几何、文案、wire 或像素，只把 Slint 演示宿主的快照构建沿业务缝拆开；Iced/Bevy/Android 不受影响，不用守卫绿灯冒充表面验收 → 部分（L）。
+5. 复用：搬移后每个事实仍只有一个写者——运行时基线归 `demo/baseline.rs`、六个页面读模型归 `demo/pages.rs`、`demo.rs` 只做装配；原先写在函数内的 `MB` 常量提升为两个子模块共用的一处声明；同批删掉 `DemoProductHost::new` 里对 `snapshot.origin` 的第二处重复赋值（`apply_runtime_baseline` 已发布同一 value，幂等） → 完整（L）。
+5a. 设计资源强制标准：本批不改字体/字重/图标/主题/资产身份，也不触 wire、快照或语料；沿用 b177 发布批 `20261110T102949Z_4a1293928702_dirty_1766474`，复核 `design-resource-authority 0`、`receipt-freshness 0`、空间 199 帧 `violations=0` → 完整（L）。
+6. 各处界面的功能接入：`line-guard --mode enforce` 2946 文件 **violations=0**（原 1）、`import-guard --mode enforce` 2946 文件 **0**、`mod-rs-guard --self-test` **3/3 OK** 且 `--mode enforce` OK（原 6），`check-structure.sh` 177 腿里 **176 腿绿**；唯一红腿 `screenshot-identity-guard` 的归属由字节证明——HEAD 上 `bevy/runtime-dark.png` 与 `bevy/overview-dark.png` 的 sha256 同为 `4006cda9659a…`（别名成立），工作树里前者未变、后者已被另一会话改动，本批零 Bevy 改动，且把该腿之后的 **152 条腿**单独跑完为 **exit 0**；全仓 `--workspace` nextest/clippy 与 `resolve_surface_evidence.py` 仍受该 WIP 阻塞 → 部分（L）。
+7. 模块化：`demo.rs` **822 → 311** 非注释行（总行 958 → 403），新增 `demo/baseline.rs`（142 非注释行）与 `demo/pages.rs`（413 非注释行），三者均落在 800 行预算内且沿业务缝而不是按行数切分；搬移前后 `demo*` 代码行（去注释去空行）多重集比对显示移除行与新增行只有导入、函数签名、`PageData::ready(...)` 包装与 `}` 收尾等胶水，**零数据字面量改变**，即纯搬移；`mod-rs-guard` 的扫描域同时收窄为产品树（隐藏路径分量一律跳过），实测 `git ls-files` 下隐藏目录内 `*.rs` 0 条、全仓被跟踪 `mod.rs` 0 条 → 完整（L）。
+8. CI 与批次效率：本批把两条红腿（`line-guard` 的 822 行模块预算、`mod-rs-guard` 把 gitignored `.evidence/` 暂存树算进产品树）都修在门上而不是放宽判据，且不改像素因此零重采成本，只复跑守卫双腿与受影响包；`mod-rs-guard` 的 planted 自测由 2 增到 3，新增「隐藏暂存树里的 `mod.rs` 不被扫、同一棵树里非隐藏路径仍被咬」的负例。全仓统一验证与 5 条 `Integrated`（含 b177 的 `SLINT-020`）仍由收口 owner 一次跑完；严格交付率保持 **1,258 / 1,363 = 92.3%** → 部分（L）。
 
 ## 最近一批问答（2026-11-10 第一百七十八交付批次：panic 门的清单腿与源码腿同域 / 把门修在门上）
 
