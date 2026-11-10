@@ -88,6 +88,7 @@ use bevy::window::{ExitCondition, Window, WindowPlugin, WindowResolution};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::tray_status::TRAY_RATE_REFRESH_INTERVAL_MS;
 use lurker_core_contract::error::Failure;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -187,7 +188,7 @@ pub fn run_with_host_surface_and_command_sink_for_android(
     sink: Arc<dyn UiCommandSink>,
     insets: WindowInsetsInputReceiver,
     refresh_interval: Duration,
-    internal_data_path: Option<std::path::PathBuf>,
+    internal_data_path: Option<PathBuf>,
 ) {
     run_with_command_sink_and_composition_with_frame_observation(
         sink,
@@ -280,7 +281,7 @@ fn run_with_command_sink_and_composition_with_frame_observation(
     sink: Arc<dyn UiCommandSink>,
     composition: SurfaceComposition,
     frame_observation_selection: frame_observation::FrameObservationSelection,
-    android_internal_data_path: Option<std::path::PathBuf>,
+    android_internal_data_path: Option<PathBuf>,
 ) {
     #[cfg(feature = "capture-tools")]
     let preference = capture::skin_from_env()

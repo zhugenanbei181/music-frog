@@ -3,6 +3,7 @@
 use bevy::app::App;
 use infiltrator_contract::frame_observation::ANDROID_FRAME_OBSERVATION_REQUEST;
 use infiltrator_contract::frame_observation::AndroidFrameObservationRequest;
+use std::fs;
 use std::path::PathBuf;
 use zhuge_ui_core::frame_timing::record::FrameTimingIdentity;
 use zhuge_ui_kit_bevy::frame_timing::{
@@ -29,7 +30,7 @@ pub fn android_request(
 ) -> Option<AndroidFrameObservationRequest> {
     let root = internal_data_path?;
     let request_path = root.join(ANDROID_FRAME_OBSERVATION_REQUEST);
-    let raw = std::fs::read_to_string(request_path).ok()?;
+    let raw = fs::read_to_string(request_path).ok()?;
     let request: AndroidFrameObservationRequest = serde_json::from_str(&raw).ok()?;
     request.is_valid().then_some(request)
 }
@@ -80,11 +81,11 @@ fn install_android_from_app_path(app: &mut App, root: Option<PathBuf>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
+    use std::{env, fs, process};
 
     #[test]
     fn a_missing_or_invalid_request_installs_nothing() {
-        let dir = std::env::temp_dir().join(format!("mf-frame-request-{}", std::process::id()));
+        let dir = env::temp_dir().join(format!("mf-frame-request-{}", process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         assert!(android_request(Some(dir.clone())).is_none());
@@ -101,8 +102,7 @@ mod tests {
 
     #[test]
     fn a_valid_relative_request_is_resolved() {
-        let dir =
-            std::env::temp_dir().join(format!("mf-frame-request-valid-{}", std::process::id()));
+        let dir = env::temp_dir().join(format!("mf-frame-request-valid-{}", process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         fs::write(

@@ -383,9 +383,8 @@ mod tests {
             desktop_items(SurfaceKind::IcedDesktop).len(),
             shared.len() + 1
         );
-        assert_eq!(
-            owns_surface_local(SurfaceKind::BevyDesktop, "traffic"),
-            false,
+        assert!(
+            !owns_surface_local(SurfaceKind::BevyDesktop, "traffic"),
             "Bevy folds traffic into its overview and must not be handed a row that navigates nowhere"
         );
     }

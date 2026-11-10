@@ -57,6 +57,9 @@ use infiltrator_contract::capability::Availability;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::language::LanguagePreference;
 use infiltrator_contract::mtu::MtuProbeState;
+use infiltrator_contract::shell_sidebar_preference::{
+    SidebarExpansionIntent, apply_sidebar_expansion_intent,
+};
 use infiltrator_contract::shortcuts::{ShortcutAction, ShortcutChord};
 use infiltrator_contract::sync::{SyncConflictResolution, SyncConflictResolutionReceipt};
 use infiltrator_contract::theme::ThemePreference;
@@ -506,12 +509,7 @@ impl CommandApplication {
     /// The surface sends `Set` or `Toggle`; the application reads the current
     /// preference and stores exactly one canonical typed value. No UI owns a
     /// second boolean and no viewport decision is persisted here.
-    async fn apply_sidebar_expansion(
-        &self,
-        intent: infiltrator_contract::shell_sidebar_preference::SidebarExpansionIntent,
-    ) -> Result<(), Failure> {
-        use infiltrator_contract::shell_sidebar_preference::apply_sidebar_expansion_intent;
-
+    async fn apply_sidebar_expansion(&self, intent: SidebarExpansionIntent) -> Result<(), Failure> {
         let current = self.settings()?.load().await?.sidebar_expansion;
         let next = apply_sidebar_expansion_intent(current, intent);
         self.settings()?

@@ -7,7 +7,7 @@
 //! JSONL sink.
 
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 /// File the host writes inside `AndroidApp::internal_data_path()`.
 pub const ANDROID_FRAME_OBSERVATION_REQUEST: &str = "android-frame-observation.json";
@@ -32,7 +32,7 @@ impl AndroidFrameObservationRequest {
             && relative.is_relative()
             && !relative
                 .components()
-                .any(|part| matches!(part, std::path::Component::ParentDir))
+                .any(|part| matches!(part, Component::ParentDir))
             && self.budget_ms.is_finite()
             && self.budget_ms > 0.0
     }

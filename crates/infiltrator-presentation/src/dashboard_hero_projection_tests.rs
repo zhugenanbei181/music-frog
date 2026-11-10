@@ -171,6 +171,7 @@ fn profile_quick_card_and_connection_table_projections() {
 
 #[test]
 fn profile_quick_card_publishes_one_typed_owner_update_age() {
+    use infiltrator_contract::snapshot::CoreSessionObservation;
     use infiltrator_contract::surface::{HostKind, SurfaceKind};
     use lurker_core_contract::error::Failure;
 
@@ -179,7 +180,7 @@ fn profile_quick_card_publishes_one_typed_owner_update_age() {
         HostKind::Desktop,
         Failure::unsupported("test"),
     );
-    snap.core.session = infiltrator_contract::snapshot::CoreSessionObservation::Active {
+    snap.core.session = CoreSessionObservation::Active {
         started_at_epoch_ms: 600_000,
         elapsed_ms: 0,
     };

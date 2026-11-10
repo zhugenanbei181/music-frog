@@ -12,10 +12,10 @@
 //! pixels, so each is divided by the ui unit the bindings were multiplied by
 //! (`page-scale-percent / 100`), which is the one scale fact the shell owns.
 
+use crate::AppWindow;
 use crate::mobile_dock_driver::to_contract_form;
-use crate::{AppWindow, SidebarExpansionPreference};
 use infiltrator_contract::shell_receipt::ShellChromeFacts;
-use infiltrator_contract::shell_sidebar_preference::SidebarExpansionPreference as ContractPreference;
+use infiltrator_contract::shell_sidebar_preference::SidebarExpansionPreference;
 
 /// One painted length, stated in the logical units the shell bound it in.
 ///
@@ -37,10 +37,12 @@ pub fn logical_units(length_px: f32, scale_percent: i32) -> u16 {
     (length_px / (percent / 100.0)).round().max(0.0) as u16
 }
 
-fn to_contract_preference(preference: SidebarExpansionPreference) -> ContractPreference {
+fn to_contract_preference(
+    preference: crate::SidebarExpansionPreference,
+) -> SidebarExpansionPreference {
     match preference {
-        SidebarExpansionPreference::Expanded => ContractPreference::Expanded,
-        SidebarExpansionPreference::Collapsed => ContractPreference::Collapsed,
+        crate::SidebarExpansionPreference::Expanded => SidebarExpansionPreference::Expanded,
+        crate::SidebarExpansionPreference::Collapsed => SidebarExpansionPreference::Collapsed,
     }
 }
 
