@@ -24,19 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-10 第一百七十七批次；b111–b173 见下方批次八问摘要）
+## 当前状态（2026-11-10 第一百七十八批次；b111–b173 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b177 改 Slint 呈现层（`lumen-flags.slint` 清单与 `FlagIcon`）、shared 资产清单（catalog + 退役 258 个圆形 PNG）与新 Python 守卫，零平台 API、零设备交互；`cargo check -p infiltrator-slint --all-targets`、`cargo clippy -p infiltrator-slint -p infiltrator-shared --all-targets -- -D warnings` 零警告、Slint nextest **384/384**、shared nextest **79/79** 为 `L`；交叉 `scripts/cross-check.sh`、aarch64 产物与目标设备仍由 CI runner / 设备矩阵补证（GAP-1.1） |
-| 2 | 部分 | L | 本机 Linux 完成编译/clippy/nextest、199 帧真实像素重采与全部守卫；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）；资产退役只删本仓 shared 副本，`lumen-source/` 供应商快照逐字节保留 |
-| 3 | 部分 | L | 本批不触 Android/iOS 代码、资源或 wire；Slint 的 Android 后端同样经 `i-slint-renderer-skia` 启用 `i-slint-core/svg`，方形矢量可渲染，但三 flavor 实机交互与 iOS 产物仍按既有条目留在外部环境看板 |
-| 4 | 部分 | L | 本批只改 Slint 表面的国旗清单与容器；Iced/Bevy/Android 不消费这份 `.slint` 清单，其国旗形状仍由各自条目收口，不用 Slint 像素冒充其它表面验收 |
-| 5 | 完整 | L | 国旗从两份库存（`variant: "circle-144"` 栅格 + `variant: "source"` 方形矢量）收敛为 catalog 唯一清单；`FlagImages.flags` 顺序、`flag_assets::index_for_code` 与 catalog 三者一致并由 SLINT-020 钉死；`FlagIcon` 是唯一的旗帜板 owner，尺寸入口 `size` 一处真源，退役 `diameter` 不留兼容分支 |
-| 5a | 完整 | L | 资产身份变化（旗帜形状与来源文件）按标准/compact 双视口整批重采：发布 `20261110T102949Z_4a1293928702_dirty_1766474`（199/199，413s），23 帧变化全部落在带旗帜的 overview / proxies / sidebar-collapsed 帧，`sidebar-collapsed-compact` 别名摘要按新像素刷新；复核 `design-resource-authority --skip-exporter 0`、`receipt-freshness 0`、`space_utilization --enforce` 199 帧 violations=0 |
-| 6 | 部分 | L | 新增 `scripts/quality/slint-flag-shape-guard.py`（SLINT-020）planted 自测 **14/14**、`--mode enforce` findings=0，enforce + self-test 双腿接入 `check-structure.sh`；19 条 Slint 守卫、shared-copy / i18n / typed-state 全 findings=0、implicit-state 23/0/0、`doc-governance OK`、`closure-questions 8/8`。全仓 `check-structure.sh`、全量 clippy 与 `resolve_surface_evidence.py` 仍受另一会话 Bevy/依赖钉版 WIP 阻塞，由统一收口 owner 补证 |
-| 7 | 完整 | L | 形状事实只在 catalog 一处（`flag.<code>` / `source`）、清单只在 `lumen-flags.slint` 一处、索引只在 `flag_assets.rs` 一处、绘制只在 `FlagIcon` 一处；守卫是独立文件，不与 SLINT-013~019 重叠；退役副本由 `slint-source-import-guard.py` 与 `SOURCE_IMPORT_MANIFEST.json` 继续钉为供应商快照 |
-| 8 | 部分 | L | 本批一次整批重采（413s）而非逐场景补帧，并删掉 1.7MB 重复资产与 258 条 catalog 记录，资产面与判定面同时变小；全仓统一验证与 5 条 `Integrated` 仍由收口 owner 一次跑完，`SLINT-020` 2 pt 入现在佛后严格交付率 **1,258 / 1,363 = 92.3%** |
+| 1 | 部分 | L | b178 只改一条 Python 判据的测量域与守卫自测，零 Rust、零平台 API、零设备交互；`py_compile`、`--mode enforce`（5 registered boundaries, 5 sites, no panic=abort）与 `--self-test` **5/5 OK** 为 `L`；交叉 `scripts/cross-check.sh`、aarch64 产物与目标设备仍由 CI runner / 设备矩阵补证（GAP-1.1） |
+| 2 | 部分 | L | 本机 Linux 完成守卫双腿、367 项质量脚本单测、文档治理与收口门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
+| 3 | 部分 | L | b178 不触 Android/iOS 代码、资源或 wire；三 flavor 实机交互与 iOS 回执仍由外部环境看板 owner 补证 |
+| 4 | 部分 | L | 本批只修 panic 守卫的扫描域，不改任何 UI 表面或像素；各表面验收仍由各自条目推进 |
+| 5 | 完整 | L | 两条腿（`catch_unwind` 源码扫描与 `panic = "abort"` manifest 扫描）现在共用同一份 `SCAN_ROOTS` 声明，测量域只有一处定义；未新增常量、未新增第二份扫描根 |
+| 5a | 完整 | L | 本批不改字体/字重/图标/主题/资产身份，也不触 wire、快照或语料；沿用 b177 发布批 `20261110T102949Z_4a1293928702_dirty_1766474`，复核 `receipt-freshness 0`、`design-resource-authority 0`、空间 199 帧 `violations=0` |
+| 6 | 部分 | L | 守卫 planted 自测 4 → **5/5**（`.evidence/wip/` 暂存树不被扫这条新负例被咬，产品路径两条旧负例原样保留），`python3 -m unittest discover -s scripts/quality/tests` **367/367 OK**（此前 2 failed）；全仓 `check-structure.sh`、全量 clippy 与 `resolve_surface_evidence.py` 仍受另一会话 Bevy/依赖钉版 WIP 阻塞，由统一收口 owner 补证 |
+| 7 | 完整 | L | 改动集中在 `scripts/quality/panic-boundary-guard.py` 一个文件的 `_manifests()` 与一条 planted 自测；扫描根仍是模块级唯一声明，与 `scan()` 共用，无第二份域定义 |
+| 8 | 部分 | L | 本批把「gitignored 暂存区能让结构门判红」修在门上而不是放宽判据，且零重采成本（不改像素）；全仓统一验证与 5 条 `Integrated`（含 b177 的 `SLINT-020`）仍由收口 owner 一次跑完，严格交付率保持 **92.3%**（1,258/1,363） |
+
+## 最近一批问答（2026-11-10 第一百七十八交付批次：panic 门的清单腿与源码腿同域 / 把门修在门上）
+
+1. x86_64/aarch64：本批只改 `scripts/quality/panic-boundary-guard.py` 的 manifest 扫描域与一条 planted 自测，零 Rust、零平台 API、零设备交互；`python3 -m py_compile`、`--mode enforce`（5 registered boundaries / 5 sites / no panic=abort）、`--self-test` **5/5 OK** 为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 产物仍待 CI runner / 设备矩阵补证 → 部分（L）。
+2. Windows/Linux/macOS：本机 Linux 完成守卫双腿、367 项质量脚本单测与文档门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） → 部分（L）。
+3. Android/iOS：本批不触 Android/iOS 代码、资源或 wire；三 flavor 实机交互与 iOS 产物仍按既有条目留在外部环境看板 → 部分（L）。
+4. 各 UI：本批不改任何页面代码或像素，只修一条门禁脚本的测量域；其它 UI 不受影响，不用守卫绿灯冒充表面验收 → 部分（L）。
+5. 复用：缺陷本身就是「同一个事实有两份定义」——`scan()` 按 `SCAN_ROOTS` 扫源码，`aborting_profiles()` 却 `os.walk(root)` 扫全仓 manifest，两腿不同域。本批把 manifest 腿改为「workspace 根 manifest + `SCAN_ROOTS`」，测量域只剩模块级那一处声明；实测 48 个 workspace members 全在扫描根内、`git ls-files "*Cargo.toml"` 在扫描根之外 0 条，即真实产品 manifest 一个都没漏，未新增常量 → 完整（L）。
+5a. 设计资源强制标准：本批不改字体/字重/图标/主题/资产身份，也不触 wire、快照或语料；沿用 b177 发布批 `20261110T102949Z_4a1293928702_dirty_1766474`，复核 `design-resource-authority 0`、`receipt-freshness 0`、空间 199 帧 `violations=0` → 完整（L）。
+6. 各处界面的功能接入：`panic-boundary-guard.py --self-test` 4 → **5/5 OK**，新增 planted 负例「`.evidence/wip/vendor-checkout/` 内的 `panic = "abort"` 与 `catch_unwind` 都不被扫到」，原「产品路径内的 abort 必须被咬」「未注册 catch_unwind 必须被咬」两条腿一字未改；`python3 -m unittest discover -s scripts/quality/tests` **367/367 OK**（此前唯一 2 项失败即本条），`doc-governance OK`、`closure-questions 8/8`。全仓 `check-structure.sh`、全量 clippy 与 `resolve_surface_evidence.py` 仍受另一会话 Bevy/依赖钉版 WIP 阻塞 → 部分（L）。
+7. 模块化：改动落在一个文件的 `_manifests()` 与一条自测；扫描根仍是唯一声明并被两条腿共用。归属纪律同时写进 docstring：`.evidence/` 是 gitignored 本地暂存区，L0 要求 WIP 放那里，因此它不是产品构建图，不得让门禁判红 → 完整（L）。
+8. CI 与批次效率：本批把「结构门因 gitignored 暂存区而红」修在门上而不是关掉门，不改像素因此零重采成本，只复跑守卫双腿与质量脚本单测。全仓统一验证与 5 条 `Integrated`（含 b177 的 `SLINT-020`）仍由收口 owner 一次跑完；严格交付率保持 **1,258 / 1,363 = 92.3%** → 部分（L）。
 
 ## 最近一批问答（2026-11-10 第一百七十七交付批次：国旗是方形资产 / 清单、容器与门禁一次改回事实）
 

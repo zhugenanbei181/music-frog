@@ -47,6 +47,7 @@
 ## 验证
 
 - 质量门只在 `scripts/quality/check-structure.sh` 汇总；禁止通过删除断言、放宽门槛、消音错误或复制第二套检查获得通过。
+- **守卫的测量域必须是被判对象的本义范围，且同一守卫的多条腿共用一处域声明**：域写宽了会把不属于构建图的东西判成缺陷（b178 实测：`panic-boundary-guard.py` 的 `catch_unwind` 腿按 `SCAN_ROOTS` 扫源码，`panic = "abort"` 腿却 `os.walk` 全仓，于是 gitignored 的 `.evidence/wip/` 暂存区——L0 并行工流纪律指定的 WIP 位置——把结构门判红）；域写窄了会让真实违规沉默。修法是收拢判据的适用范围并补一条负例 planted 自测钉住它，**不是**放宽阈值、跳过文件或要求他人搬走工作树。同类通则见 b175：事实一旦交给别的 owner（共享组件、暂存区、生成物），判据必须跟随那个 owner。
 - 空间利用率按 [空间利用率强制标准](SPACE_UTILIZATION_STANDARD.md) 判定，唯一入口 `scripts/parity/space_utilization.py`：`--self-test` 用植入帧证明门看得见缺陷，`--enforce` 判最新发布整批。超标帧只能登记 `scripts/quality/space_utilization_debt.json` 欠账，台账是精确清单而非白名单，只允许收紧；禁止改阈值、跳过帧或给单页开特例来获得通过。
 
 Bevy 的 ECS、shader 和资源生命周期规则见 [Bevy UI 章程](../crates/infiltrator-bevy-ui/docs/BEVY_UI_FRONTEND.md)；Android host 与 IPC 边界见 [Android 章程](../android/docs/BEVY_ANDROID_PRODUCT.md)。

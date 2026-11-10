@@ -12,6 +12,13 @@ directions:
     unwind and silently turns every registered boundary into dead code.
 
 The guard is offline: it reads Rust sources and manifests, it never builds.
+
+Both legs read the same scope: the workspace manifest plus `SCAN_ROOTS`. That
+is deliberate. `.evidence/` is gitignored local scratch, and the charter tells
+parallel sessions to park work-in-progress there, so a vendored checkout under
+`.evidence/wip/` is not this product's build graph and must not be able to
+redden the gate. A manifest that really participates in the product build lives
+in the workspace root or under a scan root, and is still caught.
 """
 
 from __future__ import annotations
@@ -75,12 +82,19 @@ def scan(root: Path) -> dict[str, int]:
 
 def _manifests(root: Path) -> list[Path]:
     manifests: list[Path] = []
-    for directory, subdirectories, filenames in os.walk(root):
-        subdirectories[:] = sorted(
-            name for name in subdirectories if name not in SKIPPED_DIRECTORIES
-        )
-        if "Cargo.toml" in filenames:
-            manifests.append(Path(directory) / "Cargo.toml")
+    workspace = root / "Cargo.toml"
+    if workspace.is_file():
+        manifests.append(workspace)
+    for scan_root in SCAN_ROOTS:
+        base = root / scan_root
+        if not base.is_dir():
+            continue
+        for directory, subdirectories, filenames in os.walk(base):
+            subdirectories[:] = sorted(
+                name for name in subdirectories if name not in SKIPPED_DIRECTORIES
+            )
+            if "Cargo.toml" in filenames:
+                manifests.append(Path(directory) / "Cargo.toml")
     return manifests
 
 
@@ -196,6 +210,29 @@ class PanicBoundarySelfTest(unittest.TestCase):
             )
             problems = check(root)
         self.assertTrue(any("panic = \"abort\"" in problem for problem in problems))
+
+    def test_scratch_trees_outside_the_build_graph_are_not_scanned(self):
+        """`.evidence/` is gitignored local scratch, not a product manifest.
+
+        Parallel sessions are told to park work-in-progress there, so a
+        vendored checkout must not be able to redden this gate. The real
+        product manifests (workspace root and scan roots) stay covered by the
+        planted case above.
+        """
+        with _scratch() as root:
+            scratch = root / ".evidence/wip/vendor-checkout"
+            scratch.mkdir(parents=True)
+            (scratch / "Cargo.toml").write_text(
+                '[package]\nname = "vendor"\nversion = "0.1.0"\n\n'
+                '[profile.release]\npanic = "abort"\n',
+                encoding="utf-8",
+            )
+            (scratch / "src").mkdir()
+            (scratch / "src/lib.rs").write_text(
+                "fn f() { let _ = std::panic::catch_unwind(|| {}); }\n", encoding="utf-8"
+            )
+            self.assertEqual(check(root), [])
+            self.assertEqual(aborting_profiles(root), [])
 
     def test_ledger_count_must_match_the_source(self):
         with _scratch(sites=2) as root:
