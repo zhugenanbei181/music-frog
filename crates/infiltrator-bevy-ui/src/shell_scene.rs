@@ -1,21 +1,19 @@
 //! Declarative BSN scenes for the Bevy shell layout.
 //!
-//! Subtree scenes composing the window root, sidebar rail, navigation
-//! items, routing intent pills, content column, title header and bottom bar.
+//! Subtree scenes composing the window root, the navigation-only sidebar rail,
+//! the content column, the title header and the registry-driven bottom dock.
 
 #[path = "shell_nav.rs"]
 pub mod nav;
-#[path = "shell_sidebar.rs"]
-pub mod sidebar;
 
-use crate::a11y::{nav_semantic_node, semantic_node, toggle_semantic_node};
+use crate::a11y::{nav_semantic_node, semantic_node};
 use crate::app::shell_bidi::{ShellDirectionRoot, ShellDirectionRow};
 use crate::app::shell_focus::ShellFocusable;
 use crate::app::{
     BOTTOM_NAV_CONTENT_HEIGHT, BottomNavActive, BottomNavBar, BottomNavIconPill, BottomNavItem,
-    ContentColumn, ContentSlot, ContentTitleLabel, DensityToggle, HistoryBackButton,
-    HistoryForwardButton, RoutingIntentStatusCapsule, SIDEBAR_WIDTH_PX, ShellHeader, ShellRoot,
-    SidebarExpandedOnly, SidebarFoot, SidebarFooterRow, SidebarPanel, StatusDotImage, ThemeToggle,
+    ContentColumn, ContentSlot, ContentTitleLabel, HistoryBackButton, HistoryForwardButton,
+    RoutingIntentStatusCapsule, SIDEBAR_WIDTH_PX, ShellHeader, ShellRoot, SidebarPanel,
+    StatusDotImage,
 };
 use crate::chrome::chrome_bar_scene;
 use crate::pages::connections_confirm::confirmation_scene;
@@ -36,9 +34,9 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
-use infiltrator_bevy_widgets::button::{ButtonVariant, ButtonVariantStyle, ControlVisual};
+use infiltrator_bevy_widgets::button::ControlVisual;
 use infiltrator_bevy_widgets::feathers_theme::Token;
-use infiltrator_bevy_widgets::icon::{IconId, icon_scene_val};
+use infiltrator_bevy_widgets::icon::{IconId, icon_scene_val, plate_for_canonical_name};
 use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
@@ -47,9 +45,7 @@ use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::a11y::ShellA11yNode;
 use infiltrator_contract::design_resources;
-use infiltrator_contract::shared_copy::SharedCopyKey;
-use infiltrator_contract::system_toggle::SystemToggleSnapshot;
-use infiltrator_shared::locales::{Lang, Localizer};
+use infiltrator_contract::shell_navigation::{NavigationItem, NavigationSurface};
 
 /// The sidebar speed footer's waveform strip width in baseline pixels.
 pub const SHELL_WAVEFORM_WIDTH_PX: f32 = 60.0;
@@ -68,16 +64,12 @@ const HISTORY_ARROW_ICON_PX: f32 = 14.0;
 const BOTTOM_NAV_ICON_PX: f32 = 18.0;
 
 /// The root shell scene.
+///
+/// One entry point, and no toggle parameter: the sidebar mounts navigation
+/// only, so the system-toggle snapshot has no consumer in the shell tree. The
+/// dashboard's master-switch cards read the same shared projection from the
+/// page's own snapshot — one publisher, one mount.
 pub fn shell_scene(title: String, palette: &UiPalette) -> impl Scene + use<> {
-    shell_scene_with_toggles(title, &SystemToggleSnapshot::default(), palette)
-}
-
-/// Root shell scene with the initial shared system-toggle projection.
-pub fn shell_scene_with_toggles(
-    title: String,
-    toggles: &SystemToggleSnapshot,
-    palette: &UiPalette,
-) -> impl Scene + use<> {
     let edge = palette.border;
     let window_node = semantic_node(ShellA11yNode::Window);
     let region_node = semantic_node(ShellA11yNode::ContentRegion);
@@ -111,7 +103,7 @@ pub fn shell_scene_with_toggles(
                 }
                 ShellDirectionRoot
                 Children [
-                    @{ sidebar_scene_with_toggles(toggles, palette) }
+                    @{ sidebar_scene(palette) }
                     --
                     Node {
                         flex_grow: 1.0,
@@ -156,12 +148,20 @@ pub fn shell_scene_with_toggles(
 }
 
 /// The bottom navigation bar for Compact mode (<600px).
+///
+/// The dock's destinations are the registry's [`NavigationSurface::Dock`]
+/// list, the same typed source the desktop rail reads. The bar used to
+/// restate four routes, four plates and four copy keys as literals, so a
+/// destination added to the contract reached the rail and not the dock.
 pub fn bottom_nav_scene(palette: &UiPalette) -> Box<dyn Scene> {
-    let overview_node = nav_semantic_node(&Route::Overview.label(), false);
-    let proxies_node = nav_semantic_node(&Route::Proxies.label(), false);
-    let profiles_node = nav_semantic_node(&Route::Profiles.label(), false);
-    let settings_node = nav_semantic_node(&Route::Settings.label(), false);
     let edge = palette.border;
+    let entries: Vec<Box<dyn Scene>> = NavigationItem::items(NavigationSurface::Dock)
+        .iter()
+        .map(|item| {
+            let route = nav::route_for_destination(item.target);
+            bottom_nav_item_scene(route, item, route == Route::Overview, palette)
+        })
+        .collect();
 
     Box::new(bsn! {
             Node {
@@ -185,17 +185,7 @@ pub fn bottom_nav_scene(palette: &UiPalette) -> Box<dyn Scene> {
             }
             BottomNavBar
             Children [
-                @{ bottom_nav_item_scene(Route::Overview, IconId::Activity, true, palette) }
-                overview_node LocalizedLabel::plain(Route::Overview.label_key())
-                --
-                @{ bottom_nav_item_scene(Route::Proxies, IconId::Globe, false, palette) }
-                proxies_node LocalizedLabel::plain(Route::Proxies.label_key())
-                --
-                @{ bottom_nav_item_scene(Route::Profiles, IconId::FileText, false, palette) }
-                profiles_node LocalizedLabel::plain(Route::Profiles.label_key())
-                --
-                @{ bottom_nav_item_scene(Route::Settings, IconId::Settings, false, palette) }
-                settings_node LocalizedLabel::plain(Route::Settings.label_key())
+                { entries }
             ]
     })
 }
@@ -203,10 +193,14 @@ pub fn bottom_nav_scene(palette: &UiPalette) -> Box<dyn Scene> {
 /// One bottom navigation entry: the route icon above its label.
 fn bottom_nav_item_scene(
     route: Route,
-    icon: IconId,
+    item: &NavigationItem,
     active: bool,
     palette: &UiPalette,
 ) -> Box<dyn Scene> {
+    let plate =
+        plate_for_canonical_name(item.icon.canonical_name()).unwrap_or_else(|| route.icon());
+    let label_key = item.target.label_key().unwrap_or_else(|| route.label_key());
+    let semantic = nav_semantic_node(&route.label(), false);
     let role = if active {
         design_resources::TextRole::BodyStrong
     } else {
@@ -226,10 +220,11 @@ fn bottom_nav_item_scene(
             BottomNavItem(route)
             BottomNavActive(active)
             ShellFocusable
+            semantic LocalizedLabel::plain(label_key)
             Children [
-                @{ bottom_nav_icon_seat_scene(icon, active, palette) }
+                @{ bottom_nav_icon_seat_scene(plate, active, palette) }
                 --
-                LocalizedText::plain(route.label_key()) TextRole(role)
+                LocalizedText::plain(label_key) TextRole(role)
             ]
     })
 }
@@ -385,17 +380,23 @@ fn routing_status_capsule_scene(palette: &UiPalette) -> impl Scene + use<> {
 }
 
 /// Sidebar scene supporting Standard (240px) and polymorphic Rail/Wide modes.
+/// The sidebar: the destination rows, and nothing else.
+///
+/// The rail is navigation only, which is what the desktop reference measures
+/// and the space-utilization standard turns into a gate: `chrome_band` 0%
+/// means nothing but navigation may sit in the column
+/// (`docs/SPACE_UTILIZATION_STANDARD.md` §2,
+/// `docs/reference/FLCLASH_DESKTOP_REFERENCE.md` §2 — FlClash's
+/// `NavigationSidebar` receives destinations, selectedIndex and expanded, and
+/// no state/rate/version property at all). The Bevy rail used to mount the
+/// brand block, the version line, the routing-mode pills, the two master
+/// switches, the active-profile card, the shortcut matrix and the rate footer
+/// above the rows: every one of those facts already has a single owner in the
+/// title bar or the dashboard, and the sidebar was the second publisher. The
+/// mode pills and master switches were worse than a duplicate — they were a
+/// second *live* copy of controls the Overview band already mounts, wired to
+/// the same commands, so one screen offered two answers to one intent.
 pub fn sidebar_scene(palette: &UiPalette) -> impl Scene + use<> {
-    sidebar_scene_with_toggles(&SystemToggleSnapshot::default(), palette)
-}
-
-/// The sidebar rail: the cards, then the route rows, then the foot.
-pub fn sidebar_scene_with_toggles(
-    toggles: &SystemToggleSnapshot,
-    palette: &UiPalette,
-) -> impl Scene + use<> {
-    let density_node = toggle_semantic_node(&Lang("zh-CN").tr(SharedCopyKey::LayoutDensity.key()));
-    let theme_semantic = semantic_node(ShellA11yNode::ThemeToggle);
     bsn! {
             Node {
                 width: rem(SIDEBAR_WIDTH_PX),
@@ -409,76 +410,7 @@ pub fn sidebar_scene_with_toggles(
             ThemeBackgroundColor({ Token::Sidebar })
             SidebarPanel
             Children [
-                @{ sidebar::identity_scene(palette) }
-                --
-                @{ sidebar::routing_intent_segment_scene(None, palette) }
-                --
-                @{ sidebar::sidebar_system_toggles_scene(toggles, palette) }
-                --
-                @{ sidebar::sidebar_profile_card_scene(palette) }
-                --
-                @{ sidebar::sidebar_shortcut_matrix_scene(palette) }
-                --
-                @{ sidebar::sidebar_speed_footer_scene(palette) }
-                --
                 @{ nav::nav_column_scene(palette) }
-                --
-                Node { flex_grow: 1.0 }
-                --
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    column_gap: rem(space::S8),
-                }
-                SidebarFooterRow
-                SidebarExpandedOnly
-                Children [
-                    // `sync_sidebar_foot` restamps `&mut Text` on the entity
-                    // that carries `SidebarFoot`, so the marker and the text
-                    // stay on one node: nesting the text made the caption
-                    // unreachable and the foot rendered permanently blank.
-                    Text({ String::new() }) TextRole(design_resources::TextRole::Caption)
-                    SidebarFoot
-                    --
-                    Node {
-                        flex_direction: FlexDirection::Row,
-                        column_gap: rem(space::S4),
-                    }
-                    Children [
-                        @{ sidebar_preference_button_scene(IconId::Settings, palette) }
-                        ThemeToggle ShellFocusable
-                        theme_semantic
-                        --
-                        @{ sidebar_preference_button_scene(IconId::LayoutGrid, palette) }
-                        DensityToggle
-                        ShellFocusable
-                        density_node
-                    ]
-                ]
-            ]
-    }
-}
-
-/// One sidebar preference control: a quiet icon button. The localized
-/// AccessKit label carries the semantics; the dashboard does not show a raw
-/// settings word as chrome.
-fn sidebar_preference_button_scene(icon: IconId, palette: &UiPalette) -> impl Scene + use<> {
-    bsn! {
-            Node {
-                width: rem(palette.control_square_px),
-                height: rem(palette.control_square_px),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                border_radius: BorderRadius::all(rem(palette.control_radius_px)),
-            }
-            BackgroundColor({ Color::NONE })
-            Button
-            ButtonVariantStyle(ButtonVariant::Ghost)
-            ControlVisual(false)
-            TouchHitbox::default()
-            Children [
-                @{ icon_scene_val(icon, rem(space::S12), palette.ink_dim) }
             ]
     }
 }

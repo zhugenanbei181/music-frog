@@ -18,9 +18,7 @@ use bevy::ui::widget;
 use infiltrator_bevy_ui::app::{
     BOTTOM_NAV_CONTENT_HEIGHT, BottomNavBar, LayoutMode, NavSpacer, RailNavTooltip,
     SIDEBAR_RAIL_WIDTH_PX, SIDEBAR_WIDTH_PX, ShellLayoutState, ShellPlugin, ShellRoot,
-    SidebarActiveProfileCard, SidebarFooterRow, SidebarIdentityText, SidebarNavItem, SidebarPanel,
-    SidebarRoutingIntentSegment, SidebarShortcutMatrix, SidebarSpeedFooter, SidebarSystemProxyCard,
-    SidebarTunCard,
+    SidebarNavItem, SidebarPanel,
 };
 use infiltrator_bevy_ui::chrome::ChromeDragBar;
 use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommandSink};
@@ -474,17 +472,6 @@ fn test_sidebar_rail_morphology_and_floating_tooltips() {
             assert_eq!(node.display, Display::Flex);
         }
 
-        // Identity text and routing intent segment are visible in Expanded
-        let mut identity_texts = world.query_filtered::<&Node, With<SidebarIdentityText>>();
-        for node in identity_texts.iter(world) {
-            assert_eq!(node.display, Display::Flex);
-        }
-
-        let mut mode_segments = world.query_filtered::<&Node, With<SidebarRoutingIntentSegment>>();
-        for node in mode_segments.iter(world) {
-            assert_eq!(node.display, Display::Flex);
-        }
-
         // Floating tooltips are hidden in Expanded mode
         let mut tooltips = world.query_filtered::<&Node, With<RailNavTooltip>>();
         assert!(tooltips.iter(world).count() > 0);
@@ -515,7 +502,11 @@ fn test_sidebar_rail_morphology_and_floating_tooltips() {
             assert_eq!(node.justify_content, JustifyContent::Center);
         }
 
-        // Labels, spacers, identity text, and routing segment hidden in Rail mode
+        // Labels and spacers hide in Rail mode; the rail's only other content
+        // is the glyph and its indicator. The identity text, routing segment,
+        // master switches, profile card, shortcut matrix, rate footer and
+        // preference row are gone from this column entirely — the reference
+        // gives it navigation only — so there is nothing left here to hide.
         let mut nav_labels = world.query_filtered::<&Node, With<NavLabel>>();
         for node in nav_labels.iter(world) {
             assert_eq!(node.display, Display::None);
@@ -523,46 +514,6 @@ fn test_sidebar_rail_morphology_and_floating_tooltips() {
 
         let mut nav_spacers = world.query_filtered::<&Node, With<NavSpacer>>();
         for node in nav_spacers.iter(world) {
-            assert_eq!(node.display, Display::None);
-        }
-
-        let mut identity_texts = world.query_filtered::<&Node, With<SidebarIdentityText>>();
-        for node in identity_texts.iter(world) {
-            assert_eq!(node.display, Display::None);
-        }
-
-        let mut mode_segments = world.query_filtered::<&Node, With<SidebarRoutingIntentSegment>>();
-        for node in mode_segments.iter(world) {
-            assert_eq!(node.display, Display::None);
-        }
-
-        let mut system_proxies = world.query_filtered::<&Node, With<SidebarSystemProxyCard>>();
-        for node in system_proxies.iter(world) {
-            assert_eq!(node.display, Display::None);
-        }
-
-        let mut tun_cards = world.query_filtered::<&Node, With<SidebarTunCard>>();
-        for node in tun_cards.iter(world) {
-            assert_eq!(node.display, Display::None);
-        }
-
-        let mut active_profiles = world.query_filtered::<&Node, With<SidebarActiveProfileCard>>();
-        for node in active_profiles.iter(world) {
-            assert_eq!(node.display, Display::None);
-        }
-
-        let mut shortcuts = world.query_filtered::<&Node, With<SidebarShortcutMatrix>>();
-        for node in shortcuts.iter(world) {
-            assert_eq!(node.display, Display::None);
-        }
-
-        let mut speed_footers = world.query_filtered::<&Node, With<SidebarSpeedFooter>>();
-        for node in speed_footers.iter(world) {
-            assert_eq!(node.display, Display::None);
-        }
-
-        let mut footer_rows = world.query_filtered::<&Node, With<SidebarFooterRow>>();
-        for node in footer_rows.iter(world) {
             assert_eq!(node.display, Display::None);
         }
 

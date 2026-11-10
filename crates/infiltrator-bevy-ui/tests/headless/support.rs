@@ -1,6 +1,7 @@
 use bevy::MinimalPlugins;
 use bevy::app::{App, Plugin};
 use bevy::asset::{AssetApp, AssetPlugin};
+use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
@@ -140,6 +141,41 @@ pub fn subtree_has_text(world: &World, root: Entity, needle: &str) -> bool {
         }
     }
     false
+}
+
+/// Every entity under `root`, in **tree order** (depth-first, children in
+/// their own order).
+///
+/// An ECS query iterates archetypes, so the order it yields is a storage
+/// detail and says nothing about the column the user reads. A test that
+/// compares a mounted list against a contract registry's order has to descend
+/// the hierarchy; otherwise the assertion measures where the entities happen
+/// to live rather than what the surface paints.
+pub fn subtree_in_tree_order(world: &World, root: Entity) -> Vec<Entity> {
+    let mut out = Vec::new();
+    walk(world, root, &mut out);
+    out
+}
+
+fn walk(world: &World, entity: Entity, out: &mut Vec<Entity>) {
+    out.push(entity);
+    if let Some(children) = world.get::<Children>(entity) {
+        for child in children.iter() {
+            walk(world, *child, out);
+        }
+    }
+}
+
+/// The entities carrying `C` inside `root`'s subtree, painted order first.
+///
+/// This is the read a surface-level assertion needs: "the rows the rail
+/// mounts, top to bottom" — not "the rows, in whatever order the archetype
+/// hands them over".
+pub fn subtree_with<C: Component>(world: &World, root: Entity) -> Vec<Entity> {
+    subtree_in_tree_order(world, root)
+        .into_iter()
+        .filter(|entity| world.get::<C>(*entity).is_some())
+        .collect()
 }
 
 /// Explicit test-only evidence for exercising an outbound probe action. Demo

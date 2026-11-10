@@ -11,9 +11,7 @@ use bevy::ecs::query::With;
 use bevy::ui::Checked;
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, ValueChange};
-use infiltrator_bevy_ui::app::{
-    ShellPlugin, SidebarSystemProxyToggle, SidebarToggleProjection, SidebarTunToggle,
-};
+use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommand, UiCommandSink};
 use infiltrator_bevy_ui::pages::app_routing::*;
 use infiltrator_bevy_ui::pages::app_routing_uwp::{UwpAction, UwpActionButton};
@@ -48,7 +46,7 @@ use infiltrator_bevy_ui::pages::settings::{
 use infiltrator_bevy_ui::pages::sync::*;
 use infiltrator_bevy_ui::projection::DemoOverviewSource;
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
-use infiltrator_bevy_ui::surface::{DemoSurfaceSource, SurfaceSnapshotUpdated, SurfaceSource};
+use infiltrator_bevy_ui::surface::SurfaceSnapshotUpdated;
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_contract::android_control::{

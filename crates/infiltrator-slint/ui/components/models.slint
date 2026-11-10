@@ -1,5 +1,5 @@
 import { LumenTheme } from "./theme.slint";
-import { NavigationForm } from "./viewport_tier.slint";
+import { NavigationForm, SidebarExpansionPreference } from "./viewport_tier.slint";
 
 export struct ProfileCard {
     id: string,
@@ -130,8 +130,11 @@ export struct NavigationSlot {
 }
 
 // The chrome geometry one captured frame paints, as the contract types it
-// (`infiltrator_contract::shell_receipt::ShellChromeFacts`).
-//
+// The chrome one captured frame paints, as the contract types it
+// (`infiltrator_contract::shell_receipt::ShellChromeFacts`). The preference
+// and surface kind are resolution inputs, not derived stages: the judge uses
+// them to select the one exported variant this frame is allowed to paint.
+
 // The space-utilization judge measures pixels, so the paddings it builds its
 // measurement box from have to be the ones that drew them. Publishing them
 // from the live shell - not re-typing them in the judge - is what makes a
@@ -140,6 +143,9 @@ export struct NavigationSlot {
 // bindings used, so the receipt states device-independent pixels.
 export struct ReceiptChrome {
     nav-form: NavigationForm,
+    sidebar-expansion: SidebarExpansionPreference,
+    touch-surface: bool,
+    sidebar-toggle: length,
     nav-column: length,
     nav-stack-bottom: length,
     nav-content-offset: length,

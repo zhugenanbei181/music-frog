@@ -82,6 +82,8 @@ mod switch_tests;
 mod tabs_tests;
 #[path = "headless/telemetry_gpu_tests.rs"]
 mod telemetry_gpu_tests;
+#[path = "headless/text_input_tab_ring_tests.rs"]
+mod text_input_tab_ring_tests;
 #[path = "headless/text_input_tests.rs"]
 mod text_input_tests;
 #[path = "headless/toast_tests.rs"]

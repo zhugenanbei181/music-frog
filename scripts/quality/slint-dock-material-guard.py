@@ -46,7 +46,7 @@ THEME = UI / "components/theme.slint"
 CHROME = UI / "components/app_chrome.slint"
 CONTRACT = ROOT / "crates/infiltrator-contract/src/mobile_chrome.rs"
 CAPTURES = ROOT / ".evidence/captures/slint"
-FULL_MATRIX_SIZE = 197
+FULL_MATRIX_SIZE = 199
 
 SKINS = ("amoled", "forest", "dark", "light")
 

@@ -1,9 +1,15 @@
 //! Slint navigation callbacks routed to the shared product owner.
 
 use super::super::*;
+use infiltrator_contract::shell_sidebar_preference::SidebarExpansionIntent;
+use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 
-pub(super) fn register(window: &AppWindow, latest: Arc<Mutex<Option<SurfaceSnapshot>>>) {
+pub(super) fn register(
+    window: &AppWindow,
+    requests: Sender<WorkerRequest>,
+    latest: Arc<Mutex<Option<SurfaceSnapshot>>>,
+) {
     let weak = window.as_weak();
     // Navigation and appearance previews belong to this shared component.
     let weak_for_navigation = weak.clone();
@@ -40,5 +46,16 @@ pub(super) fn register(window: &AppWindow, latest: Arc<Mutex<Option<SurfaceSnaps
         let _ = weak_for_scheme
             .clone()
             .upgrade_in_event_loop(move |window| window.set_application_dark_mode(dark));
+    });
+    let weak_for_sidebar = weak.clone();
+    let tx_for_sidebar = requests.clone();
+    window.on_toggle_sidebar_expansion(move || {
+        queue_intent(
+            &tx_for_sidebar,
+            &weak_for_sidebar,
+            CommandIntent::ApplySidebarExpansion {
+                intent: SidebarExpansionIntent::Toggle,
+            },
+        );
     });
 }

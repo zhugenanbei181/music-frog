@@ -28,6 +28,37 @@ pub enum Density {
 }
 
 impl Density {
+    /// Every density a surface may offer, in the order the settings selector
+    /// presents them. One owner answers "which densities exist": a surface
+    /// renders this list instead of restating the two variants as literals.
+    pub const ALL: [Self; 2] = [Self::Comfortable, Self::Compact];
+
+    /// The locale key of the density's display name, resolved through the
+    /// shared copy table like every other user-visible string.
+    pub const fn label_key(self) -> &'static str {
+        match self {
+            Self::Compact => "density_compact",
+            Self::Comfortable => "density_comfortable",
+        }
+    }
+
+    /// Position in [`Self::ALL`], for a selector that reports an index.
+    pub const fn index(self) -> usize {
+        match self {
+            Self::Comfortable => 0,
+            Self::Compact => 1,
+        }
+    }
+
+    /// The density at one position of [`Self::ALL`]. An out-of-range index
+    /// resolves to the default rather than a guessed density.
+    pub const fn from_index(index: usize) -> Self {
+        match index {
+            1 => Self::Compact,
+            _ => Self::Comfortable,
+        }
+    }
+
     /// Whether current density is Compact.
     pub fn is_compact(&self) -> bool {
         matches!(self, Density::Compact)

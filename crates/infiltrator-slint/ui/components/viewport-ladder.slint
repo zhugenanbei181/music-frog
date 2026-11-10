@@ -114,6 +114,32 @@ export global ViewportLadder {
         return false;
     }
 
+    // FlClash persists only `sidebarExpanded` in app settings and derives one
+    // `expanded` fact from the viewport capability. The contract exports the
+    // closed preference x tier x surface-kind table below; this generated
+    // lookup only spells its typed answer in the surface vocabulary. A user
+    // who collapses a desktop window therefore gets the existing rail form,
+    // and a touch surface keeps its bottom bar without a second UI decision.
+    public pure function sidebar_toggle_available(preference: SidebarExpansionPreference, tier: ViewportTier, touch-surface: bool) -> bool {
+        if (preference == SidebarExpansionPreference.expanded && tier == ViewportTier.compact && touch-surface == false) { return false; }
+        if (preference == SidebarExpansionPreference.expanded && tier == ViewportTier.compact && touch-surface == true) { return false; }
+        if (preference == SidebarExpansionPreference.expanded && tier == ViewportTier.medium && touch-surface == false) { return false; }
+        if (preference == SidebarExpansionPreference.expanded && tier == ViewportTier.medium && touch-surface == true) { return false; }
+        if (preference == SidebarExpansionPreference.expanded && tier == ViewportTier.expanded && touch-surface == false) { return true; }
+        if (preference == SidebarExpansionPreference.expanded && tier == ViewportTier.expanded && touch-surface == true) { return false; }
+        if (preference == SidebarExpansionPreference.expanded && tier == ViewportTier.ultra && touch-surface == false) { return true; }
+        if (preference == SidebarExpansionPreference.expanded && tier == ViewportTier.ultra && touch-surface == true) { return false; }
+        if (preference == SidebarExpansionPreference.collapsed && tier == ViewportTier.compact && touch-surface == false) { return false; }
+        if (preference == SidebarExpansionPreference.collapsed && tier == ViewportTier.compact && touch-surface == true) { return false; }
+        if (preference == SidebarExpansionPreference.collapsed && tier == ViewportTier.medium && touch-surface == false) { return false; }
+        if (preference == SidebarExpansionPreference.collapsed && tier == ViewportTier.medium && touch-surface == true) { return false; }
+        if (preference == SidebarExpansionPreference.collapsed && tier == ViewportTier.expanded && touch-surface == false) { return true; }
+        if (preference == SidebarExpansionPreference.collapsed && tier == ViewportTier.expanded && touch-surface == true) { return false; }
+        if (preference == SidebarExpansionPreference.collapsed && tier == ViewportTier.ultra && touch-surface == false) { return true; }
+        if (preference == SidebarExpansionPreference.collapsed && tier == ViewportTier.ultra && touch-surface == true) { return false; }
+        return false;
+    }
+
     // Node cards per row on the proxy page. This is the count the Iced and
     // Bevy shells use at the same width, so one window never gets four
     // columns on one surface and three on another.

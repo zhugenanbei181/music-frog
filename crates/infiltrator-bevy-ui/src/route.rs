@@ -12,7 +12,7 @@
 //!   transitions in one frame queue despawn before spawn to cleanly converge on
 //!   one active page tree without leaked entities.
 
-use crate::app::{ContentSlot, SidebarFoot, SidebarToggleProjection};
+use crate::app::{ContentSlot, SystemToggleMirror};
 #[cfg(feature = "capture-tools")]
 use crate::capture::page_from_env;
 use crate::command_execution::drain_command_results;
@@ -51,7 +51,7 @@ use crate::pages::globe::GlobePagePlugin;
 use crate::pages::logs::LogsProjectionUpdated;
 use crate::pages::logs_virtual::{LogsVirtualState, sync_logs_virtual_window};
 use crate::pages::overview::{
-    LastOverviewProjection, OverviewProjectionUpdated, banner_note, replay_projection_after_theme,
+    LastOverviewProjection, OverviewProjectionUpdated, replay_projection_after_theme,
     sync_overview_metrics_columns,
 };
 use crate::pages::overview_lifecycle::CoreControlPlugin;
@@ -134,19 +134,18 @@ use bevy::ecs::event::Event;
 use bevy::ecs::hierarchy::ChildOf;
 use bevy::ecs::lifecycle::Add;
 use bevy::ecs::observer::On;
-use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::input::keyboard::KeyboardInput;
 use bevy::scene::CommandsSceneExt;
-use bevy::ui::widget::Text;
 use infiltrator_bevy_widgets::button::{sync_control_labels, sync_control_visuals};
 use infiltrator_bevy_widgets::drawer::animate_drawers;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_contract::command_catalogue::ShellPage;
+use infiltrator_contract::shell_navigation::destination_for;
 use infiltrator_contract::surface_snapshot::{PageId, SurfaceSnapshot};
 use infiltrator_presentation::system_toggle_projection;
 use lurker_core_contract::page::PageStatus;
@@ -219,24 +218,15 @@ impl Route {
     ];
 
     /// Canonical copy identity shared with the other peer.
+    ///
+    /// The key is the contract's, read through the page identity: a route is
+    /// presentation vocabulary and the page-name owner is
+    /// `ShellPage::sidebar_key`. This used to restate all fifteen keys as a
+    /// second table beside the contract's, which is how a nav row could be
+    /// labelled by the registry and named by the route with two answers that
+    /// only happened to agree.
     pub const fn label_key(self) -> &'static str {
-        match self {
-            Self::Overview => "nav_overview",
-            Self::Proxies => "nav_proxies",
-            Self::Profiles => "nav_profiles",
-            Self::Rules => "nav_rules",
-            Self::Connections => "nav_connections",
-            Self::Logs => "nav_logs",
-            Self::Dns => "nav_dns",
-            Self::Doctor => "nav_doctor",
-            Self::AppRouting => "nav_app_routing",
-            Self::Sync => "nav_sync",
-            Self::Settings => "nav_settings",
-            Self::Tools => "nav_tools",
-            Self::About => "nav_about",
-            Self::Disclaimer => "nav_disclaimer",
-            Self::Licenses => "nav_licenses",
-        }
+        page_id_for_route(self).nav_key()
     }
 
     /// Initial copy for consumers without a mounted locale resource.
@@ -289,6 +279,19 @@ impl Route {
             ShellPage::Disclaimer => Self::Disclaimer,
             ShellPage::Licenses => Self::Licenses,
         }
+    }
+
+    /// The navigation destination that owns this route.
+    ///
+    /// The registry gives one row per *destination* and folds the leaf pages
+    /// under it, so a surface that marks a row active by comparing raw routes
+    /// leaves the row unlit on the folded page — the user would be on DNS with
+    /// nothing in the rail saying where they are. The fold is the contract's
+    /// ([`destination_for`]) and this is the only place this surface reads it
+    /// for its own rows; no surface keeps a second table of which page nests
+    /// where.
+    pub const fn destination_page(self) -> ShellPage {
+        destination_for(page_id_for_route(self).nav_target())
     }
 }
 
@@ -663,9 +666,9 @@ impl Plugin for PagesPlugin {
             &initial_snapshot,
         )));
         app.insert_resource(LatestSurfaceSnapshot(initial_snapshot.clone()));
-        app.insert_resource(SidebarToggleProjection(
-            system_toggle_projection::from_surface(&initial_snapshot),
-        ));
+        app.insert_resource(SystemToggleMirror(system_toggle_projection::from_surface(
+            &initial_snapshot,
+        )));
         app.add_observer(on_content_slot_added);
         app.add_observer(sync_route);
         app.add_observer(surface_projection::apply_surface_snapshot);
@@ -729,12 +732,9 @@ impl Plugin for PagesPlugin {
         // apply_theme restamps role ink over state ink; the replay re-fires
         // the page's last projection once the switch dispatch is done).
         app.add_observer(replay_projection_after_theme);
-        // The sidebar foot follows the injected source (demo caption vs
-        // 实时内核 version).
         app.add_systems(
             Update,
             (
-                sync_sidebar_foot,
                 sync_overview_responsive,
                 sync_topology_hover_highlight,
                 sync_overview_metrics_columns,
@@ -812,23 +812,6 @@ fn on_navigate_forward(
 ) {
     if let Some(next) = history.go_forward() {
         commands.trigger(RouteChanged(next));
-    }
-}
-
-/// The sidebar foot follows the injected source: `0.30 demo` for the demo
-/// fixture, `实时内核 · <version>` for the live pump. Compare-and-set per
-/// frame — the live version lands with the pump's first successful sample
-/// and the caption picks it up with no event of its own.
-fn sync_sidebar_foot(
-    handle: Res<OverviewSourceHandle>,
-    locale: Res<UiLocale>,
-    mut foot: Query<&mut Text, With<SidebarFoot>>,
-) {
-    let want = banner_note(&handle.0.current(), locale.code());
-    for mut text in &mut foot {
-        if text.0 != want {
-            text.0 = want.clone();
-        }
     }
 }
 

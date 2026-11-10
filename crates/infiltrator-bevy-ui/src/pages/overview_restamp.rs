@@ -7,6 +7,7 @@ pub mod query_access;
 use self::query_access::{OverviewDynamicTextItem, OverviewProjectionTargets};
 use infiltrator_shared::locales::Lang;
 
+use crate::a11y::sync_switch_state;
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::history::{
     ReplayState, TrafficHistory, TrafficReplay, chart_inputs, replay_chart_inputs, replay_state,
@@ -459,10 +460,19 @@ pub(crate) fn apply_overview_projection(
     for mut progress in &mut quota_progress {
         progress.width = percent(quota_presentation.fraction.unwrap_or(0.0) * 100.0);
     }
-    for mut button in &mut master_buttons {
+    for (mut button, mut disabled, accessibility) in &mut master_buttons {
         let state = projection.system_toggles.state(button.toggle);
         button.enabled = state.is_enabled();
         button.can_toggle = state.can_toggle();
+        // The actionable bit and the disabled marker move together: the card
+        // is the shell's one master switch, so a pending or unobserved control
+        // must stop being pressable the frame the owner says so.
+        disabled.0 = !state.can_toggle();
+        if let Some(mut accessibility) = accessibility {
+            // The card is the shell's one master switch, so it publishes the
+            // shared switch row: the same truth the knob and the label state.
+            sync_switch_state(&mut accessibility, state.is_enabled());
+        }
     }
     for mut button in &mut topology_buttons {
         button.enabled = projection.traffic_topology.is_drawable();

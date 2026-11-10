@@ -16,9 +16,10 @@ use infiltrator_application::runtime_configuration_application::RuntimeConfigura
 use infiltrator_application::runtime_control_projection::RuntimeControlApplication;
 use infiltrator_bevy_ui::app::{
     ContentTitleLabel, GlobalStatusDot, PendingRoutingIntentRequest, RoutingIntentStatusCapsule,
-    ShellPlugin, SidebarTunToggle,
+    ShellPlugin,
 };
-use infiltrator_bevy_ui::pages::overview::OverviewRoutingIntentPill;
+use infiltrator_bevy_ui::pages::overview_cards::OverviewRoutingIntentSegmentPill;
+use infiltrator_bevy_ui::pages::overview_restamp::OverviewMasterSwitchButton;
 use infiltrator_bevy_ui::route::{OverviewSourceHandle, PagesPlugin};
 use infiltrator_bevy_ui::shell_readout::STATUS_DOT_BOX_PX;
 use infiltrator_bevy_ui::surface::{
@@ -135,16 +136,21 @@ fn native_routing_and_tun_controls_remain_unknown_until_observed_and_failed_read
         .unwrap();
     let route_all = app
         .world_mut()
-        .query::<(Entity, &OverviewRoutingIntentPill)>()
+        .query::<(Entity, &OverviewRoutingIntentSegmentPill)>()
         .iter(app.world())
         .find(|(_, pill)| pill.0 == RoutingIntent::RouteAllThroughProxy)
         .unwrap();
     let route_all = route_all.0;
+    // The dashboard's master switches are the shell's only TUN control now
+    // that the rail mounts navigation alone, so the honest non-actionability
+    // of an unobserved toggle is asserted there.
     let tun = app
         .world_mut()
-        .query_filtered::<Entity, With<SidebarTunToggle>>()
-        .single(app.world())
-        .unwrap();
+        .query::<(Entity, &OverviewMasterSwitchButton)>()
+        .iter(app.world())
+        .find(|(_, button)| button.toggle == infiltrator_contract::system_toggle::SystemToggle::Tun)
+        .expect("the dashboard mounts the TUN master switch")
+        .0;
     let mut snapshot = DemoSurfaceSource::running().surface_snapshot();
     let observations = RuntimeControlApplication::default();
     snapshot.core.lifecycle = CoreLifecycle::Running;
@@ -223,7 +229,7 @@ fn native_routing_and_tun_controls_remain_unknown_until_observed_and_failed_read
     assert_eq!(caption(&app, capsule), "全局模式");
     let global = app
         .world_mut()
-        .query::<(Entity, &OverviewRoutingIntentPill)>()
+        .query::<(Entity, &OverviewRoutingIntentSegmentPill)>()
         .iter(app.world())
         .find(|(_, mode)| mode.0 == RoutingIntent::RouteAllThroughProxy)
         .unwrap()
@@ -237,7 +243,7 @@ fn native_routing_and_tun_controls_remain_unknown_until_observed_and_failed_read
     );
     assert_eq!(
         app.world_mut()
-            .query::<&OverviewRoutingIntentPill>()
+            .query::<&OverviewRoutingIntentSegmentPill>()
             .iter(app.world())
             .count(),
         3,
@@ -256,7 +262,7 @@ fn native_routing_and_tun_controls_remain_unknown_until_observed_and_failed_read
     app.update();
     assert_eq!(
         app.world_mut()
-            .query::<(Entity, &OverviewRoutingIntentPill)>()
+            .query::<(Entity, &OverviewRoutingIntentSegmentPill)>()
             .iter(app.world())
             .filter(|(entity, _)| !app.world().get::<ButtonDisabled>(*entity).unwrap().0)
             .count(),

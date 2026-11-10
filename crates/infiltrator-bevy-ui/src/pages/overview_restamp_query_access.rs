@@ -18,10 +18,21 @@ use bevy::ecs::system::{Query, SystemParam};
 use bevy::text::TextColor;
 use bevy::ui::prelude::Node;
 use bevy::ui::widget::Text;
+use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::chart::ChartPlate;
 use infiltrator_bevy_widgets::chart::topology::TopologyPlate;
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::stat_chip::StatChipValue;
+
+/// The master switch's card is the shell's one actionable toggle, so it now
+/// publishes the shared switch row itself. Its accessibility access must stay
+/// disjoint from the two other rows that restate a live state: the hero's
+/// typed lines and the telemetry chips.
+#[derive(QueryFilter)]
+pub struct ApplyOverviewProjectionLinesFilter {
+    without_overview_chip: Without<OverviewChip>,
+    without_master_switch_button: Without<OverviewMasterSwitchButton>,
+}
 
 #[derive(QueryFilter)]
 pub struct ApplyOverviewProjectionReloadMasksFilter {
@@ -52,12 +63,21 @@ pub struct OverviewProjectionTargets<'w, 's> {
             &'static OverviewLine,
             Option<&'static mut AccessibilityNode>,
         ),
-        Without<OverviewChip>,
+        ApplyOverviewProjectionLinesFilter,
     >,
     pub(super) values: Query<'w, 's, &'static mut Text, StatValueFilter>,
     pub(super) dynamic_texts: Query<'w, 's, OverviewDynamicText, OverviewDynamicTextFilter>,
     pub(super) quota_progress: Query<'w, 's, &'static mut Node, QuotaProgressFilter>,
-    pub(super) master_buttons: Query<'w, 's, &'static mut OverviewMasterSwitchButton>,
+    pub(super) master_buttons: Query<
+        'w,
+        's,
+        (
+            &'static mut OverviewMasterSwitchButton,
+            &'static mut ButtonDisabled,
+            Option<&'static mut AccessibilityNode>,
+        ),
+        Without<OverviewChip>,
+    >,
     pub(super) topology_buttons: Query<'w, 's, &'static mut TopologyStageButton>,
 
     pub(super) cards: Query<'w, 's, &'static mut OverviewCardState, With<OverviewStatusCard>>,

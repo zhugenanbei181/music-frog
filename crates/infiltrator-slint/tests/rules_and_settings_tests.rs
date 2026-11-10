@@ -9,6 +9,7 @@
 
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::language::LanguagePreference;
+use infiltrator_contract::shell_sidebar_preference::SidebarExpansionIntent;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{RulesPageSnapshot, SurfaceSnapshot};
 use infiltrator_contract::system_proxy::SystemProxyRecoveryStatus;
@@ -53,6 +54,27 @@ fn desktop_snapshot() -> SurfaceSnapshot {
     .expect("rules page JSON");
     snapshot.pages.rules = PageData::ready(page);
     snapshot
+}
+
+#[test]
+fn the_sidebar_collapse_gesture_sends_the_one_typed_preference_intent() {
+    // The surface owns no collapsed flag: the button sends the typed toggle to
+    // the settings owner, and the owner readback decides the next shape.
+    let surface = harness::SurfaceHarness::new(None).unwrap();
+    match surface.toggle_sidebar_expansion() {
+        harness::SurfaceOutcome::Dispatched(actions) => {
+            assert!(
+                actions.iter().any(|action| matches!(
+                    action,
+                    SlintAction::Command(CommandIntent::ApplySidebarExpansion {
+                        intent: SidebarExpansionIntent::Toggle,
+                    })
+                )),
+                "{actions:?}"
+            );
+        }
+        other => panic!("the collapse gesture must reach the owner: {other:?}"),
+    }
 }
 
 #[test]

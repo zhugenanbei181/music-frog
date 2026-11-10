@@ -19,7 +19,7 @@ pub(super) fn register_callbacks(
     latest: Arc<Mutex<Option<SurfaceSnapshot>>>,
     workbenches: Arc<Workbenches>,
 ) {
-    navigation::register(window, Arc::clone(&latest));
+    navigation::register(window, requests.clone(), Arc::clone(&latest));
     profiles::register(window, requests.clone(), Arc::clone(&latest));
     runtime::register(window, requests.clone(), Arc::clone(&latest));
     outbound::register(window, requests.clone(), Arc::clone(&latest));

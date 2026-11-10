@@ -703,7 +703,7 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "a11y_routing_intent_segment" => "Traffic routing intent selector".into(),
         "a11y_system_proxy_switch" => "System proxy toggle".into(),
         "a11y_tun_switch" => "TUN mode toggle".into(),
-        "a11y_theme_toggle" => "Toggle color theme".into(),
+        "a11y_appearance_segment" => "Appearance theme selector".into(),
         "a11y_mini_hud_card" => "Mini HUD".into(),
         "a11y_mini_hud_system_proxy" => "Mini HUD system proxy toggle".into(),
         "a11y_mini_hud_tun" => "Mini HUD TUN toggle".into(),

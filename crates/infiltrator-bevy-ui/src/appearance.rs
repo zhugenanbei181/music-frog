@@ -3,12 +3,17 @@
 //! The shared contract owns the four skins and the `system` preference; this
 //! module projects that vocabulary onto the widget layer's mirror, follows
 //! the live OS appearance reported by winit, and repaints on switch.
+//!
+//! The user-facing control is the Settings appearance card
+//! (`crate::pages::settings_appearance`), which selects one
+//! [`ThemePreference::ALL`] option. The shell used to carry a cycling theme
+//! pill in the sidebar footer; that affordance is retired, so this module owns
+//! no activation observer — only the preference mirror, the OS follow and the
+//! write-through the selector calls.
 
-use crate::app::ThemeToggle;
 use crate::command::{CommandSinkHandle, UiCommand};
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
-use bevy::ecs::observer::On;
 use bevy::ecs::query::{QueryData, With};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
@@ -16,7 +21,6 @@ use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{BackgroundColor, BorderRadius, FlexDirection, Node, UiRect, percent};
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::Activate;
 use bevy::window::{Window, WindowTheme};
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::palette::rem;
@@ -79,28 +83,6 @@ pub fn resolved_skin(
         SystemDynamicColor::Unobserved,
     );
     skin_from_contract(resolved.skin)
-}
-
-/// Theme toggle observer: advances the shared appearance preference
-/// (`system → dark → light → forest → amoled`) and repaints the resolved skin.
-pub fn on_theme_pill_activated(
-    activate: On<Activate>,
-    toggles: Query<(), With<ThemeToggle>>,
-    mut mode: ResMut<ThemeMode>,
-    appearance: Option<Res<SystemAppearance>>,
-    sink: Option<Res<CommandSinkHandle>>,
-    mut commands: Commands,
-) {
-    if !toggles.contains(activate.entity) {
-        return;
-    }
-    let next = mode.0.next();
-    mode.0 = next;
-    let system = appearance
-        .map(|appearance| appearance.0)
-        .unwrap_or_default();
-    persist_theme_preference(sink.as_deref(), next);
-    commands.trigger(ThemeSwitch(resolved_skin(next, system)));
 }
 
 /// The appearance preference is written through to the settings owner at

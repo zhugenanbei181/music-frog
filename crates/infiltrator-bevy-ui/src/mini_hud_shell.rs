@@ -5,7 +5,7 @@
 //! (`mini_hud.pinned`, validated by `CommandApplication::update_setting`) and
 //! routes the `Ctrl+Alt+M` shortcut / palette row into the toggle event.
 
-use crate::app::SidebarToggleProjection;
+use crate::app::SystemToggleMirror;
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::mini_hud::{
     MiniHudDownWaveform, MiniHudExpandButton, MiniHudMode, MiniHudModel, MiniHudPinButton,
@@ -48,7 +48,7 @@ pub struct MiniHudMountSignature {
 /// Rebuild the shared read model from the live projections each frame.
 pub fn sync_mini_hud_model(
     overview: Option<Res<LastOverviewProjection>>,
-    toggles: Option<Res<SidebarToggleProjection>>,
+    toggles: Option<Res<SystemToggleMirror>>,
     surface: Option<Res<LatestSurfaceSnapshot>>,
     mut model: ResMut<MiniHudModel>,
 ) {
@@ -252,7 +252,7 @@ pub fn on_set_mini_hud_pinned(trigger: On<SetMiniHudPinned>, sink: Option<Res<Co
 fn submit_toggle(
     toggle: SystemToggle,
     desired: bool,
-    projection: &SidebarToggleProjection,
+    projection: &SystemToggleMirror,
     sink: &CommandSinkHandle,
     commands: &mut Commands,
 ) {
@@ -264,7 +264,7 @@ fn submit_toggle(
         SystemToggle::Tun => UiCommand::ToggleTun { enabled: desired },
     };
     sink.submit(command);
-    commands.insert_resource(SidebarToggleProjection(
+    commands.insert_resource(SystemToggleMirror(
         projection.0.clone().with_pending(toggle, desired),
     ));
 }
@@ -273,7 +273,7 @@ fn submit_toggle(
 pub fn on_mini_hud_system_proxy_activated(
     activate: On<Activate>,
     buttons: Query<(), With<MiniHudSystemProxyToggle>>,
-    projection: Res<SidebarToggleProjection>,
+    projection: Res<SystemToggleMirror>,
     sink: Option<Res<CommandSinkHandle>>,
     mut commands: Commands,
 ) {
@@ -297,7 +297,7 @@ pub fn on_mini_hud_system_proxy_activated(
 pub fn on_mini_hud_tun_activated(
     activate: On<Activate>,
     buttons: Query<(), With<MiniHudTunToggle>>,
-    projection: Res<SidebarToggleProjection>,
+    projection: Res<SystemToggleMirror>,
     sink: Option<Res<CommandSinkHandle>>,
     mut commands: Commands,
 ) {

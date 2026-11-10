@@ -12,9 +12,10 @@
 //! pixels, so each is divided by the ui unit the bindings were multiplied by
 //! (`page-scale-percent / 100`), which is the one scale fact the shell owns.
 
-use crate::AppWindow;
 use crate::mobile_dock_driver::to_contract_form;
+use crate::{AppWindow, SidebarExpansionPreference};
 use infiltrator_contract::shell_receipt::ShellChromeFacts;
+use infiltrator_contract::shell_sidebar_preference::SidebarExpansionPreference as ContractPreference;
 
 /// One painted length, stated in the logical units the shell bound it in.
 ///
@@ -36,6 +37,13 @@ pub fn logical_units(length_px: f32, scale_percent: i32) -> u16 {
     (length_px / (percent / 100.0)).round().max(0.0) as u16
 }
 
+fn to_contract_preference(preference: SidebarExpansionPreference) -> ContractPreference {
+    match preference {
+        SidebarExpansionPreference::Expanded => ContractPreference::Expanded,
+        SidebarExpansionPreference::Collapsed => ContractPreference::Collapsed,
+    }
+}
+
 /// The chrome this window is painting right now.
 pub fn shell_chrome_facts(window: &AppWindow) -> ShellChromeFacts {
     let chrome = window.get_receipt_chrome();
@@ -51,5 +59,8 @@ pub fn shell_chrome_facts(window: &AppWindow) -> ShellChromeFacts {
         shell_bottom_air_px: length_px(chrome.shell_bottom_air),
         dock_band_px: length_px(chrome.dock_band),
         scale_percent: chrome.scale_percent.max(0) as u16,
+        sidebar_expansion: to_contract_preference(chrome.sidebar_expansion),
+        touch_surface: chrome.touch_surface,
+        sidebar_toggle_px: length_px(chrome.sidebar_toggle),
     }
 }

@@ -13,6 +13,7 @@
 use crate::{ConnectionSort, NetworkMode, RouteMode, ThemeMode};
 use infiltrator_contract::logs::LogLevel;
 use infiltrator_contract::overview_layout::OverviewCardKind;
+use infiltrator_contract::shell_sidebar_preference::SidebarExpansionPreference;
 use infiltrator_domain::connection_view::ConnectionSortKey;
 use infiltrator_presentation::log_page_model::LogLevelFilter;
 use infiltrator_presentation::overview_page_model::{OverviewNetworkMode, OverviewRoutingMode};
@@ -122,6 +123,14 @@ pub fn theme_mode(value: &str) -> crate::ThemeMode {
         "forest" => crate::ThemeMode::Forest,
         "amoled" => crate::ThemeMode::Amoled,
         _ => crate::ThemeMode::System,
+    }
+}
+
+/// The settings owner's sidebar preference in the widget's typed vocabulary.
+pub fn sidebar_expansion(value: SidebarExpansionPreference) -> crate::SidebarExpansionPreference {
+    match value {
+        SidebarExpansionPreference::Expanded => crate::SidebarExpansionPreference::Expanded,
+        SidebarExpansionPreference::Collapsed => crate::SidebarExpansionPreference::Collapsed,
     }
 }
 

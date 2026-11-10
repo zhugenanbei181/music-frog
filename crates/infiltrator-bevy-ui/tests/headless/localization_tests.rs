@@ -24,21 +24,27 @@ use infiltrator_shared::locales::{Lang, Localizer};
 #[test]
 fn shell_routing_intent_text_and_accessibility_refresh_in_place_from_shared_copy() {
     use infiltrator_bevy_ui::app::ShellPlugin;
-    use infiltrator_bevy_ui::pages::overview::OverviewRoutingIntentPill;
+    use infiltrator_bevy_ui::pages::overview_cards::OverviewRoutingIntentSegmentPill;
+    use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 
     let mut app = App::new();
     headless_plugins(&mut app);
-    app.add_plugins(ShellPlugin::default());
+    // The routing choices are the Overview page's control, not the shell's:
+    // the sidebar mounts navigation alone, so this copy refresh is exercised
+    // on the surface that actually publishes those three rows.
+    app.add_plugins((ShellPlugin::default(), PagesPlugin::demo()));
     app.insert_resource(UiLocale::new("zh-CN"));
+    app.update();
+    app.world_mut().trigger(RouteChanged(Route::Overview));
     app.update();
     app.update();
     let roots = app
         .world_mut()
-        .query::<(Entity, &OverviewRoutingIntentPill)>()
+        .query::<(Entity, &OverviewRoutingIntentSegmentPill)>()
         .iter(app.world())
         .map(|(entity, pill)| (entity, pill.0.clone()))
         .collect::<Vec<_>>();
-    assert_eq!(roots.len(), 3);
+    assert_eq!(roots.len(), 3, "the card offers the three shared choices");
     let labels = roots
         .iter()
         .map(|(root, mode)| {
@@ -217,13 +223,49 @@ fn native_navigation_labels_and_title_follow_locale_without_remounting() {
     app.add_plugins(ShellPlugin::default());
     app.insert_resource(ActiveRoute(Some(Route::Settings)));
     app.update();
-    let nav = app
-        .world_mut()
-        .query::<(Entity, &SidebarNavItem)>()
-        .iter(app.world())
-        .map(|(entity, item)| (entity, item.0))
-        .collect::<Vec<_>>();
-    assert_eq!(nav.len(), Route::ALL.len());
+    // The rail mounts the registry's destinations that this surface owns, not
+    // one row per route: the leaf pages (DNS, Doctor, Sync, Tools, About, …)
+    // fold under Settings and are reached from the settings index. Read in
+    // painted order, because the claim is about the stack the user sees.
+    let rail = {
+        let world = app.world_mut();
+        world
+            .query::<(Entity, &infiltrator_bevy_ui::app::SidebarPanel)>()
+            .single(world)
+            .expect("one sidebar rail")
+            .0
+    };
+    let nav: Vec<(Entity, Route)> = crate::support::subtree_in_tree_order(app.world(), rail)
+        .into_iter()
+        .filter_map(|entity| {
+            app.world()
+                .get::<SidebarNavItem>(entity)
+                .map(|item| (entity, item.0))
+        })
+        .collect();
+    let expected: Vec<Route> = infiltrator_contract::shell_navigation::desktop_items(
+        infiltrator_contract::surface::SurfaceKind::BevyDesktop,
+    )
+    .iter()
+    .map(|item| match item.target {
+        infiltrator_contract::shell_navigation::NavigationTarget::Shared(page) => {
+            Route::from_shell_page(page)
+        }
+        infiltrator_contract::shell_navigation::NavigationTarget::SurfaceLocal(id) => {
+            panic!("the registry handed {id} to a surface that does not own it")
+        }
+    })
+    .collect();
+    assert_eq!(
+        nav.iter().map(|(_, route)| *route).collect::<Vec<_>>(),
+        expected,
+        "the rows are the registry's, painted in registry order"
+    );
+    assert_eq!(
+        nav.len(),
+        7,
+        "Bevy folds traffic into its overview, so seven shared destinations mount"
+    );
     let title = app
         .world_mut()
         .query::<(Entity, &ContentTitleLabel)>()

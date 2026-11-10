@@ -42,6 +42,11 @@
    shell_receipt_host.rs` 从活的窗口读回），判定器逐帧解析后据此建盒：换皮肤、
    换缩放或改外壳-padding 都不会让测量盒与像素脱钩。帧若没有这行，判定器直接
    报违规而不是用记住的数——回执是判据的来源，不是判据的注释。
+   **b173 追加**：回执行从 9 键扩到 11 键，新增 typed `sidebar_expansion` 与
+   `touch_surface`。它们不是画面里猜出来的阶段，而是外壳从设置 owner 与表面
+   身份读到的决议输入；判定器用它从导出表选择唯一合法 sidebar variant，再判
+   `chrome_band` / `void` / `leading`。因此桌面折叠帧能证明 64px rail，却不可能
+   冒充 expanded 240px 列；缺任一键仍按「帧没描述自己」直接判违规。
    **b152 追加**：判「哪一档」不得由判定器自己比宽度。档界、该档是否给出带标签
    侧栏、侧栏列宽与逐档兜底上限全部来自契约导出物
    `crates/infiltrator-contract/assets/page-structure.json` 的 `tiers[]`；
@@ -108,6 +113,13 @@
 | --- | --- | --- |
 | `chrome_band` | **0%** | FlClash 桌面侧栏实测只有导航行（边界 x=429，5 个行带 y89–579，下方无非导航区块）；统计数据全部属于仪表盘卡片 |
 | `void` | **12%** | stretch 空气必须留在栈尾，不得长在导航行之间；b164 起桌面四种导航形态统一由契约导出 `NavigationSeparator::None`，不画分组标题与它的额外上空气 |
+
+侧栏形态与按钮可用性由 `page-structure.json` 的 `sidebar_variants` 16 行封闭表
+给定：`preference × tier × touch_surface` 唯一决定 `nav_form`、列宽、标签与
+`toggle_available`。b173 的折叠纯外壳帧（standard/compact 双视口）发布
+`sidebar_expansion=collapsed touch_surface=0 nav_form=rail nav_column_px=64`，
+按同一上限判导航-only rail；侧栏顶部的展开/收起按钮是导航 chrome，不是统计卡、
+品牌块或版本行，既不增加 `chrome_band`，也不因右侧合法呼吸位被误判浪费。
 
 达标判定：`unused ≤ 该页面形态的上限` 且侧栏两项不超标。
 

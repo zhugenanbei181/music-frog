@@ -19,7 +19,7 @@ use bevy::ui::BackgroundColor;
 use bevy::ui::prelude::{Display, Node};
 use bevy::ui::widget::{ImageNode, Text};
 use bevy::ui_widgets::Activate;
-use infiltrator_bevy_ui::app::{ContentSlot, ShellLayoutState, ShellPlugin, SidebarFoot};
+use infiltrator_bevy_ui::app::{ContentSlot, ShellLayoutState, ShellPlugin};
 use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommand, UiCommandSink};
 use infiltrator_bevy_ui::history::{TrafficHistory, demo_traffic_series};
 use infiltrator_bevy_ui::pages::globe::GlobeSectionSlot;
@@ -27,12 +27,12 @@ use infiltrator_bevy_ui::pages::overview::{
     CHART_HEIGHT_PX, CHART_WIDTH_PX, OverviewCardMoveUpButton, OverviewCardSlot, OverviewCardSlots,
     OverviewCardState, OverviewChip, OverviewChipKind, OverviewLine, OverviewLineKind,
     OverviewProjectionUpdated, OverviewReloadMask, OverviewReloadMaskText,
-    OverviewResourceGaugeCard, OverviewRoutingIntentPill, OverviewServiceHealthCard,
-    OverviewStatusCard, OverviewTrafficCard, OverviewTrafficDetailSection, StatusDot,
-    format_memory, format_rate, subscription_quota_scene, topology_chain_scene,
+    OverviewResourceGaugeCard, OverviewServiceHealthCard, OverviewStatusCard, OverviewTrafficCard,
+    OverviewTrafficDetailSection, StatusDot, format_memory, format_rate, subscription_quota_scene,
+    topology_chain_scene,
 };
 use infiltrator_bevy_ui::pages::overview_cards::{
-    ActiveExitNodeCard, SystemProxyMasterCard, TunMasterCard,
+    ActiveExitNodeCard, OverviewRoutingIntentSegmentPill, SystemProxyMasterCard, TunMasterCard,
 };
 use infiltrator_bevy_ui::pages::overview_lifecycle::CoreControlButton;
 use infiltrator_bevy_ui::pages::overview_policy_groups::OverviewPolicyGroupCard;
@@ -228,9 +228,8 @@ fn card(world: &mut World) -> (Entity, Color, CoreLifecycle) {
     (id, fill.0, state)
 }
 
-/// Whether one shared routing choice carries the selected bit.
 fn pill_selected(world: &mut World, intent: RoutingIntent) -> bool {
-    let mut pills = world.query::<(&OverviewRoutingIntentPill, &ControlVisual)>();
+    let mut pills = world.query::<(&OverviewRoutingIntentSegmentPill, &ControlVisual)>();
     pills
         .iter(world)
         .find(|(pill, _)| pill.0 == intent)
@@ -249,7 +248,7 @@ fn overview_entity_ids(world: &mut World) -> Vec<Entity> {
         ids.extend(lines.iter(world).map(|(id, _)| id));
     }
     {
-        let mut pills = world.query::<(Entity, &OverviewRoutingIntentPill)>();
+        let mut pills = world.query::<(Entity, &OverviewRoutingIntentSegmentPill)>();
         ids.extend(pills.iter(world).map(|(id, _)| id));
     }
     {
@@ -349,16 +348,17 @@ fn descendants(world: &World, root: Entity) -> Vec<Entity> {
     out
 }
 
-// ---- the sidebar foot (source kind) ------------------------------------------
+// ---- the banner caption (source kind) ----------------------------------------
 
-/// The sidebar foot caption text.
+/// The dashboard hero's source caption. The rail used to publish the same
+/// caption a second time in its own foot; the hero line is the single owner.
 fn foot_text(world: &mut World) -> String {
     world
-        .query::<(&SidebarFoot, &Text)>()
+        .query::<(&OverviewLine, &Text)>()
         .iter(world)
-        .next()
+        .find(|(line, _)| line.0 == OverviewLineKind::BannerNote)
         .map(|(_, text)| text.0.clone())
-        .expect("the sidebar foot is mounted")
+        .expect("the dashboard hero states its source")
 }
 
 /// A live-core stub with a configurable self-reported version.

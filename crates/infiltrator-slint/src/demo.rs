@@ -21,6 +21,7 @@ use infiltrator_contract::public_ip::PublicIpProbeSnapshot;
 use infiltrator_contract::resources::{CoreGcStatus, CoreResourceSnapshot, ResourceAvailability};
 use infiltrator_contract::rule_snapshot::RuleSnapshot;
 use infiltrator_contract::shell_readout::{ShellObservation, ShellProfile};
+use infiltrator_contract::shell_sidebar_preference::SidebarExpansionPreference;
 use infiltrator_contract::snapshot::CoreSessionObservation;
 use infiltrator_contract::speedtest::{
     SpeedtestConcurrency, SpeedtestOutboundResult, SpeedtestResultState, SpeedtestRunState,
@@ -77,6 +78,10 @@ pub struct DemoSettings {
     /// `running`, `stopping`. Empty means the normal live beat.
     pub mascot_frame: Option<String>,
     pub mascot_elapsed_millis: u32,
+    /// The owner fixture's sidebar preference. A capture row can therefore
+    /// publish the collapsed rail without a UI-private shortcut or a second
+    /// source of the persisted setting.
+    pub sidebar_expansion: SidebarExpansionPreference,
 }
 
 impl DemoSettings {
@@ -175,6 +180,18 @@ impl DemoSettings {
             .and_then(|raw| raw.trim().parse::<i32>().ok())
             .filter(|percent| (85..=115).contains(percent));
 
+        let sidebar_expansion = match env::var("INFILTRATOR_SIDEBAR_EXPANSION")
+            .ok()
+            .as_deref()
+            .map(str::trim)
+        {
+            Some("collapsed") => SidebarExpansionPreference::Collapsed,
+            Some("expanded") | None => SidebarExpansionPreference::Expanded,
+            Some(other) => {
+                panic!("INFILTRATOR_SIDEBAR_EXPANSION={other} must be expanded or collapsed")
+            }
+        };
+
         Self {
             enabled,
             page,
@@ -186,6 +203,7 @@ impl DemoSettings {
             scroll_to_end,
             mascot_frame,
             mascot_elapsed_millis,
+            sidebar_expansion,
         }
     }
 }
@@ -409,7 +427,7 @@ fn build_demo_snapshot(settings: &DemoSettings) -> SurfaceSnapshot {
         refresh_current_profile_on_start: false,
         custom_accent_color: None,
         tray_icon_color_mode: TrayIconColorMode::default(),
-        sidebar_expansion: Default::default(),
+        sidebar_expansion: settings.sidebar_expansion,
     });
 
     snapshot.pages.profiles = PageData::ready(ProfilesPageSnapshot {

@@ -3,7 +3,10 @@
 
 use super::*;
 use bevy::ecs::query::With;
-use infiltrator_domain::rules::view::{rendered_row_bound, rule_scroll_offset_for_index};
+use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
+use infiltrator_domain::rules::view::{
+    rendered_row_bound, rule_scroll_offset_for_index, rule_window,
+};
 
 #[test]
 fn test_rules_pagination_hides_rows_outside_page() {
@@ -57,5 +60,31 @@ fn test_rules_pagination_hides_rows_outside_page() {
         .map(|(text, _)| text.0.clone())
         .find(|text| text.contains("页"))
         .expect("page indicator");
-    assert_eq!(indicator, "第 5/5 页 · 显示 797–815 · 共 1000 条");
+    // The caption states the *window*, so the expectation reads from the same
+    // shared arithmetic the mounted rows came from instead of a literal: batch
+    // 142 moved the rule window onto `zhuge-ui-core`'s virtual-list clipping,
+    // and a hardcoded "797–815" was the old `first + band + overscan` answer.
+    let state = app.world().resource::<RulesViewState>();
+    let window = rule_window(state.scroll_offset_px, state.viewport_height_px, 1_000);
+    let expected = LocalizedText::new(
+        "rules_pagination_live",
+        vec![
+            ("page", (state.page + 1).to_string()),
+            ("pages", "5".to_owned()),
+            ("start", (window.start + 1).to_string()),
+            ("end", window.end.to_string()),
+            ("total", "1000".to_owned()),
+        ],
+    )
+    .render(&UiLocale::new("zh-CN"));
+    assert_eq!(indicator, expected);
+    assert_eq!(
+        window.rendered_rows(),
+        app.world().resource::<RulesViewState>().rendered_rows,
+        "the caption's window is the window that mounted the rows"
+    );
+    assert!(
+        window.end < 1_000,
+        "the last page still leaves overscan below the fold: {window:?}"
+    );
 }

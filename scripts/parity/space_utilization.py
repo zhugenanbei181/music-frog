@@ -82,6 +82,7 @@ CHROME_KEYS_FOR_TEST = [
     "nav_form", "nav_column_px", "nav_stack_bottom_px", "nav_content_offset_px",
     "page_margin_px", "shell_top_air_px", "shell_bottom_air_px", "dock_band_px",
     "scale_percent",
+    "sidebar_expansion", "touch_surface", "sidebar_toggle_px",
 ]
 
 ROW_INK_FRACTION = 0.04
@@ -172,6 +173,29 @@ def tier_fact(name: str) -> dict:
     raise KeyError(f"{name} is not a tier of the exported ladder")
 
 
+def sidebar_variants() -> list[dict]:
+    """The closed variant table the shared resolver exported."""
+    if not PAGE_STRUCTURE_FILE.is_file():
+        return []
+    document = json.loads(PAGE_STRUCTURE_FILE.read_text(encoding="utf-8"))
+    return list(document.get("sidebar_variants", []))
+
+
+def sidebar_variant(chrome: dict, tier_name: str) -> dict | None:
+    """The one legal chrome for this frame's preference, tier and surface kind."""
+    preference = str(chrome.get("sidebar_expansion", ""))
+    touch_value = chrome.get("touch_surface")
+    if touch_value not in (0, 1, "0", "1"):
+        return None
+    touch = bool(int(touch_value))
+    for entry in sidebar_variants():
+        if (entry.get("preference") == preference
+                and entry.get("tier") == tier_name
+                and bool(entry.get("touch_surface")) == touch):
+            return entry
+    return None
+
+
 def painted_nav_column(width: int) -> int:
     """The navigation column a frame of this width actually paints.
 
@@ -217,7 +241,19 @@ def chrome_of(directory: pathlib.Path) -> dict | None:
             key, sep, value = pair.partition("=")
             if not sep or key not in declared or key in values:
                 return None
-            values[key] = value if key == "nav_form" else int(value)
+            if key in ("nav_form", "sidebar_expansion"):
+                values[key] = value
+            elif key == "touch_surface":
+                if value not in ("0", "1"):
+                    return None
+                values[key] = int(value)
+            elif key == "sidebar_toggle_px":
+                toggle_band = int(value)
+                if not 0 <= toggle_band <= 120:
+                    return None
+                values[key] = toggle_band
+            else:
+                values[key] = int(value)
         if sorted(values) != sorted(declared):
             return None
         found = values
@@ -290,10 +326,16 @@ def painted_nav_leading(image: np.ndarray, chrome: dict) -> int | None:
     while a navigation row's pane ground stops there and the page body begins.
     That is the same geometric test `rail_of` uses to keep a toast out of the
     chrome band, so the judge remembers no title-bar height at all.
+
+    A desktop frame may also mount one collapse/expand affordance above the
+    destinations. Its band is a typed shell fact, not a remembered row height:
+    the judge starts below `sidebar_toggle_px`, so the affordance's own inset
+    cannot be misread as the labelled rows' leading.
     """
     height, _, _ = image.shape
     column = int(chrome["nav_column_px"])
     bottom = nav_stack_bottom_px(chrome)
+    toggle_band = int(chrome.get("sidebar_toggle_px", 0))
     if column <= 0 or bottom <= 0:
         return None
     limit = min(bottom, height)
@@ -301,6 +343,7 @@ def painted_nav_leading(image: np.ndarray, chrome: dict) -> int | None:
     ground = np.median(image[height // 2, 4:10].reshape(-1, 3), axis=0)
     ink = np.abs(strip - ground).max(axis=2) > 45
     rows = ink.mean(axis=1) > 0.003
+    rows[:min(toggle_band, limit)] = False
     outside_x = min(image.shape[1] - 1, column + EDGE_SAMPLE_PX)
     inside_x = max(0, column - EDGE_SAMPLE_PX)
     for first, last in runs(rows):
@@ -332,7 +375,8 @@ def leading_findings(results: list[dict]) -> list[str]:
     found: list[str] = []
     for entry in results:
         chrome = entry.get("chrome")
-        if chrome is None or not bool(tier_fact(entry["tier"]).get("labelled_sidebar")):
+        variant = sidebar_variant(chrome, entry["tier"]) if chrome else None
+        if chrome is None or variant is None or not bool(variant.get("labelled_sidebar")):
             continue
         declared = nav_content_offset_px(chrome)
         painted = entry.get("painted_nav_leading_px")
@@ -552,7 +596,8 @@ def measure(run: pathlib.Path) -> list[dict]:
         rail_info = rail_of(image, chrome)
         if rail_info:
             entry.update(rail_info)
-        if bool(tier_fact(entry["tier"]).get("labelled_sidebar")):
+        variant = sidebar_variant(chrome, entry["tier"]) if chrome else None
+        if variant is not None and bool(variant.get("labelled_sidebar")):
             painted = painted_nav_leading(image, chrome)
             entry["painted_nav_leading_px"] = painted
         out.append(entry)
@@ -633,17 +678,33 @@ def chrome_findings(results: list[dict]) -> list[str]:
                 "chrome that painted these pixels"
             )
             continue
-        fact = tier_fact(entry["tier"])
+        fact = sidebar_variant(chrome, entry["tier"])
+        if fact is None:
+            found.append(
+                f"{entry['scenario']}: the chrome states "
+                f"sidebar_expansion={chrome.get('sidebar_expansion')!r} and "
+                f"touch_surface={chrome.get('touch_surface')!r}, which belongs to no "
+                f"exported {entry['tier']} sidebar variant"
+            )
+            continue
         form = nav_form(chrome)
         if int(chrome["nav_column_px"]) != int(fact["nav_column_px"]):
             found.append(
                 f"{entry['scenario']}: the shell reserved {chrome['nav_column_px']}px of "
-                f"navigation column but the {entry['tier']} tier owns {fact['nav_column_px']}px"
+                f"navigation column but the {entry['tier']} variant owns "
+                f"{fact['nav_column_px']}px"
             )
         if nav_form(chrome) != fact["nav_form"]:
             found.append(
                 f"{entry['scenario']}: the shell mounted {nav_form(chrome)} while the "
-                f"{entry['tier']} tier says {fact['nav_form']}"
+                f"{entry['tier']} variant says {fact['nav_form']}"
+            )
+        toggle_band = int(chrome["sidebar_toggle_px"])
+        if (toggle_band > 0) != bool(fact.get("toggle_available")):
+            found.append(
+                f"{entry['scenario']}: the shell publishes a {toggle_band}px toggle band "
+                f"but the {entry['tier']} variant says "
+                f"toggle_available={bool(fact.get('toggle_available'))}"
             )
         band = int(chrome["dock_band_px"])
         if (band > 0) != (nav_form(chrome) == "bottom_nav"):
@@ -671,7 +732,7 @@ def chrome_findings(results: list[dict]) -> list[str]:
             elif offset > limit:
                 found.append(
                     f"{entry['scenario']}: the {form} column gives away {offset}px of "
-                    f"leading inside its {fact['nav_column_px']}px column, but the tier "
+                    f"leading inside its {fact['nav_column_px']}px column, but the variant "
                     f"budgets {limit}px - ground the column already paid for twice"
                 )
         elif offset > 0:
@@ -853,6 +914,9 @@ def _chrome(width: int, height: int, **override) -> dict:
         "shell_bottom_air_px": 72 if labelled else 0,
         "dock_band_px": 72 if form == "bottom_nav" else 0,
         "scale_percent": 100,
+        "sidebar_expansion": "expanded",
+        "touch_surface": 0,
+        "sidebar_toggle_px": 66 if labelled and form != "bottom_nav" else 0,
     }
     chrome.update(override)
     return chrome
@@ -882,6 +946,10 @@ def _write_run(root: pathlib.Path, frames: dict[str, np.ndarray],
             continue
         if facts is None:
             facts = _chrome(image.shape[1], image.shape[0])
+        facts = dict(facts)
+        facts.setdefault("sidebar_expansion", "expanded")
+        facts.setdefault("touch_surface", 0)
+        facts.setdefault("sidebar_toggle_px", 0)
         (directory / CHROME_FILE).write_text(
             f"CAPTURE_READY page=overview skin=dark\n{_chrome_line(facts)}",
             encoding="utf-8")
@@ -905,7 +973,13 @@ class SelfTest(unittest.TestCase):
     def measure_one(self, image: np.ndarray, page: str = "",
                     chrome: dict | bool | None = None) -> dict:
         pages = {"planted": page} if page else None
-        run = _write_run(self.root, {"planted": image}, pages, chrome)
+        planted_chrome = chrome
+        if isinstance(planted_chrome, dict) and "nav_form" in planted_chrome:
+            planted_chrome = dict(planted_chrome)
+            planted_chrome.setdefault("sidebar_expansion", "expanded")
+            planted_chrome.setdefault("touch_surface", 0)
+            planted_chrome.setdefault("sidebar_toggle_px", 0)
+        run = _write_run(self.root, {"planted": image}, pages, planted_chrome)
         return measure(run)[0]
 
     def test_a_frame_filling_card_is_not_waste(self) -> None:
@@ -1195,6 +1269,22 @@ class SelfTest(unittest.TestCase):
         found = leading_findings([entry])
         self.assertTrue(any("paints no navigation glyph" in item for item in found), found)
 
+    def test_a_shell_toggle_band_is_not_the_navigation_leading(self) -> None:
+        image = _desktop_body()
+        _fill(image, 40, 56, 38, 42, INK)
+        _labelled_nav(image, first_x=8)
+        chrome = _chrome(1180, 780, nav_content_offset_px=8, sidebar_toggle_px=66)
+        entry = self.measure_one(image, chrome=chrome)
+        self.assertEqual(entry.get("painted_nav_leading_px"), 8, entry)
+        self.assertEqual(leading_findings([entry]), [], entry)
+        self.assertEqual(chrome_findings([entry]), [], entry)
+
+    def test_a_toggle_band_contradicting_the_exported_variant_is_reported(self) -> None:
+        entry = self.measure_one(_desktop_body(),
+                                 chrome=_chrome(1180, 780, sidebar_toggle_px=0))
+        found = chrome_findings([entry])
+        self.assertTrue(any("toggle band" in item for item in found), found)
+
     def test_the_painted_leading_leg_is_part_of_enforcement(self) -> None:
         # The leg must not be a test-only ornament: the real enforcement chain
         # has to include it. Pin the composition so removing it breaks here.
@@ -1224,7 +1314,7 @@ class SelfTest(unittest.TestCase):
         captures = self.root / "captures"
         full = captures / "full"
         _write_run(full, {"a": _desktop_body()})
-        (full / METADATA).write_text("scenario_count=197\n", encoding="utf-8")
+        (full / METADATA).write_text("scenario_count=199\n", encoding="utf-8")
         partial = captures / "partial"
         _write_run(partial, {"a": _desktop_body()})
         (partial / METADATA).write_text("scenario_count=6\n", encoding="utf-8")
@@ -1374,6 +1464,40 @@ class SelfTest(unittest.TestCase):
                                  chrome=_chrome(1180, 780, nav_column_px=228))
         found = chrome_findings([entry])
         self.assertTrue(any("reserved 228px" in item for item in found), found)
+
+    def test_a_collapsed_desktop_preference_uses_the_exported_rail_variant(self) -> None:
+        # FlClash lets a desktop user collapse the labelled pane. The frame is
+        # legal only when it states that preference and paints the exported
+        # 64px rail; judging it as an expanded-tier default would be a second
+        # resolution of the same owner preference.
+        chrome = _chrome(
+            1180, 780,
+            nav_form="rail",
+            nav_column_px=64,
+            nav_stack_bottom_px=398,
+            nav_content_offset_px=0,
+            page_margin_px=16,
+            shell_top_air_px=0,
+            shell_bottom_air_px=0,
+            sidebar_expansion="collapsed",
+        )
+        self.assertEqual(chrome_findings([dict(scenario="collapsed", tier="expanded", chrome=chrome)]), [])
+
+    def test_a_collapsed_desktop_frame_may_not_keep_the_expanded_column(self) -> None:
+        chrome = _chrome(1180, 780, sidebar_expansion="collapsed")
+        found = chrome_findings([
+            dict(scenario="mislabelled", tier="expanded", chrome=chrome)
+        ])
+        self.assertTrue(any("reserved 240px" in item for item in found), found)
+        self.assertTrue(any("variant says rail" in item for item in found), found)
+
+    def test_an_unknown_preference_cannot_select_a_variant(self) -> None:
+        chrome = _chrome(1180, 780, sidebar_expansion="maybe")
+        found = chrome_findings([
+            dict(scenario="unknown", tier="expanded", chrome=chrome)
+        ])
+        self.assertTrue(any("belongs to no exported expanded sidebar variant" in item
+                            for item in found), found)
 
     def test_a_dock_band_without_a_bar_is_reported(self) -> None:
         # SPACEUTIL-006's defect, seen from the receipt side: a desktop frame

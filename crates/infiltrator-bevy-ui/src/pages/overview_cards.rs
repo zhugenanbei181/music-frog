@@ -3,6 +3,7 @@
 //! Subtree scenes composing the topology chain, subscription quota,
 //! active exit node card (BEVY-GAP-019), and system proxy / TUN master cards (BEVY-GAP-021).
 
+use crate::a11y::{semantic_node, switch_node};
 use crate::pages::overview::{AccentContainerFill, AccentFill, BorderFill, SurfaceElevatedFill};
 use crate::pages::overview_restamp::{
     ActiveExitText, ActiveExitTextKind, OverviewMasterSwitchButton, OverviewMasterSwitchText,
@@ -34,6 +35,7 @@ use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::{radius, space};
+use infiltrator_contract::a11y::ShellA11yNode;
 use infiltrator_contract::active_exit::ActiveExitSnapshot;
 use infiltrator_contract::design_resources;
 use infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot;
@@ -409,6 +411,29 @@ fn single_master_card_scene(
                                 border_radius: BorderRadius::all(rem(palette.control_radius_px)),
                             }
                             OverviewMasterSwitchButton { toggle, enabled, can_toggle }
+                            // An unobserved or pending control is visibly
+                            // non-actionable: the shared button sync turns this
+                            // into the SDK's `InteractionDisabled` and the
+                            // accessibility row's disabled flag, so the card,
+                            // the pointer and the screen reader state one truth.
+                            ButtonDisabled({ !can_toggle })
+                            // The shared switch grammar row rides the one
+                            // actionable control: the sidebar used to mount a
+                            // second pair of these switches (and own these two
+                            // rows), so the dashboard's single mount is now the
+                            // surface that publishes them.
+                            AccessibilityNode({
+                                switch_node(
+                                    match toggle {
+                                        SystemToggle::SystemProxy => {
+                                            ShellA11yNode::SystemProxySwitch
+                                        }
+                                        SystemToggle::Tun => ShellA11yNode::TunSwitch,
+                                    },
+                                    enabled,
+                                )
+                                .0
+                            })
                             Button
                             ThemeBackgroundColor({ Token::AccentContainer })
                             Children [
@@ -462,8 +487,10 @@ pub fn routing_intent_segmented_controller_scene_with_snapshot(
     snapshot: &RoutingIntentSnapshot,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    let mut header_a11y = accesskit::Node::new(accesskit::Role::Region);
-    header_a11y.set_label("routing_intent_title");
+    // The card is the shell's only routing selector now that the sidebar
+    // mounts navigation alone, so it publishes the shared grammar row instead
+    // of an ad-hoc region labelled with a raw copy key.
+    let header_a11y = semantic_node(ShellA11yNode::RoutingIntentSegment).0;
 
     surface_scene(
         vec![Box::new(bsn! {
@@ -473,7 +500,8 @@ pub fn routing_intent_segmented_controller_scene_with_snapshot(
                         row_gap: rem(space::S12),
                     }
                     AccessibilityNode(header_a11y)
-                    RoutingIntentSegmentCard LocalizedLabel::plain("routing_intent_title")
+                    RoutingIntentSegmentCard
+                    LocalizedLabel::plain(ShellA11yNode::RoutingIntentSegment.label_key())
                     Children [
                         Node {
                             width: percent(100),

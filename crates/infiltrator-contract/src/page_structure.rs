@@ -597,7 +597,7 @@ mod tests {
         assert_eq!(document["chrome_keys"][0], "nav_form");
         assert_eq!(
             document["chrome_keys"][CHROME_KEYS.len() - 1],
-            "scale_percent"
+            "sidebar_toggle_px"
         );
         assert_eq!(document["chrome_keys"][2], "nav_stack_bottom_px");
         assert_eq!(document["chrome_keys"][3], "nav_content_offset_px");

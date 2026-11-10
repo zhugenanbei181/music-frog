@@ -13,7 +13,7 @@ use bevy::math::Vec2;
 use bevy::scene::ScenePlugin;
 use bevy::ui::widget::{ImageNode, Text};
 use bevy::ui_widgets::Activate;
-use infiltrator_bevy_ui::app::{ShellPlugin, SidebarToggleProjection};
+use infiltrator_bevy_ui::app::{ShellPlugin, SystemToggleMirror};
 use infiltrator_bevy_ui::command::{CommandSinkHandle, DemoCommandSink, UiCommand};
 use infiltrator_bevy_ui::mini_hud::{
     MiniHudDownWaveform, MiniHudMode, MiniHudModel, MiniHudPipClickThroughButton,
@@ -92,7 +92,7 @@ fn the_read_model_comes_from_the_live_projections() {
     // A pending system toggle is visibly non-actionable through the shared
     // state letters.
     {
-        let mut toggles = app.world_mut().resource_mut::<SidebarToggleProjection>();
+        let mut toggles = app.world_mut().resource_mut::<SystemToggleMirror>();
         toggles.0 = toggles.0.clone().with_pending(SystemToggle::Tun, true);
     }
     app.update();
@@ -265,7 +265,7 @@ fn the_pin_request_persists_through_the_shared_settings_command() {
 }
 
 fn mount_hud_with_toggles(app: &mut App) {
-    app.insert_resource(SidebarToggleProjection(SystemToggleSnapshot::from_legacy(
+    app.insert_resource(SystemToggleMirror(SystemToggleSnapshot::from_legacy(
         true,
         Some(false),
         0,
@@ -316,7 +316,7 @@ fn the_hud_quick_switches_dispatch_the_shared_toggle_commands() {
 
     // Both presses went through the shared pending projection, so the read
     // model reports them as in-flight.
-    let toggles = app.world().resource::<SidebarToggleProjection>();
+    let toggles = app.world().resource::<SystemToggleMirror>();
     assert!(toggles.0.state(SystemToggle::SystemProxy).is_pending());
     assert!(toggles.0.state(SystemToggle::Tun).is_pending());
     let model = app.world().resource::<MiniHudModel>().0.clone();
@@ -328,7 +328,7 @@ fn a_pending_hud_quick_switch_dispatches_nothing() {
     let (mut app, sink) = mounted_app();
     mount_hud_with_toggles(&mut app);
     {
-        let mut toggles = app.world_mut().resource_mut::<SidebarToggleProjection>();
+        let mut toggles = app.world_mut().resource_mut::<SystemToggleMirror>();
         toggles.0 = toggles.0.clone().with_pending(SystemToggle::Tun, true);
     }
     app.update();

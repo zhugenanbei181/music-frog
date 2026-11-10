@@ -1,47 +1,46 @@
-//! Native ECS replay of the application-owned shell readout. No domain fold lives here.
+//! Native ECS replay of the application-owned shell readout. No domain fold
+//! lives here.
+//!
+//! The Bevy shell publishes one readout of its own: the chrome strip's duplex
+//! rate capsule. Every other fact the shared readout offers already has an
+//! owning page on this surface - the dashboard hero states the source caption
+//! and the run state, the traffic card states the rates, the proxies, rules,
+//! connections and DNS pages state their own counts, and the profiles page
+//! states the active profile's name, kind and quota. The rail used to mount a
+//! second copy of each of those; with the column reduced to navigation those
+//! mounts are gone, and their markers go with them rather than surviving as a
+//! dead vocabulary that invites a remount.
 use crate::a11y::semantic_node;
 use crate::app::GlobalStatusDot;
 use crate::surface::LatestSurfaceSnapshot;
 use bevy::asset::Handle;
 use bevy::color::Color;
 use bevy::ecs::component::Component;
-use bevy::ecs::query::{With, Without};
+use bevy::ecs::query::With;
 use bevy::ecs::system::{Query, Res};
 use bevy::feathers::theme::{SurfaceLevel, UiTheme};
 use bevy::image::Image;
 use bevy::scene::{Scene, bsn};
 use bevy::text::{InlineBox, InlineBoxKind};
-use bevy::ui::prelude::{Display, Node, Val};
 use bevy::ui::widget::InlineImage;
 use bevy::ui::widget::Text;
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::inline::InlineSize;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_contract::a11y::ShellA11yNode;
-use infiltrator_contract::surface_snapshot::PageId;
-use infiltrator_presentation::shell_readout::{
-    count_copy, profile_kind, profile_name, profile_percent, profile_usage, rate_copy, rate_status,
-};
+use infiltrator_presentation::shell_readout::rate_copy;
 use infiltrator_shared::locales::Lang;
 use lurker_core_contract::lifecycle::CoreLifecycle;
 
-#[derive(Component, Clone, Copy, Default)]
+/// The one readout line the shell itself publishes. The other facts the
+/// shared readout offers are owned by the page that shows them, so they are
+/// not this vocabulary's business.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ShellReadoutText {
-    Count(PageId),
+    /// The chrome capsule's up/down duplex line.
     #[default]
-    ProfileName,
-    ProfileKind,
-    ProfileUsage,
-    ProfilePercent,
-    Upload,
-    Download,
     TrafficCapsule,
-    RateStatus,
 }
-#[derive(Component, Clone, Default)]
-pub struct ShellQuotaFill;
-#[derive(Component, Clone, Default)]
-pub struct ShellQuotaTrack;
 
 /// Marker on the seat of the status point inside the title text block.
 ///
@@ -96,45 +95,13 @@ pub fn sync_text(
         .map_or(&default, |snapshot| &snapshot.0.shell_readout);
     let lang = locale.code();
     for (part, mut text) in &mut texts {
-        let value = match part {
-            ShellReadoutText::Count(page) => count_copy(readout, *page, &Lang(lang)),
-            ShellReadoutText::ProfileName => profile_name(readout, &Lang(lang)),
-            ShellReadoutText::ProfileUsage => profile_usage(readout, &Lang(lang)),
-            ShellReadoutText::ProfilePercent => profile_percent(readout, &Lang(lang)),
-            ShellReadoutText::ProfileKind => profile_kind(readout, &Lang(lang)),
-            ShellReadoutText::Upload => rate_copy(&readout.upload_bps, &Lang(lang)),
-            ShellReadoutText::Download => rate_copy(&readout.download_bps, &Lang(lang)),
-            ShellReadoutText::TrafficCapsule => {
-                let up = rate_copy(&readout.upload_bps, &Lang(lang));
-                let down = rate_copy(&readout.download_bps, &Lang(lang));
-                format!("↑ {}  ↓ {}", up, down)
-            }
-            ShellReadoutText::RateStatus => rate_status(readout, &Lang(lang)),
-        };
+        let ShellReadoutText::TrafficCapsule = part;
+        let up = rate_copy(&readout.upload_bps, &Lang(lang));
+        let down = rate_copy(&readout.download_bps, &Lang(lang));
+        let value = format!("↑ {up}  ↓ {down}");
         if text.0 != value {
             text.0 = value;
         }
-    }
-}
-
-pub fn sync_quota(
-    snapshot: Option<Res<LatestSurfaceSnapshot>>,
-    mut fills: Query<&mut Node, (With<ShellQuotaFill>, Without<ShellQuotaTrack>)>,
-    mut tracks: Query<&mut Node, (With<ShellQuotaTrack>, Without<ShellQuotaFill>)>,
-) {
-    let fraction = snapshot
-        .as_ref()
-        .and_then(|snapshot| snapshot.0.shell_readout.profile.value())
-        .and_then(|profile| profile.usage_fraction);
-    for mut node in &mut fills {
-        node.width = Val::Percent(fraction.unwrap_or_default() * 100.0);
-    }
-    for mut node in &mut tracks {
-        node.display = if fraction.is_some() {
-            Display::Flex
-        } else {
-            Display::None
-        };
     }
 }
 

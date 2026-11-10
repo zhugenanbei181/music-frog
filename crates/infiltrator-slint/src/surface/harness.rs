@@ -344,6 +344,16 @@ impl SurfaceHarness {
         self.drive(|| window.invoke_set_application_language(language.into()))
     }
 
+    /// Drives the real sidebar-collapse callback.
+    ///
+    /// The surface owns no collapsed flag: the gesture sends the one typed
+    /// intent to the settings owner, and the owner readback decides what the
+    /// sidebar paints next.
+    pub fn toggle_sidebar_expansion(&self) -> SurfaceOutcome {
+        let window = &self.window;
+        self.drive(|| window.invoke_toggle_sidebar_expansion())
+    }
+
     /// Opens the add-profile sheet, exactly as the "添加配置" tile does.
     ///
     /// The sheet is opened by the surface itself, so the owner-visible

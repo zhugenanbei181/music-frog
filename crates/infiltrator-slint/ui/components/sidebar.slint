@@ -36,9 +36,13 @@ export component DesktopSideBar inherits Rectangle {
     // indenting them, so it states 0; the receipt's pair rule is that a form
     // which labels its rows is the form that states a leading.
     in-out property <length> nav-content-offset;
+    in-out property <length> sidebar-toggle;
     init => {
         root.nav-content-offset = root.labelled
             ? LumenTheme.rail-content-leading
+            : 0 * LumenUiScale.unit;
+        root.sidebar-toggle = LumenTheme.sidebar-toggle-available
+            ? LumenTheme.rail-vertical-inset + LumenTheme.rail-row-height + LumenTheme.rail-item-gap
             : 0 * LumenUiScale.unit;
     }
 
@@ -77,6 +81,7 @@ export component DesktopSideBar inherits Rectangle {
         ViewportLadder.navigation_separator(root.navigation-form);
 
     callback navigate-to(string);
+    callback toggle-sidebar-expansion();
 
     width: LumenTheme.rail-width;
     background: LumenTheme.zinc-2;
@@ -88,6 +93,55 @@ export component DesktopSideBar inherits Rectangle {
         width: parent.width;
         height: parent.height - 2 * LumenTheme.rail-vertical-inset;
         spacing: LumenTheme.rail-item-gap;
+
+        // FlClash's desktop scene places one collapse affordance above the
+        // destination list. It is navigation chrome, not a status card: the
+        // exported variant decides whether this viewport can offer it, and the
+        // callback only sends the one typed intent to the settings owner.
+        if LumenTheme.sidebar-toggle-available: Rectangle {
+            height: LumenTheme.rail-row-height;
+            background: transparent;
+
+            toggle-touch := TouchArea {
+                width: parent.width;
+                height: parent.height;
+                mouse-cursor: pointer;
+                clicked => { root.toggle-sidebar-expansion(); }
+            }
+
+            HorizontalLayout {
+                padding-left: 0 * LumenUiScale.unit;
+                padding-right: 0 * LumenUiScale.unit;
+                spacing: LumenTheme.rail-label-gap;
+                width: parent.width;
+                height: parent.height;
+                alignment: start;
+                cross-axis-alignment: center;
+
+                Rectangle { width: root.labelled ? LumenTheme.rail-inset : 0 * LumenUiScale.unit; background: transparent; }
+                Image {
+                    source: root.labelled
+                        ? @image-url("../../../infiltrator-shared/assets/ui/iced/svg/chevron-left.svg")
+                        : @image-url("../../../infiltrator-shared/assets/ui/iced/svg/chevron-right.svg");
+                    width: LumenTheme.nav-icon-size;
+                    height: LumenTheme.nav-icon-size;
+                    image-fit: contain;
+                    colorize: LumenTheme.text-secondary;
+                }
+                if root.labelled: Text {
+                    text: @tr("收起");
+                    color: LumenTheme.text-secondary;
+                    font-size: DesignType.size(TextRole.label);
+                    font-weight: DesignType.weight(TextRole.label);
+                    font-family: DesignType.family(TextRole.label);
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                    min-width: 0 * LumenUiScale.unit;
+                    overflow: elide;
+                }
+                if !root.labelled: Rectangle { horizontal-stretch: 1; background: transparent; }
+            }
+        }
 
         for item[index] in root.navigation-items: VerticalLayout {
             spacing: 0 * LumenUiScale.unit;

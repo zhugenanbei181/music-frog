@@ -3,7 +3,10 @@
 //!
 //! **Update seam**: mutable nodes carry typed markers ([`OverviewLine`],
 //! [`OverviewChip`] + the widget layer's `StatChipValue`,
-//! [`OverviewStatusCard`] / [`OverviewCardState`], [`OverviewRoutingIntentPill`]).
+//! [`OverviewStatusCard`] / [`OverviewCardState`]), and the dashboard's own
+//! cards carry theirs (`overview_cards::OverviewRoutingIntentSegmentPill`,
+//! `overview_restamp::OverviewMasterSwitchButton`): one control, one marker,
+//! one mount.
 //! [`OverviewPagePlugin`] registers [`apply_overview_projection`] once at product assembly, and the router fires the first paint with the mounted
 //! projection right after `spawn_scene`. From then on, an
 //! [`OverviewProjectionUpdated`] trigger restamps texts, inks, pill
@@ -96,7 +99,6 @@ use infiltrator_shared::byte_units::format_bytes;
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::page::SurfaceOrigin;
-use lurker_core_contract::routing_intent::RoutingIntent;
 use lurker_ui_presentation::core_status_projection::{
     OverviewBannerVerdict, banner_verdict_copy, project_banner_verdict, source_copy,
 };
@@ -332,17 +334,6 @@ pub struct OverviewCardState(pub Option<CoreLifecycle>);
 /// Marker on the banner's status dot (success token fill).
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct StatusDot;
-
-#[derive(Component, Clone, Debug, PartialEq, Eq)]
-pub struct OverviewRoutingIntentPill(pub RoutingIntent);
-
-impl Default for OverviewRoutingIntentPill {
-    fn default() -> Self {
-        // `bsn!` builds a component template before assigning its explicit
-        // tuple field. This placeholder never represents an observation.
-        Self(RoutingIntent::FollowRules)
-    }
-}
 
 /// The typed data-refresh event: carry the new projection, the observer
 /// does the rest. Zero polling — whoever produces a fresh projection

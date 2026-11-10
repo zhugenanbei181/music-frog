@@ -1,249 +1,307 @@
-//! Behavior cases for sidebar.
+//! Behavior cases for the navigation-only rail.
 //! test-intent: behavior
+//!
+//! The rail's contract has three parts, each asserted against the mounted tree
+//! instead of a description:
+//!
+//! * **Content** — navigation and nothing else. The desktop reference gives the
+//!   sidebar destinations only, and the space-utilization standard turns that
+//!   into `chrome_band` 0%, so a status card, a brand block, a rate line or a
+//!   preference button in this column is a gate failure, not a style choice.
+//! * **Rows** — the contract registry's, filtered by what this surface owns. A
+//!   surface keeps no second navigation list.
+//! * **Geometry and reading** — the reference's measured row, with the current
+//!   destination stated as a quiet wash plus a narrow indicator that the widget
+//!   layer paints and this shell only mounts.
 
 use super::*;
-use infiltrator_presentation::routing_intent_projection::routing_intent_copy;
-use infiltrator_shared::locales::Lang;
+use crate::support::subtree_in_tree_order;
+use bevy::color::Color;
+use bevy::ui::prelude::Val;
+use bevy::ui_widgets::ScrollArea;
+use infiltrator_bevy_ui::shell_scene::nav::{
+    NAV_INDICATOR_HEIGHT_PX, NAV_INDICATOR_WIDTH_PX, NAV_ROW_HEIGHT_PX, NAV_ROW_ICON_PX,
+};
+use infiltrator_bevy_widgets::palette::{NAV_SELECTION_WASH_ALPHA, rem};
+use infiltrator_contract::responsive_viewport::SidebarForm;
+use infiltrator_contract::shell_navigation::{NavigationTarget, desktop_items};
+use infiltrator_contract::shell_sidebar_presentation::separator_for_form;
+use infiltrator_contract::surface::SurfaceKind;
 
-#[test]
-fn sidebar_mounts_nav_and_routing_intent_segment() {
-    let mut app = mounted_shell();
-    let world = app.world_mut();
-
-    let mut items = world.query::<(&NavItem, &NavActive)>();
-    let mut active = 0;
-    let mut idle = 0;
-    for (_, bit) in items.iter(world) {
-        if bit.0 {
-            active += 1;
-        } else {
-            idle += 1;
-        }
-    }
-    assert_eq!(active, 1, "exactly one active nav item (核心概览)");
-    assert_eq!(
-        idle, 14,
-        "the remaining 14 routes in Route::ALL mount as idle items"
-    );
-
-    let mut pills = world.query::<(&OverviewRoutingIntentPill, &ControlVisual)>();
-    let mut selected = Vec::new();
-    for (pill, visual) in pills.iter(world) {
-        if visual.0 {
-            selected.push(pill.0.clone());
-        }
-    }
-    assert_eq!(
-        selected,
-        Vec::<RoutingIntent>::new(),
-        "an uncomposed shell cannot invent an observed routing intent"
-    );
+/// One rail row, read out of the world as owned values so a test can compare
+/// several rows without holding a world borrow.
+#[derive(Debug, PartialEq)]
+struct Row {
+    route: Route,
+    active: bool,
+    fill: Color,
+    kind: NavRowKind,
+    indicator_shown: bool,
+    indicator_size: Option<(Val, Val)>,
+    min_height: Val,
+    icon_size: Option<Val>,
 }
 
-#[test]
-fn sidebar_orders_nav_into_the_content_flow_above_the_spacer() {
-    let mut app = mounted_shell();
+fn rail_rows(app: &mut App) -> Vec<Row> {
     let world = app.world_mut();
-    let mut rails = world.query::<(Entity, &SidebarPanel)>();
-    let (rail, _) = rails.single(world).expect("one sidebar rail");
-    let children: Vec<Entity> = world.get::<Children>(rail).expect("rail children").to_vec();
-    assert_eq!(
-        children.len(),
-        9,
-        "identity, routing segment, system toggles, active profile, shortcut matrix, speed footer, nav, spacer, version expected"
-    );
+    let mut indicators = world.query::<(&NavIndicator, &Node)>();
+    let mut nodes = world.query::<&Node>();
+    let mut items = world.query::<(
+        &SidebarNavItem,
+        &NavActive,
+        &NavRowKind,
+        &BackgroundColor,
+        &Children,
+    )>();
 
-    assert!(
-        subtree_contains::<NavItem>(world, children[6]),
-        "the nav group sits directly in content flow above the spacer"
-    );
-    assert!(
-        !subtree_contains::<NavItem>(world, children[8]),
-        "the version foot carries no nav items"
-    );
-
-    let spacer = world.get::<Node>(children[7]).expect("spacer node");
-    assert!(
-        spacer.flex_grow > 0.0,
-        "the gap between nav and version stays a flexible spacer"
-    );
-    assert!(
-        subtree_contains::<SidebarFoot>(world, children[8]),
-        "the authoritative source slot closes the rail"
-    );
-    assert!(
-        !subtree_has_text(world, children[8], "0.30 demo"),
-        "the rail never leaks a raw demo literal"
-    );
-}
-
-#[test]
-fn sidebar_nav_click_triggers_route_change_and_updates_visuals() {
-    let mut app = mounted_shell();
-    let dark = UiPalette::new(&Theme::dark());
-
-    // Initially Overview is active
-    {
-        let world = app.world_mut();
-        let mut items = world.query::<(&SidebarNavItem, &NavActive, &BackgroundColor)>();
-        for (item, active, bg) in items.iter(world) {
-            if item.0 == Route::Overview {
-                assert!(active.0);
-                assert_eq!(bg.0, dark.accent);
-            } else {
-                assert!(!active.0);
-                assert_eq!(bg.0, dark.surface_elevated);
+    // The rows are read in the order the column paints them, not in the order
+    // the archetype happens to store them: descending the rail's scroll area
+    // is what makes this list the stack the user reads top to bottom.
+    let rail = rail_entity(world);
+    let mut found: Vec<Row> = Vec::new();
+    for entity in subtree_in_tree_order(world, rail) {
+        let Ok((item, active, kind, fill, children)) = items.get(world, entity) else {
+            continue;
+        };
+        let node = nodes.get(world, entity).expect("a nav row is a node");
+        let mut indicator_shown = false;
+        let mut indicator_size = None;
+        let mut icon_size = None;
+        for child in children.iter() {
+            if let Ok((_, ind)) = indicators.get(world, *child) {
+                indicator_shown = ind.display == Display::Flex;
+                indicator_size = Some((ind.width, ind.height));
+            } else if let Ok(child_node) = nodes.get(world, *child)
+                && child_node.width == rem(NAV_ROW_ICON_PX)
+            {
+                icon_size = Some(child_node.width);
             }
         }
+        found.push(Row {
+            route: item.0,
+            active: active.0,
+            fill: fill.0,
+            kind: *kind,
+            indicator_shown,
+            indicator_size,
+            min_height: node.min_height,
+            icon_size,
+        });
     }
+    found
+}
 
-    // Find the Proxies nav item entity and activate it
-    let proxies_entity = {
+fn rail_children(app: &mut App) -> Vec<Entity> {
+    let world = app.world_mut();
+    let rail = rail_entity(world);
+    world.get::<Children>(rail).expect("rail children").to_vec()
+}
+
+#[test]
+fn the_rail_mounts_the_registry_rows_and_the_group_headings_only() {
+    let mut app = mounted_shell();
+
+    // One child: the navigation column. No brand block, no routing pills, no
+    // master switches, no profile card, no shortcut matrix, no rate footer, no
+    // foot caption, no preference buttons.
+    let children = rail_children(&mut app);
+    assert_eq!(children.len(), 1, "the rail's only block is the nav column");
+    assert!(
+        subtree_contains::<SidebarNavItem>(app.world(), children[0]),
+        "the single block is the navigation column"
+    );
+    assert!(
+        subtree_contains::<ScrollArea>(app.world(), children[0]),
+        "the column is the shell's scroll area, so rows past the fold stay reachable"
+    );
+
+    let expected = desktop_items(SurfaceKind::BevyDesktop);
+    let mounted: Vec<Route> = rail_rows(&mut app)
+        .into_iter()
+        .map(|row| row.route)
+        .collect();
+    let wanted: Vec<Route> = expected
+        .iter()
+        .map(|item| match item.target {
+            NavigationTarget::Shared(page) => Route::from_shell_page(page),
+            NavigationTarget::SurfaceLocal(id) => {
+                panic!("the registry handed {id} to a surface that does not own it")
+            }
+        })
+        .collect();
+    assert_eq!(
+        mounted, wanted,
+        "the rows are the registry's, painted in registry order top to bottom"
+    );
+    assert_eq!(
+        mounted.len(),
+        7,
+        "Bevy folds traffic into its overview, so it mounts the seven shared destinations"
+    );
+
+    let world = app.world_mut();
+    let mut headings = world.query::<&NavGroupHeading>();
+    let painted = headings.iter(world).count();
+    let groups: Vec<usize> = expected
+        .iter()
+        .enumerate()
+        .filter(|(index, item)| *index == 0 || item.group != expected[*index - 1].group)
+        .map(|(index, _)| index)
+        .collect();
+    // Group membership is a registry fact; whether the column *paints* it is
+    // the contract's separator policy, which currently answers `None` for
+    // every desktop form (FlClash measures one uninterrupted destination
+    // list). The column reads that policy, so this assertion fails if either
+    // side drifts — and it never restates the answer as a local boolean.
+    if separator_for_form(SidebarForm::Standard).paints_heading() {
+        assert_eq!(painted, groups.len(), "one heading where each group begins");
+    } else {
+        assert_eq!(
+            painted, 0,
+            "the contract paints no group heading, so the column is one list"
+        );
+    }
+}
+
+#[test]
+fn the_row_geometry_is_the_reference_measurement() {
+    let mut app = mounted_shell();
+    let rows = rail_rows(&mut app);
+    assert_eq!(rows.len(), 7);
+    let row_height = rem(NAV_ROW_HEIGHT_PX);
+    let icon = rem(NAV_ROW_ICON_PX);
+    for row in &rows {
+        assert_eq!(
+            row.min_height, row_height,
+            "{:?} keeps the adjudicated 44u row height",
+            row.route
+        );
+        assert_eq!(
+            row.icon_size,
+            Some(icon),
+            "{:?} carries the reference's 24u icon box",
+            row.route
+        );
+    }
+}
+
+/// Every row states the current destination the same way: a quiet wash and a
+/// narrow indicator, never the solid accent capsule a chosen member wears.
+fn assert_wash_reading(rows: &[Row], wash: Color) {
+    for row in rows {
+        assert_eq!(
+            row.kind,
+            NavRowKind::CurrentDestination,
+            "a nav row is not a chosen member: {:?} must not wear the accent capsule",
+            row.route
+        );
+        assert_eq!(
+            row.fill,
+            if row.active { wash } else { Color::NONE },
+            "{:?} states where the user is with a wash over the column's ground",
+            row.route
+        );
+        assert_eq!(
+            row.indicator_shown, row.active,
+            "{:?} shows its indicator exactly when it is current",
+            row.route
+        );
+        if row.active {
+            assert_eq!(
+                row.indicator_size,
+                Some((rem(NAV_INDICATOR_WIDTH_PX), rem(NAV_INDICATOR_HEIGHT_PX))),
+                "the current row's indicator is the reference's 3u x 16u bar"
+            );
+        } else {
+            assert!(
+                row.indicator_size.is_some(),
+                "{:?} still mounts its indicator so the stack's geometry cannot shift",
+                row.route
+            );
+        }
+    }
+}
+
+#[test]
+fn the_current_destination_wears_a_wash_and_only_it_shows_the_indicator() {
+    let mut app = mounted_shell();
+    let dark = UiPalette::new(&Theme::dark());
+    assert_eq!(NAV_SELECTION_WASH_ALPHA, 0.08);
+
+    let rows = rail_rows(&mut app);
+    assert_wash_reading(&rows, dark.nav_selection_fill());
+    assert_eq!(
+        rows.iter().filter(|row| row.active).count(),
+        1,
+        "exactly one row is the current destination"
+    );
+}
+
+#[test]
+fn a_route_switch_restamps_the_same_rows_and_moves_the_indicator() {
+    let mut app = mounted_shell();
+    let dark = UiPalette::new(&Theme::dark());
+    let before = rail_rows(&mut app);
+    let proxies = {
         let world = app.world_mut();
         let mut items = world.query::<(Entity, &SidebarNavItem)>();
         items
             .iter(world)
             .find(|(_, item)| item.0 == Route::Proxies)
-            .expect("proxies nav item")
+            .expect("proxies row")
             .0
     };
-
-    app.world_mut().commands().trigger(Activate {
-        entity: proxies_entity,
-    });
-    // Simulate router setting active route on RouteChanged
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: proxies });
     app.world_mut()
         .insert_resource(ActiveRoute(Some(Route::Proxies)));
     app.update();
 
-    // Now Proxies is active and Overview is idle
-    {
-        let world = app.world_mut();
-        let mut items = world.query::<(&SidebarNavItem, &NavActive, &BackgroundColor)>();
-        for (item, active, bg) in items.iter(world) {
-            if item.0 == Route::Proxies {
-                assert!(active.0, "Proxies should be active");
-                assert_eq!(bg.0, dark.accent);
-            } else {
-                assert!(!active.0, "{:?} should be idle", item.0);
-                assert_eq!(bg.0, dark.surface_elevated);
-            }
-        }
-    }
+    let after = rail_rows(&mut app);
+    assert_eq!(
+        after.iter().map(|row| row.route).collect::<Vec<_>>(),
+        before.iter().map(|row| row.route).collect::<Vec<_>>(),
+        "the switch restamps the mounted rows; no row is remounted"
+    );
+    assert_wash_reading(&after, dark.nav_selection_fill());
+    let current: Vec<Route> = after
+        .iter()
+        .filter(|row| row.active)
+        .map(|row| row.route)
+        .collect();
+    assert_eq!(
+        current,
+        vec![Route::Proxies],
+        "the wash and the indicator travelled to Proxies together"
+    );
 }
 
 #[test]
-fn test_sidebar_modern_control_center_parity() {
+fn a_folded_page_keeps_the_settings_row_current() {
     let mut app = mounted_shell();
-    let world = app.world_mut();
-
-    let mut rails = world.query::<(Entity, &SidebarPanel)>();
-    let (rail, _) = rails.single(world).expect("one sidebar rail");
-    let children: Vec<Entity> = world.get::<Children>(rail).expect("rail children").to_vec();
-
-    // 1. Header row: logo + Lurker + version
-    assert!(
-        subtree_has_text(world, children[0], "Lurker"),
-        "sidebar identity header contains Lurker"
-    );
-    let expected_version = format!("v{}", env!("CARGO_PKG_VERSION"));
-    assert!(
-        subtree_has_text(world, children[0], &expected_version),
-        "sidebar identity header contains current package version"
-    );
-
-    // 2. The shell exposes only the three shared routing choices.
-    let mut routing_pills = world.query::<(&OverviewRoutingIntentPill, &AccessibilityNode)>();
-    let labels: Vec<(RoutingIntent, String)> = routing_pills
-        .iter(world)
-        .map(|(pill, node)| (pill.0.clone(), node.label().unwrap().to_owned()))
-        .collect();
-    assert_eq!(labels.len(), 3);
-    assert_eq!(
-        labels,
-        [
-            RoutingIntent::FollowRules,
-            RoutingIntent::RouteAllThroughProxy,
-            RoutingIntent::BypassProxy,
-        ]
-        .into_iter()
-        .map(|intent| {
-            let label = routing_intent_copy(&intent, &Lang("zh-CN"));
-            (intent, label)
-        })
-        .collect::<Vec<_>>()
-    );
-    assert!(
-        !subtree_has_text(world, children[1], "脚本"),
-        "engine-defined choices are not offered by the shared shell"
-    );
-
-    // 3. Double System Toggle Cards
-    let mut proxy_cards = world.query::<(Entity, &SidebarSystemProxyCard)>();
-    let (proxy_card, _) = proxy_cards
-        .iter(world)
-        .next()
-        .expect("SidebarSystemProxyCard mounted");
-    assert!(
-        subtree_has_text(world, proxy_card, "系统代理"),
-        "proxy card contains label 系统代理"
-    );
-    let mut proxy_toggles = world.query::<(Entity, &SidebarSystemProxyToggle)>();
-    assert!(proxy_toggles.iter(world).next().is_some());
-
-    let mut tun_cards = world.query::<(Entity, &SidebarTunCard)>();
-    let (tun_card, _) = tun_cards
-        .iter(world)
-        .next()
-        .expect("SidebarTunCard mounted");
-    assert!(
-        subtree_has_text(world, tun_card, "TUN 模式"),
-        "tun card contains label TUN 模式"
-    );
-    let mut tun_toggles = world.query::<(Entity, &SidebarTunToggle)>();
-    assert!(tun_toggles.iter(world).next().is_some());
-
-    // 4. Active Profile Card
-    let mut profile_cards = world.query::<(Entity, &SidebarActiveProfileCard)>();
-    let (profile_card, _) = profile_cards
-        .iter(world)
-        .next()
-        .expect("SidebarActiveProfileCard mounted");
-    assert!(
-        subtree_has_text(world, profile_card, "未观测"),
-        "an uncomposed shell cannot display a fabricated profile or quota"
-    );
-    assert!(!subtree_has_text(world, profile_card, "46.4 GB"));
-
-    let mut matrix_query = world.query::<(Entity, &SidebarShortcutMatrix)>();
-    let (matrix, _) = matrix_query
-        .single(world)
-        .expect("SidebarShortcutMatrix mounted");
-    assert!(subtree_has_text(world, matrix, "未观测"));
-    assert!(!subtree_has_text(world, matrix, "2842"));
-
-    let mut speed_query = world.query::<(Entity, &SidebarSpeedFooter)>();
-    let (speed_footer, _) = speed_query
-        .single(world)
-        .expect("SidebarSpeedFooter mounted");
-    assert!(subtree_has_text(world, speed_footer, "未观测"));
-    assert!(!subtree_has_text(world, speed_footer, "124.5 KB/s"));
-
-    // 7. Shortcut tile clicking activates route change
-    let mut shortcut_tiles = world.query::<(Entity, &SidebarShortcutTile)>();
-    let (proxies_tile_entity, _) = shortcut_tiles
-        .iter(world)
-        .find(|(_, tile)| tile.0 == Route::Proxies)
-        .expect("Proxies shortcut tile entity");
-    app.world_mut().commands().trigger(Activate {
-        entity: proxies_tile_entity,
-    });
+    let dns = {
+        let world = app.world_mut();
+        let mut items = world.query::<(Entity, &SidebarNavItem)>();
+        items
+            .iter(world)
+            .find(|(_, item)| item.0 == Route::Settings)
+            .expect("settings row")
+            .0
+    };
     app.world_mut()
-        .insert_resource(ActiveRoute(Some(Route::Proxies)));
+        .insert_resource(ActiveRoute(Some(Route::Dns)));
     app.update();
+
+    let rows = rail_rows(&mut app);
+    let current: Vec<Route> = rows
+        .iter()
+        .filter(|row| row.active)
+        .map(|row| row.route)
+        .collect();
     assert_eq!(
-        app.world().resource::<ActiveRoute>().0,
-        Some(Route::Proxies),
-        "clicking shortcut tile navigates to Route::Proxies"
+        current,
+        vec![Route::Settings],
+        "DNS folds under Settings, so the rail says so; the mount is unchanged ({dns:?})"
     );
 }

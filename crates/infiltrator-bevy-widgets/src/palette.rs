@@ -33,6 +33,19 @@ pub fn theme_color(token: TokenColor) -> Color {
 /// sits on.
 pub const SEMANTIC_WASH_ALPHA: f32 = 0.16;
 
+/// The alpha of the wash a **selected navigation row** is painted with.
+///
+/// The reference states this once: FlClash's sidebar draws its selected
+/// destination with `selectedFill = onSurface.withOpacity(0.08)` across the
+/// full row plus a narrow primary indicator bar
+/// (`plugins/prism_ui/lib/sidebar.dart`), and this repo's Slint surface
+/// resolved the same fact into `LumenTheme.nav-selected-fill:
+/// text-primary.with_alpha(8%)`. A solid accent capsule was the old Bevy
+/// reading: it made the selected destination the loudest thing in the column
+/// and turned the row's empty right side — which the desktop reference
+/// records as breathing room — into filled pill geometry.
+pub const NAV_SELECTION_WASH_ALPHA: f32 = 0.08;
+
 /// The resolved token palette, injected as a resource by
 /// [`crate::WidgetsPlugin`].
 #[derive(Resource, Clone, Copy, Debug, PartialEq)]
@@ -137,6 +150,20 @@ impl UiPalette {
     /// highlight).
     pub fn selection_fill(&self) -> Color {
         self.accent.with_alpha(0.25)
+    }
+
+    /// The wash under a **selected navigation row**: the readable ink at
+    /// [`NAV_SELECTION_WASH_ALPHA`], left translucent so it blends with the
+    /// column's own ground exactly as the peers do.
+    ///
+    /// Not [`Self::selection_fill`]: that is a text highlight and a chosen
+    /// member, and the reference paints those with the accent. A navigation
+    /// row states where the user is, and every reading of it is a quiet wash
+    /// plus a narrow indicator — FlClash `onSurface.withOpacity(0.08)`, Slint
+    /// `text-primary.with_alpha(8%)`, Iced `accent_soft` (see the module doc
+    /// of `nav.rs`). None of them paints a solid accent capsule.
+    pub fn nav_selection_fill(&self) -> Color {
+        self.ink.with_alpha(NAV_SELECTION_WASH_ALPHA)
     }
 
     /// Area fill under a chart's upper series (accent wash).

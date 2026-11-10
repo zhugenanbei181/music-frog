@@ -2,7 +2,7 @@
 //! test-intent: behavior
 
 use super::*;
-use infiltrator_bevy_widgets::button::{ButtonDisabled, ButtonVariant, button_fill};
+use bevy::color::Color;
 
 #[test]
 fn theme_switch_restamps_ink_and_fill_in_place() {
@@ -81,38 +81,42 @@ fn theme_flip_repaints_every_sidebar_surface_in_place() {
     let (_, _, rail_fill) = rails.iter(world).next().expect("sidebar rail");
     assert_eq!(rail_fill.0, light.sidebar, "rail fill flipped to light");
 
-    let mut items = world.query::<(Entity, &NavActive)>();
-    for (id, bit) in items.iter(world) {
-        let fill = world.get::<BackgroundColor>(id).expect("nav item survives");
+    // The current destination is a wash over the column's ground and an idle
+    // row paints nothing at all, so the column's material shows through. The
+    // old expectation (accent on the active row, `surface_elevated` on the
+    // rest) described the solid capsule the reference does not paint; the
+    // widget layer's single writer now resolves `Token::NavSelectionFill`
+    // against the flipped palette, so a skin change repaints the same rows.
+    let mut items = world.query::<(Entity, &NavActive, &NavRowKind)>();
+    let mut painted = 0;
+    for (id, bit, kind) in items.iter(world) {
+        assert_eq!(
+            *kind,
+            NavRowKind::CurrentDestination,
+            "a sidebar row states where the user is, not a chosen member"
+        );
+        let fill = world.get::<BackgroundColor>(id).expect("nav row survives");
         assert_eq!(
             fill.0,
             if bit.0 {
-                light.accent
+                light.nav_selection_fill()
             } else {
-                light.surface_elevated
+                Color::NONE
             },
-            "nav item fill follows the light tokens"
+            "nav row fill follows the light tokens (wash on the current row, transparent elsewhere)"
         );
+        painted += 1;
     }
+    assert_eq!(painted, 7, "the rail's seven rows all repainted");
 
-    let mut pills = world.query::<(Entity, &OverviewRoutingIntentPill, &ControlVisual)>();
-    for (entity, pill, visual) in pills.iter(world) {
-        let fill = world.get::<BackgroundColor>(entity).expect("pill survives");
-        assert_eq!(
-            fill.0,
-            button_fill(
-                ButtonVariant::Default,
-                visual.0,
-                false,
-                false,
-                world
-                    .get::<ButtonDisabled>(entity)
-                    .is_some_and(|disabled| disabled.0),
-                &light
-            ),
-            "mode pill {pill:?} fill follows the light tokens"
-        );
-    }
+    // The routing selector is no longer a sidebar surface: the rail mounts
+    // navigation alone, so the shell paints no mode pill and the dashboard's
+    // segmented card owns that repainting (see the Overview theme cases).
+    let pills = world
+        .query::<&OverviewRoutingIntentSegmentPill>()
+        .iter(world)
+        .count();
+    assert_eq!(pills, 0, "the shell carries no routing choice to repaint");
 
     let world = app.world_mut();
     let mut ids = world.query::<(Entity, &BackgroundColor)>();

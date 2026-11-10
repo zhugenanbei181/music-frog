@@ -146,6 +146,53 @@ pub enum ThemePreference {
 }
 
 impl ThemePreference {
+    /// Every selectable preference, in the order the settings owner presents
+    /// them: "follow the OS" first, then the four pinned skins in
+    /// [`ThemeSkin::ALL`] order.
+    ///
+    /// This is the one answer to "which appearance options does a surface
+    /// offer". A surface renders this list instead of declaring its own: the
+    /// Bevy settings strip used to hardcode four skin keys in a different
+    /// order and omit `system` altogether, and the Iced selector kept a
+    /// private index-to-setting mapping beside it.
+    pub const ALL: [Self; 5] = [
+        Self::System,
+        Self::Fixed(ThemeSkin::Dark),
+        Self::Fixed(ThemeSkin::Light),
+        Self::Fixed(ThemeSkin::Forest),
+        Self::Fixed(ThemeSkin::Amoled),
+    ];
+
+    /// The locale key of the preference's display name. The pinned skins
+    /// reuse their own name; `system` has its own row in the copy table.
+    pub const fn label_key(self) -> &'static str {
+        match self {
+            Self::System => "theme_system",
+            Self::Fixed(skin) => skin.label_key(),
+        }
+    }
+
+    /// Position in [`Self::ALL`], for a surface whose selector reports an
+    /// index rather than a typed value.
+    pub const fn index(self) -> usize {
+        match self {
+            Self::System => 0,
+            Self::Fixed(skin) => skin.to_index() + 1,
+        }
+    }
+
+    /// The preference at one position of [`Self::ALL`]. An out-of-range index
+    /// resolves to `System`, the documented default, never to a guessed skin.
+    pub const fn from_index(index: usize) -> Self {
+        match index {
+            1 => Self::Fixed(ThemeSkin::Dark),
+            2 => Self::Fixed(ThemeSkin::Light),
+            3 => Self::Fixed(ThemeSkin::Forest),
+            4 => Self::Fixed(ThemeSkin::Amoled),
+            _ => Self::System,
+        }
+    }
+
     /// Parse the settings value; unknown values honestly fall back to
     /// [`ThemePreference::System`] (the historical default) instead of
     /// pretending to be dark.
@@ -296,5 +343,44 @@ mod tests {
         }
         assert_eq!(visited, ThemeSkin::ALL.to_vec());
         assert_eq!(preference.next().fixed(), Some(ThemeSkin::Dark));
+    }
+
+    /// The option table is the whole preference vocabulary, in cycle order:
+    /// a surface that renders `ALL` offers exactly what `next()` walks, so a
+    /// selector and a cycle affordance cannot disagree about what exists.
+    #[test]
+    fn the_option_table_is_the_preference_vocabulary_in_cycle_order() {
+        assert_eq!(ThemePreference::ALL.len(), ThemeSkin::ALL.len() + 1);
+        assert_eq!(ThemePreference::ALL[0], ThemePreference::System);
+        let mut walked = vec![ThemePreference::System];
+        let mut preference = ThemePreference::System;
+        for _ in 0..ThemeSkin::ALL.len() {
+            preference = preference.next();
+            walked.push(preference);
+        }
+        assert_eq!(walked, ThemePreference::ALL.to_vec());
+    }
+
+    #[test]
+    fn every_option_round_trips_through_its_index_and_names_itself() {
+        for (index, preference) in ThemePreference::ALL.into_iter().enumerate() {
+            assert_eq!(preference.index(), index);
+            assert_eq!(ThemePreference::from_index(index), preference);
+            assert!(!preference.label_key().is_empty());
+            assert_eq!(
+                ThemePreference::from_setting(preference.as_setting()),
+                preference
+            );
+        }
+        assert_eq!(
+            ThemePreference::from_index(ThemePreference::ALL.len()),
+            ThemePreference::System,
+            "an out-of-range index resolves to the documented default"
+        );
+        let keys: std::collections::BTreeSet<_> = ThemePreference::ALL
+            .iter()
+            .map(|preference| preference.label_key())
+            .collect();
+        assert_eq!(keys.len(), ThemePreference::ALL.len());
     }
 }

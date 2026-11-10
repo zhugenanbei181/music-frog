@@ -3,13 +3,26 @@
 use serde::{Deserialize, Serialize};
 
 /// Regions that own a shell control or a reorderable Overview card.
+///
+/// The split is about *who lays the entry out*, not about what it shows: the
+/// dashboard band is the owner's reorderable content, while a fixed control is
+/// mounted by a surface wherever that surface puts its controls. The name
+/// `ShellSidebar` was retired because it was read as a location: the Bevy
+/// surface took it literally and painted the routing selector and the master
+/// switches in the sidebar *and* in the dashboard band, and the sidebar copies
+/// were the ones the shared layout order could not reach. Slint, the surface
+/// the space-utilization judge measures, has always mounted both in the
+/// dashboard (`ui/pages/home_desktop_grid.slint`), and the desktop reference
+/// records that the sidebar carries navigation only
+/// (`docs/reference/FLCLASH_DESKTOP_REFERENCE.md` §2, `chrome_band` 0%).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum OverviewCardRegion {
-    /// The card belongs to the Overview page.
+    /// The card belongs to the Overview page's reorderable band.
     Overview,
-    /// The control belongs to the persistent shell sidebar and must not appear
-    /// as a second Overview card.
-    ShellSidebar,
+    /// The control is a fixed dashboard control: the Overview page mounts it,
+    /// outside the reorderable band, and no other region may mount a second
+    /// copy of it.
+    DashboardFixed,
 }
 
 /// Enumeration of distinct shell and Overview controls represented by the
@@ -46,13 +59,16 @@ impl OverviewCardKind {
         Self::Quota,
     ];
 
-    /// Controls owned by the persistent sidebar rather than the Overview page.
-    pub const SHELL_SIDEBAR_ORDER: [Self; 2] = [Self::RoutingIntentSegment, Self::MasterSwitches];
+    /// The dashboard's fixed controls: the Overview page mounts them, outside
+    /// the reorderable band, and nowhere else. They are excluded from
+    /// [`Self::DEFAULT_ORDER`] because the owner's order cannot move a control
+    /// that is not part of the band — not because a sidebar owns them.
+    pub const DASHBOARD_FIXED_ORDER: [Self; 2] = [Self::RoutingIntentSegment, Self::MasterSwitches];
 
     /// The single region decision for one contract entry.
     pub const fn region(self) -> OverviewCardRegion {
         match self {
-            Self::RoutingIntentSegment | Self::MasterSwitches => OverviewCardRegion::ShellSidebar,
+            Self::RoutingIntentSegment | Self::MasterSwitches => OverviewCardRegion::DashboardFixed,
             _ => OverviewCardRegion::Overview,
         }
     }
@@ -210,7 +226,7 @@ mod tests {
         assert_eq!(snapshot.order[0], OverviewCardKind::Traffic);
         assert_eq!(snapshot.order[5], OverviewCardKind::Quota);
         assert_eq!(
-            OverviewCardKind::SHELL_SIDEBAR_ORDER
+            OverviewCardKind::DASHBOARD_FIXED_ORDER
                 .iter()
                 .filter(|kind| kind.is_overview_card())
                 .count(),

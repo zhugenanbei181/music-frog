@@ -10,7 +10,7 @@ use bevy::input::keyboard::{Key, KeyCode, KeyboardInput, NativeKey};
 use bevy::input::{ButtonState, InputPlugin};
 use bevy::scene::ScenePlugin;
 use bevy::window::Window;
-use infiltrator_bevy_ui::app::{ShellPlugin, SidebarToggleProjection};
+use infiltrator_bevy_ui::app::{ShellPlugin, SystemToggleMirror};
 use infiltrator_bevy_ui::appearance::ThemeMode;
 use infiltrator_bevy_ui::command::{CommandSinkHandle, DemoCommandSink, UiCommand};
 use infiltrator_bevy_ui::mini_hud::MiniHudMode;
@@ -105,7 +105,7 @@ fn product_defaults_bind_every_action() {
 fn a_bound_chord_reaches_the_command_sink() {
     let (mut app, sink) = mounted_app();
     {
-        let mut toggles = app.world_mut().resource_mut::<SidebarToggleProjection>();
+        let mut toggles = app.world_mut().resource_mut::<SystemToggleMirror>();
         toggles.0 = toggles.0.clone().with_pending(SystemToggle::Tun, false);
     }
     press(

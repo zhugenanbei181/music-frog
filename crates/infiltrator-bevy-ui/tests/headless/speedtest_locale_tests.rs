@@ -5,13 +5,13 @@ use crate::support::headless_plugins;
 use bevy::app::App;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
-use bevy::ecs::hierarchy::Children;
 use bevy::ecs::query::With;
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::ButtonPlugin;
-use infiltrator_bevy_ui::app::{ShellPlugin, SidebarSystemProxyToggle, SidebarTunToggle};
+use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink};
 use infiltrator_bevy_ui::pages::overview::{LastOverviewProjection, OverviewProjectionUpdated};
+use infiltrator_bevy_ui::pages::overview_restamp::OverviewMasterSwitchButton;
 use infiltrator_bevy_ui::pages::overview_speedtest::{
     OverviewSpeedtestDetailBodyText, OverviewSpeedtestDetailButton, OverviewSpeedtestHistoryText,
     OverviewSpeedtestMetricsText,
@@ -21,9 +21,9 @@ use infiltrator_bevy_ui::route::PagesPlugin;
 use infiltrator_bevy_widgets::adaptive_modal::ModalState;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::modal::ModalStage;
-use infiltrator_bevy_widgets::switch::{SwitchKnob, SwitchPosition};
 use infiltrator_contract::speedtest::SpeedtestSampleOutcome;
 use infiltrator_contract::speedtest::SpeedtestSnapshot;
+use infiltrator_contract::system_toggle::SystemToggle;
 use std::sync::Arc;
 
 fn entity<T: Component>(app: &mut App) -> Entity {
@@ -36,18 +36,18 @@ fn text(app: &App, entity: Entity) -> &str {
     &app.world().get::<Text>(entity).unwrap().0
 }
 
-/// The switch's typed rest position.
+/// The dashboard's master switch for one toggle.
 ///
-/// The sidebar toggles state their truth with the shared switch, so the
-/// locale replay must keep the switch's position instead of a word.
-fn switch_position(app: &App, toggle: Entity) -> SwitchPosition {
-    app.world()
-        .get::<Children>(toggle)
-        .expect("the switch track owns its knob")
-        .iter()
-        .find_map(|child| app.world().get::<SwitchKnob>(*child).copied())
-        .expect("the switch track owns a knob")
-        .0
+/// The rail used to carry a second live pair of these controls; the
+/// dashboard's single mount is now the surface whose entity identity the
+/// locale replay must preserve.
+fn master_switch(app: &mut App, toggle: SystemToggle) -> Entity {
+    app.world_mut()
+        .query::<(Entity, &OverviewMasterSwitchButton)>()
+        .iter(app.world())
+        .find(|(_, button)| button.toggle == toggle)
+        .map(|(entity, _)| entity)
+        .expect("the dashboard mounts one master switch per toggle")
 }
 
 #[test]
@@ -77,21 +77,37 @@ fn locale_replay_keeps_speedtest_results_partial_facts_and_modal() {
     let detail_button = entity::<OverviewSpeedtestDetailButton>(&mut app);
     click_entity(&mut app, detail_button);
     assert_eq!(app.world().resource::<ModalState>().stage, ModalStage::Open);
-    let proxy = entity::<SidebarSystemProxyToggle>(&mut app);
-    let tun = entity::<SidebarTunToggle>(&mut app);
-    // The toggles state their truth with the shared switch, so the replay
-    // keeps the switch's published position.
-    assert_eq!(switch_position(&app, proxy), SwitchPosition::On);
-    assert_eq!(switch_position(&app, tun), SwitchPosition::On);
+    let proxy = master_switch(&mut app, SystemToggle::SystemProxy);
+    let tun = master_switch(&mut app, SystemToggle::Tun);
+    // The controls state their truth through the shared projection; a locale
+    // replay restamps copy, it never restages a toggle.
+    let proxy_before = *app
+        .world()
+        .get::<OverviewMasterSwitchButton>(proxy)
+        .expect("the mounted proxy control");
+    let tun_before = *app
+        .world()
+        .get::<OverviewMasterSwitchButton>(tun)
+        .expect("the mounted TUN control");
     assert!(text(&app, metrics).contains("抖动 — · 丢包 0.0%"));
     app.world_mut()
         .resource_mut::<UiLocale>()
         .apply_preference("en-US");
     app.update();
-    assert_eq!(entity::<SidebarSystemProxyToggle>(&mut app), proxy);
-    assert_eq!(entity::<SidebarTunToggle>(&mut app), tun);
-    assert_eq!(switch_position(&app, proxy), SwitchPosition::On);
-    assert_eq!(switch_position(&app, tun), SwitchPosition::On);
+    assert_eq!(master_switch(&mut app, SystemToggle::SystemProxy), proxy);
+    assert_eq!(master_switch(&mut app, SystemToggle::Tun), tun);
+    assert_eq!(
+        *app.world()
+            .get::<OverviewMasterSwitchButton>(proxy)
+            .expect("the proxy control survives the replay"),
+        proxy_before
+    );
+    assert_eq!(
+        *app.world()
+            .get::<OverviewMasterSwitchButton>(tun)
+            .expect("the TUN control survives the replay"),
+        tun_before
+    );
     assert_eq!(entity::<OverviewSpeedtestMetricsText>(&mut app), metrics);
     assert_eq!(entity::<OverviewSpeedtestDetailBodyText>(&mut app), detail);
     assert_eq!(app.world().resource::<ModalState>().stage, ModalStage::Open);

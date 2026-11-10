@@ -15,8 +15,7 @@ use bevy::ui::widget::Text;
 use bevy::ui_widgets::ButtonPlugin;
 use bevy::window::{Ime, PrimaryWindow, Window};
 use infiltrator_application::rule_list_application::RuleListApplication;
-use infiltrator_bevy_ui::app::ShellPlugin;
-use infiltrator_bevy_ui::app::SidebarActiveProfileCard;
+use infiltrator_bevy_ui::app::{ShellPlugin, SidebarNavItem};
 use infiltrator_bevy_ui::pages::rules::LastRulesProjection;
 use infiltrator_bevy_ui::pages::rules_builder::{
     AddCustomRuleButton, DiscardRuleFormButton, RuleFormStatus, RulesBuilderState,
@@ -27,9 +26,9 @@ use infiltrator_bevy_ui::pages::rules_edit::{RuleMoveUpButton, RuleToggleButton}
 use infiltrator_bevy_ui::pages::rules_projection::{
     RuleHitText, RulePayloadText, RuleRowStatusText,
 };
+use infiltrator_bevy_ui::pages::rules_projection::{RulesLine, RulesLineKind};
 use infiltrator_bevy_ui::pages::rules_tabs::{RulesTabChip, RulesTabState};
 use infiltrator_bevy_ui::route::{ActiveRoute, PageRoot, PagesPlugin, Route, RouteChanged};
-use infiltrator_bevy_ui::shell_readout::ShellReadoutText;
 use infiltrator_bevy_ui::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated};
 use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::localization::UiLocale;
@@ -38,7 +37,6 @@ use infiltrator_composition::surface_reader::ProductSurfaceReader;
 use infiltrator_contract::core_capabilities::{CoreOperation, RulesOperation};
 use infiltrator_contract::rules_workspace::RulesTab;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
-use infiltrator_contract::surface_snapshot::PageId;
 use infiltrator_ports::surface::SurfaceReader;
 use infiltrator_test_support::rule_trace_fixtures::{RuleTraceStore, TRACE_DOCUMENT};
 use lurker_core_contract::error::ErrorCode;
@@ -214,51 +212,79 @@ fn native_queued_clicks_keep_the_original_row_after_reorder_and_retire_on_discar
     app.update();
 }
 
-fn shell_rule_count(app: &mut App) -> String {
+/// The rules page's own summary line, which states the rule total.
+///
+/// The rail used to publish a second rule count beside the page's own; with
+/// the column reduced to navigation, the page's summary is the single owner.
+fn rule_summary(app: &mut App) -> String {
     app.world_mut()
-        .query::<(&ShellReadoutText, &Text)>()
+        .query::<(&RulesLine, &Text)>()
         .iter(app.world())
-        .find_map(|(part, text)| {
-            matches!(part, ShellReadoutText::Count(PageId::Rules)).then(|| text.0.clone())
-        })
-        .unwrap()
+        .find_map(|(line, text)| (line.0 == RulesLineKind::Summary).then(|| text.0.clone()))
+        .expect("the rules page states its summary")
+}
+
+/// The rule total the summary line states, read the same way in either locale
+/// ("... 共 4 条规则 ..." / "Rules · 4 rules ...").
+fn rule_total(app: &mut App) -> usize {
+    let summary = rule_summary(app);
+    summary
+        .split(|c: char| !c.is_ascii_digit())
+        .find(|part| !part.is_empty())
+        .unwrap_or_else(|| panic!("the summary states a total: {summary}"))
+        .parse()
+        .expect("the total is a number")
 }
 
 #[test]
-fn native_shell_counts_follow_the_real_reader_and_locale_without_replacing_the_entity() {
+fn native_rule_counts_follow_the_real_reader_and_locale_without_replacing_the_line() {
     let (mut app, reader, store) = setup();
-    assert_eq!(shell_rule_count(&mut app), "4");
+    assert_eq!(rule_total(&mut app), 4);
     let entity = app
         .world_mut()
-        .query::<(Entity, &ShellReadoutText)>()
+        .query::<(Entity, &RulesLine)>()
         .iter(app.world())
-        .find_map(|(entity, part)| {
-            matches!(part, ShellReadoutText::Count(PageId::Rules)).then_some(entity)
-        })
-        .unwrap();
+        .find_map(|(entity, line)| (line.0 == RulesLineKind::Summary).then_some(entity))
+        .expect("the rules page states its summary");
     store.select_profile("second.yaml", "rules:\n  - MATCH,DIRECT\n");
     publish(&mut app, &reader);
-    assert_eq!(shell_rule_count(&mut app), "1");
+    assert_eq!(rule_total(&mut app), 1);
     app.world_mut()
         .resource_mut::<UiLocale>()
         .apply_preference("en-US");
     app.update();
-    assert_eq!(app.world().get::<Text>(entity).unwrap().0, "1");
+    let replayed = rule_summary(&mut app);
+    assert!(
+        replayed.starts_with("Rules") && replayed.contains("1 rules"),
+        "the same line restamps into the English sentence: {replayed}"
+    );
+    assert_eq!(
+        app.world()
+            .get::<Text>(entity)
+            .expect("the locale replay restamps the same entity rather than remounting it")
+            .0,
+        replayed
+    );
     store.select_profile("second.yaml", "rules: []\n");
     publish(&mut app, &reader);
-    assert_eq!(shell_rule_count(&mut app), "0");
+    assert_eq!(rule_total(&mut app), 0);
     assert_eq!(store.writes.load(Ordering::SeqCst), 0);
 }
 
 #[test]
-fn native_profile_card_click_mounts_profiles_from_the_accepted_live_snapshot_and_preserves_its_identity()
+fn native_profiles_row_click_mounts_profiles_from_the_accepted_live_snapshot_and_preserves_its_identity()
  {
     let (mut app, _, store) = setup();
+    // The rail's destination row is the shell's only route into Profiles now
+    // that the sidebar card is retired; the click and the readback are the
+    // same pair this case has always asserted.
     let card = app
         .world_mut()
-        .query_filtered::<Entity, With<SidebarActiveProfileCard>>()
-        .single(app.world())
-        .unwrap();
+        .query::<(Entity, &SidebarNavItem)>()
+        .iter(app.world())
+        .find(|(_, item)| item.0 == Route::Profiles)
+        .expect("the rail mounts the profiles destination")
+        .0;
     click_entity(&mut app, card);
     assert_eq!(
         app.world().resource::<ActiveRoute>().0,
@@ -293,7 +319,7 @@ fn native_profile_card_click_mounts_profiles_from_the_accepted_live_snapshot_and
         native_text,
         "the mounted profile page must replay the accepted live catalogue"
     );
-    assert!(app.world().get::<SidebarActiveProfileCard>(card).is_some());
+    assert!(app.world().get::<SidebarNavItem>(card).is_some());
     assert_eq!(store.writes.load(Ordering::SeqCst), 0);
 }
 

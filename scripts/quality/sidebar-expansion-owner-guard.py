@@ -36,12 +36,23 @@ COMPOSITION_TESTS = ROOT / (
 GATE = ROOT / "scripts/quality/check-structure.sh"
 PAGE_STRUCTURE = ROOT / "crates/infiltrator-contract/src/page_structure.rs"
 PAGE_STRUCTURE_EXPORT = ROOT / "crates/infiltrator-contract/assets/page-structure.json"
+SHELL_RECEIPT = ROOT / "crates/infiltrator-contract/src/shell_receipt.rs"
+SHELL_RECEIPT_HOST = ROOT / "crates/infiltrator-slint/src/shell_receipt_host.rs"
+PROJECTION = ROOT / "crates/infiltrator-slint/src/lumen_projection.rs"
+NAVIGATION_CALLBACKS = ROOT / "crates/infiltrator-slint/src/callbacks/navigation.rs"
+CAPTURE_MATRIX = ROOT / "scripts/capture_slint_scenarios.tsv"
 GENERATOR = ROOT / "scripts/generate_viewport_ladder.py"
 SLINT_TIER = ROOT / "crates/infiltrator-slint/ui/components/viewport_tier.slint"
 SLINT_LADDER = ROOT / "crates/infiltrator-slint/ui/components/viewport-ladder.slint"
 SLINT_THEME = ROOT / "crates/infiltrator-slint/ui/components/theme.slint"
 SLINT_SHELL = ROOT / "crates/infiltrator-slint/ui/lumen-app.slint"
 VIEWPORT_GUARD = ROOT / "scripts/quality/slint-viewport-tier-guard.py"
+
+MATRIX_HEADER = (
+    "name", "page", "skin", "window_size", "scroll", "mascot_frame",
+    "mascot_millis", "sidebar_expansion", "interaction",
+)
+MATRIX_ROW_COUNT = 199
 
 REQUIRED = {
     "command": (
@@ -82,6 +93,32 @@ REQUIRED = {
         "facts.sidebar_expansion",
         "SidebarExpansionPreference::Collapsed",
     ),
+    "shell_receipt": (
+        '"sidebar_expansion",',
+        '"touch_surface",',
+        '"sidebar_toggle_px",',
+        "pub sidebar_expansion: SidebarExpansionPreference,",
+        "pub touch_surface: bool,",
+        "pub sidebar_toggle_px: u16,",
+    ),
+    "shell_receipt_host": (
+        "chrome.sidebar_expansion",
+        "chrome.touch_surface",
+        "chrome.sidebar_toggle",
+    ),
+    "projection": (
+        "window.set_sidebar_expansion(",
+        "settings.sidebar_expansion",
+    ),
+    "navigation_callbacks": (
+        "on_toggle_sidebar_expansion",
+        "SidebarExpansionIntent::Toggle",
+    ),
+    "capture_matrix": (
+        "\t".join(MATRIX_HEADER),
+        "sidebar-collapsed-standard",
+        "sidebar-collapsed-compact",
+    ),
     "page_structure": (
         "pub struct SidebarVariantFact",
         "pub fn sidebar_variant_facts()",
@@ -99,6 +136,7 @@ REQUIRED = {
         "\"sidebar_form\",",
         "\"sidebar_nav_column\",",
         "\"sidebar_labelled\",",
+        "\"sidebar_toggle_available\",",
     ),
     "slint_tier": (
         "export enum SidebarExpansionPreference",
@@ -109,14 +147,18 @@ REQUIRED = {
         "public pure function sidebar_form(",
         "public pure function sidebar_nav_column(",
         "public pure function sidebar_labelled(",
+        "public pure function sidebar_toggle_available(",
     ),
     "slint_theme": (
         "ViewportLadder.sidebar_form(",
         "ViewportLadder.sidebar_nav_column(",
         "ViewportLadder.sidebar_labelled(",
+        "ViewportLadder.sidebar_toggle_available(",
     ),
     "slint_shell": (
         "in-out property <SidebarExpansionPreference> sidebar-expansion:",
+        "sidebar-expansion: root.sidebar-expansion",
+        "touch-surface: root.android-platform",
         "LumenTheme.sidebar-expansion = root.sidebar-expansion;",
         "LumenTheme.touch-surface = root.android-platform;",
     ),
@@ -138,6 +180,11 @@ FILES = {
     "contract_tests": CONTRACT_TESTS,
     "application_tests": APPLICATION_TESTS,
     "composition_tests": COMPOSITION_TESTS,
+    "shell_receipt": SHELL_RECEIPT,
+    "shell_receipt_host": SHELL_RECEIPT_HOST,
+    "projection": PROJECTION,
+    "navigation_callbacks": NAVIGATION_CALLBACKS,
+    "capture_matrix": CAPTURE_MATRIX,
     "page_structure": PAGE_STRUCTURE,
     "page_structure_export": PAGE_STRUCTURE_EXPORT,
     "generator": GENERATOR,
@@ -149,6 +196,36 @@ FILES = {
 }
 
 
+def capture_matrix_findings(source: str) -> list[str]:
+    """The matrix owns shell fixtures and business interactions as separate facts."""
+    lines = source.splitlines()
+    found: list[str] = []
+    if not lines or tuple(lines[0].split("\t")) != MATRIX_HEADER:
+        return ["capture_matrix does not publish the nine-column typed header"]
+    rows = [line.split("\t") for line in lines[1:] if line]
+    if len(rows) != MATRIX_ROW_COUNT:
+        found.append(f"capture_matrix has {len(rows)} rows, expected {MATRIX_ROW_COUNT}")
+    for number, row in enumerate(rows, start=2):
+        if len(row) != len(MATRIX_HEADER):
+            found.append(f"capture_matrix line {number} has {len(row)} columns")
+            continue
+        name, *_rest, sidebar_expansion, interaction = row
+        is_viewport_row = name.endswith(("-standard", "-compact"))
+        is_shell_form = name in {"sidebar-collapsed-standard", "sidebar-collapsed-compact"}
+        if is_shell_form:
+            if sidebar_expansion != "collapsed":
+                found.append(f"capture_matrix shell form {name} is not collapsed")
+            if interaction:
+                found.append(f"capture_matrix shell form {name} must not derive a business interaction")
+        elif is_viewport_row:
+            expected_interaction = name.rsplit("-", 1)[0]
+            if sidebar_expansion != "expanded" or interaction != expected_interaction:
+                found.append(f"capture_matrix business row {name} has the wrong owner or interaction")
+        elif interaction:
+            found.append(f"capture_matrix inspection row {name} must not carry a business interaction")
+    return found
+
+
 def findings(texts: dict[str, str], gate: str, export: dict | None = None) -> list[str]:
     found: list[str] = []
     for key, needles in REQUIRED.items():
@@ -156,6 +233,7 @@ def findings(texts: dict[str, str], gate: str, export: dict | None = None) -> li
         for needle in needles:
             if needle not in source:
                 found.append(f"{key} is missing {needle!r}")
+    found.extend(capture_matrix_findings(texts["capture_matrix"]))
     if "sidebar_expansion" in texts["application"] and "ApplySidebarExpansion" not in texts["dispatch"]:
         found.append("the typed preference command is no longer dispatched")
     if "sidebar-expansion-owner-guard.py --self-test" not in gate:
@@ -251,6 +329,19 @@ class GuardSelfTest(unittest.TestCase):
             "ViewportLadder.sidebar_nav_column(", "ViewportLadder.nav_column(", 1
         )
         self.assertTrue(any("slint_theme is missing" in item for item in self.found(slint_theme=planted)))
+
+    def test_a_matrix_that_drops_the_explicit_interaction_column_is_caught(self) -> None:
+        planted = self.texts["capture_matrix"].replace("\tinteraction", "", 1)
+        self.assertTrue(any("nine-column typed header" in item for item in self.found(capture_matrix=planted)))
+
+    def test_a_shell_form_that_derives_a_business_interaction_is_caught(self) -> None:
+        planted = self.texts["capture_matrix"].replace(
+            "sidebar-collapsed-standard\toverview\tdark\t1180x780\t\t\t\tcollapsed\t",
+            "sidebar-collapsed-standard\toverview\tdark\t1180x780\t\t\t\tcollapsed\tsidebar-collapsed",
+            1,
+        )
+        self.assertNotEqual(planted, self.texts["capture_matrix"])
+        self.assertTrue(any("must not derive a business interaction" in item for item in self.found(capture_matrix=planted)))
 
 
 def main() -> int:

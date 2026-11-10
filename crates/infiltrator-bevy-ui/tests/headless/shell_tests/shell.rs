@@ -55,13 +55,15 @@ fn shell_reruns_do_not_stack_slots() {
 }
 
 #[test]
-fn shell_exposes_named_semantic_nodes_on_root_header_and_pill() {
+fn shell_exposes_named_semantic_nodes_on_root_header_and_rail() {
     let mut app = mounted_shell();
     let world = app.world_mut();
 
     let mut roots = world.query::<(&AccessibilityNode, &ShellRoot)>();
     let (root, _) = roots.single(world).expect("shell root semantic node");
-    // DUAL-15-10: the window/header/theme labels are the shared grammar rows.
+    // DUAL-15-10: the window/header/navigation labels are the shared grammar
+    // rows. The shell mounts no theme row: appearance is a settings preference
+    // and its selector publishes `ShellA11yNode::AppearanceSegment` there.
     assert_eq!(root.role(), accesskit::Role::Window);
     let window_label = Lang("zh-CN").tr(ShellA11yNode::Window.label_key());
     assert_eq!(root.label(), Some(window_label.as_ref()));
@@ -72,11 +74,28 @@ fn shell_exposes_named_semantic_nodes_on_root_header_and_pill() {
     let header_label = Lang("zh-CN").tr(ShellA11yNode::ShellHeader.label_key());
     assert_eq!(header.label(), Some(header_label.as_ref()));
 
-    let mut pills = world.query::<(&AccessibilityNode, &ThemeToggle)>();
-    let (pill, _) = pills.single(world).expect("pill semantic node");
-    assert_eq!(pill.role(), accesskit::Role::Button);
-    let pill_label = Lang("zh-CN").tr(ShellA11yNode::ThemeToggle.label_key());
-    assert_eq!(pill.label(), Some(pill_label.as_ref()));
+    // The rail's own grammar row is the navigation region, and the shell
+    // publishes no appearance row: the appearance selector lives on Settings.
+    let nav_label = Lang("zh-CN").tr(ShellA11yNode::SidebarNav.label_key());
+    let nav_rows: Vec<String> = world
+        .query::<&AccessibilityNode>()
+        .iter(world)
+        .filter(|node| node.role() == accesskit::Role::Navigation)
+        .map(|node| node.label().unwrap_or_default().to_owned())
+        .collect();
+    assert_eq!(
+        nav_rows,
+        vec![nav_label],
+        "the shell publishes exactly one navigation region with the shared label"
+    );
+    let appearance_label = Lang("zh-CN").tr(ShellA11yNode::AppearanceSegment.label_key());
+    assert!(
+        !world
+            .query::<&AccessibilityNode>()
+            .iter(world)
+            .any(|node| node.label() == Some(appearance_label.as_ref())),
+        "appearance is a settings preference, so the shell publishes no selector for it"
+    );
 }
 
 #[test]

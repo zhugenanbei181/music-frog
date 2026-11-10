@@ -6,7 +6,6 @@ use crate::app::{
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::command_events::CommandExecutedEvent;
 use crate::pages::overview::OverviewProjectionUpdated;
-use crate::pages::overview::OverviewRoutingIntentPill;
 use crate::pages::overview_cards::{
     OverviewRoutingIntentCaption, OverviewRoutingIntentSegmentPill, OverviewRoutingIntentText,
 };
@@ -15,7 +14,7 @@ use crate::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated};
 use bevy::ecs::event::Event;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
-use bevy::ecs::query::{Or, QueryData, QueryFilter, With};
+use bevy::ecs::query::{QueryData, QueryFilter, With};
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::text::TextColor;
 use bevy::ui::BackgroundColor;
@@ -39,16 +38,12 @@ use lurker_ui_presentation::routing_intent_actions::{
 pub struct RoutingIntentControl {
     visual: &'static mut ControlVisual,
     disabled: &'static mut ButtonDisabled,
-    pill: Option<&'static OverviewRoutingIntentPill>,
-    segment: Option<&'static OverviewRoutingIntentSegmentPill>,
+    segment: &'static OverviewRoutingIntentSegmentPill,
 }
 
 #[derive(QueryFilter)]
 pub struct RoutingIntentFilter {
-    intent: Or<(
-        With<OverviewRoutingIntentPill>,
-        With<OverviewRoutingIntentSegmentPill>,
-    )>,
+    intent: With<OverviewRoutingIntentSegmentPill>,
 }
 
 #[derive(Event, Clone, Debug, PartialEq, Eq)]
@@ -102,14 +97,9 @@ pub fn sync(
     observe_actions(&mut actions.0, latest.as_deref(), source.as_deref());
     let state = actions.0.render_snapshot();
     for mut control in &mut controls {
-        let intent = control
-            .pill
-            .map(|pill| pill.0.clone())
-            .or_else(|| control.segment.map(|pill| pill.0.clone()));
-        if let Some(intent) = intent {
-            control.visual.0 = state.current.as_ref() == Some(&intent);
-            control.disabled.0 = !state.is_intent_selectable(&intent);
-        }
+        let intent = control.segment.0.clone();
+        control.visual.0 = state.current.as_ref() == Some(&intent);
+        control.disabled.0 = !state.is_intent_selectable(&intent);
     }
     let caption = routing_intent_status_copy(&state, &Lang(locale.code()));
     for children in &capsules {
@@ -144,7 +134,6 @@ fn observe_actions(
 
 #[derive(SystemParam)]
 pub struct RoutingIntentActivation<'w, 's> {
-    pills: Query<'w, 's, &'static OverviewRoutingIntentPill>,
     segments: Query<'w, 's, &'static OverviewRoutingIntentSegmentPill>,
     latest: Option<Res<'w, LatestSurfaceSnapshot>>,
     handle: Option<Res<'w, OverviewSourceHandle>>,
@@ -155,17 +144,10 @@ pub struct RoutingIntentActivation<'w, 's> {
 
 pub fn activate(activate: On<Activate>, state: RoutingIntentActivation) {
     let wanted = state
-        .pills
+        .segments
         .get(activate.entity)
         .map(|pill| pill.0.clone())
-        .ok()
-        .or_else(|| {
-            state
-                .segments
-                .get(activate.entity)
-                .map(|pill| pill.0.clone())
-                .ok()
-        });
+        .ok();
     if let Some(wanted) = wanted {
         begin_request(wanted, state);
     }

@@ -543,6 +543,8 @@ pub(super) fn translate_workflow_zh(key: &str) -> Cow<'static, str> {
         "settings_artifact_integrity_title" => "制品完整性 (SHA-256)".into(),
         "settings_channel_probe_title" => "在线通道探测".into(),
         "settings_interface_theme_title" => "界面主题".into(),
+        "density_comfortable" => "舒适".into(),
+        "density_compact" => "紧凑".into(),
         "settings_language_title" => "语言设置".into(),
         "dns_hosts_issue_mixed_list" => "域名 {value} 的多值映射必须全部为 IP 地址".into(),
         "dns_cache_previous_report" => "最近观测的结果；新请求的结果将在执行后发布".into(),

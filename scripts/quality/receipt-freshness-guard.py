@@ -2,7 +2,7 @@
 """Guard the freshness of published Slint screenshot receipts.
 
 The published tree must describe exactly one **full** capture run: the most
-recent one that published all 197 scenarios. A name-filtered diagnostic run
+recent one that published all 199 scenarios. A name-filtered diagnostic run
 produces fresh pixels in `.evidence/captures/` for a handful of scenarios but
 explicitly never touches the published corpus, so treating it as the latest
 published batch would report 197 perfectly fresh receipts as stale and force
@@ -29,7 +29,7 @@ OUT_DIR = pathlib.Path("crates/infiltrator-slint/docs/screenshots")
 EVIDENCE_ROOT = pathlib.Path(".evidence/captures/slint")
 FIELDS = ("scenario", "page", "skin", "requested_window", "app_pid", "window_id",
           "width", "height", "bytes", "sha256", "status")
-FULL_MATRIX_SIZE = 197
+FULL_MATRIX_SIZE = 199
 
 
 def sha256(path: pathlib.Path) -> str:

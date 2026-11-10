@@ -307,3 +307,26 @@ bool、不把「能否展开」藏在 Option/null 里，也不新增第二套 48
 触摸面共同决定合法导航形态、列宽、标签与按钮可用性；Slint 生成器只读这张
 表，判定器也复用同一导出真源。侧栏 toggle 仍是后续表面接线；三批都不改任何
 像素，故沿用 b169 的 197 帧回执而如实记为未变更身份。
+
+## 9. 折叠按钮与纯外壳双视口回执（b173）
+
+b173 把上游桌面截图左上角的折叠/展开按钮真正接进本仓：按钮只发送
+`CommandIntent::ApplySidebarExpansion { intent: Toggle }`，设置 owner 持久化偏好，
+`SettingsPageSnapshot.sidebar_expansion` 读回后投影回表面；Slint 不保存私有
+collapsed bool，也不从当前列宽反推偏好。按钮是否可用只读 b172 的 16 行封闭
+`sidebar_variants` 表：非触摸桌面 `expanded/ultra` 档允许收起，触摸面与较窄档
+保持底栏/轨形态且不显示桌面折叠按钮。收起态复用 64px rail 与 canonical
+`chevron-right.svg`，展开态用 `chevron-left.svg` 与共享本地化的「收起」文案；
+侧栏仍只画导航项，状态、速率、内存、版本等非导航事实继续只由标题栏与仪表盘
+单一真源发布。
+
+求同的是上游截图与源码的「左上导航折叠钮 + 220/48dp 两形态 + 纯导航侧栏」，
+存异的是本仓保留 typed 设置 owner、typed intent、16 行视口/表面变体表和
+64/240/280px 共享宽度阶梯，不把偏好藏在 UI 布尔里，也不把统计卡塞回侧栏。
+可见身份与 `CAPTURE_CHROME` wire 同时变化，因此整批 199 帧重采：新增
+`sidebar-collapsed-standard` / `sidebar-collapsed-compact` 两张纯外壳折叠帧，
+两帧的 `CAPTURE_CHROME` 均发布
+`sidebar_expansion=collapsed touch_surface=0 nav_form=rail nav_column_px=64 nav_content_offset_px=0`，
+页面内容立即补位且 `chrome_band` 仍按 0% 判据。捕获矩阵把 `interaction` 升为
+显式第 9 列，避免把纯外壳帧的名字误当成一个并不存在的业务场景；owner guard
+以 planted 负例钉死「收起帧不得派生业务交互」。

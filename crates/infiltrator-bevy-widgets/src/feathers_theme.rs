@@ -43,6 +43,11 @@ pub enum Token {
     /// Palette-derived washes: the ONLY alpha derivations the palette layer
     /// performs, re-expressed as tokens so overlays can paint them too.
     SelectionFill,
+    /// The wash under a **selected navigation row**. Separate from
+    /// [`Self::SelectionFill`] because the two state different facts: that one
+    /// is a chosen member (the accent), this one is where the user is (a quiet
+    /// ink wash beside a narrow accent indicator).
+    NavSelectionFill,
     ChartFillUp,
     ChartFillDown,
 }
@@ -91,6 +96,7 @@ impl Token {
             Token::Warning => "mf.warning",
             Token::Danger => "mf.danger",
             Token::SelectionFill => "mf.selection_fill",
+            Token::NavSelectionFill => "mf.nav_selection_fill",
             Token::ChartFillUp => "mf.chart_fill_up",
             Token::ChartFillDown => "mf.chart_fill_down",
         }
@@ -119,6 +125,7 @@ impl Token {
             Token::Warning => palette.warning,
             Token::Danger => palette.danger,
             Token::SelectionFill => palette.selection_fill(),
+            Token::NavSelectionFill => palette.nav_selection_fill(),
             Token::ChartFillUp => palette.chart_fill_up(),
             Token::ChartFillDown => palette.chart_fill_down(),
         }
@@ -127,7 +134,7 @@ impl Token {
 
 /// All palette-backed tokens, in palette field order (drives the builder and
 /// the headless round-trip test).
-pub const ALL_TOKENS: [Token; 22] = [
+pub const ALL_TOKENS: [Token; 23] = [
     Token::WindowClear,
     Token::Surface,
     Token::SurfaceElevated,
@@ -148,6 +155,7 @@ pub const ALL_TOKENS: [Token; 22] = [
     Token::Warning,
     Token::Danger,
     Token::SelectionFill,
+    Token::NavSelectionFill,
     Token::ChartFillUp,
     Token::ChartFillDown,
 ];

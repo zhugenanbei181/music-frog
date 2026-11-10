@@ -1656,3 +1656,9 @@ msgstr "时长"
 
 msgid "暂无实时连接"
 msgstr "暂无实时连接"
+
+msgid "收起"
+msgstr "收起"
+
+msgid "展开"
+msgstr "展开"

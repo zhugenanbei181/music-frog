@@ -532,6 +532,8 @@ pub(super) fn translate_workflow_en(key: &str) -> Cow<'static, str> {
         "settings_artifact_integrity_title" => "Artifact integrity (SHA-256)".into(),
         "settings_channel_probe_title" => "Probe release channels".into(),
         "settings_interface_theme_title" => "Interface theme".into(),
+        "density_comfortable" => "Comfortable".into(),
+        "density_compact" => "Compact".into(),
         "settings_language_title" => "Language".into(),
         "dns_hosts_issue_mixed_list" => "Every value for multi-address domain {value} must be an IP address".into(),
         "dns_cache_previous_report" => "Last observed results; fresh outcomes appear after execution".into(),

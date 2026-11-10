@@ -1,6 +1,11 @@
 //! The app shell: left sidebar/rail/bottom-nav and content column composed with `bsn!`.
-//! Seams: Responsive layout breakpoints (Compact, Medium, Expanded, Ultra), theme/density toggles,
-//! AccessKit semantic nodes, and routing intent segment control (BEVY-005).
+//! Seams: Responsive layout breakpoints (Compact, Medium, Expanded, Ultra), the
+//! header theme toggle, AccessKit semantic nodes, and routing intent segment
+//! control (BEVY-005).
+//!
+//! The sidebar column carries navigation and nothing else: the brand belongs
+//! to the chrome bar, the rate/status/version facts to the dashboard, and the
+//! appearance and density preferences to the Settings page.
 
 #[path = "app_query_access.rs"]
 pub mod query_access;
@@ -17,12 +22,11 @@ pub mod shell_focus;
 
 use crate::a11y::ShellA11yPlugin;
 use crate::appearance::{
-    PublishedThemeBaseline, SystemAppearance, ThemeMode, on_theme_pill_activated, resolved_skin,
-    sync_system_appearance, sync_theme_readback,
+    PublishedThemeBaseline, SystemAppearance, ThemeMode, resolved_skin, sync_system_appearance,
+    sync_theme_readback,
 };
 use crate::cadence::WindowCadenceState;
 use crate::chrome::{ChromeSearchButton, ChromeTrafficCapsule, WindowChromePlugin};
-use crate::command::{CommandSinkHandle, UiCommand};
 use crate::command_palette_shell::CommandPalettePlugin;
 use crate::gesture::{GestureHostReport, ShellGesturePlugin};
 use crate::host_capabilities::HostCapabilitiesPlugin;
@@ -37,12 +41,11 @@ use crate::pages::profiles_editor::ProfilesEditorPlugin;
 use crate::pages::profiles_editor_panes_sync::ProfilesEditorPanesPlugin;
 use crate::route::{ActiveRoute, NavigateBack, NavigateForward, Route, RouteChanged};
 use crate::shell_rail::{
-    sync_bottom_nav_visuals, sync_nav_hover_fill, sync_rail_nav_tooltips, sync_sidebar_nav_visuals,
-    sync_sidebar_rail_morphology,
+    sync_bottom_nav_visuals, sync_nav_hover_fill, sync_nav_indicator, sync_rail_nav_tooltips,
+    sync_sidebar_nav_active, sync_sidebar_rail_morphology,
 };
-use crate::shell_readout::{sync_core_status, sync_quota, sync_text};
-use crate::shell_scene::sidebar::sync_sidebar_toggle_visuals;
-use crate::shell_scene::{shell_scene_with_toggles, stamp_status_dot};
+use crate::shell_readout::{sync_core_status, sync_text};
+use crate::shell_scene::{shell_scene, stamp_status_dot};
 use crate::shell_waveform;
 use crate::shortcuts::ShortcutsPlugin;
 use crate::surface::host_insets::{HostInsetsPlugin, KeyboardAvoidance};
@@ -70,23 +73,21 @@ use infiltrator_bevy_widgets::WidgetsPlugin;
 use infiltrator_bevy_widgets::feathers_theme::sync_ui_theme;
 use infiltrator_bevy_widgets::icon::status_dot_image;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
+use infiltrator_bevy_widgets::nav::NavVisualPaintSet;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
-use infiltrator_bevy_widgets::responsive::{
-    Density, DensitySwitch, ResponsiveContext, SafeAreaInsets,
-};
+use infiltrator_bevy_widgets::responsive::{ResponsiveContext, SafeAreaInsets};
 use infiltrator_bevy_widgets::theme::{Breakpoint, Theme, space};
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::shell_gesture;
 use infiltrator_contract::sidebar_material::SidebarMaterialKind;
 use infiltrator_contract::surface::SurfaceKind;
-use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot};
+use infiltrator_contract::system_toggle::SystemToggleSnapshot;
 use infiltrator_contract::theme::{self, ThemePreference};
 use infiltrator_contract::window_chrome::{CHROME_DRAG_STRIP_HEIGHT_PX, DesktopPlatformKind};
 use infiltrator_presentation::sidebar_material_projection::{
     project_sidebar_material, project_sidebar_surface_wash,
 };
-use infiltrator_presentation::system_toggle_projection;
 use lurker_ui_presentation::routing_intent_actions::{
     PendingRoutingIntentChange, RoutingIntentActions,
 };
@@ -125,8 +126,6 @@ pub struct ShellLayoutState {
     pub breakpoint: Breakpoint,
     /// Active shell layout mode.
     pub mode: LayoutMode,
-    /// Active layout density.
-    pub density: Density,
 }
 
 impl ShellLayoutState {
@@ -143,7 +142,6 @@ impl ShellLayoutState {
             width_px,
             breakpoint,
             mode,
-            density: Density::Comfortable,
         }
     }
 
@@ -186,7 +184,7 @@ impl Default for ShellLayoutState {
 /// PagesPlugin replaces it from each accepted SurfaceSnapshot; ShellPlugin
 /// alone starts in `Unknown` and therefore renders non-actionable controls.
 #[derive(Resource, Clone, Debug, Default, PartialEq, Eq)]
-pub struct SidebarToggleProjection(pub SystemToggleSnapshot);
+pub struct SystemToggleMirror(pub SystemToggleSnapshot);
 
 /// Marker for the content region product pages mount into.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
@@ -208,14 +206,6 @@ pub struct ShellHeader;
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ContentTitleLabel;
 
-/// Marker for the theme-toggle pill.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
-pub struct ThemeToggle;
-
-/// Marker for the density-toggle pill.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
-pub struct DensityToggle;
-
 /// Marker on navigation back button (<) (BEVY-GAP-011).
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct HistoryBackButton;
@@ -236,38 +226,6 @@ pub struct StatusDotImage(pub Handle<Image>);
 /// Marker on the global routing intent capsule (BEVY-GAP-007).
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct RoutingIntentStatusCapsule;
-
-/// Marker on the sidebar system proxy toggle card.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct SidebarSystemProxyCard;
-
-/// Marker on the sidebar system proxy toggle switch.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct SidebarSystemProxyToggle;
-
-/// Marker on the sidebar TUN mode toggle card.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct SidebarTunCard;
-
-/// Marker on the sidebar TUN mode toggle switch.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct SidebarTunToggle;
-
-/// Marker on the sidebar active profile card.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct SidebarActiveProfileCard;
-
-/// Marker on the sidebar 2x2 shortcut matrix.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct SidebarShortcutMatrix;
-
-/// Marker on a shortcut tile in the sidebar matrix.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct SidebarShortcutTile(pub Route);
-
-/// Marker on the sidebar live speed footer.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct SidebarSpeedFooter;
 
 /// Marker on the sidebar rail.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -295,22 +253,6 @@ pub struct BottomNavActive(pub bool);
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct BottomNavIconPill;
 
-/// Marker on the sidebar's foot caption.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct SidebarFoot;
-
-/// Marker on the sidebar identity text block ("MusicFrog" + version), hidden in rail mode.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct SidebarIdentityText;
-
-/// Marker on the sidebar routing intent segmented control, hidden in rail mode.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct SidebarRoutingIntentSegment;
-
-/// Marker on the sidebar bottom footer row, hidden in rail mode.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct SidebarFooterRow;
-
 /// Marker on the sidebar nav item spacer between icon and label, hidden in rail mode.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct NavSpacer;
@@ -335,24 +277,6 @@ pub struct RoutingIntentRequest {
 
 #[derive(Resource, Clone, Debug, Default)]
 pub struct RoutingIntentActionState(pub RoutingIntentActions);
-
-/// Density toggle observer.
-fn on_density_pill_activated(
-    activate: On<Activate>,
-    toggles: Query<(), With<DensityToggle>>,
-    mut layout: ResMut<ShellLayoutState>,
-    mut commands: Commands,
-) {
-    if !toggles.contains(activate.entity) {
-        return;
-    }
-    let next = match layout.density {
-        Density::Comfortable => Density::Compact,
-        Density::Compact => Density::Comfortable,
-    };
-    layout.density = next;
-    commands.trigger(DensitySwitch(next));
-}
 
 /// Back navigation button observer (BEVY-GAP-011).
 fn on_history_back_activated(
@@ -396,73 +320,6 @@ fn on_sidebar_nav_activated(
     if let Ok(item) = items.get(activate.entity) {
         commands.trigger(RouteChanged(item.0));
     }
-}
-
-/// Sidebar shortcut tile activation observer.
-fn on_sidebar_shortcut_tile_activated(
-    activate: On<Activate>,
-    tiles: Query<&SidebarShortcutTile>,
-    mut commands: Commands,
-) {
-    if let Ok(tile) = tiles.get(activate.entity) {
-        commands.trigger(RouteChanged(tile.0));
-    }
-}
-
-/// Sidebar system-proxy toggle: resolve the desired state through the shared
-/// application policy before sending the UI command.
-fn on_sidebar_system_proxy_activated(
-    activate: On<Activate>,
-    toggles: Query<(), With<SidebarSystemProxyToggle>>,
-    projection: Res<SidebarToggleProjection>,
-    handle: Option<Res<CommandSinkHandle>>,
-    mut commands: Commands,
-) {
-    if toggles.get(activate.entity).is_err() {
-        return;
-    }
-    let desired = !projection.0.state(SystemToggle::SystemProxy).is_enabled();
-    if system_toggle_projection::intent(&projection.0, SystemToggle::SystemProxy, desired).is_err()
-    {
-        return;
-    }
-    let Some(handle) = handle else {
-        return;
-    };
-    handle.submit(UiCommand::SetSystemProxy { enabled: desired });
-    commands.insert_resource(SidebarToggleProjection(
-        projection
-            .0
-            .clone()
-            .with_pending(SystemToggle::SystemProxy, desired),
-    ));
-}
-
-/// Sidebar TUN toggle, using the same application policy as the Iced switch.
-fn on_sidebar_tun_activated(
-    activate: On<Activate>,
-    toggles: Query<(), With<SidebarTunToggle>>,
-    projection: Res<SidebarToggleProjection>,
-    handle: Option<Res<CommandSinkHandle>>,
-    mut commands: Commands,
-) {
-    if toggles.get(activate.entity).is_err() {
-        return;
-    }
-    let desired = !projection.0.state(SystemToggle::Tun).is_enabled();
-    if system_toggle_projection::intent(&projection.0, SystemToggle::Tun, desired).is_err() {
-        return;
-    }
-    let Some(handle) = handle else {
-        return;
-    };
-    handle.submit(UiCommand::ToggleTun { enabled: desired });
-    commands.insert_resource(SidebarToggleProjection(
-        projection
-            .0
-            .clone()
-            .with_pending(SystemToggle::Tun, desired),
-    ));
 }
 
 /// App shell plugin.
@@ -551,8 +408,8 @@ impl Plugin for ShellPlugin {
 
         app.init_resource::<PendingRoutingIntentRequest>();
         app.init_resource::<RoutingIntentActionState>();
-        app.init_resource::<SidebarToggleProjection>();
-        app.add_systems(Update, (sync_text, sync_quota, sync_core_status));
+        app.init_resource::<SystemToggleMirror>();
+        app.add_systems(Update, (sync_text, sync_core_status));
         app.add_systems(Update, shell_waveform::sync);
         app.add_systems(
             Update,
@@ -565,8 +422,6 @@ impl Plugin for ShellPlugin {
         );
         app.init_resource::<SafeAreaInsets>();
         app.add_observer(stamp_status_dot);
-        app.add_observer(on_theme_pill_activated);
-        app.add_observer(on_density_pill_activated);
         app.add_observer(shell_routing_intent::activate);
         app.add_observer(shell_routing_intent::request);
         app.add_observer(shell_routing_intent::completed);
@@ -575,9 +430,6 @@ impl Plugin for ShellPlugin {
         app.add_observer(shell_routing_intent_issue::settings);
         app.add_observer(on_bottom_nav_activated);
         app.add_observer(on_sidebar_nav_activated);
-        app.add_observer(on_sidebar_shortcut_tile_activated);
-        app.add_observer(on_sidebar_system_proxy_activated);
-        app.add_observer(on_sidebar_tun_activated);
         app.add_observer(on_history_back_activated);
         app.add_observer(on_history_forward_activated);
         app.init_resource::<ClearColor>();
@@ -590,13 +442,13 @@ impl Plugin for ShellPlugin {
             (
                 sync_content_title,
                 sync_sidebar_panel,
-                sync_sidebar_toggle_visuals,
                 // The theme chain is explicit: the widgets layer rebuilds
                 // `UiTheme` from the palette, and the surfaces that read it
                 // run after it, so a skin flip repaints in the same frame
                 // instead of racing the theme sync.
-                sync_sidebar_nav_visuals.after(sync_ui_theme),
+                sync_sidebar_nav_active,
                 sync_bottom_nav_visuals.after(sync_ui_theme),
+                sync_nav_indicator.after(sync_sidebar_nav_active),
                 sync_responsive_shell,
                 sync_responsive_mobile_nodes.after(sync_responsive_shell),
                 sync_sidebar_rail_morphology,
@@ -606,6 +458,18 @@ impl Plugin for ShellPlugin {
                 sync_window_clear,
                 sync_system_appearance,
             ),
+        );
+        // The nav row's two halves live in different crates: this surface
+        // flips [`NavActive`] from the routing fact, and the widget layer's
+        // paint set is the only writer of the fill, ink and weight that
+        // follow. The edge is declared, not inherited from plugin order, so a
+        // selection never shows one frame late — which is what a stuck row
+        // looks like to a reader.
+        app.configure_sets(
+            Update,
+            NavVisualPaintSet
+                .after(sync_sidebar_nav_active)
+                .after(sync_bottom_nav_visuals),
         );
     }
 }
@@ -620,14 +484,9 @@ fn spawn_camera(mut commands: Commands) {
     commands.spawn(Camera2d);
 }
 
-fn spawn_shell(
-    mut commands: Commands,
-    palette: Res<UiPalette>,
-    toggles: Res<SidebarToggleProjection>,
-) {
-    commands.spawn_scene(shell_scene_with_toggles(
+fn spawn_shell(mut commands: Commands, palette: Res<UiPalette>) {
+    commands.spawn_scene(shell_scene(
         SurfaceKind::BevyDesktop.product_name().to_string(),
-        &toggles.0,
         &palette,
     ));
 }
@@ -684,17 +543,9 @@ type ContentColFilter = (
     With<ContentColumn>,
     Without<SidebarPanel>,
     Without<BottomNavBar>,
-    Without<DensityToggle>,
-);
-type DensityPillFilter = (
-    With<DensityToggle>,
-    Without<ContentColumn>,
-    Without<SidebarPanel>,
-    Without<BottomNavBar>,
 );
 
 type ContentColQuery<'w, 's> = Query<'w, 's, &'static mut Node, ContentColFilter>;
-type DensityPillQuery<'w, 's> = Query<'w, 's, &'static mut Node, DensityPillFilter>;
 
 /// Update layout mode and toggle sidebar vs bottom navigation bar display based on window width.
 fn sync_responsive_shell(
@@ -704,7 +555,6 @@ fn sync_responsive_shell(
     mut sidebars: Query<&mut Node, SyncResponsiveShellSidebarsFilter>,
     mut bottom_navs: Query<&mut Node, SyncResponsiveShellBottomNavsFilter>,
     mut content_cols: ContentColQuery,
-    mut density_pills: DensityPillQuery,
 ) {
     if let Some(windows) = windows
         && let Ok(primary) = windows.single()
@@ -777,17 +627,6 @@ fn sync_responsive_shell(
         }
         if node.row_gap != col_gap {
             node.row_gap = col_gap;
-        }
-    }
-
-    let density_display = if is_compact {
-        Display::None
-    } else {
-        Display::Flex
-    };
-    for mut node in &mut density_pills {
-        if node.display != density_display {
-            node.display = density_display;
         }
     }
 }

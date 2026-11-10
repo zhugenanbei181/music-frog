@@ -35,19 +35,14 @@ fn published_nodes(
         .collect()
 }
 
-fn mounted_shell() -> App {
+/// The shell with the three overlays mounted: Mini HUD, command palette and
+/// the toast region.
+fn mounted_shell_with_overlays() -> App {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
     app.add_plugins((AssetPlugin::default(), ScenePlugin));
     app.add_plugins(ShellPlugin::new(ThemePreference::Fixed(ThemeSkin::Dark)));
     app.update();
-    app
-}
-
-/// Every shared grammar row, mounted: the shell itself plus the three overlays
-/// (Mini HUD, command palette, toast region).
-fn mounted_everything() -> App {
-    let mut app = mounted_shell();
     app.world_mut().commands().trigger(ToggleMiniHud);
     app.world_mut().commands().trigger(ToggleCommandPalette);
     app.world_mut()
@@ -57,12 +52,60 @@ fn mounted_everything() -> App {
     app
 }
 
+/// Every shared grammar row the product can publish, collected by walking the
+/// shell, the pages that own the rows the shell no longer carries, and the
+/// three overlays (Mini HUD, command palette, toast region).
+///
+/// Since the rail became navigation-only, the routing selector, the two master
+/// switches and the appearance selector live on the dashboard and the settings
+/// page. A page mounts into the content slot and leaves when the next one
+/// arrives, so the walk *accumulates* what each stop published instead of
+/// reading only the final tree: the coverage claim is about the product's
+/// vocabulary, not about one page's snapshot.
+fn published_coverage() -> Vec<(accesskit::Role, String, Option<accesskit::Toggled>)> {
+    use crate::support::headless_plugins;
+    use bevy::ui_widgets::ButtonPlugin;
+    use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
+
+    let mut app = App::new();
+    headless_plugins(&mut app);
+    app.add_plugins((
+        ButtonPlugin,
+        ShellPlugin::new(ThemePreference::Fixed(ThemeSkin::Dark)),
+        PagesPlugin::demo(),
+    ));
+    app.update();
+
+    let mut nodes: Vec<(accesskit::Role, String, Option<accesskit::Toggled>)> = Vec::new();
+    let mut collect = |app: &mut App| {
+        for row in published_nodes(app.world_mut()) {
+            if !nodes.contains(&row) {
+                nodes.push(row);
+            }
+        }
+    };
+    collect(&mut app);
+    for route in [Route::Overview, Route::Settings] {
+        app.world_mut().commands().trigger(RouteChanged(route));
+        app.update();
+        app.update();
+        collect(&mut app);
+    }
+    app.world_mut().commands().trigger(ToggleMiniHud);
+    app.world_mut().commands().trigger(ToggleCommandPalette);
+    app.world_mut()
+        .write_message(ShellToast::info("shell mounted for a11y coverage"));
+    app.update();
+    app.update();
+    collect(&mut app);
+    nodes
+}
+
 #[test]
 fn the_mounted_shell_publishes_every_shared_semantic_row() {
     use infiltrator_contract::a11y::shell_a11y_specs;
 
-    let mut app = mounted_everything();
-    let nodes = published_nodes(app.world_mut());
+    let nodes = published_coverage();
     let lang = Lang("zh-CN");
     for spec in shell_a11y_specs() {
         let role = accesskit_role(spec.role);
@@ -128,7 +171,7 @@ fn the_command_palette_query_line_publishes_the_shared_text_row() {
     use bevy::ecs::query::With;
     use infiltrator_bevy_ui::command_palette::CommandPaletteQueryLabel;
 
-    let mut app = mounted_everything();
+    let mut app = mounted_shell_with_overlays();
     let world = app.world_mut();
     let mut query = world.query_filtered::<&AccessibilityNode, With<CommandPaletteQueryLabel>>();
     let nodes: Vec<&AccessibilityNode> = query.iter(world).collect();

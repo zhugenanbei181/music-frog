@@ -1657,3 +1657,9 @@ msgstr "Duration"
 
 msgid "暂无实时连接"
 msgstr "No live connections"
+
+msgid "收起"
+msgstr "Collapse"
+
+msgid "展开"
+msgstr "Expand"

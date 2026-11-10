@@ -7,7 +7,9 @@ use crate::app::{
 };
 use crate::host_capabilities::{HostPreferences, MotionPreference};
 use crate::route::{ActiveRoute, Route};
-use crate::shell_scene::nav::NavHoverFill;
+use crate::shell_scene::nav::{
+    NAV_CONTENT_LEADING_PX, NAV_TRAILING_PADDING_PX, NavHoverFill, NavIndicator,
+};
 use bevy::color::Alpha;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
@@ -17,13 +19,13 @@ use bevy::feathers::theme::ThemeBackgroundColor;
 use bevy::feathers::theme::{SurfaceLevel, UiTheme};
 use bevy::picking::hover::PickingInteraction;
 use bevy::time::Time;
-use bevy::ui::prelude::{BackgroundColor, BorderColor, Display, JustifyContent, Node, UiRect};
+use bevy::ui::prelude::{BackgroundColor, BorderColor, Display, JustifyContent, Node, UiRect, px};
 use bevy::ui::{ComputedNode, UiGlobalTransform};
 use bevy::window::{PrimaryWindow, Window};
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_bevy_widgets::icon::IconTint;
 use infiltrator_bevy_widgets::motion::lerp_color;
-use infiltrator_bevy_widgets::nav::{NavActive, NavLabel, nav_fill_token, nav_label_ink_token};
+use infiltrator_bevy_widgets::nav::NavActive;
 use infiltrator_bevy_widgets::palette::{UiPalette, rem};
 use infiltrator_bevy_widgets::popover::Rect;
 use infiltrator_bevy_widgets::text::TextRole;
@@ -34,59 +36,55 @@ use infiltrator_contract::design_resources;
 /// The gap between a route row and the tooltip that names it.
 const TOOLTIP_GAP_PX: f32 = space::S8;
 
-/// Sync sidebar navigation items with the active route and live palette.
-pub fn sync_sidebar_nav_visuals(
-    theme: Res<UiTheme>,
+/// Flip the sidebar row markers from the active route.
+///
+/// Only the bits are set here. The row's fill, ink and label weight are the
+/// widget layer's [`infiltrator_bevy_widgets::nav::sync_nav_visuals`], which
+/// reads the same [`NavActive`] bit: this system used to paint them too, and
+/// two writers of one selected row is exactly how the rail kept repainting a
+/// solid accent capsule over the reference's quiet wash.
+///
+/// The comparison is on the *destination*, not the raw route: the registry
+/// folds DNS, Doctor, App Routing, Sync, Tools, About, Disclaimer and
+/// Licenses under Settings, so those pages must still light the Settings row.
+/// A surface that compared routes would leave the rail silent on a folded
+/// page and would need its own fold table to avoid that.
+pub fn sync_sidebar_nav_active(
     active_route: Option<Res<ActiveRoute>>,
-    mut commands: Commands,
-    mut items: Query<(
-        Entity,
-        &SidebarNavItem,
-        &mut NavActive,
-        &Children,
-        Option<&ThemeBackgroundColor>,
-    )>,
-    mut texts: Query<(&NavLabel, Option<&mut TextRole>)>,
-    mut icons: Query<&mut IconTint>,
+    mut items: Query<(&SidebarNavItem, &mut NavActive)>,
 ) {
     let current = active_route
         .as_ref()
         .and_then(|r| r.0)
         .unwrap_or(Route::Overview);
-    for (entity, item, mut active_marker, children, fill) in &mut items {
-        let is_active = item.0 == current;
+    for (item, mut active_marker) in &mut items {
+        let is_active = item.0.destination_page() == current.destination_page();
         if active_marker.0 != is_active {
             active_marker.0 = is_active;
         }
-        let fill_token = nav_fill_token(is_active);
-        if fill
-            .map(|b| b.0 != fill_token.theme_token())
-            .unwrap_or(true)
-        {
-            commands
-                .entity(entity)
-                .insert(ThemeBackgroundColor(fill_token.theme_token()));
-        }
-        let target_ink = theme.context_color(
-            &nav_label_ink_token(is_active).theme_token(),
-            SurfaceLevel::Base,
-        );
-        let target_role = if is_active {
-            design_resources::TextRole::BodyStrong
+    }
+}
+
+/// Show the current row's indicator bar and hide every other row's.
+///
+/// Every row mounts one indicator so the stack's geometry is identical
+/// whichever destination is active; only its display follows the same
+/// [`NavActive`] bit the fill and ink are read from.
+pub fn sync_nav_indicator(
+    items: Query<(&NavActive, &Children), With<SidebarNavItem>>,
+    mut indicators: Query<&mut Node, With<NavIndicator>>,
+) {
+    for (active, children) in &items {
+        let display = if active.0 {
+            Display::Flex
         } else {
-            design_resources::TextRole::Body
+            Display::None
         };
         for child in children.iter() {
-            if let Ok(mut icon_tint) = icons.get_mut(*child)
-                && icon_tint.0 != target_ink
+            if let Ok(mut node) = indicators.get_mut(*child)
+                && node.display != display
             {
-                icon_tint.0 = target_ink;
-            }
-            if let Ok((_, text_role)) = texts.get_mut(*child)
-                && let Some(mut role) = text_role
-                && role.0 != target_role
-            {
-                role.0 = target_role;
+                node.display = display;
             }
         }
     }
@@ -151,7 +149,9 @@ pub fn sync_bottom_nav_visuals(
         .and_then(|r| r.0)
         .unwrap_or(Route::Overview);
     for (item, mut active_marker, children) in &mut items {
-        let is_active = item.0 == current;
+        // One rule for both nav surfaces: the dock's four destinations are
+        // already unfolded, so this reads the same and states the same fact.
+        let is_active = item.0.destination_page() == current.destination_page();
         if active_marker.0 != is_active {
             active_marker.0 = is_active;
         }
@@ -212,10 +212,18 @@ pub fn sync_sidebar_rail_morphology(
     } else {
         JustifyContent::FlexStart
     };
+    // An icon-only rail centres its glyph in the column and gives away no
+    // leading; a labelled column indents its content by the reference's
+    // leading and pads the trailing side by one item padding.
     let nav_padding = if is_rail {
-        UiRect::all(rem(space::S6))
+        UiRect::ZERO
     } else {
-        UiRect::horizontal(rem(space::S12))
+        UiRect::new(
+            rem(NAV_CONTENT_LEADING_PX),
+            rem(NAV_TRAILING_PADDING_PX),
+            px(0.0),
+            px(0.0),
+        )
     };
     for mut node in &mut nav_items {
         if node.justify_content != nav_justify {

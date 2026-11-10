@@ -217,6 +217,12 @@ def slint_ladder(document: dict) -> str:
         variants,
         lambda entry: "true" if entry["labelled_sidebar"] else "false",
     )
+    body += sidebar_variant_function(
+        "sidebar_toggle_available",
+        "bool",
+        variants,
+        lambda entry: "true" if entry["toggle_available"] else "false",
+    )
     body += tier_function(
         "proxy_node_columns",
         "int",

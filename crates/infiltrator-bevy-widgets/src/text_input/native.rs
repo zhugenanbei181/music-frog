@@ -5,20 +5,178 @@ use crate::text_input::{TextField, TextFieldFocused};
 use bevy::app::{App, Plugin, PreUpdate};
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
+use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::message::MessageReader;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::{Has, With};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
+use bevy::ecs::system::SystemParam;
 use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
 use bevy::input::{ButtonInput, ButtonState, InputSystems};
 use bevy::input_focus::InputFocus;
+use bevy::input_focus::tab_navigation::TabGroup;
 use bevy::picking::events::PointerPress;
+use bevy::ui::prelude::{Display, Node};
 
 /// Exactly one native key owner per field. Never attach to a specialized editor field.
 #[derive(Component, Clone, Copy, Debug, Default)]
 pub struct NativeTextField(pub i32);
+
+/// The tab ring one native field belongs to.
+///
+/// A ring is **not** "every field in the world", which is what made two
+/// unrelated fields on one page answer the same `NativeTextField(0)`: the
+/// ordering fact was a per-field number compared across the whole surface, so
+/// the winner was decided by archetype storage order rather than by anything
+/// the user can see. The ring is adjudicated here, in the widget layer, with
+/// the official dialog semantics as the scope rule:
+///
+/// * a field inside a **modal** tab group (Bevy's own `ModalDialog` marks its
+///   `TabGroup` `modal`) walks only that dialog's fields, so a presented
+///   dialog is never tabbed through and never leaks focus to the page behind
+///   it — the same rule the official `TabNavigation` implements for `TabIndex`;
+/// * a field outside one walks every field that is not inside a modal dialog;
+/// * a field whose branch is `Display::None` is not in any ring: a hidden
+///   control is not focusable, which is what keeps a closed dialog's draft
+///   fields from stealing a tab stop on the page;
+/// * ties on the declared order are broken by **paint order** (the tree
+///   position the user reads), never by entity storage order, so a duplicate
+///   number is a deterministic sequence instead of a coin flip.
+#[derive(SystemParam)]
+pub struct NativeTabRing<'w, 's> {
+    fields: Query<'w, 's, (Entity, &'static NativeTextField, Option<&'static ChildOf>)>,
+    parents: Query<'w, 's, &'static ChildOf>,
+    children: Query<'w, 's, &'static Children>,
+    nodes: Query<'w, 's, &'static Node>,
+    groups: Query<'w, 's, (Entity, &'static TabGroup)>,
+}
+
+impl NativeTabRing<'_, '_> {
+    /// The fields one tab stroke may move between, in the order the stroke
+    /// visits them. `current` is the focused field, so the ring is scoped
+    /// against the dialog the user is actually in.
+    ///
+    /// The answer keeps only the *identity and sequence* of the reachable
+    /// fields; whether one of them is currently disabled or interaction-blocked
+    /// is read afterwards from the caller's own query, so this parameter never
+    /// borrows a component the caller mutates.
+    pub fn ring(&self, current: Entity) -> Vec<Entity> {
+        let scope = self.modal_scope(current);
+        let mut ordered: Vec<(i32, usize, Entity)> = self
+            .fields
+            .iter()
+            .filter(|(entity, _, _)| *entity != current)
+            .filter(|(entity, _, _)| self.reachable_in_scope(*entity, scope))
+            .map(|(entity, order, _)| (order.0, self.paint_index(entity), entity))
+            .collect();
+        // The focused field is part of its own ring: the stroke wraps.
+        if let Ok((_, order, _)) = self.fields.get(current) {
+            ordered.push((order.0, self.paint_index(current), current));
+        }
+        ordered.sort();
+        ordered.into_iter().map(|(_, _, entity)| entity).collect()
+    }
+
+    /// The nearest modal tab group above `entity`, if it is inside one.
+    fn modal_scope(&self, entity: Entity) -> Option<Entity> {
+        let mut current = self
+            .fields
+            .get(entity)
+            .ok()
+            .and_then(|(_, _, parent)| parent.map(|parent| parent.parent()))?;
+        loop {
+            if let Ok((group, tab_group)) = self.groups.get(current)
+                && tab_group.modal
+            {
+                return Some(group);
+            }
+            current = self.parents.get(current).ok()?.parent();
+        }
+    }
+
+    /// Whether `entity` is a visible member of the ring `scope` selects.
+    fn reachable_in_scope(&self, entity: Entity, scope: Option<Entity>) -> bool {
+        if self.hidden(entity) {
+            return false;
+        }
+        let Some(scope) = scope else {
+            // Outside a dialog: a field that *is* inside a presented dialog is
+            // that dialog's business, not the page's.
+            return self.modal_scope(entity).is_none();
+        };
+        self.is_descendant_of(entity, scope)
+    }
+
+    fn is_descendant_of(&self, entity: Entity, ancestor: Entity) -> bool {
+        let mut current = self.parents.get(entity).ok().map(|parent| parent.parent());
+        while let Some(parent) = current {
+            if parent == ancestor {
+                return true;
+            }
+            current = self.parents.get(parent).ok().map(|parent| parent.parent());
+        }
+        false
+    }
+
+    /// Whether any node from `entity` up to the root is `Display::None`.
+    ///
+    /// The declared layout is the fact a headless host can read: the render
+    /// stack's `InheritedVisibility` does not exist without `UiPlugin`, and a
+    /// ring must not depend on whether a renderer happens to be attached.
+    fn hidden(&self, entity: Entity) -> bool {
+        let mut current = Some(entity);
+        while let Some(node) = current {
+            if self
+                .nodes
+                .get(node)
+                .is_ok_and(|node| node.display == Display::None)
+            {
+                return true;
+            }
+            current = self.parents.get(node).ok().map(|parent| parent.parent());
+        }
+        false
+    }
+
+    /// The position `entity` holds in a depth-first walk of its root subtree:
+    /// the order the surface paints it.
+    fn paint_index(&self, entity: Entity) -> usize {
+        let mut index = 0usize;
+        if self.walk(self.root_of(entity), entity, &mut index) {
+            index
+        } else {
+            usize::MAX
+        }
+    }
+
+    /// The scene root `entity` hangs under: the node the shell spawned.
+    fn root_of(&self, entity: Entity) -> Entity {
+        let mut current = entity;
+        while let Ok(parent) = self.parents.get(current) {
+            current = parent.parent();
+        }
+        current
+    }
+
+    /// Depth-first walk; `index` counts the nodes visited before the match, so
+    /// two fields under one parent come back in the order they paint.
+    fn walk(&self, node: Entity, wanted: Entity, index: &mut usize) -> bool {
+        *index += 1;
+        if node == wanted {
+            return true;
+        }
+        if let Ok(children) = self.children.get(node) {
+            for child in children.iter() {
+                if self.walk(*child, wanted, index) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+}
 
 pub struct NativeTextFieldPlugin;
 impl Plugin for NativeTextFieldPlugin {
@@ -52,6 +210,7 @@ fn focus(
 fn keyboard(
     mut events: MessageReader<KeyboardInput>,
     keys: Option<Res<ButtonInput<KeyCode>>>,
+    ring: NativeTabRing,
     mut fields: Query<(
         Entity,
         &NativeTextField,
@@ -80,22 +239,28 @@ fn keyboard(
                 if field.0.is_in_ime_transaction() {
                     continue;
                 }
-                let mut enabled: Vec<_> = fields
-                    .iter()
-                    .filter(|(_, _, field, _, blocked)| !field.0.is_disabled() && !*blocked)
-                    .map(|(entity, order, _, _, _)| (order.0, entity))
+                // The ring is the widget layer's answer, not a world-wide sort
+                // of every declared number: a dialog scopes it, a hidden
+                // branch leaves it, and a tie resolves by paint order.
+                let enabled: Vec<_> = ring
+                    .ring(current)
+                    .into_iter()
+                    .filter(|entity| {
+                        fields.get(*entity).is_ok_and(|(_, _, field, _, blocked)| {
+                            !field.0.is_disabled() && !blocked
+                        })
+                    })
                     .collect();
-                enabled.sort_unstable();
                 let position = enabled
                     .iter()
-                    .position(|(_, entity)| *entity == current)
+                    .position(|entity| *entity == current)
                     .expect("focused native field is enabled");
                 let next = if shift {
                     (position + enabled.len() - 1) % enabled.len()
                 } else {
                     (position + 1) % enabled.len()
                 };
-                let selected = enabled[next].1;
+                let selected = enabled[next];
                 for (entity, _, _, mut focused, _) in &mut fields {
                     focused.0 = entity == selected;
                 }

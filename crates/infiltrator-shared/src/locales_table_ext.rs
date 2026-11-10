@@ -713,7 +713,7 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "a11y_routing_intent_segment" => "流量路由意图选择".into(),
         "a11y_system_proxy_switch" => "系统代理开关".into(),
         "a11y_tun_switch" => "TUN 模式开关".into(),
-        "a11y_theme_toggle" => "切换深浅主题".into(),
+        "a11y_appearance_segment" => "外观主题选择".into(),
         "a11y_mini_hud_card" => "网速悬浮窗".into(),
         "a11y_mini_hud_system_proxy" => "悬浮窗系统代理开关".into(),
         "a11y_mini_hud_tun" => "悬浮窗 TUN 开关".into(),

@@ -3169,6 +3169,8 @@ dependencies = [
  "serde",
  "serde_json",
  "zhuge-ui-core",
+ "zhuge-ui-kit-bevy",
+ "zhuge-ui-tokens",
 ]
 
 [[package]]
@@ -3178,10 +3180,12 @@ dependencies = [
  "accesskit",
  "bevy",
  "blake3",
+ "infiltrator-contract",
  "infiltrator-shared",
  "unicode-segmentation",
  "zhuge-ui-core",
  "zhuge-ui-kit-bevy",
+ "zhuge-ui-tokens",
 ]
 
 [[package]]
@@ -3192,6 +3196,8 @@ dependencies = [
  "serde",
  "serde_json",
  "url",
+ "zhuge-ui-core",
+ "zhuge-ui-tokens",
 ]
 
 [[package]]
@@ -3216,6 +3222,7 @@ dependencies = [
  "url",
  "urlencoding",
  "yaml-rust2",
+ "zhuge-ui-core",
  "zip",
 ]
 
@@ -3252,11 +3259,14 @@ name = "infiltrator-shared"
 version = "0.14.0"
 dependencies = [
  "anyhow",
+ "infiltrator-contract",
  "lurker-ui-presentation",
  "serde",
  "serde_json",
  "sys-locale",
  "windows-sys 0.61.2",
+ "zhuge-ui-core",
+ "zhuge-ui-tokens",
 ]
 
 [[package]]
@@ -6611,23 +6621,25 @@ dependencies = [
 
 [[package]]
 name = "zhuge-ui-core"
-version = "0.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f452fdd4bff355d593ce4566656bbf5ef747e34cb6a1474bf2190dcea1575fb"
+version = "0.1.18"
 dependencies = [
  "serde",
+ "serde_json",
  "unicode-segmentation",
 ]
 
 [[package]]
 name = "zhuge-ui-kit-bevy"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "859b8b0a4b13fb86aedb406aca5776ac07642daa2f61cedfb450bb9f66648a42"
+version = "0.4.1"
 dependencies = [
  "bevy",
  "parley",
+ "zhuge-ui-core",
 ]
+
+[[package]]
+name = "zhuge-ui-tokens"
+version = "0.1.1"
 
 [[package]]
 name = "zip"
@@ -6750,3 +6762,7 @@ dependencies = [
  "syn 3.0.9",
  "winnow",
 ]
+
+[[patch.unused]]
+name = "zhuge-ui-kit-iced"
+version = "0.2.0"

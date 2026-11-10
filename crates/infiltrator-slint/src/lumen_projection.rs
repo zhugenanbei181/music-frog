@@ -597,6 +597,9 @@ fn project_settings(window: &AppWindow, snapshot: &SurfaceSnapshot, autostart: O
     ));
     window.set_system_language(system_language_for_ui());
     window.set_refresh_current_profile_on_start(settings.refresh_current_profile_on_start);
+    window.set_sidebar_expansion(widget_vocabulary::sidebar_expansion(
+        settings.sidebar_expansion,
+    ));
     if let Some(color_hex) = &settings.custom_accent_color {
         apply_theme_color(&window.as_weak(), color_hex);
     }

@@ -430,12 +430,7 @@ done
 printf 'compositor: ready (wayland=%s ipc=%s)\n' "$NIRI_SOCK" "$NIRI_IPC"
 
 capture_one() {
-  local name="$1" page="$2" skin="$3" window_size="$4" scroll="${5:-}" mascot_frame="${6:-}" mascot_millis="${7:-}"
-  local interaction=""
-  case "$name" in
-    *-standard) interaction="${name%-standard}" ;;
-    *-compact) interaction="${name%-compact}" ;;
-  esac
+  local name="$1" page="$2" skin="$3" window_size="$4" scroll="${5:-}" mascot_frame="${6:-}" mascot_millis="${7:-}" sidebar_expansion="${8:-expanded}" interaction="${9:-}"
   local marker_page="$page"
   local scenario_dir="$RUN_DIR/$name"
   local log="$scenario_dir/app.log"
@@ -487,6 +482,7 @@ capture_one() {
       INFILTRATOR_SCROLL="$scroll" \
       INFILTRATOR_MASCOT_FRAME="$mascot_frame" \
       INFILTRATOR_MASCOT_MILLIS="$mascot_millis" \
+      INFILTRATOR_SIDEBAR_EXPANSION="$sidebar_expansion" \
       INFILTRATOR_CAPTURE_MARKER="$marker" \
       setsid "$APP" --demo >"$log" 2>&1 &
     APP_PID=$!
@@ -625,14 +621,19 @@ FAILED_NAMES=""
 # IFS whitespace collapses consecutive tabs, which silently shifts every
 # column after an empty field (the mascot frame landed in `scroll` and no
 # notes were ever published). awk replaces empty fields with a placeholder so
-# the read always sees exactly seven fields.
-while IFS=$'\t' read -r name page skin window_size scroll mascot_frame mascot_millis; do
+# the read always sees exactly nine fields, including the owner preference and
+# the explicit business interaction. A shell-form receipt has no interaction;
+# deriving it from the scenario name would ask the demo to open a business
+# that the row never named.
+while IFS=$'\t' read -r name page skin window_size scroll mascot_frame mascot_millis sidebar_expansion interaction; do
   [ "$name" = name ] && continue
   [ "$scroll" = "-" ] && scroll=""
   [ "$mascot_frame" = "-" ] && mascot_frame=""
   [ "$mascot_millis" = "-" ] && mascot_millis=""
+  [ "$sidebar_expansion" = "-" ] && sidebar_expansion="expanded"
+  [ "$interaction" = "-" ] && interaction=""
   [ -n "$name" ] || continue
-  if ! capture_one "$name" "$page" "$skin" "$window_size" "$scroll" "$mascot_frame" "$mascot_millis"; then
+  if ! capture_one "$name" "$page" "$skin" "$window_size" "$scroll" "$mascot_frame" "$mascot_millis" "${sidebar_expansion:-expanded}" "$interaction"; then
     FAILURES=$((FAILURES + 1))
     FAILED_NAMES="$FAILED_NAMES $name"
   fi

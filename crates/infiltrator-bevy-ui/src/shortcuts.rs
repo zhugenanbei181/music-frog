@@ -7,7 +7,7 @@
 //! rebinding, and dispatch of bound chords into typed [`UiCommand`]s (or the
 //! local appearance command).
 
-use crate::app::SidebarToggleProjection;
+use crate::app::SystemToggleMirror;
 use crate::appearance::{SystemAppearance, ThemeMode, persist_theme_preference, resolved_skin};
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::command_palette::ToggleCommandPalette;
@@ -174,7 +174,7 @@ pub struct ShortcutInput<'w, 's> {
 /// Local appearance controls read or changed by a shortcut.
 #[derive(SystemParam)]
 pub struct ShortcutAppearance<'w> {
-    toggles: Res<'w, SidebarToggleProjection>,
+    toggles: Res<'w, SystemToggleMirror>,
     theme: ResMut<'w, ThemeMode>,
     appearance: Res<'w, SystemAppearance>,
 }

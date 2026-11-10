@@ -6,7 +6,7 @@
 //! into the same handlers the global chords use. Dispatch mirrors the Iced
 //! `ExecuteCommand` arm one-to-one.
 
-use crate::app::SidebarToggleProjection;
+use crate::app::SystemToggleMirror;
 use crate::appearance::{SystemAppearance, ThemeMode, persist_theme_preference, resolved_skin};
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::command_palette::{
@@ -210,7 +210,7 @@ pub struct PaletteActionResources<'w> {
     batch_readback: Option<ResMut<'w, OutboundBatchProbeReadback>>,
     theme_mode: Option<ResMut<'w, ThemeMode>>,
     appearance: Option<Res<'w, SystemAppearance>>,
-    toggles: Option<Res<'w, SidebarToggleProjection>>,
+    toggles: Option<Res<'w, SystemToggleMirror>>,
 }
 
 /// Observer executing the currently selected catalogue entry.
@@ -320,7 +320,7 @@ pub fn on_execute_selected_palette_action(
 
 /// The next desired value of a system toggle, resolved through the shared
 /// application policy (a pending/unknown control accepts no press).
-fn desired_toggle(toggles: Option<&SidebarToggleProjection>, toggle: SystemToggle) -> Option<bool> {
+fn desired_toggle(toggles: Option<&SystemToggleMirror>, toggle: SystemToggle) -> Option<bool> {
     let toggles = toggles?;
     let desired = !toggles.0.state(toggle).is_enabled();
     system_toggle_projection::intent(&toggles.0, toggle, desired)

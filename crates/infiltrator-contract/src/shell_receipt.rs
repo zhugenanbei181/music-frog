@@ -22,6 +22,7 @@
 //! against one declared vocabulary rather than three matching guesses.
 
 use crate::responsive_viewport::SidebarForm;
+use crate::shell_sidebar_preference::SidebarExpansionPreference;
 use serde::{Deserialize, Serialize};
 use std::mem::replace;
 
@@ -34,7 +35,7 @@ pub const CHROME_PREFIX: &str = "CAPTURE_CHROME";
 /// same list in `page-structure.json`, the writer below emits exactly it, and
 /// the judge refuses a frame that does not carry all of it: a partially
 /// described frame is not judged by remembered numbers, it is reported.
-pub const CHROME_KEYS: [&str; 9] = [
+pub const CHROME_KEYS: [&str; 12] = [
     "nav_form",
     "nav_column_px",
     "nav_stack_bottom_px",
@@ -44,6 +45,9 @@ pub const CHROME_KEYS: [&str; 9] = [
     "shell_bottom_air_px",
     "dock_band_px",
     "scale_percent",
+    "sidebar_expansion",
+    "touch_surface",
+    "sidebar_toggle_px",
 ];
 
 /// The chrome a single captured frame painted, in device-independent pixels.
@@ -101,6 +105,17 @@ pub struct ShellChromeFacts {
     pub shell_bottom_air_px: u16,
     pub dock_band_px: u16,
     pub scale_percent: u16,
+    /// The user-owned preference that the shell resolved for this frame.
+    pub sidebar_expansion: SidebarExpansionPreference,
+    /// Whether this frame's surface is touch-driven. Together with the tier and
+    /// preference it selects one exported sidebar variant; it is not inferred
+    /// from the form a frame happens to paint.
+    pub touch_surface: bool,
+    /// The vertical band of the shell's collapse/expand affordance, measured
+    /// from the column top. Zero means the exported variant offers no toggle.
+    /// It is chrome above the destination rows, so the leading judge starts
+    /// after it rather than treating the affordance as a navigation glyph.
+    pub sidebar_toggle_px: u16,
 }
 
 impl ShellChromeFacts {
@@ -128,7 +143,8 @@ impl ShellChromeFacts {
         format!(
             "{CHROME_PREFIX} nav_form={} nav_column_px={} nav_stack_bottom_px={} \
              nav_content_offset_px={} page_margin_px={} shell_top_air_px={} \
-             shell_bottom_air_px={} dock_band_px={} scale_percent={}\n",
+             shell_bottom_air_px={} dock_band_px={} scale_percent={} \
+             sidebar_expansion={} touch_surface={} sidebar_toggle_px={}\n",
             self.nav_form.id(),
             self.nav_column_px,
             self.nav_stack_bottom_px,
@@ -138,6 +154,9 @@ impl ShellChromeFacts {
             self.shell_bottom_air_px,
             self.dock_band_px,
             self.scale_percent,
+            self.sidebar_expansion.id(),
+            u8::from(self.touch_surface),
+            self.sidebar_toggle_px,
         )
     }
 
@@ -156,6 +175,7 @@ impl ShellChromeFacts {
         let mut seen = [false; CHROME_KEYS.len()];
         let mut fields = [0u16; CHROME_KEYS.len()];
         let mut nav_form: Option<SidebarForm> = None;
+        let mut sidebar_expansion: Option<SidebarExpansionPreference> = None;
         for pair in body.split_whitespace() {
             let (key, value) = pair.split_once('=')?;
             let index = CHROME_KEYS.iter().position(|name| *name == key)?;
@@ -165,6 +185,16 @@ impl ShellChromeFacts {
             if key == "nav_form" {
                 nav_form = Some(serde_json::from_str(&format!("\"{value}\"")).ok()?);
                 continue;
+            }
+            if key == "sidebar_expansion" {
+                sidebar_expansion = Some(serde_json::from_str(&format!("\"{value}\"")).ok()?);
+                continue;
+            }
+            if key == "touch_surface" && !matches!(value, "0" | "1") {
+                return None;
+            }
+            if key == "sidebar_toggle_px" && value.parse::<u16>().ok()? > 120 {
+                return None;
             }
             fields[index] = value.parse().ok()?;
         }
@@ -181,6 +211,9 @@ impl ShellChromeFacts {
             shell_bottom_air_px: fields[6],
             dock_band_px: fields[7],
             scale_percent: fields[8],
+            sidebar_expansion: sidebar_expansion?,
+            touch_surface: fields[10] == 1,
+            sidebar_toggle_px: fields[11],
         })
     }
 }
@@ -208,6 +241,9 @@ mod tests {
                 0
             },
             scale_percent: 100,
+            sidebar_expansion: SidebarExpansionPreference::Expanded,
+            touch_surface: false,
+            sidebar_toggle_px: 0,
         }
     }
 
@@ -223,6 +259,36 @@ mod tests {
             let line = facts.to_marker_line();
             assert_eq!(ShellChromeFacts::parse_marker_line(&line), Some(facts));
         }
+    }
+
+    #[test]
+    fn a_collapsed_touch_frame_round_trips_both_resolution_inputs() {
+        let mut facts = sample(SidebarForm::BottomNav);
+        facts.sidebar_expansion = SidebarExpansionPreference::Collapsed;
+        facts.touch_surface = true;
+        let line = facts.to_marker_line();
+        assert!(line.contains("sidebar_expansion=collapsed"));
+        assert!(line.contains("touch_surface=1"));
+        assert_eq!(ShellChromeFacts::parse_marker_line(&line), Some(facts));
+    }
+
+    #[test]
+    fn a_touch_surface_marker_is_a_real_boolean() {
+        let line = sample(SidebarForm::Rail)
+            .to_marker_line()
+            .replace("touch_surface=0", "touch_surface=2");
+        assert_eq!(ShellChromeFacts::parse_marker_line(&line), None);
+    }
+
+    #[test]
+    fn a_shell_toggle_band_round_trips_and_stays_bounded() {
+        let mut facts = sample(SidebarForm::Standard);
+        facts.sidebar_toggle_px = 48;
+        let line = facts.to_marker_line();
+        assert!(line.contains("sidebar_toggle_px=48"));
+        assert_eq!(ShellChromeFacts::parse_marker_line(&line), Some(facts));
+        let oversized = line.replace("sidebar_toggle_px=48", "sidebar_toggle_px=121");
+        assert_eq!(ShellChromeFacts::parse_marker_line(&oversized), None);
     }
 
     #[test]

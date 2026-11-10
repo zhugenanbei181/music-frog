@@ -55,9 +55,11 @@ pub fn overview_card_scenes(
     palette: &UiPalette,
     order: &[OverviewCardKind],
 ) -> Vec<Box<dyn Scene>> {
-    // The shared layout contract still carries the routing selector and the
-    // master switches, but marks them `ShellSidebar`. Mount them once here
-    // (before the reorderable slots) and never inside the owner's card order.
+    // The shared layout contract marks the routing selector and the master
+    // switches `DashboardFixed`: the Overview page mounts them once, here,
+    // before the reorderable slots, and no other region may mount a second
+    // copy. The sidebar used to mount both as well, which is why the region
+    // was renamed away from a location.
     let routing_intent: Box<dyn Scene> = Box::new(
         overview_cards::routing_intent_segmented_controller_scene_with_snapshot(
             &projection.routing_intent,
@@ -378,12 +380,12 @@ mod tests {
         assert_eq!(moved_order(&order, OverviewCardKind::Quota, false), order);
     }
 
-    /// The segments the shell rail owns are not Overview cards and never
-    /// become one because a layout listed a legacy shell entry.
+    /// The dashboard's fixed controls are not reorderable Overview cards and
+    /// never become one because a layout listed them.
     #[test]
-    fn shell_sidebar_entries_are_not_overview_cards() {
+    fn dashboard_fixed_entries_are_not_overview_cards() {
         let layout = OverviewLayoutSnapshot {
-            order: OverviewCardKind::SHELL_SIDEBAR_ORDER.to_vec(),
+            order: OverviewCardKind::DASHBOARD_FIXED_ORDER.to_vec(),
             is_customized: true,
         };
         assert_eq!(

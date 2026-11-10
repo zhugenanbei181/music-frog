@@ -172,6 +172,9 @@ mod dns_form_locale_tests;
 #[path = "headless/host_network_locale_tests.rs"]
 mod host_network_locale_tests;
 
+#[path = "headless/settings_appearance_tests.rs"]
+mod settings_appearance_tests;
+
 #[path = "headless/settings_preferences_locale_tests.rs"]
 mod settings_preferences_locale_tests;
 

@@ -1,9 +1,9 @@
 //! Headless shell tests: the real `ShellPlugin` on `MinimalPlugins` — no
 //! window, no render hardware. Asserts the sidebar/content shell mounts,
 //! typography is stamped by the widget layer's observer, the AccessKit
-//! semantic seeds land with the right roles, the theme affordance restamps
-//! the mounted tree in place (zero remounts), and the theme flip repaints
-//! every token-filled sidebar surface (rail, nav items, routing intent pills)
+//! semantic seeds land with the right roles, the theme switch restamps the
+//! mounted tree in place (zero remounts), and the theme flip repaints every
+//! token-filled sidebar surface (rail, nav items, routing intent pills)
 //! without changing a single entity id.
 
 use bevy::MinimalPlugins;
@@ -21,28 +21,22 @@ use bevy::ui::widget::Text;
 use bevy::ui::{BackgroundColor, Display, Node};
 use bevy::ui_widgets::Activate;
 use infiltrator_bevy_ui::app::{
-    BottomNavActive, BottomNavBar, BottomNavItem, ContentSlot, ContentTitleLabel, DensityToggle,
-    GlobalStatusDot, HistoryBackButton, HistoryForwardButton, LayoutMode,
-    RoutingIntentStatusCapsule, ShellHeader, ShellLayoutState, ShellPlugin, ShellRoot,
-    SidebarActiveProfileCard, SidebarFoot, SidebarNavItem, SidebarPanel, SidebarShortcutMatrix,
-    SidebarShortcutTile, SidebarSpeedFooter, SidebarSystemProxyCard, SidebarSystemProxyToggle,
-    SidebarTunCard, SidebarTunToggle, ThemeToggle,
+    BottomNavActive, BottomNavBar, BottomNavItem, ContentSlot, ContentTitleLabel, GlobalStatusDot,
+    HistoryBackButton, HistoryForwardButton, LayoutMode, RoutingIntentStatusCapsule, ShellHeader,
+    ShellLayoutState, ShellPlugin, ShellRoot, SidebarNavItem, SidebarPanel,
 };
-use infiltrator_bevy_ui::appearance::ThemeMode;
-use infiltrator_bevy_ui::pages::overview::OverviewRoutingIntentPill;
+use infiltrator_bevy_ui::pages::overview_cards::OverviewRoutingIntentSegmentPill;
 use infiltrator_bevy_ui::route::{ActiveRoute, Route};
+use infiltrator_bevy_ui::shell_scene::nav::{NavGroupHeading, NavIndicator};
 use infiltrator_bevy_widgets::button::ControlVisual;
 use infiltrator_bevy_widgets::icon::IconTint;
-use infiltrator_bevy_widgets::nav::{NavActive, NavItem};
+use infiltrator_bevy_widgets::nav::{NavActive, NavItem, NavRowKind};
 use infiltrator_bevy_widgets::palette::UiPalette;
-use infiltrator_bevy_widgets::responsive::{Density, ResponsiveContext};
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::REM_BASE;
 use infiltrator_bevy_widgets::theme::{Breakpoint, Theme, ThemeSkin};
 use infiltrator_contract::design_resources;
-use infiltrator_contract::theme::ThemePreference;
-use lurker_core_contract::routing_intent::RoutingIntent;
 
 fn mounted_shell() -> App {
     let mut app = App::new();
@@ -62,47 +56,20 @@ fn heading_entity(world: &mut World) -> Entity {
         .0
 }
 
-fn theme_pill_entity(world: &mut World) -> Entity {
-    let mut pills = world.query::<(Entity, &ThemeToggle)>();
-    pills.single(world).expect("exactly one theme pill").0
+/// The sidebar rail's own entity: the single `SidebarPanel` the shell mounts.
+fn rail_entity(world: &mut World) -> Entity {
+    world
+        .query::<(Entity, &SidebarPanel)>()
+        .single(world)
+        .expect("one sidebar rail")
+        .0
 }
 
-fn density_pill_entity(world: &mut World) -> Entity {
-    let mut pills = world.query::<(Entity, &DensityToggle)>();
-    pills.single(world).expect("exactly one density pill").0
-}
-
+/// Whether `T` appears anywhere under `root`.
 fn subtree_contains<T: Component>(world: &World, root: Entity) -> bool {
-    let mut stack = vec![root];
-    while let Some(entity) = stack.pop() {
-        if world.get::<T>(entity).is_some() {
-            return true;
-        }
-        if let Some(children) = world.get::<Children>(entity) {
-            stack.extend(children.iter());
-        }
-    }
-    false
+    !crate::support::subtree_with::<T>(world, root).is_empty()
 }
 
-fn subtree_has_text(world: &World, root: Entity, needle: &str) -> bool {
-    let mut stack = vec![root];
-    while let Some(entity) = stack.pop() {
-        if world
-            .get::<Text>(entity)
-            .is_some_and(|text| text.0 == needle)
-        {
-            return true;
-        }
-        if let Some(children) = world.get::<Children>(entity) {
-            stack.extend(children.iter());
-        }
-    }
-    false
-}
-
-#[path = "shell_tests/activating.rs"]
-mod activating;
 #[path = "shell_tests/bidi_direction_tests.rs"]
 mod bidi_direction_tests;
 #[path = "shell_tests/bottom.rs"]

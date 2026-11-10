@@ -168,6 +168,21 @@ impl IconId {
     }
 }
 
+/// Resolve a design-authority canonical icon name onto the plate that draws
+/// it.
+///
+/// The canonical name is the cross-surface identity
+/// (`infiltrator_contract::design_resources::IconSemantic::canonical_name`);
+/// this is the one place a Bevy surface turns that identity into a plate, so
+/// a surface never keeps a private route→icon table. A name with no plate
+/// here is an honest gap: the caller decides what to draw rather than this
+/// layer guessing a substitute.
+pub fn plate_for_canonical_name(name: &str) -> Option<IconId> {
+    IconId::ALL
+        .into_iter()
+        .find(|icon| icon.asset_name() == name)
+}
+
 /// Handle store for every semantic plate, decoded from shared embedded bytes
 /// into Bevy's `Assets<Image>` store. A host without that store keeps the
 /// empty resource and renders invisible icons without panicking.

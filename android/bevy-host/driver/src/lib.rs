@@ -28,6 +28,7 @@ fn android_main(app: android_activity::AndroidApp) {
         infiltrator_bevy_ui::run_unavailable(SurfaceKind::BevyAndroid, HostKind::Android, failure);
         return;
     }
+    let internal_data_path = app.internal_data_path();
     let transport = Arc::new(android_jni::AndroidActivityOwnerTransport::new(app));
     let client = match owner_client::AndroidOwnerClient::start(transport.clone()) {
         Ok(client) => Arc::new(client),
@@ -48,10 +49,11 @@ fn android_main(app: android_activity::AndroidApp) {
     }
     let source: Arc<dyn SurfaceSource> = client.clone();
     let sink: Arc<dyn UiCommandSink> = client;
-    infiltrator_bevy_ui::run_with_host_surface_and_command_sink(
+    infiltrator_bevy_ui::run_with_host_surface_and_command_sink_for_android(
         source,
         sink,
         insets_receiver,
         std::time::Duration::from_millis(500),
+        internal_data_path,
     );
 }

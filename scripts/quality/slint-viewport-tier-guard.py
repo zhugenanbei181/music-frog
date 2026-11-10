@@ -304,6 +304,7 @@ def ladder_findings(ui: pathlib.Path) -> list[str]:
         "sidebar_form",
         "sidebar_nav_column",
         "sidebar_labelled",
+        "sidebar_toggle_available",
     ):
         if f"ViewportLadder.{function}(" not in theme_code:
             found.append(
@@ -314,6 +315,7 @@ def ladder_findings(ui: pathlib.Path) -> list[str]:
         "sidebar_form",
         "sidebar_nav_column",
         "sidebar_labelled",
+        "sidebar_toggle_available",
     ):
         if f"public pure function {function}(" not in adapter_code:
             found.append(

@@ -41,6 +41,7 @@ pub mod controller;
 pub mod domain_state;
 #[cfg(feature = "capture-tools")]
 mod frame_capture;
+pub mod frame_observation;
 #[cfg(feature = "capture-tools")]
 mod frame_timing;
 pub mod gesture;
@@ -179,6 +180,40 @@ pub fn run_with_host_surface_and_command_sink_and_tray(
     );
 }
 
+/// Android product entry: the driver owns the NativeActivity data path and the
+/// host-written request, while this crate resolves it through the shared owner.
+pub fn run_with_host_surface_and_command_sink_for_android(
+    source: Arc<dyn surface::SurfaceSource>,
+    sink: Arc<dyn UiCommandSink>,
+    insets: WindowInsetsInputReceiver,
+    refresh_interval: Duration,
+    internal_data_path: Option<std::path::PathBuf>,
+) {
+    run_with_command_sink_and_composition_with_frame_observation(
+        sink,
+        SurfaceComposition::Host {
+            source,
+            insets,
+            refresh_interval,
+            tray: None,
+        },
+        frame_observation::FrameObservationSelection::Android,
+        internal_data_path,
+    );
+}
+
+fn run_with_command_sink_and_composition(
+    sink: Arc<dyn UiCommandSink>,
+    composition: SurfaceComposition,
+) {
+    run_with_command_sink_and_composition_with_frame_observation(
+        sink,
+        composition,
+        frame_observation::FrameObservationSelection::None,
+        None,
+    );
+}
+
 enum SurfaceComposition {
     Source(Arc<dyn surface::SurfaceSource>),
     Host {
@@ -241,9 +276,11 @@ fn capture_composition() -> SurfaceComposition {
     SurfaceComposition::Demo
 }
 
-fn run_with_command_sink_and_composition(
+fn run_with_command_sink_and_composition_with_frame_observation(
     sink: Arc<dyn UiCommandSink>,
     composition: SurfaceComposition,
+    frame_observation_selection: frame_observation::FrameObservationSelection,
+    android_internal_data_path: Option<std::path::PathBuf>,
 ) {
     #[cfg(feature = "capture-tools")]
     let preference = capture::skin_from_env()
@@ -354,7 +391,23 @@ fn run_with_command_sink_and_composition(
     #[cfg(feature = "capture-tools")]
     install_sync_frame_capture(&mut app, frame_capture::SYNC_FRAME_ENV);
     #[cfg(feature = "capture-tools")]
-    frame_timing::install(&mut app);
+    if matches!(
+        frame_observation_selection,
+        frame_observation::FrameObservationSelection::None
+    ) {
+        frame_timing::install(&mut app);
+    }
+    #[cfg(not(feature = "capture-tools"))]
+    if matches!(
+        frame_observation_selection,
+        frame_observation::FrameObservationSelection::Android
+    ) {
+        frame_observation::install(
+            &mut app,
+            frame_observation_selection,
+            android_internal_data_path,
+        );
+    }
     #[cfg(feature = "capture-tools")]
     if let Some(feature) = interaction_capture::feature_from_environment() {
         match interaction_capture_source {

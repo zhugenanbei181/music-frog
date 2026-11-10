@@ -15,11 +15,9 @@ use self::query_access::{
 use infiltrator_contract::design_resources;
 use infiltrator_shared::locales::Lang;
 
-use crate::appearance::{refresh_tonal_ladder_preview, tonal_ladder_preview_scene};
+use crate::appearance::refresh_tonal_ladder_preview;
 use crate::command::{CommandSinkHandle, UiCommand};
-use crate::localized_widgets::{
-    localized_button_scene, localized_checkbox_scene, localized_segmented_scene,
-};
+use crate::localized_widgets::{localized_button_scene, localized_checkbox_scene};
 use crate::pages::settings::settings_network_roaming::{
     NetworkRoamingInterfacesLine, NetworkRoamingRouteLine, NetworkRoamingStatusLine,
 };
@@ -60,12 +58,16 @@ use infiltrator_presentation::settings_status_projection::{
 use settings_preferences::{PreferenceKind, preference_row_scene};
 use settings_runtime::{RuntimeField, RuntimePolicy};
 
+#[path = "settings_appearance.rs"]
+pub mod settings_appearance;
 #[path = "settings_copy.rs"]
 pub mod settings_copy;
 #[path = "settings_core.rs"]
 pub mod settings_core;
 #[path = "settings_dialogs.rs"]
 pub mod settings_dialogs;
+#[path = "settings_index.rs"]
+pub mod settings_index;
 #[path = "settings_ipv6.rs"]
 pub mod settings_ipv6;
 #[path = "settings_lan.rs"]
@@ -183,6 +185,8 @@ pub fn settings_page(projection: &SettingsProjection, palette: &UiPalette) -> im
             PageRoot(Route::Settings)
             SettingsPageRoot ScrollArea
             Children [
+                @{ settings_index::settings_index_scene(palette) }
+                --
                 @{ language_card(palette) }
                 --
                 Node {
@@ -458,25 +462,9 @@ pub fn general_card_scene(
                                     Text(mixed_port_str) SettingsLine(SettingsLineKind::MixedPort) TextRole(design_resources::TextRole::Mono)
                                 ]
                                 --
-                                Node {
-                                    width: percent(100),
-                                    flex_direction: FlexDirection::Column,
-                                    row_gap: rem(space::S6),
-                                    padding: UiRect::top(rem(space::S4)),
-                                }
-                                Children [
-                                    LocalizedText::plain("settings_interface_theme_title") TextRole(design_resources::TextRole::Caption)
-                                    --
-                                    @{ localized_segmented_scene(
-                                            &["theme_light", "theme_dark", "theme_forest", "theme_amoled"],
-                                            1,
-                                            palette,
-                                    ) }
-                                    --
-                                    @{ tonal_ladder_preview_scene(palette) }
-                                    --
-                                    @{ settings_render_strategy::render_strategy_row_scene(palette) }
-                                ]
+                                @{ settings_appearance::appearance_card_scene(palette) }
+                                --
+                                @{ settings_render_strategy::render_strategy_row_scene(palette) }
 
                             ]
             }),
@@ -501,6 +489,8 @@ impl Plugin for SettingsPagePlugin {
         );
         app.init_resource::<settings_lan::LanFieldObservations>();
         app.add_systems(Update, refresh_tonal_ladder_preview);
+        settings_appearance::register(app);
+        app.add_observer(settings_index::on_settings_index_activated);
         settings_render_strategy::register(app);
         app.add_observer(apply_settings_projection);
         app.add_observer(on_settings_action_activated);

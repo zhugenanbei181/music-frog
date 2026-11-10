@@ -56,6 +56,11 @@ export component AppBody inherits Rectangle {
         // bar has no column, so both leave it at 0.
         in-out property <length> nav-content-offset;
 
+        // The collapse/expand affordance is shell chrome above the destination
+        // rows. Its measured band lets the receipt describe the pixels that
+        // precede the navigation leading without calling them a glyph.
+        in-out property <length> sidebar-toggle;
+
         // One horizontal rhythm for the page body. Compact used to fork this per
         // page (Home 24, AppSettings 10, everything else 16), which meant three
         // pages could not share a left edge even though the reference phone
@@ -259,6 +264,7 @@ export component AppBody inherits Rectangle {
 
         // Callbacks
         callback navigate(string);
+        callback toggle-sidebar-expansion();
         callback open-sort-menu();
         callback go-back();
         callback start-runtime();
@@ -355,8 +361,10 @@ export component AppBody inherits Rectangle {
             active-destination: root.active-destination;
             navigation-form: root.navigation-form;
             navigate-to(target) => { root.navigate(target); }
+            toggle-sidebar-expansion => { root.toggle-sidebar-expansion(); }
             nav-stack-bottom <=> root.nav-stack-bottom;
             nav-content-offset <=> root.nav-content-offset;
+            sidebar-toggle <=> root.sidebar-toggle;
         }
 
         main-panel := Rectangle {

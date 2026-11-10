@@ -350,7 +350,15 @@ impl Plugin for WidgetsPlugin {
             Update,
             (
                 icon_tile::sync_icon_tile_visuals,
-                nav::sync_nav_visuals,
+                // A nav row's ink is resolved through the live `UiTheme`, so
+                // the paint follows the theme rebuild: a skin flip repaints
+                // the rows in the same frame instead of reading the theme that
+                // the previous skin left behind. The set is what a consumer
+                // that flips [`nav::NavActive`] orders itself against, so the
+                // fill never trails the bit by a frame.
+                nav::sync_nav_visuals
+                    .after(feathers_theme::sync_ui_theme)
+                    .in_set(nav::NavVisualPaintSet),
                 stat_chip::sync_stat_chip_visuals,
                 status_badge::sync_status_badge_visuals,
                 sparkline::sync_mini_sparklines,

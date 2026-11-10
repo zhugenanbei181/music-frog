@@ -64,12 +64,20 @@ pub enum ShellA11yNode {
     GlobalStatusDot,
     /// The shared routing-intent selector.
     RoutingIntentSegment,
-    /// The sidebar system-proxy master switch.
+    /// The system-proxy master switch.
     SystemProxySwitch,
-    /// The sidebar TUN master switch.
+    /// The TUN master switch.
     TunSwitch,
-    /// The header theme toggle.
-    ThemeToggle,
+    /// The settings appearance selector.
+    ///
+    /// Appearance is a settings preference, not shell chrome: the judged
+    /// desktop surfaces all state it on the settings page (Slint's
+    /// `AppPreferenceRow` "主题模式" opens the theme menu, Iced's settings
+    /// card carries the selector), and the sidebar column carries navigation
+    /// alone. It is a selector over [`crate::theme::ThemePreference::ALL`],
+    /// so its role is a region like [`Self::RoutingIntentSegment`], not a
+    /// two-state button.
+    AppearanceSegment,
     /// The Mini HUD card.
     MiniHudCard,
     /// The Mini HUD system-proxy quick switch.
@@ -103,7 +111,7 @@ impl ShellA11yNode {
         Self::RoutingIntentSegment,
         Self::SystemProxySwitch,
         Self::TunSwitch,
-        Self::ThemeToggle,
+        Self::AppearanceSegment,
         Self::MiniHudCard,
         Self::MiniHudSystemProxySwitch,
         Self::MiniHudTunSwitch,
@@ -125,12 +133,13 @@ impl ShellA11yNode {
             Self::SidebarNav => A11yRole::Navigation,
             Self::GlobalStatusDot => A11yRole::Status,
             Self::TrafficReadout => A11yRole::Text,
-            Self::RoutingIntentSegment | Self::MiniHudCard => A11yRole::Region,
+            Self::RoutingIntentSegment | Self::AppearanceSegment | Self::MiniHudCard => {
+                A11yRole::Region
+            }
             Self::SystemProxySwitch
             | Self::TunSwitch
             | Self::MiniHudSystemProxySwitch
             | Self::MiniHudTunSwitch => A11yRole::Switch,
-            Self::ThemeToggle => A11yRole::Button,
             Self::CommandPaletteDialog => A11yRole::Dialog,
             Self::CommandPaletteQuery => A11yRole::Text,
             Self::ToastRegion => A11yRole::LiveRegion,
@@ -149,7 +158,7 @@ impl ShellA11yNode {
             Self::RoutingIntentSegment => "a11y_routing_intent_segment",
             Self::SystemProxySwitch => "a11y_system_proxy_switch",
             Self::TunSwitch => "a11y_tun_switch",
-            Self::ThemeToggle => "a11y_theme_toggle",
+            Self::AppearanceSegment => "a11y_appearance_segment",
             Self::MiniHudCard => "a11y_mini_hud_card",
             Self::MiniHudSystemProxySwitch => "a11y_mini_hud_system_proxy",
             Self::MiniHudTunSwitch => "a11y_mini_hud_tun",
@@ -249,7 +258,12 @@ mod tests {
         assert!(ShellA11yNode::TunSwitch.is_switch());
         assert!(ShellA11yNode::MiniHudSystemProxySwitch.is_switch());
         assert!(ShellA11yNode::MiniHudTunSwitch.is_switch());
-        assert!(!ShellA11yNode::ThemeToggle.is_switch());
+        assert!(!ShellA11yNode::AppearanceSegment.is_switch());
+        assert_eq!(
+            ShellA11yNode::AppearanceSegment.role(),
+            A11yRole::Region,
+            "the appearance selector chooses among several preferences, so it is not a button"
+        );
         assert_eq!(ShellA11yNode::CommandPaletteDialog.role(), A11yRole::Dialog);
         assert_eq!(ShellA11yNode::ToastRegion.role(), A11yRole::LiveRegion);
     }
