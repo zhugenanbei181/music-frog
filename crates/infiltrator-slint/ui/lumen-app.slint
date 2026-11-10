@@ -21,7 +21,7 @@ import { SettingsOverlays } from "components/settings_overlays.slint";
 import { AppBottomBar, MobileDockPageGround, ClearTrafficDialog, DesktopTitleBar, NoticeBanner, SettingsMessageBanner, ProfileSettingsTypeMenu, ProfileAddTypeMenu, ProxySortMenu } from "components/app_chrome.slint";
 import { AppBody } from "components/app_body.slint";
 import { PageTitles } from "components/page_titles.slint";
-import { ViewportLadder } from "components/viewport-ladder.slint"; import { NavigationForm } from "components/viewport_tier.slint"; export { NavigationForm }
+import { NavigationForm, SidebarExpansionPreference } from "components/viewport_tier.slint"; export { NavigationForm, SidebarExpansionPreference }
 import { PageWorkbench } from "pages/page_workbench.slint";
 import { ConnectionSort, LogLevel, NetworkMode, RouteMode, RuntimeStatus, ThemeMode, TrafficRange } from "components/domain_enums.slint";
 
@@ -35,15 +35,19 @@ export component AppWindow inherits MaterialWindow {
         // than measured here.
         //
         // `navigation-form` is chrome: what the shell mounts to navigate. The
-        // contract decides it from the tier and the surface kind, so a 720px
-        // desktop window gets the icon rail the ladder names and a phone gets
-        // the bottom bar - the same 720px window no longer answers twice.
+        // contract resolves it from the user preference, tier and surface
+        // kind, so a 720px desktop window gets the icon rail the ladder names
+        // and a phone gets the bottom bar - the same 720px window no longer
+        // answers twice.
         //
         // `compact-layout` is page density: whether the page stacks its cards
         // and sheds its breathing room. It used to carry both jobs, which is
         // how the medium tier ended up paying a phone's bottom band for a
         // desktop window's navigation (SPACEUTIL-006).
-        out property <NavigationForm> navigation-form: ViewportLadder.shell_navigation(LumenTheme.viewport-tier, root.android-platform); out property <bool> compact-layout: root.android-platform || !ViewportLadder.labelled_sidebar(LumenTheme.viewport-tier); out property <ReceiptChrome> receipt-chrome: { nav-form: root.navigation-form, nav-column: LumenTheme.rail-width, nav-stack-bottom: app-body.nav-stack-bottom, nav-content-offset: app-body.nav-content-offset, page-margin: app-body.page-margin, shell-top-air: app-body.page-content-padding-top, shell-bottom-air: app-body.page-content-padding-bottom, dock-band: app-body.dock-band-height, scale-percent: root.page-scale-percent };
+        in-out property <SidebarExpansionPreference> sidebar-expansion: SidebarExpansionPreference.expanded;
+        out property <NavigationForm> navigation-form: LumenTheme.navigation-form;
+        out property <bool> compact-layout: root.android-platform || !LumenTheme.labelled-sidebar;
+        out property <ReceiptChrome> receipt-chrome: { nav-form: root.navigation-form, nav-column: LumenTheme.rail-width, nav-stack-bottom: app-body.nav-stack-bottom, nav-content-offset: app-body.nav-content-offset, page-margin: app-body.page-margin, shell-top-air: app-body.page-content-padding-top, shell-bottom-air: app-body.page-content-padding-bottom, dock-band: app-body.dock-band-height, scale-percent: root.page-scale-percent };
         property <bool> platform-dark-mode: MaterialPalette.color-scheme == ColorScheme.dark;
         in-out property <bool> frameless: false;
         // EFFECTS-041 #167: the frameless desktop chrome's window controls.
@@ -119,6 +123,8 @@ export component AppWindow inherits MaterialWindow {
         MaterialPalette.schemes = LumenTheme.material-schemes;
         LumenTheme.show-layout-bounds = root.layout-debug-bounds;
         LumenTheme.viewport-width = root.width;
+        LumenTheme.sidebar-expansion = root.sidebar-expansion;
+        LumenTheme.touch-surface = root.android-platform;
         LumenTheme.compact-layout = root.compact-layout;
         LumenUiScale.unit = 1px * (root.page-scale-percent / 100.0);
         LumenTheme.dark-mode = root.application-dark-mode;
@@ -350,6 +356,8 @@ export component AppWindow inherits MaterialWindow {
         changed platform-dark-mode => { if root.theme-mode == ThemeMode.system { root.application-dark-mode = root.platform-dark-mode; } }
         changed theme-mode => { LumenTheme.forest-mode = root.theme-mode == ThemeMode.forest; LumenTheme.amoled-mode = root.theme-mode == ThemeMode.amoled; if root.theme-mode == ThemeMode.system { root.application-dark-mode = root.platform-dark-mode; } else if root.theme-mode == ThemeMode.dark || root.theme-mode == ThemeMode.amoled { root.application-dark-mode = true; } else { root.application-dark-mode = false; } root.update-color-scheme(); }
         changed page-scale-percent => { LumenUiScale.unit = 1px * (root.page-scale-percent / 100.0); }
+        changed sidebar-expansion => { LumenTheme.sidebar-expansion = root.sidebar-expansion; }
+        changed android-platform => { LumenTheme.touch-surface = root.android-platform; }
         changed compact-layout => { LumenTheme.compact-layout = root.compact-layout; root.mobile-dock-band-state-changed(); } changed navigation-form => { root.mobile-dock-band-state-changed(); }
         changed width => { LumenTheme.viewport-width = root.width; root.mobile-dock-band-state-changed(); }
         changed theme-color => { LumenTheme.user-accent = root.theme-color; MaterialPalette.schemes = LumenTheme.material-schemes; }

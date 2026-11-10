@@ -65,6 +65,17 @@ export enum NavigationSeparator {
     heading,
 }
 
+// The user-owned desktop sidebar expansion preference. Its two variants are
+// the ids the shared contract exports; the generated ladder owns the closed
+// lookup that folds this preference together with the viewport and surface
+// kind, so no UI component may keep a private expanded/collapsed boolean.
+export enum SidebarExpansionPreference {
+    // Keep destination labels visible when the viewport can honour them.
+    expanded,
+    // Collapse the labelled column to the existing icon rail.
+    collapsed,
+}
+
 // The dashboard's density is a third typed fact, distinct from the window
 // tier and the navigation form. FlClash publishes it through a scope from
 // one `DashboardDensity.of(size)` decision; cards read the scope rather than

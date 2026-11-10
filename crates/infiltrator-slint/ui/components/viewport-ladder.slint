@@ -10,7 +10,7 @@
 // user zoom itself and the ladder never has an opinion about it.
 
 import { LumenUiScale } from "../lumen-ui-scale.slint";
-import { DashboardDensity, NavigationForm, NavigationSeparator, ViewportTier } from "./viewport_tier.slint";
+import { DashboardDensity, NavigationForm, NavigationSeparator, SidebarExpansionPreference, ViewportTier } from "./viewport_tier.slint";
 
 export global ViewportLadder {
     // The first window width that leaves each tier behind, in design units.
@@ -20,22 +20,6 @@ export global ViewportLadder {
     out property <length> compact-max: 600 * LumenUiScale.unit;
     out property <length> medium-max: 840 * LumenUiScale.unit;
     out property <length> expanded-max: 1200 * LumenUiScale.unit;
-
-    // The navigation form this window's shell mounts.
-    //
-    // Two facts decide it - the tier and whether the surface is touched - and
-    // both come from the exported ladder rather than a guess made here. Before
-    // this table existed the medium window answered with a phone's bottom bar:
-    // the shell had no way to ask for the rail the contract already chose for
-    // it, so it borrowed the page-density boolean and took the wrong chrome. A
-    // short window pays a whole bottom band for that mistake.
-    public pure function shell_navigation(tier: ViewportTier, touch-surface: bool) -> NavigationForm {
-        if (touch-surface) { return NavigationForm.bottom-nav; }
-        if (tier == ViewportTier.compact) { return NavigationForm.bottom-nav; }
-        if (tier == ViewportTier.medium) { return NavigationForm.rail; }
-        if (tier == ViewportTier.expanded) { return NavigationForm.standard; }
-        return NavigationForm.wide;
-    }
 
     // Whether a navigation form may paint a group heading.
     //
@@ -52,14 +36,82 @@ export global ViewportLadder {
         return NavigationSeparator.none;
     }
 
-    // The navigation column this tier reserves, in design units. 0 is honest
-    // about the bottom-navigation tier: it owns no vertical column, so nothing
-    // may measure one there.
-    public pure function nav_column(tier: ViewportTier) -> int {
-        if (tier == ViewportTier.compact) { return 0; }
-        if (tier == ViewportTier.medium) { return 64; }
-        if (tier == ViewportTier.expanded) { return 240; }
-        return 280;
+    // FlClash persists only `sidebarExpanded` in app settings and derives one
+    // `expanded` fact from the viewport capability. The contract exports the
+    // closed preference x tier x surface-kind table below; this generated
+    // lookup only spells its typed answer in the surface vocabulary. A user
+    // who collapses a desktop window therefore gets the existing rail form,
+    // and a touch surface keeps its bottom bar without a second UI decision.
+    public pure function sidebar_form(preference: SidebarExpansionPreference, tier: ViewportTier, touch-surface: bool) -> NavigationForm {
+        if (preference == SidebarExpansionPreference.expanded && tier == ViewportTier.compact && touch-surface == false) { return NavigationForm.bottom-nav; }
+        if (preference == SidebarExpansionPreference.expanded && tier == ViewportTier.compact && touch-surface == true) { return NavigationForm.bottom-nav; }
+        if (preference == SidebarExpansionPreference.expanded && tier == ViewportTier.medium && touch-surface == false) { return NavigationForm.rail; }
+        if (preference == SidebarExpansionPreference.expanded && tier == ViewportTier.medium && touch-surface == true) { return NavigationForm.bottom-nav; }
+        if (preference == SidebarExpansionPreference.expanded && tier == ViewportTier.expanded && touch-surface == false) { return NavigationForm.standard; }
+        if (preference == SidebarExpansionPreference.expanded && tier == ViewportTier.expanded && touch-surface == true) { return NavigationForm.bottom-nav; }
+        if (preference == SidebarExpansionPreference.expanded && tier == ViewportTier.ultra && touch-surface == false) { return NavigationForm.wide; }
+        if (preference == SidebarExpansionPreference.expanded && tier == ViewportTier.ultra && touch-surface == true) { return NavigationForm.bottom-nav; }
+        if (preference == SidebarExpansionPreference.collapsed && tier == ViewportTier.compact && touch-surface == false) { return NavigationForm.bottom-nav; }
+        if (preference == SidebarExpansionPreference.collapsed && tier == ViewportTier.compact && touch-surface == true) { return NavigationForm.bottom-nav; }
+        if (preference == SidebarExpansionPreference.collapsed && tier == ViewportTier.medium && touch-surface == false) { return NavigationForm.rail; }
+        if (preference == SidebarExpansionPreference.collapsed && tier == ViewportTier.medium && touch-surface == true) { return NavigationForm.bottom-nav; }
+        if (preference == SidebarExpansionPreference.collapsed && tier == ViewportTier.expanded && touch-surface == false) { return NavigationForm.rail; }
+        if (preference == SidebarExpansionPreference.collapsed && tier == ViewportTier.expanded && touch-surface == true) { return NavigationForm.bottom-nav; }
+        if (preference == SidebarExpansionPreference.collapsed && tier == ViewportTier.ultra && touch-surface == false) { return NavigationForm.rail; }
+        if (preference == SidebarExpansionPreference.collapsed && tier == ViewportTier.ultra && touch-surface == true) { return NavigationForm.bottom-nav; }
+        return NavigationForm.bottom-nav;
+    }
+
+    // FlClash persists only `sidebarExpanded` in app settings and derives one
+    // `expanded` fact from the viewport capability. The contract exports the
+    // closed preference x tier x surface-kind table below; this generated
+    // lookup only spells its typed answer in the surface vocabulary. A user
+    // who collapses a desktop window therefore gets the existing rail form,
+    // and a touch surface keeps its bottom bar without a second UI decision.
+    public pure function sidebar_nav_column(preference: SidebarExpansionPreference, tier: ViewportTier, touch-surface: bool) -> int {
+        if (preference == SidebarExpansionPreference.expanded && tier == ViewportTier.compact && touch-surface == false) { return 0; }
+        if (preference == SidebarExpansionPreference.expanded && tier == ViewportTier.compact && touch-surface == true) { return 0; }
+        if (preference == SidebarExpansionPreference.expanded && tier == ViewportTier.medium && touch-surface == false) { return 64; }
+        if (preference == SidebarExpansionPreference.expanded && tier == ViewportTier.medium && touch-surface == true) { return 0; }
+        if (preference == SidebarExpansionPreference.expanded && tier == ViewportTier.expanded && touch-surface == false) { return 240; }
+        if (preference == SidebarExpansionPreference.expanded && tier == ViewportTier.expanded && touch-surface == true) { return 0; }
+        if (preference == SidebarExpansionPreference.expanded && tier == ViewportTier.ultra && touch-surface == false) { return 280; }
+        if (preference == SidebarExpansionPreference.expanded && tier == ViewportTier.ultra && touch-surface == true) { return 0; }
+        if (preference == SidebarExpansionPreference.collapsed && tier == ViewportTier.compact && touch-surface == false) { return 0; }
+        if (preference == SidebarExpansionPreference.collapsed && tier == ViewportTier.compact && touch-surface == true) { return 0; }
+        if (preference == SidebarExpansionPreference.collapsed && tier == ViewportTier.medium && touch-surface == false) { return 64; }
+        if (preference == SidebarExpansionPreference.collapsed && tier == ViewportTier.medium && touch-surface == true) { return 0; }
+        if (preference == SidebarExpansionPreference.collapsed && tier == ViewportTier.expanded && touch-surface == false) { return 64; }
+        if (preference == SidebarExpansionPreference.collapsed && tier == ViewportTier.expanded && touch-surface == true) { return 0; }
+        if (preference == SidebarExpansionPreference.collapsed && tier == ViewportTier.ultra && touch-surface == false) { return 64; }
+        if (preference == SidebarExpansionPreference.collapsed && tier == ViewportTier.ultra && touch-surface == true) { return 0; }
+        return 0;
+    }
+
+    // FlClash persists only `sidebarExpanded` in app settings and derives one
+    // `expanded` fact from the viewport capability. The contract exports the
+    // closed preference x tier x surface-kind table below; this generated
+    // lookup only spells its typed answer in the surface vocabulary. A user
+    // who collapses a desktop window therefore gets the existing rail form,
+    // and a touch surface keeps its bottom bar without a second UI decision.
+    public pure function sidebar_labelled(preference: SidebarExpansionPreference, tier: ViewportTier, touch-surface: bool) -> bool {
+        if (preference == SidebarExpansionPreference.expanded && tier == ViewportTier.compact && touch-surface == false) { return false; }
+        if (preference == SidebarExpansionPreference.expanded && tier == ViewportTier.compact && touch-surface == true) { return false; }
+        if (preference == SidebarExpansionPreference.expanded && tier == ViewportTier.medium && touch-surface == false) { return false; }
+        if (preference == SidebarExpansionPreference.expanded && tier == ViewportTier.medium && touch-surface == true) { return false; }
+        if (preference == SidebarExpansionPreference.expanded && tier == ViewportTier.expanded && touch-surface == false) { return true; }
+        if (preference == SidebarExpansionPreference.expanded && tier == ViewportTier.expanded && touch-surface == true) { return false; }
+        if (preference == SidebarExpansionPreference.expanded && tier == ViewportTier.ultra && touch-surface == false) { return true; }
+        if (preference == SidebarExpansionPreference.expanded && tier == ViewportTier.ultra && touch-surface == true) { return false; }
+        if (preference == SidebarExpansionPreference.collapsed && tier == ViewportTier.compact && touch-surface == false) { return false; }
+        if (preference == SidebarExpansionPreference.collapsed && tier == ViewportTier.compact && touch-surface == true) { return false; }
+        if (preference == SidebarExpansionPreference.collapsed && tier == ViewportTier.medium && touch-surface == false) { return false; }
+        if (preference == SidebarExpansionPreference.collapsed && tier == ViewportTier.medium && touch-surface == true) { return false; }
+        if (preference == SidebarExpansionPreference.collapsed && tier == ViewportTier.expanded && touch-surface == false) { return false; }
+        if (preference == SidebarExpansionPreference.collapsed && tier == ViewportTier.expanded && touch-surface == true) { return false; }
+        if (preference == SidebarExpansionPreference.collapsed && tier == ViewportTier.ultra && touch-surface == false) { return false; }
+        if (preference == SidebarExpansionPreference.collapsed && tier == ViewportTier.ultra && touch-surface == true) { return false; }
+        return false;
     }
 
     // Node cards per row on the proxy page. This is the count the Iced and
@@ -73,18 +125,6 @@ export global ViewportLadder {
         if (tier == ViewportTier.medium) { return 2; }
         if (tier == ViewportTier.expanded) { return 3; }
         return 4;
-    }
-
-    // Whether this tier's navigation form carries labels in a column.
-    //
-    // The one fact a shell reads to choose between a side column and a bottom
-    // bar. It is a projection of the exported nav form, so a surface cannot
-    // fork that choice by measuring the width a second time.
-    public pure function labelled_sidebar(tier: ViewportTier) -> bool {
-        if (tier == ViewportTier.compact) { return false; }
-        if (tier == ViewportTier.medium) { return false; }
-        if (tier == ViewportTier.expanded) { return true; }
-        return true;
     }
 
     // How many equal shares the dashboard's span grid owns at this page width.

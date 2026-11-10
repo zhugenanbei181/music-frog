@@ -192,6 +192,13 @@ def exported_tiers() -> list[dict]:
     return list(json.loads(PAGE_STRUCTURE.read_text(encoding="utf-8")).get("tiers", []))
 
 
+def exported_document() -> dict:
+    """The complete shared export, including the sidebar variant table."""
+    if not PAGE_STRUCTURE.is_file():
+        return {}
+    return dict(json.loads(PAGE_STRUCTURE.read_text(encoding="utf-8")))
+
+
 def generator_module():
     """The ladder generator, loaded in place so the adapter is compared here."""
     spec = importlib.util.spec_from_file_location("generate_viewport_ladder", GENERATOR)
@@ -225,26 +232,14 @@ def ladder_findings(ui: pathlib.Path) -> list[str]:
     adapter_code = mask_comments(adapter)
 
     # The adapter must be the generator's own output, not a hand edit.
-    expected = generator_module().slint_ladder({
-        "version": 9,
-        "tiers": tiers,
-        "dashboard_columns": {"four_column_min_px": 860},
-        "dashboard_density": {
-            "desktop_min_px": 640,
-            "four_column_min_px": 860,
-            "standard_four_column_min_px": 1040,
-            "standard_height_min_px": 824,
-            "mobile_max_px": 560,
-        },
-        "navigation_separators": {
-            "forms": [
-                {"id": "bottom_nav", "separator": "none"},
-                {"id": "rail", "separator": "none"},
-                {"id": "standard", "separator": "none"},
-                {"id": "wide", "separator": "none"},
-            ]
-        },
-    })
+    document = exported_document()
+    if document.get("version") != 10 or not document.get("sidebar_variants"):
+        found.append(
+            "page-structure.json is not the version 10 sidebar-variant export; "
+            "rerun export_page_structure"
+        )
+        return found
+    expected = generator_module().slint_ladder(document)
     if adapter != expected:
         found.append(
             "components/viewport-ladder.slint is not the generated adapter; "
@@ -301,10 +296,30 @@ def ladder_findings(ui: pathlib.Path) -> list[str]:
             found.append(
                 f"components/viewport-ladder.slint: {function}() is generated but never read"
             )
-    if "ViewportLadder.nav_column(" not in theme_code:
+    if "ViewportLadder.sidebar_nav_column(" not in theme_code:
         found.append(
             "components/theme.slint: the navigation column is no longer the exported width"
         )
+    for function in (
+        "sidebar_form",
+        "sidebar_nav_column",
+        "sidebar_labelled",
+    ):
+        if f"ViewportLadder.{function}(" not in theme_code:
+            found.append(
+                f"components/theme.slint: the shell no longer reads the exported "
+                f"{function}() sidebar variant"
+            )
+    for function in (
+        "sidebar_form",
+        "sidebar_nav_column",
+        "sidebar_labelled",
+    ):
+        if f"public pure function {function}(" not in adapter_code:
+            found.append(
+                f"components/viewport-ladder.slint: the exported {function}() "
+                "sidebar variant lookup is missing"
+            )
     return found
 
 
@@ -405,6 +420,17 @@ def tier_vocabulary_findings() -> list[str]:
             "components/viewport_tier.slint: the navigation forms are "
             f"{declared_forms} but the exported ladder says {forms}"
         ]
+    preferences = [
+        entry["preference"].replace("_", "-")
+        for entry in exported_document().get("sidebar_variants", [])
+    ]
+    declared_preferences = enum_variants("SidebarExpansionPreference")
+    if sorted(set(preferences)) != sorted(declared_preferences):
+        return [
+            "components/viewport_tier.slint: the sidebar preferences are "
+            f"{declared_preferences} but the exported table says "
+            f"{sorted(set(preferences))}"
+        ]
     return []
 
 
@@ -421,11 +447,24 @@ def navigation_mount_findings(ui: pathlib.Path) -> list[str]:
     found: list[str] = []
     app_code = mask_comments((ui / "lumen-app.slint").read_text(encoding="utf-8"))
     if ("out property <NavigationForm> navigation-form: "
-            "ViewportLadder.shell_navigation(") not in app_code:
+            "LumenTheme.navigation-form") not in app_code:
         found.append(
             "lumen-app.slint: the shell no longer publishes the exported "
             "navigation form"
         )
+    if "in-out property <SidebarExpansionPreference> sidebar-expansion:" not in app_code:
+        found.append(
+            "lumen-app.slint: the user-owned sidebar preference is not a typed "
+            "window property"
+        )
+    for needle in (
+        "LumenTheme.sidebar-expansion = root.sidebar-expansion;",
+        "LumenTheme.touch-surface = root.android-platform;",
+    ):
+        if needle not in app_code:
+            found.append(
+                f"lumen-app.slint: the shared resolver no longer receives {needle!r}"
+            )
     body_code = mask_comments(
         (ui / "components/app_body.slint").read_text(encoding="utf-8"))
     mount = re.search(r"if ([^\n:]*): DesktopSideBar \{", body_code)

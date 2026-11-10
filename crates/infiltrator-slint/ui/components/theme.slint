@@ -2,7 +2,7 @@ import { MaterialSchemes } from "@material";
 import { MaterialWindowAdapter } from "@material";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { DesignType } from "./design-type.slint";
-import { ViewportTier } from "./viewport_tier.slint";
+import { NavigationForm, SidebarExpansionPreference, ViewportTier } from "./viewport_tier.slint";
 import { ViewportLadder } from "./viewport-ladder.slint";
 
 export global LumenTheme {
@@ -18,6 +18,12 @@ export global LumenTheme {
     // disagree about the viewport they are in - and neither can a surface
     // disagree with the contract the boundary comes from.
     in-out property <length> viewport-width: 0 * LumenUiScale.unit;
+    // The user-owned sidebar expansion preference and the surface kind are
+    // published once by the window. The generated ladder folds them with the
+    // viewport tier, so the rail width, navigation form and toggle availability
+    // all read one exported decision rather than a local bool or width.
+    in-out property <SidebarExpansionPreference> sidebar-expansion: SidebarExpansionPreference.expanded;
+    in-out property <bool> touch-surface: false;
     // The height one page body may use. The shell publishes it once, after
     // the page header and the floating dock band are taken off the window,
     // so a list page's card can fill the page without any page doing its
@@ -325,7 +331,11 @@ export global LumenTheme {
     // then reserve a different side column on Slint than on Iced, and the
     // judge would measure a box no surface was told to draw.
     out property <length> rail-width:
-        ViewportLadder.nav_column(root.viewport-tier) * LumenUiScale.unit;
+        ViewportLadder.sidebar_nav_column(root.sidebar-expansion, root.viewport-tier, root.touch-surface) * LumenUiScale.unit;
+    out property <NavigationForm> navigation-form:
+        ViewportLadder.sidebar_form(root.sidebar-expansion, root.viewport-tier, root.touch-surface);
+    out property <bool> labelled-sidebar:
+        ViewportLadder.sidebar_labelled(root.sidebar-expansion, root.viewport-tier, root.touch-surface);
     out property <length> rail-vertical-inset: 18 * LumenUiScale.unit;
     out property <length> rail-row-height: 44 * LumenUiScale.unit;
     out property <length> rail-section-gap: root.space-mobile-section-head-above;

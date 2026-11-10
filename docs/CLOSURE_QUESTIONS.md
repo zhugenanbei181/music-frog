@@ -24,19 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-10 第一百七十一批次；b111–b170 见下方批次八问摘要）
+## 当前状态（2026-11-10 第一百七十二批次；b111–b171 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b171 把侧栏偏好贯通 contract/domain/application/composition 的 typed 命令、持久化、权威读回与离线 owner guard；四包定向 nextest 1937/1937、`cargo check -p infiltrator-slint --all-targets` 与守卫自测为 `L`；交叉 `scripts/cross-check.sh`、aarch64 产物与目标设备仍由 CI runner / 设备矩阵补证（GAP-1.1） |
-| 2 | 部分 | L | 本机 Linux 台架完成四包定向测试、Slint 全目标编译、格式、Python 编译与独立质量门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
-| 3 | 部分 | L | b171 只触中性 Rust 设置快照和桌面 UI 测试的字面量，不改 Android/iOS 代码、资源或 wire；三 flavor 实机交互与 iOS 回执仍由外部环境看板 owner 补证 |
-| 4 | 部分 | L | 本批仍是 Core-first 收口：`SettingsPageSnapshot.sidebar_expansion` 已完成权威读回，Slint/Iced/Bevy 的测试投影同步编译，但尚无 UI toggle 消费者；后续切片只读 typed 快照并发送 `ApplySidebarExpansion`，现有四表面回执沿用 b169，不能写成本批功能验收 |
-| 5 | 完整 | L | `AppSettings.sidebar_expansion` 是唯一持久化真源，`apply_sidebar_expansion_intent` 是唯一 transition，`ApplySidebarExpansion` 贯通命令名、dispatch、capability、settings store 与页面快照；上游四份源码哈希仍由单一 TSV 持有，折叠仍复用 `SidebarForm::Rail`，无 UI 私有布尔或第二套宽度 |
-| 5a | 完整 | L | b171 不改字体/字重/图标/主题/几何/可见文案，按标准不需要新像素回执；沿用发布批 `20261110T002611Z_536f4a1c8930_dirty_56001`，复核 `receipt-freshness 0`、`screenshot-identity 574/10/0`、`design-resource-authority 0`、空间 197 帧 `violations=0` |
-| 6 | 部分 | L | 四包定向 nextest 1937/1937、Slint 全目标编译、owner guard 4/4 + enforce 0、shared-copy/i18n/typed-state/隐式状态/文档治理/收口八问/空间/回执/身份/设计资源门均绿；全仓结构门、全量 clippy 与 `resolve_surface_evidence.py` 仍受另一会话 Bevy WIP 阻塞，由统一收口 owner 补证 |
-| 7 | 完整 | L | pinned 上游源码归 TSV，typed 身份/resolver/transition 归 contract module，持久化归 domain settings，命令归 application，读回归 composition snapshot，10 文件 owner 链归单一守卫；L2 空间标准与 L3 参照只向下引用，无跨 UI 私有业务真源、无 Option/null 阶段组合 |
-| 8 | 部分 | L | 开发期只跑受影响四包定向测试、Slint 全目标编译与本批独立守卫；不改像素省下一次 197 帧重采。全仓统一验证与 5 条 `Integrated` 办结仍由收口 owner 一次跑完，严格交付率保持 92.5% |
+| 1 | 部分 | L | b172 只导出 16 行封闭 sidebar 变体表并生成 Slint 查表适配物，零平台 API、零设备交互；contract 定向 nextest 584/584、`cargo check -p infiltrator-slint --all-targets`、生成器与守卫自测为 `L`；交叉 `scripts/cross-check.sh`、aarch64 产物与目标设备仍由 CI runner / 设备矩阵补证（GAP-1.1） |
+| 2 | 部分 | L | 本机 Linux 完成 contract 测试、Slint 全目标编译、格式、`py_compile`、导出/生成器与独立质量门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
+| 3 | 部分 | L | b172 不触 Android/iOS 代码、资源或 wire；导出表的 `touch_surface` 分支覆盖底部导航，但三 flavor 实机交互与 iOS 回执仍由外部环境看板 owner 补证 |
+| 4 | 部分 | L | Slint 外壳已把 typed 偏好与表面事实交给共享 resolver，并改读导出的形态/列宽/标签决策；本批不挂 toggle、不改任何像素。其它 UI 不消费桌面变体表，后续 toggle 仍须只读 typed 快照并发送 `ApplySidebarExpansion` |
+| 5 | 完整 | L | `page_structure::sidebar_variant_facts()` 是偏好 × 视口 × 表面形态的唯一裁决表，`resolve_sidebar_expansion` 是唯一 resolver；导出 JSON 是唯一数字真源，生成器只投影，Slint 外壳/侧栏只消费，owner guard 钉住 18 文件链与 16 行表，无第二套列宽或私有布尔 |
+| 5a | 完整 | L | b172 不改字体/字重/图标/主题/可见文案、wire 或快照；Slint 默认 expanded 与非触摸桌面解析结果等同原阶梯，无像素身份变化。沿用发布批 `20261110T002611Z_536f4a1c8930_dirty_56001`，复核 `receipt-freshness 0`、`screenshot-identity 574/10/0`、`design-resource-authority 0`、空间 197 帧 `violations=0` |
+| 6 | 部分 | L | contract 584/584、Slint 全目标编译、owner guard 7/7 + enforce 0、生成器 fresh、空间自测 45/45、shared-copy/i18n/typed-state/隐式状态/文档治理/收口八问/回执/身份/设计资源/侧栏分隔门均绿；全仓结构门、全量 clippy 与 `resolve_surface_evidence.py` 仍受另一会话 Bevy WIP 阻塞，由统一收口 owner 补证 |
+| 7 | 完整 | L | pinned 上游源码归 TSV，身份/resolver/transition 归 contract module，16 行解析表归 page_structure 导出，生成器唯一写 Slint adapter，外壳/主题/侧栏只消费，结构不变量归 owner guard；L2 空间标准与 L3 参照只向下引用，无跨 UI 私有业务真源、无 Option/null 阶段组合 |
+| 8 | 部分 | L | 开发期只跑 contract 定向测试、Slint 全目标编译、生成器检查与本批独立守卫；不改像素省下一次 197 帧重采。全仓统一验证与 5 条 `Integrated` 办结仍由收口 owner 一次跑完，严格交付率保持 92.5% |
+
+## 最近一批问答（2026-11-10 第一百七十二交付批次：FlClash 侧栏形态成为导出表 / 偏好与视口不再分家）
+
+1. x86_64/aarch64：本批只改中性 Rust 导出、JSON 真源、Python 生成器/守卫与 Slint typed 查表适配物，零平台 API、零设备交互；contract 定向 nextest **584/584**、`cargo check -p infiltrator-slint --all-targets`、owner guard 7/7 + enforce 0、生成器 fresh 为 `L`，交叉 `scripts/cross-check.sh`、aarch64 产物与目标设备仍待 CI runner / 设备矩阵补证 → 部分（L）。
+2. Windows/Linux/macOS：本机 Linux 完成定向测试、Slint 全目标编译、`rustfmt --check`、`py_compile`、导出 fresh、生成器 check、owner/shared-copy/i18n/typed-state/隐式状态/文档治理/空间/回执/身份/设计资源/侧栏分隔/收口守卫；Windows/macOS 构建腿和安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） → 部分（L）。
+3. Android/iOS：本批不触 Android/iOS 代码、资源或 wire；16 行表的 `touch_surface=true` 分支明确固定为底部导航且不提供桌面 toggle，但三 flavor 实机交互与 iOS 产物仍按既有条目留在外部环境看板，不用桌面编译冒充移动端证据 → 部分（L）。
+4. 各 UI：Slint 外壳发布 typed `SidebarExpansionPreference` 与表面事实，主题从导出表读取形态、列宽与标签，侧栏只消费标签结论；默认 expanded 桌面结果与旧阶梯逐项相同，因此无像素变化。Iced/Bevy 不消费桌面侧栏变体表，本批不新增 UI 功能，不把 Core 导出冒充其它表面验收 → 部分（L）。
+5. 复用：FlClash 的 `canExpandSidebar && sidebarExpanded` 唯一投影由 `resolve_sidebar_expansion` 计算，16 行 `preference × tier × touch_surface` 表只发布结果；`page-structure.json` 是数字唯一真源，生成器唯一写 Slint adapter，外壳/主题/侧栏只消费，owner guard 把 18 文件链、导出表和 planted 负例钉在一起，没有第二套宽度或 UI 私有 bool → 完整（L）。
+5a. 设计资源强制标准：本批无字体/字重/图标/主题/可见文案/几何身份变化，也不触 UI 资产、wire、快照或语料；沿用发布批 `20261110T002611Z_536f4a1c8930_dirty_56001`，复核 `design-resource-authority.py` 0 违规、`receipt-freshness 0`、`screenshot-identity 574/10/0`、`space-utilization --enforce` 197 帧 violations=0 → 完整（L）。
+6. 各处界面的功能接入：contract 584/584 全绿，新增导出文档版本/16 行表/冲突档断言与全组合 resolver 测试；Slint 全目标编译通过；owner guard 7/7 + enforce 0、生成器 fresh、空间自测 45/45、shared-copy 32 key / i18n 0 违规、typed-state findings=0、implicit-state 23/0/0、doc-governance OK、closure 8/8、空间 197 帧 0 违规均为 `L`。本批无新 UI 功能，全仓结构门、全量 clippy 与 `resolve_surface_evidence.py` 仍受另一会话 Bevy WIP 阻塞，由统一收口 owner 补证 → 部分（L）。
+7. 模块化：上游事实归 pinned TSV，typed 身份/resolver/transition 归 contract module，封闭变体表归 page_structure 导出，生成物归唯一生成器，外壳/主题/侧栏各只消费一项 typed 结论，结构不变量归 owner guard；没有 bool/Option 组合阶段、没有 UI 私有推导、没有跨表面第二真源 → 完整（L）。
+8. CI 与批次效率：开发期只跑 contract 定向测试、Slint 全目标编译、生成器检查与本批独立守卫；因默认解析结果不变且无像素身份变化，省下整批 197 帧重采，沿用 b169 已发布回执并复核四门。全仓统一验证与 5 条 `Integrated` 办结仍由收口 owner 一次跑完，严格交付率保持 **92.5%** → 部分（L）。
 
 ## 最近一批问答（2026-11-10 第一百七十一交付批次：FlClash 侧栏偏好贯通设置 owner / typed 命令与权威读回）
 

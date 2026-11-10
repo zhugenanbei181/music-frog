@@ -23,6 +23,9 @@ use crate::responsive_viewport::{
     DashboardDensity, SidebarForm, TIERS, ViewportTier,
 };
 use crate::shell_receipt::CHROME_KEYS;
+use crate::shell_sidebar_preference::{
+    SidebarExpansionCapability, SidebarExpansionPreference, resolve_sidebar_expansion,
+};
 use crate::shell_sidebar_presentation::{NavigationSeparator, separator_for_form};
 use serde::Serialize;
 
@@ -76,8 +79,9 @@ pub fn shape_for_slug(slug: &str) -> Option<PageShape> {
 /// limits. This JSON is the exported truth, and the judge reads it instead
 /// of hard-coding a number.
 ///
-/// Version 5 adds `nav_stack_bottom_px` to the exported chrome vocabulary, the
-/// eighth key of a frame's `CAPTURE_CHROME` line. Version 4 published seven and
+/// Version 10 adds the closed `sidebar_variants` table, so a user-owned
+/// collapsed preference is never re-derived by a surface or the judge. Version
+/// 5 added `nav_stack_bottom_px`; version 4 published seven chrome keys and
 /// left the judge to guess where the nav stack ended from a fraction of the
 /// window height; version 1-3 carried no ladder at all.
 pub fn page_structure_json() -> String {
@@ -132,12 +136,13 @@ pub fn page_structure_json() -> String {
     })
     .collect();
     format!(
-        "{{\"version\":9,\"dashboard_columns\":{},\"dashboard_density\":{},\"pages\":[{}],\"slugs\":[{}],\"tiers\":{},\"navigation_separators\":{},\"chrome_keys\":{}}}\n",
+        "{{\"version\":10,\"dashboard_columns\":{},\"dashboard_density\":{},\"pages\":[{}],\"slugs\":[{}],\"tiers\":{},\"sidebar_variants\":{},\"navigation_separators\":{},\"chrome_keys\":{}}}\n",
         dashboard_columns_json(),
         dashboard_density_json(),
         pages.join(","),
         slugs.join(","),
         tiers_json(),
+        sidebar_variants_json(),
         navigation_separators_json(),
         chrome_keys_json()
     )
@@ -400,6 +405,79 @@ pub const fn tier_facts() -> [TierFact; TIERS.len()] {
     ]
 }
 
+/// One legal navigation chrome after a user preference, viewport tier and
+/// surface kind meet the shared resolver.
+///
+/// FlClash derives `expanded = canExpandSidebar(desktop) && sidebarExpanded`
+/// once and persists only the preference. The exported table below is that
+/// single decision for every closed combination, so Slint and the space judge
+/// never write a second `if expanded` or reinterpret a rail as a labelled pane.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct SidebarVariantFact {
+    pub preference: &'static str,
+    pub tier: &'static str,
+    pub touch_surface: bool,
+    pub nav_form: &'static str,
+    pub nav_column_px: u16,
+    pub max_nav_column_px: u16,
+    pub nav_leading_limit_px: u16,
+    pub labelled_sidebar: bool,
+    pub toggle_available: bool,
+    pub fallback_ground_limit_pct: f64,
+}
+
+impl SidebarVariantFact {
+    const fn of(
+        preference: SidebarExpansionPreference,
+        tier: ViewportTier,
+        touch_surface: bool,
+    ) -> Self {
+        let capability_form = tier.shell_navigation(touch_surface);
+        let capability = SidebarExpansionCapability::from_form(capability_form);
+        let presentation = resolve_sidebar_expansion(preference, capability);
+        let form = presentation.form();
+        let labelled = presentation.shows_labels();
+        Self {
+            preference: preference.id(),
+            tier: tier.id(),
+            touch_surface,
+            nav_form: form.id(),
+            nav_column_px: match form.width_px() {
+                Some(width) => width,
+                None => 0,
+            },
+            max_nav_column_px: tier.max_nav_column_px(),
+            nav_leading_limit_px: if labelled {
+                tier.nav_leading_limit_px()
+            } else {
+                0
+            },
+            labelled_sidebar: labelled,
+            toggle_available: capability.can_expand(),
+            fallback_ground_limit_pct: tier_ground_fallback(tier),
+        }
+    }
+}
+
+/// The complete preference × tier × surface-kind chrome table.
+pub fn sidebar_variant_facts() -> Vec<SidebarVariantFact> {
+    let mut facts = Vec::new();
+    for preference in SidebarExpansionPreference::ALL {
+        for tier in TIERS {
+            for touch_surface in [false, true] {
+                facts.push(SidebarVariantFact::of(preference, tier, touch_surface));
+            }
+        }
+    }
+    facts
+}
+
+fn sidebar_variants_json() -> String {
+    serde_json::to_string(&sidebar_variant_facts())
+        .expect("the sidebar chrome table is a closed list of scalars")
+}
+
 /// The exported ladder as a JSON array, for the document below.
 fn tiers_json() -> String {
     serde_json::to_string(&tier_facts()).expect("the viewport ladder is a closed table of scalars")
@@ -506,7 +584,7 @@ mod tests {
     fn the_exported_document_carries_the_ladder() {
         let json = page_structure_json();
         let document: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
-        assert_eq!(document["version"], 9);
+        assert_eq!(document["version"], 10);
         // The chrome vocabulary travels with the ladder it describes, so a
         // reader that has the document already has the key list.
         assert_eq!(
@@ -553,5 +631,62 @@ mod tests {
             tiers[0]["fallback_ground_limit_pct"],
             NARROW_TIER_GROUND_LIMIT_PCT
         );
+        let variants = document["sidebar_variants"]
+            .as_array()
+            .expect("the exported sidebar chrome table");
+        assert_eq!(variants.len(), 2 * TIERS.len() * 2);
+        let collapsed_desktop = variants
+            .iter()
+            .find(|entry| {
+                entry["tier"] == "expanded"
+                    && entry["preference"] == "collapsed"
+                    && entry["touch_surface"] == false
+            })
+            .expect("the desktop collapsed variant");
+        assert_eq!(collapsed_desktop["nav_form"], "rail");
+        assert_eq!(collapsed_desktop["nav_column_px"], 64);
+        assert_eq!(collapsed_desktop["nav_leading_limit_px"], 0);
+        assert_eq!(collapsed_desktop["labelled_sidebar"], false);
+        assert_eq!(collapsed_desktop["toggle_available"], true);
+        let expanded_desktop = variants
+            .iter()
+            .find(|entry| {
+                entry["tier"] == "expanded"
+                    && entry["preference"] == "expanded"
+                    && entry["touch_surface"] == false
+            })
+            .expect("the desktop expanded variant");
+        assert_eq!(expanded_desktop["nav_form"], "standard");
+        assert_eq!(expanded_desktop["nav_column_px"], 240);
+        assert_eq!(expanded_desktop["toggle_available"], true);
+        let touch_desktop = variants
+            .iter()
+            .find(|entry| {
+                entry["tier"] == "expanded"
+                    && entry["preference"] == "expanded"
+                    && entry["touch_surface"] == true
+            })
+            .expect("the desktop touch variant");
+        assert_eq!(touch_desktop["nav_form"], "bottom_nav");
+        assert_eq!(touch_desktop["toggle_available"], false);
+    }
+
+    #[test]
+    fn every_sidebar_variant_comes_from_the_shared_resolver() {
+        for preference in SidebarExpansionPreference::ALL {
+            for tier in TIERS {
+                for touch_surface in [false, true] {
+                    let expected = SidebarVariantFact::of(preference, tier, touch_surface);
+                    assert!(sidebar_variant_facts().contains(&expected));
+                    if touch_surface {
+                        assert_eq!(expected.nav_form, "bottom_nav");
+                        assert!(!expected.toggle_available);
+                    }
+                    if expected.toggle_available {
+                        assert!(expected.tier == "expanded" || expected.tier == "ultra");
+                    }
+                }
+            }
+        }
     }
 }

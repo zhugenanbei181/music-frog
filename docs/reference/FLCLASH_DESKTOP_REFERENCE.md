@@ -279,7 +279,7 @@ typed 来源身份；存异的是本仓保留四种真实来源和显式 `Unobse
 而非参考图里的「本地」，两者都由各自配置身份发布。该批实测空间利用率
 197 帧 0 违规、回执时效 0、截图身份 574/10/0、设计资源 0 违规。
 
-## 8. 侧栏展开是设置 owner，不是 UI 布尔（b170–b171）
+## 8. 侧栏展开是设置 owner，不是 UI 布尔（b170–b172）
 
 pinned `be847366` 的桌面截图左上折叠按钮后面有四层事实：
 `lib/models/config.dart` 持久化 `sidebarExpanded`（默认 `true`，并把旧
@@ -302,6 +302,8 @@ bool、不把「能否展开」藏在 Option/null 里，也不新增第二套 48
 离线守卫；b171 继续按 Core-first 把偏好落到 `AppSettings.sidebar_expansion`
 唯一持久化真源、`ApplySidebarExpansion` typed 命令、settings store 原子更新
 与 `SettingsPageSnapshot.sidebar_expansion` 权威读回，并由
-`sidebar-expansion-owner-guard.py` 钉住十文件 owner 链。侧栏 toggle 仍是
-后续表面接线；两批都不改任何像素，故沿用 b169 的 197 帧回执而如实记为
-未变更身份。
+`sidebar-expansion-owner-guard.py` 钉住十文件 owner 链。b172 再把上游的
+`canExpand && sidebarExpanded` 一次投影导出为 16 行封闭变体表：偏好、视口档、
+触摸面共同决定合法导航形态、列宽、标签与按钮可用性；Slint 生成器只读这张
+表，判定器也复用同一导出真源。侧栏 toggle 仍是后续表面接线；三批都不改任何
+像素，故沿用 b169 的 197 帧回执而如实记为未变更身份。

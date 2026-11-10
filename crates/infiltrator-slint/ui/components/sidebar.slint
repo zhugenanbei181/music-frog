@@ -71,7 +71,7 @@ export component DesktopSideBar inherits Rectangle {
     // icons where the exported form is a rail, the labelled list where it is a
     // standard or wide column. Both forms read the contract's separator policy,
     // which measures the reference's one uninterrupted destination list.
-    property <bool> labelled: ViewportLadder.labelled_sidebar(LumenTheme.viewport-tier);
+    property <bool> labelled: LumenTheme.labelled-sidebar;
     in property <NavigationForm> navigation-form;
     property <NavigationSeparator> separator:
         ViewportLadder.navigation_separator(root.navigation-form);
