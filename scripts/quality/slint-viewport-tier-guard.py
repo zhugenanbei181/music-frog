@@ -96,6 +96,68 @@ FACT_SITES = {
     "root.dashboard-facts.memory-total": "LumenTheme.metric-value-size",
     "root.active-profile": "LumenTheme.profile-name-size",
 }
+
+# Some facts are not painted by a Text the page writes itself: b169 moved the
+# profile name and its source tag into one shared row component, because the
+# desktop grid and the phone flow had been typesetting the same identity twice.
+# The type role, the line box and the alignment are that component's decision
+# from now on, so the leg follows the painter: the page must mount the shared
+# row and hand it the fact, and the component must state the three shared
+# facts. A call-site window would read `profile-name: root.active-profile;`
+# and report a role the page never owned.
+FACT_ROWS = {
+    "root.active-profile": {
+        "component": "ProfileIdentityRow",
+        "owner_file": "home_widgets.slint",
+        "input": "profile-name",
+    },
+}
+
+
+def component_body(text: str, name: str) -> str:
+    """The body of `component <name>` in `text`, or "" when it is not there."""
+    match = re.search(r"component\s+" + re.escape(name) + r"\b", text)
+    if match is None:
+        return ""
+    brace = text.find("{", match.end())
+    if brace < 0:
+        return ""
+    depth, index = 0, brace
+    while index < len(text):
+        if text[index] == "{":
+            depth += 1
+        elif text[index] == "}":
+            depth -= 1
+            if depth == 0:
+                return text[brace + 1:index]
+        index += 1
+    return ""
+
+
+def child_blocks(body: str) -> list[str]:
+    """The top-level `{...}` blocks of a component body, in source order.
+
+    A row's value is one of these blocks, so a leg that wants to know how the
+    *value* is typeset has to read that block and not the whole row: a second
+    child that hugs the baseline would otherwise cover for it.
+    """
+    blocks: list[str] = []
+    index, depth, start = 0, 0, -1
+    while index < len(body):
+        char = body[index]
+        if char == "{":
+            if depth == 0:
+                start = index
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0 and start >= 0:
+                blocks.append(body[start + 1:index])
+                start = -1
+        index += 1
+    return blocks
+
+
 HERO_FACT_COLUMNS = ("LayoutTokens.hero-fact-column-1", "LayoutTokens.hero-fact-column-2")
 CONNECTION_COLUMNS = tuple(
     f"LayoutTokens.connection-column-{index}" for index in range(1, 8)
@@ -767,6 +829,33 @@ def violations(ui: pathlib.Path, dock_checks: bool = True,
                     "take a share of overview-card-columns instead"
                 )
         for fact, token in FACT_SITES.items():
+            if fact in FACT_ROWS:
+                # Painted by a shared row, not by this page: the page's
+                # obligation is to mount the row and hand it the fact, and the
+                # typography is the component's own decision. Reading a
+                # call-site window here would report a role the page never
+                # owned - which is exactly what b169 changed.
+                row = FACT_ROWS[fact]
+                mounted = [
+                    index
+                    for index, line in enumerate(lines)
+                    if line.strip().startswith(row["component"] + " {")
+                ]
+                if not mounted:
+                    found.append(
+                        f"pages/{name}: {fact} left the shared flow; mount "
+                        f"{row['component']} instead of typesetting it here"
+                    )
+                    continue
+                for index in mounted:
+                    window = "\n".join(lines[index:index + 7])
+                    if f"{row['input']}: {fact};" not in window:
+                        found.append(
+                            f"pages/{name}: {fact} no longer reaches "
+                            f"{row['component']}.{row['input']}, so the shared "
+                            "row cannot state it"
+                        )
+                continue
             hits = [index for index, line in enumerate(lines) if fact in line]
             if not hits:
                 found.append(f"pages/{name}: the dashboard fact {fact} left the shared flow")
@@ -803,6 +892,58 @@ def violations(ui: pathlib.Path, dock_checks: bool = True,
                 found.append(f"pages/home_fact_row.slint: hero fact label {label} left the row owner")
     else:
         found.append("pages/home_fact_row.slint is missing; the hero fact row lost its owner")
+
+    # The shared row that owns a fact's typography must itself state the three
+    # shared facts: the theme's role, the one value line box, and the bottom
+    # alignment that keeps sibling metas on one baseline. A row that drops any
+    # of them is a second, silent type decision - the divergence b142 measured.
+    for fact, row in FACT_ROWS.items():
+        owner_path = ui / "pages" / row["owner_file"]
+        if not owner_path.is_file():
+            found.append(
+                f"pages/{row['owner_file']} is missing; {row['component']} "
+                f"no longer owns how {fact} is typeset"
+            )
+            continue
+        body = component_body(
+            mask_comments(owner_path.read_text(encoding="utf-8")), row["component"]
+        )
+        if not body:
+            found.append(
+                f"pages/{row['owner_file']}: {row['component']} is gone, so "
+                f"{fact} has no shared painter"
+            )
+            continue
+        token = FACT_SITES[fact]
+        # The value is the child that reads the row's own input property. Its
+        # type role and its baseline are that child's, and the shared line box
+        # is the row's.
+        value = next(
+            (block for block in child_blocks(body)
+             if f"text: root.{row['input']};" in block),
+            "",
+        )
+        if not value:
+            found.append(
+                f"pages/{row['owner_file']}: {row['component']} no longer paints "
+                f"its {row['input']} value, so {fact} has no shared type decision"
+            )
+            continue
+        if token not in value:
+            found.append(
+                f"pages/{row['owner_file']}: {row['component']} re-invented its "
+                f"own type role instead of {token} for {fact}"
+            )
+        if "LumenTheme.fact-value-line-height" not in body:
+            found.append(
+                f"pages/{row['owner_file']}: {row['component']} left the shared "
+                f"value line box for {fact}"
+            )
+        if "vertical-alignment: bottom" not in value:
+            found.append(
+                f"pages/{row['owner_file']}: {row['component']} no longer hugs "
+                f"the bottom of the shared line box for {fact}"
+            )
 
     if dock_checks:
         # 3. The page name has one owner, and it is a page.
@@ -1410,6 +1551,55 @@ class GuardSelfTest(unittest.TestCase):
             any("second copy of the dock geometry" in item for item in findings),
             findings,
         )
+
+    def test_a_page_that_stops_mounting_the_shared_identity_row_is_caught(self) -> None:
+        """b169's decision stands: the profile identity is painted by one row.
+
+        A page that inlines it again is a second painter, even when its own
+        tokens look right, because the phone flow and the desktop grid had
+        already drifted apart twice before the row existed.
+        """
+        page = UI / "pages/home_desktop_grid.slint"
+        original = page.read_text(encoding="utf-8")
+        live = "            ProfileIdentityRow {\n"
+        assert live in original
+        planted = original.replace(live, "            Text {\n", 1)
+        findings = self._findings_with({"home_desktop_grid.slint": planted})
+        self.assertTrue(
+            any("left the shared flow; mount ProfileIdentityRow" in item
+                for item in findings), findings)
+
+    def test_an_identity_row_that_reinvents_its_type_role_is_caught(self) -> None:
+        """The shared row may not answer the role question a second time."""
+        widgets = UI / "pages/home_widgets.slint"
+        original = widgets.read_text(encoding="utf-8")
+        live = "        font-size: LumenTheme.profile-name-size;"
+        assert live in original
+        planted = original.replace(live, "        font-size: DesignType.label-size;", 1)
+        findings = self._findings_with({"home_widgets.slint": planted})
+        self.assertTrue(
+            any("re-invented its own type role instead of LumenTheme.profile-name-size"
+                in item for item in findings), findings)
+
+    def test_an_identity_row_that_leaves_the_shared_line_box_is_caught(self) -> None:
+        """Dropping the line box or the alignment splits sibling baselines."""
+        widgets = UI / "pages/home_widgets.slint"
+        original = widgets.read_text(encoding="utf-8")
+        live = "    height: LumenTheme.fact-value-line-height;\n"
+        assert live in original
+        planted = original.replace(live, "", 1)
+        findings = self._findings_with({"home_widgets.slint": planted})
+        self.assertTrue(
+            any("left the shared value line box" in item for item in findings),
+            findings)
+
+        live_align = "        vertical-alignment: bottom;\n"
+        assert original.count(live_align) >= 2
+        planted = original.replace(live_align, "", 1)
+        findings = self._findings_with({"home_widgets.slint": planted})
+        self.assertTrue(
+            any("hugs the bottom of the shared line box" in item
+                for item in findings), findings)
 
     def test_private_hero_fact_width_is_caught(self) -> None:
         """A hero fact grid that drops shared absolute columns is a fork."""
