@@ -530,11 +530,11 @@ b177 把形状与清单一次改回事实：`FlagImages.flags` 逐条消费 cata
 - **门禁**（SLINT-020 第三版）：持旗容器声明**任何**圆角即违规；`FlagIcon` 必须是 4:3；
   `CountryChip` 必须取 `side * 3 / 4`；`country-chip-radius` 回到 theme 即违规；清单中
   每个 SVG 的 viewBox 必须是 `0 0 640 480` 且不得含 Twemoji 圆角模板曲线。
-  planted 自测 21 → **26/26 OK**，`--mode enforce` findings=0。
+  planted 自测保持 **24/24 OK**（三条旧判据按新规则改写、新增四条负例），`--mode enforce` findings=0。
 - **像素回执**：整批重采发布 `20261110T220049Z_7c92aaf890f3_dirty_2457766`
-  （**199/199，358s**），**28 帧**变化且全部是带旗帜或带归属文案的帧（`overview-*` 10、
-  `proxies-*` 8、`about-*` 4 归属文案、`sidebar-collapsed-*` 2 与
-  `proxies-search-highlight-*` 2），其余 171 帧逐字节不变。旗面指纹：可见红盒仍为
+  （**199/199，358s**），**27 帧 PNG** 变化（外加 `manifest.tsv`）且全部是带旗帜或带归属文案的帧（`overview-*` 13、
+  `proxies-*` 6、`about-*` 4 归属文案、`sidebar-collapsed-*` 2 与
+  `proxies-search-highlight-*` 2），其余 172 帧逐字节不变。旗面指纹：可见红盒仍为
   **38×28**，但顶行跨度 **32 → 38px**（内缩 3 → 0），即四角完全方化；
   `space_utilization --enforce` 199 帧 **violations=0**、`receipt-freshness 0`、
   Slint 侧身份门 0 违规、Slint nextest **386/386**。
@@ -542,5 +542,5 @@ b177 把形状与清单一次改回事实：`FlagImages.flags` 逐条消费 cata
 顺带记一条工程教训：这批的第一次采集用了工作树里上一轮未提交的**矩阵重排**版本
 （`scripts/capture_slint_scenarios.tsv` 被生成器重写成 4 列、12 个手工附录场景行丢失），
 采集脚本按「不在清单里即过期」删掉了 12 个已发布帧。发现后把该文件还原到 HEAD 再重采：
-199 行齐全、28 帧变化、三条判据全绿。生成器的「保留手工附录行」需要修在它自己身上
+199 行齐全、27 帧 PNG 变化、三条判据全绿。生成器的「保留手工附录行」需要修在它自己身上
 （这批不再夹带矩阵重排），记在 b189。
