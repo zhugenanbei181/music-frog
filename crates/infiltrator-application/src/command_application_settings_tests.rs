@@ -10,6 +10,9 @@ use async_trait::async_trait;
 use infiltrator_contract::language::LanguagePreference;
 use infiltrator_contract::mini_hud::MiniHudPlacement;
 use infiltrator_contract::runtime_settings::RuntimeProbeSettings;
+use infiltrator_contract::shell_sidebar_preference::{
+    SidebarExpansionIntent, SidebarExpansionPreference,
+};
 use infiltrator_contract::shortcuts::ShortcutAction;
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_ports::settings_store::SettingsStore;
@@ -387,5 +390,37 @@ async fn refresh_profile_on_start_and_custom_accent_color_are_validated_and_pers
             .unwrap_err()
             .code,
         ErrorCode::InvalidInput
+    );
+}
+
+#[tokio::test]
+async fn sidebar_expansion_intents_persist_one_typed_preference() {
+    let (application, store) = settings_application();
+
+    assert_eq!(
+        store.settings.lock().expect("lock").sidebar_expansion,
+        SidebarExpansionPreference::Expanded
+    );
+
+    application
+        .execute(CommandIntent::ApplySidebarExpansion {
+            intent: SidebarExpansionIntent::Toggle,
+        })
+        .await
+        .expect("toggle applies to the settings owner");
+    assert_eq!(
+        store.settings.lock().expect("lock").sidebar_expansion,
+        SidebarExpansionPreference::Collapsed
+    );
+
+    application
+        .execute(CommandIntent::ApplySidebarExpansion {
+            intent: SidebarExpansionIntent::Set(SidebarExpansionPreference::Expanded),
+        })
+        .await
+        .expect("a typed set applies to the settings owner");
+    assert_eq!(
+        store.settings.lock().expect("lock").sidebar_expansion,
+        SidebarExpansionPreference::Expanded
     );
 }

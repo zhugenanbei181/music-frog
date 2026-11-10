@@ -23,6 +23,7 @@ use crate::rule_tracer::TracerRuleOverride;
 use crate::runtime_settings::RuntimeProbeSettings;
 use crate::script_export_review::{ScriptExportDraft, ScriptExportIdentity};
 use crate::script_run::{ScriptOperationId, ScriptRunRequest};
+use crate::shell_sidebar_preference::SidebarExpansionIntent;
 use crate::snapshot_restore::{SnapshotRestoreIdentity, SnapshotRestoreTarget};
 use crate::speedtest::{SpeedtestConcurrency, SpeedtestRunId, SpeedtestTarget};
 use crate::subscription_import::{
@@ -543,6 +544,9 @@ pub enum CommandIntent {
     SetLanguage {
         preference: LanguagePreference,
     },
+    ApplySidebarExpansion {
+        intent: SidebarExpansionIntent,
+    },
     UpdateSetting {
         key: String,
         value: String,
@@ -721,6 +725,7 @@ impl CommandIntent {
             }
             Self::LoadProfileOptions { .. } | Self::SaveMixinOverlay { .. } => CommandKind::Profile,
             Self::RollbackCore
+            | Self::ApplySidebarExpansion { .. }
             | Self::SetLanguage { .. }
             | Self::UpdateSetting { .. }
             | Self::UpdatePalettePreferenceDraft { .. }

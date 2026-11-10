@@ -646,6 +646,7 @@ fn the_settings_page_publishes_the_lan_sharing_readback_and_the_pac_request_fact
         refresh_current_profile_on_start: false,
         custom_accent_color: None,
         tray_icon_color_mode: TrayIconColorMode::default(),
+        sidebar_expansion: Default::default(),
     };
 
     // The LAN sharing readback is published as one fact, so an off sharing

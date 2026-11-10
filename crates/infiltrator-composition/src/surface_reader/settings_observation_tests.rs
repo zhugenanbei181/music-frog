@@ -2,6 +2,7 @@
 use super::{build_settings_page, build_sync_page};
 use infiltrator_application::runtime_configuration_application::RuntimeConfigurationReadout;
 use infiltrator_application::runtime_control_projection::RuntimeControlApplication;
+use infiltrator_contract::shell_sidebar_preference::SidebarExpansionPreference;
 use infiltrator_contract::sync::SyncStatus;
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_ports::runtime_configuration::{
@@ -94,6 +95,7 @@ fn preference_flags_are_observed_false_values_and_failed_reads_cannot_invent_ena
     let settings = Ok(AppSettings {
         close_to_tray: false,
         notifications_enabled: false,
+        sidebar_expansion: SidebarExpansionPreference::Collapsed,
         ..AppSettings::default()
     });
     let page = build_settings_page(
@@ -105,6 +107,10 @@ fn preference_flags_are_observed_false_values_and_failed_reads_cannot_invent_ena
     let facts = page.data.unwrap();
     assert_eq!(facts.close_to_tray, Some(false));
     assert_eq!(facts.notifications_enabled, Some(false));
+    assert_eq!(
+        facts.sidebar_expansion,
+        SidebarExpansionPreference::Collapsed
+    );
     let failed = Err(Failure::new(ErrorCode::Storage, "preferences denied", true));
     let page = build_settings_page(
         Some(&failed),

@@ -409,6 +409,7 @@ fn build_demo_snapshot(settings: &DemoSettings) -> SurfaceSnapshot {
         refresh_current_profile_on_start: false,
         custom_accent_color: None,
         tray_icon_color_mode: TrayIconColorMode::default(),
+        sidebar_expansion: Default::default(),
     });
 
     snapshot.pages.profiles = PageData::ready(ProfilesPageSnapshot {

@@ -67,6 +67,7 @@ use crate::script_export::ScriptExportSnapshot;
 use crate::script_sandbox::ScriptSandboxSnapshot;
 use crate::service_mode::ServiceModeSnapshot;
 use crate::shell_readout::ShellReadoutSnapshot;
+use crate::shell_sidebar_preference::SidebarExpansionPreference;
 use crate::snapshot::{CoreSessionObservation, CoreSnapshot};
 use crate::snapshot_history::SnapshotHistorySnapshot;
 use crate::speedtest::SpeedtestSnapshot;
@@ -576,6 +577,10 @@ pub struct SettingsPageSnapshot {
     /// Tray icon color style preference (FlClash v0.9.2: colored vs macOS/system monochrome).
     #[serde(default)]
     pub tray_icon_color_mode: TrayIconColorMode,
+    /// User-owned desktop sidebar expansion preference. The surface resolves
+    /// this against the viewport capability; it is never a local UI boolean.
+    #[serde(default)]
+    pub sidebar_expansion: SidebarExpansionPreference,
 }
 
 fn default_language_code() -> String {

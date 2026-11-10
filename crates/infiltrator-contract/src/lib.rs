@@ -209,6 +209,7 @@ mod tests {
     use super::command::{CommandIntent, CommandKind, CoreLogLevel};
     use super::ipv6::Ipv6RoutingSnapshot;
     use super::lan::LanCredentials;
+    use super::shell_sidebar_preference::SidebarExpansionIntent;
     use super::surface::HostKind;
     use super::tun::TunStack;
     use lurker_core_contract::capability::Capability;
@@ -229,6 +230,13 @@ mod tests {
         );
         assert_eq!(CommandIntent::SyncNow.kind(), CommandKind::Sync);
         assert_eq!(CommandIntent::RollbackCore.kind(), CommandKind::Update);
+        assert_eq!(
+            CommandIntent::ApplySidebarExpansion {
+                intent: SidebarExpansionIntent::Toggle
+            }
+            .kind(),
+            CommandKind::Update
+        );
         assert_eq!(
             CommandIntent::SetCoreLogLevel {
                 level: CoreLogLevel::Debug

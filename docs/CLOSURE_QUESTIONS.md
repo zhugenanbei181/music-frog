@@ -24,19 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-10 第一百七十批次；b111–b170 见下方批次八问摘要）
+## 当前状态（2026-11-10 第一百七十一批次；b111–b170 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b170 只新增中性 Rust 契约、离线 Python 守卫与参考台账，contract 定向 nextest 与守卫自测为 `L`；交叉 `scripts/cross-check.sh`、aarch64 产物与目标设备仍由 CI runner / 设备矩阵补证（GAP-1.1） |
-| 2 | 部分 | L | 本机 Linux 台架完成契约测试、格式检查、离线守卫与文档/状态门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
-| 3 | 部分 | L | b170 不触 Android/iOS 代码、资源或 wire；三 flavor 实机交互与 iOS 回执仍由外部环境看板 owner 补证 |
-| 4 | 部分 | L | 本批是 Core-first 底层裁决，尚无 UI 消费者；设置持久化、command/readback 与侧栏 toggle 由后续切片接入。现有 Iced/Bevy/Slint/Android 回执沿用 b169，不能写成本批验收 |
-| 5 | 完整 | L | FlClash 的偏好、能力、呈现与 intent 四层分别归入 `shell_sidebar_preference` typed 枚举和唯一 resolver；上游四份源码哈希由单一 TSV 持有；折叠复用 `responsive_viewport::SidebarForm::Rail`，不新增第二套宽度或 UI 私有布尔 |
-| 5a | 完整 | L | b170 不改字体/字重/图标/主题/几何/可见文案，按标准不需要新像素回执；沿用发布批 `20261110T002611Z_536f4a1c8930_dirty_56001`，复核 `receipt-freshness 0`、`screenshot-identity 574/10/0`、`design-resource-authority 0`、空间 197 帧 `violations=0` |
-| 6 | 部分 | L | 新契约 5 项 typed-state 测试、来源守卫 7/7 与 enforce 0、typed-state/隐式状态/文档治理/收口八问/空间导出门均绿；全仓结构门、全量 clippy 与 `resolve_surface_evidence.py` 仍受另一会话 Bevy WIP 阻塞，由统一收口 owner 补证 |
-| 7 | 完整 | L | pinned 上游源码归 TSV，typed 身份/resolver/transition 归 contract module，校验归单一守卫，空间标准与 L3 参照基准只做向下导航；无跨 UI 私有业务真源、无 Option/null 阶段组合 |
-| 8 | 部分 | L | 离线守卫只读 4 行 TSV 与契约文本，开发期只跑 contract 定向测试；不改像素省下一次 197 帧重采。全仓统一验证与 5 条 `Integrated` 办结仍由收口 owner 一次跑完，严格交付率保持 92.5% |
+| 1 | 部分 | L | b171 把侧栏偏好贯通 contract/domain/application/composition 的 typed 命令、持久化、权威读回与离线 owner guard；四包定向 nextest 1937/1937、`cargo check -p infiltrator-slint --all-targets` 与守卫自测为 `L`；交叉 `scripts/cross-check.sh`、aarch64 产物与目标设备仍由 CI runner / 设备矩阵补证（GAP-1.1） |
+| 2 | 部分 | L | 本机 Linux 台架完成四包定向测试、Slint 全目标编译、格式、Python 编译与独立质量门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
+| 3 | 部分 | L | b171 只触中性 Rust 设置快照和桌面 UI 测试的字面量，不改 Android/iOS 代码、资源或 wire；三 flavor 实机交互与 iOS 回执仍由外部环境看板 owner 补证 |
+| 4 | 部分 | L | 本批仍是 Core-first 收口：`SettingsPageSnapshot.sidebar_expansion` 已完成权威读回，Slint/Iced/Bevy 的测试投影同步编译，但尚无 UI toggle 消费者；后续切片只读 typed 快照并发送 `ApplySidebarExpansion`，现有四表面回执沿用 b169，不能写成本批功能验收 |
+| 5 | 完整 | L | `AppSettings.sidebar_expansion` 是唯一持久化真源，`apply_sidebar_expansion_intent` 是唯一 transition，`ApplySidebarExpansion` 贯通命令名、dispatch、capability、settings store 与页面快照；上游四份源码哈希仍由单一 TSV 持有，折叠仍复用 `SidebarForm::Rail`，无 UI 私有布尔或第二套宽度 |
+| 5a | 完整 | L | b171 不改字体/字重/图标/主题/几何/可见文案，按标准不需要新像素回执；沿用发布批 `20261110T002611Z_536f4a1c8930_dirty_56001`，复核 `receipt-freshness 0`、`screenshot-identity 574/10/0`、`design-resource-authority 0`、空间 197 帧 `violations=0` |
+| 6 | 部分 | L | 四包定向 nextest 1937/1937、Slint 全目标编译、owner guard 4/4 + enforce 0、shared-copy/i18n/typed-state/隐式状态/文档治理/收口八问/空间/回执/身份/设计资源门均绿；全仓结构门、全量 clippy 与 `resolve_surface_evidence.py` 仍受另一会话 Bevy WIP 阻塞，由统一收口 owner 补证 |
+| 7 | 完整 | L | pinned 上游源码归 TSV，typed 身份/resolver/transition 归 contract module，持久化归 domain settings，命令归 application，读回归 composition snapshot，10 文件 owner 链归单一守卫；L2 空间标准与 L3 参照只向下引用，无跨 UI 私有业务真源、无 Option/null 阶段组合 |
+| 8 | 部分 | L | 开发期只跑受影响四包定向测试、Slint 全目标编译与本批独立守卫；不改像素省下一次 197 帧重采。全仓统一验证与 5 条 `Integrated` 办结仍由收口 owner 一次跑完，严格交付率保持 92.5% |
+
+## 最近一批问答（2026-11-10 第一百七十一交付批次：FlClash 侧栏偏好贯通设置 owner / typed 命令与权威读回）
+
+1. x86_64/aarch64：本批只贯通中性 Rust 的 typed 命令、settings 持久化、页面读回与离线 owner guard，零平台 API、零设备交互；四包定向 nextest **1937/1937**、`cargo check -p infiltrator-slint --all-targets`、守卫 4/4 + enforce 0 为 `L`，交叉 `scripts/cross-check.sh`、aarch64 产物与目标设备仍待 CI runner / 设备矩阵补证 → 部分（L）。
+2. Windows/Linux/macOS：本机 Linux 完成定向测试、Slint 全目标编译、`rustfmt --check`、`py_compile`、owner/shared-copy/i18n/typed-state/隐式状态/文档治理/空间/回执/身份/设计资源与收口守卫；Windows/macOS 构建腿和安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） → 部分（L）。
+3. Android/iOS：本批不触 Android/iOS 代码、资源或 wire；新增的设置快照字段带 `serde(default)`，桌面测试字面量同步编译，但三 flavor 实机交互与 iOS 产物仍按既有条目留在外部环境看板，不用桌面编译冒充移动端证据 → 部分（L）。
+4. 各 UI：按 Core-first 补齐偏好持久化、唯一 typed transition、`CommandIntent::ApplySidebarExpansion`、命令名/capability/dispatch、`SettingsPageSnapshot` 读回与三桌面 UI 的兼容投影；本批不挂 toggle、不改 `.slint` 页面布局或可见文案。后续 UI 只能消费 typed 读回并发送 typed 意图，不得另起私有状态 → 部分（L）。
+5. 复用：`AppSettings.sidebar_expansion` 是唯一持久化真源，`apply_sidebar_expansion_intent` 是唯一 typed transition；命令名、terminal scope、capability、dispatch、settings store 与 `build_settings_page` 逐层穷尽接入，`sidebar-expansion-owner-guard.py` 钉住 10 文件 owner 链；上游四份源码 SHA-256 仍只由 `flclash-sidebar-expansion.tsv` 发布，折叠仍复用 `SidebarForm::Rail`，无第二套宽度或 UI bool → 完整（L）。
+5a. 设计资源强制标准：本批无字体/字重/图标/主题/几何/可见文案变化，也不触 `.slint`、导出物、wire 或语料；沿用发布批 `20261110T002611Z_536f4a1c8930_dirty_56001`，复核 `design-resource-authority.py` 0 违规、`receipt-freshness 0`、`screenshot-identity 574/10/0`、`space-utilization --enforce` 197 帧 violations=0 → 完整（L）。
+6. 各处界面的功能接入：四包定向 nextest **1937/1937** 全绿、Slint 全目标编译通过；新增 app settings 默认值、toggle/set 持久化、collapsed readback 与 command kind 四项断言，owner guard 4/4 + enforce 0；shared-copy 32 key / i18n 0 违规、typed-state findings=0、implicit-state 23/0/0、doc-governance OK、closure 8/8、空间 197 帧 0 违规均为 `L`。本批无新 UI 功能，全仓结构门、全量 clippy 与 `resolve_surface_evidence.py` 仍受另一会话 Bevy WIP 阻塞，由统一收口 owner 补证 → 部分（L）。
+7. 模块化：上游事实归 pinned TSV，身份/resolver/transition 归 contract module，持久化字段与默认值归 domain settings，命令执行归 application，页面读回归 composition snapshot，结构不变量归离线守卫；L2 空间标准与 L3 桌面参照只做向下导航，没有 bool/Option 组合阶段、没有 UI 私有推导、没有跨表面第二真源 → 完整（L）。
+8. CI 与批次效率：开发期只跑受影响四包定向测试、Slint 全目标编译与本批独立守卫；因不改像素身份，省下整批 197 帧重采，沿用 b169 已发布回执并复核四门。全仓统一验证与 5 条 `Integrated` 办结仍由收口 owner 一次跑完，严格交付率保持 **92.5%** → 部分（L）。
 
 ## 最近一批问答（2026-11-10 第一百七十交付批次：FlClash 侧栏展开偏好成为 typed Core 契约 / UI 布尔退役）
 

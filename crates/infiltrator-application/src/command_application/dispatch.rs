@@ -486,6 +486,9 @@ impl CommandApplication {
                 self.update_setting("language", preference.as_setting())
                     .await
             }
+            CommandIntent::ApplySidebarExpansion { intent } => {
+                self.apply_sidebar_expansion(intent).await
+            }
             CommandIntent::UpdateSetting { key, value } => self.update_setting(&key, &value).await,
             CommandIntent::SetRoutingIntent { .. } | CommandIntent::GetRoutingIntent => Err(
                 Failure::unsupported("routing intent requires its validated Core scope route"),

@@ -279,7 +279,7 @@ typed 来源身份；存异的是本仓保留四种真实来源和显式 `Unobse
 而非参考图里的「本地」，两者都由各自配置身份发布。该批实测空间利用率
 197 帧 0 违规、回执时效 0、截图身份 574/10/0、设计资源 0 违规。
 
-## 8. 侧栏展开是设置 owner，不是 UI 布尔（b170）
+## 8. 侧栏展开是设置 owner，不是 UI 布尔（b170–b171）
 
 pinned `be847366` 的桌面截图左上折叠按钮后面有四层事实：
 `lib/models/config.dart` 持久化 `sidebarExpanded`（默认 `true`，并把旧
@@ -299,5 +299,9 @@ SHA-256 与 pinned commit 由 `flclash-sidebar-expansion-guard.py` 离线校验�
 `Collapsed` 折叠成共享 `SidebarForm::Rail`。存异的是本仓不在 UI 保存私有
 bool、不把「能否展开」藏在 Option/null 里，也不新增第二套 48/220 宽度：折叠
 复用既有 64px rail 与空间利用率上限。b170 只交付 Core 契约、源码台账与
-离线守卫；设置持久化、command/readback 与侧栏 toggle 属于后续接线，不改
-本批任何像素，故沿用 b169 的 197 帧回执而如实记为未变更身份。
+离线守卫；b171 继续按 Core-first 把偏好落到 `AppSettings.sidebar_expansion`
+唯一持久化真源、`ApplySidebarExpansion` typed 命令、settings store 原子更新
+与 `SettingsPageSnapshot.sidebar_expansion` 权威读回，并由
+`sidebar-expansion-owner-guard.py` 钉住十文件 owner 链。侧栏 toggle 仍是
+后续表面接线；两批都不改任何像素，故沿用 b169 的 197 帧回执而如实记为
+未变更身份。

@@ -38,6 +38,7 @@ pub(super) fn command_name(intent: &CommandIntent) -> &'static str {
         CommandIntent::SetSpeedtestConcurrency { .. } => "set_speedtest_concurrency",
         CommandIntent::CancelSpeedtestRun { .. } => "cancel_speedtest_run",
         CommandIntent::SetLanguage { .. } => "set_language",
+        CommandIntent::ApplySidebarExpansion { .. } => "apply_sidebar_expansion",
         CommandIntent::SetRuntimeProbeSettings { .. } => "set_runtime_probe_settings",
         CommandIntent::ReorderOverviewCards { .. } => "reorder_overview_cards",
         CommandIntent::MoveOverviewCard { .. } => "move_overview_card",

@@ -409,6 +409,7 @@ fn test_shared_surface_route_flags_update_the_iced_projection() {
         refresh_current_profile_on_start: false,
         custom_accent_color: None,
         tray_icon_color_mode: TrayIconColorMode::default(),
+        sidebar_expansion: Default::default(),
     });
 
     assert!(state.apply_shared_surface_snapshot(snapshot));
@@ -703,6 +704,7 @@ fn test_shared_surface_keeps_a_dirty_lan_draft_until_apply_result() {
         refresh_current_profile_on_start: false,
         custom_accent_color: None,
         tray_icon_color_mode: TrayIconColorMode::default(),
+        sidebar_expansion: Default::default(),
     });
 
     assert!(state.apply_shared_surface_snapshot(snapshot));

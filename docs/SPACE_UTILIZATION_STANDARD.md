@@ -201,14 +201,15 @@ infiltrator-contract::responsive_viewport（边界 + SidebarForm + 列数的类�
 `compact-layout` 从此只管页面密度，不再兼职回答导航形态（这正是 `medium`
 档以前画出手机横栏的根因，见 `SPACEUTIL-006`）。
 
-**b170 追加：用户折叠偏好与视口形态分开裁决。** FlClash 把
+**b170–b171 追加：用户折叠偏好与视口形态分开裁决。** FlClash 把
 `sidebarExpanded` 存在 app settings，却只在 `canExpandSidebar(desktop)` 时让
 它生效；`expanded` 是这两个事实的唯一投影，不是 UI 自己记住的布尔。共享契约
 `shell_sidebar_preference` 因此发布四个 typed 身份：偏好、能力、呈现、intent，
 并由 `resolve_sidebar_expansion` 一次穷尽折叠。desktop 档用户选择折叠时落到
 既有 `SidebarForm::Rail`，列宽仍遵守本节 12% 上限；窄档与底部导航不受偏好
-影响，也不伪造第三种侧栏宽度。该裁决先落在 Core，设置持久化与表面 toggle
-必须由 owner readback 驱动，禁止 UI 用 `Option`/null 组合藏阶段。
+影响，也不伪造第三种侧栏宽度。b171 已把该裁决接到 settings 唯一持久化字段、
+typed 命令与页面快照权威读回；表面 toggle 后续只能消费 owner readback 并发出
+typed intent，禁止 UI 用 `Option`/null 组合藏阶段。
 
 ### 3.5 仪表盘密度也按页身比例裁决（b166 新增，求同 FlClash）
 

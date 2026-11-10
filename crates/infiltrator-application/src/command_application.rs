@@ -501,6 +501,24 @@ impl CommandApplication {
             .await
     }
 
+    /// Apply one typed sidebar-expansion intent against the persisted owner.
+    ///
+    /// The surface sends `Set` or `Toggle`; the application reads the current
+    /// preference and stores exactly one canonical typed value. No UI owns a
+    /// second boolean and no viewport decision is persisted here.
+    async fn apply_sidebar_expansion(
+        &self,
+        intent: infiltrator_contract::shell_sidebar_preference::SidebarExpansionIntent,
+    ) -> Result<(), Failure> {
+        use infiltrator_contract::shell_sidebar_preference::apply_sidebar_expansion_intent;
+
+        let current = self.settings()?.load().await?.sidebar_expansion;
+        let next = apply_sidebar_expansion_intent(current, intent);
+        self.settings()?
+            .update(|settings| settings.sidebar_expansion = next)
+            .await
+    }
+
     fn shortcuts(&self) -> Result<ShortcutApplication, Failure> {
         Ok(ShortcutApplication::new(self.settings()?))
     }

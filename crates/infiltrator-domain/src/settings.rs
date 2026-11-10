@@ -6,6 +6,7 @@
 
 use infiltrator_contract::mini_hud::MiniHudPlacement;
 use infiltrator_contract::runtime_settings::{RuntimeDelaySortOrder, RuntimeProbeSettings};
+use infiltrator_contract::shell_sidebar_preference::SidebarExpansionPreference;
 use infiltrator_contract::shortcuts::ShortcutBinding;
 use serde::{Deserialize, Serialize};
 
@@ -121,6 +122,10 @@ pub struct AppSettings {
     /// (macOS menu bar / dark taskbar template glyph).
     #[serde(default = "default_tray_icon_color_mode")]
     pub tray_icon_color_mode: String,
+    /// User-owned desktop sidebar expansion preference. The viewport decides
+    /// whether the preference can be honoured; this field only stores it.
+    #[serde(default)]
+    pub sidebar_expansion: SidebarExpansionPreference,
 }
 
 fn default_notifications_enabled() -> bool {
@@ -159,6 +164,7 @@ impl Default for AppSettings {
             refresh_current_profile_on_start: false,
             custom_accent_color: None,
             tray_icon_color_mode: default_tray_icon_color_mode(),
+            sidebar_expansion: SidebarExpansionPreference::default(),
         }
     }
 }
@@ -174,6 +180,10 @@ mod tests {
         assert!(settings.notifications_enabled);
         assert!(settings.close_to_tray);
         assert_eq!(settings.language, "zh-CN");
+        assert_eq!(
+            settings.sidebar_expansion,
+            SidebarExpansionPreference::Expanded
+        );
         assert_eq!(settings.admin.port, 25210);
         assert_eq!(
             settings.settings_schema_version,

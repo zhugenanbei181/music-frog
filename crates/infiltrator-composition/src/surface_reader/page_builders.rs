@@ -237,5 +237,6 @@ pub(super) fn build_settings_page(
         } else {
             TrayIconColorMode::Colored
         },
+        sidebar_expansion: settings.sidebar_expansion,
     })
 }
