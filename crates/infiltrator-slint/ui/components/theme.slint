@@ -249,13 +249,15 @@ export global LumenTheme {
     out property <length> radius-card: 24 * LumenUiScale.unit;
     out property <length> radius-inset-card: 12 * LumenUiScale.unit;
     // One corner for every country chip, selected by the same density fact
-    // that picks the card corner. The reference's identity tile is a square
-    // whose corner is near 31% of its side (a 32dp tile with a 10dp radius),
-    // and two home rows used to replace that shape with a circle of their own:
-    // a disc crops a rectangular flag into a medallion. Both values stay well
-    // under half of the chip side, so no chip can become a disc, and
-    // `scripts/quality/slint-flag-shape-guard.py` keeps it that way.
-    out property <length> country-chip-radius: root.compact-layout ? 10 * LumenUiScale.unit : 12 * LumenUiScale.unit;
+    // that picks the card corner. It is the artwork's own corner, not the
+    // reference's: every shared flag asset draws its plate as a 36x26
+    // rectangle with a 4px corner, so a chip corner of 4u on the 38u desktop
+    // chip and 3.5u on the 32u compact chip is the plate's own rounding and
+    // never more. The reference tile's 31% corner (a 32dp tile with a 10dp
+    // radius) left two bands of chip paint above and below the plate and read
+    // as a medallion; `scripts/quality/slint-flag-shape-guard.py` now holds
+    // the corner at or below an eighth of the chip side.
+    out property <length> country-chip-radius: root.compact-layout ? 3.5 * LumenUiScale.unit : 4 * LumenUiScale.unit;
     // One geometry for every card, whichever component draws it. `SectionCard`
     // and `SurfaceCard` used to each own an inset, a radius, a vertical pad
     // and a gap, and one of them guessed "phone" from its own width; the same

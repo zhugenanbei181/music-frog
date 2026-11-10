@@ -3,33 +3,42 @@ import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "theme.slint";
 import { FlagIcon } from "../lumen-flags.slint";
 
-// The one owner of a country's identity chip: a square chip that paints the
-// owner's flag plate, or the country code when no flag resolved.
+// The one owner of a country's identity chip: the flag's own rectangle, or the
+// country code on that same rectangle when no flag resolved.
 //
-// The chip is a square with a rounded corner, never a disc. A flag is
-// rectangular artwork: a round container crops the plate and leaves two
-// crescents of container paint, which read as a medallion rather than as a
-// country. The reference draws its identity tile as a square too - a
-// `SizedBox.square` with a corner near 31% of the side and no `ClipOval` - so
-// the corner is `LumenTheme.country-chip-radius` and the two home rows that
-// used to own a private circle now consume this one component.
+// A flag is rectangular artwork, so the chip is the plate - not a ground the
+// plate sits inside. Both halves of that were once wrong here: the two home
+// rows each painted a private circle around the plate, and the chip that
+// replaced them was a square whose ground still showed as two bands above and
+// below the 36x26 plate, which read as a medallion rather than as a country.
+// The shared assets are 36x36 canvases whose plate occupies rows 5..31, so the
+// chip takes that rectangle's height, shifts the canvas up by its own leading
+// blank, and paints its ground only in the code fallback: a resolved flag is
+// the whole visual. The corner is `LumenTheme.country-chip-radius`.
 export component CountryChip inherits Rectangle {
     in property <length> side: 38 * LumenUiScale.unit;
     // The owner's resolved flag; negative is "no flag resolved", which is the
-    // only state that paints the code.
+    // only state that paints the code, and the only state that paints ground.
     in property <int> flag-index: -1;
     in property <string> country-code;
     // The row that holds the chip decides how large its code reads.
     in property <TextRole> code-role: TextRole.label;
 
+    // The plate's share of the 36x36 canvas, in the artwork's own numbers.
+    private property <length> plate-height: root.side * 26 / 36;
+    private property <length> canvas-lead: root.side * 5 / 36;
+
     width: root.side;
-    height: root.side;
+    height: root.plate-height;
     border-radius: LumenTheme.country-chip-radius;
-    background: LumenTheme.zinc-4;
+    background: root.flag-index >= 0 ? transparent : LumenTheme.zinc-4;
     if root.flag-index >= 0: FlagIcon {
         index: root.flag-index;
         country-code: root.country-code;
         size: root.side;
+        // The canvas's own leading blank, so the plate lands on the chip's
+        // edges instead of leaving a band of chip above and below it.
+        y: -root.canvas-lead;
     }
     if root.flag-index < 0: Text {
         text: root.country-code != "" ? root.country-code.to_uppercase() : "—";

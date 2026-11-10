@@ -2,8 +2,8 @@
 """SLINT-020: national flags are square artwork, painted from one inventory.
 
 User feedback 2026-11-10: "一般国旗都是方形 最好不要做这种圆形旗帜图案容器" -
-the receipt showed the Hong Kong flag as a red medallion. Two things were wrong
-at once, and they were not cosmetic:
+the receipt showed the Hong Kong flag as a red medallion. Three things were
+wrong at once, and they were not cosmetic:
 
 * the surface drew the flag inside `border-radius: diameter / 2` + `clip: true`
   on top of an asset that was ALREADY a circle, so the artwork was clipped
@@ -12,7 +12,14 @@ at once, and they were not cosmetic:
 * the inventory it drew from was the 144px circular raster derivative, a second
   copy of artwork the shared catalog already carries as `flag.<code>` /
   variant `source` (258 square Twemoji vectors). Two inventories for one fact
-  is exactly what the one-source-of-truth rule forbids.
+  is exactly what the one-source-of-truth rule forbids;
+* the chip the two home rows then consumed was a *square ground* whose corner
+  was the reference tile's 31% of the side. The shared assets are 36x36
+  canvases whose plate is a 36x26 rectangle in rows 5..31, so that ground
+  showed as two bands of chip paint above and below the plate and the whole
+  slot still read as a medallion. The receipt of the second pass showed the
+  same complaint, which is why the ground is now the fallback's alone and the
+  corner is held at or below an eighth of the chip side.
 
 FlClash paints no circular flag at all: its rows carry an emoji or a two-letter
 text badge, so the circle was never a parity decision either.
@@ -32,11 +39,16 @@ The rules this guard holds:
    rows each declared a private `Rectangle` with a `background`, which is how
    they drifted from the shared chip and kept a circle nobody else drew. The
    shared `CountryChip` is the only element that may paint behind a plate.
-5. No container that holds a plate may declare a corner that reaches half its
-   side. `border-radius: side / 2` on a square is a disc, and a disc crops a
-   rectangular flag.
-6. That corner is `LumenTheme.country-chip-radius`, and both of its values
-   stay under half of the smallest chip side any call site feeds.
+5. No container that holds a plate may declare a corner over an eighth of its
+   side. `border-radius: side / 2` on a square is a disc, and even the
+   reference's 31% corner crops a rectangular flag into a medallion.
+6. That corner is `LumenTheme.country-chip-radius`, and both of its values are
+   at or below an eighth of the smallest chip side any call site feeds - the
+   artwork's own corner is 4 of 36, so the chip never rounds more than its
+   plate.
+7. The chip declares its ground (`background`) conditionally on the flag
+   index: a resolved flag is the whole visual, and only the code fallback
+   paints a tile.
 """
 
 from __future__ import annotations
@@ -219,13 +231,13 @@ def own_declarations(block: dict, text: str) -> str:
 
 
 def disc_corner(own: str) -> tuple[float, float] | None:
-    """The (radius, side) of a container whose corner reaches half its side."""
+    """The (radius, side) of a container whose corner exceeds an eighth of its side."""
     declarations = {name: float(value) for name, value in LENGTH_DECL_RE.findall(own)}
     radius = declarations.get("border-radius")
     if radius is None or "width" not in declarations or "height" not in declarations:
         return None
     side = min(declarations["width"], declarations["height"])
-    return (radius, side) if radius * 2 >= side else None
+    return (radius, side) if radius * 8 > side else None
 
 
 def plate_container_findings(files: dict[pathlib.Path, str], chip: pathlib.Path) -> list[str]:
@@ -249,14 +261,15 @@ def plate_container_findings(files: dict[pathlib.Path, str], chip: pathlib.Path)
             if corner is not None:
                 found.append(
                     f"{relative}: a plate's container declares a {corner[0]}u corner on a "
-                    f"{corner[1]}u side, which is a disc: a rectangle inside a circle is "
-                    "cropped into a medallion"
+                    f"{corner[1]}u side, over an eighth of the side: a rectangle inside a "
+                    "corner that round reads as a medallion"
                 )
     return found
 
 
 def chip_findings(chip_text: str) -> list[str]:
-    """The shared chip exists, takes its corner from the theme and never clips."""
+    """The shared chip exists, takes its corner from the theme, never clips, and
+    paints its ground only for the code fallback."""
     code = mask_comments(chip_text)
     body = component_body(code, CHIP_COMPONENT_RE)
     if not body:
@@ -266,11 +279,19 @@ def chip_findings(chip_text: str) -> list[str]:
         found.append("CountryChip no longer takes its corner from `LumenTheme.country-chip-radius`")
     if re.search(r"\bclip:\s*true", body):
         found.append("CountryChip clips its plate; a square plate needs no clip")
+    ground = re.search(r"\bbackground\s*:\s*([^;]+);", body)
+    if ground is None:
+        found.append("CountryChip declares no ground for the code fallback")
+    elif "flag-index" not in ground.group(1):
+        found.append(
+            "CountryChip paints one ground for both states: a resolved flag must be the "
+            "whole visual, and only the code fallback may sit on chip paint"
+        )
     return found
 
 
 def chip_corner_findings(theme_text: str, call_sites: dict[pathlib.Path, str]) -> list[str]:
-    """One corner token, and no chip side small enough to make it a disc."""
+    """One corner token, and no chip side small enough for it to be a medallion."""
     match = CHIP_RADIUS_RE.search(mask_comments(theme_text))
     if match is None:
         return ["`LumenTheme.country-chip-radius` is gone; the chip corner would be a literal"]
@@ -282,10 +303,10 @@ def chip_corner_findings(theme_text: str, call_sites: dict[pathlib.Path, str]) -
         for text in call_sites.values()
         for value in CHIP_SIDE_RE.findall(mask_comments(text))
     ]
-    if sides and max(radii) * 2 >= min(sides):
+    if sides and max(radii) * 8 > min(sides):
         return [
             f"`LumenTheme.country-chip-radius` reaches {max(radii)}u against the smallest "
-            f"chip side {min(sides)}u, which is half the side: that is the disc again"
+            f"chip side {min(sides)}u, over an eighth of the side: that is the medallion again"
         ]
     return []
 
@@ -520,9 +541,10 @@ class GuardSelfTest(unittest.TestCase):
             )
         }
         found = self.findings(call_sites=planted)
-        self.assertTrue(any("which is a disc" in item for item in found), found)
+        self.assertTrue(any("over an eighth of the side" in item for item in found), found)
 
-    def test_a_rounded_container_under_half_the_side_is_clean(self) -> None:
+    def test_the_reference_tile_corner_is_caught(self) -> None:
+        """The reference's 31% tile is the medallion the receipt showed."""
         planted = {
             ROOT / "planted.slint": (
                 "Rectangle {\n"
@@ -533,13 +555,28 @@ class GuardSelfTest(unittest.TestCase):
                 "}\n"
             )
         }
+        found = self.findings(call_sites=planted)
+        self.assertTrue(any("over an eighth of the side" in item for item in found), found)
+
+    def test_a_plate_corner_container_is_clean(self) -> None:
+        """An eighth of the side is the artwork's own corner, so it is allowed."""
+        planted = {
+            ROOT / "planted.slint": (
+                "Rectangle {\n"
+                "    width: 32 * LumenUiScale.unit;\n"
+                "    height: 32 * LumenUiScale.unit;\n"
+                "    border-radius: 3.5 * LumenUiScale.unit;\n"
+                "    if index >= 0: FlagIcon { index: index; }\n"
+                "}\n"
+            )
+        }
         found = [item for item in self.findings(call_sites=planted) if "planted.slint" in item]
         self.assertEqual(found, [])
 
     def test_a_chip_corner_that_reaches_half_the_side_is_caught(self) -> None:
         planted_theme = self.theme.replace(
-            "country-chip-radius: root.compact-layout ? 10 * LumenUiScale.unit : 12 * LumenUiScale.unit;",
-            "country-chip-radius: root.compact-layout ? 16 * LumenUiScale.unit : 16 * LumenUiScale.unit;",
+            "country-chip-radius: root.compact-layout ? 3.5 * LumenUiScale.unit : 4 * LumenUiScale.unit;",
+            "country-chip-radius: root.compact-layout ? 8 * LumenUiScale.unit : 8 * LumenUiScale.unit;",
             1,
         )
         self.assertNotEqual(planted_theme, self.theme)
@@ -547,7 +584,18 @@ class GuardSelfTest(unittest.TestCase):
             ROOT / "planted.slint": "CountryChip {\n    side: 32 * LumenUiScale.unit;\n}\n"
         }
         found = self.findings(call_sites=planted_sites, theme=planted_theme)
-        self.assertTrue(any("that is the disc again" in item for item in found), found)
+        self.assertTrue(any("that is the medallion again" in item for item in found), found)
+
+    def test_a_chip_ground_behind_a_resolved_flag_is_caught(self) -> None:
+        """The chip's ground is the fallback's alone; a flag is the whole visual."""
+        planted = self.chip.replace(
+            "    background: root.flag-index >= 0 ? transparent : LumenTheme.zinc-4;",
+            "    background: LumenTheme.zinc-4;",
+            1,
+        )
+        self.assertNotEqual(planted, self.chip)
+        found = self.findings(chip=planted)
+        self.assertTrue(any("one ground for both states" in item for item in found), found)
 
     def test_a_chip_corner_that_is_not_the_token_is_caught(self) -> None:
         planted = self.chip.replace(

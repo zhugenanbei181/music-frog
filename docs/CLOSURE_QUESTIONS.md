@@ -24,19 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-11 第一百八十四批次；b111–b183 见下方批次八问摘要）
+## 当前状态（2026-11-11 第一百八十五批次；b111–b184 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b184 只改 Slint 表面的策略组网格、连接表宽度入口、第 4 行份额与一个已死令牌，外加一个 `.slint` 门禁腿与文档，零 Rust、零平台 API、零设备交互；`cargo check -p infiltrator-slint` **exit 0**、Slint nextest **386/386** 为 `L`；交叉 `scripts/cross-check.sh`、aarch64 产物与目标设备仍由 CI runner / 设备矩阵补证（GAP-1.1） |
+| 1 | 部分 | L | b185 只改 Slint 表面（身份块组件、一个主题令牌、一条门禁、别名摘要与三份文档），零 Rust、零平台 API、零设备交互；`cargo check -p infiltrator-slint` **exit 0**、Slint nextest **386/386** 为 `L`；交叉 `scripts/cross-check.sh`、aarch64 产物与目标设备仍由 CI runner / 设备矩阵补证（GAP-1.1） |
 | 2 | 部分 | L | 本机 Linux 完成编译、定向 nextest、199 帧真实像素整批重采与全部守卫；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
-| 3 | 部分 | L | b184 不触 Android/iOS 代码、资源或 wire；策略组网格与连接表都经同一份 `.slint` 表面在 Android 后端复用，规则修复对 Android 同样成立，但无实机回执不得声称已验证 |
-| 4 | 部分 | L | 本批改 Slint 仪表盘底部一行的两张卡与卡内网格：策略组卡瓦片 **96u × 2 列 → 313px × 1 列**（手机 342px × 1 列）、**卡内尾部死地 53px → 1px**、行份额 **72.9:27.1 → 59.3:39.3**（参照物实测 60.5:39.5）；四皮肤 + `overview-card-reorder-standard` + `sidebar-collapsed-standard` + `overview-mobile-end-dark` 共 **7 帧**变化。Iced/Bevy/Android 不消费这份布局，其密度仍由各自条目收口 |
-| 5 | 完整 | L | 房间事实只有一个来源：第 4 行两张卡改为**显式行份额**（`(row - gap) * 3 / 5` 与剩余 2/5，与上方概览网格同一机制），策略组网格的列数只由 `policy-tile-min-width = 172u`（上游 `_minTileWidth`）与自己的房间裁决；连接表改由页面喂它一直缺的 `table-content-width`（该输入的约定本就是「调用方把卡量好的宽度传进来」），不再按窗口宽度乘七列分数。旧令牌 `policy-card-min-width`（旧两列假设的产物）整条删除 |
-| 5a | 完整 | L | 布局属**可见像素身份**变化，不沿用旧回执：整批重采发布 `20261110T181655Z_48c8d267028a_dirty_1104957`（199/199，435s），7 帧 PNG 变化且全部是仪表盘帧；`receipt-freshness 0`、`space_utilization --enforce` 199 帧 `violations=0`、Slint 侧身份门无新增违规（本批无别名帧变化）、本批未新增设计资源与字重（只用既有 `LumenTheme` 令牌） |
-| 6 | 部分 | L | `HomeConnectionMiniTable` 的 `table-content-width` 首次被真实喂入（此前唯一调用点未传，表按 600u 默认与**窗口宽度**排七列，卡一收窄就裁列——实测 432 宽卡上只剩 4 列）；`HomePolicyGroupGrid` 的列数按上游宽度规则裁决；`slint-surface-ladder-guard.py` 由「桌面页必须含 `min-width: LumenTheme.policy-card-min-width;`」改为钉住两条份额绑定并新增 planted 自测（改回 `horizontal-stretch` 即被咬），自测 6 → **7/7 OK**；语法门 100% PASS、dead-input / dashboard-grid / viewport-tier / flag-shape / padding 全 findings=0、结构门身份腿之后的 **140 条腿 exit 0**。诚实边界两条：① 全仓身份门剩 1 条违规仍属另一会话未提交的 Bevy `overview-dark` 像素；② `SLINT-022`（标准控件滚动条墨色随宿主主题）本批未解 |
-| 7 | 完整 | L | 宽度只在页面一处发布（两条行份额属性），表的七列分数只在表内乘一次，策略组的列数规则只在网格一处；`policy-card-min-width` 令牌与其门禁腿同批清退，不留第二套几何。第一次实现（网格直接读被 stretch 决定的自身宽度）编译即报 binding loop，未以任何旁路蒙混 |
-| 8 | 部分 | L | 本批一次整批重采（435s）而非逐场景补帧；改动面小（7 帧）且判据三处同向（瓦片宽、卡内死地、行份额）说明切片边界清晰——把「卡能有多宽」从内容依赖改成行份额，是这条链能成立的前提。全仓统一验证与 9 条 `Integrated`（含本批 `FLPARITY-049`）仍由收口 owner 一次跑完；未办结分母 **113 pt / 46 条**、已归档 **1,258 pt / 463 条**、累计 **1,371 pt**、严格交付率 **91.8%** 全部保持 |
+| 3 | 部分 | L | b185 不触 Android/iOS 代码、资源或 wire；身份块经同一份 `.slint` 表面在 Android 后端复用，形状修复对 Android 同样成立，但无实机回执不得声称已验证 |
+| 4 | 部分 | L | 本批把 Slint 国家身份块从「方地面 + 31% 圆角」改成**旗面自己的矩形**：桌面 38u 槽 → chip 高 27.4u、紧凑 32u → 23.1u，有旗时不画地面、圆角 4u / 3.5u（旗面自身 4/36）；**14 帧**变化（桌面出口行带 x286–481 / y160–228、720×480 档 x92–212 / y108–176、400×800 档因 chip 矮 9px 整列上移），其余 **185 帧逐字节不变**。Iced（国家码文本）与 Bevy（emoji）不消费该组件，其国旗形状仍由各自条目收口 |
+| 5 | 完整 | L | 身份块的形状事实只有一个 owner：`CountryChip` 取旗面自身几何（高 `side*26/36`、画布上移 `side*5/36`），地面只属国家代码兜底（`background` 条件于 `flag-index`），圆角由 `LumenTheme.country-chip-radius` 唯一发布且不超过边长八分之一；两个首页出口行不再各自声明容器或兜底文本 |
+| 5a | 完整 | L | 形状属**可见像素身份**变化，不沿用旧回执：整批重采发布 `20261110T190711Z_b35c2a99bf86_dirty_1464030`（199/199，1386s），14 帧 PNG 变化且全部是仪表盘帧；`sidebar-collapsed-compact` 别名摘要按新字节刷新（`ecbbfb24…`，与 canonical `overview-compact-dark` 逐字节相等）；`receipt-freshness 0`、`space_utilization --enforce` 199 帧 `violations=0`、Slint 侧身份门 0 违规；本批未新增字体 / 字重 / 图标 / 资产 |
+| 6 | 部分 | L | `slint-flag-shape-guard.py`（SLINT-020）判据由「圆角 ×2 不得达到较短边」收紧为「**不得超过边长八分之一**」，并新增两条真负例：有旗时 `background` 必须条件于 `flag-index`、任何持旗容器圆角超过八分之一即被咬；planted 自测 19 → **21/21 OK**、`--mode enforce` findings=0；`slint-padding-guard` / `slint-surface-ladder-guard` / `slint-sidebar-separator-guard` / `design-resource-authority` 全 0。诚实边界两条：① 全仓身份门剩 1 条违规仍属另一会话未提交的 Bevy `overview-dark` 像素；② 本批未跑全仓统一批次（`--workspace` nextest/clippy 与结构门全腿），由收口批次一次跑完 |
+| 7 | 完整 | L | 旗面几何（`plate-height` / `canvas-lead`）、兜底与地面、圆角三件事各只有一个真源且都被门禁钉住；「Slint 1.18 不按 `border-radius` 裁剪子元素」经 `i-slint-core-1.18.1::item_rendering::visit_clip` 源码核实（只有 `clip: true` 才建裁剪区），取代先前默认的错误模型，未在页面加布尔或写死数字过关 |
+| 8 | 部分 | L | 本批一次整批重采（1386s；同一时段另一会话满负荷编译，b184 同量为 435s，可见机器争用代价）而非逐场景补帧；改动面 14 帧且三处判据同向（旗面盒、chip 高、地面消失）说明切片边界清晰。全仓统一验证、结构门全腿与 9 条 `Integrated` 仍由收口批次一次跑完；本批不办结、不新立，未办结分母 **113 pt / 46 条**、已归档 **1,258 pt / 463 条**、累计 **1,371 pt**、严格交付率 **91.8%** 均保持 |
+
+## 最近一批问答（2026-11-11 第一百八十五交付批次：身份块就是旗面本身 / 圆角取旗面自己的圆角）
+
+1. x86_64/aarch64：本批只改 Slint 表面（`ui/components/country_chip.slint`、`ui/components/theme.slint`）、一条 `.slint` 门禁、别名摘要与三份文档，零 Rust、零平台 API、零设备交互；`cargo check -p infiltrator-slint` exit 0、Slint nextest **386/386**；交叉 `scripts/cross-check.sh` 与 aarch64 产物仍待 CI runner / 设备矩阵补证 → 部分（L）。
+2. Windows/Linux/macOS：本机 Linux 完成编译、定向 nextest、199 帧真实像素整批重采与全部守卫；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） → 部分（L）。
+3. Android/iOS：本批不触 Android/iOS 代码、资源或 wire。身份块经同一份 `.slint` 表面在 Android 后端复用，形状修复对 Android 同样成立，但没有实机回执不得声称已验证；三 flavor 实机交互与 iOS 产物仍按既有条目留在外部环境看板 → 部分（L）。
+4. 各 UI：本批把 Slint 的国家身份块改成**旗面自己的矩形**。参照物侧实测：所有共享旗帜资产是 36×36 画布、旗面为第 5..31 行的 36×26 矩形、四角 4px（`rsvg-convert` 渲 38×38：红色像素盒 38×28、顶行内缩约 1px ≈ 11%）；b183 留下的 chip 却是 38u 见方 + 31% 圆角，于是地面在旗面上下各露约 5px 带子、圆角又比旗面圆得多，回执里那枚「奖章」并没有消失。现在 chip 取 `side*26/36` 高、画布上移 `side*5/36`、有旗时不画地面、圆角取旗面自身（38u 档 4u、32u 档 3.5u）。实测 **14 帧**变化（桌面四皮肤 + `overview-card-reorder-standard` + `sidebar-collapsed-standard` 的差异全部落在出口行带 x286–481 / y160–228；720×480 档 x92–212 / y108–176；400×800 档因 chip 矮 9px 整列上移），其余 185 帧逐字节不变。Iced（国家码文本）与 Bevy（emoji）不消费该组件，其国旗形状仍由各自条目收口，不用 Slint 像素冒充其它表面验收 → 部分（L）。
+5. 复用：形状事实回到唯一 owner。两个首页出口行已在 b183 合并，本批把**容器自身的形状**也交回 `CountryChip`：旗面几何、画布位移、圆角、兜底四件事都只在这一处，圆角仍只由 `LumenTheme.country-chip-radius` 发布。一次渲染模型核实避免了修错层：Slint 1.18 **不**按 `border-radius` 裁剪子元素（`i-slint-core-1.18.1::item_rendering::visit_clip` 只在 `clip: true` 时 `combine_clip`），所以那两条带子是**画出来的地面**而不是被裁掉的旗面——据此改的是地面与形状，而不是去加 `clip`。上游依据两条：`CommonTargetIcon` / `GroupMonogram` 都装在 `SizedBox.square`，全仓没有一处 `ClipOval` 用在国旗上，因此这是一次「求同 + 据用户反馈收紧圆角」的裁决，而非审美取舍 → 完整（L）。
+5a. 设计资源强制标准：形状属**可见像素身份**变化，不沿用旧回执：整批重采发布 `20261110T190711Z_b35c2a99bf86_dirty_1464030`（199/199，1386s），14 帧 PNG 变化且全部是仪表盘帧；`sidebar-collapsed-compact` 别名摘要按新字节刷新并逐条实测摘要==实际字节==canonical `overview-compact-dark`（`ecbbfb24…`）；本批未新增字体、字重、图标或视觉资产（复用既有 catalog 方形矢量与 `LumenTheme` 令牌）；`receipt-freshness 0`、`space_utilization --enforce` 199 帧 `violations=0`、Slint 侧身份门 0 违规 → 完整（L）。
+6. 各处界面的功能接入：`slint-flag-shape-guard.py`（SLINT-020）的判据由「任何持旗容器圆角 ×2 不得达到较短边」收紧为「**不得超过边长八分之一**」（旗面自身是 4/36≈11%，故八分之一是上限而不是审美值），并新增两条真负例：① chip 的 `background` 必须条件于 `flag-index`（有旗时不得画地面）；② 调用点任何持旗容器圆角超过八分之一即被咬（参照物的 32u/10u 与旧代码的 38u/19u 都会被咬，planted 自测里各有一条）。planted 自测 19 → **21/21 OK**、`--mode enforce` findings=0；同批复核 `slint-padding-guard` / `slint-surface-ladder-guard` / `slint-sidebar-separator-guard` / `design-resource-authority` 全 0、Slint nextest 386/386。诚实边界两条：① 全仓 `screenshot-identity` 剩 1 条违规仍属另一会话未提交的 Bevy `overview-dark` 像素；② 本批未跑全仓统一批次（`--workspace` nextest/clippy 与结构门全腿），由收口批次一次跑完 → 部分（L）。
+7. 模块化：旗面几何（`plate-height` / `canvas-lead`）、兜底与地面（`background` 条件）、圆角（`LumenTheme.country-chip-radius`）三件事各只有一个真源且都被门禁钉住；「Slint 不按圆角裁剪子元素」这一渲染事实已核实到上游 crate 源码，取代了此前默认的错误模型；没有为让像素过关而在页面里加布尔或写死数字 → 完整（L）。
+8. CI 与批次效率：本批一次整批重采（1386s；同一时段另一会话在满负荷编译，b184 同规模为 435s，可见机器争用代价），未逐场景补帧；改动面 14 帧且三处判据同向（旗面盒、chip 高、地面消失）说明切片边界清晰。全仓统一验证、结构门全腿与 9 条 `Integrated` 仍由收口批次一次跑完；本批不办结、不新立，未办结分母 **113 pt / 46 条**、已归档 **1,258 pt / 463 条**、累计 **1,371 pt**、严格归档交付率 **91.8%** 均保持 → 部分（L）。
 
 ## 最近一批问答（2026-11-11 第一百八十四交付批次：策略组网格按参照物的宽度规则排布 / 卡的宽度先回到行的份额）
 

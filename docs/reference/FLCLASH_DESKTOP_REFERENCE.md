@@ -430,3 +430,33 @@ b177 把形状与清单一次改回事实：`FlagImages.flags` 逐条消费 cata
 长效机制是 `scripts/quality/slint-flag-shape-guard.py`（SLINT-020，14 项 planted 自测）：
 清单顺序、`flag_assets::index_for_code` 一致性、圆形派生物回归、clip/圆角/cover 与
 退役入口回归全部被咬；`--mode enforce` 与 `--self-test` 双腿接入结构门。
+
+## 13. 身份块就是旗面本身，圆角取旗面自己的圆角（b185，推翻 b183 的 31% 判定）
+
+同一句用户反馈在第二次回执后仍然成立：b183 把**资产**改回方板、把**私有圆盘**收进
+一个共享组件，但那个组件仍是一个 38u 见方的**地面**，圆角取参照物的 31%。旗面本身
+不是方的：所有共享旗帜资产是 36×36 画布，旗面是其中第 5..31 行的 **36×26 矩形**，
+四角 4px（把 `flags/hk.svg` 用 `rsvg-convert` 渲成 38×38 实测：红色像素盒 38×28、
+顶行内缩约 1px——即 4/36≈11% 的圆角，而不是 31%）。于是方地面在旗面上下各露出
+约 5px 的带子，圆角又比旗面圆得多，回执里那枚「奖章」并没有消失。
+
+顺带核实一条渲染事实，避免再按错误模型修：Slint 1.18 **不会**用 `border-radius`
+裁剪子元素——`i-slint-core-1.18.1` 的 `item_rendering::visit_clip` 只在
+`clip: true` 生成 `Clip` 项时 `combine_clip`，圆角只影响矩形自身的填充与描边。
+所以那两条带子是**画出来的地面**，不是被裁掉的旗面。
+
+本仓据此把身份块改成**旗面自己的矩形**：高度取 `side * 26 / 36`，画布再上移自身
+留白 `side * 5 / 36`，使旗面正好落在 chip 的边缘；地面只在「未解析出旗帜、要画国家
+代码」时出现（`background` 条件于 `flag-index`），有旗时旗面就是全部视觉；圆角取旗面
+自身的 4/36（38u 档 4u、32u 档 3.5u），`slint-flag-shape-guard.py` 的判据由「不超过
+半边长」收紧为「不超过边长八分之一」，并新增「有旗时不得画地面」与「call site 容器
+圆角不得超过八分之一」两条（planted 自测 16 → **21/21 OK**，enforce findings=0）。
+
+整批重采 `20261110T190711Z_b35c2a99bf86_dirty_1464030`（199/199，1386s）实测
+**14 帧**变化：桌面档四皮肤 + `overview-card-reorder-standard` + `sidebar-collapsed-standard`
+的差异全部落在出口行带（x286–481 / y160–228），720×480 档（`overview-compact-dark`、
+`overview-tablet-dark`、别名帧 `sidebar-collapsed-compact`）落在 x92–212 / y108–176；
+400×800 移动档与吉祥物帧因 chip 矮了 9px 而整列上移（内容列重排，非换皮），
+其余 185 帧逐字节不变。`space_utilization --enforce` 199 帧 `violations=0`、
+`receipt-freshness 0`、Slint nextest 386/386；`sidebar-collapsed-compact` 别名摘要
+按新字节刷新（`ecbbfb24…`，与 canonical `overview-compact-dark` 逐字节相等）。
