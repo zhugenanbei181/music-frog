@@ -177,8 +177,16 @@ def violations(theme_text: str, ui: pathlib.Path | None = None) -> list[str]:
         if isinstance(ui, pathlib.Path):
             found.extend(card_geometry((ui / "components/cards.slint").read_text(encoding="utf-8")))
             desktop = (ui / "pages/home_desktop_grid.slint").read_text(encoding="utf-8")
-            if "min-width: LumenTheme.policy-card-min-width;" not in desktop:
-                found.append("pages/home_desktop_grid.slint: policy card min-width left the theme")
+            # The footer row's two cards take explicit shares of the row. Under
+            # `horizontal-stretch` their width was whatever their content left
+            # over, so the policy grid could not be told the room it had - and
+            # asking it for that room was a Slint binding loop, not a formula.
+            for binding in ("width: root.connections-card-width;", "width: root.policy-card-width;"):
+                if binding not in desktop:
+                    found.append(
+                        f"pages/home_desktop_grid.slint: the footer row lost `{binding}`; "
+                        "its cards must take shares of the row, not stretch past their content"
+                    )
             src = ROOT / "crates/infiltrator-slint/src"
             for path in sorted(src.rglob("*.rs")):
                 text = path.read_text(encoding="utf-8")
@@ -285,6 +293,31 @@ class LadderSelfTest(unittest.TestCase):
         self.assertEqual(card_geometry(good), [])
         bad = good.replace("LumenTheme.card-inset", "12 * LumenUiScale.unit")
         self.assertTrue(any("second inset" in item for item in card_geometry(bad)))
+
+    def test_a_stretched_footer_row_is_caught(self) -> None:
+        """The footer cards must take shares of the row, never stretch past content."""
+        page = UI / "pages/home_desktop_grid.slint"
+        original = page.read_text(encoding="utf-8")
+        assert "width: root.policy-card-width;" in original
+        planted = original.replace(
+            "            width: root.policy-card-width;",
+            "            horizontal-stretch: root.compact-metrics ? 1 : 8;",
+            1,
+        )
+        real = pathlib.Path.read_text
+
+        def fake(self, *args, **kwargs):
+            if self == page:
+                return planted
+            return real(self, *args, **kwargs)
+
+        with unittest.mock.patch.object(pathlib.Path, "read_text", autospec=True) as read_text:
+            read_text.side_effect = fake
+            findings = violations(self.good, UI)
+        self.assertTrue(
+            any("lost `width: root.policy-card-width;`" in item for item in findings),
+            findings,
+        )
 
 
 def main() -> int:

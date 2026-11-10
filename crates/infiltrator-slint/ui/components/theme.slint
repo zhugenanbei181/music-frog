@@ -329,6 +329,15 @@ export global LumenTheme {
     out property <length> policy-tile-inset: 6 * LumenUiScale.unit;
     out property <length> policy-tile-gap: 6 * LumenUiScale.unit;
     out property <length> policy-tile-avatar-size: 24 * LumenUiScale.unit;
+    // The narrowest a policy tile may be drawn, straight from the reference:
+    // `proxy_groups.dart` sizes its grid with `_minTileWidth = 172.0` and
+    // `columnsFor(width, scale, gap) => width >= _minTileWidth * scale * 2 + gap
+    // ? 2 : 1`, then pins the tile height with `mainAxisExtent` and fades the
+    // overflow instead of squeezing a second column in. Our dashboard card is
+    // 199u of content wide, so the same rule draws one full-width tile per row:
+    // two columns measured 95u each (well under this floor) and left both an
+    // odd-count hole and 54px of ground under the last row.
+    out property <length> policy-tile-min-width: 172 * LumenUiScale.unit;
     // One page margin and one rail rhythm. These used to be literals repeated
     // across the shell, the rail, the header row and the footer, so a header
     // could disagree with the body column it headed.
@@ -349,11 +358,6 @@ export global LumenTheme {
     out property <length> rail-vertical-inset: 18 * LumenUiScale.unit;
     out property <length> rail-row-height: 44 * LumenUiScale.unit;
     out property <length> rail-section-gap: root.space-mobile-section-head-above;
-    // Two policy tiles plus their gap and the card's own inset: 2*96 + 8 + 32.
-    // The desktop dashboard's last row gives this width to the policy card
-    // before the connection table takes the remaining stretch, so a wide
-    // 7-column table cannot squeeze group names into three dots.
-    out property <length> policy-card-min-width: 232 * LumenUiScale.unit;
     // The phone card radius: the reference's card corner turns over roughly
     // 18dp of its own height, and a squircle fit puts the visual radius near
     // 20dp. The phone grid used 12dp and the phone profile card 16dp, so the

@@ -620,9 +620,13 @@ component HomePolicyGroupTile inherits Rectangle {
 }
 
 // The dashboard's policy group quick grid: the owner's published groups and
-// their currently selected outbound, never a hardcoded group list. Two
-// columns on every surface, so a long group list reads as a grid instead of
-// one squeezed row, and a tile opens that group.
+// their currently selected outbound, never a hardcoded group list, and a tile
+// opens that group. How many columns the grid draws follows the reference's
+// own width rule rather than a wish to look like a grid: `proxy_groups.dart`
+// sizes tiles from `_minTileWidth = 172.0` and only takes a second column when
+// both fit. The old fixed two columns measured 95u per tile on the desktop
+// card - far under that floor - elided the outbound's own name ("HK IP...")
+// and left an odd-count hole plus 54px of dead ground under the last row.
 export component HomePolicyGroupGrid inherits VerticalLayout {
     in property <[ProxyGroup]> proxy-groups;
     in property <length> tile-height: 44 * LumenUiScale.unit;
@@ -630,6 +634,12 @@ export component HomePolicyGroupGrid inherits VerticalLayout {
     in property <image> header-icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/list-checks.svg");
     callback select-group(string);
     callback open-proxies();
+
+    // The room this grid was given by the card it lives in, not the window
+    // tier: the same surface puts the card in a two-share cell, and only the
+    // measured width can say whether two tiles fit at the reference's floor.
+    property <int> columns:
+        root.width >= 2 * LumenTheme.policy-tile-min-width + LumenTheme.space-2 ? 2 : 1;
 
     spacing: LumenTheme.space-2;
     alignment: start;
@@ -649,8 +659,8 @@ export component HomePolicyGroupGrid inherits VerticalLayout {
     GridLayout {
         spacing: LumenTheme.space-2;
         for group[index] in root.proxy-groups: HomePolicyGroupTile {
-            col: Math.mod(index, 2);
-            row: index / 2;
+            col: Math.mod(index, root.columns);
+            row: index / root.columns;
             tile-height: root.tile-height;
             group: group;
             clicked => { root.select-group(group.name); }

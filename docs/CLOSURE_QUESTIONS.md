@@ -24,19 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-11 第一百八十三批次；b111–b182 见下方批次八问摘要）
+## 当前状态（2026-11-11 第一百八十四批次；b111–b183 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b183 只改 Slint 表面的国旗身份块与一个令牌、一个 `.slint` 门禁与文档，零 Rust、零平台 API、零设备交互；`cargo check -p infiltrator-slint` **exit 0**、Slint nextest **386/386** 为 `L`；交叉 `scripts/cross-check.sh`、aarch64 产物与目标设备仍由 CI runner / 设备矩阵补证（GAP-1.1） |
+| 1 | 部分 | L | b184 只改 Slint 表面的策略组网格、连接表宽度入口、第 4 行份额与一个已死令牌，外加一个 `.slint` 门禁腿与文档，零 Rust、零平台 API、零设备交互；`cargo check -p infiltrator-slint` **exit 0**、Slint nextest **386/386** 为 `L`；交叉 `scripts/cross-check.sh`、aarch64 产物与目标设备仍由 CI runner / 设备矩阵补证（GAP-1.1） |
 | 2 | 部分 | L | 本机 Linux 完成编译、定向 nextest、199 帧真实像素整批重采与全部守卫；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
-| 3 | 部分 | L | b183 不触 Android/iOS 代码、资源或 wire；身份块经同一份 `.slint` 表面在 Android 后端复用，因此形状修复对 Android 同样成立，但无实机回执不得声称已验证 |
-| 4 | 部分 | L | 本批改 Slint 全部带旗帜的身份块：出口行的圆盘换成共享 `CountryChip` 方板，四皮肤 + compact/平板/移动 + 别名帧共 **14 帧**变化且逐帧证明差异只在旗面上下两条带；Iced/Bevy/Android 不消费这份清单与组件，其国旗形状仍由各自条目收口 |
-| 5 | 完整 | L | 容器形状事实回到唯一 owner：`ui/components/country_chip.slint` 的 `CountryChip` 是唯一持旗容器，两个首页出口行删除各自私有的 `Rectangle { border-radius: 半边长 }` 与重复的代码兜底；圆角只在 `LumenTheme.country-chip-radius` 一处发布（`compact-layout ? 10u : 12u`，依据上游 `DashboardCorner.block - _blockInset` = 10dp/32dp ≈31%）；求同侧两条上游硬来源：`icon.dart` 的 `CommonTargetIcon` / `GroupMonogram` 一律 `SizedBox.square`，`proxy_groups.dart::_GroupIcon` 用 `AppShape.all(radius)` 圆角矩形，全仓无 `ClipOval` 用于国旗 |
-| 5a | 完整 | L | 形状属**可见像素身份**变化，不沿用旧回执：整批重采发布 `20261110T173015Z_edf2ef83c9b0_dirty_819873`（199/199，421s），仅 14 帧 PNG 变化且全部是仪表盘帧；`sidebar-collapsed-compact` 别名摘要按新字节刷新并实测 摘要==实际字节==canonical `overview-compact-dark`（`f6c140d8…`）；`design-resource-authority` 腿无新增资产（本批只用既有 catalog 方形矢量与 `LumenTheme` 令牌）、`receipt-freshness 0`、`space_utilization --enforce` 199 帧 `violations=0` |
-| 6 | 部分 | L | `slint-flag-shape-guard.py`（SLINT-020）新增三条调用点规则并 planted 自测 14 → **19/19 OK**，且对 HEAD 的真实旧文件复跑验证会咬（4 条 → 0 条）；语法门 100% PASS、其余 18 条 Slint 守卫 findings=0、`doc-governance OK`、`closure 8/8`、结构门身份腿之后的 **140 条腿 exit 0**。诚实边界两条：① 全仓身份门剩 1 条违规仍属另一会话未提交的 Bevy `overview-dark` 像素；② `SLINT-022`（标准控件滚动条墨色随宿主主题）本批未解。另有实测新立 `FLPARITY-049`（策略组网格列数未按上游宽度规则裁决，留 2 列 95u 与卡尾 54px 死地） |
-| 7 | 完整 | L | 形状只有一个 owner：持旗容器只在 `country_chip.slint`；圆角只在 `theme.slint` 的 `country-chip-radius`；`FlagIcon` 仍然只画方板（不 clip、不圆角）；`SURFACE.md` 的组件清单同批登记新组件。撤回的尝试（策略组瓦片 `vertical-stretch`）已 `git checkout` 还原，本批 `.slint` 无残留双轨 |
-| 8 | 部分 | L | 本批一次整批重采（421s）而非逐场景补帧；改动面小（14 帧、单帧 104–168 px）说明切片边界清晰——把「容器形状」从一个门禁看不见的位置搬进门禁能咬的 owner。全仓统一验证与 8 条 `Integrated`（`SLINT-020` 第二半已计入）仍由收口 owner 一次跑完；新立 `FLPARITY-049` 2 pt 使未办结分母 111 → **113 pt / 46 条**，严格交付率 91.9% → **91.8%**（1,258/1,371） |
+| 3 | 部分 | L | b184 不触 Android/iOS 代码、资源或 wire；策略组网格与连接表都经同一份 `.slint` 表面在 Android 后端复用，规则修复对 Android 同样成立，但无实机回执不得声称已验证 |
+| 4 | 部分 | L | 本批改 Slint 仪表盘底部一行的两张卡与卡内网格：策略组卡瓦片 **96u × 2 列 → 313px × 1 列**（手机 342px × 1 列）、**卡内尾部死地 53px → 1px**、行份额 **72.9:27.1 → 59.3:39.3**（参照物实测 60.5:39.5）；四皮肤 + `overview-card-reorder-standard` + `sidebar-collapsed-standard` + `overview-mobile-end-dark` 共 **7 帧**变化。Iced/Bevy/Android 不消费这份布局，其密度仍由各自条目收口 |
+| 5 | 完整 | L | 房间事实只有一个来源：第 4 行两张卡改为**显式行份额**（`(row - gap) * 3 / 5` 与剩余 2/5，与上方概览网格同一机制），策略组网格的列数只由 `policy-tile-min-width = 172u`（上游 `_minTileWidth`）与自己的房间裁决；连接表改由页面喂它一直缺的 `table-content-width`（该输入的约定本就是「调用方把卡量好的宽度传进来」），不再按窗口宽度乘七列分数。旧令牌 `policy-card-min-width`（旧两列假设的产物）整条删除 |
+| 5a | 完整 | L | 布局属**可见像素身份**变化，不沿用旧回执：整批重采发布 `20261110T181655Z_48c8d267028a_dirty_1104957`（199/199，435s），7 帧 PNG 变化且全部是仪表盘帧；`receipt-freshness 0`、`space_utilization --enforce` 199 帧 `violations=0`、Slint 侧身份门无新增违规（本批无别名帧变化）、本批未新增设计资源与字重（只用既有 `LumenTheme` 令牌） |
+| 6 | 部分 | L | `HomeConnectionMiniTable` 的 `table-content-width` 首次被真实喂入（此前唯一调用点未传，表按 600u 默认与**窗口宽度**排七列，卡一收窄就裁列——实测 432 宽卡上只剩 4 列）；`HomePolicyGroupGrid` 的列数按上游宽度规则裁决；`slint-surface-ladder-guard.py` 由「桌面页必须含 `min-width: LumenTheme.policy-card-min-width;`」改为钉住两条份额绑定并新增 planted 自测（改回 `horizontal-stretch` 即被咬），自测 6 → **7/7 OK**；语法门 100% PASS、dead-input / dashboard-grid / viewport-tier / flag-shape / padding 全 findings=0、结构门身份腿之后的 **140 条腿 exit 0**。诚实边界两条：① 全仓身份门剩 1 条违规仍属另一会话未提交的 Bevy `overview-dark` 像素；② `SLINT-022`（标准控件滚动条墨色随宿主主题）本批未解 |
+| 7 | 完整 | L | 宽度只在页面一处发布（两条行份额属性），表的七列分数只在表内乘一次，策略组的列数规则只在网格一处；`policy-card-min-width` 令牌与其门禁腿同批清退，不留第二套几何。第一次实现（网格直接读被 stretch 决定的自身宽度）编译即报 binding loop，未以任何旁路蒙混 |
+| 8 | 部分 | L | 本批一次整批重采（435s）而非逐场景补帧；改动面小（7 帧）且判据三处同向（瓦片宽、卡内死地、行份额）说明切片边界清晰——把「卡能有多宽」从内容依赖改成行份额，是这条链能成立的前提。全仓统一验证与 9 条 `Integrated`（含本批 `FLPARITY-049`）仍由收口 owner 一次跑完；未办结分母 **113 pt / 46 条**、已归档 **1,258 pt / 463 条**、累计 **1,371 pt**、严格交付率 **91.8%** 全部保持 |
+
+## 最近一批问答（2026-11-11 第一百八十四交付批次：策略组网格按参照物的宽度规则排布 / 卡的宽度先回到行的份额）
+
+1. x86_64/aarch64：本批只改 Slint 表面（`ui/pages/home_widgets.slint`、`ui/pages/home_desktop_grid.slint`、`ui/components/theme.slint`）、一条 `.slint` 门禁腿与台账/收口文档，零 Rust、零平台 API、零设备交互；`cargo check -p infiltrator-slint` exit 0、Slint nextest **386/386** 为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 产物仍待 CI runner / 设备矩阵补证 → 部分（L）。
+2. Windows/Linux/macOS：本机 Linux 完成编译、定向 nextest、199 帧真实像素整批重采与全部守卫；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） → 部分（L）。
+3. Android/iOS：本批不触 Android/iOS 代码、资源或 wire。策略组网格与连接表经同一份 `.slint` 表面在 Android 后端复用，规则修复对 Android 同样成立，但没有实机回执不得声称已验证；三 flavor 实机交互与 iOS 产物仍按既有条目留在外部环境看板 → 部分（L）。
+4. 各 UI：本批改 Slint 仪表盘底部一行。实测 `overview-dark`：策略组卡瓦片 **96u × 2 列 → 313px × 1 列**（每组一整行，出口名不再省略）、**卡内尾部死地 53px → 1px**、行份额 **630:234 = 72.9%:27.1% → 518:344 = 59.3%:39.3%**（参照物同一行实测 993:647 = 60.5%:39.5%）；手机档（400×800）瓦片 342px × 1 列（房间 342 < 172×2+8=352，与规则一致）且卡随内容取高。Iced/Bevy/Android 不消费这份布局，其密度仍由各自条目收口，不用 Slint 像素冒充其它表面验收 → 部分（L）。
+5. 复用：本批把「卡能有多宽」这件事的**来源**换对。上游 `proxy_groups.dart` 用 `LayoutBuilder` 拿到的**入参约束**（自顶向下）裁决列数：`_minTileWidth = 172.0`、`columnsFor(width, scale, gap) => width >= 172*scale*2 + gap ? 2 : 1`，`mainAxisExtent` 固定瓦片高、溢出 `DashboardFadeOut`。本仓旧状用 `horizontal-stretch`：它只在每张卡取走自身 preferred 宽度之后分配剩余空隙，于是策略组卡的宽度由它自己的内容决定——同一行的实测就是 **630:234**，策略组卡被压在自己的 `policy-card-min-width: 232u` 地板上。改成显式**行份额**（与上方概览网格「每张卡显式取整份额」同一机制）后，房间只依赖页身受强加的宽度。顺带复用掉一个一直空着的契约：`HomeConnectionMiniTable.table-content-width`（其注释本就说「调用方把卡量好的宽度传进来，表自己不读 `width`（否则就是绑定回路）」）此前从未被喂入 → 部分（L，宽度规则与表输入已复用；行内还有一处「表按窗口宽度乘分数」的旧行为被本次替换）。
+5a. 设计资源强制标准：布局属**可见像素身份**变化，不沿用旧回执：整批重采发布 `20261110T181655Z_48c8d267028a_dirty_1104957`（199/199，435s），**7 帧** PNG 变化（四皮肤桌面概览 + `overview-card-reorder-standard` + `sidebar-collapsed-standard` + `overview-mobile-end-dark`）；本批未新增字体、字重、图标或视觉资产（只用既有 `LumenTheme` 令牌与既有 catalog 资产），故无设计资源身份变化项；`receipt-freshness 0`、`space_utilization --enforce` 199 帧 `violations=0`、Slint 侧身份门无新增违规 → 完整（L）。
+6. 各处界面的功能接入：`HomeConnectionMiniTable` 的 `table-content-width` 首次被真实喂入——此前唯一调用点未传，表用默认 600u 并按**窗口宽度**乘七列分数，所以卡一收窄列就被裁（实测 432 宽卡上只剩 4 列「来源/目标/协议/出口」，其余下三列被裁掉）；现在页面传卡的内容宽度，七列全在，最长目标主机名按参照物同样省略（参照物 `chatgpt.com:4…`，本仓 `openapi.qoder.com.cn…`）。`HomePolicyGroupGrid` 的列数按上游宽度规则裁决。`slint-surface-ladder-guard.py` 由「桌面页必须含 `min-width: LumenTheme.policy-card-min-width;`」改为钉住两条份额绑定并新增 planted 自测（把份额改回 `horizontal-stretch` 即被咬），自测 6 → **7/7 OK**、enforce findings=0；语法门 100% PASS、dead-input / dashboard-grid / viewport-tier / flag-shape / padding 全 findings=0、结构门身份腿之后的 **140 条腿 exit 0**。诚实边界两条：① 全仓 `screenshot-identity` 剩 1 条违规仍属另一会话未提交的 Bevy `overview-dark` 像素；② `SLINT-022`（Slint 1.18 自带 style 的 `ScrollBar` 描边随进程级平台方案）本批未解 → 部分（L）。
+7. 模块化：宽度只在页面一处发布（`footer-row-gap` / `connections-card-width` / `policy-card-width` 三条属性），表的七列分数只在表内乘一次，策略组的列数规则只在 `HomePolicyGroupGrid` 一处；旧令牌 `policy-card-min-width`（其注释还写着「2 张瓦片 + 间距 + 内边距」，即旧两列假设）与其门禁腿同批清退，不留第二套几何。第一次实现让网格直接读被 stretch 决定的自身宽度，编译即报 binding loop，**没有**用布尔旁路或写死数字蒙混，而是回到「房间由行给出」这一层修 → 完整（L）。
+8. CI 与批次效率：本批一次整批重采（435s）而非逐场景补帧；改动面小（7 帧）且三条判据同向（瓦片宽度、卡内死地、行份额）说明切片边界清晰——「卡能有多宽」必须先不依赖内容，网格才敢问自己的房间。全仓统一验证与 9 条 `Integrated`（含本批 `FLPARITY-049`）仍由收口 owner 一次跑完；本批不办结、不新立，未办结分母 **113 pt / 46 条**、已归档 **1,258 pt / 463 条**、累计 **1,371 pt**、严格归档交付率 **91.8%** 均保持 → 部分（L）。
 
 ## 最近一批问答（2026-11-11 第一百八十三交付批次：国旗的容器不再是圆 / 身份块只有一个 owner）
 

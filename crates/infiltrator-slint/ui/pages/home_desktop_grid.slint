@@ -79,6 +79,22 @@ export component HomeDesktopGrid inherits VerticalLayout {
     property <bool> compact-metrics:
         ViewportLadder.dashboard_is_compact(root.dashboard-density);
     property <bool> wrap-cards: root.card-columns < 4;
+    // Row 4's two cards take explicit shares of the row, the same way the
+    // overview grid above them takes explicit shares of the page. The split is
+    // the reference's own: in `docs/reference/flclash-desktop/
+    // flclash-desktop-dashboard.png` the bottom row measures 993px for the
+    // connection table and 647px for the group card, i.e. 60.5% / 39.5% - three
+    // to two. `horizontal-stretch` could not answer the room question: it hands
+    // out only the slack left after each card has taken its preferred width, so
+    // the policy grid's own room would depend on the grid's content - and the
+    // old stretched row gave the group card 234px (its min-width floor) with
+    // 96u tiles eliding every outbound name.
+    property <length> footer-row-gap:
+        root.compact-metrics ? LumenTheme.space-3 : LumenTheme.space-4;
+    property <length> connections-card-width:
+        (self.width - root.footer-row-gap) * 3 / 5;
+    property <length> policy-card-width:
+        self.width - root.footer-row-gap - root.connections-card-width;
 
     // Row 1: Hero Card (50%) + Upload Card (25%) + Download Card (25%)
     // A non-wrapping row paid four column-shares even in the dense tier, which
@@ -587,12 +603,19 @@ export component HomeDesktopGrid inherits VerticalLayout {
     // tile neatly in the remaining space.
     HorizontalLayout {
         width: parent.width;
-        spacing: root.compact-metrics ? LumenTheme.space-3 : LumenTheme.space-4;
+        spacing: root.footer-row-gap;
 
         // Realtime Connections Card
         SurfaceCard {
-            horizontal-stretch: root.compact-metrics ? 1 : 13;
+            width: root.connections-card-width;
             HomeConnectionMiniTable {
+                // The table's own seven column fractions must be multiplied by
+                // the width its card actually got, not by the window: it was
+                // told to take the measured width from its caller, and every
+                // other caller of this component already does. Without this the
+                // columns kept the window's width and the card clipped them.
+                table-content-width:
+                    root.connections-card-width - 2 * LumenTheme.card-inset;
                 dashboard-facts: root.dashboard-facts;
                 connections: root.home-connection-table;
                 open-connections => { root.navigate("Connections"); }
@@ -602,8 +625,7 @@ export component HomeDesktopGrid inherits VerticalLayout {
 
         // Policy Groups Card
         SurfaceCard {
-            horizontal-stretch: root.compact-metrics ? 1 : 8;
-            min-width: LumenTheme.policy-card-min-width;
+            width: root.policy-card-width;
             HomePolicyGroupGrid {
                 proxy-groups: root.proxy-groups;
                 select-group(name) => { root.select-group(name); }
