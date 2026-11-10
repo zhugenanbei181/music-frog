@@ -1,0 +1,9 @@
+# FlClash v0.9.3 desktop sidebar-expansion source ledger
+# upstream: chen08209/FlClash @ be84736605527034689c95bf27828ff27d912c5e
+# sha256 of the four pinned source files, one hash per line, in this table's order:
+# bf1b5ebed565fde9ccc9a478a14cf009a9cb75cbcf5545587b4451d51b955e94
+file	sha256	fact	owner
+lib/common/layout.dart	70317b4ff2f9c9c5cf1b8cc7bca2b5334a303552a77b9c13f8dd78141064fb8f	canExpandSidebar(viewMode)==desktop	infiltrator-contract::shell_sidebar_preference::SidebarExpansionCapability
+lib/manager/app_manager.dart	4bb7d7afdcc0e95907db944ab848778bf2ec11b1eb8db1a71d4550a85a5b1d02	expanded=canExpand&&sidebarExpanded; toggle persists !sidebarExpanded	infiltrator-contract::shell_sidebar_preference::resolve_sidebar_expansion
+lib/models/config.dart	0c97916cbb78687fd62a712469b0d614aedb0675c6f631a8da18f32de66564a0	sidebarExpanded default true; legacy showLabel migration	infiltrator-contract::shell_sidebar_preference::SIDEBAR_EXPANDED_SETTING_KEY
+test/widgets/sidebar_test.dart	0a9cbd924507c22566a5e40ae9f98706107df177c63fd98029a68a1145a57fab	collapsed width 48; expanded width 220; toggle changes glyph and labels	infiltrator-contract::responsive_viewport::SidebarForm::width_px

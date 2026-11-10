@@ -278,3 +278,26 @@ typed 来源身份；存异的是本仓保留四种真实来源和显式 `Unobse
 「更新于 17 小时前」；本仓 active fixture 是订阅配置，所以来源应显示「远程」
 而非参考图里的「本地」，两者都由各自配置身份发布。该批实测空间利用率
 197 帧 0 违规、回执时效 0、截图身份 574/10/0、设计资源 0 违规。
+
+## 8. 侧栏展开是设置 owner，不是 UI 布尔（b170）
+
+pinned `be847366` 的桌面截图左上折叠按钮后面有四层事实：
+`lib/models/config.dart` 持久化 `sidebarExpanded`（默认 `true`，并把旧
+`showLabel` 键经 `_readSidebarExpanded` 显式迁移）；`lib/common/layout.dart`
+用 `canExpandSidebar(viewMode) => viewMode == desktop` 禁止笔记本档展开标签；
+`lib/manager/app_manager.dart` 以 `canExpand && sidebarExpanded` 生成唯一
+`expanded` 事实，toggle 只写 `!sidebarExpanded`；`test/widgets/sidebar_test.dart`
+逐像素钉住折叠 48px、展开 220px、glyph/tooltip 随形态切换。机器可读账本见
+[flclash-sidebar-expansion.tsv](flclash-sidebar-expansion.tsv)，四份源码
+SHA-256 与 pinned commit 由 `flclash-sidebar-expansion-guard.py` 离线校验。
+
+本仓求同的底层裁决是
+`infiltrator-contract::shell_sidebar_preference`：设置身份是 typed
+`SidebarExpansionPreference`，视口能力是 `SidebarExpansionCapability`，呈现结果
+是 `SidebarExpansionPresentation::{NoColumn,Collapsed,Expanded}`，用户动作是
+`SidebarExpansionIntent::{Set,Toggle}`，唯一 resolver 把 desktop 档的
+`Collapsed` 折叠成共享 `SidebarForm::Rail`。存异的是本仓不在 UI 保存私有
+bool、不把「能否展开」藏在 Option/null 里，也不新增第二套 48/220 宽度：折叠
+复用既有 64px rail 与空间利用率上限。b170 只交付 Core 契约、源码台账与
+离线守卫；设置持久化、command/readback 与侧栏 toggle 属于后续接线，不改
+本批任何像素，故沿用 b169 的 197 帧回执而如实记为未变更身份。
