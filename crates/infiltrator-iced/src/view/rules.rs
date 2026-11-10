@@ -10,7 +10,9 @@ use crate::types::message::Message;
 use crate::types::rule_list::RuleListAction;
 use crate::types::rules::RuleBadgeKind;
 use crate::view::component_card::card;
-use crate::view::components::{BadgeKind, icon_button, modern_scrollable, segmented_control};
+use crate::view::components::{
+    BadgeKind, icon_button, modern_scrollable, page_body_card, segmented_control,
+};
 use crate::view::rules_tracer::{TRACER_SCROLL_ID, tracer_view};
 use crate::view::svg_icons::Icon;
 use crate::view::theme;
@@ -123,18 +125,27 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     ]
     .spacing(8)
     .wrap();
-    let draft_panel = container(
-        column![
+    let draft_panel = container({
+        // The preview row is a row of the draft panel only when there is a
+        // preview: an empty string still lays out a line box, and the
+        // density judge measures the phantom line between the status and
+        // the controls as a 39px dead band inside the page's own span.
+        let mut panel = column![
             container(theme::role_body_text(editor_status(
                 &state.editor.rule_list,
                 &Lang(&state.shell.lang)
             )))
-            .id(InteractionRegion::RuleListStatus.id()),
-            container(theme::role_body_text(preview)).id(InteractionRegion::RuleListPreview.id()),
-            controls
+            .id(InteractionRegion::RuleListStatus.id())
         ]
-        .spacing(8),
-    )
+        .spacing(8);
+        if !preview.is_empty() {
+            panel = panel.push(
+                container(theme::role_body_text(preview))
+                    .id(InteractionRegion::RuleListPreview.id()),
+            );
+        }
+        panel.push(controls)
+    })
     .id(InteractionRegion::RuleListEditor.id());
 
     // DUAL-11-14: the partition list, its order and its i18n keys are the
@@ -189,12 +200,10 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     }
 
     let tab_content: Element<'_, Message> = match state.editor.rules_model.tab() {
-        RulesTab::List => {
-            modern_scrollable(rules_list::rules_list_view(state, &lang, available_targets))
-                .id("rules-page-scroll")
-                .height(Length::Fill)
-                .into()
-        }
+        // The list owns its own scroll window, so the page does not wrap it in
+        // a second one: the frame below is the page body, and the list body
+        // takes the leftover inside it.
+        RulesTab::List => rules_list::rules_list_view(state, &lang, available_targets),
         RulesTab::Providers => providers::providers_view(state, &lang),
         RulesTab::JsonEditors => providers::json_editors_view(state, &lang),
         RulesTab::Tracer => modern_scrollable(tracer_view(state, &lang))
@@ -203,20 +212,30 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             .into(),
     };
 
-    column![
-        header,
-        if state.editor.rules_model.tab() == RulesTab::List {
-            Element::from(draft_panel)
-        } else {
-            Element::from(Space::new().height(0))
-        },
-        Space::new().height(theme::SP_MD),
-        tabs,
-        Space::new().height(theme::SP_MD),
-        tab_content
-    ]
-    .spacing(theme::SP_SM)
-    .into()
+    // One frame for the page body: the card's own ground is what makes the
+    // body's last pixel used, and a content-sized list would leave the rest of
+    // the body as page-coloured tail air.
+    //
+    // The gaps are explicit and the column's own spacing is zero, so one seam
+    // is one token: a column spacing on top of an explicit spacer pays for the
+    // same seam twice, and the density judge bills the page for the ground it
+    // leaves between the tabs and the frame (the duplicated seam cost 5.6% of
+    // the body against a 4% limit before it was stated once).
+    let mut body = column![header].spacing(0.0).height(Length::Fill);
+    if state.editor.rules_model.tab() == RulesTab::List {
+        // The heading and the editor strip read as one cluster, so the seam
+        // between them is the tight step: at 720x480 the four pixels the
+        // looser step added were the whole 4% band budget for this shape
+        // (`docs/SPACE_UTILIZATION_STANDARD.md` §5, 提升密度).
+        body = body
+            .push(Space::new().height(theme::SP_XS))
+            .push(Element::from(draft_panel));
+    }
+    body.push(Space::new().height(theme::SP_MD))
+        .push(tabs)
+        .push(Space::new().height(theme::SP_MD))
+        .push(page_body_card(tab_content))
+        .into()
 }
 
 #[cfg(test)]

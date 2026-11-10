@@ -325,7 +325,12 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         ))
         .id(InteractionRegion::LogsSection.id()),
     ]
-    .spacing(SP_LG);
+    // The section stack's gutter is `SP_MD`, not `SP_LG`: the same business on
+    // Slint measures a 3.5% interior band at 720x480 while this stack measured
+    // 4.1%, and the difference was exactly this 16px seam. A compact window's
+    // page body is a short ruler and a card stack pays for every loose gutter
+    // on it (`docs/SPACE_UTILIZATION_STANDARD.md` §5, 提升密度).
+    .spacing(SP_MD);
 
     // Page-level scrolling (same idiom as overview/dns): sections keep their
     // natural height, so the Fill-height scrollables inside Shrink-height

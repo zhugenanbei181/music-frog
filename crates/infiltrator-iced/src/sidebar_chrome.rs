@@ -21,6 +21,7 @@
 //!   frame the judge may measure, and a remembered number is exactly what the
 //!   receipt exists to retire.
 
+use crate::view::chrome::mounted_strip_height_px;
 use iced::Rectangle;
 use infiltrator_contract::design_tokens::space;
 use infiltrator_contract::responsive_viewport::{SidebarForm, ViewportTier};
@@ -217,11 +218,17 @@ pub fn shell_chrome_facts(
         // The page body's own margin: the outer padding the page container
         // paints, straight from the tier the shell laid the window out with.
         page_margin_px: viewport.content_padding_px(),
-        // The shell reserves no air above the page body of its own: the strip
-        // that carries the title and the window controls is window chrome, not
-        // page air, and the page's own padding is already stated as its margin.
-        shell_top_air_px: 0,
-        shell_bottom_air_px: 0,
+        // The band between the page body and the window edge, measured from the
+        // window top exactly as Slint publishes it from
+        // `app_body.page-content-padding-{top,bottom}`. The page container pads
+        // the body on every side (`view_root` mounts it with
+        // `content_padding_px`) and the chrome strip is a real row above it, so
+        // the top band is the strip plus that padding and the bottom band is
+        // the padding alone. Declaring zero made the density judge count the
+        // band as page-tail air and reported 5% waste on frames whose card
+        // already reached the body's last pixel.
+        shell_top_air_px: mounted_strip_height_px() + viewport.content_padding_px(),
+        shell_bottom_air_px: viewport.content_padding_px(),
         dock_band_px: receipt.dock_band_px(presentation),
         scale_percent: SCALE_PERCENT,
         sidebar_expansion: presentation.preference(),

@@ -27,6 +27,20 @@ pub(crate) fn strip_height_px() -> f32 {
     WindowChrome::FRAMELESS.chrome_height_px() as f32
 }
 
+/// The vertical space the mounted strip really takes.
+///
+/// `chrome_strip` mounts a zero-height element when the active style keeps the
+/// system decorations, so the strip's reserved band is the strip's own rule and
+/// not a second guess: the shell receipt folds this into the page body's top
+/// offset instead of counting a fixed 38px the window may not have spent.
+pub(crate) fn mounted_strip_height_px() -> u16 {
+    if WindowChrome::FRAMELESS.needs_custom_controls() {
+        WindowChrome::FRAMELESS.chrome_height_px() as u16
+    } else {
+        0
+    }
+}
+
 /// The drag/controls strip mounted at the top of the frameless window.
 ///
 /// Returns an empty zero-height element when the active chrome style keeps the

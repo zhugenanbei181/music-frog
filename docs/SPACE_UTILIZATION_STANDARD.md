@@ -435,3 +435,51 @@ b173 把折叠钮接进侧栏（wire 从 9 键扩到 12 键，新增两张折叠
   故 collapsed 与 expanded 的像素逐字节相同，已由 `screenshot_aliases.tsv` 显式声明别名。
 - 判据本身的变化：档名与档界不再由判定器记忆，因此 800～999px 区间「有没有侧栏」
   这类误判在结构上已不可能发生（判定器自测 24 项里 4 项专做阶梯验证：planted 换界即换档、无 tiers 拒绝、缺口拒绝、窄档帧不得当侧栏帧量）。
+
+## 10. 现状（b190 收口：Iced 欠账归零，页身框架补齐，浅色页身落地）
+
+b189 给 Iced 留下 19 帧真实密度缺口（`SPACEUTIL-013`）。b190 一次收口，欠账台账
+**归零**，且没有一帧是靠登记豁免过去的：
+
+| 档位 | 帧数 | 中位 | p90 | 最差 | 超标帧 |
+| --- | --- | --- | --- | --- | --- |
+| `medium`（720×480） | 60 | 5.1% | 10.9% | 30.8% | **0** |
+| `expanded`（1180×780） | 124 | 4.5% | 15.0% | 40.2% | **0** |
+
+发布批 `20261110T233706Z_c8002f35e646_dirty_3024494`（184/184，298s）实测：
+`space_utilization.py --surface iced --enforce` violations=0，侧栏 rail 轴
+`chrome_band` **0.0%** / `void` **6.2%**，184/184 帧发布自己的几何，
+`scripts/quality/space_utilization_debt_iced.json` 的 `frames` 为空（`--update-debt`
+一次收紧 19 → 0，收录为「closed 19」）——与 Slint 侧 199 帧 violations=0 同口径。
+
+四条根因，各自修在 owner 上，不用第二份真源、不加 UI 布尔：
+
+1. **页身框架（`page_body_card`）**：Slint 早有「卡即页身」的 owner
+   （`CardHeight.page-body`），Iced 把行直接画在页面地面上，于是行没铺到的地方就是
+   尾空——`rules-search-highlight-standard` 实测尾空 **40.8%**（限 4%），同业务在
+   Slint 是 0.0%。Iced 新增 `view/components.rs::page_body_card`（`Fill` × `Fill` +
+   卡面样式）作为同一事实的 owner，`rules` 页改为「页头 → 分隔 → 草稿条 → 分隔 →
+   标签 → 分隔 → 页身卡」的显式竖排，列表在自己的滚动窗里，卡的地面一直画到页身最后
+   一像素；同批删掉页面级 `modern_scrollable`（不再有第二个滚动窗）。
+2. **回执的上空气是「窗顶到页身」，不是零**：`sidebar_chrome` 曾把
+   `shell_top_air_px` / `shell_bottom_air_px` 写死 0，判定器于是把外壳自己留的那条
+   带当成页尾空地，于是「卡已画到页身最后一像素」的帧仍报 5% 浪费。现在两者都从
+   画出这些像素的外壳发布：**顶 = 标题条（`WindowChrome::FRAMELESS.chrome_height_px`
+   = 38，由 `chrome_strip` 自己的挂载规则给出，未挂载即 0）+ 页边距**，
+   **底 = 页边距**。（Slint 的标题条是覆盖层，故它只发布 8/72；Iced 的标题条是真实
+   行，故顶距含条高。两边发布的是同一件事——页身到窗边的距离。）
+3. **浅色页身底色（求同本仓自己的阶梯）**：契约 `skin_core(Light).canvas` 曾是
+   `#F8F9FA`，与白卡只差 **2.1 个 L\***，读者与判定器都看不见卡——同一帧在暗色量得
+   0.0%、在浅色量得 13%。台阶本来是「白卡压在暖灰地面上」（Slint `zinc-0` 浅色
+   = `#EFF0F3`，实测卡/地面差 5.2 个 L\*），故把该令牌与 `SurfaceElevation::Background`
+   的浅色项一起改到阶梯的页身档，并给契约加一条**逐皮肤**判据
+   （`every_skin_card_is_a_visible_step_off_its_canvas`：卡至少高出地面 3 个 L\*，
+   原先只有暗色有等效判据）；Bevy 的同一份拷贝同批对齐。
+4. **两处紧凑档的实带**：`rules` 的页头与编辑条本是一个簇，缝从 `SP_SM` 收到
+   `SP_XS`（19 → 15px）；空预览行不再占一行字盒（它曾凭空造出 39px 死带）；
+   runtime 的卡栈缝从 `SP_LG` 收到 `SP_MD`（16 → 12px，求同 Slint 同帧的 3.5%）。
+   三条都是 §5 的「提升密度」，不是为了让测量通过而加的开关。
+
+**诚实边界**：Iced 的 `connections` / `logs` 两个契约形态在 Slint 是**独立页**，在
+Iced 仍是 runtime 页里的两个区块（b190 只是把卡栈缝收紧到预算内）；要真正「求同」
+该形态，需要给 Iced 补出这两张页，属未开工产品工作，不在本批结论内。

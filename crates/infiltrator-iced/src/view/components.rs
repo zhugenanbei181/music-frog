@@ -16,7 +16,8 @@ use crate::view::{scrollbar, svg_icons, theme};
 use canvas::gradient::Linear;
 use iced::advanced::text::Renderer;
 use iced::widget::{
-    Scrollable, Space, Stack, button, canvas, column, container, row, text, toggler, tooltip,
+    Container, Scrollable, Space, Stack, button, canvas, column, container, row, text, toggler,
+    tooltip,
 };
 use iced::{
     Border, Color, Element, Length, Point, Rectangle, Shadow, Theme, Vector, border, mouse,
@@ -63,6 +64,24 @@ pub fn card_surface(t: &Theme) -> container::Style {
             shadow: tk.card_shadow,
         },
     )
+}
+
+/// A page-body frame: the card IS the page body.
+///
+/// The density standard's framed shape is one card that reaches the page body's
+/// bottom edge, with its list scrolling inside. Slint has had that owner for a
+/// while (`CardHeight.page-body`); Iced painted its rows straight onto the page
+/// ground, so whatever the rows did not cover stayed page-coloured tail air -
+/// 40.8% of the body on `rules-search-highlight-standard` against a 4% limit,
+/// while the same business on Slint measured 0.0% tail. A page mounts its body
+/// through this frame and lets the content inside take the leftover, so the
+/// frame's own ground reaches the body's last pixel.
+pub fn page_body_card<'a, T: 'a>(content: impl Into<Element<'a, T>>) -> Container<'a, T> {
+    container(content)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .padding(theme::SP_MD)
+        .style(card_surface)
 }
 
 /// Card surface with hover lift state: when hovered, slightly elevates background

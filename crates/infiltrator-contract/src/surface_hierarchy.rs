@@ -330,6 +330,34 @@ mod tests {
         );
     }
 
+    /// A page can only show its own card when the two tiers are separable.
+    ///
+    /// The density standard samples a frame's ground from the page's own
+    /// margin strip and reads a row as content only when it differs from that
+    /// ground; a card sitting inside that tolerance is read as ground. The
+    /// shipped light canvas was 2.1 tone steps off the card, so a page whose
+    /// body IS one card measured 13% empty while the identical dark frame
+    /// measured 0.0% - and to the reader the card was one flat sheet with the
+    /// page. M3 states tones in L* (`HctColor::tone`), so the floor is stated
+    /// in the same unit: a card sits at least three tone steps above its
+    /// canvas. The light canvas was moved onto the surface ladder's page tier
+    /// (`#EFF0F3`) to clear it.
+    #[test]
+    fn every_skin_card_is_a_visible_step_off_its_canvas() {
+        const MIN_TONE_STEP: f32 = 3.0;
+        let tone = |token: RgbaToken| {
+            crate::color_science::HctColor::from_rgb(token.r, token.g, token.b).tone
+        };
+        for skin in ThemeSkin::ALL {
+            let tokens = MaterialSurfaceTokens::of(skin);
+            let step = tone(tokens.container_card) - tone(tokens.canvas);
+            assert!(
+                step >= MIN_TONE_STEP,
+                "{skin:?} card sits {step:.2} L* off its canvas (floor {MIN_TONE_STEP})"
+            );
+        }
+    }
+
     #[test]
     fn flclash_v092_calibrated_color_benchmark_meets_wcag_and_elevation_spec() {
         for skin in ThemeSkin::ALL {

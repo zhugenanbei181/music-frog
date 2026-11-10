@@ -98,8 +98,16 @@ fn the_receipt_states_the_boxes_the_pane_painted() {
         facts.page_margin_px,
         ViewportTier::Expanded.content_padding_px()
     );
-    assert_eq!(facts.shell_top_air_px, 0);
-    assert_eq!(facts.shell_bottom_air_px, 0);
+    // The page body's own band against the window edge: the mounted chrome
+    // strip plus the page container's padding above, the padding alone below.
+    assert_eq!(
+        facts.shell_top_air_px,
+        mounted_strip_height_px() + ViewportTier::Expanded.content_padding_px()
+    );
+    assert_eq!(
+        facts.shell_bottom_air_px,
+        ViewportTier::Expanded.content_padding_px()
+    );
     assert_eq!(facts.dock_band_px, 0);
     assert_eq!(facts.scale_percent, 100);
     assert_eq!(

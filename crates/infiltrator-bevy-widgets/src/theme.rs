@@ -199,7 +199,7 @@ impl Theme {
     pub fn light() -> Self {
         Self {
             mode: ThemeSkin::Light,
-            window_bg: TokenColor::rgb(0.973, 0.976, 0.980), // #F8F9FA
+            window_bg: TokenColor::rgb(0.937, 0.941, 0.953), // #EFF0F3, the surface ladder's page tier
             surface: TokenColor::rgb(1.000, 1.000, 1.000),
             surface_elevated: TokenColor::rgba(0.0, 0.0, 0.0, 0.05),
             ink: TokenColor::rgb(0.102, 0.110, 0.118), // #1A1C1E

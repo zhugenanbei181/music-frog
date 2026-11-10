@@ -102,7 +102,13 @@ pub const fn skin_core(skin: ThemeSkin) -> SkinCorePalette {
             danger: RgbaToken::rgb(0.96, 0.35, 0.32),
         },
         ThemeSkin::Light => SkinCorePalette {
-            canvas: RgbaToken::rgb(0.973, 0.976, 0.980),
+            // The light page ground is the surface ladder's page tier
+            // (`#EFF0F3`, Slint `zinc-0` light), not a near-white: a white
+            // card on a near-white page is one flat sheet, and the density
+            // judge cannot see the card at all (measured 2.1 L* apart, under
+            // its own ground tolerance). The white-card-on-warm-grey-page
+            // language is the product's, and this token now agrees with it.
+            canvas: RgbaToken::rgb(0.937, 0.941, 0.953),
             sidebar: RgbaToken::rgb(0.945, 0.953, 0.961),
             card: RgbaToken::rgb(1.000, 1.000, 1.000),
             card_border: RgbaToken::rgba(0.18, 0.22, 0.20, 0.10),
@@ -425,7 +431,10 @@ impl SurfaceElevation {
                 Self::FloatingModal => RgbaToken::rgb(0.120, 0.145, 0.180),
             },
             ThemeSkin::Light => match self {
-                Self::Background => RgbaToken::rgb(0.973, 0.976, 0.980),
+                // Same page tier as `skin_core(Light).canvas`: one fact, one
+                // value. Two spellings of the light backdrop would let a page
+                // and a card disagree about the ground they share.
+                Self::Background => RgbaToken::rgb(0.937, 0.941, 0.953),
                 Self::CardSurface => RgbaToken::rgb(1.0, 1.0, 1.0),
                 Self::CardElevated => RgbaToken::rgb(0.945, 0.953, 0.961),
                 Self::FloatingModal => RgbaToken::rgb(1.0, 1.0, 1.0),
