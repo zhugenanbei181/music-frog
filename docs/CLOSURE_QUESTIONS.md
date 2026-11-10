@@ -24,19 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-10 第一百八十一批次；b111–b173 见下方批次八问摘要）
+## 当前状态（2026-11-10 第一百八十二批次；b111–b173 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b181 只改 Slint 表面的 vendored 主题选择与两条 Python 判据，零平台 API、零设备交互；`cargo check -p infiltrator-slint --all-targets`、`cargo clippy --all-targets -- -D warnings` **exit 0**、Slint nextest **384/384** 为 `L`；交叉 `scripts/cross-check.sh`、aarch64 产物与目标设备仍由 CI runner / 设备矩阵补证（GAP-1.1） |
-| 2 | 部分 | L | 本机 Linux 完成编译、clippy、定向 nextest、199 帧真实像素整批重采与全部 Slint 结构守卫；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
-| 3 | 部分 | L | b181 不触 Android/iOS 代码、资源或 wire；Slint 的 Android 后端与桌面共用同一份 vendored `@material`，暗色页头动作的可读性修复对它同样成立，但无实机回执不得声称已验证 |
-| 4 | 部分 | L | 本批改 Slint 表面 `@material` 组件的明暗通道（9 处 `IconButton` 与 `Switch`/`PopupMenu`/`ModalBottomSheet` 等），暗色与 amoled 帧页头动作墨迹实测 2.14:1 → 8.94:1、2.28:1 → 9.54:1；Iced/Bevy/Android 不消费这份 `.slint`，其明暗通道仍由各自条目收口 |
-| 5 | 完整 | L | 明暗事实回到唯一 owner：`LumenTheme.dark-mode`（用户偏好，仅 `system` 回落平台）由根窗口一次写入 `MaterialPalette.application-dark-mode`，`scheme` 与 `Elevation.dark` 只读它，vendored 库不再自行读平台 `Palette.color_scheme`；守卫钉「每个 `LumenTheme.dark-mode` 写者必须同笔喂 Material」（写点数量与表达式集合双向配对），未新增令牌、未新增布尔 |
-| 5a | 完整 | L | 明暗通道属**主题身份**变化，不沿用旧回执：整批重采发布 `20261110T140935Z_a6c68ad444cc_dirty_3999760`（199/199，578s），99 帧变化逐帧归因（41 帧本批内容变化 + 58 帧仅 2px 滚动条带，后者经 A/B 证明是 `SLINT-022` 的既有宿主泄漏、非本批引入）；4 条 `mixin-*` 别名摘要按新字节刷新（逐条实测 摘要==实际字节==canonical）；`design-resource-authority 0`、`receipt-freshness 0`、`space_utilization --enforce` 199 帧 `violations=0` |
-| 6 | 部分 | L | 新增 `slint-theme-channel-guard.py`（SLINT-021）6 项 planted 双腿接入结构门，`--self-test` **6/6 OK**、`--mode enforce` findings=0；`slint-source-import-guard.py` 加「被编译的每个 vendored `.slint` 必须有清单记录」硬腿，planted 实测咬住，`lumen-source` 下未枚举在制 `.slint` 由 1 → **0**；`slint-syntax-guard` 100% PASS、其余 18 条 Slint 守卫全 0。诚实边界：重采暴露 `SLINT-022`——Slint 1.18 自带 style 的 `ScrollBar` 描边仍随**进程级**平台方案，同一源码跨宿主主题不可复现，已按实测立项未蒙混 |
-| 7 | 完整 | L | 改动落在三个 owner 各一处：vendored `MaterialPalette`（通道输入 + `scheme` 选择）、`Elevation`（读同一通道）、`lumen-app.slint`（根窗口两笔写入）；明暗结论仍只在 `LumenTheme.dark-mode` 一处产生，`color-scheme` 输出保留为平台观测且只有 `platform-dark-mode` 一个合法读者；供应商台账把「在制文件必须有清单记录」变成不变量 |
-| 8 | 部分 | L | 本批一次整批重采（578s）而非逐场景补帧，并顺带修好一条让补丁能绕过供应商台账的门腿（改前 `material_palette.slint` 的在制文件从未被枚举，上一条补丁 `9c7bb6e` 从未登记、门一直绿是因为它看不见）。全仓统一验证与 6 条 `Integrated`（`SLINT-021` 入列）仍由收口 owner 一次跑完；`SLINT-021` 2 pt + 实测新立 `SLINT-022` 2 pt 使未办结分母 105 → **109 pt / 44 条**，严格交付率 92.3% → **92.0%**（1,258/1,367） |
+| 1 | 部分 | L | b182 只改 Slint 表面的仪表盘布局与投影消费、一条 Python 判据与两条 Rust 用例，零平台 API、零设备交互；`cargo check -p infiltrator-slint`、`cargo clippy -p infiltrator-slint --all-targets -- -D warnings` **exit 0**、Slint nextest **386/386** 为 `L`；交叉 `scripts/cross-check.sh`、aarch64 产物与目标设备仍由 CI runner / 设备矩阵补证（GAP-1.1） |
+| 2 | 部分 | L | 本机 Linux 完成编译、clippy、定向 nextest、199 帧真实像素整批重采与全部守卫；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
+| 3 | 部分 | L | b182 不触 Android/iOS 代码、资源或 wire；桌面仪表盘布局改动经同一 `.slint` 表面在 Android 后端复用，但无实机回执不得声称已验证 |
+| 4 | 部分 | L | 本批改 Slint 桌面仪表盘的速率卡：波形自己 `vertical-stretch` 填满卡身、尺度交回 owner 逐系列归一化；实测 `overview-dark` 上传卡内部死带 **54px（29.3%）→ 21px（11.4%）**，与下载卡一致；Iced/Bevy/Android 不消费这份布局，其密度仍由各自条目收口 |
+| 5 | 完整 | L | 波形尺度事实回到唯一 owner：`TrafficWaveformProjection::normalized_*_points` 逐系列归一化，Slint 表面只做几何映射（`waveform_path(points)`），删除本地 `waveform_paths` 的「除以共享峰值」第二套语义与因此死引用的模块级导入；owner 的 `normalized_*_points` 由零消费者变为真实消费者。求同实测：Bevy `infiltrator_bevy_widgets::waveform::normalized_waveform` 本就逐系列归一化，Slint 是全仓唯一分叉 |
+| 5a | 完整 | L | 仪表盘密度属**可见像素身份**变化，不沿用旧回执：整批重采发布 `20261110T162607Z_bea715d29a27_dirty_427665`（199/199，440s），仅 11 帧 PNG 变化且全部是仪表盘帧（`overview-*` 8 + 声明别名 `sidebar-collapsed-*` 2 + 既有动画相位 1）；`sidebar-collapsed-compact` 别名摘要按新字节刷新并实测 摘要==实际字节==canonical `overview-compact-dark`；`design-resource-authority 0`、`receipt-freshness 0`、`space_utilization --enforce` 199 帧 `violations=0` |
+| 6 | 部分 | L | `slint-dead-input` 抓出并同批删除 `home_compact_flow.slint` 从不使用的 `HomeWaveBand` 导入（手机/紧凑流不画波形）；`waveform_path` 新增 3 条用例（满带宽几何、单样本不可绘、非有限值不得写出 `NaN`/`inf` 路径）；`receipt-freshness-guard.py` 的发布批次判据由「信开跑时写入的 `scenario_count`」改为「逐行核对 manifest 的 `status=ok` 行数等于满额」，planted 自测 3 → **4/4 OK**（本批实测踩到被中断批次把完好语料判成 258 条 stale）；语法门 100% PASS、其余 Slint 守卫全 0、`doc-governance OK`、`closure 8/8`。诚实边界：`SLINT-022`（标准控件滚动条墨色随宿主主题）本批未解 |
+| 7 | 完整 | L | 形状事实只在 `HomeWaveBand` 一处（`vertical-stretch` + `min-height`，入口按事实改名 `min-band-height` 且两个调用点同批迁移不留旧名）；尺度事实只在 presentation owner 一处；几何只在 `waveform_path` 一处；两张卡内不再有各自的透明垫片，全树 `Rectangle { vertical-stretch: 1; background: transparent; }` 在仪表盘页为 0 |
+| 8 | 部分 | L | 本批一次整批重采（440s）而非逐场景补帧，且把「被中断批次能被当成发布批次」修在门上而不是放宽判据；改动范围小（11 帧）说明切片边界清晰。全仓统一验证与 7 条 `Integrated`（`SLINT-023` 入列）仍由收口 owner 一次跑完；`SLINT-023` 2 pt 使未办结分母 109 → **111 pt / 45 条**，严格交付率 92.0% → **91.9%**（1,258/1,369） |
+
+## 最近一批问答（2026-11-10 第一百八十二交付批次：速率卡的波形填满卡身 / 缩放事实只由 owner 决定）
+
+1. x86_64/aarch64：本批只改 Slint 表面的仪表盘布局与投影消费（`ui/pages/home_widgets.slint`、`ui/pages/home_desktop_grid.slint`、`ui/pages/home_compact_flow.slint`、`src/lumen_projection/dashboard.rs`）、一条 Python 判据与两条 Rust 用例，零平台 API、零设备交互；`cargo check -p infiltrator-slint`、`cargo clippy -p infiltrator-slint --all-targets -- -D warnings` **exit 0**、Slint nextest **386/386** 为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 产物仍待 CI runner / 设备矩阵补证 → 部分（L）。
+2. Windows/Linux/macOS：本机 Linux 完成编译、clippy、定向 nextest、199 帧真实像素整批重采与全部守卫；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） → 部分（L）。
+3. Android/iOS：本批不触 Android/iOS 代码、资源或 wire。桌面仪表盘布局经同一份 `.slint` 表面在 Android 后端复用，因此形状修复对 Android 同样成立，但没有实机回执不得声称已验证；三 flavor 实机交互与 iOS 产物仍按既有条目留在外部环境看板 → 部分（L）。
+4. 各 UI：本批改 Slint 桌面仪表盘的速率卡。实测：`overview-dark` 上传卡内部死带 **54px（29.3%）→ 21px（11.4%）**，与下载卡一致，参照物同一卡内死带为 0；`overview-*` 四皮肤与 compact 双视口同批变化。Iced/Bevy/Android 不消费这份布局，其密度与波形尺度仍由各自条目收口，不用 Slint 像素冒充其它表面验收 → 部分（L）。
+5. 复用：本批把**缩放事实**交回唯一 owner。此前 Slint 本地 `waveform_paths` 从原始快照重新推导曲线，并把上传与下载**除以同一个峰值**；而 owner `TrafficWaveformProjection::normalized_*_points` 早已按**各自峰值**归一化，卡片页头打印的 `峰值` 也是逐方向的（2.1 与 6.2 MB/s）——一个事实两个 owner 且语义不同，quiet 方向的曲线只到自己带宽的 34%，其余仍是死地。表面现在只做几何映射 `waveform_path(points)`，不再选尺度；owner 的 `normalized_*_points` 由**零消费者**变为真实消费者。求同侧另有实测支撑：Bevy `infiltrator_bevy_widgets::waveform::normalized_waveform` 本就是逐系列归一化，Slint 是全仓唯一的分叉。同批删除因此变成死引用的模块级导入，并删除 `home_compact_flow.slint` 从不使用的 `HomeWaveBand` 导入 → 完整（L）。
+5a. 设计资源强制标准：仪表盘密度属**可见像素身份**变化，不沿用旧回执：按标准/compact 双视口整批重采发布 `20261110T162607Z_bea715d29a27_dirty_427665`（199/199，440s），仅 11 帧 PNG 变化且全部是仪表盘帧（`overview-*` 8 帧 + 声明别名的 `sidebar-collapsed-*` 2 帧 + 既有动画相位的 `proxies-search-highlight-compact`）；`sidebar-collapsed-compact` 别名摘要按新字节刷新并逐条实测 摘要==实际字节==canonical `overview-compact-dark`；`design-resource-authority 0`、`receipt-freshness 0`、`space_utilization --enforce` 199 帧 `violations=0` → 完整（L）。
+6. 各处界面的功能接入：`waveform_path` 新增 3 条用例（满带宽几何与基线、单样本不可绘、非有限值不得写出含 `NaN`/`inf` 的路径串），Slint nextest **386/386**；`receipt-freshness-guard.py` 的发布批次判据由「信开跑时写入的 `scenario_count`」改为「逐行核对 manifest 的 `status=ok` 行数等于满额」，planted 自测 3 → **4/4 OK**——本批实测踩到被中断的批次声明 199 却只落 72 行，把**完好**的已发布语料判成 258 条 stale；`slint-dead-input` 抓出上述死导入，语法门 100% PASS、dead-input/dashboard-grid/padding/fact-row/viewport-tier/theme-channel/mobile-chrome/typography-role 全 findings=0、typed-state 0、implicit-state 23/0/0、import 0、line 0、`doc-governance OK`、`closure-questions 8/8`。诚实边界两条：① `SLINT-022`（Slint 1.18 自带 style 的 `ScrollBar` 描边随进程级平台方案，同一源码跨宿主主题不可复现）本批未解，仍在其条目收口；② 全仓 `screenshot-identity` 剩 1 条违规仍属另一会话未提交的 Bevy `overview-dark` 像素 → 部分（L）。
+7. 模块化：形状事实只在 `HomeWaveBand` 一处（`vertical-stretch: 1` + `min-height`，入口按事实改名 `min-band-height`，两个调用点同批迁移、不留旧名兼容分支）；尺度事实只在 presentation owner 一处；几何只在 `waveform_path` 一处。两张速率卡内各自的透明垫片同批删除，仪表盘页的 `Rectangle { vertical-stretch: 1; background: transparent; }` 为 0 → 完整（L）。
+8. CI 与批次效率：本批属可见身份变化，按「身份改动集中一次做完」一次整批重采（440s），不逐场景补帧；改动面小（11 帧）说明切片边界清晰，并把「被中断批次能被当成发布批次」修在门上而不是放宽判据或手工清理暂存目录。全仓统一验证与 7 条 `Integrated`（`SLINT-023` 入列，共 15 pt）仍由收口 owner 一次跑完；`SLINT-023` 2 pt 使未办结分母 109 → **111 pt / 45 条**（现在佛 9 → 10 条 / 21 → 23 pt）、累计 1,367 → **1,369 pt**，严格归档交付率 92.0% → **91.9%**（1,258/1,369） → 部分（L）。
 
 ## 最近一批问答（2026-11-10 第一百八十一交付批次：明暗事实只有一个写者 / `@material` 组件不再自行跟平台）
 

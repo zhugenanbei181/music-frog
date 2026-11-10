@@ -11,7 +11,6 @@ use infiltrator_contract::design_tokens::OUTBOUND_STATUS_PALETTE;
 use infiltrator_contract::relative_time::RelativeTimePresentation;
 use infiltrator_contract::resources::{CoreResourceSnapshot, ResourceAvailability};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
-use infiltrator_contract::traffic_waveform::{TrafficSample, TrafficWaveformSnapshot};
 use infiltrator_contract::ui_fact;
 use infiltrator_presentation::dashboard_hero_projection::{
     DashboardHeroProjection, ProfileQuickCardProjection, QuickSwitchesProjection,
@@ -43,7 +42,10 @@ pub(super) fn project_dashboard_facts(window: &AppWindow, snapshot: &SurfaceSnap
     let waveform = TrafficWaveformProjection::from_snapshot(snapshot);
     let (latencies, latency_colors, services_summary) = service_latency_facts(snapshot);
     let (cpu_text, cpu_fraction) = cpu_facts(snapshot);
-    let (upload_wave, download_wave) = waveform_paths(&snapshot.traffic_waveform);
+    let (upload_wave, download_wave) = (
+        waveform_path(&waveform.normalized_up_points),
+        waveform_path(&waveform.normalized_down_points),
+    );
 
     window.set_dashboard_facts(DashboardFacts {
         quality_tag: hero.quality_tag.into(),
@@ -194,56 +196,53 @@ fn cpu_facts(snapshot: &SurfaceSnapshot) -> (String, f32) {
     }
 }
 
-/// Two smoothed SVG paths drawn from the owner's traffic samples. Each path
-/// starts at the left edge and ends at the right edge, with a small baseline
+/// One smoothed SVG path from the owner's normalized series. Each path starts
+/// at the left edge and ends at the right edge, with a small baseline
 /// clearance so the stroke is never clipped by the card's bottom inset.
-fn waveform_paths(waveform: &TrafficWaveformSnapshot) -> (String, String) {
+///
+/// The surface does not choose a scale. Normalization is the owner's fact
+/// (`TrafficWaveformProjection::normalized_*_points`), and it is per series:
+/// each rate card prints its own `峰值`, so the curve has to reach the top of
+/// its band at that same peak. Dividing both series by a shared maximum made
+/// the quieter card draw its own peak at a fraction of the band and left the
+/// rest of the card as dead ground.
+fn waveform_path(points: &[f32]) -> String {
     const WIDTH: f64 = 100.0;
     const BASELINE: f64 = 30.0;
-    let samples = &waveform.samples;
-    if !waveform.is_drawable() {
-        return (String::new(), String::new());
+    if points.len() < 2 {
+        return String::new();
     }
-    let peak = samples
-        .iter()
-        .flat_map(|sample| [sample.upload_bps, sample.download_bps])
-        .filter(|value| value.is_finite() && *value >= 0.0)
-        .fold(0.0_f64, f64::max)
-        .max(1.0);
-    let build = |value: fn(&TrafficSample) -> f64| {
-        let step = WIDTH / (samples.len().max(2) - 1).max(1) as f64;
-        let y_for = |sample: &TrafficSample| {
-            let rate = value(sample);
-            let normalized = if rate.is_finite() && rate > 0.0 {
-                (rate / peak).clamp(0.0, 1.0)
-            } else {
-                0.0
-            };
-            BASELINE - normalized * (BASELINE - 2.0)
+    let step = WIDTH / (points.len() - 1) as f64;
+    // Geometry robustness, not a scale decision: a non-finite or out-of-range
+    // point has to become a finite coordinate or the emitted path string would
+    // read "NaN" and the whole band would fail to draw.
+    let y_for = |value: f32| {
+        let share = if value.is_finite() {
+            value.clamp(0.0, 1.0)
+        } else {
+            0.0
         };
-        let mut path = format!("M 0 {:.1}", y_for(&samples[0]));
-        for (index, pair) in samples.windows(2).enumerate() {
-            let x = (index + 1) as f64 * step;
-            let previous_y = y_for(&pair[0]);
-            let y = y_for(&pair[1]);
-            let mid = x - step / 2.0;
-            path.push_str(&format!(
-                " C {mid:.1} {previous_y:.1}, {mid:.1} {y:.1}, {x:.1} {y:.1}"
-            ));
-        }
-        path.push_str(&format!(" L {WIDTH:.1} {BASELINE:.1} L 0 {BASELINE:.1} Z"));
-        path
+        BASELINE - f64::from(share) * (BASELINE - 2.0)
     };
-    (
-        build(|sample| sample.upload_bps),
-        build(|sample| sample.download_bps),
-    )
+    let mut path = format!("M 0 {:.1}", y_for(points[0]));
+    for index in 0..points.len() - 1 {
+        let x = (index + 1) as f64 * step;
+        let previous_y = y_for(points[index]);
+        let y = y_for(points[index + 1]);
+        let mid = x - step / 2.0;
+        path.push_str(&format!(
+            " C {mid:.1} {previous_y:.1}, {mid:.1} {y:.1}, {x:.1} {y:.1}"
+        ));
+    }
+    path.push_str(&format!(" L {WIDTH:.1} {BASELINE:.1} L 0 {BASELINE:.1} Z"));
+    path
 }
 
 #[cfg(test)]
 mod tests {
-    use super::waveform_paths;
+    use super::waveform_path;
     use infiltrator_contract::traffic_waveform::{TrafficSample, TrafficWaveformSnapshot};
+    use infiltrator_presentation::dashboard_hero_projection::TrafficWaveformProjection;
 
     fn sample(upload: f64, download: f64) -> TrafficSample {
         TrafficSample {
@@ -253,35 +252,55 @@ mod tests {
         }
     }
 
+    /// The path is geometry only: it maps the owner's normalized series onto
+    /// the band, so a series that reaches 1.0 reaches the top of the band.
     #[test]
-    fn waveform_spans_the_full_band_and_keeps_a_baseline() {
-        let waveform = TrafficWaveformSnapshot {
-            generation: 1,
-            revision: 4,
-            samples: vec![
-                sample(1.0, 2.0),
-                sample(8.0, 4.0),
-                sample(3.0, 9.0),
-                sample(6.0, 5.0),
-            ],
-        };
-        let (up, down) = waveform_paths(&waveform);
-        for path in [up, down] {
-            assert!(path.starts_with("M 0 "));
-            assert!(path.contains("C 16.7"));
-            assert!(path.ends_with("L 100.0 30.0 L 0 30.0 Z"));
-            assert!(!path.contains(" L 0 32.0"));
-        }
+    fn a_normalized_series_spans_the_full_band_and_keeps_a_baseline() {
+        let path = waveform_path(&[0.1, 1.0, 0.35, 0.75]);
+        assert!(path.starts_with("M 0 27.2"));
+        assert!(path.contains("C 16.7 27.2, 16.7 2.0, 33.3 2.0"));
+        assert!(path.ends_with("L 100.0 30.0 L 0 30.0 Z"));
+        assert!(!path.contains(" L 0 32.0"));
     }
 
     #[test]
     fn one_sample_is_not_a_drawable_waveform() {
+        assert_eq!(waveform_path(&[0.4]), String::new());
+        assert_eq!(waveform_path(&[]), String::new());
+    }
+
+    /// A non-finite reading must never reach the path string: an SVG path
+    /// containing "NaN" draws nothing, so the whole band would disappear.
+    #[test]
+    fn a_non_finite_point_still_draws_a_finite_path() {
+        let path = waveform_path(&[0.5, f32::NAN, f32::INFINITY, -1.0]);
+        assert!(!path.contains("NaN"), "{path}");
+        assert!(!path.contains("inf"), "{path}");
+        assert!(path.ends_with("L 100.0 30.0 L 0 30.0 Z"));
+    }
+
+    /// The fact this slice moved: each rate card scales on its own peak, so
+    /// the quieter direction still fills its band instead of squatting at the
+    /// baseline while its header prints its own `峰值`.
+    #[test]
+    fn each_series_reaches_the_top_of_its_own_band() {
         let waveform = TrafficWaveformSnapshot {
             generation: 1,
-            revision: 1,
-            samples: vec![sample(1.0, 2.0)],
+            revision: 4,
+            samples: vec![
+                sample(1.0e6, 2.0e6),
+                sample(2.1e6, 4.0e6),
+                sample(1.4e6, 6.2e6),
+                sample(0.8e6, 5.0e6),
+            ],
         };
-        assert_eq!(waveform_paths(&waveform), (String::new(), String::new()));
+        let projection = TrafficWaveformProjection::from_waveform(&waveform, 0, 0);
+        let up = waveform_path(&projection.normalized_up_points);
+        let down = waveform_path(&projection.normalized_down_points);
+        for path in [&up, &down] {
+            // 2.0 is the top of the band: the series' own peak must reach it.
+            assert!(path.contains(" 2.0,"), "{path} never reaches the band top");
+        }
     }
 }
 

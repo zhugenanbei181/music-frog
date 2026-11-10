@@ -56,9 +56,14 @@ def latest_run(root: pathlib.Path) -> pathlib.Path | None:
         manifest = run / "capture-manifest.tsv"
         if not manifest.is_file():
             continue
-        facts = dict(line.split("=", 1) for line in metadata.read_text(
-            encoding="utf-8").splitlines() if "=" in line)
-        if facts.get("scenario_count") != str(FULL_MATRIX_SIZE):
+        # The declared `scenario_count` is written when the run starts, so an
+        # interrupted run declares the full matrix while its manifest carries
+        # only the scenarios that finished. Selection must read what the run
+        # actually published, otherwise a killed batch masquerades as the
+        # publication and marks the intact corpus stale.
+        rows = read_manifest(manifest)
+        published = sum(1 for row in rows.values() if row["status"] == "ok")
+        if published != FULL_MATRIX_SIZE:
             continue
         candidates.append((manifest.stat().st_mtime_ns, run))
     return max(candidates, default=(0, None))[1]
@@ -102,7 +107,10 @@ class GuardTests(unittest.TestCase):
             diagnostic = root / EVIDENCE_ROOT / "diagnostic"
             full.mkdir(parents=True)
             diagnostic.mkdir(parents=True)
-            (full / "capture-manifest.tsv").write_text("\t".join(FIELDS) + "\n")
+            rows = "\t".join(FIELDS) + "\n" + "".join(
+                f"s{i}\tpage\tskin\t1180x780\t1\t2\t1180\t780\t1\tabc\tok\n"
+                for i in range(FULL_MATRIX_SIZE))
+            (full / "capture-manifest.tsv").write_text(rows)
             (full / "capture-metadata.txt").write_text(
                 f"scenario_count={FULL_MATRIX_SIZE}\n")
             (diagnostic / "capture-manifest.tsv").write_text("\t".join(FIELDS) + "\n")
@@ -118,6 +126,33 @@ class GuardTests(unittest.TestCase):
             path.write_bytes(b"pixels")
             self.assertEqual(sha256(path),
                              hashlib.sha256(b"pixels").hexdigest())
+
+    def test_an_interrupted_run_is_not_a_publication(self) -> None:
+        """A killed batch declares the full matrix but published a fraction."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            complete = root / EVIDENCE_ROOT / "complete"
+            killed = root / EVIDENCE_ROOT / "killed"
+            for run in (complete, killed):
+                run.mkdir(parents=True)
+            header = "\t".join(FIELDS) + "\n"
+            ok_rows = header + "".join(
+                f"s{i}\tpage\tskin\t1180x780\t1\t2\t1180\t780\t1\tabc\tok\n"
+                for i in range(FULL_MATRIX_SIZE))
+            (complete / "capture-manifest.tsv").write_text(ok_rows)
+            (complete / "capture-metadata.txt").write_text(
+                f"scenario_count={FULL_MATRIX_SIZE}\n")
+            # The interrupted run wrote the same declared count at start and
+            # only got through 72 scenarios before it was killed.
+            (killed / "capture-manifest.tsv").write_text(header + "".join(
+                f"s{i}\tpage\tskin\t1180x780\t1\t2\t1180\t780\t1\tabc\tok\n"
+                for i in range(72)))
+            (killed / "capture-metadata.txt").write_text(
+                f"scenario_count={FULL_MATRIX_SIZE}\n")
+            import os
+            later_ns = (complete / "capture-manifest.tsv").stat().st_mtime_ns + 1000
+            os.utime(killed / "capture-manifest.tsv", ns=(later_ns, later_ns))
+            self.assertEqual(latest_run(root), complete)
 
 
 def main() -> int:

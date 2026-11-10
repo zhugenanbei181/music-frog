@@ -224,11 +224,10 @@ export component HomeDesktopGrid inherits VerticalLayout {
                 color: LumenTheme.text-secondary;
                 font-size: DesignType.caption-size;
             }
-            Rectangle { vertical-stretch: 1; background: transparent; }
             HomeWaveBand {
                 commands: root.dashboard-facts.upload-wave;
                 ink: LumenTheme.status-info;
-                band-height: 34 * LumenUiScale.unit;
+                min-band-height: 34 * LumenUiScale.unit;
             }
         }
 
@@ -259,11 +258,10 @@ export component HomeDesktopGrid inherits VerticalLayout {
                 color: LumenTheme.text-secondary;
                 font-size: DesignType.caption-size;
             }
-            Rectangle { vertical-stretch: 1; background: transparent; }
             HomeWaveBand {
                 commands: root.dashboard-facts.download-wave;
                 ink: LumenTheme.accent;
-                band-height: 34 * LumenUiScale.unit;
+                min-band-height: 34 * LumenUiScale.unit;
             }
         }
     }

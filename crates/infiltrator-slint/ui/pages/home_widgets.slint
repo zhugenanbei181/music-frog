@@ -97,9 +97,16 @@ export component AppCardHeader inherits Rectangle {
 export component HomeWaveBand inherits Rectangle {
     in property <string> commands;
     in property <color> ink;
-    in property <length> band-height: 36 * LumenUiScale.unit;
+    in property <length> min-band-height: 36 * LumenUiScale.unit;
 
-    height: root.band-height;
+    // The band owns the card's leftover height instead of a transparent
+    // spacer eating it: the reference fills the lower region of the rate card
+    // with the curve, and a fixed 34u strip inside a 184u card left a 54px
+    // dead band (29% of the card) between the totals and the wave. The Path
+    // draws through a `viewbox`, so stretching the box scales the curve rather
+    // than leaving it floating at the bottom.
+    vertical-stretch: 1;
+    min-height: root.min-band-height;
     clip: true;
     Path {
         width: parent.width;
