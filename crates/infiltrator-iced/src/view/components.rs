@@ -735,25 +735,16 @@ pub fn segmented_control_with_actions<'a, Message: 'a + Clone>(
 // Navigation
 // ---------------------------------------------------------------------------
 
-pub fn nav_button<'a>(label: String, route: Route, current_route: &Route) -> Element<'a, Message> {
+/// One labelled navigation row. The glyph is a parameter, never a table: the
+/// destination's semantic icon arrives from the shell navigation registry, and
+/// a route-to-glyph match here would be a second source for it.
+pub fn nav_button<'a>(
+    label: String,
+    route: Route,
+    current_route: &Route,
+    icon: Icon,
+) -> Element<'a, Message> {
     let is_active = route == *current_route;
-    let icon = match route {
-        Route::Overview => Icon::LayoutGrid,
-        Route::Profiles => Icon::FileText,
-        Route::Proxies => Icon::Globe,
-        Route::Runtime => Icon::Activity,
-        Route::Rules => Icon::Shield,
-        Route::Dns => Icon::Network,
-        Route::Sync => Icon::RefreshCw,
-        Route::Settings => Icon::Settings,
-        Route::Editor => Icon::Code2,
-        Route::AppRouting => Icon::LayoutGrid,
-        Route::Doctor => Icon::ListChecks,
-        Route::Tools => Icon::Settings,
-        Route::About => Icon::FileText,
-        Route::Disclaimer => Icon::Shield,
-        Route::Licenses => Icon::FileText,
-    };
 
     let indicator =
         container(Space::new().width(4).height(18)).style(move |t: &Theme| container::Style {
@@ -830,26 +821,11 @@ mod tests;
 #[path = "../../tests/gui/toggle_switch_tests.rs"]
 mod toggle_switch_tests;
 
-/// Compact icon button for the responsive rail mode sidebar.
-pub fn nav_rail_icon<'a>(route: Route, current_route: &Route) -> Element<'a, Message> {
+/// Compact icon button for the responsive rail mode sidebar. The glyph comes
+/// from the same registry row as the labelled form, so the two morphologies of
+/// one destination can never disagree.
+pub fn nav_rail_icon<'a>(route: Route, current_route: &Route, icon: Icon) -> Element<'a, Message> {
     let is_active = route == *current_route;
-    let icon = match route {
-        Route::Overview => Icon::LayoutGrid,
-        Route::Profiles => Icon::FileText,
-        Route::Proxies => Icon::Globe,
-        Route::Runtime => Icon::Activity,
-        Route::Rules => Icon::Shield,
-        Route::Dns => Icon::Network,
-        Route::Sync => Icon::RefreshCw,
-        Route::Settings => Icon::Settings,
-        Route::Editor => Icon::Code2,
-        Route::AppRouting => Icon::LayoutGrid,
-        Route::Doctor => Icon::ListChecks,
-        Route::Tools => Icon::Settings,
-        Route::About => Icon::FileText,
-        Route::Disclaimer => Icon::Shield,
-        Route::Licenses => Icon::FileText,
-    };
 
     let glyph = svg_icons::icon_themed(icon, 18.0, move |t: &Theme| {
         let tk = theme::tokens(t);

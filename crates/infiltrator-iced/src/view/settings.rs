@@ -18,6 +18,7 @@ use crate::view::lan_sharing_card::lan_sharing_card;
 use crate::view::net_roam_card::net_roam_card;
 use crate::view::pac_card::pac_card;
 use crate::view::privileged_network_card::privileged_network_card;
+use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme;
 use crate::view::theme::tokens;
 use crate::view::uwp_card::uwp_card;
@@ -29,6 +30,8 @@ use iced::{Alignment, Element, Length, Theme};
 use infiltrator_ports::host_runtime::TunServiceStatus;
 use infiltrator_presentation::profiles_page_model::ProfilesOperation;
 use infiltrator_presentation::settings_status_projection::format_runtime_status;
+use infiltrator_contract::command_catalogue::ShellPage;
+use infiltrator_contract::shell_navigation::pages_folded_under;
 
 use infiltrator_shared::locales::{Lang, Localizer};
 use integration::{CORE_CHANNEL_OPTIONS, secondary_text};
@@ -244,8 +247,10 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     ))
     .id(InteractionRegion::SettingsAbout.id());
     let language_card = language::language_card(state);
+    let folded_pages = folded_pages_card(&lang);
     let mut content = column![
         header,
+        folded_pages,
         font_attribution,
         language_card,
         theme::role_body_text(format_runtime_status(
@@ -318,6 +323,45 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         .id(SETTINGS_SCROLL_ID)
         .height(Length::Fill)
         .into()
+}
+
+/// The Settings index: one row per page the registry folds under `Settings`.
+///
+/// The navigation registry gives a desktop surface one row per *destination*,
+/// and `destination_for` folds DNS, Doctor, App Routing, Sync, Tools, About,
+/// Disclaimer and Licenses under `Settings`. That is the contract's decision
+/// and the rail obeys it, which means those pages need a second door: without
+/// this index a navigation-only sidebar silently makes eight pages unreachable
+/// by pointer. **The list is not this file's decision** - it comes from
+/// `pages_folded_under`, the declared inverse of `destination_for`, so a page
+/// added to the contract appears here on every surface at once. Bevy states
+/// the same fact as its settings chips and Slint as its `SettingRow` sections.
+///
+/// A row sends the typed `Navigate` intent and nothing else: the destination
+/// page remains the owner of what it renders, and the rail's active row keeps
+/// following `destination_for`, so the index never needs to know which row is
+/// current.
+fn folded_pages_card<'a>(lang: &Lang<'a>) -> Element<'a, Message> {
+    let mut rows = column![].spacing(theme::SP_XS).width(Length::Fill);
+    for page in pages_folded_under(ShellPage::Settings) {
+        let route = Route::from_shell_page(page);
+        rows = rows.push(
+            button(
+                row![
+                    theme::role_body_text(lang.tr(page.sidebar_key()).into_owned()),
+                    Space::new().width(Length::Fill),
+                    icon_themed(Icon::ChevronRight, 14.0, |t| theme::tokens(t).text_tertiary),
+                ]
+                .width(Length::Fill)
+                .align_y(Alignment::Center),
+            )
+            .width(Length::Fill)
+            .padding([10, 12])
+            .style(style_ghost)
+            .on_press(Message::Navigate(route)),
+        );
+    }
+    card(None, rows)
 }
 
 /// Stable identity of the Settings page scrollable.

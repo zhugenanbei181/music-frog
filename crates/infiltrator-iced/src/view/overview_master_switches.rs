@@ -1,6 +1,7 @@
 //! Iced adapter for Overview's large system proxy/TUN master controls.
 
 use crate::state::AppState;
+use crate::accessibility::labelled;
 use crate::types::message::Message;
 use crate::view::components::card_surface;
 use crate::view::svg_icons::{Icon, icon_themed};
@@ -8,6 +9,7 @@ use crate::view::theme;
 use crate::view::theme::tokens;
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
+use infiltrator_contract::a11y::ShellA11yNode;
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot, SystemToggleState};
 use infiltrator_presentation::system_toggle_projection::{action_label, status_label};
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -15,21 +17,34 @@ use infiltrator_shared::locales::{Lang, Localizer};
 /// The same two primary controls as the sidebar, rendered as Overview cards
 /// and driven by the shared SystemToggleSnapshot.
 pub fn overview_master_switches<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Message> {
-    let card_proxy = switch_card(
-        SystemToggle::SystemProxy,
-        lang.tr("system_proxy").to_string(),
-        lang.tr("overview_system_proxy_description").into_owned(),
-        Icon::Wifi,
-        &state.runtime.system_toggles,
-        lang,
+    // DUAL-15-10: these two cards are the shared master switches, and they are
+    // now the only mount of the semantic switch nodes - the desktop sidebar
+    // used to carry a second pair of toggle cards, which is how one fact ended
+    // up with two affordances. Iced has no AccessKit tree, so the shared label
+    // travels as a real hover tooltip.
+    let card_proxy = labelled(
+        ShellA11yNode::SystemProxySwitch,
+        &state.shell.lang,
+        switch_card(
+            SystemToggle::SystemProxy,
+            lang.tr("system_proxy").to_string(),
+            lang.tr("overview_system_proxy_description").into_owned(),
+            Icon::Wifi,
+            &state.runtime.system_toggles,
+            lang,
+        ),
     );
-    let card_tun = switch_card(
-        SystemToggle::Tun,
-        lang.tr("tun_mode").to_string(),
-        lang.tr("overview_tun_description").into_owned(),
-        Icon::Zap,
-        &state.runtime.system_toggles,
-        lang,
+    let card_tun = labelled(
+        ShellA11yNode::TunSwitch,
+        &state.shell.lang,
+        switch_card(
+            SystemToggle::Tun,
+            lang.tr("tun_mode").to_string(),
+            lang.tr("overview_tun_description").into_owned(),
+            Icon::Zap,
+            &state.runtime.system_toggles,
+            lang,
+        ),
     );
 
     if state.shell.viewport.tier.is_compact() {

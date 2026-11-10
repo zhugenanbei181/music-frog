@@ -10,6 +10,7 @@
 
 use iced::widget::svg;
 use iced::{Color, Element};
+use infiltrator_contract::design_resources::IconSemantic;
 use infiltrator_shared::assets::iced_icon_svg;
 use std::collections::HashMap;
 use std::sync::LazyLock;
@@ -50,48 +51,9 @@ pub enum Icon {
 }
 
 impl Icon {
-    /// Raw (embedded) SVG source for this icon.
-    fn bytes(self) -> &'static [u8] {
-        let name = match self {
-            Icon::LayoutGrid => "layout-grid",
-            Icon::FileText => "file-text",
-            Icon::Globe => "globe",
-            Icon::Activity => "activity",
-            Icon::ListChecks => "list-checks",
-            Icon::Network => "network",
-            Icon::RefreshCw => "refresh-cw",
-            Icon::Settings => "settings",
-            Icon::Code2 => "code-2",
-            Icon::Search => "search",
-            Icon::Target => "target",
-            Icon::Zap => "zap",
-            Icon::Shield => "shield",
-            Icon::Wifi => "wifi",
-            Icon::ChevronDown => "chevron-down",
-            Icon::ChevronRight => "chevron-right",
-            Icon::ChevronLeft => "chevron-left",
-            Icon::ChevronUp => "chevron-up",
-            Icon::X => "x",
-            Icon::Plus => "plus",
-            Icon::Trash2 => "trash-2",
-            Icon::Copy => "copy",
-            Icon::Pencil => "pencil",
-            Icon::Pin => "pin",
-            Icon::ArrowUp => "arrow-up",
-            Icon::ArrowDown => "arrow-down",
-            Icon::Server => "server",
-            Icon::Plug => "plug",
-            Icon::Minus => "minus",
-            Icon::Square => "square",
-        };
-        iced_icon_svg(name).expect("registered Iced icon must exist in the shared asset catalog")
-    }
-}
-
-/// Parsed-SVG handles, built once per icon.
-static HANDLES: LazyLock<HashMap<Icon, svg::Handle>> = LazyLock::new(|| {
-    let mut map = HashMap::new();
-    for icon in [
+    /// Every variant, in catalog order. `bytes` and [`HANDLES`] iterate this,
+    /// so a glyph added above is registered in exactly one place.
+    pub const ALL: [Icon; 30] = [
         Icon::LayoutGrid,
         Icon::FileText,
         Icon::Globe,
@@ -122,7 +84,79 @@ static HANDLES: LazyLock<HashMap<Icon, svg::Handle>> = LazyLock::new(|| {
         Icon::Plug,
         Icon::Minus,
         Icon::Square,
-    ] {
+    ];
+
+    /// The canonical shared-asset name for this glyph, the same id
+    /// [`IconSemantic::canonical_name`] publishes. One name per glyph.
+    pub const fn canonical_name(self) -> &'static str {
+        match self {
+            Icon::LayoutGrid => "layout-grid",
+            Icon::FileText => "file-text",
+            Icon::Globe => "globe",
+            Icon::Activity => "activity",
+            Icon::ListChecks => "list-checks",
+            Icon::Network => "network",
+            Icon::RefreshCw => "refresh-cw",
+            Icon::Settings => "settings",
+            Icon::Code2 => "code-2",
+            Icon::Search => "search",
+            Icon::Target => "target",
+            Icon::Zap => "zap",
+            Icon::Shield => "shield",
+            Icon::Wifi => "wifi",
+            Icon::ChevronDown => "chevron-down",
+            Icon::ChevronRight => "chevron-right",
+            Icon::ChevronLeft => "chevron-left",
+            Icon::ChevronUp => "chevron-up",
+            Icon::X => "x",
+            Icon::Plus => "plus",
+            Icon::Trash2 => "trash-2",
+            Icon::Copy => "copy",
+            Icon::Pencil => "pencil",
+            Icon::Pin => "pin",
+            Icon::ArrowUp => "arrow-up",
+            Icon::ArrowDown => "arrow-down",
+            Icon::Server => "server",
+            Icon::Plug => "plug",
+            Icon::Minus => "minus",
+            Icon::Square => "square",
+        }
+    }
+
+    /// Resolve a shared catalog name onto this surface's glyph.
+    fn from_canonical_name(name: &str) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|glyph| glyph.canonical_name() == name)
+    }
+
+    /// Raw (embedded) SVG source for this icon.
+    fn bytes(self) -> &'static [u8] {
+        iced_icon_svg(self.canonical_name())
+            .expect("registered Iced icon must exist in the shared asset catalog")
+    }
+}
+
+/// Resolve a shared semantic icon id onto this surface's glyph.
+///
+/// The mapping is read off [`IconSemantic::canonical_name`] - the one icon
+/// authority - so a caller never keeps a second semantic-to-glyph table, and a
+/// new semantic reaches every surface at once. Every canonical name the
+/// contract publishes has a glyph here, which is what `Icon::ALL`'s coverage
+/// test pins.
+pub fn icon_for_semantic(semantic: IconSemantic) -> Icon {
+    Icon::from_canonical_name(semantic.canonical_name()).unwrap_or_else(|| {
+        unreachable!(
+            "every IconSemantic has an Iced glyph; {} has none",
+            semantic.canonical_name()
+        )
+    })
+}
+
+/// Parsed-SVG handles, built once per icon.
+static HANDLES: LazyLock<HashMap<Icon, svg::Handle>> = LazyLock::new(|| {
+    let mut map = HashMap::new();
+    for icon in Icon::ALL {
         map.insert(icon, svg::Handle::from_memory(icon.bytes()));
     }
     map
@@ -161,3 +195,7 @@ pub fn icon_themed<'a, Message>(
         })
         .into()
 }
+
+#[cfg(test)]
+#[path = "../../tests/gui/svg_icons_tests.rs"]
+mod tests;

@@ -86,6 +86,9 @@ python3 scripts/quality/bevy-desktop-host-boundary-guard.py
 # 侧栏导航律法：Bevy 的侧栏列只挂导航列，行来自契约注册表，选中态由 widget 层单一作者绘制。
 python3 scripts/quality/bevy-sidebar-nav-guard.py --self-test
 python3 scripts/quality/bevy-sidebar-nav-guard.py --mode enforce
+# 同一律法在 Iced 侧栏：列只挂导航，行集唯一来自 shell_navigation 注册表，无路由→字形表。
+python3 scripts/quality/iced-sidebar-nav-guard.py --self-test
+python3 scripts/quality/iced-sidebar-nav-guard.py --mode enforce
 python3 scripts/quality/android-owner-client-guard.py --self-test
 python3 scripts/quality/android-owner-client-guard.py
 python3 scripts/quality/android-vpn-lifecycle-guard.py --self-test

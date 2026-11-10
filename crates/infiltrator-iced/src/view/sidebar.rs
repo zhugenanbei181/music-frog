@@ -1,43 +1,42 @@
-//! iOS-style control sidebar (Clash Party reference).
+//! Desktop navigation sidebar: destinations and nothing else.
 //!
-//! Top-to-bottom: app header (logo tile + version + refresh/settings actions),
-//! routing-intent segmented control, system-proxy / TUN toggle cards, active profile
-//! card with traffic usage progress, shortcut matrix grid (Proxies, Rules,
-//! Runtime, DNS) with count badges, live speed footer with mini sparkline
-//! waveform, and the main nav entries (Overview, Sync, Settings) separated by
-//! a hairline divider. Every color comes from [`crate::view::theme::tokens`]
-//! so light, dark, forest, and AMOLED themes are equally first-class.
+//! The rows come from the shared typed registry
+//! ([`infiltrator_contract::shell_navigation::desktop_items`]), the same table
+//! the Slint rail and the Bevy rail mount, so a destination's id, order,
+//! grouping, label and semantic icon are stated once for every surface. This
+//! pane used to declare its own primary/secondary route tables *and* carry the
+//! shell's status: a brand tile with the package version, a routing-intent
+//! segmented control, the system-proxy/TUN switch cards, the active profile
+//! card with its usage bar, a shortcut matrix with count badges and a live
+//! speed footer with a sparkline. Every one of those facts already had an
+//! owner - the overview page publishes the master switches and the intent
+//! segment, the window chrome strip owns the title and the live rates, the
+//! About page owns the version, the overview quota card owns the profile and
+//! its usage - so the rail was a second truth source for five facts, and it
+//! pushed navigation below a wall of cards. The reference desktop sidebar is
+//! navigation alone (`docs/reference/FLCLASH_DESKTOP_REFERENCE.md` §2), and
+//! `docs/SPACE_UTILIZATION_STANDARD.md` holds the rail at a zero non-navigation
+//! band, which is what `chrome_band` 0% enforces on every judged frame.
+//!
+//! A destination that the registry folds under another one (DNS, Doctor, App
+//! Routing, Sync, Tools, About, Disclaimer, Licenses) gets no row of its own:
+//! it is reached from the Settings page's index, which is built from
+//! `pages_folded_under` rather than from a literal list.
 
-use crate::accessibility::labelled;
 use crate::state::AppState;
 use crate::types::app::Route;
 use crate::types::message::Message;
-use crate::types::runtime::RuntimeStatus;
-use crate::view::theme::font_for;
-use infiltrator_contract::design_resources::TextRole;
-use infiltrator_contract::surface_snapshot::PageId;
-use infiltrator_presentation::routing_intent_projection::{
-    routing_intent_copy_key, routing_intent_status_copy,
-};
-use infiltrator_presentation::shell_readout::{
-    count_copy, profile_kind, profile_name, profile_percent, profile_usage, rate_copy, rate_status,
-};
-use lurker_core_contract::routing_intent::RoutingIntent;
-
-use crate::view::components::{
-    BadgeKind, badge, card_surface, icon_button, nav_button, nav_rail_icon,
-    segmented_control_with_actions, toggle_switch,
-};
-use crate::view::svg_icons::{Icon, icon_themed};
+use crate::view::components::{nav_button, nav_rail_icon};
+use crate::view::svg_icons::{icon_for_semantic, icon_themed};
 use crate::view::theme;
-use crate::view::theme::{R_CARD, R_CONTROL};
-use crate::view::waveform::{StripInk, hud_waveform};
-use iced::widget::{Space, button, column, container, progress_bar, row, text};
+use iced::widget::{Space, button, column, container, row};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
-use infiltrator_contract::a11y::ShellA11yNode;
 use infiltrator_contract::responsive_viewport::{SidebarForm, ViewportTier};
-use infiltrator_contract::shared_copy::SharedCopyKey;
+use infiltrator_contract::shell_navigation::{
+    NavigationItem, NavigationSurface, NavigationTarget, desktop_items,
+};
 use infiltrator_contract::sidebar_material::SidebarMaterialKind;
+use infiltrator_contract::surface::SurfaceKind;
 use infiltrator_contract::window_chrome::DesktopPlatformKind;
 use infiltrator_presentation::sidebar_material_projection::{
     project_sidebar_material, project_sidebar_surface_wash,
@@ -48,13 +47,41 @@ use infiltrator_shared::locales::{Lang, Localizer};
 /// `responsive_viewport::SidebarForm::Standard`, the authoritative value.
 pub(crate) const SIDEBAR_WIDTH: f32 = 240.0;
 
-/// The common routing choices exposed by both UI surfaces.
-fn common_routing_intents() -> [RoutingIntent; 3] {
-    [
-        RoutingIntent::FollowRules,
-        RoutingIntent::RouteAllThroughProxy,
-        RoutingIntent::BypassProxy,
-    ]
+/// Compact 64px rail sidebar for responsive tablet or narrow desktop views.
+pub const RAIL_WIDTH: f32 = 64.0;
+
+/// The rows this desktop surface mounts, in the registry's own order.
+fn sidebar_rows() -> Vec<NavigationItem> {
+    desktop_items(SurfaceKind::IcedDesktop)
+}
+
+/// Map a registry destination onto this surface's route.
+///
+/// The one surface-local row is the traffic page: Slint paints it as its own
+/// page, and Iced folds it into the runtime page (which hosts the log and
+/// traffic sections), so `Runtime` is the route that owns that destination
+/// here. A surface-local id this surface does not own cannot arrive - the
+/// registry filters those out through `owns_surface_local` - so reaching the
+/// fallback arm is a registry/surface disagreement, not a user state.
+fn route_for_destination(target: NavigationTarget) -> Route {
+    match target {
+        NavigationTarget::Shared(page) => Route::from_shell_page(page),
+        NavigationTarget::SurfaceLocal("traffic") => Route::Runtime,
+        NavigationTarget::SurfaceLocal(id) => unreachable!(
+            "the Iced desktop mounts no surface-local row, but `{id}` reached the pane"
+        ),
+    }
+}
+
+/// The localized label of one row. A shared destination is named by the copy
+/// table the contract points at ([`ShellPage::sidebar_key`]); the
+/// surface-local row has no shared key by design and is named by this
+/// surface's own entry for the page it opens.
+fn label_for(item: NavigationItem, lang: &Lang<'_>) -> String {
+    match item.target {
+        NavigationTarget::Shared(page) => lang.tr(page.sidebar_key()).into_owned(),
+        NavigationTarget::SurfaceLocal(_) => lang.tr("nav_runtime").into_owned(),
+    }
 }
 
 /// Full labelled sidebar at the default expanded width. Kept as a stable
@@ -63,71 +90,36 @@ pub fn sidebar(state: &AppState) -> Element<'_, Message> {
     sidebar_with_form(state, SidebarForm::Standard)
 }
 
-/// Sidebar content column (header, routing control, toggles, nav shortcuts).
-/// Padding is owned by the surrounding container so rail/standard/wide share it.
-/// Primary navigation rows (#132): the five destinations every tier mounts,
-/// as one ordered table — the same architecture as the Bevy rail — so the
-/// vertical sidebar and the compact bottom bar can never drift apart.
-pub const NAV_PRIMARY: [(Route, &str, Icon); 5] = [
-    (Route::Overview, "nav_overview", Icon::LayoutGrid),
-    (Route::Proxies, "nav_proxies", Icon::Globe),
-    (Route::Rules, "nav_rules", Icon::Shield),
-    (Route::Runtime, "nav_runtime", Icon::Activity),
-    (Route::Settings, "nav_settings", Icon::Settings),
-];
-
-/// Secondary destinations the vertical sidebar keeps below the divider; the
-/// compact bottom bar has no room for them.
-pub const NAV_SECONDARY: [(Route, &str, Icon); 4] = [
-    (Route::AppRouting, "nav_app_routing", Icon::Network),
-    (Route::Doctor, "nav_doctor", Icon::ListChecks),
-    (Route::Sync, "nav_sync", Icon::RefreshCw),
-    (Route::About, "nav_about", Icon::FileText),
-];
-
+/// The navigation column: one row per registry destination, then the free
+/// air that belongs below the stack.
 fn sidebar_inner(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
-    // #132: the nav rows below come from NAV_PRIMARY/NAV_SECONDARY, so this
-    // column stops at the divider.
-    let mut sidebar_column = column![
-        header(state),
-        routing_intent_control(state, &lang),
-        toggles(state, &lang),
-        profile_card(state, &lang),
-        shortcut_matrix(state, &lang),
-        speed_footer(state, &lang),
-        divider(),
-    ]
-    .spacing(theme::SP_SM)
-    .width(Length::Fill);
-    // #132: every nav row comes from the single tables — primary first,
-    // secondary below — the same architecture the Bevy rail mounts.
-    for (route, key, _) in NAV_PRIMARY.iter().chain(NAV_SECONDARY.iter()) {
-        sidebar_column = sidebar_column.push(nav_button(
-            lang.tr(key).into_owned(),
-            *route,
+    let mut rows = column![].spacing(theme::SP_XS).width(Length::Fill);
+    for item in sidebar_rows() {
+        rows = rows.push(nav_button(
+            label_for(item, &lang),
+            route_for_destination(item.target),
             &state.shell.current_route,
+            icon_for_semantic(item.icon),
         ));
     }
-    sidebar_column
-        .push(Space::new().height(Length::Fill))
-        .into()
+    rows.push(Space::new().height(Length::Fill)).into()
 }
 
 /// Compact bottom navigation bar for the `< 600px` tier: a horizontal strip of
-/// icon + label entries replacing the vertical sidebar entirely.
+/// icon + label entries replacing the vertical sidebar entirely. It mounts the
+/// registry's dock rows, which are the destinations a four-item bar can carry.
 fn sidebar_bottom_nav(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
-    // #132: the compact bar mounts the same primary rows as the vertical
-    // sidebar — one table, two morphologies.
-    let routes = NAV_PRIMARY;
-
     let mut bar = row![]
         .spacing(theme::SP_XS)
         .padding([theme::SP_XS, theme::SP_SM]);
-    for (route, key, icon) in routes.iter() {
-        let is_active = *route == state.shell.current_route;
-        let glyph = icon_themed(*icon, 18.0, move |t: &Theme| {
+
+    for item in NavigationItem::items(NavigationSurface::Dock) {
+        let route = route_for_destination(item.target);
+        let label = label_for(*item, &lang);
+        let is_active = route == state.shell.current_route;
+        let glyph = icon_themed(icon_for_semantic(item.icon), 18.0, move |t: &Theme| {
             if is_active {
                 theme::tokens(t).accent
             } else {
@@ -136,13 +128,13 @@ fn sidebar_bottom_nav(state: &AppState) -> Element<'_, Message> {
         });
         bar = bar.push(
             button(
-                column![glyph, theme::role_body_text(lang.tr(key).into_owned()),]
+                column![glyph, theme::role_body_text(label)]
                     .spacing(2)
                     .align_x(Alignment::Center),
             )
             .width(Length::Fill)
             .padding(6)
-            .on_press(Message::Navigate(*route))
+            .on_press(Message::Navigate(route))
             .style(move |t: &Theme, status| {
                 let tk = theme::tokens(t);
                 button::Style {
@@ -155,7 +147,7 @@ fn sidebar_bottom_nav(state: &AppState) -> Element<'_, Message> {
                     },
                     text_color: tk.text_primary,
                     border: Border {
-                        radius: border::Radius::from(R_CONTROL),
+                        radius: border::Radius::from(theme::R_CONTROL),
                         ..Default::default()
                     },
                     ..Default::default()
@@ -172,9 +164,6 @@ fn sidebar_bottom_nav(state: &AppState) -> Element<'_, Message> {
         })
         .into()
 }
-
-/// Compact 64px rail sidebar for responsive tablet or narrow desktop views.
-pub const RAIL_WIDTH: f32 = 64.0;
 
 /// Pure tier → navigation-form mapping shared with tests. Keeps the dropdown
 /// width and the rendered widget in sync from one decision point.
@@ -229,42 +218,19 @@ fn sidebar_with_form(state: &AppState, form: SidebarForm) -> Element<'_, Message
 }
 
 /// Compact vertical rail with icon-only navigation (medium tier).
+///
+/// A rail is navigation by glyph alone: the same registry rows the labelled
+/// column mounts, with the label left to the hover tooltip the icon button
+/// carries. It used to paint a brand tile of its own and a second, longer
+/// route list, which is how the two forms of one pane drifted apart.
 pub fn sidebar_rail(state: &AppState) -> Element<'_, Message> {
-    let routes = [
-        Route::Overview,
-        Route::Proxies,
-        Route::Profiles,
-        Route::Rules,
-        Route::Runtime,
-        Route::Dns,
-        Route::Doctor,
-        Route::AppRouting,
-        Route::Sync,
-        Route::Settings,
-        Route::About,
-    ];
-
-    let mut items = column![
-        container(icon_themed(Icon::Server, 20.0, |t| theme::tokens(t).on_accent))
-            .width(36)
-            .height(36)
-            .align_x(Alignment::Center)
-            .align_y(Alignment::Center)
-            .style(|t: &Theme| container::Style {
-                background: Some(theme::tokens(t).accent.into()),
-                border: Border {
-                    radius: border::Radius::from(R_CONTROL),
-                    ..Default::default()
-                },
-                ..Default::default()
-            }),
-        divider(),
-    ]
-    .spacing(theme::SP_SM)
-    .align_x(Alignment::Center);
-
-    for route in routes {
-        items = items.push(nav_rail_icon(route, &state.shell.current_route));
+    let mut items = column![].spacing(theme::SP_XS).align_x(Alignment::Center);
+    for item in sidebar_rows() {
+        items = items.push(nav_rail_icon(
+            route_for_destination(item.target),
+            &state.shell.current_route,
+            icon_for_semantic(item.icon),
+        ));
     }
 
     let bg = sidebar_background_color(state, &state.shell.theme);
@@ -276,527 +242,6 @@ pub fn sidebar_rail(state: &AppState) -> Element<'_, Message> {
             background: Some(bg.into()),
             ..Default::default()
         })
-        .into()
-}
-
-// ---------------------------------------------------------------------------
-// Header
-// ---------------------------------------------------------------------------
-
-/// Logo mark in an accent tile + app name with package version,
-/// accompanied by restart/refresh and settings gear action buttons on right.
-fn header(state: &AppState) -> Element<'_, Message> {
-    let logo_tile = container(icon_themed(Icon::Server, 20.0, |t| {
-        theme::tokens(t).on_accent
-    }))
-    .width(36)
-    .height(36)
-    .align_x(Alignment::Center)
-    .align_y(Alignment::Center)
-    .style(|t: &Theme| container::Style {
-        background: Some(theme::tokens(t).accent.into()),
-        border: Border {
-            radius: border::Radius::from(R_CONTROL),
-            ..Default::default()
-        },
-        ..Default::default()
-    });
-
-    let version_str = infiltrator_contract::ProductVersion::DISPLAY;
-    let lang = Lang(&state.shell.lang);
-
-    let title_col = column![
-        theme::role_body_text(Localizer::tr(&lang, SharedCopyKey::AppName.key())).style(
-            |t: &Theme| text::Style {
-                color: Some(theme::tokens(t).text_primary)
-            }
-        ),
-        theme::role_body_text(version_str).style(|t: &Theme| text::Style {
-            color: Some(theme::tokens(t).text_tertiary),
-        }),
-    ]
-    .spacing(1);
-
-    let can_back = state.shell.history.can_go_back();
-    let can_fwd = state.shell.history.can_go_forward();
-
-    let nav_history = row![
-        icon_button(
-            Icon::ChevronLeft,
-            13.0,
-            if can_back {
-                Message::NavigateBack
-            } else {
-                Message::Noop
-            },
-        ),
-        icon_button(
-            Icon::ChevronRight,
-            13.0,
-            if can_fwd {
-                Message::NavigateForward
-            } else {
-                Message::Noop
-            },
-        ),
-    ]
-    .spacing(2)
-    .align_y(Alignment::Center);
-
-    let status_dot = container(Space::new().width(8).height(8)).style(move |t: &Theme| {
-        let is_running = matches!(state.runtime.status, RuntimeStatus::Running);
-        let col = if is_running {
-            theme::tokens(t).success
-        } else {
-            theme::tokens(t).danger
-        };
-        container::Style {
-            background: Some(col.into()),
-            border: Border {
-                radius: border::Radius::from(theme::R_PILL),
-                ..Default::default()
-            },
-            ..Default::default()
-        }
-    });
-
-    let actions = row![
-        nav_history,
-        // DUAL-15-10: the status dot is a colour-only control; its shared
-        // semantic label is surfaced as a real hover tooltip (Iced has no
-        // AccessKit tree to attach it to).
-        labelled(
-            ShellA11yNode::GlobalStatusDot,
-            &state.shell.lang,
-            status_dot.into(),
-        ),
-        icon_button(Icon::Search, 14.0, Message::ToggleCommandPalette),
-        icon_button(Icon::RefreshCw, 14.0, Message::RefreshRuntimeNow),
-        icon_button(Icon::Settings, 14.0, Message::Navigate(Route::Settings)),
-    ]
-    .spacing(theme::SP_XS)
-    .align_y(Alignment::Center);
-
-    row![
-        logo_tile,
-        Space::new().width(theme::SP_MD),
-        title_col,
-        Space::new().width(Length::Fill),
-        actions,
-    ]
-    .align_y(Alignment::Center)
-    .width(Length::Fill)
-    .into()
-}
-
-// ---------------------------------------------------------------------------
-// Routing intent segmented control
-// ---------------------------------------------------------------------------
-
-fn routing_intent_control<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
-    let intents = common_routing_intents();
-    let labels: Vec<String> = intents
-        .iter()
-        .map(|intent| lang.tr(routing_intent_copy_key(intent)).into_owned())
-        .collect();
-
-    let selected = state
-        .runtime
-        .routing_intent
-        .as_ref()
-        .and_then(|current| intents.iter().position(|intent| intent == current))
-        .unwrap_or(usize::MAX);
-
-    let intents_for_callback = intents.clone();
-    let pending = state.runtime.runtime_patch_stage.is_applying();
-    let routing_state = state.runtime.routing_intent_state.clone();
-    let control = segmented_control_with_actions(&labels, selected, move |index| {
-        let target = intents_for_callback.get(index)?;
-        (!pending && routing_state.is_intent_selectable(target))
-            .then(|| Message::SetRoutingIntent(target.clone()))
-    });
-
-    let caption = routing_intent_status_copy(&state.runtime.routing_intent_state, &Lang(lang.0));
-    container(column![control, theme::role_body_text(caption)].spacing(theme::SP_XS))
-        .width(Length::Fill)
-        .into()
-}
-
-// ---------------------------------------------------------------------------
-// Quick toggle cards
-// ---------------------------------------------------------------------------
-
-/// 系统代理 / TUN cards side by side: icon top-left, switch top-right,
-/// label underneath.
-fn toggles<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
-    // DUAL-15-10: the two master toggle cards carry the shared semantic labels
-    // as real hover tooltips, the visible affordance Iced can offer in place
-    // of the AccessKit switch nodes Bevy mounts.
-    let system_proxy = labelled(
-        ShellA11yNode::SystemProxySwitch,
-        &state.shell.lang,
-        toggle_card(
-            Icon::Wifi,
-            short_label(&lang.tr("system_proxy")),
-            state.runtime.system_toggles.system_proxy.is_enabled(),
-            Message::SetSystemProxy,
-        ),
-    );
-    let tun = labelled(
-        ShellA11yNode::TunSwitch,
-        &state.shell.lang,
-        toggle_card(
-            Icon::Zap,
-            short_label(&lang.tr("tun_mode")),
-            state.runtime.system_toggles.tun.is_enabled(),
-            Message::SetTunEnabled,
-        ),
-    );
-
-    row![system_proxy, tun]
-        .spacing(theme::SP_SM)
-        .width(Length::Fill)
-        .into()
-}
-
-fn toggle_card<'a>(
-    glyph: Icon,
-    label: String,
-    on: bool,
-    on_toggle: fn(bool) -> Message,
-) -> Element<'a, Message> {
-    let icon_element = icon_themed(glyph, 16.0, move |t: &Theme| {
-        let tokens = theme::tokens(t);
-        if on {
-            tokens.accent
-        } else {
-            tokens.text_tertiary
-        }
-    });
-
-    container(
-        column![
-            row![
-                icon_element,
-                Space::new().width(Length::Fill),
-                toggle_switch(on, on_toggle),
-            ]
-            .align_y(Alignment::Center)
-            .width(Length::Fill),
-            Space::new().height(theme::SP_SM),
-            theme::role_body_text(label).style(|t: &Theme| {
-                text::Style {
-                    color: Some(theme::tokens(t).text_secondary),
-                }
-            }),
-        ]
-        .spacing(theme::SP_XS),
-    )
-    .width(Length::FillPortion(1))
-    .padding(theme::SP_MD)
-    .style(card_surface)
-    .into()
-}
-
-/// Trim an explanatory parenthetical from a locale string, e.g.
-/// "系统代理 (System Proxy)" -> "系统代理" (compact-card friendly).
-fn short_label(value: &str) -> String {
-    value.split(" (").next().unwrap_or(value).to_string()
-}
-
-// ---------------------------------------------------------------------------
-// Profile card
-// ---------------------------------------------------------------------------
-
-/// Active profile name + optional 订阅 badge with traffic usage progress bar
-/// and informative subtitle.
-fn profile_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
-    let readout = &state.shell.readout;
-    let active = readout.profile.value();
-    let name = profile_name(readout, &Lang(&state.shell.lang));
-    let is_subscription = active.is_some_and(|profile| profile.subscription);
-    let subtitle = profile_kind(readout, &Lang(&state.shell.lang));
-    let fraction = active.and_then(|profile| profile.usage_fraction);
-
-    let header_row = row![
-        icon_themed(Icon::FileText, 16.0, |t| theme::tokens(t).accent),
-        Space::new().width(theme::SP_SM),
-        column![
-            theme::role_body_text(name).style(|t: &Theme| {
-                text::Style {
-                    color: Some(theme::tokens(t).text_primary),
-                }
-            }),
-            theme::role_body_text(subtitle).style(|t: &Theme| {
-                text::Style {
-                    color: Some(theme::tokens(t).text_tertiary),
-                }
-            }),
-        ]
-        .spacing(1),
-        Space::new().width(Length::Fill),
-        if is_subscription {
-            badge(lang.tr("subscription").into_owned(), BadgeKind::Accent)
-        } else {
-            Space::new().width(0).into()
-        },
-        Space::new().width(theme::SP_XS),
-        icon_themed(Icon::ChevronRight, 14.0, |t| theme::tokens(t).text_tertiary),
-    ]
-    .align_y(Alignment::Center)
-    .width(Length::Fill);
-
-    let mut body = column![header_row].spacing(theme::SP_SM);
-
-    if let Some(fraction) = fraction {
-        body = body.push(
-            column![
-                progress_bar(0.0..=1.0, fraction).length(Length::Fill),
-                row![
-                    theme::role_body_text(profile_usage(readout, &Lang(&state.shell.lang))),
-                    Space::new().width(Length::Fill),
-                    theme::role_body_text(profile_percent(readout, &Lang(&state.shell.lang))),
-                ]
-                .align_y(Alignment::Center)
-                .width(Length::Fill),
-            ]
-            .spacing(3),
-        );
-    }
-
-    clickable_card(body, Message::Navigate(Route::Profiles))
-}
-
-// ---------------------------------------------------------------------------
-// 2x2 Shortcut Matrix & Stat Badges
-// ---------------------------------------------------------------------------
-
-/// Proxies, Rules, Runtime (Connections), and DNS shortcut tiles organized
-/// in a neat 2x2 grid with count badges.
-fn shortcut_matrix<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
-    let readout = &state.shell.readout;
-    let groups = count_copy(readout, PageId::Proxies, &Lang(&state.shell.lang));
-    let connections = count_copy(readout, PageId::Connections, &Lang(&state.shell.lang));
-    let rules_count = count_copy(readout, PageId::Rules, &Lang(&state.shell.lang));
-    let dns_count = count_copy(readout, PageId::Dns, &Lang(&state.shell.lang));
-
-    let proxies_tile = shortcut_tile(
-        Icon::Globe,
-        &lang.tr("nav_proxies"),
-        &groups,
-        Route::Proxies,
-        state.shell.current_route == Route::Proxies,
-    );
-    let rules_tile = shortcut_tile(
-        Icon::Shield,
-        &lang.tr("nav_rules"),
-        &rules_count,
-        Route::Rules,
-        state.shell.current_route == Route::Rules,
-    );
-    let runtime_tile = shortcut_tile(
-        Icon::Activity,
-        &lang.tr("nav_runtime"),
-        &connections,
-        Route::Runtime,
-        state.shell.current_route == Route::Runtime,
-    );
-    let dns_tile = shortcut_tile(
-        Icon::Network,
-        &lang.tr("nav_dns"),
-        &dns_count,
-        Route::Dns,
-        state.shell.current_route == Route::Dns,
-    );
-
-    column![
-        row![proxies_tile, rules_tile]
-            .spacing(theme::SP_SM)
-            .width(Length::Fill),
-        row![runtime_tile, dns_tile]
-            .spacing(theme::SP_SM)
-            .width(Length::Fill),
-    ]
-    .spacing(theme::SP_SM)
-    .width(Length::Fill)
-    .into()
-}
-
-fn shortcut_tile<'a>(
-    icon: Icon,
-    label: &str,
-    count: &str,
-    route: Route,
-    is_active: bool,
-) -> Element<'a, Message> {
-    let badge_kind = if is_active {
-        BadgeKind::Accent
-    } else {
-        BadgeKind::Neutral
-    };
-
-    let content = column![
-        row![
-            icon_themed(icon, 16.0, move |t: &Theme| {
-                let tk = theme::tokens(t);
-                if is_active {
-                    tk.accent
-                } else {
-                    tk.text_secondary
-                }
-            }),
-            Space::new().width(Length::Fill),
-            badge(count.to_string(), badge_kind),
-        ]
-        .align_y(Alignment::Center)
-        .width(Length::Fill),
-        Space::new().height(theme::SP_XS),
-        theme::role_body_text(label.to_string())
-            .font(if is_active {
-                font_for(TextRole::LabelStrong)
-            } else {
-                font_for(TextRole::Label)
-            })
-            .style(move |t: &Theme| text::Style {
-                color: Some(if is_active {
-                    theme::tokens(t).accent
-                } else {
-                    theme::tokens(t).text_secondary
-                }),
-            }),
-    ]
-    .spacing(2);
-
-    button(content)
-        .width(Length::FillPortion(1))
-        .padding(theme::SP_MD)
-        .style(move |t: &Theme, status| {
-            let tokens = theme::tokens(t);
-            let hovered = matches!(status, button::Status::Hovered | button::Status::Pressed);
-            button::Style {
-                background: Some(tokens.card_bg.into()),
-                border: Border {
-                    radius: border::Radius::from(R_CARD),
-                    width: if is_active { 1.5 } else { 1.0 },
-                    color: if is_active || hovered {
-                        tokens.accent
-                    } else {
-                        tokens.card_border
-                    },
-                },
-                shadow: tokens.card_shadow,
-                ..Default::default()
-            }
-        })
-        .on_press(Message::Navigate(route))
-        .into()
-}
-
-// ---------------------------------------------------------------------------
-// Speed footer with Mini Sparkline Waveform
-// ---------------------------------------------------------------------------
-
-/// Live up/down rates from the traffic state in mono numerals, accompanied by
-/// the mini sparkline waveform for visual traffic dynamics.
-fn speed_footer<'a>(state: &AppState, _lang: &Lang<'a>) -> Element<'a, Message> {
-    let up_speed = rate_copy(&state.shell.readout.upload_bps, &Lang(&state.shell.lang));
-    let down_speed = rate_copy(&state.shell.readout.download_bps, &Lang(&state.shell.lang));
-
-    let speeds_col = column![
-        speed_leg(Icon::ArrowUp, up_speed, |t| theme::tokens(t).success),
-        speed_leg(Icon::ArrowDown, down_speed, |t| theme::tokens(t).accent),
-    ]
-    .spacing(2);
-
-    let waveform = hud_waveform(&state.shell.readout.waveform.down, StripInk::Accent);
-
-    let content = row![speeds_col, Space::new().width(Length::Fill), waveform,]
-        .align_y(Alignment::Center)
-        .width(Length::Fill);
-    let failure = rate_status(&state.shell.readout, &Lang(&state.shell.lang));
-    let content: Element<Message> = if failure.is_empty() {
-        content.into()
-    } else {
-        column![content, theme::role_body_text(failure)]
-            .spacing(2)
-            .into()
-    };
-
-    // DUAL-15-10: the live rate readout carries the shared semantic label as a
-    // tooltip, since Iced cannot publish an AccessKit status node.
-    labelled(
-        ShellA11yNode::TrafficReadout,
-        &state.shell.lang,
-        container(content)
-            .width(Length::Fill)
-            .padding(theme::SP_MD)
-            .style(card_surface)
-            .into(),
-    )
-}
-
-fn speed_leg<'a>(
-    glyph: Icon,
-    formatted_rate: String,
-    color: impl Fn(&Theme) -> Color + Copy + 'a,
-) -> Element<'a, Message> {
-    row![
-        icon_themed(glyph, 12.0, color),
-        Space::new().width(theme::SP_XS),
-        theme::role_body_text(formatted_rate).style(move |t: &Theme| text::Style {
-            color: Some(color(t))
-        }),
-    ]
-    .align_y(Alignment::Center)
-    .into()
-}
-
-// ---------------------------------------------------------------------------
-// Remaining navigation + hairline divider
-// ---------------------------------------------------------------------------
-
-fn divider() -> Element<'static, Message> {
-    container(Space::new().height(1))
-        .width(Length::Fill)
-        .style(|t: &Theme| container::Style {
-            background: Some(theme::tokens(t).divider.into()),
-            ..Default::default()
-        })
-        .into()
-}
-
-// ---------------------------------------------------------------------------
-// Shared surface
-// ---------------------------------------------------------------------------
-
-/// Card-styled button used for the whole-card clickable surfaces.
-fn clickable_card<'a>(
-    content: impl Into<Element<'a, Message>>,
-    on_press: Message,
-) -> Element<'a, Message> {
-    button(content)
-        .width(Length::Fill)
-        .padding(theme::SP_MD)
-        .style(|t: &Theme, status| {
-            let tokens = theme::tokens(t);
-            let hovered = matches!(status, button::Status::Hovered | button::Status::Pressed);
-            button::Style {
-                background: Some(tokens.card_bg.into()),
-                text_color: tokens.text_primary,
-                border: Border {
-                    radius: border::Radius::from(R_CARD),
-                    width: theme::HAIRLINE,
-                    color: if hovered {
-                        tokens.accent
-                    } else {
-                        tokens.card_border
-                    },
-                },
-                shadow: tokens.card_shadow,
-                ..Default::default()
-            }
-        })
-        .on_press(on_press)
         .into()
 }
 

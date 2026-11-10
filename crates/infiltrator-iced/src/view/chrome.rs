@@ -10,6 +10,7 @@
 use crate::accessibility::labelled;
 use crate::state::AppState;
 use crate::types::message::Message;
+use crate::types::runtime::RuntimeStatus;
 use crate::view::components::icon_button;
 use crate::view::svg_icons::Icon;
 use crate::view::theme;
@@ -69,6 +70,59 @@ pub fn chrome_strip(state: &AppState) -> Element<'_, Message> {
         icon_button(Icon::Search, 12.0, Message::OpenCommandPalette),
     );
 
+    // The route history and the core run-state dot are shell facts, and the
+    // strip is this shell's title bar - the one owner the reference names for
+    // them (`docs/reference/FLCLASH_DESKTOP_REFERENCE.md` §2: the desktop
+    // sidebar is navigation alone). Both used to live in the sidebar's own
+    // header row, which is what made that pane a second truth source for the
+    // brand, the rates and the status; the contract's `GlobalStatusDot` is
+    // documented as "the core run-state dot beside the header actions", which
+    // is exactly this row.
+    let can_back = state.shell.history.can_go_back();
+    let can_forward = state.shell.history.can_go_forward();
+    let history_controls = row![
+        icon_button(
+            Icon::ChevronLeft,
+            13.0,
+            if can_back {
+                Message::NavigateBack
+            } else {
+                Message::Noop
+            },
+        ),
+        icon_button(
+            Icon::ChevronRight,
+            13.0,
+            if can_forward {
+                Message::NavigateForward
+            } else {
+                Message::Noop
+            },
+        ),
+    ]
+    .spacing(theme::SP_XS)
+    .align_y(Alignment::Center);
+
+    let running = matches!(state.runtime.status, RuntimeStatus::Running);
+    let status_dot = labelled(
+        ShellA11yNode::GlobalStatusDot,
+        &state.shell.lang,
+        container(Space::new().width(8).height(8))
+            .style(move |theme: &Theme| container::Style {
+                background: Some(
+                    if running {
+                        theme::tokens(theme).success
+                    } else {
+                        theme::tokens(theme).danger
+                    }
+                    .into(),
+                ),
+                border: border::rounded(theme::R_PILL),
+                ..Default::default()
+            })
+            .into(),
+    );
+
     let controls = row![
         // DUAL-15-10: text-free window controls carry the shared semantic
         // labels (the same rows Bevy mounts as AccessKit nodes).
@@ -94,6 +148,8 @@ pub fn chrome_strip(state: &AppState) -> Element<'_, Message> {
     let bar = container(
         row![
             drag_surface,
+            history_controls,
+            status_dot,
             labelled(
                 ShellA11yNode::TrafficReadout,
                 &state.shell.lang,

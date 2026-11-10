@@ -1,11 +1,18 @@
+//! What the desktop sidebar itself decides: the routes its rows resolve to and
+//! the shapes it mounts per responsive tier.
+//!
+//! Every fact the pane used to duplicate has its own owner test now - the
+//! master switches in `overview_master_switches_tests`, the live rates in
+//! `view_chrome_tests`, the folded-page index in `view_settings_tests`, the
+//! readout projections in `infiltrator_presentation` - so this file does not
+//! restate them.
+
 use super::*;
-use crate::types::message::Message;
 use infiltrator_contract::runtime_control::{RuntimeControlSnapshot, RuntimeControlStatus};
-use infiltrator_contract::shell_readout::ShellObservation;
+use infiltrator_contract::shell_navigation::{NavigationTarget, desktop_items};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
-use infiltrator_contract::system_toggle::{SystemToggleSnapshot, SystemToggleState};
-use infiltrator_shared::locales::Lang;
+use infiltrator_contract::system_toggle::SystemToggleState;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::routing_intent::RoutingIntent;
@@ -68,47 +75,43 @@ fn shared_observation_replay_keeps_intent_typed_and_preserves_failed_tun_readbac
     assert_eq!(state.runtime.runtime_control.tun_enabled, Some(false));
 }
 
+/// Every row the pane paints is a registry destination, and every one of them
+/// resolves onto a route this surface can open.
 #[test]
-fn common_routing_intents_are_shared_choices() {
-    assert_eq!(
-        common_routing_intents(),
-        [
-            RoutingIntent::FollowRules,
-            RoutingIntent::RouteAllThroughProxy,
-            RoutingIntent::BypassProxy,
-        ]
-    );
+fn every_registry_row_resolves_onto_a_route_of_this_surface() {
+    let rows = desktop_items(SurfaceKind::IcedDesktop);
+    assert_eq!(rows.len(), 8, "the desktop registry mounts eight rows");
+    for item in &rows {
+        match item.target {
+            NavigationTarget::Shared(page) => assert_eq!(
+                route_for_destination(item.target),
+                Route::from_shell_page(page)
+            ),
+            NavigationTarget::SurfaceLocal("traffic") => assert_eq!(
+                route_for_destination(item.target),
+                Route::Runtime,
+                "Iced folds the traffic destination into the runtime page"
+            ),
+            NavigationTarget::SurfaceLocal(other) => {
+                panic!("the Iced pane owns no surface-local row, got {other}")
+            }
+        }
+    }
 }
 
+/// The two morphologies of one pane read the same rows, so a destination
+/// cannot exist in the rail and be missing from the labelled column.
 #[test]
-fn test_short_label() {
-    assert_eq!(short_label("系统代理 (System Proxy)"), "系统代理");
-    assert_eq!(short_label("TUN 模式 (TUN Mode)"), "TUN 模式");
-    assert_eq!(short_label("Simple"), "Simple");
+fn the_labelled_column_and_the_rail_share_one_row_set() {
+    let (state, _) = AppState::new();
+    assert_eq!(
+        sidebar_rows().len(),
+        desktop_items(SurfaceKind::IcedDesktop).len()
+    );
+    let _labelled = sidebar(&state);
+    let _rail = sidebar_rail(&state);
 }
 
-#[test]
-fn unobserved_shell_counts_and_rates_are_distinct_from_observed_zero() {
-    let (mut state, _) = AppState::new();
-    assert_eq!(
-        count_copy(&state.shell.readout, PageId::Rules, &Lang("en-US")),
-        "Not observed"
-    );
-    assert_eq!(
-        rate_copy(&state.shell.readout.upload_bps, &Lang("en-US")),
-        "Not observed"
-    );
-    state.shell.readout.rules = ShellObservation::Current(0);
-    state.shell.readout.upload_bps = ShellObservation::Current(0.0);
-    assert_eq!(
-        count_copy(&state.shell.readout, PageId::Rules, &Lang("en-US")),
-        "0"
-    );
-    assert_eq!(
-        rate_copy(&state.shell.readout.upload_bps, &Lang("en-US")),
-        "0 B/s"
-    );
-}
 #[test]
 fn test_sidebar_rail_render_smoke() {
     let (state, _) = AppState::new();
@@ -116,22 +119,3 @@ fn test_sidebar_rail_render_smoke() {
     assert_eq!(RAIL_WIDTH, 64.0);
 }
 
-#[test]
-fn system_toggle_sidebar_uses_shared_pending_policy() {
-    let (mut state, _) = AppState::new();
-    state.runtime.system_toggles = SystemToggleSnapshot::from_legacy(false, Some(false), 1);
-
-    let _ = state.update(Message::SetSystemProxy(true));
-    assert!(matches!(
-        state.runtime.system_toggles.system_proxy,
-        SystemToggleState::Pending { desired: true }
-    ));
-
-    // The Elm update path and the Bevy observer share the same no-reentry
-    // rule: a second click cannot enqueue a conflicting request.
-    let _ = state.update(Message::SetSystemProxy(false));
-    assert!(matches!(
-        state.runtime.system_toggles.system_proxy,
-        SystemToggleState::Pending { desired: true }
-    ));
-}
