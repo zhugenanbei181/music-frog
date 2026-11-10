@@ -24,19 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-10 第一百七十二批次；b111–b171 见下方批次八问摘要）
+## 当前状态（2026-11-10 第一百七十四批次；b111–b172 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b172 只导出 16 行封闭 sidebar 变体表并生成 Slint 查表适配物，零平台 API、零设备交互；contract 定向 nextest 584/584、`cargo check -p infiltrator-slint --all-targets`、生成器与守卫自测为 `L`；交叉 `scripts/cross-check.sh`、aarch64 产物与目标设备仍由 CI runner / 设备矩阵补证（GAP-1.1） |
-| 2 | 部分 | L | 本机 Linux 完成 contract 测试、Slint 全目标编译、格式、`py_compile`、导出/生成器与独立质量门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
-| 3 | 部分 | L | b172 不触 Android/iOS 代码、资源或 wire；导出表的 `touch_surface` 分支覆盖底部导航，但三 flavor 实机交互与 iOS 回执仍由外部环境看板 owner 补证 |
-| 4 | 部分 | L | Slint 外壳已把 typed 偏好与表面事实交给共享 resolver，并改读导出的形态/列宽/标签决策；本批不挂 toggle、不改任何像素。其它 UI 不消费桌面变体表，后续 toggle 仍须只读 typed 快照并发送 `ApplySidebarExpansion` |
-| 5 | 完整 | L | `page_structure::sidebar_variant_facts()` 是偏好 × 视口 × 表面形态的唯一裁决表，`resolve_sidebar_expansion` 是唯一 resolver；导出 JSON 是唯一数字真源，生成器只投影，Slint 外壳/侧栏只消费，owner guard 钉住 18 文件链与 16 行表，无第二套列宽或私有布尔 |
-| 5a | 完整 | L | b172 不改字体/字重/图标/主题/可见文案、wire 或快照；Slint 默认 expanded 与非触摸桌面解析结果等同原阶梯，无像素身份变化。沿用发布批 `20261110T002611Z_536f4a1c8930_dirty_56001`，复核 `receipt-freshness 0`、`screenshot-identity 574/10/0`、`design-resource-authority 0`、空间 197 帧 `violations=0` |
-| 6 | 部分 | L | contract 584/584、Slint 全目标编译、owner guard 7/7 + enforce 0、生成器 fresh、空间自测 45/45、shared-copy/i18n/typed-state/隐式状态/文档治理/收口八问/回执/身份/设计资源/侧栏分隔门均绿；全仓结构门、全量 clippy 与 `resolve_surface_evidence.py` 仍受另一会话 Bevy WIP 阻塞，由统一收口 owner 补证 |
-| 7 | 完整 | L | pinned 上游源码归 TSV，身份/resolver/transition 归 contract module，16 行解析表归 page_structure 导出，生成器唯一写 Slint adapter，外壳/主题/侧栏只消费，结构不变量归 owner guard；L2 空间标准与 L3 参照只向下引用，无跨 UI 私有业务真源、无 Option/null 阶段组合 |
-| 8 | 部分 | L | 开发期只跑 contract 定向测试、Slint 全目标编译、生成器检查与本批独立守卫；不改像素省下一次 197 帧重采。全仓统一验证与 5 条 `Integrated` 办结仍由收口 owner 一次跑完，严格交付率保持 92.5% |
+| 1 | 部分 | L | b174 只改 Slint 呈现层与离线判定器，零平台 API、零设备交互；`cargo check -p infiltrator-slint --all-targets`、Slint nextest 384/384、contract nextest 587/587 与 `cargo clippy -p infiltrator-slint --all-targets -- -D warnings` 为 `L`；交叉 `scripts/cross-check.sh`、aarch64 产物与目标设备仍由 CI runner / 设备矩阵补证（GAP-1.1） |
+| 2 | 部分 | L | 本机 Linux 完成 Slint 全目标编译/clippy、定向 nextest、199 帧真实像素重采与全部独立门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
+| 3 | 部分 | L | b174 不触 Android/iOS 代码、资源或 wire；折叠钮只在导出表 `toggle_available` 的非触摸桌面档绘制，触摸面仍为底栏；三 flavor 实机交互与 iOS 回执由外部环境看板 owner 补证 |
+| 4 | 部分 | L | Slint 外壳把侧栏实测的按钮带、导航栈尾、leading 与页身空气一次交给 `ShellReceipt` 组件，判定器据此测量；本批不新增业务交互。Iced/Bevy 不消费该 chrome 回执，其侧栏接线仍由各自条目推进 |
+| 5 | 完整 | L | 按钮带只有绘制它的 `DesktopSideBar` 知道（b173 收口把测量交回侧栏）：`absolute-position.y + height + rail-item-gap` 是唯一测量点，经 `AppBody` 上传；b174 把这份投影收进独立 `ShellReceipt` 组件，`shell_receipt.rs` 仍是唯一 wire，判定器仍是唯一消费者；`sidebar-expansion-owner-guard.py` 23 文件链 findings=0，无第二份数字、无 UI 私有布尔 |
+| 5a | 完整 | L | 字体/字重/图标/主题/可见文案不变；`sidebar_toggle_px` 的 66→106 几何身份变化已由 b173 收口重采，b174 的组件化不改 wire 值，仍按最终树重采 199 帧发布 `20261110T063442Z_a58ed35be980_dirty_309370`（444s，与 b173 批 198/199 逐字节相同），复核 `receipt-freshness 0`、`design-resource-authority 0`、空间 199 帧 `violations=0`；`screenshot-identity` 唯一违规属另一会话 Bevy WIP |
+| 6 | 部分 | L | Slint 384/384、contract 587/587、语法门 100% PASS（lumen-app 609 → 436 代码行，SLINT-001 由超标转达标）、dead-input 0、typography/mobile-chrome/surface-ladder/padding/list-page/fact-row/dock-material/dashboard-grid/selector-segment/action-label/workbench-row 各门 findings=0、空间自测 50/50 + `--check-export` current + 199 帧 enforce 0、typed-state 0、implicit-state 23/0/0、doc-governance OK、closure 8/8；全仓结构门、全量 clippy 与 `resolve_surface_evidence.py` 仍受另一会话 Bevy/依赖钉版 WIP 阻塞，由统一收口 owner 补证 |
+| 7 | 完整 | L | chrome 投影归 `components/shell_receipt.slint`，按钮带测量归 `sidebar.slint`，页身事实归 `app_body.slint`，外壳只做 typed 接线；wire/解析/判定分别只有 `shell_receipt.rs`、`space_utilization.py` 一处；无 bool/Option 阶段组合、无跨 UI 第二真源 |
+| 8 | 部分 | L | 开发期只跑受影响包（Slint/contract 定向 nextest、单包 clippy、局部守卫），199 帧矩阵与组团集中验收在收口时各跑一次；严格交付率保持 **92.5%**，全仓统一验证仍待另一会话 WIP 落地 |
+
+## 最近一批问答（2026-11-10 第一百七十四交付批次：chrome 回执成为独立组件 / 外壳压回 SLINT-001 预算）
+
+1. x86_64/aarch64：本批只改 Slint 呈现层（`sidebar.slint`/`app_body.slint`/`lumen-app.slint` 与新组件）与 Python 判定器，零平台 API、零设备交互；`cargo check -p infiltrator-slint --all-targets`、Slint 定向 nextest **384/384**、contract 定向 nextest **587/587**、`cargo clippy -p infiltrator-slint --all-targets -- -D warnings` 零警告为 `L`；交叉 `scripts/cross-check.sh`、aarch64 产物与目标设备仍待 CI runner / 设备矩阵补证 → 部分（L）。
+2. Windows/Linux/macOS：本机 Linux 完成 Slint 全目标编译/clippy、定向 nextest、199 帧真实像素重采、语法门与全部独立守卫；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） → 部分（L）。
+3. Android/iOS：本批不触 Android/iOS 代码、资源或 wire；折叠钮只在导出表 `toggle_available` 的非触摸桌面档绘制，触摸面保持底栏；三 flavor 实机交互与 iOS 产物仍按既有条目留在外部环境看板 → 部分（L）。
+4. 各 UI：Slint 把侧栏实测的按钮带、导航栈尾、leading 与页身空气交给独立 `ShellReceipt` 组件，外壳只喂 typed 事实；Iced/Bevy 不消费该 chrome 回执，其侧栏接线仍由各自条目推进，本批不把 Slint 像素冒充其它表面验收 → 部分（L）。
+5. 复用：按钮带的高度只有绘制它的元素知道——b173 收口已把 `absolute-position.y + height + rail-item-gap` 的测量交回 `DesktopSideBar`；本批补上这条链缺的呈现结构：`ShellReceipt` 成为 chrome 投影的唯一持有者，外壳只喂 typed 事实，`shell_receipt.rs` 仍是唯一 wire，判定器仍是唯一消费者；`sidebar-expansion-owner-guard.py` 23 文件链 findings=0，没有第二份 66/106、没有 UI 私有布尔 → 完整（L）。
+5a. 设计资源强制标准：本批无字体/字重/图标/主题/可见文案变化，也不改 wire 值；b173 的 66→106 几何身份变化已由该批重采收口，本批按最终树再整批重采 199 帧发布 `20261110T063442Z_a58ed35be980_dirty_309370`（444s，与 b173 批相比 198 帧逐字节相同，唯一差异是搜索高亮动画帧），复核 `design-resource-authority 0`、`receipt-freshness 0`、空间 199 帧 violations=0；`screenshot-identity scanned=576 aliases=11` 的唯一违规是另一会话未提交的 Bevy 像素 → 完整（L）。
+6. 各处界面的功能接入：Slint 384/384、contract 587/587、语法门 100% PASS（`lumen-app.slint` 609 → **436** 代码行，SLINT-001 由超标转达标）、dead-input findings=0、typography/mobile-chrome/surface-ladder/padding/list-page/fact-row/dock-material/dashboard-grid/selector-segment/action-label/workbench-row 各门 0、空间自测 **50/50** + `--check-export` current + 199 帧 enforce 0、typed-state 0、implicit-state 23/0/0、doc-governance OK、closure 8/8。本批不新增业务交互；全仓结构门、全量 clippy 与 `resolve_surface_evidence.py` 仍受另一会话 Bevy/依赖钉版 WIP 阻塞 → 部分（L）。
+7. 模块化：chrome 投影归 `components/shell_receipt.slint`，按钮带测量归 `components/sidebar.slint`，页身事实归 `components/app_body.slint`，外壳只做 typed 接线；wire、解析、判定各只有一个真源；没有 bool/Option 阶段组合，也没有跨 UI 私有推导 → 完整（L）。
+8. CI 与批次效率：开发期只跑受影响包与局部守卫，199 帧矩阵与组团集中验收各跑一次；本批把 chrome 投影从外壳的 struct 字面量收进组件，并把 `lumen-app.slint` 609 → 436 代码行（SLINT-001 由超标转达标），外壳可读性与可门禁性同时提升。全仓统一验证与 5 条 `Integrated` 仍由收口 owner 一次跑完，严格交付率保持 **92.5%** → 部分（L）。
 
 ## 最近一批问答（2026-11-10 第一百七十二交付批次：FlClash 侧栏形态成为导出表 / 偏好与视口不再分家）
 

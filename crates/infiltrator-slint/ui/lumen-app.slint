@@ -22,15 +22,12 @@ import { AppBottomBar, MobileDockPageGround, ClearTrafficDialog, DesktopTitleBar
 import { AppBody } from "components/app_body.slint";
 import { PageTitles } from "components/page_titles.slint";
 import { NavigationForm, SidebarExpansionPreference } from "components/viewport_tier.slint"; export { NavigationForm, SidebarExpansionPreference }
+import { ShellReceipt } from "components/shell_receipt.slint";
 import { PageWorkbench } from "pages/page_workbench.slint";
 import { ConnectionSort, LogLevel, NetworkMode, RouteMode, RuntimeStatus, ThemeMode, TrafficRange } from "components/domain_enums.slint";
 
 export component AppWindow inherits MaterialWindow {
-        title: @tr("Lumen");
-        no-frame: root.frameless;
-        background: LumenTheme.zinc-0;
-        disable-hover: root.android-platform || root.capture-pointer-absent;
-        default-font-family: DesignType.body-family;
+        title: @tr("Lumen"); no-frame: root.frameless; background: LumenTheme.zinc-0; disable-hover: root.android-platform || root.capture-pointer-absent; default-font-family: DesignType.body-family;
         // Two questions, two facts, both read from the exported ladder rather
         // than measured here.
         //
@@ -44,30 +41,25 @@ export component AppWindow inherits MaterialWindow {
         // and sheds its breathing room. It used to carry both jobs, which is
         // how the medium tier ended up paying a phone's bottom band for a
         // desktop window's navigation (SPACEUTIL-006).
-        in-out property <SidebarExpansionPreference> sidebar-expansion: SidebarExpansionPreference.expanded;
-        out property <NavigationForm> navigation-form: LumenTheme.navigation-form;
-        out property <bool> compact-layout: root.android-platform || !LumenTheme.labelled-sidebar;
-        out property <ReceiptChrome> receipt-chrome: { nav-form: root.navigation-form, sidebar-expansion: root.sidebar-expansion, touch-surface: root.android-platform, sidebar-toggle: app-body.sidebar-toggle, nav-column: LumenTheme.rail-width, nav-stack-bottom: app-body.nav-stack-bottom, nav-content-offset: app-body.nav-content-offset, page-margin: app-body.page-margin, shell-top-air: app-body.page-content-padding-top, shell-bottom-air: app-body.page-content-padding-bottom, dock-band: app-body.dock-band-height, scale-percent: root.page-scale-percent };
-        property <bool> platform-dark-mode: MaterialPalette.color-scheme == ColorScheme.dark;
-        in-out property <bool> frameless: false;
+        in-out property <SidebarExpansionPreference> sidebar-expansion: SidebarExpansionPreference.expanded; out property <NavigationForm> navigation-form: LumenTheme.navigation-form;
+        out property <bool> compact-layout: root.android-platform || !LumenTheme.labelled-sidebar; out property <ReceiptChrome> receipt-chrome: shell-receipt.chrome;
+        shell-receipt := ShellReceipt {
+        navigation-form: root.navigation-form; sidebar-expansion: root.sidebar-expansion; touch-surface: root.android-platform;
+        sidebar-toggle: app-body.sidebar-toggle; nav-stack-bottom: app-body.nav-stack-bottom; nav-content-offset: app-body.nav-content-offset;
+        page-margin: app-body.page-margin; shell-top-air: app-body.page-content-padding-top; shell-bottom-air: app-body.page-content-padding-bottom;
+        dock-band: app-body.dock-band-height; scale-percent: root.page-scale-percent;
+        }
+        property <bool> platform-dark-mode: MaterialPalette.color-scheme == ColorScheme.dark; in-out property <bool> frameless: false;
         // EFFECTS-041 #167: the frameless desktop chrome's window controls.
         callback window-minimize(); callback window-toggle-maximize(); callback window-close();
         in-out property <bool> is-maximized: false; in-out property <bool> window-focused: true; callback window-focus-changed(bool);
-        in-out property <string> title-bar-upload: "0 B/s"; in-out property <string> title-bar-download: "0 B/s"; callback title-bar-search-clicked();
-        in-out property <bool> android-platform: false;
+        in-out property <string> title-bar-upload: "0 B/s"; in-out property <string> title-bar-download: "0 B/s"; callback title-bar-search-clicked(); in-out property <bool> android-platform: false;
         // A capture run drives the surface through typed gestures only: the
         // nested compositor parks its pointer at the output centre, which would
         // otherwise publish a hovered control no user ever hovered.
-        in property <bool> capture-pointer-absent: false;
-        in-out property <string> product-version: ProductIdentity.version;
-        in-out property <bool> layout-debug-tools-enabled: false;
-        in-out property <bool> layout-debug-bounds: false;
-        in-out property <bool> application-dark-mode: false;
-        in-out property <ThemeMode> theme-mode: ThemeMode.system;
-        in-out property <bool> auto-start: false;
-        in-out property <bool> refresh-current-profile-on-start: false;
-        in-out property <bool> invert-theme-foreground: false;
-        in-out property <color> theme-color: LumenTheme.default-accent;
+        in property <bool> capture-pointer-absent: false; in-out property <string> product-version: ProductIdentity.version; in-out property <bool> layout-debug-tools-enabled: false;
+        in-out property <bool> layout-debug-bounds: false; in-out property <bool> application-dark-mode: false; in-out property <ThemeMode> theme-mode: ThemeMode.system; in-out property <bool> auto-start: false;
+        in-out property <bool> refresh-current-profile-on-start: false; in-out property <bool> invert-theme-foreground: false; in-out property <color> theme-color: LumenTheme.default-accent;
         in-out property <bool> theme-accent-light-foreground: true;
         in-out property <string> theme-color-code: LumenTheme.default-accent-code; in-out property <string> theme-color-input-code: LumenTheme.default-accent-code;
         in-out property <float> theme-hue: 198; in-out property <float> theme-saturation: 0.66; in-out property <float> theme-value: 0.50;
@@ -75,31 +67,17 @@ export component AppWindow inherits MaterialWindow {
         in-out property <int> page-scale-percent: 100;
         // The host projects the shared contract into this one typed state.
         // Every geometry consumer reads it; no surface computes a dock state.
-        in property <MobileDockBandState> mobile-dock-band-state: MobileDockBandState.reserved;
-        in-out property <bool> predictive-back-enabled: false;
-        in-out property <bool> predictive-back-supported: false;
-        in-out property <bool> hide-background-card: false;
-        in-out property <bool> show-traffic-notification: false;
-        in-out property <bool> release-ui-when-background: false;
-        in-out property <bool> ignore-battery-optimizations: false;
-        in-out property <int> app-settings-preview-section: -1;
-        in-out property <string> app-settings-message: "";
+        in property <MobileDockBandState> mobile-dock-band-state: MobileDockBandState.reserved; in-out property <bool> predictive-back-enabled: false; in-out property <bool> predictive-back-supported: false;
+        in-out property <bool> hide-background-card: false; in-out property <bool> show-traffic-notification: false; in-out property <bool> release-ui-when-background: false;
+        in-out property <bool> ignore-battery-optimizations: false; in-out property <int> app-settings-preview-section: -1; in-out property <string> app-settings-message: "";
         in-out property <bool> theme-color-dialog-open: false;
         in-out property <string> theme-color-draft: LumenTheme.default-accent-code; in-out property <string> theme-color-code-draft: LumenTheme.default-accent-code;
         in-out property <float> theme-hue-draft: 198; in-out property <float> theme-saturation-draft: 0.66; in-out property <float> theme-value-draft: 0.50;
-        in-out property <string> theme-color-error: ""; in-out property <bool> theme-color-saving: false; in-out property <bool> theme-color-code-edited: false;
-        in-out property <int> theme-color-result-revision: 0;
-        in-out property <int> page-scale-draft: 100;
-        in-out property <bool> page-scale-dialog-open: false;
-        in-out property <bool> page-scale-committing: false;
-        in-out property <length> app-language-anchor-x: 0 * LumenUiScale.unit;
-        in-out property <length> app-language-anchor-y: 0 * LumenUiScale.unit;
-        in-out property <length> app-theme-anchor-x: 0 * LumenUiScale.unit;
-        in-out property <length> app-theme-anchor-y: 0 * LumenUiScale.unit;
-        in-out property <length> last-page-scroll-y: 0 * LumenUiScale.unit;
-        in-out property <bool> profile-add-open: false;
-        in-out property <int> profile-add-kind-index: 0;
-        in-out property <int> profile-count-at-open: 0;
+        in-out property <string> theme-color-error: ""; in-out property <bool> theme-color-saving: false; in-out property <bool> theme-color-code-edited: false; in-out property <int> theme-color-result-revision: 0;
+        in-out property <int> page-scale-draft: 100; in-out property <bool> page-scale-dialog-open: false; in-out property <bool> page-scale-committing: false;
+        in-out property <length> app-language-anchor-x: 0 * LumenUiScale.unit; in-out property <length> app-language-anchor-y: 0 * LumenUiScale.unit; in-out property <length> app-theme-anchor-x: 0 * LumenUiScale.unit;
+        in-out property <length> app-theme-anchor-y: 0 * LumenUiScale.unit; in-out property <length> last-page-scroll-y: 0 * LumenUiScale.unit; in-out property <bool> profile-add-open: false;
+        in-out property <int> profile-add-kind-index: 0; in-out property <int> profile-count-at-open: 0;
 
         // The real on-screen geometry of the sheet the surface opened. The parity
         // capture path publishes these bounds with its activation marker, so a
@@ -110,236 +88,99 @@ export component AppWindow inherits MaterialWindow {
         out property <length> capture-bounds-y: root.capture-page-open ? 0 * LumenUiScale.unit : root.profile-add-open ? profile-overlays.add-sheet-y : root.overview-order-open ? overview-order-overlay.order-sheet-y : profile-overlays.delete-sheet-y;
         out property <length> capture-bounds-width: root.capture-page-open ? root.width : root.profile-add-open ? profile-overlays.add-sheet-width : root.overview-order-open ? overview-order-overlay.order-sheet-width : profile-overlays.delete-sheet-width;
         out property <length> capture-bounds-height: root.capture-page-open ? root.height : root.profile-add-open ? profile-overlays.add-sheet-height : root.overview-order-open ? overview-order-overlay.order-sheet-height : profile-overlays.delete-sheet-height;
-        in-out property <int> back-request-revision: 0;
-        property <length> profile-sheet-width: min(640 * LumenUiScale.unit, max(0 * LumenUiScale.unit, root.width - 48 * LumenUiScale.unit));
+        in-out property <int> back-request-revision: 0; property <length> profile-sheet-width: min(640 * LumenUiScale.unit, max(0 * LumenUiScale.unit, root.width - 48 * LumenUiScale.unit));
         property <length> app-settings-bottom-inset: max(root.safe-area-insets.bottom, root.virtual-keyboard-size.height > 0 * LumenUiScale.unit ? max(0 * LumenUiScale.unit, root.height - root.virtual-keyboard-position.y) : 0 * LumenUiScale.unit);
         property <length> profile-sheet-content-width: max(0 * LumenUiScale.unit, root.profile-sheet-width - 16 * LumenUiScale.unit);
         property <length> profile-dialog-width: min(640 * LumenUiScale.unit, max(0 * LumenUiScale.unit, root.width - 24 * LumenUiScale.unit));
-        property <length> profile-dialog-content-width: max(0 * LumenUiScale.unit, root.profile-dialog-width - 16 * LumenUiScale.unit);
-        property <length> profile-sheet-content-height: 364 * LumenUiScale.unit;
+        property <length> profile-dialog-content-width: max(0 * LumenUiScale.unit, root.profile-dialog-width - 16 * LumenUiScale.unit); property <length> profile-sheet-content-height: 364 * LumenUiScale.unit;
         property <length> profile-settings-sheet-height: min(root.profile-settings-type-index == 1 ? 640 * LumenUiScale.unit : root.profile-settings-kind == "remote_subscription" ? 520 * LumenUiScale.unit : 340 * LumenUiScale.unit, max(0 * LumenUiScale.unit, root.height - root.safe-area-insets.top - root.safe-area-insets.bottom - 52 * LumenUiScale.unit));
         out property <bool> primary-page: root.page == "Home" || root.page == "Proxy" || root.page == "Config" || root.page == "Settings" || root.page == "SettingsWorkbench";
         init => {
-        MaterialPalette.schemes = LumenTheme.material-schemes;
-        LumenTheme.show-layout-bounds = root.layout-debug-bounds;
-        LumenTheme.viewport-width = root.width;
-        LumenTheme.sidebar-expansion = root.sidebar-expansion;
-        LumenTheme.touch-surface = root.android-platform;
-        LumenTheme.compact-layout = root.compact-layout;
-        LumenUiScale.unit = 1px * (root.page-scale-percent / 100.0);
-        LumenTheme.dark-mode = root.application-dark-mode;
-        LumenTheme.user-accent = root.theme-color;
-        LumenTheme.forest-mode = root.theme-mode == ThemeMode.forest;
-        LumenTheme.amoled-mode = root.theme-mode == ThemeMode.amoled;
+        MaterialPalette.schemes = LumenTheme.material-schemes; LumenTheme.show-layout-bounds = root.layout-debug-bounds; LumenTheme.viewport-width = root.width; LumenTheme.sidebar-expansion = root.sidebar-expansion;
+        LumenTheme.touch-surface = root.android-platform; LumenTheme.compact-layout = root.compact-layout; LumenUiScale.unit = 1px * (root.page-scale-percent / 100.0); LumenTheme.dark-mode = root.application-dark-mode;
+        LumenTheme.user-accent = root.theme-color; LumenTheme.forest-mode = root.theme-mode == ThemeMode.forest; LumenTheme.amoled-mode = root.theme-mode == ThemeMode.amoled;
         if root.theme-mode == ThemeMode.system { root.application-dark-mode = root.platform-dark-mode; }
-        LumenTheme.accent-foreground = root.theme-accent-light-foreground ? #FFFFFF : #000000;
-        LumenTheme.invert-semantic-foreground = root.invert-theme-foreground;
+        LumenTheme.accent-foreground = root.theme-accent-light-foreground ? #FFFFFF : #000000; LumenTheme.invert-semantic-foreground = root.invert-theme-foreground;
         }
 
         in-out property <string> page: "Home"; in-out property <string> page-origin: "Settings";
         in-out property <RuntimeStatus> runtime-status: RuntimeStatus.stopped; in-out property <string> runtime-detail: @tr("尚未启动 Mihomo");
-        in-out property <string> active-profile: @tr("未选择配置"); in-out property <bool> has-current-profile: false;
-        in property <string> current-profile-id;
+        in-out property <string> active-profile: @tr("未选择配置"); in-out property <bool> has-current-profile: false; in property <string> current-profile-id;
         in-out property <RouteMode> route-mode: RouteMode.rule; in-out property <NetworkMode> network-mode: NetworkMode.system-proxy;
         // The one copy source for the takeover mode: the sidebar and the settings
         // page read this, and it now derives from the typed enum through the same
         // pure function the rest of the surface uses.
         property <string> network-mode-label: PageTitles.network-mode-title(root.network-mode);
         property <string> runtime-status-label: root.runtime-status == RuntimeStatus.running ? @tr("运行中") : root.runtime-status == RuntimeStatus.starting ? @tr("正在启动") : root.runtime-status == RuntimeStatus.stopping ? @tr("正在停止") : root.runtime-status == RuntimeStatus.failed ? @tr("启动失败") : @tr("已停止");
-        in-out property <string> network-mode-status: @tr("Runtime 未运行");
-        in-out property <bool> network-mode-status-warning: false;
-        in-out property <bool> tun-capable: false;
-        in-out property <string> tun-capability-detail: @tr("TUN 平台适配未验证");
-        in-out property <string> lan-sharing-heading: ""; in-out property <string> lan-sharing-detail: "";
+        in-out property <string> network-mode-status: @tr("Runtime 未运行"); in-out property <bool> network-mode-status-warning: false; in-out property <bool> tun-capable: false;
+        in-out property <string> tun-capability-detail: @tr("TUN 平台适配未验证"); in-out property <string> lan-sharing-heading: ""; in-out property <string> lan-sharing-detail: "";
         // The network-mode confirmation is the toolkit's popup window, so the
         // popup owns the open/close lifecycle and this property only reads it.
-        out property <bool> network-mode-dialog-open: settings-overlays.network-mode-dialog-open;
-        in-out property <string> notice: "";
-        in-out property <string> snapshot-window-warning: "";
+        out property <bool> network-mode-dialog-open: settings-overlays.network-mode-dialog-open; in-out property <string> notice: ""; in-out property <string> snapshot-window-warning: "";
         in-out property <string> profile-name: ""; in-out property <string> profile-url: ""; in-out property <string> profile-age-key: "";
-        in-out property <string> proxy-search: ""; in-out property <string> override-name: "";
-        in-out property <string> override-body: ""; in-out property <string> override-url: "";
-        in-out property <bool> override-importing: false; in-out property <string> override-import-error: "";
-        in-out property <string> search-text: ""; in-out property <string> connection-search: "";
+        in-out property <string> proxy-search: ""; in-out property <string> override-name: ""; in-out property <string> override-body: ""; in-out property <string> override-url: "";
+        in-out property <bool> override-importing: false; in-out property <string> override-import-error: ""; in-out property <string> search-text: ""; in-out property <string> connection-search: "";
         in-out property <ConnectionSort> connection-sort: ConnectionSort.time; in-out property <bool> connection-show-closed: false;
         in-out property <string> connection-detail-host: ""; in-out property <string> connection-detail-id: "";
         in-out property <string> connection-detail-protocol: ""; in-out property <string> connection-detail-process: "";
         in-out property <string> connection-detail-source: ""; in-out property <string> connection-detail-destination: "";
         in-out property <string> connection-detail-rule: ""; in-out property <string> connection-detail-chains: "";
         in-out property <string> connection-detail-providers: ""; in-out property <string> connection-detail-start: "";
-        in-out property <string> connection-detail-duration: ""; in-out property <string> connection-detail-upload: "";
-        in-out property <string> connection-detail-download: "";
-        in-out property <bool> connection-detail-active: false;
-        in-out property <string> connection-breaking-id: "";
-        in-out property <string> log-search: "";
-        in-out property <LogLevel> log-level: LogLevel.all;
+        in-out property <string> connection-detail-duration: ""; in-out property <string> connection-detail-upload: ""; in-out property <string> connection-detail-download: "";
+        in-out property <bool> connection-detail-active: false; in-out property <string> connection-breaking-id: ""; in-out property <string> log-search: ""; in-out property <LogLevel> log-level: LogLevel.all;
         in-out property <string> log-stream-status: "未运行";
         // The reason the shared log search could not apply the typed query. The
         // shared model owns the outcome, so the page shows its own reason.
-        in-out property <string> log-search-error: "";
-        in-out property <string> rule-search: "";
-        in-out property <string> rule-pending-index: "";
-        in-out property <string> stat-down: "0 B/s";
-        in-out property <string> stat-up: "0 B/s";
-        in-out property <string> stat-down-value: "0";
-        in-out property <string> stat-down-unit: "B/s";
-        in-out property <string> stat-up-compact: "0 B";
-        in-out property <string> home-current-node: @tr("未知");
-        in-out property <string> home-current-accessible: @tr("未知");
-        in-out property <string> home-current-flag-code: "";
-        in-out property <int> home-current-flag-index: -1;
-        in-out property <string> home-current-delay: "—";
-        in-out property <string> home-exit-ip: "—";
-        in-out property <string> home-exit-country-code: "";
-        in-out property <int> home-exit-flag-index: -1;
-        in-out property <string> home-exit-status: "";
-        in-out property <DashboardFacts> dashboard-facts: DashboardFactsDefaults.value;
+        in-out property <string> log-search-error: ""; in-out property <string> rule-search: ""; in-out property <string> rule-pending-index: ""; in-out property <string> stat-down: "0 B/s";
+        in-out property <string> stat-up: "0 B/s"; in-out property <string> stat-down-value: "0"; in-out property <string> stat-down-unit: "B/s"; in-out property <string> stat-up-compact: "0 B";
+        in-out property <string> home-current-node: @tr("未知"); in-out property <string> home-current-accessible: @tr("未知"); in-out property <string> home-current-flag-code: "";
+        in-out property <int> home-current-flag-index: -1; in-out property <string> home-current-delay: "—"; in-out property <string> home-exit-ip: "—"; in-out property <string> home-exit-country-code: "";
+        in-out property <int> home-exit-flag-index: -1; in-out property <string> home-exit-status: ""; in-out property <DashboardFacts> dashboard-facts: DashboardFactsDefaults.value;
         // The Overview cards in the order the shared owner published. The surface
         // never keeps an order of its own, so the list is the owner's readback.
-        in-out property <[OverviewCardSlot]> overview-cards: [];
-        in-out property <bool> overview-order-open: false;
-        in-out property <[HomeTrafficPoint]> home-traffic-points: [];
-        in-out property <bool> home-traffic-has-data: false;
-        in-out property <string> traffic-stream-status: @tr("未运行");
-        in-out property <string> stat-connections: "0";
-        in-out property <string> traffic-today-down: "0 B";
-        in-out property <string> traffic-today-up: "0 B";
-        in-out property <string> traffic-week-down: "0 B";
-        in-out property <string> traffic-week-up: "0 B";
-        in-out property <string> traffic-week-average-down: "0 B";
-        in-out property <string> traffic-week-average-up: "0 B";
-        in-out property <[TrafficBar]> traffic-today-bars: [];
-        in-out property <[TrafficBar]> traffic-week-bars: [];
-        in-out property <bool> traffic-today-has-data: false;
-        in-out property <bool> traffic-week-has-data: false;
-        in-out property <TrafficRange> traffic-range: TrafficRange.today;
-        in-out property <string> traffic-selected-detail: "";
+        in-out property <[OverviewCardSlot]> overview-cards: []; in-out property <bool> overview-order-open: false; in-out property <[HomeTrafficPoint]> home-traffic-points: [];
+        in-out property <bool> home-traffic-has-data: false; in-out property <string> traffic-stream-status: @tr("未运行"); in-out property <string> stat-connections: "0";
+        in-out property <string> traffic-today-down: "0 B"; in-out property <string> traffic-today-up: "0 B"; in-out property <string> traffic-week-down: "0 B"; in-out property <string> traffic-week-up: "0 B";
+        in-out property <string> traffic-week-average-down: "0 B"; in-out property <string> traffic-week-average-up: "0 B"; in-out property <[TrafficBar]> traffic-today-bars: [];
+        in-out property <[TrafficBar]> traffic-week-bars: []; in-out property <bool> traffic-today-has-data: false; in-out property <bool> traffic-week-has-data: false;
+        in-out property <TrafficRange> traffic-range: TrafficRange.today; in-out property <string> traffic-selected-detail: "";
         // The clear-traffic confirmation is the toolkit's popup window, so the
         // popup owns the open/close lifecycle and this property only reads it.
-        out property <bool> clear-traffic-dialog-open: clear-traffic-dialog.is-open;
-        in-out property <[ObservationRow]> traffic-samples: [];
-        in-out property <[ObservationRow]> rules: [];
-        in-out property <[ObservationRow]> providers: [];
-        in-out property <[ObservationRow]> logs: [];
-        in-out property <[ObservationRow]> connections: [];
-        in-out property <[ConnectionRow]> home-connection-table: [];
-        in-out property <[ProxyGroup]> proxy-groups: [];
-        in-out property <[ObservationRow]> proxy-nodes: []; in-out property <[NavigationSlot]> navigation-items: []; in-out property <string> active-destination: "";
-        in-out property <bool> proxy-recovery-pending: false;
-        in-out property <string> proxy-sort-mode: "name_asc";
-        in-out property <string> proxy-testing-group: "";
-        in-out property <string> proxy-testing-node: "";
-        in-out property <string> selected-group: "";
-        in-out property <length> proxy-active-node-position: 0 * LumenUiScale.unit;
-        in-out property <bool> proxy-current-node-available: false;
-        in-out property <[ProfileCard]> profiles: [];
-        in-out property <string> profile-action-id: "";
-        in-out property <string> profile-action-name: "";
-        in-out property <bool> profile-action-open: false;
-        in-out property <string> pending-delete-id: "";
-        in-out property <string> pending-delete-name: "";
-        in-out property <string> pending-profile-export-id: "";
-        in-out property <string> pending-profile-export-name: "";
-        in-out property <string> profile-settings-id: "";
-        in-out property <string> profile-settings-name: "";
-        in-out property <string> profile-settings-url: "";
-        in-out property <string> profile-settings-location: "";
-        in-out property <string> profile-settings-kind: "";
-        in-out property <string> profile-settings-age-key: "";
-        in-out property <bool> profile-settings-age-configured: false;
-        in-out property <bool> profile-settings-saving: false;
-        in-out property <int> profile-settings-type-index: 0;
+        out property <bool> clear-traffic-dialog-open: clear-traffic-dialog.is-open; in-out property <[ObservationRow]> traffic-samples: []; in-out property <[ObservationRow]> rules: [];
+        in-out property <[ObservationRow]> providers: []; in-out property <[ObservationRow]> logs: []; in-out property <[ObservationRow]> connections: []; in-out property <[ConnectionRow]> home-connection-table: [];
+        in-out property <[ProxyGroup]> proxy-groups: []; in-out property <[ObservationRow]> proxy-nodes: []; in-out property <[NavigationSlot]> navigation-items: []; in-out property <string> active-destination: "";
+        in-out property <bool> proxy-recovery-pending: false; in-out property <string> proxy-sort-mode: "name_asc"; in-out property <string> proxy-testing-group: ""; in-out property <string> proxy-testing-node: "";
+        in-out property <string> selected-group: ""; in-out property <length> proxy-active-node-position: 0 * LumenUiScale.unit; in-out property <bool> proxy-current-node-available: false;
+        in-out property <[ProfileCard]> profiles: []; in-out property <string> profile-action-id: ""; in-out property <string> profile-action-name: ""; in-out property <bool> profile-action-open: false;
+        in-out property <string> pending-delete-id: ""; in-out property <string> pending-delete-name: ""; in-out property <string> pending-profile-export-id: "";
+        in-out property <string> pending-profile-export-name: ""; in-out property <string> profile-settings-id: ""; in-out property <string> profile-settings-name: ""; in-out property <string> profile-settings-url: "";
+        in-out property <string> profile-settings-location: ""; in-out property <string> profile-settings-kind: ""; in-out property <string> profile-settings-age-key: "";
+        in-out property <bool> profile-settings-age-configured: false; in-out property <bool> profile-settings-saving: false; in-out property <int> profile-settings-type-index: 0;
         in-out property <length> profile-settings-type-anchor-x: 0 * LumenUiScale.unit; in-out property <length> profile-settings-type-anchor-y: 0 * LumenUiScale.unit; in-out property <length> profile-add-type-anchor-x: 0 * LumenUiScale.unit; in-out property <length> profile-add-type-anchor-y: 0 * LumenUiScale.unit;
-        in-out property <[ProfileOverrideChoice]> profile-settings-overrides: [];
-        in-out property <string> user-agent: "";
-        in-out property <string> user-agent-draft: "";
-        in-out property <string> user-agent-error: "";
-        in-out property <bool> user-agent-dialog-open: false;
-        in-out property <bool> user-agent-saving: false;
-        in-out property <int> user-agent-save-revision: 0;
-        in-out property <int> user-agent-result-revision: 0;
-        in-out property <[OverrideCard]> overrides: [];
-        in-out property <string> override-edit-id: "";
-        in-out property <string> content-preview: "";
-        in-out property <string> content-preview-profile: "";
-        in-out property <string> core-version: "";
-        in-out property <[LicenseRow]> license-rows: []; in-out property <int> license-rows-revision: 0;
-        in-out property <string> license-query: ""; in-out property <string> license-catalog-error: "";
-        in-out property <string> license-detail-name: ""; in-out property <string> license-detail-version: "";
-        in-out property <string> license-detail-identifier: ""; in-out property <string> license-detail-text: "";
-        in-out property <string> license-detail-error: ""; in-out property <int> license-detail-revision: 0;
-        in-out property <[WorkbenchItem]> workbench-items: []; in-out property <string> workbench-draft: "";
-        in-out property <string> workbench-draft-2: ""; in-out property <string> workbench-draft-id: "";
-        in-out property <string> workbench-draft-2-id: ""; in-out property <string> workbench-draft-placeholder: "";
-        in-out property <string> workbench-draft-2-placeholder: "";
+        in-out property <[ProfileOverrideChoice]> profile-settings-overrides: []; in-out property <string> user-agent: ""; in-out property <string> user-agent-draft: ""; in-out property <string> user-agent-error: "";
+        in-out property <bool> user-agent-dialog-open: false; in-out property <bool> user-agent-saving: false; in-out property <int> user-agent-save-revision: 0; in-out property <int> user-agent-result-revision: 0;
+        in-out property <[OverrideCard]> overrides: []; in-out property <string> override-edit-id: ""; in-out property <string> content-preview: ""; in-out property <string> content-preview-profile: "";
+        in-out property <string> core-version: ""; in-out property <[LicenseRow]> license-rows: []; in-out property <int> license-rows-revision: 0;
+        in-out property <string> license-query: ""; in-out property <string> license-catalog-error: ""; in-out property <string> license-detail-name: ""; in-out property <string> license-detail-version: "";
+        in-out property <string> license-detail-identifier: ""; in-out property <string> license-detail-text: ""; in-out property <string> license-detail-error: ""; in-out property <int> license-detail-revision: 0;
+        in-out property <[WorkbenchItem]> workbench-items: []; in-out property <string> workbench-draft: ""; in-out property <string> workbench-draft-2: ""; in-out property <string> workbench-draft-id: "";
+        in-out property <string> workbench-draft-2-id: ""; in-out property <string> workbench-draft-placeholder: ""; in-out property <string> workbench-draft-2-placeholder: "";
 
-        callback navigate(string); callback color-scheme-changed(bool);
-        callback toggle-sidebar-expansion();
-        callback start-runtime(); callback stop-runtime();
-        callback set-route-mode(RouteMode); callback set-network-mode(NetworkMode);
-        callback check-core(); callback retry-proxy-restore();
-        callback add-override(string, string); callback import-override-url(string);
-        callback choose-override-file(); callback save-override(string, string);
-        callback delete-override(string); callback export-override(string);
-        callback edit-override(string);
-        callback apply-override(string);
-        callback add-url-profile(string, string, string);
-        callback choose-profile-file(string, string);
-        callback set-current-profile(string);
-        callback move-profile(string, bool);
-        callback delete-profile(string);
-        callback refresh-profile(string);
-        callback open-profile-settings(string);
-        callback clear-profile-age-key(string);
-        callback show-profile-preview(string);
-        callback save-profile-settings(string, string, string, string);
-        callback cancel-profile-settings();
-        callback toggle-profile-override(string, bool);
-        callback move-profile-override(string, bool);
-        callback select-proxy-group(string);
-        callback select-proxy(string, string);
-        callback search-proxy-nodes(string);
-        callback set-proxy-sort(string);
-        callback test-proxy(string, string);
-        callback refresh-home-egress();
-        callback move-overview-card(string, bool);
-        callback reset-overview-card-order();
-        callback close-connection(string);
-        callback open-connection(string);
-        callback search-connections(string);
-        callback set-connection-view(bool);
-        callback set-connection-sort(ConnectionSort);
-        callback search-logs(string);
-        callback set-log-level(LogLevel);
-        callback search-rules(string);
-        callback set-rule-enabled(string, bool);
-        callback update-provider(string);
-        callback export-logs();
-        callback refresh-observations();
-        callback save-user-agent(string);
-        callback set-refresh-profile-on-start(bool);
-        callback set-auto-start(bool);
-        callback set-theme-mode(ThemeMode);
-        callback set-invert-theme-foreground(bool);
-        callback preview-theme-color(float, float, float);
-        callback cancel-theme-color-preview();
-        callback set-theme-color(string);
-        callback set-application-language(string);
-        callback set-page-scale(int);
-        callback set-predictive-back-enabled(bool);
-        callback set-hide-background-card(bool);
-        callback set-show-traffic-notification(bool);
-        callback set-release-ui-when-background(bool);
-        callback request-ignore-battery-optimization();
-        callback cache-back-preview();
-        callback commit-back-preview();
-        callback confirm-delete-profile(string);
-        callback export-profile(string);
-        callback scan-profile-qr();
-        callback clear-traffic-history();
-        callback search-licenses(string);
-        callback open-license(string);
-        callback retry-license-catalog();
+        callback navigate(string); callback color-scheme-changed(bool); callback toggle-sidebar-expansion(); callback start-runtime(); callback stop-runtime();
+        callback set-route-mode(RouteMode); callback set-network-mode(NetworkMode); callback check-core(); callback retry-proxy-restore(); callback add-override(string, string); callback import-override-url(string);
+        callback choose-override-file(); callback save-override(string, string); callback delete-override(string); callback export-override(string); callback edit-override(string); callback apply-override(string);
+        callback add-url-profile(string, string, string); callback choose-profile-file(string, string); callback set-current-profile(string); callback move-profile(string, bool); callback delete-profile(string);
+        callback refresh-profile(string); callback open-profile-settings(string); callback clear-profile-age-key(string); callback show-profile-preview(string);
+        callback save-profile-settings(string, string, string, string); callback cancel-profile-settings(); callback toggle-profile-override(string, bool); callback move-profile-override(string, bool);
+        callback select-proxy-group(string); callback select-proxy(string, string); callback search-proxy-nodes(string); callback set-proxy-sort(string); callback test-proxy(string, string);
+        callback refresh-home-egress(); callback move-overview-card(string, bool); callback reset-overview-card-order(); callback close-connection(string); callback open-connection(string);
+        callback search-connections(string); callback set-connection-view(bool); callback set-connection-sort(ConnectionSort); callback search-logs(string); callback set-log-level(LogLevel);
+        callback search-rules(string); callback set-rule-enabled(string, bool); callback update-provider(string); callback export-logs(); callback refresh-observations(); callback save-user-agent(string);
+        callback set-refresh-profile-on-start(bool); callback set-auto-start(bool); callback set-theme-mode(ThemeMode); callback set-invert-theme-foreground(bool); callback preview-theme-color(float, float, float);
+        callback cancel-theme-color-preview(); callback set-theme-color(string); callback set-application-language(string); callback set-page-scale(int); callback set-predictive-back-enabled(bool);
+        callback set-hide-background-card(bool); callback set-show-traffic-notification(bool); callback set-release-ui-when-background(bool); callback request-ignore-battery-optimization();
+        callback cache-back-preview(); callback commit-back-preview(); callback confirm-delete-profile(string); callback export-profile(string); callback scan-profile-qr(); callback clear-traffic-history();
+        callback search-licenses(string); callback open-license(string); callback retry-license-catalog();
         callback workbench-action(string, string); callback workbench-draft-edited(string, string); callback mobile-dock-band-state-changed();
 
         changed page => { if root.page != "Proxy" && root.selected-group != "" { root.selected-group = ""; } app-body.scroll-to-top(); root.mobile-dock-band-state-changed(); root.update-color-scheme(); }
@@ -418,12 +259,8 @@ export component AppWindow inherits MaterialWindow {
         if !root.android-platform && !root.compact-layout: DesktopTitleBar {
         // EFFECTS-041 #167: the frameless chrome; callbacks land on the
         // real window via lib.rs's installer.
-        x: root.safe-area-insets.left; y: root.safe-area-insets.top;
-        width: max(0 * LumenUiScale.unit, root.width - root.safe-area-insets.left - root.safe-area-insets.right);
-        maximized: root.is-maximized;
-        upload-rate: root.title-bar-upload;
-        download-rate: root.title-bar-download;
-        has-traffic-capsule: true;
+        x: root.safe-area-insets.left; y: root.safe-area-insets.top; width: max(0 * LumenUiScale.unit, root.width - root.safe-area-insets.left - root.safe-area-insets.right); maximized: root.is-maximized;
+        upload-rate: root.title-bar-upload; download-rate: root.title-bar-download; has-traffic-capsule: true;
         search-clicked => { root.title-bar-search-clicked(); }
         window-minimize => { root.window-minimize(); } window-toggle-maximize => { root.window-toggle-maximize(); } window-close => { root.window-close(); }
         }
@@ -572,8 +409,7 @@ export component AppWindow inherits MaterialWindow {
         }
 
         overview-order-overlay := OverviewOrderOverlay {
-        width: root.width; height: root.height;
-        cards: root.overview-cards;
+        width: root.width; height: root.height; cards: root.overview-cards;
         dismissed => { root.overview-order-open = false; }
         move-card(id, up) => { root.move-overview-card(id, up); }
         reset-order => { root.reset-overview-card-order(); }
@@ -583,15 +419,12 @@ export component AppWindow inherits MaterialWindow {
         // reserved band before the pill, so no overlay or page content can
         // cross the band; it is the page's own background, not a cover bar.
         if MobileDockBandProjection.reserves_band(root.mobile-dock-band-state): MobileDockPageGround {
-        window-width: root.width; window-height: root.height;
-        safe-bottom: root.safe-area-insets.bottom;
+        window-width: root.width; window-height: root.height; safe-bottom: root.safe-area-insets.bottom;
         }
 
         if MobileDockBandProjection.draws_dock(root.mobile-dock-band-state): AppBottomBar {
-        mobile-dock-band-state: root.mobile-dock-band-state;
-        page: root.page; window-width: root.width; window-height: root.height;
-        safe-left: root.safe-area-insets.left; safe-right: root.safe-area-insets.right; safe-bottom: root.safe-area-insets.bottom;
-        layout-debug-bounds: root.layout-debug-bounds;
+        mobile-dock-band-state: root.mobile-dock-band-state; page: root.page; window-width: root.width; window-height: root.height;
+        safe-left: root.safe-area-insets.left; safe-right: root.safe-area-insets.right; safe-bottom: root.safe-area-insets.bottom; layout-debug-bounds: root.layout-debug-bounds;
         select-page(p) => {
             root.selected-group = "";
             if root.android-platform && root.predictive-back-enabled { root.cache-back-preview(); }
@@ -600,9 +433,7 @@ export component AppWindow inherits MaterialWindow {
         }
 
         clear-traffic-dialog := ClearTrafficDialog {
-        width: root.width;
-        height: root.height;
-        compact-layout: root.compact-layout;
+        width: root.width; height: root.height; compact-layout: root.compact-layout;
         cancel => { clear-traffic-dialog.close(); }
         confirm => { root.clear-traffic-history(); clear-traffic-dialog.close(); root.traffic-selected-detail = ""; }
         }
@@ -657,23 +488,19 @@ export component AppWindow inherits MaterialWindow {
         }
 
         if root.notice != "" && !root.profile-add-open: NoticeBanner {
-        notice: root.notice; window-width: root.width; window-height: root.height;
-        safe-left: root.safe-area-insets.left; safe-right: root.safe-area-insets.right;
-        safe-top: root.safe-area-insets.top; safe-bottom: root.safe-area-insets.bottom;
-        compact-layout: root.compact-layout; mobile-dock-band-state: root.mobile-dock-band-state;
+        notice: root.notice; window-width: root.width; window-height: root.height; safe-left: root.safe-area-insets.left; safe-right: root.safe-area-insets.right;
+        safe-top: root.safe-area-insets.top; safe-bottom: root.safe-area-insets.bottom; compact-layout: root.compact-layout; mobile-dock-band-state: root.mobile-dock-band-state;
         close => { root.notice = ""; }
         }
 
         if root.page == "AppSettings" && root.app-settings-message != "" && root.notice == "" && !root.user-agent-dialog-open && !root.theme-color-dialog-open && !root.page-scale-dialog-open && !app-language-menu.is-open && !app-theme-menu.is-open: SettingsMessageBanner {
-        message: root.app-settings-message; window-width: root.width;
-        safe-left: root.safe-area-insets.left; safe-right: root.safe-area-insets.right;
+        message: root.app-settings-message; window-width: root.width; safe-left: root.safe-area-insets.left; safe-right: root.safe-area-insets.right;
         safe-top: root.safe-area-insets.top; safe-bottom: root.safe-area-insets.bottom;
         close => { root.app-settings-message = ""; }
         }
 
         if root.layout-debug-bounds: Rectangle {
-        x: root.safe-area-insets.left; y: root.safe-area-insets.top;
-        width: max(0 * LumenUiScale.unit, root.width - root.safe-area-insets.left - root.safe-area-insets.right);
+        x: root.safe-area-insets.left; y: root.safe-area-insets.top; width: max(0 * LumenUiScale.unit, root.width - root.safe-area-insets.left - root.safe-area-insets.right);
         height: max(0 * LumenUiScale.unit, root.height - root.safe-area-insets.top - root.safe-area-insets.bottom);
         background: transparent; border-width: 1 * LumenUiScale.unit; border-color: LumenTheme.debug-frame; z: 1000;
         }

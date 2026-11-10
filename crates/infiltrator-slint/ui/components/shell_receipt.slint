@@ -1,0 +1,39 @@
+import { LumenTheme } from "theme.slint";
+import { NavigationForm, SidebarExpansionPreference } from "viewport_tier.slint";
+import { ReceiptChrome } from "models.slint";
+
+// The shell's chrome receipt, projected once.
+//
+// The shell window used to spell every chrome fact into this struct inline,
+// which meant a new measurement had to be wired at the call site and the
+// struct's field order could drift from its own declaration. This component
+// owns that projection: it takes the facts the body and the theme already
+// publish, and emits the one struct the host reads back.
+export component ShellReceipt {
+    in property <NavigationForm> navigation-form;
+    in property <SidebarExpansionPreference> sidebar-expansion;
+    in property <bool> touch-surface;
+    in property <length> sidebar-toggle;
+    in property <length> nav-stack-bottom;
+    in property <length> nav-content-offset;
+    in property <length> page-margin;
+    in property <length> shell-top-air;
+    in property <length> shell-bottom-air;
+    in property <length> dock-band;
+    in property <int> scale-percent;
+
+    out property <ReceiptChrome> chrome: {
+        nav-form: root.navigation-form,
+        sidebar-expansion: root.sidebar-expansion,
+        touch-surface: root.touch-surface,
+        sidebar-toggle: root.sidebar-toggle,
+        nav-column: LumenTheme.rail-width,
+        nav-stack-bottom: root.nav-stack-bottom,
+        nav-content-offset: root.nav-content-offset,
+        page-margin: root.page-margin,
+        shell-top-air: root.shell-top-air,
+        shell-bottom-air: root.shell-bottom-air,
+        dock-band: root.dock-band,
+        scale-percent: root.scale-percent,
+    };
+}

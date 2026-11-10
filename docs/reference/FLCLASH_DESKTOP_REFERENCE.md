@@ -330,3 +330,29 @@ collapsed bool，也不从当前列宽反推偏好。按钮是否可用只读 b1
 页面内容立即补位且 `chrome_band` 仍按 0% 判据。捕获矩阵把 `interaction` 升为
 显式第 9 列，避免把纯外壳帧的名字误当成一个并不存在的业务场景；owner guard
 以 planted 负例钉死「收起帧不得派生业务交互」。
+
+## 10. 按钮带必须由侧栏测量，chrome 投影必须由组件持有（b173 收口 + b174）
+
+上游把折叠钮放在导航列表的**第一个 item**（`layout.dart` 的
+`SliverList` 首个子项，`sidebarExpanded` 决定它画 `chevron-left` 还是
+`chevron-right`），而不是浮在 40px 应用栏之上的独立层。b173 首次接线时按 theme token
+在**侧栏 pane 局部坐标**里算出 `rail-vertical-inset + rail-row-height + rail-item-gap =
+18 + 44 + 4 = 66`，把 `sidebar_toggle_px` 猜成 66。实测像素证明这个猜测是错的：桌面
+外壳把侧栏挂在 40px 标题栏**之下**，按钮带真正结束于窗口坐标 y≈106，于是判定器把按钮
+自身的字形当成第一行导航，leading 腿整批误判（读出 x38）。**按钮带属于侧栏布局，也只
+有绘制它的元素知道自己在窗口里的位置。**
+
+b173 的收口修正因此把事实交回测量者：`DesktopSideBar` 在按钮盒上用
+`absolute-position.y + height + rail-item-gap` 发布 `sidebar-toggle`（init 加
+`changed absolute-position` / `changed height` 两条腿，缩放、皮肤与页面切换都会重发），
+沿 `AppBody` 上传，回执实测 1180×780 = **106px**，导航 leading 回到 **9–10**，与声明的
+8px 在 2px 容差内。
+
+b174 收的是这条链的**呈现结构**：`receipt-chrome` 不再是 `lumen-app.slint` 里内联的一段
+struct 字面量，而是独立组件 `crates/infiltrator-slint/ui/components/shell_receipt.slint`
+的投影——外壳只把导航形态、偏好、触摸面、按钮带、栈尾、leading、页边距、页身空气、
+底栏带与缩放喂给它。同一批把外壳压回 SLINT-001 预算（609 → 436 代码行），并按最终树
+重采 199 帧发布 `20261110T063442Z_a58ed35be980_dirty_309370`（444s，与 b173 收口批
+`20261110T060401Z_a58ed35be980_dirty_90070` 相比 198 帧逐字节相同，唯一差异是搜索高亮
+动画帧）。求同的是上游「按钮即列表首项」的结构；存异的是本仓把它作为 typed chrome 事实
+测量、投影并门禁，而不是让判定器或外壳各记一个数字。
