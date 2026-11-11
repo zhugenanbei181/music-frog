@@ -41,7 +41,7 @@
 ## 最近一批问答（2026-11-11 第一百九十二交付批次：Iced 死控件守卫落地 / 形态归属审计）
 
 1. x86_64/aarch64：本批只新增守卫与台账并改文档/账本（`scripts/quality/iced-dead-input-guard.py`、`iced_dead_input_inventory.json`、`check-structure.sh` 两条腿、空间利用率标准与三份台账），零平台 API、零 Rust；`--self-test` PASS、`--mode enforce` findings=0 为 `L`。交叉构建与 aarch64 目标产物未变，仍由 CI / 设备矩阵补证 → 部分（L）。
-2. Windows/Linux/macOS：本机 Linux 完成守卫自测、enforce、判定器双腿复核与文档/收口门；本批无平台相关改动，Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
+2. Windows/Linux/macOS：本机 Linux 完成守卫自测、enforce、判定器双腿复核、contract+Iced nextest **1224/1224**、定向 clippy 与 `cargo fmt --check`，并**逐条复跑结构门前 63 条腿**（此前我的验证口径从身份腿之后开始，漏掉了前段）——唯一红腿仍是另一会话未提交的 Bevy 别名像素；同批复跑中发现并修好一条 **b189 引入的 `import-guard` 违规**（`pub(crate) use dns_query::DNS_QUERY_SCROLL_ID;` 再导出，改为从定义模块的规范路径导入），这是**验证口径的缺口**而不是守卫坏了，已据实记入本批；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
 3. Android/iOS：不触三端代码、资源与 wire；守卫只读 Iced 桌面源码，没有本批实机回执可声称 → 部分（L）。
 4. 各 UI：Iced 有了 Slint 同位守卫（Slint 的 `slint-dead-input-guard.py` 自 SLINT-005 起就在结构门里），两表面判定仍 violations=0、欠账台账皆空。诚实边界：守卫登记的两个死控件还没修（`TRAFFICAUDIT-001`），Bevy 仍未接入判定器 → 部分（L）。
 5. 复用：形态只有一个 owner（契约功能注册表；矩阵形态列是投影且被 `--check` 逐字节锁住，实测 184 个共有场景 0 处不一致），节奏事实只有 Iced 守卫的只减台账一份；「谁咬、咬什么」的判据集中在守卫自身，没有第二处实现 → 完整（L）。
