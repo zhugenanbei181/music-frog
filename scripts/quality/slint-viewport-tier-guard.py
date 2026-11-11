@@ -295,9 +295,9 @@ def ladder_findings(ui: pathlib.Path) -> list[str]:
 
     # The adapter must be the generator's own output, not a hand edit.
     document = exported_document()
-    if document.get("version") != 11 or not document.get("sidebar_variants"):
+    if document.get("version") != 12 or not document.get("sidebar_variants"):
         found.append(
-            "page-structure.json is not the version 11 sidebar-variant export; "
+            "page-structure.json is not the version 12 sidebar-variant export; "
             "rerun export_page_structure"
         )
         return found

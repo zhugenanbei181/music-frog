@@ -126,7 +126,7 @@ REQUIRED = {
         "sidebar_variants",
     ),
     "page_structure_export": (
-        "\"version\":11",
+        "\"version\":12",
         "\"sidebar_variants\"",
         "\"toggle_available\":true",
     ),
@@ -163,7 +163,7 @@ REQUIRED = {
         "LumenTheme.touch-surface = root.android-platform;",
     ),
     "viewport_guard": (
-        'document.get("version") != 11',
+        'document.get("version") != 12',
         "sidebar-variant export",
         "enum_variants(\"SidebarExpansionPreference\")",
     ),

@@ -24,19 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-11 第二百零七批次；b111–b206 见下方批次八问摘要）
+## 当前状态（2026-11-12 第二百零八批次；b111–b207 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b207 只改 Slint 桌面宿主、共享契约 `shell_receipt` 语义、判定器 fixture 与文档，零平台 API / 零 wire / 零快照；定向 contract+Slint nextest **982/982**、两包 clippy `--all-targets -D warnings`、`cargo check -p infiltrator-slint --features gpu-skia,capture-tools`、`cargo fmt --all --check` 均为 `L`。交叉架构与 aarch64 目标产物未复跑，仍由 CI / 设备矩阵补证（GAP-1.1） |
-| 2 | 部分 | L | 本机 Linux 完成 contract+Slint 定向 nextest / clippy / capture 构建与 199 帧像素发布；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）。pinned FlClash 桌面条带为 Windows/Linux 32dp、macOS 28dp，本仓共享契约 38 尚未按上游分支裁决，记 `FLPARITY-050` |
-| 3 | 部分 | L | 未改 Kotlin / JNI / VPNService 与 Android 资源；触摸与紧凑外壳 `desktop-title-bar-units` 恒 0，本批 Android 像素不受影响，但按截图认证硬门仍缺三 flavor 实机回执 |
-| 4 | 部分 | L | Slint 桌面 frameless 在标准、rail、折叠三态都挂载自绘标题栏与三枚窗控（`overview-compact-dark` 真实像素复核）；Iced 回执口径本已含条带，统一批次复跑 `--surface iced --enforce` 确认无回归；Bevy 矩阵与像素由另一会话持有，本批未接入 |
-| 5 | 完整 | L | 条带高度只剩契约一个真源：宿主 `desktop_window_chrome::install()` 一次读 `WindowChrome::FRAMELESS` 同时决定窗饰与挂载带，`.slint` 删除自持 40px 字面量，`demo.rs` 第二次 `set_frameless(true)` 同批删除；判定器与 Python 侧不记任何标题栏高度（既有「再记即违规」腿继续 0） |
-| 5a | 完整 | L | 无字体 / 字重 / 图标族 / 视觉资产变化；可见身份变化按「身份改动一次做完」整批重采 **199/199**（run `20261111T133556Z_14d5cbbf6ef1_dirty_153449`，418s），`space_utilization --surface slint --enforce` violations=0、`receipt-freshness 0`、Slint 5 条别名摘要逐条实测 摘要==实际字节==canonical |
-| 6 | 部分 | L | 本批是回执原点与窗饰挂载的收口，不新增业务能力；`resolve_surface_evidence.py` 未在本批复跑，180 个 ready surface cells 仍缺产品级 build receipts 与双视口像素绑定 |
-| 7 | 部分 | L | `lib.rs` 937 行曾超 800 预算，按业务缝拆出 `desktop_window_chrome.rs` 后 `line-guard` 0；`import` / `typed-state` / `implicit-state` 23/0/0 / `slint-syntax` / `slint-dead-input` / `slint-mobile-chrome` / `doc-governance` 全 0；`check-structure.sh` 唯一红项仍是另一会话的 Bevy `runtime-dark` / `overview-dark` 别名像素，文件保持未改 |
-| 8 | 部分 | L | 开发期只跑受影响包（contract+Slint 定向 nextest / clippy / capture check）与专属守卫，整批像素一次重采而非逐场景补帧；全仓 `--workspace` nextest / clippy、结构门全腿与 `resolve_surface_evidence.py` 仍留统一验证批次一次跑完 |
+| 1 | 部分 | L | b208 只改 contract 视口规则、v12 导出、Slint 生成器与 Profiles 页布局；contract nextest **594/594**、Slint nextest **389/389**、clippy `--all-targets -D warnings`、`cargo fmt --all --check` 均为 `L`。交叉架构与 aarch64 目标产物未复跑，仍由 CI / 设备矩阵补证（GAP-1.1） |
+| 2 | 部分 | L | 本机 Linux 完成 contract+Slint 定向 nextest / clippy / capture 构建与 199 帧像素发布；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）。pinned FlClash 桌面条带 Windows/Linux 32dp / macOS 28dp 差异仍归 `FLPARITY-050` |
+| 3 | 部分 | L | 未改 Android/iOS 代码、资源或 wire；Slint 触摸紧凑档在 Profiles 页仍单列，桌面档按契约 300px 规则重排，Android 三 flavor 实机回执仍缺 |
+| 4 | 部分 | L | Slint Profiles 桌面档由宽度驱动 1–3 列（1180 页身 940px 实测 2 列）；Iced / Bevy 仍单列，跨表面统一由共享 owner + 表面接线待后续批次；Bevy 矩阵与像素仍由另一会话持有，本批未接入 |
+| 5 | 完整 | L | 规则只有一个真源：契约 `PROFILE_MIN_ITEM_WIDTH_PX=300` / `PROFILE_MAX_COLUMNS=3` + `profile_columns()` 导出为 v12 `profile_grid`；生成器 `profile_columns()` 只读导出，页面只消费生成 lookup，判定器 fixture 不涉及该轴；contract/Slint 守卫与版本门同步 v12 |
+| 5a | 完整 | L | 无字体 / 字重 / 图标族 / 视觉资产变化；Profiles 页面身份变化整批重采 **199/199**（run `20261111T163713Z_75e05722ce81_dirty_999303`，394s），`space_utilization --surface slint --enforce` violations=0、`receipt-freshness 0`；Slint 别名仍只有另一会话 Bevy 1 条 |
+| 6 | 部分 | L | 本批提升 Profiles 密度并落实上游列数规则，不新增业务能力；`resolve_surface_evidence.py` 未在本批复跑，180 个 ready surface cells 仍缺 product-build receipts 与双视口像素绑定 |
+| 7 | 部分 | L | 契约 → 导出 → 生成器 → 页面一条链完成，版本门与 owner guard 同批迁移；`slint-viewport-tier-guard` 41/41 + enforce 0、`sidebar-expansion-owner-guard` 9/9 + enforce 0、`slint-dashboard-grid-guard` 0、`slint-syntax-guard` 100% PASS；`check-structure.sh` 唯一红项仍是另一会话的 Bevy `runtime-dark` / `overview-dark` 别名像素，文件保持未改 |
+| 8 | 部分 | L | 开发期只跑 contract/Slint 定向测试、专属守卫与 capture check；Profiles 身份变化一次整批重采（394s）而非逐场景补帧；全仓 `--workspace` nextest / clippy、结构门全腿与 `resolve_surface_evidence.py` 仍留统一验证批次一次跑完 |
+
+## 最近一批问答（2026-11-12 第二百零八交付批次：Profiles 页面按上游 300px 规则重排）
+
+1. x86_64/aarch64：本批改 contract `responsive_viewport` 新规则与 v12 导出、Slint 生成器与 Profiles 页布局，零平台 API / 零 wire / 零快照；contract nextest **594/594**、Slint nextest **389/389**、clippy `--all-targets -D warnings`、`cargo check -p infiltrator-slint --features gpu-skia,capture-tools`、`cargo fmt --all --check` 为 `L`。交叉构建与 aarch64 目标机产物未复跑 → 部分（L）。
+2. Windows/Linux/macOS：本机 Linux 完成定向测试/clippy/capture 构建、199 帧整批重采、空间门与回执新鲜度；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`。FlClash 桌面条带 32/28dp 与本仓 38 的差异仍归 `FLPARITY-050` → 部分（L）。
+3. Android/iOS：未动 Kotlin/JNI/VPNService 与 Android 资源；Slint 触摸紧凑档在 Profiles 页保持单列，桌面档按契约 300px 规则重排；本批无实机回执 → 部分（L）。
+4. 各 UI：Slint Profiles 桌面档由宽度驱动 1–3 列（1180 页身 940px 实测 2 列，与 pinned FlClash `profileItemMinWidth=300` 同规则）；Iced / Bevy 仍单列，跨表面统一由共享 owner + 表面接线待后续批次；Bevy 矩阵与像素由另一会话持有，本批不碰 → 部分（L）。
+5. 复用：规则只剩契约一处发布（`PROFILE_MIN_ITEM_WIDTH_PX=300` / `PROFILE_MAX_COLUMNS=3` + `profile_columns()`），v12 导出 `profile_grid`，生成器 `profile_columns()` 只读导出，页面只消费生成 lookup；判定器不涉及该轴；contract/Slint 守卫与版本门同批 v12 → 完整（L）。
+5a. 设计资源：无字体 / 字重 / 图标族 / 视觉资产变化；Profiles 页面身份变化按「身份改动一次做完」整批重采 199/199（run `20261111T163713Z_75e05722ce81_dirty_999303`，394s），`--surface slint --enforce` violations=0、`receipt-freshness 0`；Slint 别名仍只有另一会话 Bevy 1 条 → 完整（L）。
+6. 功能接入：本批提升 Profiles 密度并落实上游列数规则，不新增业务能力；跨表面 parity resolver 未在本批复跑，180 个 ready cells 仍缺 product-build receipts 与双视口像素绑定 → 部分（L）。
+7. 模块化：契约 → 导出 → 生成器 → 页面一条链完成，版本门与 owner guard 同批迁移；`slint-viewport-tier-guard` 41/41 + enforce 0、`sidebar-expansion-owner-guard` 9/9 + enforce 0、`slint-dashboard-grid-guard` 0、`slint-syntax-guard` 100% PASS；全仓结构门唯一红腿仍是另一会话的 Bevy 别名像素 → 完整（L）。
+8. CI 与批次效率：开发期只跑受影响包与专属守卫，像素一次整批重采（394s）而非逐场景补帧；全仓 `--workspace` nextest / clippy、结构门全腿与 `resolve_surface_evidence.py` 留统一批次一次跑完 → 部分（L）。
 
 ## 最近一批问答（2026-11-11 第二百零七交付批次：回执的页身原点与桌面标题栏挂载）
 

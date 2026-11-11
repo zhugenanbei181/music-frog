@@ -172,6 +172,17 @@ export global ViewportLadder {
         return 4;
     }
 
+    // How many profile cards fit side by side at this page-body width.
+    //
+    // FlClash's profiles grid sizes one card from `profileItemMinWidth = 300.0`
+    // and clamps `getProfilesColumns` to three columns; it passes the row gap
+    // the grid is already paying, so the same arithmetic is a pure function of
+    // room. Exporting the two numbers keeps every surface from stacking cards
+    // one per row and leaving the horizontal twin of page dead ground.
+    public pure function profile_columns(page-width: length, gap: length) -> int {
+        return Math.min(3, Math.max(1, Math.floor((page-width + gap) / (300 * LumenUiScale.unit + gap))));
+    }
+
     // The typed dashboard density for the page body's own room.
     //
     // FlClash resolves `DashboardDensity.of(size)` inside the scaffold's

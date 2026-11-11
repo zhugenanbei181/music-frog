@@ -92,6 +92,42 @@ pub const DASHBOARD_DESKTOP_MIN_PX: u16 = 640;
 /// The widest page body that keeps one centred mobile column.
 pub const DASHBOARD_MOBILE_MAX_PX: u16 = 560;
 
+/// The narrowest profile card the reference will draw side by side.
+///
+/// FlClash states this once as `profileItemMinWidth = 300.0`
+/// (`lib/common/layout.dart`) and feeds it to `getProfilesColumns`, which the
+/// profiles page calls with the width the grid was given and the row gap it is
+/// already paying. A surface that stacks profile cards one per row therefore
+/// spends the whole page body on a single card and shows fewer of them than
+/// the reference at the same window - the horizontal twin of the vertical
+/// dead ground the space-utilization standard already refuses.
+pub const PROFILE_MIN_ITEM_WIDTH_PX: u16 = 300;
+
+/// The most profile columns the reference will ever draw.
+///
+/// FlClash clamps `getProfilesColumns` to `_profilesMaxColumns = 3`, so a very
+/// wide window keeps cards readable instead of thinning them without end.
+pub const PROFILE_MAX_COLUMNS: u16 = 3;
+
+/// How many profile columns fit in `page_width_px` beside a `gap_px` seam.
+///
+/// This is FlClash's `getProfilesColumns` arithmetic: a row of `n` cards needs
+/// `n * min + (n - 1) * gap`, so `n = floor((width + gap) / (min + gap))`,
+/// clamped into `1..=PROFILE_MAX_COLUMNS`. The gap is the caller's own - it is
+/// the seam the grid is already paying, not a second layout constant - which
+/// is why the count is a pure function of room rather than of a viewport tier.
+pub const fn profile_columns(page_width_px: u16, gap_px: u16) -> u16 {
+    let min = PROFILE_MIN_ITEM_WIDTH_PX;
+    let columns = (page_width_px + gap_px) / (min + gap_px);
+    if columns < 1 {
+        1
+    } else if columns > PROFILE_MAX_COLUMNS {
+        PROFILE_MAX_COLUMNS
+    } else {
+        columns
+    }
+}
+
 /// The three dashboard densities published by the peer product's layout.
 ///
 /// FlClash declares this enum once beside `dashboardColumnsOf` and injects it
@@ -806,6 +842,26 @@ mod tests {
         assert_eq!(DashboardDensity::Compact.id(), "compact");
         assert_eq!(DashboardDensity::Standard.id(), "standard");
         assert_eq!(DashboardDensity::Mobile.id(), "mobile");
+    }
+
+    #[test]
+    fn profile_columns_follow_the_reference_width_rule() {
+        // FlClash's profiles grid: `getProfilesColumns(width, spacing) =
+        // floor((width + spacing) / (300 + spacing))`, clamped to 1..=3. The
+        // same page body at our two capture widths must match the reference
+        // instead of stacking every card on its own row.
+        assert_eq!(PROFILE_MIN_ITEM_WIDTH_PX, 300);
+        assert_eq!(PROFILE_MAX_COLUMNS, 3);
+        assert_eq!(profile_columns(0, 12), 1);
+        assert_eq!(profile_columns(299, 0), 1);
+        assert_eq!(profile_columns(300, 0), 1);
+        assert_eq!(profile_columns(300 + 12, 12), 1);
+        assert_eq!(profile_columns(300 * 2 + 12, 12), 2);
+        assert_eq!(profile_columns(300 * 2 + 11, 12), 1);
+        assert_eq!(profile_columns(300 * 3 + 24, 12), 3);
+        assert_eq!(profile_columns(300 * 4 + 48, 12), 3);
+        assert_eq!(profile_columns(1, 1), 1);
+        assert_eq!(profile_columns(u16::MAX, 0), 3);
     }
 
     #[test]

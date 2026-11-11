@@ -169,3 +169,17 @@
 - 统一批次：本文件 §0.1 的 b206 结果不适用本批；全仓 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py` 仍待统一批次，Bevy 并行像素差异按文件所有权单独归属。
 
 **证据身份**：contract+Slint nextest **982/982**（run `7123c0ed-f3dc-4db2-ba50-01b62d48ad08`）、`slint-viewport-tier-guard --self-test` **41/41** 且 enforce findings=0、HEAD 旧源码喂入 enforce 腿实测 **10 findings**、发布批 `20261111T133556Z_14d5cbbf6ef1_dirty_153449`（199/199，418s）`--surface slint --enforce` violations=0 / `receipt-freshness` 0、`space_utilization --self-test` 63/63、诊断复采 run `20261111T143739Z_14d5cbbf6ef1_dirty_489754` 两帧与发布帧 sha256 逐字节相同（`f3e687a9…` / `f894f449…`）。
+
+## 12.76 Profiles 页面按上游 300px 规则重排（1条待验证）
+
+| ID | 状态 / 优先级 | points | owner | 依赖 |
+| --- | --- | --- | --- | --- |
+| `FLPROFILES-001` | `Integrated` / P1（b208 实测立项并交付，待统一批次办结） | 2 | infiltrator-contract（`responsive_viewport::profile_columns`、`page_structure` v12 导出 `profile_grid`）+ `scripts/generate_viewport_ladder.py` + infiltrator-slint（`ui/pages/page_profiles.slint`）+ `scripts/quality/{slint-viewport-tier-guard,sidebar-expansion-owner-guard}.py` | `FLPARITY-003`（仪表盘卡片密度）、`SPACEUTIL-001`（空间利用率标准） |
+
+**`FLPROFILES-001` Profiles 页面按 FlClash 300px 规则重排（b208 交付，2 pt / P1 / `Integrated`）**：
+
+① **上游源码实测**：pinned FlClash `lib/common/layout.dart` 定义 `profileItemMinWidth = 300.0`、`_profilesMaxColumns = 3`；`getProfilesColumns(viewWidth, spacing)` 用 `(viewWidth + spacing) / (300 + spacing)` 取整并夹到 1..3。本仓 Slint Profiles 页 `for profile: ProfileCardSurface` 是固定单列，1180 页身 940px 只画一列卡（旧帧每卡 ~880px），违背同一宽度下参照物的 1–3 列规则。
+② **自底向上收口**：契约 `responsive_viewport` 新增 `PROFILE_MIN_ITEM_WIDTH_PX=300` / `PROFILE_MAX_COLUMNS=3` 与 `profile_columns()`；`page_structure` 导出升 **v12** 并新增 `profile_grid`；生成器 `generate_viewport_ladder.py` 升 v12 并新增 `ViewportLadder.profile_columns(page-width, gap)`；页面 `page_profiles.slint` 改为 `GridLayout`，消费生成 lookup，紧凑档仍单列。
+③ **像素与门**：整批 199/199 重采发布 run `20261111T163713Z_75e05722ce81_dirty_999303`（394s），`space_utilization --surface slint --enforce` violations=0、`receipt-freshness 0`；实测 1180 页身 940px 为 2 列（每卡 ~420px，超 300px 底线），紧凑 720 档仍 1 列。contract nextest **594/594**、Slint nextest **389/389**、contract/Slint clippy `--all-targets -D warnings`、`cargo fmt --all --check` 全绿；`slint-viewport-tier-guard` 41/41 + enforce 0、`sidebar-expansion-owner-guard` 9/9 + enforce 0、`slint-dashboard-grid-guard` 0、`slint-syntax-guard` 100% PASS。
+④ **待验证范围**：统一批次复跑 `cargo nextest run --workspace` 与全仓结构门；`resolve_surface_evidence.py` 与跨表面 parity 收口仍待产品级回执；另一会话未提交的 Bevy `runtime-dark` / `overview-dark` 像素别名仍是全仓身份门唯一红腿，本条不负责该红腿。
+⑤ **证据身份**：contract nextest **594/594**、Slint nextest **389/389**、发布批 `20261111T163713Z_75e05722ce81_dirty_999303`（199/199，394s）、`space_utilization --surface slint --enforce` violations=0、`receipt-freshness` 0、`slint-viewport-tier-guard` 41/41、`sidebar-expansion-owner-guard` 9/9、`slint-dashboard-grid-guard` 0、`slint-syntax-guard` 100% PASS。

@@ -20,7 +20,8 @@ use crate::command_catalogue::ShellPage;
 use crate::responsive_viewport::{
     DASHBOARD_DESKTOP_MIN_PX, DASHBOARD_FOUR_COLUMN_MIN_PX, DASHBOARD_MOBILE_MAX_PX,
     DASHBOARD_STANDARD_FOUR_COLUMN_MIN_PX, DASHBOARD_STANDARD_HEIGHT_MIN_PX, DashboardColumns,
-    DashboardDensity, SidebarForm, TIERS, ViewportTier,
+    DashboardDensity, PROFILE_MAX_COLUMNS, PROFILE_MIN_ITEM_WIDTH_PX, SidebarForm, TIERS,
+    ViewportTier,
 };
 use crate::shell_receipt::CHROME_KEYS;
 use crate::shell_sidebar_preference::{
@@ -86,6 +87,9 @@ pub fn shape_for_slug(slug: &str) -> Option<PageShape> {
 /// 5 added `nav_stack_bottom_px`; version 4 published seven chrome keys and
 /// left the judge to guess where the nav stack ended from a fraction of the
 /// window height; version 1-3 carried no ladder at all.
+/// Version 12 exports the profile-card grid rule (`profile_grid`), so the
+/// number of profile columns a page may draw is one contract answer instead
+/// of a surface's wish to look like a list.
 pub fn page_structure_json() -> String {
     let pages: Vec<String> = ShellPage::ALL
         .iter()
@@ -138,10 +142,11 @@ pub fn page_structure_json() -> String {
     })
     .collect();
     format!(
-        "{{\"version\":11,\"dashboard_columns\":{},\"dashboard_density\":{},\"navigation_limits\":{},\"pages\":[{}],\"slugs\":[{}],\"tiers\":{},\"sidebar_variants\":{},\"navigation_separators\":{},\"chrome_keys\":{}}}\n",
+        "{{\"version\":12,\"dashboard_columns\":{},\"dashboard_density\":{},\"navigation_limits\":{},\"profile_grid\":{},\"pages\":[{}],\"slugs\":[{}],\"tiers\":{},\"sidebar_variants\":{},\"navigation_separators\":{},\"chrome_keys\":{}}}\n",
         dashboard_columns_json(),
         dashboard_density_json(),
         navigation_limits_json(),
+        profile_grid_json(),
         pages.join(","),
         slugs.join(","),
         tiers_json(),
@@ -171,6 +176,19 @@ fn navigation_limits_json() -> String {
     format!(
         "{{\"chrome_band_limit_pct\":{},\"void_limit_pct\":{}}}",
         NAV_CHROME_BAND_LIMIT_PCT, NAV_VOID_LIMIT_PCT
+    )
+}
+
+/// The profile-card grid rule, exported so no surface keeps a second copy.
+///
+/// `profile_columns(page_width, gap)` is the only answer to "how many profile
+/// cards fit in this row"; the generated Slint lookup spells the same two
+/// numbers rather than inventing a tier table, and the structure gate fails
+/// when the export and the contract drift.
+fn profile_grid_json() -> String {
+    format!(
+        "{{\"min_item_width_px\":{},\"max_columns\":{}}}",
+        PROFILE_MIN_ITEM_WIDTH_PX, PROFILE_MAX_COLUMNS
     )
 }
 
@@ -612,7 +630,7 @@ mod tests {
     fn the_exported_document_carries_the_ladder() {
         let json = page_structure_json();
         let document: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
-        assert_eq!(document["version"], 11);
+        assert_eq!(document["version"], 12);
         // The chrome vocabulary travels with the ladder it describes, so a
         // reader that has the document already has the key list.
         assert_eq!(
@@ -642,6 +660,11 @@ mod tests {
         assert_eq!(density["standard_four_column_min_px"], 1040);
         assert_eq!(density["standard_height_min_px"], 824);
         assert_eq!(density["mobile_max_px"], 560);
+        // The profile grid rule travels with the same export, so a surface
+        // never has to keep the reference's 300px floor for itself.
+        let profile = &document["profile_grid"];
+        assert_eq!(profile["min_item_width_px"], PROFILE_MIN_ITEM_WIDTH_PX);
+        assert_eq!(profile["max_columns"], PROFILE_MAX_COLUMNS);
         let tiers = document["tiers"].as_array().expect("the exported ladder");
         assert_eq!(tiers.len(), TIERS.len());
         assert_eq!(tiers[2]["id"], "expanded");

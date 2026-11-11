@@ -80,6 +80,16 @@ DENSITY_DOC = [
     "only derived answer the dashboard grid consumes.",
 ]
 
+PROFILE_GRID_DOC = [
+    "How many profile cards fit side by side at this page-body width.",
+    "",
+    "FlClash's profiles grid sizes one card from `profileItemMinWidth = 300.0`",
+    "and clamps `getProfilesColumns` to three columns; it passes the row gap",
+    "the grid is already paying, so the same arithmetic is a pure function of",
+    "room. Exporting the two numbers keeps every surface from stacking cards",
+    "one per row and leaving the horizontal twin of page dead ground.",
+]
+
 SIDEBAR_VARIANT_DOC = [
     "FlClash persists only `sidebarExpanded` in app settings and derives one",
     "`expanded` fact from the viewport capability. The contract exports the",
@@ -191,6 +201,9 @@ def slint_ladder(document: dict) -> str:
     tiers = document["tiers"]
     variants = document["sidebar_variants"]
     threshold = int(document["dashboard_columns"]["four_column_min_px"])
+    profile_grid = document["profile_grid"]
+    profile_min = int(profile_grid["min_item_width_px"])
+    profile_max = int(profile_grid["max_columns"])
     density = document["dashboard_density"]
     desktop_min = int(density["desktop_min_px"])
     standard_four_column_min = int(density["standard_four_column_min_px"])
@@ -245,6 +258,18 @@ def slint_ladder(document: dict) -> str:
     body.append("        return 4;")
     body.append("    }")
     body.append("")
+    body += [f"    // {line}".rstrip() for line in PROFILE_GRID_DOC]
+    body.append(
+        "    public pure function profile_columns("
+        "page-width: length, gap: length) -> int {"
+    )
+    body.append(
+        f"        return Math.min({profile_max}, "
+        f"Math.max(1, Math.floor((page-width + gap) / "
+        f"({profile_min} * LumenUiScale.unit + gap))));"
+    )
+    body.append("    }")
+    body.append("")
     body += [f"    // {line}".rstrip() for line in DENSITY_DOC]
     body.append(
         "    public pure function dashboard_density("
@@ -286,9 +311,9 @@ def main() -> int:
         print(f"viewport ladder export is missing: {EXPORT.relative_to(ROOT)}", file=sys.stderr)
         return 1
     document = json.loads(EXPORT.read_text(encoding="utf-8"))
-    if document.get("version") != 11:
+    if document.get("version") != 12:
         print(
-            "page-structure.json is not the ladder-bearing version 11 export; "
+            "page-structure.json is not the ladder-bearing version 12 export; "
             "rerun export_page_structure",
             file=sys.stderr,
         )
