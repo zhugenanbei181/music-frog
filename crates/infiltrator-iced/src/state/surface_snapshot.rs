@@ -67,6 +67,11 @@ impl AppState {
             self.diag.connections_model.clear_observation();
             self.diag.connection_rates = Default::default();
             self.diag.connection_rate_book = Default::default();
+            // The audit's buckets belong to the session that observed them, so
+            // a core reset drops them with the connections they came from. The
+            // reader's window selection is kept: it is a preference, not data.
+            self.diag.traffic_audit.audit.clear();
+            self.diag.traffic_audit.observed_at_secs = None;
             self.diag.connection_activity = Default::default();
             self.diag.inspecting_connection_id = None;
             self.diag.traffic = None;

@@ -14,6 +14,9 @@ pub enum CaptureSection {
     RouteTop,
     RuntimeConnections,
     RuntimeLogs,
+    /// The runtime page's traffic audit card (its range/dimension controls and
+    /// the window's ranked entities), which sits below the live rates chart.
+    RuntimeTrafficAudit,
     SettingsAbout,
 }
 
@@ -23,7 +26,10 @@ impl CaptureSection {
     pub fn is_ready(self, region_measured: bool) -> bool {
         match self {
             Self::RouteTop => true,
-            Self::RuntimeConnections | Self::RuntimeLogs | Self::SettingsAbout => region_measured,
+            Self::RuntimeConnections
+            | Self::RuntimeLogs
+            | Self::RuntimeTrafficAudit
+            | Self::SettingsAbout => region_measured,
         }
     }
 }

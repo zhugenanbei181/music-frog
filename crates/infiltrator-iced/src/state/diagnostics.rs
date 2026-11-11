@@ -7,6 +7,7 @@ use infiltrator_presentation::log_export_actions::LogExportActions;
 use infiltrator_presentation::log_projection::page_from_log_records;
 use lurker_ui_presentation::dns_leak_actions::DnsLeakActionState;
 
+use crate::state::traffic::TrafficAuditState;
 use crate::types::app::Route;
 use crate::types::doctor::{CrashWatchdogState, DoctorPanelState};
 use crate::types::perf::PerfSnapshot;
@@ -100,6 +101,9 @@ pub struct DiagnosticsState {
     pub connection_rates: ConnectionRateApplication,
     /// DUAL-13-10/12: the instantaneous rates derived from the last snapshot.
     pub connection_rate_book: ConnectionRates,
+    /// TRAFFICAUDIT-001: the shared traffic buckets plus the reader's own
+    /// window and dimension selection.
+    pub traffic_audit: TrafficAuditState,
     /// DUAL-13-10: breathing phase of the high-throughput pulse (0.0..1.0).
     pub connection_pulse_phase: f32,
     /// Configured idle timeout in seconds (one of the shared choices).

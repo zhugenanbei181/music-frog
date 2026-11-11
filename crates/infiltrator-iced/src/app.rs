@@ -460,6 +460,7 @@ impl AppState {
                 connection_activity: ConnectionActivityTracker::new(),
                 connection_rates: ConnectionRateApplication::new(),
                 connection_rate_book: Default::default(),
+                traffic_audit: Default::default(),
                 connection_pulse_phase: 0.0,
                 connection_idle_timeout_secs: DEFAULT_IDLE_TIMEOUT_SECS,
                 last_idle_sweep: None,

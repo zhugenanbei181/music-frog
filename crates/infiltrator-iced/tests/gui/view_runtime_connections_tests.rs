@@ -123,6 +123,7 @@ fn test_sort_connections() {
                 observation: ConnectionRateObservation::Measured,
                 upload_bps: 0.0,
                 download_bps: 9_000.0,
+                ..Default::default()
             },
         ),
         (
@@ -131,6 +132,7 @@ fn test_sort_connections() {
                 observation: ConnectionRateObservation::Measured,
                 upload_bps: 5_000.0,
                 download_bps: 0.0,
+                ..Default::default()
             },
         ),
         (
@@ -139,6 +141,7 @@ fn test_sort_connections() {
                 observation: ConnectionRateObservation::Measured,
                 upload_bps: 1_000.0,
                 download_bps: 1_000.0,
+                ..Default::default()
             },
         ),
     ]);
@@ -169,6 +172,7 @@ fn test_high_throughput_pulse_uses_the_shared_threshold() {
                 observation: ConnectionRateObservation::Measured,
                 upload_bps: threshold - 1.0,
                 download_bps: 1_000.0,
+                ..Default::default()
             },
         ),
         (
@@ -177,6 +181,7 @@ fn test_high_throughput_pulse_uses_the_shared_threshold() {
                 observation: ConnectionRateObservation::Measured,
                 upload_bps: threshold,
                 download_bps: 0.0,
+                ..Default::default()
             },
         ),
     ]);

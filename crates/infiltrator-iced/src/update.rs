@@ -386,6 +386,8 @@ impl AppState {
             | Message::CustomNodeDialerScanned(_)
             | Message::VerifyCustomNodeCertificateAuthority
             | Message::SetConnectionGroupingMode(_)
+            | Message::SetTrafficAuditWindow(_)
+            | Message::SetTrafficAuditDimension(_)
             | Message::AddQuickRuleFromConnection { .. }
             | Message::OpenSnapshotDiff(_)
             | Message::CloseSnapshotDiff

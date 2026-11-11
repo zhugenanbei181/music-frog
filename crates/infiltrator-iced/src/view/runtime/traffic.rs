@@ -1,10 +1,18 @@
-//! Runtime page traffic section: KPI metrics tiles, real-time traffic chart
-//! with smooth curves and legends, time range selector pills, and multi-dimension
-//! traffic breakdown & rankings (Domains, Devices, Proxies, Processes).
+//! Runtime page traffic section: KPI metrics tiles, the real-time rates chart,
+//! and the traffic audit - one owner's buckets, read through the reader's own
+//! range and dimension selection (TRAFFICAUDIT-001). The section folds no
+//! ranking of its own: it renders the readback the application answers with.
 
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::view::runtime::traffic_legend::legend_indicator;
+use infiltrator_application::traffic_audit_application::{TrafficAuditReadback, TrafficAuditRow};
+use infiltrator_contract::design_resources::TextRole;
+use infiltrator_presentation::traffic_audit_options::{
+    TRAFFIC_AUDIT_DIMENSIONS, TRAFFIC_AUDIT_WINDOWS, traffic_audit_dimension_at,
+    traffic_audit_dimension_index, traffic_audit_dimension_label_key, traffic_audit_window_at,
+    traffic_audit_window_index, traffic_audit_window_label_key,
+};
 use infiltrator_shared::byte_units::format_bytes;
 use zhuge_ui_core::curve::catmull_rom_windows;
 
@@ -25,59 +33,7 @@ use iced::{
 use infiltrator_contract::resources::{CoreResourceSnapshot, ResourceAvailability};
 use infiltrator_presentation::traffic_readout::TrafficFreshness;
 use infiltrator_shared::locales::{Lang, Localizer};
-use std::collections::{HashMap, VecDeque};
-
-/// Multi-dimension breakdown category for traffic usage analytics.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum TrafficDimension {
-    #[default]
-    Domains,
-    Devices,
-    Proxies,
-    Processes,
-}
-
-impl TrafficDimension {
-    pub fn label(self, lang: &Lang<'_>) -> String {
-        match self {
-            Self::Domains => lang.tr("traffic_dim_domains").to_string(),
-            Self::Devices => lang.tr("traffic_dim_devices").to_string(),
-            Self::Proxies => lang.tr("traffic_dim_proxies").to_string(),
-            Self::Processes => lang.tr("traffic_dim_processes").to_string(),
-        }
-    }
-
-    #[allow(dead_code)]
-    pub fn icon(self) -> Icon {
-        match self {
-            Self::Domains => Icon::Globe,
-            Self::Devices => Icon::Server,
-            Self::Proxies => Icon::Zap,
-            Self::Processes => Icon::Code2,
-        }
-    }
-}
-
-/// Extract clean executable/binary name from a system process path.
-pub fn extract_process_name(path: &str) -> String {
-    let trimmed = path.trim();
-    if trimmed.is_empty() {
-        return String::new();
-    }
-    let filename = trimmed.rsplit(['/', '\\']).next().unwrap_or(trimmed);
-    let name = filename.strip_suffix(".exe").unwrap_or(filename);
-    name.to_string()
-}
-
-/// Traffic ranking summary entry for any dimension (domain, device, proxy, process).
-#[derive(Debug, Clone, PartialEq)]
-pub struct HostTrafficRank {
-    pub host: String,
-    pub upload: u64,
-    pub download: u64,
-    pub total: u64,
-    pub share_percent: f64,
-}
+use std::collections::VecDeque;
 
 pub(super) fn traffic_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<'a, Message> {
     let theme_tokens = tokens(&state.shell.theme);
@@ -151,14 +107,6 @@ pub(super) fn traffic_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Elemen
             }
         },
     );
-    let time_range_labels = vec![
-        lang.tr("traffic_1h").to_string(),
-        lang.tr("traffic_24h").to_string(),
-        lang.tr("traffic_7d").to_string(),
-        lang.tr("traffic_30d").to_string(),
-    ];
-    let time_range_pills = segmented_control(&time_range_labels, 0, |_| Message::Noop);
-
     let waiting_note: Element<'a, Message> = match rates.freshness {
         TrafficFreshness::Failed => {
             container(theme::role_body_text(rates.failure).width(Length::Fill))
@@ -211,16 +159,11 @@ pub(super) fn traffic_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Elemen
         None,
         column![
             section_header(lang.tr("traffic_trend_title").as_ref(), None),
-            row![
-                realtime_up_badge,
-                realtime_down_badge,
-                time_range_pills,
-                observation_badge
-            ]
-            .spacing(SP_SM)
-            .align_y(Alignment::Center)
-            .width(Length::Fill)
-            .wrap(),
+            row![realtime_up_badge, realtime_down_badge, observation_badge]
+                .spacing(SP_SM)
+                .align_y(Alignment::Center)
+                .width(Length::Fill)
+                .wrap(),
             Space::new().height(theme::SP_SM),
             container(legends_row).id(InteractionRegion::TrafficRates.id()),
             waiting_note,
@@ -233,21 +176,182 @@ pub(super) fn traffic_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Elemen
         .id(InteractionRegion::TrafficObservation.id())
         .width(Length::Fill);
 
-    // 3. Multi-Dimension Dimension Selector & Rankings List
-    let dim_labels = vec![
-        TrafficDimension::Domains.label(&lang),
-        TrafficDimension::Devices.label(&lang),
-        TrafficDimension::Proxies.label(&lang),
-        TrafficDimension::Processes.label(&lang),
-    ];
-    let dim_selector = segmented_control(&dim_labels, 0, |_| Message::Noop);
+    // 3. Traffic audit: the reader picks a range and a dimension, the owner
+    // answers with that window's buckets and its ranked entities.
+    let audit_card = render_traffic_audit(state, &lang);
 
-    let host_ranks = compute_host_rankings(state);
-    let rankings_card = render_domain_rankings(&host_ranks, dim_selector, &lang);
-
-    column![kpi_row, chart_card, rankings_card]
+    column![kpi_row, chart_card, audit_card]
         .spacing(SP_LG)
         .width(Length::Fill)
+        .into()
+}
+
+/// One audit card: the range and dimension controls, the window's own bucket
+/// strip, and the owner's ranked rows for the selected dimension.
+fn render_traffic_audit<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Message> {
+    let window_labels: Vec<String> = TRAFFIC_AUDIT_WINDOWS
+        .iter()
+        .map(|window| lang.tr(traffic_audit_window_label_key(*window)).to_string())
+        .collect();
+    let dimension_labels: Vec<String> = TRAFFIC_AUDIT_DIMENSIONS
+        .iter()
+        .map(|dimension| {
+            lang.tr(traffic_audit_dimension_label_key(*dimension)
+                .expect("an offered dimension always has a copy key"))
+                .to_string()
+        })
+        .collect();
+
+    let window_selector = segmented_control(
+        &window_labels,
+        traffic_audit_window_index(state.diag.traffic_audit.window),
+        |index| Message::SetTrafficAuditWindow(traffic_audit_window_at(index)),
+    );
+    let dimension_selector = segmented_control(
+        &dimension_labels,
+        traffic_audit_dimension_index(state.diag.traffic_audit.dimension),
+        |index| Message::SetTrafficAuditDimension(traffic_audit_dimension_at(index)),
+    );
+
+    let header = Some(
+        row![
+            window_selector,
+            Space::new().width(theme::SP_SM),
+            dimension_selector,
+        ]
+        .align_y(Alignment::Center)
+        .into(),
+    );
+
+    let Some(readback) = state.diag.traffic_audit.readback(AUDIT_RANK_LIMIT) else {
+        return card(
+            None,
+            column![
+                section_header(lang.tr("traffic_multidim_analysis").as_ref(), header),
+                Space::new().height(theme::SP_SM),
+                empty_state(
+                    Icon::Activity,
+                    lang.tr("traffic_no_stats").as_ref(),
+                    lang.tr("traffic_no_stats_desc").as_ref(),
+                ),
+            ],
+        );
+    };
+
+    let totals = row![
+        badge(
+            format!(
+                "{} {}",
+                lang.tr("traffic_total"),
+                format_bytes(readback.totals.total_bytes())
+            ),
+            BadgeKind::Accent,
+        ),
+        badge(
+            format!("↑ {}", format_bytes(readback.totals.upload_bytes)),
+            BadgeKind::Success,
+        ),
+        badge(
+            format!("↓ {}", format_bytes(readback.totals.download_bytes)),
+            BadgeKind::Accent,
+        ),
+        badge(format!("Top {}", readback.rows.len()), BadgeKind::Neutral),
+    ]
+    .spacing(theme::SP_SM)
+    .align_y(Alignment::Center)
+    .wrap();
+
+    container(card(
+        None,
+        column![
+            section_header(lang.tr("traffic_multidim_analysis").as_ref(), header),
+            Space::new().height(theme::SP_SM),
+            audit_trend_strip(&readback, lang, tokens(&state.shell.theme)),
+            Space::new().height(theme::SP_MD),
+            totals,
+            Space::new().height(theme::SP_MD),
+            render_audit_rankings(&readback, lang),
+        ]
+        .spacing(SP_XS),
+    ))
+    .id(InteractionRegion::TrafficAudit.id())
+    .width(Length::Fill)
+    .into()
+}
+
+/// How many ranked entities a surface shows for one dimension.
+pub const AUDIT_RANK_LIMIT: usize = 8;
+
+/// Height of the window's bucket strip.
+const AUDIT_TREND_HEIGHT: f32 = 56.0;
+
+/// Width of one bucket's bar. Fixed, so a window with few buckets reads as a
+/// series of bars instead of one stretched block.
+const AUDIT_TREND_BUCKET_WIDTH: f32 = 18.0;
+
+/// The selected window's whole traffic, one bar per recorded bucket.
+///
+/// A bucket with no traffic simply has no bar: the strip places each bar at
+/// its own bucket, so a quiet hour reads quiet instead of reading invented.
+fn audit_trend_strip<'a>(
+    readback: &TrafficAuditReadback,
+    lang: &Lang<'a>,
+    theme_tokens: &'static theme::Tokens,
+) -> Element<'a, Message> {
+    let peak = readback
+        .trend
+        .iter()
+        .map(|point| point.total_bytes())
+        .max()
+        .unwrap_or(0);
+    if readback.trend.is_empty() || peak == 0 {
+        return theme::role_text(lang.tr("traffic_no_stats").to_string(), TextRole::Caption)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_tertiary),
+            })
+            .into();
+    }
+
+    let mut bars = row![].spacing(2.0).align_y(Alignment::End);
+    for point in &readback.trend {
+        let down_height = (point.download_bytes as f32 / peak as f32) * AUDIT_TREND_HEIGHT;
+        let up_height = (point.upload_bytes as f32 / peak as f32) * AUDIT_TREND_HEIGHT;
+        bars = bars.push(
+            column![
+                container(Space::new().width(Length::Fill))
+                    .width(Length::Fixed(AUDIT_TREND_BUCKET_WIDTH))
+                    .height(Length::Fixed(up_height.max(1.0)))
+                    .style(move |_: &Theme| container::Style {
+                        background: Some(theme_tokens.success.into()),
+                        border: Border {
+                            radius: border::Radius::from(2.0),
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    }),
+                Space::new().height(1.0),
+                container(Space::new().width(Length::Fill))
+                    .width(Length::Fixed(AUDIT_TREND_BUCKET_WIDTH))
+                    .height(Length::Fixed(down_height.max(1.0)))
+                    .style(move |_: &Theme| container::Style {
+                        background: Some(theme_tokens.accent.into()),
+                        border: Border {
+                            radius: border::Radius::from(2.0),
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    }),
+            ]
+            .spacing(0.0)
+            .width(Length::Fixed(AUDIT_TREND_BUCKET_WIDTH))
+            .align_x(Alignment::Center),
+        );
+    }
+
+    container(bars)
+        .width(Length::Fill)
+        .height(Length::Fixed(AUDIT_TREND_HEIGHT))
+        .align_x(Alignment::Start)
         .into()
 }
 
@@ -333,231 +437,83 @@ fn public_ip_tile<'a>(state: &'a AppState, lang: &Lang<'a>, accent: Color) -> El
     .into()
 }
 
-/// Helper to convert aggregated upload/download counts into sorted rankings with share percentages.
-fn summarize_and_sort_rankings(
-    map: HashMap<String, (u64, u64)>,
-    limit: usize,
-) -> Vec<HostTrafficRank> {
-    let grand_total: u64 = map.values().map(|(u, d)| u.saturating_add(*d)).sum();
-
-    let mut ranks: Vec<HostTrafficRank> = map
-        .into_iter()
-        .map(|(host, (upload, download))| {
-            let total = upload.saturating_add(download);
-            let share_percent = if grand_total > 0 {
-                (total as f64 / grand_total as f64) * 100.0
-            } else {
-                0.0
-            };
-            HostTrafficRank {
-                host,
-                upload,
-                download,
-                total,
-                share_percent,
-            }
-        })
-        .collect();
-
-    ranks.sort_by(|a, b| b.total.cmp(&a.total).then_with(|| a.host.cmp(&b.host)));
-    ranks.truncate(limit);
-    ranks
-}
-
-/// Compute traffic rankings for any given dimension from live connection snapshot.
-pub fn compute_dimension_rankings(
-    state: &AppState,
-    dimension: TrafficDimension,
-) -> Vec<HostTrafficRank> {
-    let mut map: HashMap<String, (u64, u64)> = HashMap::new();
-    if let Some(snapshot) = &state.diag.connections {
-        for conn in &snapshot.connections {
-            let key = match dimension {
-                TrafficDimension::Domains => {
-                    if !conn.metadata.host.trim().is_empty() {
-                        conn.metadata.host.trim().to_string()
-                    } else if !conn.metadata.destination_ip.trim().is_empty() {
-                        conn.metadata.destination_ip.trim().to_string()
-                    } else {
-                        continue;
-                    }
-                }
-                TrafficDimension::Devices => {
-                    let src = conn.metadata.source_ip.trim();
-                    if src.is_empty() || src == "127.0.0.1" || src == "::1" {
-                        "127.0.0.1 (Localhost)".to_string()
-                    } else {
-                        src.to_string()
-                    }
-                }
-                TrafficDimension::Proxies => conn
-                    .chains
-                    .first()
-                    .cloned()
-                    .filter(|c| !c.trim().is_empty())
-                    .unwrap_or_else(|| {
-                        if !conn.rule_payload.trim().is_empty() {
-                            conn.rule_payload.trim().to_string()
-                        } else if !conn.rule.trim().is_empty() {
-                            conn.rule.trim().to_string()
-                        } else {
-                            "DIRECT".to_string()
-                        }
-                    }),
-                TrafficDimension::Processes => {
-                    let p = extract_process_name(&conn.metadata.process_path);
-                    if p.is_empty() {
-                        "[System / Unknown]".to_string()
-                    } else {
-                        p
-                    }
-                }
-            };
-            let entry = map.entry(key).or_insert((0, 0));
-            entry.0 = entry.0.saturating_add(conn.upload);
-            entry.1 = entry.1.saturating_add(conn.download);
-        }
-    }
-    summarize_and_sort_rankings(map, 8)
-}
-
-/// Compute top domain / host traffic rankings from live connection snapshot.
-pub fn compute_host_rankings(state: &AppState) -> Vec<HostTrafficRank> {
-    compute_dimension_rankings(state, TrafficDimension::Domains)
-}
-
-/// Compute top device / client IP traffic rankings from live connection snapshot.
-#[allow(dead_code)]
-pub fn compute_device_rankings(state: &AppState) -> Vec<HostTrafficRank> {
-    compute_dimension_rankings(state, TrafficDimension::Devices)
-}
-
-/// Compute top proxy outbound node traffic rankings from live connection snapshot.
-#[allow(dead_code)]
-pub fn compute_proxy_rankings(state: &AppState) -> Vec<HostTrafficRank> {
-    compute_dimension_rankings(state, TrafficDimension::Proxies)
-}
-
-/// Compute top process / application traffic rankings from live connection snapshot.
-#[allow(dead_code)]
-pub fn compute_process_rankings(state: &AppState) -> Vec<HostTrafficRank> {
-    compute_dimension_rankings(state, TrafficDimension::Processes)
-}
-
-/// Render the domain / multi-dimension traffic rankings card.
-fn render_domain_rankings<'a>(
-    ranks: &[HostTrafficRank],
-    dim_selector: Element<'a, Message>,
+/// The owner's ranked rows for the selected dimension.
+///
+/// The surface renders what it was handed - the entity, the two directions and
+/// the share of the window the owner computed. No ranking, no share and no
+/// entity name is derived here.
+fn render_audit_rankings<'a>(
+    readback: &TrafficAuditReadback,
     lang: &Lang<'a>,
 ) -> Element<'a, Message> {
-    let _is_zh = !lang.0.starts_with("en");
-    let header_title = lang.tr("traffic_domain_rank");
-
-    if ranks.is_empty() {
-        return card(
-            None,
-            column![
-                section_header(
-                    &header_title,
-                    Some(
-                        row![
-                            dim_selector,
-                            Space::new().width(theme::SP_SM),
-                            badge(
-                                lang.tr("traffic_multidim_analysis").to_string(),
-                                BadgeKind::Neutral
-                            ),
-                        ]
-                        .align_y(Alignment::Center)
-                        .into()
-                    ),
-                ),
-                Space::new().height(theme::SP_SM),
-                empty_state(
-                    Icon::Globe,
-                    lang.tr("traffic_no_stats").as_ref(),
-                    lang.tr("traffic_no_stats_desc").as_ref(),
-                ),
-            ],
+    if readback.rows.is_empty() {
+        return empty_state(
+            Icon::Activity,
+            lang.tr("traffic_no_stats").as_ref(),
+            lang.tr("traffic_no_stats_desc").as_ref(),
         );
     }
 
     let mut list = column![].spacing(SP_SM);
-    for (i, rank) in ranks.iter().enumerate() {
-        let rank_num = i + 1;
-        let rank_kind = match rank_num {
-            1 => BadgeKind::Accent,
-            2 | 3 => BadgeKind::Neutral,
-            _ => BadgeKind::Neutral,
-        };
-
-        let rank_badge = badge(format!("#{rank_num}"), rank_kind);
-        let progress_bar = share_bar(rank.share_percent);
-        let total_label = lang.tr("traffic_total");
-
-        let row_content = column![
-            row![
-                rank_badge,
-                Space::new().width(theme::SP_SM),
-                theme::role_body_text(rank.host.clone())
-                    .width(Length::Fill)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_primary)
-                    }),
-                theme::role_body_text(format!(
-                    "↑ {} / ↓ {}",
-                    format_bytes(rank.upload),
-                    format_bytes(rank.download)
-                ))
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_secondary)
-                }),
-                Space::new().width(theme::SP_MD),
-                theme::role_body_text(format!("{total_label} {}", format_bytes(rank.total))).style(
-                    |t: &Theme| text::Style {
-                        color: Some(tokens(t).text_secondary)
-                    }
-                ),
-                Space::new().width(theme::SP_MD),
-                theme::role_body_text(format!("{:.1}%", rank.share_percent)).style(|t: &Theme| {
-                    text::Style {
-                        color: Some(tokens(t).text_primary),
-                    }
-                }),
-            ]
-            .align_y(Alignment::Center),
-            Space::new().height(SP_XS),
-            progress_bar,
-        ]
-        .spacing(2);
-
-        list = list.push(
-            container(row_content)
-                .padding([theme::SP_SM, SP_MD])
-                .width(Length::Fill)
-                .style(row_card_surface),
-        );
+    for (index, entry) in readback.rows.iter().enumerate() {
+        list = list.push(audit_rank_row(entry, index + 1, lang));
     }
+    list.into()
+}
 
-    card(
-        None,
-        column![
-            section_header(
-                &header_title,
-                Some(
-                    row![
-                        dim_selector,
-                        Space::new().width(theme::SP_MD),
-                        badge(format!("Top {}", ranks.len()), BadgeKind::Neutral),
-                    ]
-                    .align_y(Alignment::Center)
-                    .into(),
-                ),
-            ),
-            Space::new().height(theme::SP_MD),
-            list,
-        ],
-    )
+/// One ranked entity: the reference product's row shape - rank, name, the two
+/// directions, the window total and the share bar.
+fn audit_rank_row<'a>(
+    entry: &TrafficAuditRow,
+    position: usize,
+    lang: &Lang<'a>,
+) -> Element<'a, Message> {
+    let rank_kind = if position == 1 {
+        BadgeKind::Accent
+    } else {
+        BadgeKind::Neutral
+    };
+    let total_label = lang.tr("traffic_total");
+    let row_content = column![
+        row![
+            badge(format!("#{position}"), rank_kind),
+            Space::new().width(theme::SP_SM),
+            theme::role_body_text(entry.entity.clone())
+                .width(Length::Fill)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_primary),
+                }),
+            theme::role_body_text(format!(
+                "\u{2191} {} / \u{2193} {}",
+                format_bytes(entry.upload_bytes),
+                format_bytes(entry.download_bytes)
+            ))
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary),
+            }),
+            Space::new().width(theme::SP_MD),
+            theme::role_body_text(format!("{total_label} {}", format_bytes(entry.total_bytes)))
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_secondary),
+                }),
+            Space::new().width(theme::SP_MD),
+            theme::role_body_text(format!("{:.1}%", entry.share_percent)).style(|t: &Theme| {
+                text::Style {
+                    color: Some(tokens(t).text_primary),
+                }
+            }),
+        ]
+        .align_y(Alignment::Center),
+        Space::new().height(SP_XS),
+        share_bar(entry.share_percent),
+    ]
+    .spacing(2);
+
+    container(row_content)
+        .padding([theme::SP_SM, SP_MD])
+        .width(Length::Fill)
+        .style(row_card_surface)
+        .into()
 }
 
 /// Visual horizontal share proportion bar.

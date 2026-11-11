@@ -378,3 +378,146 @@ fn the_series_window_is_one_read_for_every_dimension() {
             .is_empty()
     );
 }
+
+// The whole-traffic series must count a flow once, however many dimensions it
+// was attributed to. Summing the per-entity tiers instead would multiply every
+// byte by the number of dimensions the flow carries.
+#[test]
+fn a_window_counts_every_flow_once_whatever_dimensions_it_carries() {
+    let mut auditor = TrafficAuditAccumulator::new();
+    let now = 86_400 * 20_000;
+    auditor.record_flow(
+        &FlowEvent::new(AuditRouteType::Proxied, 1_000, 2_000)
+            .with_process("chrome")
+            .with_node("HK-01")
+            .with_group("AutoSelect")
+            .with_domain("a.com")
+            .with_country("HK")
+            .with_device("127.0.0.1")
+            .with_packets(7)
+            .with_timestamp(now - 60),
+    );
+
+    let totals = auditor.window_totals(TrafficWindow::LastHour, now);
+    assert_eq!(totals.total_bytes(), 3_000);
+    assert_eq!(totals.packets_count, 7);
+    assert_eq!(totals.flow_count, 1);
+
+    let series = auditor.window_series(TrafficWindow::LastHour, now);
+    assert_eq!(series.len(), 1);
+    assert_eq!(series[0].0, now - RECENT_BUCKET_SECS);
+    assert_eq!(series[0].1.total_bytes(), 3_000);
+}
+
+// Every window reads the tier its own bucket size needs, so the reference's
+// four ranges cannot collapse onto one table.
+#[test]
+fn each_window_reads_its_own_tier_and_grid() {
+    let mut auditor = TrafficAuditAccumulator::new();
+    let now = 86_400 * 20_000;
+    let mut flow = |up: u64, down: u64, at: u64| {
+        auditor.record_flow(
+            &FlowEvent::new(AuditRouteType::Proxied, up, down)
+                .with_process("chrome")
+                .with_device("127.0.0.1")
+                .with_timestamp(at),
+        );
+    };
+    flow(1_000, 2_000, now - 60);
+    flow(500, 500, now - 7_200);
+    flow(300, 700, now - 3 * 86_400);
+    flow(900, 100, now - 40 * 86_400);
+
+    let window_bytes = |window| auditor.window_totals(window, now).total_bytes();
+    assert_eq!(window_bytes(TrafficWindow::LastHour), 3_000);
+    assert_eq!(window_bytes(TrafficWindow::LastDay), 4_000);
+    assert_eq!(window_bytes(TrafficWindow::LastWeek), 5_000);
+    // The 40-day-old flow is outside every window, including the month.
+    assert_eq!(window_bytes(TrafficWindow::LastMonth), 5_000);
+
+    // The week is drawn on a 6-hour grid: the two recent hourly buckets fold
+    // into one bar and the three-day-old hour keeps its own.
+    let week = auditor.window_series(TrafficWindow::LastWeek, now);
+    assert_eq!(week.len(), 2);
+    assert_eq!(week[0].0, now - 3 * 86_400);
+    assert_eq!(week[0].1.total_bytes(), 1_000);
+    assert_eq!(week[1].0, now - 21_600);
+    assert_eq!(week[1].1.total_bytes(), 4_000);
+
+    // The day is drawn hourly: the two recent flows are two bars.
+    let day = auditor.window_series(TrafficWindow::LastDay, now);
+    assert_eq!(day.len(), 2);
+    assert_eq!(day[0].0, now - 7_200);
+    assert_eq!(day[1].0, now - 3_600);
+
+    // Rankings are the same buckets summed per entity inside the window.
+    let day_ranks =
+        auditor.window_rankings(TrafficDimension::Process, TrafficWindow::LastDay, now, 5);
+    assert_eq!(day_ranks.len(), 1);
+    assert_eq!(day_ranks[0].0, "chrome");
+    assert_eq!(day_ranks[0].1.total_bytes(), 4_000);
+    let hour_devices =
+        auditor.window_rankings(TrafficDimension::Device, TrafficWindow::LastHour, now, 5);
+    assert_eq!(hour_devices.len(), 1);
+    assert_eq!(hour_devices[0].0, "127.0.0.1");
+    assert_eq!(hour_devices[0].1.total_bytes(), 3_000);
+}
+
+// The fine tier serves the last hour only, so pruning it must not touch the
+// hourly and daily tiers the other windows read.
+#[test]
+fn pruning_the_fine_tier_leaves_the_other_windows_intact() {
+    let mut auditor = TrafficAuditAccumulator::new();
+    let now = 86_400 * 20_000;
+    auditor.record_flow(
+        &FlowEvent::new(AuditRouteType::Proxied, 1_000, 2_000)
+            .with_process("chrome")
+            .with_timestamp(now - 60),
+    );
+
+    // The fine tier is pruned against the instant its reader lives at, so a
+    // bucket from an hour ago goes while the hourly tier keeps the same flow.
+    let pruned = auditor.prune_recent_before(now);
+    assert_eq!(pruned, 2);
+    assert_eq!(
+        auditor
+            .window_totals(TrafficWindow::LastHour, now)
+            .total_bytes(),
+        0
+    );
+    assert_eq!(
+        auditor
+            .window_totals(TrafficWindow::LastDay, now)
+            .total_bytes(),
+        3_000
+    );
+    assert_eq!(
+        auditor
+            .window_totals(TrafficWindow::LastMonth, now)
+            .total_bytes(),
+        3_000
+    );
+}
+
+// Clearing is clear: no tier may survive it.
+#[test]
+fn clear_drops_every_tier_a_window_reads() {
+    let mut auditor = TrafficAuditAccumulator::new();
+    let now = 86_400 * 20_000;
+    auditor.record_flow(
+        &FlowEvent::new(AuditRouteType::Proxied, 1_000, 2_000)
+            .with_process("chrome")
+            .with_timestamp(now - 60),
+    );
+    auditor.clear();
+
+    for window in TrafficWindow::ALL {
+        assert_eq!(auditor.window_totals(window, now).total_bytes(), 0);
+        assert!(auditor.window_series(window, now).is_empty());
+        assert!(
+            auditor
+                .window_rankings(TrafficDimension::Process, window, now, 5)
+                .is_empty()
+        );
+    }
+}

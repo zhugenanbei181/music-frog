@@ -40,6 +40,7 @@ fn demo_env(page: Route, scenario: FeatureId) -> DemoEnv {
         capture_marker: None,
         scenario: Some(scenario),
         sidebar_expansion: SidebarExpansionPreference::default(),
+        traffic_audit: None,
     }
 }
 

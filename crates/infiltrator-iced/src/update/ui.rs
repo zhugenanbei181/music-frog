@@ -691,6 +691,17 @@ impl AppState {
                 self.diag.connections_model.select(mode);
                 Task::none()
             }
+            // TRAFFICAUDIT-001: the range and dimension are the reader's own
+            // selection over the owner's buckets; the rows themselves are the
+            // owner's readback, never a fold performed here.
+            Message::SetTrafficAuditWindow(window) => {
+                self.diag.traffic_audit.window = window;
+                Task::none()
+            }
+            Message::SetTrafficAuditDimension(dimension) => {
+                self.diag.traffic_audit.dimension = dimension;
+                Task::none()
+            }
             Message::AddQuickRuleFromConnection { pattern, target } => {
                 // DUAL-13-09: both surfaces append through the shared domain
                 // draft seam, which rejects empty patterns and de-duplicates.

@@ -31,6 +31,7 @@ pub fn demo_env(page: Route) -> DemoEnv {
         capture_marker: None,
         scenario: None,
         sidebar_expansion: SidebarExpansionPreference::default(),
+        traffic_audit: None,
     }
 }
 

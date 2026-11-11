@@ -48,6 +48,7 @@ use infiltrator_domain::{
     rules::RuleProviderDiff,
     runtime::{ConnectionSnapshot, TrafficData},
     settings::AppSettings,
+    traffic_audit::{TrafficDimension, TrafficWindow},
 };
 use infiltrator_ports::host_runtime::TunServiceStatus;
 use infiltrator_presentation::dns_page_model::{DnsEditMode, DnsPageTab};
@@ -795,6 +796,10 @@ pub enum Message {
     AggregationReaggregated(Result<aggregator::AggregatedProfileOutcome, InfiltratorError>),
     // Connection Grouping & Quick Rule (Category 4)
     SetConnectionGroupingMode(ConnectionGroupingMode),
+    // Traffic audit range & dimension (TRAFFICAUDIT-001): the reader's own
+    // selection, answered by the owner's readback.
+    SetTrafficAuditWindow(TrafficWindow),
+    SetTrafficAuditDimension(TrafficDimension),
     AddQuickRuleFromConnection {
         pattern: String,
         target: String,

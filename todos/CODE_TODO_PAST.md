@@ -1,4 +1,4 @@
-# MusicFrog 工程 TODO · 过去佛（0条，已清空；归档见 [TODO.md](../TODO.md) 第一百零八批次）
+# MusicFrog 工程 TODO · 过去佛（1条待验证；归档见 [TODO.md](../TODO.md) 第一百零八批次）
 
 > 层级：L4
 
@@ -46,3 +46,32 @@
 ## 12.65 自定义无框窗口标题栏（CSD）、实时流量胶囊与多端统一系统窗管交付（0条，已清空；归档见 [TODO.md](../TODO.md) 第一百零四批次）
 
 ## 12.66 桌面侧栏系统材质效果与诚实降级交付（0条，已清空；归档见 [TODO.md](../TODO.md) 第一百零四批次）
+
+## 12.71 Iced 流量页的审计范围与维度接真交付（1条待验证）
+
+| ID | 状态 / 优先级 | points | owner | 依赖 |
+| --- | --- | --- | --- | --- |
+| `TRAFFICAUDIT-001` | `Integrated` / P1（b194 域片 + b195 全链接真，待统一批次办结） | 3 | infiltrator-domain（`traffic_audit.rs` 的桶与窗口归约）+ infiltrator-application（`traffic_audit_application.rs` 的喂数与读回）+ infiltrator-presentation（`traffic_audit_options.rs` 的范围/维度词表）+ infiltrator-iced（`state/traffic.rs`、`view/runtime/traffic.rs`） | 无（域 owner 已存在，本批已把喂数、读回与两个控件一次接真） |
+
+**`TRAFFICAUDIT-001` 流量页的两个控件是死的，而事实 owner 在域层从未被喂（b192 实测立项，b194 域片落地，b195 接真）**：
+① **域层已有完整 owner**：`crates/infiltrator-domain/src/traffic_audit.rs` 提供 `TrafficAuditAccumulator` 与 `top_processes_by_traffic` / `top_nodes_by_traffic` / `top_groups_by_traffic` / `top_domains_by_traffic` / `top_countries_by_traffic`、`get_process_hourly_series` / `get_node_daily_series` / `get_domain_hourly_series`、`bypass_vs_proxied_ratio` 等 typed 事实。
+② **它没有任何消费者**（立项时实测）：全仓搜索 `TrafficAuditAccumulator`（排除 domain crate 自身）**0 处**——四个表面都没有实例化过它。b195 已把它接成 Iced 的审计卡唯一事实源。
+③ **Iced 视图曾自己折了一份，业务逻辑沉淀在视图里**：`view/runtime/traffic.rs` 把 `TrafficDimension` 枚举声明在视图内，并用 5 个私有函数 `compute_host_rankings` / `compute_device_rankings` / `compute_proxy_rankings` / `compute_process_rankings` / `compute_dimension_rankings` 直接读 `state.diag.connections` 折叠排名——同一事实两份真源。b195 已把这 5 个函数、视图内的 `TrafficDimension` 与 `HostTrafficRank` 全部删除。
+④ **后果是用户可见的两个死控件**：`segmented_control(&time_range_labels, 0, |_| Message::Noop)`（1h/24h/7d/30d）与 `segmented_control(&dim_labels, 0, |_| Message::Noop)`（Domains/Devices/Proxies/Processes），两者都画出「选中」态却对任何点击都回 `Noop`；b192 的守卫把这两处作为唯一两个真实位点登记进只减台账。b195 后台账已清空（`registered=0`）。
+⑤ **收口顺序（自底向上，不做第二种真源）**：先喂域 owner，再由 presentation 投影，最后由 Iced 删 fold 并把控件接真——三步已在 b194（域：桶/窗口/增量）+ b195（application 喂数与读回 + presentation 词表 + Iced 接真）内完成。
+⑥ **验收**：
+   - `grep -rn "compute_.*_rankings" crates/infiltrator-iced` → **0**；`grep -rn "|_| Message::Noop" crates/infiltrator-iced/src/view` → **0**（实测）。
+   - `iced-dead-input-guard.py --mode enforce` → **findings=0 registered=0**，`--self-test` PASS（两条死控件已消失，守卫报台账陈旧并已用 `--update-inventory` 清空）。
+   - 四维度 × 四时间范围在 domain/application 有覆盖：domain nextest **631/631**（新增 6 条：窗口分层/整流量系列/细粒度裁剪/清空）、application nextest **675/675**（新增 5 条：喂数映射、未上报设备不归属、零增量不记账、读回只答被问的窗口、端到端增量）、presentation 词表 3 条、Iced **634/634**（选区移动与窗口裁剪）。
+   - 像素：**两个控件在同一页的不同选中态下有真实像素回执**——捕获装置新增第 8 列 `traffic_audit`（`<range>:<dimension>`，走与控件同一条生产消息路径），发布语料新增 `runtime-traffic-audit-standard` 与 `runtime-traffic-audit-compact`（`30d:process`）两帧；同场景同窗口的 `24h:host` 与 `30d:process` 诊断对实测 **131,853 像素**不同（差异盒 `(280,104)-(1126,740)`），且两帧本身已在 186 帧发布批次里被判定器判过。
+   - 发布批的 **29 帧 PNG** 与 HEAD 不同，已逐像素归因而不是记作「只加了两帧」：差异全在 runtime 页身（`x∈[280,1125]`、`y∈[79,740]`），是圆角边框、徽标、字形边缘的 8-bit 抗锯齿（单帧 21,721 px、通道差绝大多数 ≤4），侧栏/页脚/标题栏逐字节不变。根因是 `AlignSection` 的 `target = (translation.y + (section.y - clip.y)).clamp(0, max_offset)` 依赖第三张卡高度；b195 把速率卡的 4 个范围 pill 移进新审计卡并换成窗口分桶条 + 排名行，内容总高改变后 `connections` / `logs` / 测速详情等帧整体滚到不同小数 y，全页 AA 换相。四次复采排除抖动与环境：同二进制两次逐字节相同、`RUSTICL_ENABLE` unset 后相同、只回退 `traffic.rs` 到 HEAD 即回 HEAD 字节、HEAD 只加零高度 `Space` 仍与 HEAD 相同；两次半回退实验因 sccache 给了错位二进制已用 `cargo clean -p` + binary sha 复核撤回，源码与备份 `diff -rq` 全等。归属是本批控件树的可复现可见身份变化，不是判定器漏洞，也不声称 29 帧各有新业务。
+
+**待验证范围**：
+- 单元（本机可复跑）：domain 631/631、application 675/675、presentation（含 `traffic_audit_options` 3 条）、`infiltrator-iced --features capture-tools` 634/634。
+- 守卫（本机可复跑）：`iced-dead-input-guard --self-test` PASS / `--mode enforce` 0/0、`iced-sidebar-nav-guard` 0、`import`/`line`/`typed-state` 0、`generate_unified_matrix.py --check`（iced+slint）逐行一致、`python3 -m unittest discover -s scripts/quality/tests` **367/367 OK**。
+- 像素（本机可复跑）：Iced 发布批 `20261111T015000Z_ac6d8f958d10_dirty_353763`（**186/186**，453s）、`space_utilization --surface iced --enforce` **violations=0**、`receipt-freshness 0`；Slint 批 `20261110T220049Z_7c92aaf890f3_dirty_2457766` 199 帧 violations=0 逐字不变。
+- 统一批次：`cargo nextest --workspace`、全仓 clippy `--all-targets -D warnings`、全仓结构门（本批只跑了受影响包的定向腿与相关门）。
+- 诚实边界：控件的**点击**本身不进像素回执（捕获台架按设计不投指针），像素证据来自同一条生产消息路径的选区行；Slint 与 Bevy 表面尚未消费这份读回，其审计页由各自条目收口；`FLAGART-001`（Iced/Bevy 旗面依赖平台 emoji 字形）与本条无关。
+- 诚实边界（发布范围）：186 帧发布批 `20261111T015000Z_ac6d8f958d10_dirty_353763` 的 binary sha256 `af62c849…` 与本条源码一致；29 帧 AA 变化随 b195 的 runtime 控件树重排，需在统一批次连同全仓门一起复核，不得把它写成「只有两张新回执变化」或「判定器/环境缺陷」。
+
+**证据身份**：domain 631/631、application 675/675、presentation 3 条、iced 634/634、dead-input 0/0、quality 脚本单测 367/367、发布批 `20261111T015000Z_ac6d8f958d10_dirty_353763`（186/186）、诊断对 `20261111T012325Z_..._191669` / `20261111T012342Z_..._192980`（131,853 px）。

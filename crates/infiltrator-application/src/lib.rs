@@ -115,6 +115,7 @@ pub mod sync_conflict_application;
 #[cfg(test)]
 mod sync_conflict_test_support;
 pub mod system_proxy_application;
+pub mod traffic_audit_application;
 pub mod traffic_scale_application;
 pub mod traffic_topology_application;
 pub mod traffic_waveform_application;

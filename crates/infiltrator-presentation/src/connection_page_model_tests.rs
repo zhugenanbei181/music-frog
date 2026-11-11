@@ -151,6 +151,7 @@ fn the_rate_keys_rank_on_the_shared_rate_book() {
                 observation: ConnectionRateObservation::Measured,
                 upload_bps: 0.0,
                 download_bps: 9_000.0,
+                ..Default::default()
             },
         ),
         (
@@ -159,6 +160,7 @@ fn the_rate_keys_rank_on_the_shared_rate_book() {
                 observation: ConnectionRateObservation::Measured,
                 upload_bps: 5_000.0,
                 download_bps: 0.0,
+                ..Default::default()
             },
         ),
     ]);

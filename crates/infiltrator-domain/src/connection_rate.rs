@@ -36,13 +36,26 @@ pub const PULSE_MIN_INTENSITY: f32 = 0.25;
 /// Highest glow intensity of the breathing pulse.
 pub const PULSE_MAX_INTENSITY: f32 = 0.8;
 
-/// One connection's instantaneous transfer rates in bytes per second.
+/// One connection's instantaneous transfer rates in bytes per second, plus the
+/// byte change this observation actually measured.
+///
+/// The same window that derives the rate knows the delta it was derived from,
+/// so the byte delta travels with the rate instead of being re-diffed by the
+/// next reader: a consumer that accumulates traffic (the traffic audit) needs
+/// the bytes, a consumer that pulses a row needs the rate, and neither may
+/// invent the other.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct ConnectionRate {
     /// Typed availability for the instantaneous rate values.
     pub observation: ConnectionRateObservation,
     pub upload_bps: f64,
     pub download_bps: f64,
+    /// Bytes this connection moved upward inside the measured window. A first
+    /// sight, a non-positive interval and a counter regression report `0`.
+    pub upload_delta_bytes: u64,
+    /// Bytes this connection moved downward inside the measured window, with
+    /// the same honesty rules as the upload delta above.
+    pub download_delta_bytes: u64,
 }
 
 impl ConnectionRate {
@@ -55,6 +68,17 @@ impl ConnectionRate {
     /// Whether either direction crosses the shared high-throughput threshold.
     pub fn is_high_throughput(self) -> bool {
         is_high_throughput(self.upload_bps, self.download_bps)
+    }
+
+    /// Total bytes this observation measured, both directions.
+    pub fn delta_bytes(self) -> u64 {
+        self.upload_delta_bytes
+            .saturating_add(self.download_delta_bytes)
+    }
+
+    /// Whether the observation measured a real byte change.
+    pub fn has_delta(self) -> bool {
+        self.delta_bytes() > 0
     }
 }
 
@@ -166,15 +190,31 @@ impl ConnectionRateDiffer {
             let upload = conn.view_upload_total();
             let download = conn.view_download_total();
             let rate = match (window, self.totals.get(id)) {
-                (Some(elapsed), Some((previous_upload, previous_download))) => ConnectionRate {
-                    observation: match (upload >= *previous_upload, download >= *previous_download)
-                    {
-                        (true, true) => ConnectionRateObservation::Measured,
-                        _ => ConnectionRateObservation::Unobserved,
-                    },
-                    upload_bps: instantaneous_rate(*previous_upload, upload, elapsed),
-                    download_bps: instantaneous_rate(*previous_download, download, elapsed),
-                },
+                (Some(elapsed), Some((previous_upload, previous_download))) => {
+                    // A regressed direction has no honest change to report -
+                    // neither as a rate nor as a byte delta.
+                    let upload_advanced = upload >= *previous_upload;
+                    let download_advanced = download >= *previous_download;
+                    ConnectionRate {
+                        observation: if upload_advanced && download_advanced {
+                            ConnectionRateObservation::Measured
+                        } else {
+                            ConnectionRateObservation::Unobserved
+                        },
+                        upload_bps: instantaneous_rate(*previous_upload, upload, elapsed),
+                        download_bps: instantaneous_rate(*previous_download, download, elapsed),
+                        upload_delta_bytes: if upload_advanced {
+                            upload - previous_upload
+                        } else {
+                            0
+                        },
+                        download_delta_bytes: if download_advanced {
+                            download - previous_download
+                        } else {
+                            0
+                        },
+                    }
+                }
                 _ => ConnectionRate::default(),
             };
             rates.insert(id.to_string(), rate);
@@ -243,8 +283,46 @@ mod tests {
                 observation: ConnectionRateObservation::Measured,
                 upload_bps: 1_000.0,
                 download_bps: 4_000.0,
+                upload_delta_bytes: 2_000,
+                download_delta_bytes: 8_000,
             }
         );
+    }
+
+    // The audit accumulates these bytes, so the delta must be the measured
+    // counter change itself and never a rate multiplied back by an assumed
+    // interval.
+    #[test]
+    fn the_measured_byte_delta_travels_with_the_rate() {
+        let base = Instant::now();
+        let mut differ = ConnectionRateDiffer::new();
+        let first = differ.observe(base, &[connection("c1", 1_000, 2_000)]);
+        assert!(!first.get("c1").has_delta());
+
+        let second = differ.observe(
+            base + Duration::from_secs(2),
+            &[connection("c1", 3_001, 10_000)],
+        );
+        let rate = second.get("c1");
+        assert_eq!(rate.upload_delta_bytes, 2_001);
+        assert_eq!(rate.download_delta_bytes, 8_000);
+        assert_eq!(rate.delta_bytes(), 10_001);
+        assert!(rate.has_delta());
+    }
+
+    // A regressed counter has neither a rate nor a delta: the direction is
+    // dropped instead of being smuggled in as a wrapped-around change.
+    #[test]
+    fn a_regressed_direction_reports_neither_rate_nor_delta() {
+        let base = Instant::now();
+        let mut differ = ConnectionRateDiffer::new();
+        differ.observe(base, &[connection("c1", 5_000, 5_000)]);
+        let rates = differ.observe(base + Duration::from_secs(1), &[connection("c1", 1, 9_000)]);
+        let rate = rates.get("c1");
+        assert_eq!(rate.upload_delta_bytes, 0);
+        assert_eq!(rate.download_delta_bytes, 4_000);
+        assert_eq!(rate.delta_bytes(), 4_000);
+        assert_eq!(rate.observation, ConnectionRateObservation::Unobserved);
     }
 
     #[test]
@@ -337,6 +415,8 @@ mod tests {
                     observation: ConnectionRateObservation::Measured,
                     upload_bps: 1_000.0,
                     download_bps: 2_000.0,
+                    upload_delta_bytes: 1_000,
+                    download_delta_bytes: 2_000,
                 },
             ),
             (
@@ -345,6 +425,8 @@ mod tests {
                     observation: ConnectionRateObservation::Measured,
                     upload_bps: 100.0,
                     download_bps: HIGH_THROUGHPUT_THRESHOLD_BPS,
+                    upload_delta_bytes: 100,
+                    download_delta_bytes: HIGH_THROUGHPUT_THRESHOLD_BPS as u64,
                 },
             ),
         ]);

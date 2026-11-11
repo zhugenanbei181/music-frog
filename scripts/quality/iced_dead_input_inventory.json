@@ -1,15 +1,4 @@
 {
-  "sites": [
-    {
-      "file": "crates/infiltrator-iced/src/view/runtime/traffic.rs",
-      "owner": "TRAFFICAUDIT-001",
-      "reason": "the traffic page's 1h/24h/7d/30d range pills paint a selected segment and return Noop for every click; making them real needs a time-ranged series from the domain traffic-audit owner, which is not fed at any surface yet"
-    },
-    {
-      "file": "crates/infiltrator-iced/src/view/runtime/traffic.rs",
-      "owner": "TRAFFICAUDIT-001",
-      "reason": "the Domains/Devices/Proxies/Processes selector always renders index 0 because the rankings are folded in the view from the live connections snapshot; the typed dimension and its rankings belong to the domain traffic-audit owner (TRAFFICAUDIT-001)"
-    }
-  ],
+  "sites": [],
   "version": 1
 }

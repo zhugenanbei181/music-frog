@@ -21,6 +21,7 @@
 //! | `INFILTRATOR_LANG`          | `zh-CN` (default) or `en-US`                   |
 //! | `INFILTRATOR_WINDOW_SIZE`   | `WxH` (default 1180x780)                       |
 //! | `INFILTRATOR_CAPTURE_MARKER`| file getting `CAPTURE_READY page=<p> skin=<s>` appended after the first rendered frame |
+//! | `INFILTRATOR_TRAFFIC_AUDIT` | traffic audit selection `<1h\|24h\|7d\|30d>:<source-ip\|host\|outbound\|process>` (default: the reader's own `24h:host`) |
 //!
 //! Fixture tables live in [`fixtures`] / [`proxy_fixtures`], the demo
 //! [`AppState`] constructor in [`state`] and the capture-marker plumbing in
@@ -33,6 +34,7 @@ use crate::window_chrome::{MIN_WINDOW_SIZE, window_settings};
 use iced::Task;
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::shell_sidebar_preference::SidebarExpansionPreference;
+use infiltrator_domain::traffic_audit::{TrafficDimension, TrafficWindow};
 use infiltrator_shared::effect_assets::FontFace;
 use std::env::{args, var};
 mod app_routing;
@@ -99,6 +101,13 @@ pub struct DemoEnv {
     /// it. The demo is the owner's readback stand-in: an unknown or absent
     /// value keeps the owner's default instead of guessing a second state.
     pub sidebar_expansion: SidebarExpansionPreference,
+    /// The traffic audit's range and dimension this capture asks for, parsed
+    /// from `INFILTRATOR_TRAFFIC_AUDIT` (`<range>:<dimension>`, e.g.
+    /// `30d:process`). The demo applies it through the production message
+    /// path, so a frame with a non-default selection proves the controls'
+    /// messages move the selection; an unknown or absent value keeps the
+    /// reader's default.
+    pub traffic_audit: Option<(TrafficWindow, TrafficDimension)>,
 }
 
 impl DemoEnv {
@@ -151,8 +160,34 @@ impl DemoEnv {
                 .ok()
                 .and_then(|raw| SidebarExpansionPreference::from_wire_value(&raw))
                 .unwrap_or_default(),
+            traffic_audit: var("INFILTRATOR_TRAFFIC_AUDIT")
+                .ok()
+                .and_then(|raw| parse_traffic_audit(&raw)),
         }
     }
+}
+
+/// Parse `INFILTRATOR_TRAFFIC_AUDIT`: `<1h|24h|7d|30d>:<source-ip|host|outbound|process>`.
+///
+/// The words are the reference product's own tab and range names, so a capture
+/// asks for a selection the way a reader would name it.
+fn parse_traffic_audit(raw: &str) -> Option<(TrafficWindow, TrafficDimension)> {
+    let (window, dimension) = raw.split_once(':')?;
+    let window = match window.trim().to_ascii_lowercase().as_str() {
+        "1h" => TrafficWindow::LastHour,
+        "24h" => TrafficWindow::LastDay,
+        "7d" => TrafficWindow::LastWeek,
+        "30d" => TrafficWindow::LastMonth,
+        _ => return None,
+    };
+    let dimension = match dimension.trim().to_ascii_lowercase().as_str() {
+        "source-ip" | "device" => TrafficDimension::Device,
+        "host" | "domain" => TrafficDimension::Domain,
+        "outbound" | "node" => TrafficDimension::Node,
+        "process" => TrafficDimension::Process,
+        _ => return None,
+    };
+    Some((window, dimension))
 }
 
 /// `overview|proxies|runtime|rules|rules-providers|dns|profiles|sync|editor|mixin|filter|settings`
@@ -175,6 +210,9 @@ fn parse_page_name(value: &str) -> Option<(Route, CaptureSection)> {
         "doctor" => Some((Route::Doctor, CaptureSection::RouteTop)),
         "connections" => Some((Route::Runtime, CaptureSection::RuntimeConnections)),
         "logs" => Some((Route::Runtime, CaptureSection::RuntimeLogs)),
+        "runtime-traffic" | "runtime_traffic" => {
+            Some((Route::Runtime, CaptureSection::RuntimeTrafficAudit))
+        }
         "settings-about" | "settings_about" => {
             Some((Route::Settings, CaptureSection::SettingsAbout))
         }

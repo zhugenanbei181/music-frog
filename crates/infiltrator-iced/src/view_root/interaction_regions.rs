@@ -9,6 +9,9 @@ pub(crate) enum InteractionRegion {
     TrafficObservation,
     TrafficRates,
     TrafficFailure,
+    /// The traffic audit card: its range and dimension controls plus the
+    /// window's ranked entities.
+    TrafficAudit,
     Confirmation,
     ConfirmationDetails,
     ConfirmationAccept,
@@ -143,6 +146,7 @@ impl InteractionRegion {
             Self::TrafficObservation => "traffic-observation",
             Self::TrafficRates => "traffic-rates",
             Self::TrafficFailure => "traffic-failure",
+            Self::TrafficAudit => "traffic-audit",
             Self::LogsSearch => "logs-search",
             Self::LogsSearchClear => "logs-search-clear",
             Self::LogsResults => "logs-results",

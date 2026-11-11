@@ -136,6 +136,14 @@ impl AppState {
         let now = Instant::now();
         let _ = state.apply_connections_snapshot(previous, now - time::Duration::from_secs(2));
         let _ = state.apply_connections_snapshot(connections, now);
+        // A capture may ask for a non-default range and dimension. It is
+        // applied through the production message path - the same messages the
+        // two controls send - so the frame proves the selection itself moved,
+        // not that a state field was written behind the control's back.
+        if let Some((window, dimension)) = env.traffic_audit {
+            let _ = state.update(Message::SetTrafficAuditWindow(window));
+            let _ = state.update(Message::SetTrafficAuditDimension(dimension));
+        }
         state.diag.log_level = "info".to_string();
         state.diag.logs = demo_logs();
         state.diag.observe_log_records();

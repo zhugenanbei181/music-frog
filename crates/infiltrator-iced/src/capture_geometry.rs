@@ -763,6 +763,10 @@ impl AppState {
                 InteractionRegion::LogsSection.id(),
                 Id::new("runtime-scroll"),
             ),
+            CaptureSection::RuntimeTrafficAudit => (
+                InteractionRegion::TrafficAudit.id(),
+                Id::new("runtime-scroll"),
+            ),
             CaptureSection::SettingsAbout => (
                 InteractionRegion::SettingsAbout.id(),
                 Id::new(SETTINGS_SCROLL_ID),

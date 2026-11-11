@@ -31,6 +31,7 @@ fn close_all_confirmation_cancel_keeps_connections_and_schedules_no_work() {
         capture_marker: None,
         scenario: None,
         sidebar_expansion: SidebarExpansionPreference::default(),
+        traffic_audit: None,
     };
     let (mut state, _) = AppState::demo(&env);
     let (application, handler) = recording_application();

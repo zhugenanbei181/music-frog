@@ -130,7 +130,8 @@ def generate_surface_tsv(surface: str, out_path: Path):
     features = parse_features()
     if surface == "iced":
         lines = [
-            "name\tpage\tshape\tskin\twindow_size\tinteraction\tsidebar_expansion\n"
+            "name\tpage\tshape\tskin\twindow_size\tinteraction\tsidebar_expansion"
+            "\ttraffic_audit\n"
         ]
     else:
         lines = ["name\tpage\tskin\twindow_size\n"]
@@ -139,7 +140,9 @@ def generate_surface_tsv(surface: str, out_path: Path):
         name: str, page: str, shape: str, skin: str, window: str, interaction: str = ""
     ) -> str:
         if surface == "iced":
-            return f"{name}\t{page}\t{shape}\t{skin}\t{window}\t{interaction}\t\n"
+            # The eighth column is the traffic audit's own selection; a row that
+            # does not name one keeps the reader's default.
+            return f"{name}\t{page}\t{shape}\t{skin}\t{window}\t{interaction}\t\t\n"
         return f"{name}\t{page}\t{skin}\t{window}\n"
 
     # 1. 118 Business scenarios (alphabetical by feature id)

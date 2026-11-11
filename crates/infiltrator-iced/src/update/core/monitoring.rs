@@ -488,6 +488,15 @@ impl AppState {
 
         // DUAL-13-11: record byte-change times for idle detection.
         let observed_at = current_unix_secs();
+        // TRAFFICAUDIT-001: the same observation that just measured every
+        // connection's byte change feeds the shared audit owner. The surface
+        // records nothing itself - it hands the owner the observation and the
+        // rate book it derived, and later asks for the window it displays.
+        self.diag.traffic_audit.observe(
+            observed_at,
+            &data.connections,
+            &self.diag.connection_rate_book,
+        );
         self.diag
             .connection_activity
             .observe(&data.connections, observed_at);

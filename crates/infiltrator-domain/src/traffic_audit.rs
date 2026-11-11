@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -9,6 +10,22 @@ pub enum AuditRouteType {
     DirectBypass,
     Reject,
     Other,
+}
+
+impl AuditRouteType {
+    /// Classify a connection by the outbound it left through.
+    ///
+    /// The engine names its direct and rejecting outbounds in the chain
+    /// itself (`DIRECT` / `REJECT`), so the route is a fact the connection
+    /// already carries - it is read, not inferred from traffic shapes.
+    pub fn from_outbound_name(name: &str) -> Self {
+        match name.trim().to_ascii_uppercase().as_str() {
+            "DIRECT" => AuditRouteType::DirectBypass,
+            "REJECT" | "REJECT-DROP" => AuditRouteType::Reject,
+            "" => AuditRouteType::Other,
+            _ => AuditRouteType::Proxied,
+        }
+    }
 }
 
 /// Detailed reject/block reason for traffic audit attribution.
@@ -44,6 +61,18 @@ impl TrafficStats {
         self.download_bytes = self.download_bytes.saturating_add(down);
         self.packets_count = self.packets_count.saturating_add(packets);
         self.flow_count = self.flow_count.saturating_add(1);
+    }
+
+    /// Adds another stat block's counters into these metrics.
+    ///
+    /// Summing buckets is how a window reads: the buckets are the recorded
+    /// fact and the sum is the owner's own reduction, so the two never diverge
+    /// the way a second running total would.
+    pub fn accumulate(&mut self, other: &Self) {
+        self.upload_bytes = self.upload_bytes.saturating_add(other.upload_bytes);
+        self.download_bytes = self.download_bytes.saturating_add(other.download_bytes);
+        self.packets_count = self.packets_count.saturating_add(other.packets_count);
+        self.flow_count = self.flow_count.saturating_add(other.flow_count);
     }
 
     /// Computes delta between two stat points (`self - previous`).
@@ -393,16 +422,101 @@ pub enum TrafficDimension {
     Device,
 }
 
+/// Bucket size of the fine tier that serves the last-hour window.
+pub const RECENT_BUCKET_SECS: u64 = 300;
+
+/// The window a reader asks the audit for, with the bucket size the reference
+/// product draws that window at (5 min / 1 h / 6 h / 1 d).
+///
+/// The window is the owner's reduction rule, not a surface preference: which
+/// buckets to sum is exactly the kind of derivation a view must not invent.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TrafficWindow {
+    /// The last hour, at 5-minute resolution.
+    LastHour,
+    /// The last 24 hours, at 1-hour resolution.
+    LastDay,
+    /// The last 7 days, drawn at 6-hour resolution.
+    LastWeek,
+    /// The last 30 days, at 1-day resolution.
+    LastMonth,
+}
+
+impl TrafficWindow {
+    /// Every window, in the reference product's order.
+    pub const ALL: [TrafficWindow; 4] = [
+        TrafficWindow::LastHour,
+        TrafficWindow::LastDay,
+        TrafficWindow::LastWeek,
+        TrafficWindow::LastMonth,
+    ];
+
+    /// Window length in seconds.
+    pub const fn seconds(self) -> u64 {
+        match self {
+            TrafficWindow::LastHour => 3_600,
+            TrafficWindow::LastDay => 86_400,
+            TrafficWindow::LastWeek => 604_800,
+            TrafficWindow::LastMonth => 2_592_000,
+        }
+    }
+
+    /// Bucket size the window is drawn at.
+    pub const fn bucket_seconds(self) -> u64 {
+        match self {
+            TrafficWindow::LastHour => RECENT_BUCKET_SECS,
+            TrafficWindow::LastDay => 3_600,
+            TrafficWindow::LastWeek => 21_600,
+            TrafficWindow::LastMonth => 86_400,
+        }
+    }
+
+    /// First bucket that belongs to this window at `now_secs`.
+    ///
+    /// The start is aligned to the window's own bucket grid so a series never
+    /// begins mid-bucket and a bar always means the same span of time.
+    pub fn start_secs(self, now_secs: u64) -> u64 {
+        let bucket = self.bucket_seconds();
+        let raw = now_secs.saturating_sub(self.seconds());
+        raw - (raw % bucket)
+    }
+
+    /// Group a stored bucket start onto this window's grid.
+    fn grouped(self, bucket_secs: u64) -> u64 {
+        let group = self.bucket_seconds();
+        bucket_secs - (bucket_secs % group)
+    }
+}
+
 /// A timeseries traffic accumulator recording per-dimension hourly and daily
 /// statistics with comprehensive reporting.
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct TrafficAuditAccumulator {
+    /// 5-minute buckets keyed by `(dimension, entity, bucket start)`.
+    ///
+    /// The last-hour window is the only reader, so this tier is pruned to the
+    /// hour it serves and never grows into a second copy of the hourly tier.
+    #[serde(default)]
+    recent: HashMap<(TrafficDimension, String, u64), TrafficStats>,
     /// Hourly buckets keyed by `(dimension, entity, hour bucket start)`.
     hourly: HashMap<(TrafficDimension, String, u64), TrafficStats>,
     /// Daily buckets keyed by `(dimension, entity, day bucket start)`.
     daily: HashMap<(TrafficDimension, String, u64), TrafficStats>,
     /// Lifetime per-entity summaries.
     totals: HashMap<(TrafficDimension, String), TrafficStats>,
+
+    /// Global 5-minute buckets: every recorded flow, counted once.
+    ///
+    /// A flow is attributed to several dimensions, so summing the per-entity
+    /// tiers would multiply it; the whole-traffic series is its own fact.
+    #[serde(default)]
+    overall_recent: HashMap<u64, TrafficStats>,
+    /// Global hourly buckets, same rule as `overall_recent`.
+    #[serde(default)]
+    overall_hourly: HashMap<u64, TrafficStats>,
+    /// Global daily buckets, same rule as `overall_recent`.
+    #[serde(default)]
+    overall_daily: HashMap<u64, TrafficStats>,
 
     route_totals: HashMap<AuditRouteType, TrafficStats>,
     reject_reason_totals: HashMap<AuditRejectReason, TrafficStats>,
@@ -421,6 +535,7 @@ impl TrafficAuditAccumulator {
     /// Records a traffic flow event across all relevant entity and timeseries dimensions.
     pub fn record_flow(&mut self, event: &FlowEvent) {
         let ts = event.timestamp_secs;
+        let recent_bucket = ts - (ts % RECENT_BUCKET_SECS);
         let hour_bucket = ts - (ts % 3600);
         let day_bucket = ts - (ts % 86400);
         let up = event.upload_bytes;
@@ -444,6 +559,10 @@ impl TrafficAuditAccumulator {
         // One loop over the typed attributions: the dimension is a value, so a
         // flow cannot be counted in five places and silently not in the sixth.
         for (dimension, entity) in event.attributions() {
+            self.recent
+                .entry((dimension, entity.clone(), recent_bucket))
+                .or_default()
+                .record(up, down, pkts);
             self.hourly
                 .entry((dimension, entity.clone(), hour_bucket))
                 .or_default()
@@ -457,6 +576,21 @@ impl TrafficAuditAccumulator {
                 .or_default()
                 .record(up, down, pkts);
         }
+
+        // The whole-traffic tiers: one flow is one flow, however many entity
+        // dimensions it was attributed to above.
+        self.overall_recent
+            .entry(recent_bucket)
+            .or_default()
+            .record(up, down, pkts);
+        self.overall_hourly
+            .entry(hour_bucket)
+            .or_default()
+            .record(up, down, pkts);
+        self.overall_daily
+            .entry(day_bucket)
+            .or_default()
+            .record(up, down, pkts);
 
         // Update real-time EWMA rate
         let total_traffic = self.total_traffic_bytes();
@@ -618,6 +752,89 @@ impl TrafficAuditAccumulator {
         self.stats_of(TrafficDimension::Device, device)
     }
 
+    /// The stored tier a window reads its entity buckets from.
+    ///
+    /// Every window is served by a tier the owner already records, so asking
+    /// for 7 days does not read a table that was never written.
+    fn entity_tier(
+        &self,
+        window: TrafficWindow,
+    ) -> &HashMap<(TrafficDimension, String, u64), TrafficStats> {
+        match window {
+            TrafficWindow::LastHour => &self.recent,
+            TrafficWindow::LastDay | TrafficWindow::LastWeek => &self.hourly,
+            TrafficWindow::LastMonth => &self.daily,
+        }
+    }
+
+    /// The stored tier a window reads the whole-traffic series from.
+    fn overall_tier(&self, window: TrafficWindow) -> &HashMap<u64, TrafficStats> {
+        match window {
+            TrafficWindow::LastHour => &self.overall_recent,
+            TrafficWindow::LastDay | TrafficWindow::LastWeek => &self.overall_hourly,
+            TrafficWindow::LastMonth => &self.overall_daily,
+        }
+    }
+
+    /// Entities of one dimension ranked inside `window`, descending.
+    ///
+    /// The buckets are the fact and this sum is the owner's own reduction, so
+    /// a surface never has to decide which buckets a window covers.
+    pub fn window_rankings(
+        &self,
+        dimension: TrafficDimension,
+        window: TrafficWindow,
+        now_secs: u64,
+        limit: usize,
+    ) -> Vec<(String, TrafficStats)> {
+        let start = window.start_secs(now_secs);
+        let mut totals: HashMap<String, TrafficStats> = HashMap::new();
+        for ((entry_dimension, entity, bucket), stats) in self.entity_tier(window) {
+            if *entry_dimension != dimension || *bucket < start || *bucket > now_secs {
+                continue;
+            }
+            totals.entry(entity.clone()).or_default().accumulate(stats);
+        }
+        let mut list: Vec<(String, TrafficStats)> = totals.into_iter().collect();
+        list.sort_by(|a, b| {
+            b.1.total_bytes()
+                .cmp(&a.1.total_bytes())
+                .then_with(|| a.0.cmp(&b.0))
+        });
+        list.truncate(limit);
+        list
+    }
+
+    /// Whole-traffic buckets inside `window`, on the window's own grid.
+    ///
+    /// Buckets with no traffic are simply absent: the reader places each bar at
+    /// its own bucket start instead of padding a series with invented zeros.
+    pub fn window_series(&self, window: TrafficWindow, now_secs: u64) -> Vec<(u64, TrafficStats)> {
+        let start = window.start_secs(now_secs);
+        let mut buckets: BTreeMap<u64, TrafficStats> = BTreeMap::new();
+        for (bucket, stats) in self.overall_tier(window) {
+            if *bucket < start || *bucket > now_secs {
+                continue;
+            }
+            buckets
+                .entry(window.grouped(*bucket))
+                .or_default()
+                .accumulate(stats);
+        }
+        buckets.into_iter().collect()
+    }
+
+    /// Whole traffic inside `window`.
+    pub fn window_totals(&self, window: TrafficWindow, now_secs: u64) -> TrafficStats {
+        self.window_series(window, now_secs).into_iter().fold(
+            TrafficStats::default(),
+            |mut total, (_, stats)| {
+                total.accumulate(&stats);
+                total
+            },
+        )
+    }
+
     /// Hourly buckets of one entity inside `[start, end]`, ordered by bucket.
     ///
     /// The same read serves every dimension; a surface that shows one hour, one
@@ -703,7 +920,24 @@ impl TrafficAuditAccumulator {
         let initial = self.hourly.len() + self.daily.len();
         self.hourly.retain(|(_, _, hour), _| *hour >= hour_cutoff);
         self.daily.retain(|(_, _, day), _| *day >= day_cutoff);
+        self.overall_hourly.retain(|hour, _| *hour >= hour_cutoff);
+        self.overall_daily.retain(|day, _| *day >= day_cutoff);
         initial.saturating_sub(self.hourly.len() + self.daily.len())
+    }
+
+    /// Drop fine buckets older than `cutoff_secs`, reporting how many went.
+    ///
+    /// The last-hour window is the fine tier's only reader, so the caller is
+    /// the one that knows the instant to cut against - the accumulator never
+    /// reads a clock of its own.
+    pub fn prune_recent_before(&mut self, cutoff_secs: u64) -> usize {
+        let bucket_cutoff = cutoff_secs - (cutoff_secs % RECENT_BUCKET_SECS);
+        let initial = self.recent.len() + self.overall_recent.len();
+        self.recent
+            .retain(|(_, _, bucket), _| *bucket >= bucket_cutoff);
+        self.overall_recent
+            .retain(|bucket, _| *bucket >= bucket_cutoff);
+        initial.saturating_sub(self.recent.len() + self.overall_recent.len())
     }
 
     /// Generates standard Prometheus metrics string for telemetry monitoring.
@@ -764,9 +998,13 @@ impl TrafficAuditAccumulator {
 
     /// Clears all recorded statistics.
     pub fn clear(&mut self) {
+        self.recent.clear();
         self.hourly.clear();
         self.daily.clear();
         self.totals.clear();
+        self.overall_recent.clear();
+        self.overall_hourly.clear();
+        self.overall_daily.clear();
         self.route_totals.clear();
         self.reject_reason_totals.clear();
         self.rate_estimator.reset();

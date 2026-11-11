@@ -24,19 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-11 第一百九十四批次；b111–b193 见下方批次八问摘要）
+## 当前状态（2026-11-11 第一百九十五批次；b111–b194 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b194 只改 `crates/infiltrator-domain/src`（`traffic_audit.rs` 与其测试、`connection_view.rs` 一条 trait 默认实现）：zero 平台 API、零 wire。`cargo nextest run -p infiltrator-domain` **625/625**、定向 clippy `-D warnings` exit 0 为 `L`；交叉构建、aarch64 与目标机仍由 CI / 设备矩阵补证（GAP-1.1） |
-| 2 | 部分 | L | 本机 Linux 完成 nextest / clippy / fmt 与 line、import、typed-state、core-boundary、mod-rs、test-layout 六条守卫复核；本批无平台相关改动，Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
-| 3 | 部分 | L | 不触 Android/iOS 代码、资源或 wire；域层的枚举与字段变化不在任何序列化面上（累加器无消费者、无持久化写入者），没有本批实机回执可声称 |
-| 4 | 部分 | L | 本批不碰任何 UI 文件，两个控件的死状态与 b192 逐字一致（`iced-dead-input-guard` 台账 2 条、`--mode enforce` findings=0）；域层新增的 `Device` 维与通用读是接它们的前置。诚实边界：判定器仍未覆盖 Bevy（其文件由另一会话重写） |
-| 5 | 完整 | L | 一个事实只剩一处实现：维度是值（`TrafficDimension`）、记录是一层循环（`FlowEvent::attributions()`）、读是一组通用方法，原命名访问器是薄委托而非第二份逻辑；`prune_older_than` / `clear` 由 15 条语句收成 3 条，没有旧路径残留 |
-| 5a | 部分 | L | 本批无字体 / 字重 / 图标族 / 视觉资产变更、无像素变更，因此不产生新回执（`receipt-freshness 0`）；Bevy 浅色像素回执依旧缺席（其矩阵无浅色帧、正由另一会话重写），本项仍记「部分」 |
-| 6 | 部分 | L | 诚实边界写清：本片只到域层——累加器仍无消费者、两个控件仍是死的、`with_device` 还没被喂；`TRAFFICAUDIT-001` 据实由 `Planned` 改 `InProgress`，剩余三步（application 喂数 → presentation 投影 → Iced 删 5 个私有 fold 并让控件发 typed 意图、读 owner readback）与 b192 登记的验收一字未改 |
-| 7 | 完整 | L | 维度、记录与读各自只有一处实现；测试与被测代码同目录，新增 4 条用例把「通用读 == 命名访问器」写进断言，此后两个入口不可能各自漂移；`test-layout` / `mod-rs` / `import` 守卫全 0 |
-| 8 | 部分 | L | 开发期只跑受影响包（nextest 0.6s / clippy 20s），未触发全仓重编；尚未跑全仓统一验证批次（`--workspace` nextest/clippy 由收口批次一次跑完）；`--features capture-tools` 下 `tests/capture_marker_tests.rs` 的既有编译失败按 b154/b180 记录仍属他人欠账 |
+| 1 | 部分 | L | b195 改 domain / application / presentation / Iced 四层 Rust，零平台 API、零 wire；`cargo nextest run -p infiltrator-domain` **631/631**、`-p infiltrator-application` **675/675**、`-p infiltrator-iced --features capture-tools` **634/634**、合并 **1309/1309** 与定向 clippy `-D warnings` 为 `L`。交叉构建、aarch64 与目标机仍由 CI / 设备矩阵补证（GAP-1.1） |
+| 2 | 部分 | L | 本机 Linux 跑完四包 nextest / clippy / fmt、Iced 186/186 真实像素重采、结构门定向腿与质量脚本单测 367/367；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
+| 3 | 部分 | L | 不触 Android/iOS 代码、资源或 wire；新增的窗口/维度/读回类型不在任何持久化或 wire 面上，没有本批实机回执可声称 |
+| 4 | 部分 | L | Iced 的两个范围/维度控件由 `Message::Noop` 改接 typed 意图并消费 application 读回，视图内 5 个私有 fold 全删；Slint / Bevy / Android **尚未消费这份读回**，由各自条目收口。判定器仍未覆盖 Bevy（另一会话正在重写其文件） |
+| 5 | 完整 | L | 字节增量、进程名、出口名、窗口分桶各有唯一 owner；application 是唯一喂数与读回点，presentation 只投影词表，Iced 只发意图 + 读回；`iced_dead_input_inventory.json` 2 → 0，旧视图枚举/`compute_*_rankings`/`extract_process_name` 同批删除，无第二份业务真源 |
+| 5a | 部分 | L | 本批无字体 / 字重 / 图标族 / 视觉资产身份变更；`runtime-traffic-audit-{standard,compact}` 两张标准/紧凑双视口真实像素回执已发布，`receipt-freshness 0`、186/186 帧 `space_utilization --surface iced --enforce` violations=0。Bevy 浅色像素回执依旧缺席（其矩阵无浅色帧、正由另一会话重写），本项仍记「部分」 |
+| 6 | 部分 | L | Iced 的 `TRAFFICAUDIT-001` 3 pt 由 `InProgress` 转 `Integrated` 迁入过去佛 §12.71 等统一批次办结；Slint / Bevy 的审计页未开工，点击本身不进像素回执（台架按设计不投指针），选区证据来自同一条生产消息路径。29 帧 AA 变化已逐像素归因于 runtime 控件树重排引起的滚动对齐小数位移，不记作新业务 |
+| 7 | 完整 | L | 域窗口/累加器、application 读回、presentation 词表、Iced 状态各自成模块；测试与被测同目录（新增 domain 6 / application 5 / presentation 3 条）；`import-guard` 0（开发期 6 项内联长路径已归位）、`line-guard` 0、`typed-state` 0、`test-layout` / `mod-rs` 守卫全 0 |
+| 8 | 部分 | L | 开发期只跑受影响包，产出期一次跑 Iced 186 帧重采（453s）+ 双表面判定器 + 质量脚本单测 367/367；未跑全仓 `--workspace` nextest/clippy 与结构门全腿（留统一批次一次跑完）；`--features capture-tools` 下 `tests/capture_marker_tests.rs` 的既有编译失败按 b154/b180 记录属他人欠账 |
+
+## 最近一批问答（2026-11-11 第一百九十五交付批次：`TRAFFICAUDIT-001` 全链接真 / 29 帧 AA 归因）
+
+1. x86_64/aarch64：本批改 domain / application / presentation / Iced 四层 Rust，零平台 API、零 wire；`cargo nextest run -p infiltrator-domain` **631/631**、`-p infiltrator-application` **675/675**、`-p infiltrator-iced --features capture-tools` **634/634**、合并 **1309/1309**、定向 clippy `--all-targets -D warnings` exit 0 为 `L`。交叉构建与 aarch64 目标产物未变，仍由 CI / 设备矩阵补证 → 部分（L）。
+2. Windows/Linux/macOS：本机 Linux 跑完四包 nextest / clippy / fmt、Iced 186/186 真实像素重采（run `20261111T015000Z_ac6d8f958d10_dirty_353763`，binary sha `af62c849…`）、`space_utilization --surface iced --enforce` 0 违规、结构门定向腿与质量脚本单测 **367/367**；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
+3. Android/iOS：不触三端代码、资源与 wire；新增的 `TrafficWindow` / 读回类型不在任何持久化或 wire 序列化面上，没有本批实机回执可声称 → 部分（L）。
+4. 各 UI：Iced 的两个范围/维度控件由 `Message::Noop` 改接 `SetTrafficAuditWindow` / `SetTrafficAuditDimension`，读 `TrafficAuditApplication::readback`；视图内 `TrafficDimension`、`HostTrafficRank`、5 个 `compute_*_rankings` 与 `extract_process_name` 全部删除。Slint / Bevy / Android 尚未消费这份读回，由各自条目收口；捕获台架新增第 8 列并经同一条生产消息路径发布两张双视口回执。判定器仍未覆盖 Bevy（另一会话正在重写其文件） → 部分（L）。
+5. 复用：`ConnectionRate` 的实测字节增量、进程显示名、出口名、窗口分桶各有唯一 owner；application 是唯一喂数与读回点，presentation 只投影词表，Iced 只发意图 + 读回；`iced_dead_input_inventory.json` **2 → 0**，`grep -rn "compute_.*_rankings" crates/infiltrator-iced` 与 `grep -rn "|_| Message::Noop" crates/infiltrator-iced/src/view` 均 0，没有新旧双轨 → 完整（L）。
+5a. 设计资源强制标准：本批无字体 / 字重 / 图标族 / 视觉资产身份变更；新增 `runtime-traffic-audit-standard` 与 `runtime-traffic-audit-compact` 两张标准/紧凑双视口真实像素回执，同场景 `24h:host` 与 `30d:process` 诊断对 **131,853 px** 不同，`receipt-freshness 0`、186/186 帧 `--enforce` violations=0。Bevy 浅色像素回执依旧缺席（其矩阵无浅色帧、正由另一会话重写），本项仍记「部分」 → 部分（L）。
+6. 各处界面的功能接入：`TRAFFICAUDIT-001` 3 pt 由 `InProgress` 转 `Integrated` 迁入过去佛 §12.71 等统一批次办结；Iced 的两个控件已是活的，点击本身不进像素回执（台架按设计不投指针），选区证据来自同一条生产消息路径。Slint / Bevy 的审计页未开工；29 帧与 HEAD 不同的 PNG 已逐像素归因——差异全在 runtime 页身（`x∈[280,1125]`、`y∈[79,740]`）的圆角/徽标/字形 8-bit 抗锯齿（单帧 21,721 px、通道差绝大多数 ≤4），根因是 `AlignSection` 的滚动目标依赖第三张卡高度，B195 控件树重排后 `connections` / `logs` / 测速详情等帧整体滚到不同小数 y；同二进制两次复采、unset `RUSTICL_ENABLE`、只回退 `traffic.rs`、HEAD 只加零高度 `Space` 四次实验排除抖动与环境，不把这 29 帧记作新业务 → 部分（L）。
+7. 模块化：域窗口/累加器、application 读回、presentation 词表、Iced 状态各自成模块，测试与被测同目录（新增 domain 6 / application 5 / presentation 3 条）；`import-guard` 0（开发期 6 项内联长路径已归位）、`line-guard` 0、`typed-state` 0、`iced-dead-input-guard --self-test` PASS 且 enforce 0/0、`iced-sidebar-nav-guard` 0、`generate_unified_matrix --check --surface=iced --surface=slint` OK → 完整（L）。
+8. CI 与批次效率：开发期只跑受影响包；产出期一次跑 186 帧重采（453s）+ 双表面判定器 + `python3 -m unittest discover -s scripts/quality/tests` **367/367**，未重复全仓重编。全仓 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py` 仍留统一批次一次跑完；`--features capture-tools` 下 `tests/capture_marker_tests.rs` 的既有编译失败按 b154/b180 记录属他人欠账；另一会话未提交的 Bevy 像素仍是全仓身份门唯一红腿 → 部分（L）。
 
 ## 最近一批问答（2026-11-11 第一百九十四交付批次：`TRAFFICAUDIT-001` 域片 / 累加器收成一张索引）
 

@@ -246,6 +246,39 @@ pub trait ConnectionView {
     fn view_source_ip(&self) -> &str {
         ""
     }
+    /// Raw payload of the rule that matched the connection, "" when the core
+    /// reported none.
+    fn view_rule_payload(&self) -> &str {
+        ""
+    }
+    /// Executable name of the process that opened the connection, "" when the
+    /// core reported no path for it.
+    ///
+    /// The rule lives here because every reader that names a process (the
+    /// traffic audit, the connection row, the admin audit) must name it the
+    /// same way; a second implementation of "strip the directory and the
+    /// extension" is a second answer to one question.
+    fn view_process_name(&self) -> String {
+        process_display_name(self.view_process_path())
+    }
+    /// The outbound the connection left through: the head of its chain, else
+    /// the matched rule's payload or name, else `DIRECT`.
+    fn view_outbound_name(&self) -> String {
+        self.view_chain()
+            .iter()
+            .map(|hop| hop.trim())
+            .find(|hop| !hop.is_empty())
+            .map(str::to_string)
+            .or_else(|| {
+                let payload = self.view_rule_payload().trim();
+                (!payload.is_empty()).then(|| payload.to_string())
+            })
+            .or_else(|| {
+                let rule = self.view_rule().trim();
+                (!rule.is_empty()).then(|| rule.to_string())
+            })
+            .unwrap_or_else(|| "DIRECT".to_string())
+    }
     /// Controller-reported remote port for native endpoint display.
     fn view_destination_port(&self) -> &str {
         ""
@@ -306,6 +339,10 @@ impl ConnectionView for Connection {
     }
     fn view_rule(&self) -> &str {
         &self.rule
+    }
+
+    fn view_rule_payload(&self) -> &str {
+        &self.rule_payload
     }
     fn view_start(&self) -> &str {
         &self.start
@@ -406,7 +443,22 @@ impl<C: ConnectionView> ConnectionView for RatedConnection<'_, C> {
     }
 }
 
-/// Extract a clean executable name from a system process path.
+/// Destination display key: the host when known, otherwise the destination IP.
+///
+/// Both halves are trimmed: a host the core reported with padding is still a
+/// host, and a padded address must not become a different entity name than the
+/// same address reported cleanly.
+pub fn connection_host<C: ConnectionView>(conn: &C) -> &str {
+    let host = conn.view_host().trim();
+    if host.is_empty() {
+        conn.view_destination_ip().trim()
+    } else {
+        host
+    }
+}
+
+/// Executable name of a process path: the last path component, without a
+/// Windows `.exe` suffix. An empty or separator-only path has no name.
 pub fn process_display_name(path: &str) -> String {
     let trimmed = path.trim();
     if trimmed.is_empty() {
@@ -417,16 +469,6 @@ pub fn process_display_name(path: &str) -> String {
         .strip_suffix(".exe")
         .unwrap_or(filename)
         .to_string()
-}
-
-/// Destination display key: the host when known, otherwise the destination IP.
-pub fn connection_host<C: ConnectionView>(conn: &C) -> &str {
-    let host = conn.view_host();
-    if host.is_empty() {
-        conn.view_destination_ip()
-    } else {
-        host
-    }
 }
 
 /// Format a destination host and port, adding IPv6 brackets only when needed.
@@ -731,6 +773,7 @@ mod tests {
                     observation: ConnectionRateObservation::Measured,
                     upload_bps: 0.0,
                     download_bps: 9_000.0,
+                    ..Default::default()
                 },
             ),
             (
@@ -739,6 +782,7 @@ mod tests {
                     observation: ConnectionRateObservation::Measured,
                     upload_bps: 5_000.0,
                     download_bps: 0.0,
+                    ..Default::default()
                 },
             ),
             (
@@ -747,6 +791,7 @@ mod tests {
                     observation: ConnectionRateObservation::Measured,
                     upload_bps: 1_000.0,
                     download_bps: 1_000.0,
+                    ..Default::default()
                 },
             ),
         ]);

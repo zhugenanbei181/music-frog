@@ -214,29 +214,31 @@ print(" ".join(sorted(feature[0] for feature in matrix.parse_features())))
 PY
 )"
 
-# A row is `name page shape skin window_size interaction sidebar_expansion`:
+# A row is `name page shape skin window_size interaction sidebar_expansion traffic_audit`:
 # the surface's route, the contract page shape the frame is judged by, the
 # parity interaction fixture it opens (empty for a plain page), and the owner
 # sidebar preference it publishes (empty for everything but the two rows the
-# rig owns itself). A shell-form receipt has no interaction; deriving one from
-# the scenario name asked the demo to open a business the row never named, and
-# the fixture panicked on it.
-awk -F '\t' 'NR > 1 && $1 != "" && NF != 7 {
-  printf "invalid scenario row (expected 7 columns, found %d): %s\n", NF, $0 > "/dev/stderr"
+# rig owns itself. The last column names the traffic audit's own selection
+# (`<range>:<dimension>`), empty meaning the reader's default. A shell-form
+# receipt has no interaction; deriving one from the scenario name asked the demo
+# to open a business the row never named, and the fixture panicked on it.
+awk -F '\t' 'NR > 1 && $1 != "" && NF != 8 {
+  printf "invalid scenario row (expected 8 columns, found %d): %s\n", NF, $0 > "/dev/stderr"
   bad = 1
 } END { exit bad + 0 }' "$MATRIX" || exit 2
 
-while IFS=$'\t' read -r name page shape skin window_size interaction sidebar_expansion; do
+while IFS=$'\t' read -r name page shape skin window_size interaction sidebar_expansion traffic_audit; do
   [ "$name" = name ] && continue
   [ -n "$name" ] || continue
   [ "$interaction" = "-" ] && interaction=""
   [ "$sidebar_expansion" = "-" ] && sidebar_expansion=""
+  [ "$traffic_audit" = "-" ] && traffic_audit=""
   [[ "$window_size" =~ ^[0-9]+x[0-9]+$ ]] || {
     printf 'invalid scenario row (bad window_size): %s\n' "$name" >&2
     exit 2
   }
   case "$page" in
-  overview | proxies | runtime | rules | rules-providers | dns | profiles | sync | editor | mixin | filter | settings | about | app_routing | doctor | connections | logs) ;;
+  overview | proxies | runtime | runtime-traffic | rules | rules-providers | dns | profiles | sync | editor | mixin | filter | settings | about | app_routing | doctor | connections | logs) ;;
   *)
     printf 'invalid scenario row (bad page): %s -> %s\n' "$name" "$page" >&2
     exit 2
@@ -488,6 +490,10 @@ capture_one() {
   # the scenario name: a surface-owned row (the collapsed sidebar) opens no
   # interaction, and a name-derived guess made the fixture panic on it.
   local interaction="$6" sidebar_expansion="$7"
+  # The traffic audit selection is a query the reader sends through the same
+  # messages its controls send, so a row that names one proves the range and
+  # the dimension really moved the picture; an empty column keeps the default.
+  local traffic_audit="$8"
   # The app's marker names the ROUTE (`route_env_name`); scenario pages that
   # are route variants (mixin = editor + Mixin pane) wait on the route name.
   local marker_page="$page"
@@ -495,6 +501,7 @@ capture_one() {
   [ "$marker_page" = "filter" ] && marker_page="editor"
   [ "$marker_page" = "rules-providers" ] && marker_page="rules"
   [ "$marker_page" = "connections" ] && marker_page="runtime"
+  [ "$marker_page" = "runtime-traffic" ] && marker_page="runtime"
   [ "$marker_page" = "logs" ] && marker_page="runtime"
   local scenario_dir="$RUN_DIR/$name"
   local log="$scenario_dir/app.log"
@@ -544,6 +551,7 @@ capture_one() {
       INFILTRATOR_SCENARIO="$interaction" \
       INFILTRATOR_SKIN="$skin" \
       INFILTRATOR_SIDEBAR_EXPANSION="$sidebar_expansion" \
+      INFILTRATOR_TRAFFIC_AUDIT="$traffic_audit" \
       INFILTRATOR_WINDOW_SIZE="$window_size" \
       INFILTRATOR_CAPTURE_MARKER="$marker" \
       setsid "$APP" --demo >"$log" 2>&1 &
@@ -694,12 +702,14 @@ capture_one() {
 : >"$RUN_DIR/capture-markers.log"
 FAILURES=0
 FAILED_NAMES=""
-while IFS=$'\t' read -r name page shape skin window_size interaction sidebar_expansion; do
+while IFS=$'\t' read -r name page shape skin window_size interaction sidebar_expansion traffic_audit; do
   [ "$name" = name ] && continue
   [ -n "$name" ] || continue
   [ "$interaction" = "-" ] && interaction=""
   [ "$sidebar_expansion" = "-" ] && sidebar_expansion=""
-  if ! capture_one "$name" "$page" "$shape" "$skin" "$window_size" "$interaction" "$sidebar_expansion"; then
+  [ "$traffic_audit" = "-" ] && traffic_audit=""
+  if ! capture_one "$name" "$page" "$shape" "$skin" "$window_size" "$interaction" \
+    "$sidebar_expansion" "$traffic_audit"; then
     FAILURES=$((FAILURES + 1))
     FAILED_NAMES="$FAILED_NAMES $name"
   fi
