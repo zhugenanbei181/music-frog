@@ -189,6 +189,19 @@ Runtime 的 `content` 82% 上限。Iced 现在以 typed `Route::Traffic` 呈现�
 标准/紧凑分别超标 **62.0% / 26.0%**。滚动区现在透明并入页身卡面，判定器、导出形态
 与 4% 上限都不变；四帧定向重采 0 违规，随后完整 188 帧矩阵复采。
 
+**代理页宽度规则（b212）**：`content` 形态 82% 是按内容排布页的留白上限，
+不是「一页只要不超过上限就算紧凑」的许可；上限来自参考产品代理页实测 80.6%，
+本仓 `proxies-dark` 虽只有 51.3% 页尾空地，也不应靠一个宽门槛掩盖横向密度。
+pinned FlClash `getProxiesColumns` 把 250dp 最小节点卡宽和 32dp 页身边距发布在共享布局层，
+`tab.dart` 用页身可用宽连续算列数；真实场景图 5 列、每卡 371px（约 248dp）与之同构。
+本仓曾由 `ViewportTier::proxy_grid_columns` 按窗口档固定 1/2/3/4，1180×780 页身 910px
+只画 3 列、每卡 282px。b212 把宽度规则收进 `responsive_viewport::proxy_node_columns`
+与 v14 导出 `proxy_grid`：`ProxyGridForm::Desktop` 按页宽算列数，
+`ProxyGridForm::Stacked` 保持手机/底栏档单列可读；Slint 只消费生成的
+`ViewportLadder.proxy_columns(form, page-width)`，守卫禁止把 250/32 私写回页面。
+标准帧实测 4 列且无文字裁切，720/400 档仍单列。形态与 82% 上限均不变：这是横向
+密度的 owner 收口，不是偷偷放宽或收紧按形态阈值。
+
 | 侧栏 | 上限 | 依据 |
 | --- | --- | --- |
 | `chrome_band` | **0%** | FlClash 桌面侧栏实测只有导航行（边界 x=429，5 个行带 y89–579，下方无非导航区块）；统计数据全部属于仪表盘卡片 |

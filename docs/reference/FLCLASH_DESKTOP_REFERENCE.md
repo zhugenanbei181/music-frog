@@ -598,3 +598,24 @@ b190 收口 Iced 密度缺口时，同一张 `rules` 页出现一个不可能的
 **存异一条**：Iced 的 `connections` / `logs` 两个契约形态在 Slint 是独立页，在 Iced 仍是
 runtime 页里的区块；本批只把卡栈缝收到预算内（`SP_LG` → `SP_MD`，求同 Slint 同帧的
 3.5%），真正补齐这两张页是未开工的产品工作，不写成结论。
+
+## 17. 代理节点网格按页宽连续裁决（b212）
+
+上游 `lib/common/layout.dart::getProxiesColumns(viewWidth, proxiesLayout)` 发布
+`max(ceil(viewWidth / 250), 2)`，再由 `tight / standard / loose` 三档用户偏好做
+`+1 / 0 / -1`；`lib/views/proxies/tab.dart` 用 `max(width - 32, 0)` 把页身可用宽
+传给它，网格自己另付 8dp 横向 seam。真实代理页场景图（3193×1949，约 1.5 缩放）
+实测 5 列、每卡 371px ≈ 248dp，与 250dp 门槛同构。
+
+本仓此前由 `ViewportTier::proxy_grid_columns` 在四个窗口档上固定
+`1 / 2 / 3 / 4` 列：`proxies-dark`（1180×780）页身 910px 只画 3 列、每卡约
+282px，而按上游标准档规则应为 4 列；`space_utilization` 对同帧实测 `unused 51.3%`
+（`content` 形态 82% 上限放行，但并非同形态参考产品之上的密度）。b212 的求同是
+把 `250dp` 最小卡宽、`32dp` 页身边距与两列地板收进
+`infiltrator_contract::responsive_viewport::proxy_node_columns`，经 v14 导出
+`proxy_grid` 与生成器投影为 `ViewportLadder.proxy_columns(form, page-width)`；
+存异是**不引入上游三档偏好**：本仓 `OutboundLayout` 只有 Grid / CompactList 两个真实
+语义，手机/底栏档继续以 typed `ProxyGridForm::Stacked` 保持单列可读，桌面档才按页宽
+连续计算。因此 1180 标准帧从 3 列变 4 列，720 与 400 档仍单列，既不照抄 250 字面量
+进 UI，也不让「窗口档」冒充「页身可用宽」。Iced / Bevy 仍消费 tier 查表，跨表面接线
+由共享契约后续切片按文件所有权收口，本批不争写另一会话持有的 Bevy 文件。

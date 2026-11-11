@@ -20,8 +20,8 @@ use crate::command_catalogue::ShellPage;
 use crate::responsive_viewport::{
     DASHBOARD_DESKTOP_MIN_PX, DASHBOARD_FOUR_COLUMN_MIN_PX, DASHBOARD_MOBILE_MAX_PX,
     DASHBOARD_STANDARD_FOUR_COLUMN_MIN_PX, DASHBOARD_STANDARD_HEIGHT_MIN_PX, DashboardColumns,
-    DashboardDensity, PROFILE_MAX_COLUMNS, PROFILE_MIN_ITEM_WIDTH_PX, SidebarForm, TIERS,
-    ViewportTier,
+    DashboardDensity, PROFILE_MAX_COLUMNS, PROFILE_MIN_ITEM_WIDTH_PX, PROXY_GRID_INSET_PX,
+    PROXY_MIN_COLUMNS, PROXY_MIN_ITEM_WIDTH_PX, ProxyGridForm, SidebarForm, TIERS, ViewportTier,
 };
 use crate::shell_receipt::CHROME_KEYS;
 use crate::shell_sidebar_preference::{
@@ -65,7 +65,7 @@ impl PageShapeOwner {
 
 /// The exported document's identity. Consumers pin this version so a shape
 /// added to the registry cannot be mistaken for an older export's vocabulary.
-pub const PAGE_STRUCTURE_EXPORT_VERSION: u16 = 13;
+pub const PAGE_STRUCTURE_EXPORT_VERSION: u16 = 14;
 
 /// Resolve a capture page slug onto the page and the shape it renders.
 pub fn shape_for_slug(slug: &str) -> Option<PageShape> {
@@ -118,6 +118,9 @@ pub fn shape_for_slug(slug: &str) -> Option<PageShape> {
 /// Version 13 exports the standalone traffic page as a framed capture slug,
 /// so an independent traffic destination is judged by its own shape instead
 /// of borrowing the runtime workbench's content-page budget.
+/// Version 14 exports the proxy node grid's width rule, so a page body can
+/// decide its own columns without a surface keeping the reference's 250dp
+/// floor and 32dp inset as private literals.
 pub fn page_structure_json() -> String {
     let pages: Vec<String> = ShellPage::ALL
         .iter()
@@ -171,12 +174,13 @@ pub fn page_structure_json() -> String {
     })
     .collect();
     format!(
-        "{{\"version\":{},\"dashboard_columns\":{},\"dashboard_density\":{},\"navigation_limits\":{},\"profile_grid\":{},\"pages\":[{}],\"slugs\":[{}],\"tiers\":{},\"sidebar_variants\":{},\"navigation_separators\":{},\"chrome_keys\":{}}}\n",
+        "{{\"version\":{},\"dashboard_columns\":{},\"dashboard_density\":{},\"navigation_limits\":{},\"profile_grid\":{},\"proxy_grid\":{},\"pages\":[{}],\"slugs\":[{}],\"tiers\":{},\"sidebar_variants\":{},\"navigation_separators\":{},\"chrome_keys\":{}}}\n",
         PAGE_STRUCTURE_EXPORT_VERSION,
         dashboard_columns_json(),
         dashboard_density_json(),
         navigation_limits_json(),
         profile_grid_json(),
+        proxy_grid_json(),
         pages.join(","),
         slugs.join(","),
         tiers_json(),
@@ -219,6 +223,25 @@ fn profile_grid_json() -> String {
     format!(
         "{{\"min_item_width_px\":{},\"max_columns\":{}}}",
         PROFILE_MIN_ITEM_WIDTH_PX, PROFILE_MAX_COLUMNS
+    )
+}
+
+/// The proxy node grid rule, exported from the same width owner as profiles.
+///
+/// Surfaces consume the generated `proxy_columns(page-width)` instead of
+/// spelling `250`, `32` or the two-column floor a second time.
+fn proxy_grid_json() -> String {
+    let forms = [ProxyGridForm::Stacked, ProxyGridForm::Desktop];
+    let variants: Vec<String> = forms
+        .iter()
+        .map(|form| format!("{{\"id\":\"{}\"}}", form.id()))
+        .collect();
+    format!(
+        "{{\"variants\":[{}],\"min_item_width_px\":{},\"page_inset_px\":{},\"min_columns\":{},\"stacked_columns\":1}}",
+        variants.join(","),
+        PROXY_MIN_ITEM_WIDTH_PX,
+        PROXY_GRID_INSET_PX,
+        PROXY_MIN_COLUMNS
     )
 }
 
@@ -695,6 +718,12 @@ mod tests {
         let profile = &document["profile_grid"];
         assert_eq!(profile["min_item_width_px"], PROFILE_MIN_ITEM_WIDTH_PX);
         assert_eq!(profile["max_columns"], PROFILE_MAX_COLUMNS);
+        let proxy = &document["proxy_grid"];
+        assert_eq!(proxy["variants"][0]["id"], "stacked");
+        assert_eq!(proxy["variants"][1]["id"], "desktop");
+        assert_eq!(proxy["min_item_width_px"], PROXY_MIN_ITEM_WIDTH_PX);
+        assert_eq!(proxy["page_inset_px"], PROXY_GRID_INSET_PX);
+        assert_eq!(proxy["min_columns"], PROXY_MIN_COLUMNS);
         let slug_shapes = document["slugs"]
             .as_array()
             .expect("the exported slug shapes");

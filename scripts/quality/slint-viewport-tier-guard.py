@@ -361,6 +361,18 @@ def ladder_findings(ui: pathlib.Path) -> list[str]:
             found.append(
                 f"components/viewport-ladder.slint: {function}() is generated but never read"
             )
+    proxies_code = (
+        mask_comments((UI / "pages/page_proxies.slint").read_text(encoding="utf-8"))
+        if (UI / "pages/page_proxies.slint").is_file()
+        else ""
+    )
+    if "ViewportLadder.proxy_columns(" not in proxies_code or re.search(
+        r"\b(?:250|32)\s*\*\s*LumenUiScale\.unit", proxies_code
+    ):
+        found.append(
+            "pages/page_proxies.slint: the proxy node grid keeps a private proxy "
+            "width rule instead of reading ViewportLadder.proxy_columns"
+        )
     if "ViewportLadder.sidebar_nav_column(" not in theme_code:
         found.append(
             "components/theme.slint: the navigation column is no longer the exported width"
@@ -497,6 +509,15 @@ def tier_vocabulary_findings() -> list[str]:
             "components/viewport_tier.slint: the sidebar preferences are "
             f"{declared_preferences} but the exported table says "
             f"{sorted(set(preferences))}"
+        ]
+    proxy_forms = [
+        entry["id"] for entry in exported_document()["proxy_grid"]["variants"]
+    ]
+    declared_proxy_forms = enum_variants("ProxyGridForm")
+    if proxy_forms != declared_proxy_forms:
+        return [
+            "components/viewport_tier.slint: the proxy grid forms are "
+            f"{declared_proxy_forms} but the exported table says {proxy_forms}"
         ]
     return []
 
@@ -1128,13 +1149,33 @@ class GuardSelfTest(unittest.TestCase):
     def test_a_generated_lookup_nobody_reads_is_caught(self) -> None:
         """A generated table with no consumer is a dead knob wearing the ladder."""
         proxies = (UI / "pages/page_proxies.slint").read_text(encoding="utf-8")
-        anchor = "ViewportLadder.proxy_node_columns(LumenTheme.viewport-tier)"
+        anchor = "ViewportLadder.proxy_columns(LumenTheme.labelled-sidebar"
         assert anchor in proxies, anchor
         planted = proxies.replace(anchor, "2", 1)
         findings = self._findings_with({"page_proxies.slint": planted})
         self.assertTrue(
-            any("proxy_node_columns() is generated but never read" in item
+            any("proxy_columns() is generated but never read" in item
                 for item in findings), findings)
+
+    def test_a_private_proxy_width_rule_is_caught(self) -> None:
+        """The reference's 250/32 numbers belong to the exported rule."""
+        proxies = (UI / "pages/page_proxies.slint").read_text(encoding="utf-8")
+        anchor = "ViewportLadder.proxy_columns(LumenTheme.labelled-sidebar"
+        assert anchor in proxies, anchor
+        planted = proxies.replace(anchor, "Math.max(2, Math.ceil((self.width - 32px) / 250px))", 1)
+        self.assertNotEqual(proxies, planted)
+        findings = self._findings_with({"page_proxies.slint": planted})
+        self.assertTrue(any("private proxy" in item for item in findings), findings)
+
+    def test_a_renamed_proxy_grid_form_is_caught(self) -> None:
+        """The two grid forms must stay typed and export-aligned."""
+        tier_file = TIER_FILE.read_text(encoding="utf-8")
+        planted = tier_file.replace("    stacked,", "    single-column,", 1)
+        self.assertNotEqual(tier_file, planted)
+        findings = self._findings_with({"viewport_tier.slint": planted})
+        self.assertTrue(
+            any("proxy grid forms are" in item for item in findings), findings
+        )
 
     def test_a_renamed_tier_in_the_surface_is_caught(self) -> None:
         """One tier, one name: the surface cannot keep a private vocabulary."""

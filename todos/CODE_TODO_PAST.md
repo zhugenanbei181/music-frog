@@ -1,4 +1,4 @@
-# MusicFrog 工程 TODO · 过去佛（8条待验证；归档见 [TODO.md](../TODO.md) 第一百零八批次）
+# MusicFrog 工程 TODO · 过去佛（9条待验证；归档见 [TODO.md](../TODO.md) 第一百零八批次）
 
 > 层级：L4
 
@@ -211,3 +211,17 @@
 ③ **定向证据**：`--locked` contract+shared+Iced nextest **1313/1313**、定向 clippy `--all-targets -D warnings`、`cargo fmt --all --check`；`iced-observation-routes-guard` **13/13**、`iced-sidebar-nav-guard` **8/8**、`sidebar-expansion-owner-guard` **10/10**、`slint-viewport-tier-guard` **41/41**、`flclash-sidebar-void-guard` **7/7**、`space_utilization --self-test` **63/63** + `--check-export` current + Iced **190** / Slint **199** 帧 `--enforce` violations=0；`receipt-freshness` 0、Iced 5 条别名摘要刷新、`generate_unified_matrix --check` 双表面一致、`doc-governance` / `line` / `import` / `typed-state` / `implicit-state` / `closure-questions` 全 0。
 ④ **待验证范围**：统一批次复跑 `cargo nextest run --workspace`、全仓 Clippy / 结构门全腿与 `resolve_surface_evidence.py`；另一会话未提交的 Bevy `runtime-dark` / `overview-dark` 像素别名仍是全仓身份门唯一红腿，本条不负责该红腿。Bevy 继续把流量并入概览，台架不投指针，选区证据来自同一条生产消息路径。
 ⑤ **证据身份**：Iced 190/190 帧发布 run `20261111T192135Z_a866e860b2d7_dirty_1788701`（binary SHA-256 `0b9d58144cab3302a8efe139c6845be73c739e4460f3032aa03823ce694eace8`）、Iced nextest 1313/1313（三包合并）、路由守卫 13/13 + enforce 0、空间门 0 违规、回执新鲜度 0。
+
+## 12.79 Slint 代理节点网格按页宽连续裁决（1条待验证）
+
+| ID | 状态 / 优先级 | points | owner | 依赖 |
+| --- | --- | --- | --- | --- |
+| `FLPROXY-001` | `Integrated` / P1（b212 实测立项并交付，待统一批次办结） | 2 | infiltrator-contract（`responsive_viewport::proxy_node_columns` / `ProxyGridForm` / v14 导出）+ `scripts/generate_viewport_ladder.py` + `crates/infiltrator-slint/ui/pages/page_proxies.slint` + Slint 199 帧回执与守卫 | `FLPROFILES-001`（页宽规则先例）、`SPACEUTIL-005`（导出阶梯单一真源） |
+
+**`FLPROXY-001` 代理节点网格按页宽连续裁决（b212 交付，2 pt / P1 / `Integrated`）**：
+
+① **真实差距**：pinned FlClash `be847366` 的 `getProxiesColumns` 以 `max(ceil(viewWidth/250),2)` 给列数，由 `tab.dart` 传入 `max(width-32,0)` 的页身可用宽，再由 `tight/standard/loose` 偏好 ±1；真实代理页场景图实测 5 列、每卡 371px ≈ 248dp。本仓 `ViewportTier::proxy_grid_columns` 按窗口档固定 1/2/3/4；1180×780 帧页身 910px 只画 3 列、每卡约 282px，而 `proxies-dark` 空间门 `unused 51.3%` 虽在 `content` 82% 上限内，横向密度仍低于同一宽度规则。
+② **自底向上收口**：契约新增 typed `ProxyGridForm::{Stacked, Desktop}`、250/32/两列地板常量与 `proxy_node_columns(form, page-width)`；v14 导出 `proxy_grid` 词表，生成器投影为 `ViewportLadder.proxy_columns(form, page-width)`，旧无消费者 tier 查表同批退役。Slint 页面只按 `LumenTheme.labelled-sidebar` 选 typed 形态并传页身宽；`slint-viewport-tier-guard.py` 新增 3 条 planted（生成函数无人读、私写 250/32、重命名词表），自测 **43/43** + enforce 0。存异：不引入上游三档用户偏好；手机/底栏档保持单列可读，Iced/Bevy 仍消费 tier 查表，跨表面接线按文件所有权后续收口。
+③ **像素与门**：诊断批 `20261111T205309Z_58a80f5286b1_dirty_2271974` 四帧复核标准 1180 档 4 列无文字裁切、720/400 档仍单列；整批 **199/199** 重采发布 run `20261111T205728Z_58a80f5286b1_dirty_2295244`（369s），仅 4 张 `proxies-{dark,light,forest,amoled}` 帧与 manifest 变化。`space_utilization --surface slint --enforce` 199 帧 **violations=0**、`receipt-freshness 0`、统一矩阵双表面一致、`screenshot-identity` 唯一红腿仍是另一会话未提交的 Bevy 像素别名。`--check-export` current、生成器 `--check` fresh、契约+Slint nextest **984/984**、定向 Clippy `--all-targets -D warnings`、`cargo fmt --all --check`、Slint 语法门 100%、`doc-governance` / `line` / `import` / `typed-state` / `implicit-state` 全 0。
+④ **待验证范围**：统一批次复跑 `cargo nextest run --workspace`、全仓结构门与 `resolve_surface_evidence.py`；另一会话未提交的 Bevy `runtime-dark` / `overview-dark` 像素别名仍是全仓身份门唯一红腿，本条不负责该红腿。Iced / Bevy 的同一页宽规则接线仍待其文件所有权落地后由跨表面切片收口。
+⑤ **证据身份**：Slint 199/199 发布 run `20261111T205728Z_58a80f5286b1_dirty_2295244`、诊断 run `20261111T205309Z_58a80f5286b1_dirty_2271974`、契约+Slint nextest **984/984**、`slint-viewport-tier-guard` **43/43** + enforce 0、空间门 0 违规、回执新鲜度 0。

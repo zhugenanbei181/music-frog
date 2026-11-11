@@ -109,6 +109,44 @@ pub const PROFILE_MIN_ITEM_WIDTH_PX: u16 = 300;
 /// wide window keeps cards readable instead of thinning them without end.
 pub const PROFILE_MAX_COLUMNS: u16 = 3;
 
+/// The narrowest proxy node card the reference will draw side by side.
+///
+/// FlClash states this once as `250` in `getProxiesColumns`
+/// (`lib/common/layout.dart`) and the desktop scene's 371px card at 1.5x
+/// scaling measures back to ~248dp. The same rule keeps a 940px page body
+/// from drawing only three oversized cards.
+pub const PROXY_MIN_ITEM_WIDTH_PX: u16 = 250;
+
+/// The page-body inset the reference removes before counting proxy cards.
+///
+/// `lib/views/proxies/tab.dart` passes `max(width - 32, 0)` to
+/// `getProxiesColumns`; the grid then pays its own horizontal seam.
+pub const PROXY_GRID_INSET_PX: u16 = 32;
+
+/// The fewest proxy node columns the reference draws on a desktop page.
+pub const PROXY_MIN_COLUMNS: u16 = 2;
+
+/// Which proxy grid rule owns a page at this shell form.
+///
+/// FlClash's desktop tab view calls `getProxiesColumns` with a desktop page
+/// width and keeps a two-column floor; its mobile view keeps one readable
+/// column. This enum is the typed border between those two decisions, so a
+/// surface cannot smuggle the distinction in as two booleans.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ProxyGridForm {
+    Stacked,
+    Desktop,
+}
+
+impl ProxyGridForm {
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::Stacked => "stacked",
+            Self::Desktop => "desktop",
+        }
+    }
+}
+
 /// How many profile columns fit in `page_width_px` beside a `gap_px` seam.
 ///
 /// This is FlClash's `getProfilesColumns` arithmetic: a row of `n` cards needs
@@ -123,6 +161,27 @@ pub const fn profile_columns(page_width_px: u16, gap_px: u16) -> u16 {
         1
     } else if columns > PROFILE_MAX_COLUMNS {
         PROFILE_MAX_COLUMNS
+    } else {
+        columns
+    }
+}
+
+/// How many proxy node cards fit in `page_width_px`.
+///
+/// FlClash's `getProxiesColumns` uses `max(ceil(viewWidth / 250), 2)` for its
+/// standard layout; `viewWidth` is the page body after its 32dp inset. This
+/// contract keeps that width rule without adding the reference's three user
+/// preferences (`tight/standard/loose`) that our outbound model does not own.
+/// A zero-width page still gets the reference's two-column floor rather than a
+/// private fallback in the surface.
+pub const fn proxy_node_columns(form: ProxyGridForm, page_width_px: u16) -> u16 {
+    if matches!(form, ProxyGridForm::Stacked) {
+        return 1;
+    }
+    let room = page_width_px.saturating_sub(PROXY_GRID_INSET_PX);
+    let columns = room.div_ceil(PROXY_MIN_ITEM_WIDTH_PX);
+    if columns < PROXY_MIN_COLUMNS {
+        PROXY_MIN_COLUMNS
     } else {
         columns
     }
@@ -862,6 +921,24 @@ mod tests {
         assert_eq!(profile_columns(300 * 4 + 48, 12), 3);
         assert_eq!(profile_columns(1, 1), 1);
         assert_eq!(profile_columns(u16::MAX, 0), 3);
+    }
+
+    #[test]
+    fn proxy_node_columns_follow_the_reference_width_rule() {
+        assert_eq!(PROXY_MIN_ITEM_WIDTH_PX, 250);
+        assert_eq!(PROXY_GRID_INSET_PX, 32);
+        assert_eq!(PROXY_MIN_COLUMNS, 2);
+        assert_eq!(proxy_node_columns(ProxyGridForm::Stacked, 940), 1);
+        assert_eq!(proxy_node_columns(ProxyGridForm::Desktop, 0), 2);
+        assert_eq!(proxy_node_columns(ProxyGridForm::Desktop, 32), 2);
+        assert_eq!(proxy_node_columns(ProxyGridForm::Desktop, 282), 2);
+        assert_eq!(proxy_node_columns(ProxyGridForm::Desktop, 283), 2);
+        assert_eq!(proxy_node_columns(ProxyGridForm::Desktop, 532), 2);
+        assert_eq!(proxy_node_columns(ProxyGridForm::Desktop, 533), 3);
+        assert_eq!(proxy_node_columns(ProxyGridForm::Desktop, 782), 3);
+        assert_eq!(proxy_node_columns(ProxyGridForm::Desktop, 783), 4);
+        assert_eq!(proxy_node_columns(ProxyGridForm::Desktop, 940), 4);
+        assert_eq!(proxy_node_columns(ProxyGridForm::Desktop, u16::MAX), 263);
     }
 
     #[test]

@@ -89,3 +89,11 @@ export enum DashboardDensity {
     // A desktop page with room for the full four-share card metrics.
     standard,
 }
+
+// How the proxy node grid resolves its width into columns. The variants are
+// the ids `ProxyGridForm::id()` exports: a bottom-nav page stays stacked,
+// while a desktop page asks the generated width rule for its column count.
+export enum ProxyGridForm {
+    stacked,
+    desktop,
+}

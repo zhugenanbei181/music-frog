@@ -8,6 +8,7 @@ import { ProxyGroupCard, SurfaceCard } from "../components/cards.slint";
 import { RouteMode, RuntimeStatus } from "../components/domain_enums.slint";
 import { ProxyGroupPillBar, ProxyNodeCard } from "../components/proxy_picker.slint";
 import { ViewportLadder } from "../components/viewport-ladder.slint";
+import { ProxyGridForm } from "../components/viewport_tier.slint";
 
 export component PageProxies inherits VerticalLayout {
     in property <bool> compact-layout;
@@ -25,12 +26,14 @@ export component PageProxies inherits VerticalLayout {
     in-out property <bool> proxy-current-node-available;
     property <bool> show-search: !root.compact-layout;
 
-    // The reference carries several node cards across one row instead of one
-    // full-width row per node, which is what made each row read as mostly
-    // empty space. The count is the exported table's, so the same window gets
-    // the same grid here as on the Iced and Bevy shells, and a phone keeps a
-    // single readable column.
-    in property <int> node-columns: ViewportLadder.proxy_node_columns(LumenTheme.viewport-tier);
+    // FlClash answers "how many node cards fit" from the page-body width, not
+    // a window tier: `getProxiesColumns(max(width - 32, 0))` uses a 250dp
+    // floor and keeps at least two columns. The generated lookup reads those
+    // exported constants, while the grid passes its own width to the owner.
+    in property <int> node-columns:
+        ViewportLadder.proxy_columns(LumenTheme.labelled-sidebar
+            ? ProxyGridForm.desktop
+            : ProxyGridForm.stacked, self.width);
 
     callback set-route-mode(RouteMode);
     callback select-group(string);

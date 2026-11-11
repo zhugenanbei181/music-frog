@@ -10,7 +10,7 @@
 // user zoom itself and the ladder never has an opinion about it.
 
 import { LumenUiScale } from "../lumen-ui-scale.slint";
-import { DashboardDensity, NavigationForm, NavigationSeparator, SidebarExpansionPreference, ViewportTier } from "./viewport_tier.slint";
+import { DashboardDensity, NavigationForm, NavigationSeparator, ProxyGridForm, SidebarExpansionPreference, ViewportTier } from "./viewport_tier.slint";
 
 export global ViewportLadder {
     // The first window width that leaves each tier behind, in design units.
@@ -20,6 +20,16 @@ export global ViewportLadder {
     out property <length> compact-max: 600 * LumenUiScale.unit;
     out property <length> medium-max: 840 * LumenUiScale.unit;
     out property <length> expanded-max: 1200 * LumenUiScale.unit;
+
+    // How many proxy node cards fit in the page body. The contract exports
+    // FlClash's `getProxiesColumns` standard-layout width rule: remove the
+    // page inset, divide by the 250dp floor and keep at least two columns.
+    // The page passes its own width, so a wide window no longer paints a
+    // tier's fixed three oversized cards.
+    public pure function proxy_columns(form: ProxyGridForm, page-width: length) -> int {
+        if (form == ProxyGridForm.stacked) { return 1; }
+        return Math.max(2, Math.ceil((page-width - 32 * LumenUiScale.unit) / (250 * LumenUiScale.unit)));
+    }
 
     // Whether a navigation form may paint a group heading.
     //
@@ -138,19 +148,6 @@ export global ViewportLadder {
         if (preference == SidebarExpansionPreference.collapsed && tier == ViewportTier.ultra && touch-surface == false) { return true; }
         if (preference == SidebarExpansionPreference.collapsed && tier == ViewportTier.ultra && touch-surface == true) { return false; }
         return false;
-    }
-
-    // Node cards per row on the proxy page. This is the count the Iced and
-    // Bevy shells use at the same width, so one window never gets four
-    // columns on one surface and three on another.
-    //
-    // The dashboard's own column count is a DIFFERENT typed fact, not this
-    // lookup: see `dashboard_grid_shares` below.
-    public pure function proxy_node_columns(tier: ViewportTier) -> int {
-        if (tier == ViewportTier.compact) { return 1; }
-        if (tier == ViewportTier.medium) { return 2; }
-        if (tier == ViewportTier.expanded) { return 3; }
-        return 4;
     }
 
     // How many equal shares the dashboard's span grid owns at this page width.
