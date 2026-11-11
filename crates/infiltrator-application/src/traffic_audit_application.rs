@@ -16,8 +16,10 @@
 use infiltrator_domain::connection_rate::ConnectionRates;
 use infiltrator_domain::connection_view::{ConnectionView, connection_host};
 use infiltrator_domain::traffic_audit::{
-    AuditRouteType, FlowEvent, TrafficAuditAccumulator, TrafficDimension, TrafficStats,
-    TrafficWindow,
+    AuditRouteType, FlowEvent, TrafficAuditAccumulator, TrafficDimension, TrafficWindow,
+};
+use infiltrator_domain::traffic_audit_readback::{
+    TrafficAuditPoint, TrafficAuditReadback, TrafficAuditRow, UNATTRIBUTED_PROCESS_ENTITY,
 };
 use std::sync::{Arc, Mutex};
 
@@ -26,58 +28,6 @@ pub const DAILY_RETENTION_SECS: u64 = 31 * 86_400;
 
 /// How long the fine tier is kept: the hour window is its only reader.
 pub const RECENT_RETENTION_SECS: u64 = 3_600;
-
-/// Entity key for traffic whose process the core never named.
-///
-/// It is a bucket, not a decoration: the traffic happened, so it belongs to a
-/// row the reader can see, and the row says plainly that the process is
-/// unknown. Naming it here keeps the string in one place instead of once per
-/// surface.
-pub const UNATTRIBUTED_PROCESS_ENTITY: &str = "[System / Unknown]";
-
-/// One ranked entity of a window.
-#[derive(Clone, Debug, PartialEq)]
-pub struct TrafficAuditRow {
-    pub entity: String,
-    pub upload_bytes: u64,
-    pub download_bytes: u64,
-    pub total_bytes: u64,
-    /// Share of the window's whole traffic, in percent.
-    pub share_percent: f64,
-}
-
-/// One bucket of the whole-traffic trend a window is drawn from.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct TrafficAuditPoint {
-    pub bucket_secs: u64,
-    pub upload_bytes: u64,
-    pub download_bytes: u64,
-}
-
-impl TrafficAuditPoint {
-    pub fn total_bytes(self) -> u64 {
-        self.upload_bytes.saturating_add(self.download_bytes)
-    }
-}
-
-/// Everything one `(dimension, window)` ask answers with.
-#[derive(Clone, Debug, PartialEq)]
-pub struct TrafficAuditReadback {
-    /// The ask this readback answers, so a reader cannot mistake one window's
-    /// rows for another's.
-    pub dimension: TrafficDimension,
-    pub window: TrafficWindow,
-    pub rows: Vec<TrafficAuditRow>,
-    pub trend: Vec<TrafficAuditPoint>,
-    pub totals: TrafficStats,
-}
-
-impl TrafficAuditReadback {
-    /// The largest total across the rows, used to scale a row's bar.
-    pub fn peak_row_total(&self) -> u64 {
-        self.rows.first().map(|row| row.total_bytes).unwrap_or(0)
-    }
-}
 
 /// The recorded buckets and the newest instant they were observed at.
 ///

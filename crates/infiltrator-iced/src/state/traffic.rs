@@ -1,13 +1,12 @@
 //! Transport adapter selection; all rate and peak semantics are folded by application.
 use crate::state::AppState;
-use infiltrator_application::traffic_audit_application::{
-    TrafficAuditApplication, TrafficAuditReadback,
-};
+use infiltrator_application::traffic_audit_application::TrafficAuditApplication;
 use infiltrator_contract::shell_readout::ShellReadoutSnapshot;
 use infiltrator_contract::traffic_waveform::{TrafficSample, TrafficWaveformSnapshot};
 use infiltrator_domain::connection_rate::ConnectionRates;
 use infiltrator_domain::connection_view::ConnectionView;
 use infiltrator_domain::traffic_audit::{TrafficDimension, TrafficWindow};
+use infiltrator_domain::traffic_audit_readback::TrafficAuditReadback;
 use infiltrator_presentation::shell_readout::observed_rate;
 use infiltrator_presentation::traffic_readout::{TrafficReadout, project_traffic_readout};
 use infiltrator_shared::locales::Lang;

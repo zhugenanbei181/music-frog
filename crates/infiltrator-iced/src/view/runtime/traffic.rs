@@ -6,8 +6,8 @@
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::view::runtime::traffic_legend::legend_indicator;
-use infiltrator_application::traffic_audit_application::{TrafficAuditReadback, TrafficAuditRow};
 use infiltrator_contract::design_resources::TextRole;
+use infiltrator_domain::traffic_audit_readback::{TrafficAuditReadback, TrafficAuditRow};
 use infiltrator_presentation::traffic_audit_options::{
     TRAFFIC_AUDIT_DIMENSIONS, TRAFFIC_AUDIT_WINDOWS, traffic_audit_dimension_at,
     traffic_audit_dimension_index, traffic_audit_dimension_label_key, traffic_audit_window_at,

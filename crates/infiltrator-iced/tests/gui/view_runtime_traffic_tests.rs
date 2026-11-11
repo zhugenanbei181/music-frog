@@ -1,8 +1,8 @@
 use super::*;
-use infiltrator_application::traffic_audit_application::UNATTRIBUTED_PROCESS_ENTITY;
 use infiltrator_domain::connection_rate::{ConnectionRate, ConnectionRates};
 use infiltrator_domain::runtime::{Connection, ConnectionMetadata};
 use infiltrator_domain::traffic_audit::{TrafficDimension, TrafficWindow};
+use infiltrator_domain::traffic_audit_readback::UNATTRIBUTED_PROCESS_ENTITY;
 
 fn make_test_conn(
     id: &str,

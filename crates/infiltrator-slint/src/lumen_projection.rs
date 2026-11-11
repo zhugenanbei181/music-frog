@@ -20,6 +20,7 @@ use crate::surface::workbenches::Workbenches;
 use crate::theme_util::apply_theme_color;
 use crate::widget_vocabulary;
 use infiltrator_contract::capability::Availability;
+use infiltrator_contract::command_catalogue::ShellPage;
 use infiltrator_contract::language::LanguagePreference;
 use infiltrator_contract::overview_layout::{OverviewCardKind, OverviewLayoutSnapshot};
 use infiltrator_contract::profile_editor_read::ProfileReadStatus;
@@ -114,18 +115,10 @@ fn navigation_label(item: NavigationItem, lang: &Lang<'_>) -> String {
 /// The truncation readback must measure this word, not another vocabulary.
 fn navigation_display_label(item: NavigationItem, label: &str, lang: &Lang<'_>) -> String {
     let msgid = match item.target {
-        NavigationTarget::Shared(infiltrator_contract::command_catalogue::ShellPage::Overview) => {
-            Some("核心概览")
-        }
-        NavigationTarget::Shared(infiltrator_contract::command_catalogue::ShellPage::Proxies) => {
-            Some("代理策略")
-        }
-        NavigationTarget::Shared(infiltrator_contract::command_catalogue::ShellPage::Profiles) => {
-            Some("配置订阅")
-        }
-        NavigationTarget::Shared(infiltrator_contract::command_catalogue::ShellPage::Settings) => {
-            Some("系统设置")
-        }
+        NavigationTarget::Shared(ShellPage::Overview) => Some("核心概览"),
+        NavigationTarget::Shared(ShellPage::Proxies) => Some("代理策略"),
+        NavigationTarget::Shared(ShellPage::Profiles) => Some("配置订阅"),
+        NavigationTarget::Shared(ShellPage::Settings) => Some("系统设置"),
         _ => None,
     };
     msgid.map_or_else(|| label.to_owned(), |key| lang.tr(key).into_owned())

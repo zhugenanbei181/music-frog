@@ -1,6 +1,7 @@
 use super::*;
 use infiltrator_domain::connection_rate::{ConnectionRate, ConnectionRateDiffer};
 use infiltrator_domain::runtime::{Connection, ConnectionMetadata};
+use infiltrator_domain::traffic_audit_readback::UNATTRIBUTED_PROCESS_ENTITY;
 use std::slice::from_ref;
 use std::time::{Duration, Instant};
 

@@ -254,6 +254,7 @@ impl ThemePreference {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeSet;
 
     #[test]
     fn skin_settings_round_trip_with_aliases() {
@@ -377,7 +378,7 @@ mod tests {
             ThemePreference::System,
             "an out-of-range index resolves to the documented default"
         );
-        let keys: std::collections::BTreeSet<_> = ThemePreference::ALL
+        let keys: BTreeSet<_> = ThemePreference::ALL
             .iter()
             .map(|preference| preference.label_key())
             .collect();

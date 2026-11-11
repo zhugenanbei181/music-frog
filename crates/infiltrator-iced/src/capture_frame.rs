@@ -3,6 +3,7 @@
 use crate::capture_scenario;
 use crate::state::AppState;
 use crate::types::message::Message;
+#[cfg(any(feature = "capture-tools", test))]
 use crate::view::sidebar::sidebar_presentation;
 use iced::window::Screenshot;
 use iced::{Rectangle, Task, window};

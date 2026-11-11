@@ -24,19 +24,43 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-11 第一百九十八批次；b111–b197 见下方批次八问摘要）
+## 当前状态（2026-11-11 第二百批次；b111–b199 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b198 只改一个 parity 单测，零 Rust / 零平台 API / 零 wire；`python3 scripts/parity/test_generate_unified_matrix.py` **7/7 OK**、`python3 -m unittest discover -s scripts/parity -p 'test_*.py'` **65/65 OK** 为 `L`。交叉构建、aarch64 与目标机仍由 CI / 设备矩阵补证（GAP-1.1） |
-| 2 | 部分 | L | 本机 Linux 跑完 parity 单测、生成器 `--check` 双表面、文档门与收口门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
-| 3 | 部分 | L | 不触 Android/iOS 代码、资源或 wire；本批只裁决 Iced 捕获矩阵 header，不产生任何实机回执 |
-| 4 | 部分 | L | Iced 的第 8 列 `traffic_audit` 被单测钉住，Slint / Bevy 明确不得带该列；Bevy 文件正由另一会话重写，本批不碰；判定器仍未覆盖 Bevy |
-| 5 | 完整 | L | Iced 矩阵的列契约只有一处：生成器写 8 列，单测断言 8 列且末列是 `traffic_audit`，`--check` 逐行锁住；没有第二份 header 常量或跨表面列扩散 |
-| 5a | 完整 | L | 本批无字体 / 字重 / 图标族 / 视觉资产与发布像素变化；`receipt-freshness 0`、Slint 199 / Iced 186 帧 `space_utilization --enforce` violations=0，零重采 |
-| 6 | 部分 | L | 只修复 b195 遗留的生成器单测红腿，不推进 `SPACEUTIL-014` 的独立 connections/logs 页；ClashParty 侦察确认其 `/connections`、`/logs`、`/traffic` 都是独立页，补页会改变 186 帧发布语料，另立批次处理 |
-| 7 | 完整 | L | 单测按表面分别断言 header：Slint / Bevy 保持 4 列且不含审计列，Iced 保持 8 列；原有 6 项生成器自测不变，`doc-governance OK` |
-| 8 | 部分 | L | 本批零 Rust、零像素、零重编，只跑 parity 单测与生成器 `--check`；未跑全仓 `--workspace` nextest/clippy 与结构门全腿（留统一批次一次跑完）；另一会话未提交的 Bevy 像素仍是全仓身份门唯一红腿 |
+| 1 | 部分 | L | b200 是 domain / application / contract / Iced / Slint 五包的类型归属、模块预算与导入卫生收口，零平台 API、零 wire / 快照变更；五包 nextest **2832/2832**、五包 clippy `--all-targets -D warnings`、Iced `--features capture-tools` clippy、`cargo fmt --all --check` 为 `L`。交叉构建、aarch64 与目标机仍由 CI / 设备矩阵补证（GAP-1.1） |
+| 2 | 部分 | L | 本机 Linux 跑完五包定向测试/clippy/fmt、双表面空间判定器、回执新鲜度与结构门定向腿；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
+| 3 | 部分 | L | 不触 Android/iOS 代码、资源或 wire；读模型只换 owner，不产生任何实机回执 |
+| 4 | 部分 | L | Iced 已改为消费 domain 共享读模型；Slint / Bevy **仍未消费**这份读回，由各自条目收口。Bevy 文件正由另一会话重写，本批不碰；判定器仍未覆盖 Bevy |
+| 5 | 完整 | L | `TrafficAuditReadback` / Row / Point / `UNATTRIBUTED_PROCESS_ENTITY` 只在 `infiltrator_domain::traffic_audit_readback`；application 负责喂数与回答，Iced 只消费；旧 application 私有入口全仓清零，无 re-export 双轨 |
+| 5a | 完整 | L | 本批无字体 / 字重 / 图标族 / 视觉资产与发布像素变化；Iced 186 / Slint 199 帧 `space_utilization --enforce` violations=0，`receipt-freshness 0`，零重采 |
+| 6 | 部分 | L | 这是纯类型归属与模块预算迁移，不改变业务行为；`TRAFFICAUDIT-001` 仍留过去佛等统一验收，Slint / Bevy 审计页未开工，`SPACEUTIL-014` 独立页也未推进 |
+| 7 | 完整 | L | HEAD 的 `connection_view.rs` 实测 **801** 非注释行、超 800 预算 1 行；按仓库既有 `#[path]` 约定把 348 行测试模块拆到 `connection_view_test.rs`，生产文件回到 **493** 行。`import` / `line` / `typed-state` / `doc-governance` 全 0 |
+| 8 | 部分 | L | 本批零像素、零重采，只跑五包定向测试/clippy；未跑全仓 `--workspace` nextest/clippy 与结构门全腿（留统一批次一次跑完）；另一会话未提交的 Bevy 像素仍是全仓身份门唯一红腿 |
+
+## 最近一批问答（2026-11-11 第二百交付批次：共享读模型、模块预算与默认特性编译一次收口）
+
+1. x86_64/aarch64：本批改 domain / application / contract / Iced / Slint 五包 Rust 类型归属、测试模块拆分与导入卫生，零平台 API、零 wire / 快照变更；五包 nextest **2832/2832**、五包 clippy `--all-targets -D warnings` exit 0、Iced `--features capture-tools` clippy exit 0、`cargo fmt --all --check` 干净为 `L`。交叉构建、aarch64 与目标机仍由 CI / 设备矩阵补证 → 部分（L）。
+2. Windows/Linux/macOS：本机 Linux 跑完五包定向测试/clippy/fmt、双表面空间判定器、回执新鲜度、文档门与收口门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
+3. Android/iOS：不触三端代码、资源或 wire；读模型只换 owner，不产生任何实机回执 → 部分（L）。
+4. 各 UI：Iced 已改为消费 `infiltrator_domain::traffic_audit_readback`；Slint / Bevy 仍未消费这份读回，由各自条目收口。Bevy 文件正由另一会话重写、本批不碰；空间利用率判定器仍未覆盖 Bevy → 部分（L）。
+5. 复用：3 个 DTO、常量与 `peak_row_total()` 只在 domain 一处发布；application 负责喂数与回答 ask，Iced 只消费；全仓搜索旧 `infiltrator_application::traffic_audit_application::{...}` 私有入口为 0，不保留兼容 re-export → 完整（L）。
+5a. 设计资源强制标准：本批无字体 / 字重 / 图标族 / 视觉资产与发布像素变化；Iced 186 / Slint 199 帧 `--enforce` violations=0，`receipt-freshness 0`，零重采 → 完整（L）。
+6. 各处界面的功能接入：纯类型归属与模块预算迁移，不改变任何业务行为；`TRAFFICAUDIT-001` 仍留过去佛等统一验收，Slint / Bevy 审计页未开工，`SPACEUTIL-014` 独立页也未推进 → 部分（L）。
+7. 模块化：实测 HEAD 的 `connection_view.rs` 为 **801** 非注释行（超 800 预算 1 行），按仓库既有 `#[path]` 约定把 348 行测试模块拆到 `connection_view_test.rs`，生产文件回到 **493** 行；同批修掉 Iced `capture_frame.rs` 一条只在 `capture-tools`/`test` 下使用却无条件导入的 `sidebar_presentation`，默认特性 clippy 由红转绿；`lumen_projection.rs` 与 `theme.rs` 把内联长路径 / `BTreeSet` 搬进 `use`，不改解析结果。`line-guard` 2956 文件 0 违规、`import-guard` 0、`typed-state` 0、`doc-governance OK` → 完整（L）。
+8. CI 与批次效率：本批零像素、零重采，只跑五包定向测试/clippy；全仓 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py` 仍留统一批次一次跑完；另一会话未提交的 Bevy 像素仍是全仓身份门唯一红腿 → 部分（L）。
+
+## 最近一批问答（2026-11-11 第一百九十九交付批次：流量审计读模型收归 domain）
+
+1. x86_64/aarch64：本批改 domain / application / presentation / Iced 四包 Rust 类型归属，零平台 API、零 wire / 快照变更；四包 nextest **2335/2335**、四包 clippy `--all-targets -D warnings` exit 0、四包 `fmt --check` 干净为 `L`。交叉构建、aarch64 与目标机仍由 CI / 设备矩阵补证 → 部分（L）。
+2. Windows/Linux/macOS：本机 Linux 跑完四包定向测试/clippy/fmt、结构门定向腿、双表面空间判定器与回执新鲜度；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
+3. Android/iOS：不触三端代码、资源或 wire；读模型只换 owner，不产生任何实机回执 → 部分（L）。
+4. 各 UI：Iced 已改为消费 `infiltrator_domain::traffic_audit_readback`；Slint / Bevy 仍未消费这份读回，由各自条目收口。Bevy 文件正由另一会话重写、本批不碰；空间利用率判定器仍未覆盖 Bevy → 部分（L）。
+5. 复用：3 个 DTO、常量与 `peak_row_total()` 只在 domain 一处发布；application 只负责喂数与回答 ask，Iced 只消费；全仓搜索旧 `infiltrator_application::traffic_audit_application::{...}` 私有入口为 0，不保留兼容 re-export → 完整（L）。
+5a. 设计资源强制标准：本批无字体 / 字重 / 图标族 / 视觉资产与发布像素变化；Iced 186 / Slint 199 帧 `--enforce` violations=0，`receipt-freshness 0`，零重采 → 完整（L）。
+6. 各处界面的功能接入：纯类型归属迁移，不改变任何业务行为；`TRAFFICAUDIT-001` 仍留过去佛等统一验收，Slint / Bevy 审计页未开工，`SPACEUTIL-014` 独立页也未推进 → 部分（L）。
+7. 模块化：层级按真实依赖方向裁决——contract 不能反向依赖 domain，presentation 只是 application 的 dev-dependency，故读模型归 domain；一次误放 presentation 的半成品已撤回。新增 2 条 domain 单测，`import` / `line` / `typed-state` 全 0，`doc-governance OK` → 完整（L）。
+8. CI 与批次效率：本批零像素、零重采，只跑四包定向测试/clippy；全仓 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py` 仍留统一批次一次跑完；另一会话未提交的 Bevy 像素仍是全仓身份门唯一红腿 → 部分（L）。
 
 ## 最近一批问答（2026-11-11 第一百九十八交付批次：Iced 8 列矩阵单测回归收口）
 
