@@ -241,6 +241,11 @@ pub trait ConnectionView {
     fn view_destination_ip(&self) -> &str {
         ""
     }
+    /// Source address the connection came from, used to attribute traffic to
+    /// the device it originated on. Rows that do not carry one keep "".
+    fn view_source_ip(&self) -> &str {
+        ""
+    }
     /// Controller-reported remote port for native endpoint display.
     fn view_destination_port(&self) -> &str {
         ""
@@ -290,6 +295,10 @@ impl ConnectionView for Connection {
 
     fn view_destination_ip(&self) -> &str {
         &self.metadata.destination_ip
+    }
+
+    fn view_source_ip(&self) -> &str {
+        &self.metadata.source_ip
     }
 
     fn view_destination_port(&self) -> &str {

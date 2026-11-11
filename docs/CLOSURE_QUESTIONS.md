@@ -24,19 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-11 第一百九十三批次；b111–b192 见下方批次八问摘要）
+## 当前状态（2026-11-11 第一百九十四批次；b111–b193 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b193 只改标准 §3.1 与三份台账：零平台 API、零 Rust、零像素。结论由现有发布回执的像素复量给出（`slint-flag-shape-guard --mode enforce` findings=0、`--self-test` 24/24、发布帧墨迹盒 38×28 且顶行/首列满跨度）为 `L`；交叉构建、aarch64 与目标机仍由 CI / 设备矩阵补证（GAP-1.1） |
-| 2 | 部分 | L | 本机 Linux 完成守卫双腿、发布帧像素复量、文档门与收口门；本批无平台相关改动，Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
-| 3 | 部分 | L | 不触 Android/iOS 代码、资源或 wire；本批对 Android 的结论只有一条——它不画国旗 artwork、只出地区文字，没有本批实机回执可声称 |
-| 4 | 部分 | L | 四个表面逐一对账：Slint 画共享 4:3 矩形、唯一持旗容器不声明圆角（SLINT-020 零容忍）；Iced / Bevy 画平台 emoji 字形（没有第二层容器，但字形形状与可用性随系统字体），已据实立项 `FLAGART-001`；Android 不画旗面。诚实边界：判定器仍未覆盖 Bevy（其文件由另一会话重写） |
-| 5 | 完整 | L | 旗帜几何只有一个 owner（共享 4:3 清单 + `FlagIcon` / `CountryChip`），且「不能圆」在 b193 变成**可量判据**：墨迹盒必须等于该表面声明的旗帜盒、顶行跨度必须等于盒宽；源码面由 SLINT-020 咬、像素面由发布帧复量证，不存在第二套圆角或第二份数字 |
+| 1 | 部分 | L | b194 只改 `crates/infiltrator-domain/src`（`traffic_audit.rs` 与其测试、`connection_view.rs` 一条 trait 默认实现）：zero 平台 API、零 wire。`cargo nextest run -p infiltrator-domain` **625/625**、定向 clippy `-D warnings` exit 0 为 `L`；交叉构建、aarch64 与目标机仍由 CI / 设备矩阵补证（GAP-1.1） |
+| 2 | 部分 | L | 本机 Linux 完成 nextest / clippy / fmt 与 line、import、typed-state、core-boundary、mod-rs、test-layout 六条守卫复核；本批无平台相关改动，Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
+| 3 | 部分 | L | 不触 Android/iOS 代码、资源或 wire；域层的枚举与字段变化不在任何序列化面上（累加器无消费者、无持久化写入者），没有本批实机回执可声称 |
+| 4 | 部分 | L | 本批不碰任何 UI 文件，两个控件的死状态与 b192 逐字一致（`iced-dead-input-guard` 台账 2 条、`--mode enforce` findings=0）；域层新增的 `Device` 维与通用读是接它们的前置。诚实边界：判定器仍未覆盖 Bevy（其文件由另一会话重写） |
+| 5 | 完整 | L | 一个事实只剩一处实现：维度是值（`TrafficDimension`）、记录是一层循环（`FlowEvent::attributions()`）、读是一组通用方法，原命名访问器是薄委托而非第二份逻辑；`prune_older_than` / `clear` 由 15 条语句收成 3 条，没有旧路径残留 |
 | 5a | 部分 | L | 本批无字体 / 字重 / 图标族 / 视觉资产变更、无像素变更，因此不产生新回执（`receipt-freshness 0`）；Bevy 浅色像素回执依旧缺席（其矩阵无浅色帧、正由另一会话重写），本项仍记「部分」 |
-| 6 | 部分 | L | 本批不改产品行为，只把用户反馈翻成可复量的事实：同一张回执（76×56、顶行 52/76、首列 14/56）与当前发布帧（38×28、顶行 38/38、首列 28/28）是两代像素。诚实边界：Iced / Bevy 的旗面形状与可用性仍是平台 emoji 字形（`FLAGART-001`） |
-| 7 | 完整 | L | 判据只有一处实现（`slint-flag-shape-guard.py`，24 项 planted 自测），标准 §3.1 是它的文档面；本批新增的「可量条款」不新增工具，只按现有发布回执测量，不存在第二处实现或第二套阈值 |
-| 8 | 部分 | L | 本批零 Rust 改动、零像素改动、零重采，成本只有守卫自测与一次像素复量；尚未跑全仓统一验证批次（`--workspace` nextest/clippy 由收口批次一次跑完）；`--features capture-tools` 下 `tests/capture_marker_tests.rs` 的既有编译失败按 b154/b180 记录仍属他人欠账 |
+| 6 | 部分 | L | 诚实边界写清：本片只到域层——累加器仍无消费者、两个控件仍是死的、`with_device` 还没被喂；`TRAFFICAUDIT-001` 据实由 `Planned` 改 `InProgress`，剩余三步（application 喂数 → presentation 投影 → Iced 删 5 个私有 fold 并让控件发 typed 意图、读 owner readback）与 b192 登记的验收一字未改 |
+| 7 | 完整 | L | 维度、记录与读各自只有一处实现；测试与被测代码同目录，新增 4 条用例把「通用读 == 命名访问器」写进断言，此后两个入口不可能各自漂移；`test-layout` / `mod-rs` / `import` 守卫全 0 |
+| 8 | 部分 | L | 开发期只跑受影响包（nextest 0.6s / clippy 20s），未触发全仓重编；尚未跑全仓统一验证批次（`--workspace` nextest/clippy 由收口批次一次跑完）；`--features capture-tools` 下 `tests/capture_marker_tests.rs` 的既有编译失败按 b154/b180 记录仍属他人欠账 |
+
+## 最近一批问答（2026-11-11 第一百九十四交付批次：`TRAFFICAUDIT-001` 域片 / 累加器收成一张索引）
+
+1. x86_64/aarch64：本批只改 `crates/infiltrator-domain/src` 的两个文件（`traffic_audit.rs` 与其测试、`connection_view.rs` 的一条 trait 默认实现），零平台 API、零 wire；`cargo nextest run -p infiltrator-domain` **625/625**、`cargo clippy -p infiltrator-domain --all-targets -- -D warnings` exit 0 为 `L`。交叉构建与 aarch64 目标产物未变，仍由 CI / 设备矩阵补证 → 部分（L）。
+2. Windows/Linux/macOS：本机 Linux 完成 nextest、clippy、fmt 与五条相关守卫（line / import / typed-state / core-boundary / mod-rs / test-layout）复核；本批无平台相关改动，Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
+3. Android/iOS：不触三端代码、资源与 wire；域层枚举变化不出现在任何 wire/快照序列化面上（累加器无消费者、无持久化写入者），没有本批实机回执可声称 → 部分（L）。
+4. 各 UI：本批不碰任何 UI 文件，两个控件的死状态与 b192 完全一致（`iced-dead-input-guard` 台账仍 2 条、`--mode enforce` findings=0）；域层新增的 `Device` 维与通用读正是接它们的前置 → 部分（L）。
+5. 复用：一个事实只剩一处实现——维度是值（`TrafficDimension`）、记录是一层循环（`FlowEvent::attributions()`）、读是一组通用方法，原命名访问器是薄委托而不是第二份逻辑；`prune_older_than` / `clear` 从 15 条语句收成 3 条；没有保留任何私有旧路径 → 完整（L）。
+5a. 设计资源强制标准：本批无字体 / 字重 / 图标族 / 视觉资产与像素变化（`receipt-freshness 0`、无需重采），无身份回执要取；Bevy 浅色像素回执依旧缺席（其矩阵没有浅色帧且正由另一会话重写），本项仍记「部分」 → 部分（L）。
+6. 各处界面的功能接入：诚实边界写清——本片只到域层，累加器仍无消费者、两个控件仍是死的、`with_device` 还没被喂；`TRAFFICAUDIT-001` 据实由 `Planned` 改 `InProgress`，剩余三步（application 喂数 → presentation 投影 → Iced 删 5 个私有 fold 并让控件发 typed 意图、读 owner readback）与 b192 登记的验收一字未改 → 部分（L）。
+7. 模块化：维度、记录与读各自只有一处实现，测试与被测代码同目录（`traffic_audit_test.rs`），`test-layout-guard` / `mod-rs-guard` / `import-guard` 全 0；新增的 4 条用例把「通用读 == 命名访问器」写进断言，此后两个入口不可能各自漂移 → 完整（L）。
+8. CI 与批次效率：开发期只跑 `infiltrator-domain` 一个包（nextest 0.6s、clippy 20s），未触发全仓重编；**未跑全仓统一验证批次**（`--workspace` nextest/clippy 由收口批次一次跑完）；`--features capture-tools` 下 `tests/capture_marker_tests.rs` 的既有编译失败按 b154/b180 记录仍属他人欠账 → 部分（L）。
 
 ## 最近一批问答（2026-11-11 第一百九十三交付批次：同一张国旗回执第四次到达 / 判据从结论变可量）
 

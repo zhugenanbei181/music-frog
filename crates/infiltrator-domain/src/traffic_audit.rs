@@ -261,6 +261,7 @@ pub struct FlowEvent {
     pub group: Option<String>,
     pub domain: Option<String>,
     pub country_code: Option<String>,
+    pub device: Option<String>,
     pub route: AuditRouteType,
     pub reject_reason: Option<AuditRejectReason>,
     pub upload_bytes: u64,
@@ -278,6 +279,7 @@ impl FlowEvent {
             group: None,
             domain: None,
             country_code: None,
+            device: None,
             route,
             reject_reason: None,
             upload_bytes,
@@ -317,6 +319,37 @@ impl FlowEvent {
         self
     }
 
+    /// Attaches the source address the flow came from.
+    ///
+    /// The address is the fact; the label a reader sees for the local machine
+    /// belongs to presentation, so this stores what was reported (an empty
+    /// string means "not reported" and attributes nothing).
+    pub fn with_device(mut self, device: impl Into<String>) -> Self {
+        let device = device.into();
+        let trimmed = device.trim();
+        self.device = (!trimmed.is_empty()).then(|| trimmed.to_string());
+        self
+    }
+
+    /// Every `(dimension, entity)` this flow is attributed to.
+    ///
+    /// One list, so recording a flow is one loop instead of one hand-written
+    /// block per dimension, and a dimension cannot be forgotten by the next
+    /// flow source.
+    pub fn attributions(&self) -> Vec<(TrafficDimension, String)> {
+        [
+            (TrafficDimension::Process, self.process.as_ref()),
+            (TrafficDimension::Node, self.node.as_ref()),
+            (TrafficDimension::Group, self.group.as_ref()),
+            (TrafficDimension::Domain, self.domain.as_ref()),
+            (TrafficDimension::Country, self.country_code.as_ref()),
+            (TrafficDimension::Device, self.device.as_ref()),
+        ]
+        .into_iter()
+        .filter_map(|(dimension, entity)| entity.cloned().map(|entity| (dimension, entity)))
+        .collect()
+    }
+
     /// Attaches reject reason when route is Reject.
     pub fn with_reject_reason(mut self, reason: AuditRejectReason) -> Self {
         self.reject_reason = Some(reason);
@@ -336,30 +369,41 @@ impl FlowEvent {
     }
 }
 
-/// A timeseries traffic accumulator recording per-process, per-node, per-group,
-/// per-domain, and per-country hourly and daily traffic statistics with comprehensive reporting.
+/// The entity family a flow is attributed to.
+///
+/// The accumulator used to carry one `HashMap` family per dimension - five
+/// near-identical hourly maps, five daily maps and five lifetime summaries -
+/// so recording one flow repeated the same three insertions five times, and a
+/// sixth dimension (the device a connection came from, which the surface's
+/// dimension selector already offers) meant six more fields. The dimension is
+/// a value now: one enum variant plus the label the caller supplies.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TrafficDimension {
+    /// Originating process (display name).
+    Process,
+    /// Outbound node the traffic left through.
+    Node,
+    /// Policy group that selected the node.
+    Group,
+    /// Target host.
+    Domain,
+    /// Destination ISO country code.
+    Country,
+    /// Source address the connection came from (`127.0.0.1` for this machine).
+    Device,
+}
+
+/// A timeseries traffic accumulator recording per-dimension hourly and daily
+/// statistics with comprehensive reporting.
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct TrafficAuditAccumulator {
-    // Hourly buckets: ((Entity Name, Hour Bucket Timestamp), TrafficStats)
-    process_hourly: HashMap<(String, u64), TrafficStats>,
-    node_hourly: HashMap<(String, u64), TrafficStats>,
-    group_hourly: HashMap<(String, u64), TrafficStats>,
-    domain_hourly: HashMap<(String, u64), TrafficStats>,
-    country_hourly: HashMap<(String, u64), TrafficStats>,
+    /// Hourly buckets keyed by `(dimension, entity, hour bucket start)`.
+    hourly: HashMap<(TrafficDimension, String, u64), TrafficStats>,
+    /// Daily buckets keyed by `(dimension, entity, day bucket start)`.
+    daily: HashMap<(TrafficDimension, String, u64), TrafficStats>,
+    /// Lifetime per-entity summaries.
+    totals: HashMap<(TrafficDimension, String), TrafficStats>,
 
-    // Daily buckets: ((Entity Name, Day Bucket Timestamp), TrafficStats)
-    process_daily: HashMap<(String, u64), TrafficStats>,
-    node_daily: HashMap<(String, u64), TrafficStats>,
-    group_daily: HashMap<(String, u64), TrafficStats>,
-    domain_daily: HashMap<(String, u64), TrafficStats>,
-    country_daily: HashMap<(String, u64), TrafficStats>,
-
-    // Lifetime entity summaries
-    process_totals: HashMap<String, TrafficStats>,
-    node_totals: HashMap<String, TrafficStats>,
-    group_totals: HashMap<String, TrafficStats>,
-    domain_totals: HashMap<String, TrafficStats>,
-    country_totals: HashMap<String, TrafficStats>,
     route_totals: HashMap<AuditRouteType, TrafficStats>,
     reject_reason_totals: HashMap<AuditRejectReason, TrafficStats>,
 
@@ -397,82 +441,19 @@ impl TrafficAuditAccumulator {
                 .record(up, down, pkts);
         }
 
-        // Record Process Dimensions
-        if let Some(ref proc) = event.process {
-            self.process_hourly
-                .entry((proc.clone(), hour_bucket))
+        // One loop over the typed attributions: the dimension is a value, so a
+        // flow cannot be counted in five places and silently not in the sixth.
+        for (dimension, entity) in event.attributions() {
+            self.hourly
+                .entry((dimension, entity.clone(), hour_bucket))
                 .or_default()
                 .record(up, down, pkts);
-            self.process_daily
-                .entry((proc.clone(), day_bucket))
+            self.daily
+                .entry((dimension, entity.clone(), day_bucket))
                 .or_default()
                 .record(up, down, pkts);
-            self.process_totals
-                .entry(proc.clone())
-                .or_default()
-                .record(up, down, pkts);
-        }
-
-        // Record Node Dimensions
-        if let Some(ref nd) = event.node {
-            self.node_hourly
-                .entry((nd.clone(), hour_bucket))
-                .or_default()
-                .record(up, down, pkts);
-            self.node_daily
-                .entry((nd.clone(), day_bucket))
-                .or_default()
-                .record(up, down, pkts);
-            self.node_totals
-                .entry(nd.clone())
-                .or_default()
-                .record(up, down, pkts);
-        }
-
-        // Record Group Dimensions
-        if let Some(ref grp) = event.group {
-            self.group_hourly
-                .entry((grp.clone(), hour_bucket))
-                .or_default()
-                .record(up, down, pkts);
-            self.group_daily
-                .entry((grp.clone(), day_bucket))
-                .or_default()
-                .record(up, down, pkts);
-            self.group_totals
-                .entry(grp.clone())
-                .or_default()
-                .record(up, down, pkts);
-        }
-
-        // Record Domain Dimensions
-        if let Some(ref dom) = event.domain {
-            self.domain_hourly
-                .entry((dom.clone(), hour_bucket))
-                .or_default()
-                .record(up, down, pkts);
-            self.domain_daily
-                .entry((dom.clone(), day_bucket))
-                .or_default()
-                .record(up, down, pkts);
-            self.domain_totals
-                .entry(dom.clone())
-                .or_default()
-                .record(up, down, pkts);
-        }
-
-        // Record Country Dimensions
-        if let Some(ref cc) = event.country_code {
-            self.country_hourly
-                .entry((cc.clone(), hour_bucket))
-                .or_default()
-                .record(up, down, pkts);
-            self.country_daily
-                .entry((cc.clone(), day_bucket))
-                .or_default()
-                .record(up, down, pkts);
-            self.country_totals
-                .entry(cc.clone())
+            self.totals
+                .entry((dimension, entity))
                 .or_default()
                 .record(up, down, pkts);
         }
@@ -497,39 +478,53 @@ impl TrafficAuditAccumulator {
         self.record_flow(&event);
     }
 
-    /// Returns top processes sorted by total traffic volume in descending order.
-    pub fn top_processes_by_traffic(&self, limit: usize) -> Vec<(String, u64)> {
-        Self::rank_entities(&self.process_totals, limit)
-    }
-
-    /// Returns top outbound nodes sorted by total traffic volume in descending order.
-    pub fn top_nodes_by_traffic(&self, limit: usize) -> Vec<(String, u64)> {
-        Self::rank_entities(&self.node_totals, limit)
-    }
-
-    /// Returns top rule groups sorted by total traffic volume in descending order.
-    pub fn top_groups_by_traffic(&self, limit: usize) -> Vec<(String, u64)> {
-        Self::rank_entities(&self.group_totals, limit)
-    }
-
-    /// Returns top target domains sorted by total traffic volume in descending order.
-    pub fn top_domains_by_traffic(&self, limit: usize) -> Vec<(String, u64)> {
-        Self::rank_entities(&self.domain_totals, limit)
-    }
-
-    /// Returns top countries sorted by total traffic volume in descending order.
-    pub fn top_countries_by_traffic(&self, limit: usize) -> Vec<(String, u64)> {
-        Self::rank_entities(&self.country_totals, limit)
-    }
-
-    fn rank_entities(totals: &HashMap<String, TrafficStats>, limit: usize) -> Vec<(String, u64)> {
-        let mut list: Vec<(String, u64)> = totals
+    /// The top entities of one dimension by total traffic, descending.
+    ///
+    /// Ties break on the entity name so a surface's ranking is stable across
+    /// refreshes instead of following hash order.
+    pub fn top(&self, dimension: TrafficDimension, limit: usize) -> Vec<(String, u64)> {
+        let mut list: Vec<(String, u64)> = self
+            .totals
             .iter()
-            .map(|(k, stats)| (k.clone(), stats.total_bytes()))
+            .filter(|((entry_dimension, _), _)| *entry_dimension == dimension)
+            .map(|((_, entity), stats)| (entity.clone(), stats.total_bytes()))
             .collect();
         list.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
         list.truncate(limit);
         list
+    }
+
+    /// Returns top processes sorted by total traffic volume in descending order.
+    pub fn top_processes_by_traffic(&self, limit: usize) -> Vec<(String, u64)> {
+        self.top(TrafficDimension::Process, limit)
+    }
+
+    /// Returns top outbound nodes sorted by total traffic volume in descending order.
+    pub fn top_nodes_by_traffic(&self, limit: usize) -> Vec<(String, u64)> {
+        self.top(TrafficDimension::Node, limit)
+    }
+
+    /// Returns top rule groups sorted by total traffic volume in descending order.
+    pub fn top_groups_by_traffic(&self, limit: usize) -> Vec<(String, u64)> {
+        self.top(TrafficDimension::Group, limit)
+    }
+
+    /// Returns top target domains sorted by total traffic volume in descending order.
+    pub fn top_domains_by_traffic(&self, limit: usize) -> Vec<(String, u64)> {
+        self.top(TrafficDimension::Domain, limit)
+    }
+
+    /// Returns top countries sorted by total traffic volume in descending order.
+    pub fn top_countries_by_traffic(&self, limit: usize) -> Vec<(String, u64)> {
+        self.top(TrafficDimension::Country, limit)
+    }
+
+    /// Returns the source addresses ranked by total traffic, descending.
+    ///
+    /// The addresses are the fact; the label a reader sees for this machine
+    /// belongs to presentation.
+    pub fn top_devices_by_traffic(&self, limit: usize) -> Vec<(String, u64)> {
+        self.top(TrafficDimension::Device, limit)
     }
 
     /// Computes the ratio of Direct Bypass traffic vs Proxied traffic: `(bypass_ratio, proxied_ratio)`.
@@ -588,29 +583,65 @@ impl TrafficAuditAccumulator {
         self.rate_estimator.peak_mbps()
     }
 
+    /// The lifetime stats of one entity of one dimension, when it was seen.
+    pub fn stats_of(&self, dimension: TrafficDimension, entity: &str) -> Option<TrafficStats> {
+        self.totals.get(&(dimension, entity.to_string())).copied()
+    }
+
     /// Retrieves lifetime traffic metrics for a specific process.
     pub fn get_process_traffic(&self, process: &str) -> Option<TrafficStats> {
-        self.process_totals.get(process).copied()
+        self.stats_of(TrafficDimension::Process, process)
     }
 
     /// Retrieves lifetime traffic metrics for a specific outbound node.
     pub fn get_node_traffic(&self, node: &str) -> Option<TrafficStats> {
-        self.node_totals.get(node).copied()
+        self.stats_of(TrafficDimension::Node, node)
     }
 
     /// Retrieves lifetime traffic metrics for a specific rule group.
     pub fn get_group_traffic(&self, group: &str) -> Option<TrafficStats> {
-        self.group_totals.get(group).copied()
+        self.stats_of(TrafficDimension::Group, group)
     }
 
     /// Retrieves lifetime traffic metrics for a specific domain.
     pub fn get_domain_traffic(&self, domain: &str) -> Option<TrafficStats> {
-        self.domain_totals.get(domain).copied()
+        self.stats_of(TrafficDimension::Domain, domain)
     }
 
     /// Retrieves lifetime traffic metrics for a specific country code.
     pub fn get_country_traffic(&self, country: &str) -> Option<TrafficStats> {
-        self.country_totals.get(country).copied()
+        self.stats_of(TrafficDimension::Country, country)
+    }
+
+    /// Retrieves lifetime traffic metrics for a specific source address.
+    pub fn get_device_traffic(&self, device: &str) -> Option<TrafficStats> {
+        self.stats_of(TrafficDimension::Device, device)
+    }
+
+    /// Hourly buckets of one entity inside `[start, end]`, ordered by bucket.
+    ///
+    /// The same read serves every dimension; a surface that shows one hour, one
+    /// day, one week or thirty days asks this for the window it wants instead
+    /// of the accumulator carrying one accessor per pair.
+    pub fn hourly_series(
+        &self,
+        dimension: TrafficDimension,
+        entity: &str,
+        start: u64,
+        end: u64,
+    ) -> Vec<(u64, TrafficStats)> {
+        Self::filter_series(&self.hourly, dimension, entity, start, end)
+    }
+
+    /// Daily buckets of one entity inside `[start, end]`, ordered by bucket.
+    pub fn daily_series(
+        &self,
+        dimension: TrafficDimension,
+        entity: &str,
+        start: u64,
+        end: u64,
+    ) -> Vec<(u64, TrafficStats)> {
+        Self::filter_series(&self.daily, dimension, entity, start, end)
     }
 
     /// Returns hourly timeseries metrics for a process within `[start_hour, end_hour]`.
@@ -620,7 +651,7 @@ impl TrafficAuditAccumulator {
         start_hour: u64,
         end_hour: u64,
     ) -> Vec<(u64, TrafficStats)> {
-        Self::filter_series(&self.process_hourly, process, start_hour, end_hour)
+        self.hourly_series(TrafficDimension::Process, process, start_hour, end_hour)
     }
 
     /// Returns daily timeseries metrics for an outbound node within `[start_day, end_day]`.
@@ -630,7 +661,7 @@ impl TrafficAuditAccumulator {
         start_day: u64,
         end_day: u64,
     ) -> Vec<(u64, TrafficStats)> {
-        Self::filter_series(&self.node_daily, node, start_day, end_day)
+        self.daily_series(TrafficDimension::Node, node, start_day, end_day)
     }
 
     /// Returns hourly timeseries metrics for a domain within `[start_hour, end_hour]`.
@@ -640,19 +671,25 @@ impl TrafficAuditAccumulator {
         start_hour: u64,
         end_hour: u64,
     ) -> Vec<(u64, TrafficStats)> {
-        Self::filter_series(&self.domain_hourly, domain, start_hour, end_hour)
+        self.hourly_series(TrafficDimension::Domain, domain, start_hour, end_hour)
     }
 
     fn filter_series(
-        buckets: &HashMap<(String, u64), TrafficStats>,
+        buckets: &HashMap<(TrafficDimension, String, u64), TrafficStats>,
+        dimension: TrafficDimension,
         entity: &str,
         start: u64,
         end: u64,
     ) -> Vec<(u64, TrafficStats)> {
         let mut series: Vec<_> = buckets
             .iter()
-            .filter(|((e, ts), _)| e == entity && *ts >= start && *ts <= end)
-            .map(|((_, ts), stats)| (*ts, *stats))
+            .filter(|((bucket_dimension, bucket_entity, ts), _)| {
+                *bucket_dimension == dimension
+                    && bucket_entity == entity
+                    && *ts >= start
+                    && *ts <= end
+            })
+            .map(|((_, _, ts), stats)| (*ts, *stats))
             .collect();
         series.sort_by_key(|(ts, _)| *ts);
         series
@@ -663,41 +700,10 @@ impl TrafficAuditAccumulator {
         let hour_cutoff = cutoff_secs - (cutoff_secs % 3600);
         let day_cutoff = cutoff_secs - (cutoff_secs % 86400);
 
-        let initial = self.process_hourly.len()
-            + self.node_hourly.len()
-            + self.group_hourly.len()
-            + self.domain_hourly.len()
-            + self.country_hourly.len()
-            + self.process_daily.len()
-            + self.node_daily.len()
-            + self.group_daily.len()
-            + self.domain_daily.len()
-            + self.country_daily.len();
-
-        self.process_hourly.retain(|(_, h), _| *h >= hour_cutoff);
-        self.node_hourly.retain(|(_, h), _| *h >= hour_cutoff);
-        self.group_hourly.retain(|(_, h), _| *h >= hour_cutoff);
-        self.domain_hourly.retain(|(_, h), _| *h >= hour_cutoff);
-        self.country_hourly.retain(|(_, h), _| *h >= hour_cutoff);
-
-        self.process_daily.retain(|(_, d), _| *d >= day_cutoff);
-        self.node_daily.retain(|(_, d), _| *d >= day_cutoff);
-        self.group_daily.retain(|(_, d), _| *d >= day_cutoff);
-        self.domain_daily.retain(|(_, d), _| *d >= day_cutoff);
-        self.country_daily.retain(|(_, d), _| *d >= day_cutoff);
-
-        let remaining = self.process_hourly.len()
-            + self.node_hourly.len()
-            + self.group_hourly.len()
-            + self.domain_hourly.len()
-            + self.country_hourly.len()
-            + self.process_daily.len()
-            + self.node_daily.len()
-            + self.group_daily.len()
-            + self.domain_daily.len()
-            + self.country_daily.len();
-
-        initial.saturating_sub(remaining)
+        let initial = self.hourly.len() + self.daily.len();
+        self.hourly.retain(|(_, _, hour), _| *hour >= hour_cutoff);
+        self.daily.retain(|(_, _, day), _| *day >= day_cutoff);
+        initial.saturating_sub(self.hourly.len() + self.daily.len())
     }
 
     /// Generates standard Prometheus metrics string for telemetry monitoring.
@@ -752,26 +758,15 @@ impl TrafficAuditAccumulator {
             top_nodes: self.top_nodes_by_traffic(10),
             top_domains: self.top_domains_by_traffic(10),
             top_countries: self.top_countries_by_traffic(10),
+            top_devices: self.top_devices_by_traffic(10),
         }
     }
 
     /// Clears all recorded statistics.
     pub fn clear(&mut self) {
-        self.process_hourly.clear();
-        self.node_hourly.clear();
-        self.group_hourly.clear();
-        self.domain_hourly.clear();
-        self.country_hourly.clear();
-        self.process_daily.clear();
-        self.node_daily.clear();
-        self.group_daily.clear();
-        self.domain_daily.clear();
-        self.country_daily.clear();
-        self.process_totals.clear();
-        self.node_totals.clear();
-        self.group_totals.clear();
-        self.domain_totals.clear();
-        self.country_totals.clear();
+        self.hourly.clear();
+        self.daily.clear();
+        self.totals.clear();
         self.route_totals.clear();
         self.reject_reason_totals.clear();
         self.rate_estimator.reset();
@@ -790,6 +785,7 @@ pub struct TrafficAuditSnapshot {
     pub top_nodes: Vec<(String, u64)>,
     pub top_domains: Vec<(String, u64)>,
     pub top_countries: Vec<(String, u64)>,
+    pub top_devices: Vec<(String, u64)>,
 }
 
 fn current_unix_secs() -> u64 {

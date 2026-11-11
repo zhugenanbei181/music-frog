@@ -225,3 +225,156 @@ fn test_clear_and_empty() {
     assert!(auditor.top_processes_by_traffic(1).is_empty());
     assert_eq!(auditor.total_traffic_bytes(), 0);
 }
+
+#[test]
+fn one_index_serves_every_dimension() {
+    let mut auditor = TrafficAuditAccumulator::new();
+    let base_time = 1_700_000_000;
+    auditor.record_flow(
+        &FlowEvent::new(AuditRouteType::Proxied, 1000, 4000)
+            .with_process("chrome")
+            .with_node("HK-01")
+            .with_group("AutoSelect")
+            .with_domain("github.com")
+            .with_country("HK")
+            .with_device("127.0.0.1")
+            .with_packets(20)
+            .with_timestamp(base_time),
+    );
+
+    // The named accessors delegate to the generic read, so the two must agree
+    // for every dimension the accumulator records.
+    assert_eq!(
+        auditor.top(TrafficDimension::Process, 5),
+        auditor.top_processes_by_traffic(5)
+    );
+    assert_eq!(
+        auditor.top(TrafficDimension::Node, 5),
+        auditor.top_nodes_by_traffic(5)
+    );
+    assert_eq!(
+        auditor.top(TrafficDimension::Group, 5),
+        auditor.top_groups_by_traffic(5)
+    );
+    assert_eq!(
+        auditor.top(TrafficDimension::Domain, 5),
+        auditor.top_domains_by_traffic(5)
+    );
+    assert_eq!(
+        auditor.top(TrafficDimension::Country, 5),
+        auditor.top_countries_by_traffic(5)
+    );
+    assert_eq!(
+        auditor.top(TrafficDimension::Device, 5),
+        vec![("127.0.0.1".to_string(), 5000)]
+    );
+
+    assert_eq!(
+        auditor
+            .stats_of(TrafficDimension::Device, "127.0.0.1")
+            .map(|stats| stats.total_bytes()),
+        Some(5000)
+    );
+    assert_eq!(
+        auditor.get_device_traffic("127.0.0.1"),
+        auditor.stats_of(TrafficDimension::Device, "127.0.0.1")
+    );
+    assert_eq!(
+        auditor.get_process_traffic("chrome"),
+        auditor.stats_of(TrafficDimension::Process, "chrome")
+    );
+
+    // The dimensions stay separate: a device name is not a process name.
+    assert_eq!(auditor.top_processes_by_traffic(5).len(), 1);
+    assert_eq!(auditor.top_devices_by_traffic(5).len(), 1);
+}
+
+#[test]
+fn a_flow_carries_exactly_the_dimensions_it_reported() {
+    let event = FlowEvent::new(AuditRouteType::Proxied, 1, 1)
+        .with_process("chrome")
+        .with_country("HK")
+        .with_device("127.0.0.1");
+    assert_eq!(
+        event.attributions(),
+        vec![
+            (TrafficDimension::Process, "chrome".to_string()),
+            (TrafficDimension::Country, "HK".to_string()),
+            (TrafficDimension::Device, "127.0.0.1".to_string()),
+        ]
+    );
+}
+
+// A source address the collector did not report is not an entity. The
+// accumulator used to have one hand-written block per dimension, where "no
+// address" could only be expressed by a branch; the dimension list makes the
+// absence explicit, and this is the test that keeps it that way.
+#[test]
+fn a_device_that_was_not_reported_attributes_nothing() {
+    let mut auditor = TrafficAuditAccumulator::new();
+    let event = FlowEvent::new(AuditRouteType::Proxied, 10, 20)
+        .with_process("chrome")
+        .with_device("   ");
+    assert!(
+        !event
+            .attributions()
+            .iter()
+            .any(|(dimension, _)| *dimension == TrafficDimension::Device)
+    );
+
+    auditor.record_flow(&event);
+    assert!(auditor.top_devices_by_traffic(5).is_empty());
+    assert!(auditor.get_device_traffic("   ").is_none());
+    assert!(auditor.get_device_traffic("").is_none());
+    assert_eq!(auditor.top_processes_by_traffic(5).len(), 1);
+}
+
+#[test]
+fn the_series_window_is_one_read_for_every_dimension() {
+    let mut auditor = TrafficAuditAccumulator::new();
+    let hour_1 = 3600 * 10;
+    let hour_2 = 3600 * 11;
+    let day_1 = 86_400;
+
+    auditor.record_flow(
+        &FlowEvent::new(AuditRouteType::Proxied, 100, 200)
+            .with_process("chrome")
+            .with_node("Node-1")
+            .with_device("10.0.0.2")
+            .with_packets(2)
+            .with_timestamp(hour_1 + 50),
+    );
+    auditor.record_flow(
+        &FlowEvent::new(AuditRouteType::Proxied, 300, 400)
+            .with_process("chrome")
+            .with_node("Node-1")
+            .with_device("10.0.0.2")
+            .with_packets(4)
+            .with_timestamp(hour_2 + 100),
+    );
+
+    assert_eq!(
+        auditor.hourly_series(TrafficDimension::Process, "chrome", hour_1, hour_2),
+        auditor.get_process_hourly_series("chrome", hour_1, hour_2)
+    );
+    assert_eq!(
+        auditor.hourly_series(TrafficDimension::Device, "10.0.0.2", hour_1, hour_2),
+        auditor.get_process_hourly_series("chrome", hour_1, hour_2)
+    );
+    assert_eq!(
+        auditor.daily_series(TrafficDimension::Node, "Node-1", day_1, day_1 + 86_400),
+        auditor.get_node_daily_series("Node-1", day_1, day_1 + 86_400)
+    );
+
+    // A window that excludes the buckets reads nothing, for every dimension.
+    assert!(
+        auditor
+            .hourly_series(
+                TrafficDimension::Device,
+                "10.0.0.2",
+                hour_2 + 3600,
+                hour_2 + 7200
+            )
+            .is_empty()
+    );
+}
