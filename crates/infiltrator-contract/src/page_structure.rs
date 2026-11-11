@@ -79,7 +79,9 @@ pub fn shape_for_slug(slug: &str) -> Option<PageShape> {
 /// limits. This JSON is the exported truth, and the judge reads it instead
 /// of hard-coding a number.
 ///
-/// Version 10 adds the closed `sidebar_variants` table, so a user-owned
+/// Version 11 exports the navigation-column caps next to the page-shape caps,
+/// so the judge no longer keeps a private copy of either limit. Version 10
+/// added the closed `sidebar_variants` table, so a user-owned
 /// collapsed preference is never re-derived by a surface or the judge. Version
 /// 5 added `nav_stack_bottom_px`; version 4 published seven chrome keys and
 /// left the judge to guess where the nav stack ended from a fraction of the
@@ -136,9 +138,10 @@ pub fn page_structure_json() -> String {
     })
     .collect();
     format!(
-        "{{\"version\":10,\"dashboard_columns\":{},\"dashboard_density\":{},\"pages\":[{}],\"slugs\":[{}],\"tiers\":{},\"sidebar_variants\":{},\"navigation_separators\":{},\"chrome_keys\":{}}}\n",
+        "{{\"version\":11,\"dashboard_columns\":{},\"dashboard_density\":{},\"navigation_limits\":{},\"pages\":[{}],\"slugs\":[{}],\"tiers\":{},\"sidebar_variants\":{},\"navigation_separators\":{},\"chrome_keys\":{}}}\n",
         dashboard_columns_json(),
         dashboard_density_json(),
+        navigation_limits_json(),
         pages.join(","),
         slugs.join(","),
         tiers_json(),
@@ -159,6 +162,16 @@ pub fn chrome_marker_keys() -> Vec<&'static str> {
 
 fn chrome_keys_json() -> String {
     serde_json::to_string(&chrome_marker_keys()).expect("the chrome keys are plain strings")
+}
+
+/// The navigation-column caps, exported so the judge does not keep a private
+/// copy of the limits it enforces. Both numbers belong to the same contract
+/// that owns the page-shape caps.
+fn navigation_limits_json() -> String {
+    format!(
+        "{{\"chrome_band_limit_pct\":{},\"void_limit_pct\":{}}}",
+        NAV_CHROME_BAND_LIMIT_PCT, NAV_VOID_LIMIT_PCT
+    )
 }
 
 /// The dashboard's two column semantics and the one width rule that splits
@@ -312,6 +325,15 @@ pub const FRAMED_PAGE_GROUND_LIMIT_PCT: f64 = 4.0;
 
 /// A dense page is a card grid; only a card's own trailing air counts.
 pub const DENSE_PAGE_GROUND_LIMIT_PCT: f64 = 12.0;
+
+/// The navigation column is navigation only: no status card, brand tile or
+/// version line may live below the destination stack. The FlClash desktop
+/// reference paints only destination rows, so the cap is zero.
+pub const NAV_CHROME_BAND_LIMIT_PCT: f64 = 0.0;
+
+/// The largest dead band allowed between destination rows, as a share of the
+/// window height. Stretch air belongs at the end of the stack, not inside it.
+pub const NAV_VOID_LIMIT_PCT: f64 = 12.0;
 
 /// The ground limit for one page shape.
 pub const fn ground_limit(structure: PageStructure) -> f64 {
@@ -584,7 +606,7 @@ mod tests {
     fn the_exported_document_carries_the_ladder() {
         let json = page_structure_json();
         let document: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
-        assert_eq!(document["version"], 10);
+        assert_eq!(document["version"], 11);
         // The chrome vocabulary travels with the ladder it describes, so a
         // reader that has the document already has the key list.
         assert_eq!(

@@ -168,6 +168,15 @@ ClashParty 折叠了 traffic/log 页），仍按 framed 4% 判定，b190 实测 
 | `chrome_band` | **0%** | FlClash 桌面侧栏实测只有导航行（边界 x=429，5 个行带 y89–579，下方无非导航区块）；统计数据全部属于仪表盘卡片 |
 | `void` | **12%** | stretch 空气必须留在栈尾，不得长在导航行之间；b164 起桌面四种导航形态统一由契约导出 `NavigationSeparator::None`，不画分组标题与它的额外上空气 |
 
+**b203 架构收口**：这两个数字此前只写在 L2 表格里、由判定器以
+`RAIL_CHROME_BAND_LIMIT` / `RAIL_VOID_LIMIT` 两个 Python 常量**私有镜像**执行，
+与「判定器不得保存第二份数字」的硬门相矛盾。现由
+`infiltrator-contract::page_structure` 的 `NAV_CHROME_BAND_LIMIT_PCT` /
+`NAV_VOID_LIMIT_PCT` 一处发布，经导出物 v11 的 `navigation_limits` 送达判定器；
+判定器 `rail_findings()` 逐帧只读导出，缺键或旧版导出直接拒判而不是回落到记住的数，
+`ladder_problems()` 与 `--check-export` 同时把这两个键列为导出新鲜度的一部分。
+planted 自测把导出 `void` 上限改成 0 实测会改变判定，证明执法确实随导出变化。
+
 侧栏形态与按钮可用性由 `page-structure.json` 的 `sidebar_variants` 16 行封闭表
 给定：`preference × tier × touch_surface` 唯一决定 `nav_form`、列宽、标签与
 `toggle_available`。b173 的折叠纯外壳帧（standard/compact 双视口）发布

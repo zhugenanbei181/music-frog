@@ -95,8 +95,6 @@ def surface_debt(surface: str) -> pathlib.Path:
 
 
 PAGE_STRUCTURE_FILE = ROOT / "crates/infiltrator-contract/assets/page-structure.json"
-RAIL_CHROME_BAND_LIMIT = 0.0
-RAIL_VOID_LIMIT = 12.0
 
 # The contract's own limits, mirrored here only so a planted self-test can
 # assert the judge read the exported table rather than a local number.
@@ -175,6 +173,10 @@ def ladder_problems() -> list[str]:
         # judge refuses rather than comparing against a remembered number.
         problems.append(
             "the exported ladder carries no nav_leading_limit_px; "
+            "rerun export_page_structure")
+    if not navigation_limits():
+        problems.append(
+            "page-structure.json carries no navigation_limits; "
             "rerun export_page_structure")
     for entry in tiers:
         limit = entry.get("nav_leading_limit_px")
@@ -492,6 +494,23 @@ def page_structures() -> dict[str, dict]:
         return {}
     document = json.loads(PAGE_STRUCTURE_FILE.read_text(encoding="utf-8"))
     return {entry["slug"]: entry for entry in document.get("slugs", [])}
+
+
+def navigation_limits() -> dict[str, float]:
+    """The exported navigation-column caps; no private copy in the judge.
+
+    The contract owns both numbers. An export that predates them, or that
+    drops one, cannot judge the rail at all rather than silently judging by
+    a remembered number.
+    """
+    document = json.loads(PAGE_STRUCTURE_FILE.read_text(encoding="utf-8"))
+    limits = document.get("navigation_limits")
+    if not isinstance(limits, dict):
+        return {}
+    keys = ("chrome_band_limit_pct", "void_limit_pct")
+    if any(key not in limits for key in keys):
+        return {}
+    return {key: float(limits[key]) for key in keys}
 
 
 def scenario_pages(run: pathlib.Path) -> dict[str, str]:
@@ -873,22 +892,28 @@ def rail_findings(results: list[dict], debt: dict) -> list[str]:
     columned = [entry for entry in results if "chrome_band_pct" in entry]
     if not columned:
         return found
+    limits = navigation_limits()
+    if not limits:
+        return ["page-structure.json carries no navigation_limits; "
+                "rerun export_page_structure"]
+    chrome_limit = limits["chrome_band_limit_pct"]
+    void_limit = limits["void_limit_pct"]
     worst_chrome = max((entry.get("chrome_band_pct", 0.0) for entry in columned))
     worst_void = max((entry.get("void_pct", 0.0) for entry in columned))
     allowed_chrome = float(registered.get("chrome_band_pct", 0.0))
     allowed_void = float(registered.get("void_pct", 0.0))
-    if worst_chrome > RAIL_CHROME_BAND_LIMIT:
+    if worst_chrome > chrome_limit:
         if worst_chrome > allowed_chrome:
             found.append(
                 f"rail: {worst_chrome}% of the rail height is non-navigation chrome, "
-                f"over the {RAIL_CHROME_BAND_LIMIT}% limit"
+                f"over the {chrome_limit}% limit"
                 + (f" and over its registered debt {allowed_chrome}%" if allowed_chrome else "")
             )
-    if worst_void > RAIL_VOID_LIMIT:
+    if worst_void > void_limit:
         if worst_void > allowed_void:
             found.append(
                 f"rail: the nav stack keeps a {worst_void}% void, over the "
-                f"{RAIL_VOID_LIMIT}% limit"
+                f"{void_limit}% limit"
                 + (f" and over its registered debt {allowed_void}%" if allowed_void else "")
             )
     return found
@@ -922,8 +947,11 @@ def report(results: list[dict], surface: str = SURFACE_SLINT) -> None:
     if columned:
         chrome = max(entry.get("chrome_band_pct", 0.0) for entry in columned)
         void = max(entry.get("void_pct", 0.0) for entry in columned)
-        print(f"\n=== rail: worst non-nav chrome {chrome}% (limit {RAIL_CHROME_BAND_LIMIT}%), "
-              f"worst nav void {void}% (limit {RAIL_VOID_LIMIT}%) ===")
+        limits = navigation_limits()
+        print(f"\n=== rail: worst non-nav chrome {chrome}% "
+              f"(limit {limits.get('chrome_band_limit_pct', 'missing')}%), "
+              f"worst nav void {void}% "
+              f"(limit {limits.get('void_limit_pct', 'missing')}%) ===")
     described = [entry for entry in results if entry.get("chrome")]
     print(f"\n=== chrome: {len(described)}/{len(results)} frames published their own "
           f"geometry; column "
@@ -1225,7 +1253,9 @@ class SelfTest(unittest.TestCase):
         self._nav_only_rail(image)
         _fill(image, 617, 712, 18, 210, CARD)
         entry = self.measure_one(image, chrome=_chrome(1180, 780))
-        self.assertGreater(entry["chrome_band_pct"], RAIL_CHROME_BAND_LIMIT, entry)
+        self.assertGreater(
+            entry["chrome_band_pct"],
+            navigation_limits()["chrome_band_limit_pct"], entry)
         self.assertNotEqual(rail_findings([entry], {"frames": {}, "rail": {}}), [])
 
     def test_a_navigation_only_rail_passes(self) -> None:
@@ -1242,7 +1272,9 @@ class SelfTest(unittest.TestCase):
             _fill(image, y + 12, y + 28, 34, 140, (213, 241, 248))
         _fill(image, 617, 712, 18, 210, (29, 33, 38))
         entry = self.measure_one(image)
-        self.assertGreater(entry["chrome_band_pct"], RAIL_CHROME_BAND_LIMIT, entry)
+        self.assertGreater(
+            entry["chrome_band_pct"],
+            navigation_limits()["chrome_band_limit_pct"], entry)
 
     def test_a_full_width_selected_row_is_not_dead_width(self) -> None:
         # Regression for the retired `pill_tail` metric: a full-width
@@ -1583,6 +1615,8 @@ class SelfTest(unittest.TestCase):
         planted = self._with_export({
             "version": 4, "pages": [], "slugs": [],
             "chrome_keys": CHROME_KEYS_FOR_TEST,
+            "navigation_limits": {"chrome_band_limit_pct": 0.0,
+                                  "void_limit_pct": 12.0},
             "tiers": [
                 {"id": "compact", "min_width_px": 0, "max_width_px": 500,
                  "nav_form": "bottom_nav", "nav_column_px": 0,
@@ -1631,6 +1665,8 @@ class SelfTest(unittest.TestCase):
         planted = self._with_export({
             "version": 4, "pages": [], "slugs": [],
             "chrome_keys": CHROME_KEYS_FOR_TEST,
+            "navigation_limits": {"chrome_band_limit_pct": 0.0,
+                                  "void_limit_pct": 12.0},
             "tiers": [
                 {"id": "compact", "min_width_px": 0, "max_width_px": 500,
                  "nav_form": "bottom_nav", "nav_column_px": 0,
@@ -1809,7 +1845,9 @@ class SelfTest(unittest.TestCase):
         self._icon_rail(image)
         _fill(image, 404, 463, 12, 52, CARD)
         entry = self.measure_one(image)
-        self.assertGreater(entry["chrome_band_pct"], RAIL_CHROME_BAND_LIMIT, entry)
+        self.assertGreater(
+            entry["chrome_band_pct"],
+            navigation_limits()["chrome_band_limit_pct"], entry)
         self.assertNotEqual(rail_findings([entry], {"frames": {}, "rail": {}}), [])
 
     def test_a_toast_over_the_icon_rail_is_window_overlay(self) -> None:
@@ -1836,6 +1874,25 @@ class SelfTest(unittest.TestCase):
             self.assertEqual(
                 fact["touch_nav_form"], "bottom_nav",
                 "a touch surface navigates with a bar at every width")
+
+    def test_the_rail_caps_come_from_the_export(self) -> None:
+        global PAGE_STRUCTURE_FILE
+        # A planted export that tightens the void cap must change enforcement;
+        # otherwise the judge is still comparing against a remembered number.
+        image = _canvas(720, 480)
+        self._icon_rail(image)
+        entry = self.measure_one(image)
+        debt = {"frames": {}, "rail": {}}
+        self.assertEqual(rail_findings([entry], debt), [], entry)
+        original = PAGE_STRUCTURE_FILE
+        document = json.loads(original.read_text(encoding="utf-8"))
+        document["navigation_limits"]["void_limit_pct"] = 0.0
+        planted = self._with_export(document)
+        PAGE_STRUCTURE_FILE = planted
+        try:
+            self.assertNotEqual(rail_findings([entry], debt), [], entry)
+        finally:
+            PAGE_STRUCTURE_FILE = original
 
 
 def self_test(argv: list[str] | None = None) -> int:
