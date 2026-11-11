@@ -1,4 +1,4 @@
-# MusicFrog 工程 TODO · 过去佛（9条待验证；归档见 [TODO.md](../TODO.md) 第一百零八批次）
+# MusicFrog 工程 TODO · 过去佛（10条待验证；归档见 [TODO.md](../TODO.md) 第一百零八批次）
 
 > 层级：L4
 
@@ -225,3 +225,17 @@
 ③ **像素与门**：诊断批 `20261111T205309Z_58a80f5286b1_dirty_2271974` 四帧复核标准 1180 档 4 列无文字裁切、720/400 档仍单列；整批 **199/199** 重采发布 run `20261111T205728Z_58a80f5286b1_dirty_2295244`（369s），仅 4 张 `proxies-{dark,light,forest,amoled}` 帧与 manifest 变化。`space_utilization --surface slint --enforce` 199 帧 **violations=0**、`receipt-freshness 0`、统一矩阵双表面一致、`screenshot-identity` 唯一红腿仍是另一会话未提交的 Bevy 像素别名。`--check-export` current、生成器 `--check` fresh、契约+Slint nextest **984/984**、定向 Clippy `--all-targets -D warnings`、`cargo fmt --all --check`、Slint 语法门 100%、`doc-governance` / `line` / `import` / `typed-state` / `implicit-state` 全 0。
 ④ **待验证范围**：统一批次复跑 `cargo nextest run --workspace`、全仓结构门与 `resolve_surface_evidence.py`；另一会话未提交的 Bevy `runtime-dark` / `overview-dark` 像素别名仍是全仓身份门唯一红腿，本条不负责该红腿。Iced / Bevy 的同一页宽规则接线仍待其文件所有权落地后由跨表面切片收口。
 ⑤ **证据身份**：Slint 199/199 发布 run `20261111T205728Z_58a80f5286b1_dirty_2295244`、诊断 run `20261111T205309Z_58a80f5286b1_dirty_2271974`、契约+Slint nextest **984/984**、`slint-viewport-tier-guard` **43/43** + enforce 0、空间门 0 违规、回执新鲜度 0。
+
+## 12.80 Iced 双网格消费共享页身宽（1条待验证）
+
+| ID | 状态 / 优先级 | points | owner | 依赖 |
+| --- | --- | --- | --- | --- |
+| `ICEDGRID-001` | `Integrated` / P1（b213 实测立项并交付，待统一批次办结） | 2 | infiltrator-contract（`page_body_width_px` / `ProfileGridForm` / v15 导出）+ infiltrator-iced（profiles / proxies 视图、CaptureSection、diagnostic capture 隔离）+ Slint 生成物与双表面回执 | `FLPROFILES-001` / `FLPROXY-001`（两条页宽规则先例）、`SPACEUTIL-005`（导出阶梯单一真源） |
+
+**`ICEDGRID-001` Iced 双网格消费共享页身宽（b213 交付，2 pt / P1 / `Integrated`）**：
+
+① **架构缺口**：b208 / b212 的 Profiles 与代理节点规则都要求「页身可用宽」，本仓却只有窗口宽、导航列宽、页边距三个分散事实；Iced 仍把配置卡叠成单列、代理节点按窗口档固定 3 列。另实测诊断批 `INFILTRATOR_CAPTURE_SCENARIOS` 会逐帧覆盖正式 PNG 并把 190 行 manifest 截成 4 行。
+② **自底向上收口**：契约新增 `ViewportTier::page_body_width_px(window_width)`，一处扣除导航列与双侧页边距；v15 导出 `profile_grid.forms` / `proxy_grid.forms`，新增 typed `ProfileGridForm::{Stacked, Desktop}`，生成器投影到 Slint，Iced 与 Slint 都按 `labelled_sidebar` 选形态。720×480 诊断证明 profiles 数值上能放 2 列却会把文本挤成竖排碎字，故轨/底栏档固定单列。Iced 新增 `CaptureSection::ProfilesGrid` 与 `profiles-grid-{standard,compact}` 两帧，把配置列表滚入真实视口；标准帧 2 列且卡高按内容收缩。捕获脚本引入 `PUBLISH_CORPUS=0`：过滤批与矩阵覆盖批只写 `.evidence`，完整 canonical 矩阵才发布图像与索引；`iced-observation-routes-guard` 加 planted 自测钉住这条隔离。
+③ **证据（L）**：契约+Slint+Iced nextest **1626/1626**、三包 Clippy `--all-targets -D warnings`、fmt；Iced **192/192**、Slint **199/199** 整批重采，`space_utilization --surface iced|slint --enforce` 均 0 违规、`receipt-freshness 0`、`--check-export` current、生成器 `--check` fresh、统一矩阵双表面一致；`slint-viewport-tier-guard` **45/45**、`iced-observation-routes-guard` **14/14**、`sidebar-expansion-owner-guard` **10/10**，doc/line/import/typed-state/implicit-state 全 0。
+④ **待验证范围**：统一批次复跑 `cargo nextest run --workspace`、全仓结构门与 `resolve_surface_evidence.py`；另一会话未提交的 Bevy `runtime-dark` / `overview-dark` 像素别名仍是全仓身份门唯一红腿。Bevy 的 Profiles / 代理网格仍消费 tier 查表，由 `FLPROFILES-002` 在其文件所有权落地后收口。
+⑤ **证据身份**：Iced 192/192 发布 run `20261111T220532Z_923ba4af7b2f_dirty_2656390`、Slint 199/199 发布 run `20261111T221050Z_923ba4af7b2f_dirty_2705566`、三包 nextest **1626/1626**、两个网格诊断批 `20261111T220101Z_923ba4af7b2f_dirty_2639332` / `20261111T220246Z_923ba4af7b2f_dirty_2649539`。

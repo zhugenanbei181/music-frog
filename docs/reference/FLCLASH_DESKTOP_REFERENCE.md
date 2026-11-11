@@ -619,3 +619,26 @@ runtime 页里的区块；本批只把卡栈缝收到预算内（`SP_LG` → `SP
 连续计算。因此 1180 标准帧从 3 列变 4 列，720 与 400 档仍单列，既不照抄 250 字面量
 进 UI，也不让「窗口档」冒充「页身可用宽」。Iced / Bevy 仍消费 tier 查表，跨表面接线
 由共享契约后续切片按文件所有权收口，本批不争写另一会话持有的 Bevy 文件。
+
+## 18. 页身宽只有一个 owner，Iced 接入双网格（b213）
+
+b208 的 Profiles 规则与 b212 的代理节点规则都要求「页身可用宽」，但本仓此前
+只有窗口宽、导航列宽、页边距三个分散事实，没有一条共享减法。b213 在
+`ViewportTier::page_body_width_px(window_width)` 一处发布：宽档扣掉侧栏列与
+双侧 `content_padding_px`，底栏档只扣页边距；Iced 的 Profiles / 代理节点网格和
+Slint 生成函数都消费同一结果，不再各自推导。
+
+真实诊断抓到一次「照抄公式会把页面做坏」：720×480 页身 608px 按 300dp 规则
+数值上能放 2 列，实测却把配置路径、按钮和标签挤成竖排碎字。故 v15 给
+`profile_grid` 也引入与代理页同构的 typed `ProfileGridForm::{Stacked, Desktop}`：
+带标签侧栏的桌面档按宽度算 1–3 列，底栏/图标轨档固定单列。Iced 新增
+`profiles-grid-{standard,compact}` 两帧，用 typed `CaptureSection::ProfilesGrid`
+把配置列表滚入视口；标准帧实测 2 列且卡高按内容收缩，720 帧单列无碎字。
+Slint 同步按 `labelled_sidebar` 选择形态，其 720 帧整批重采后不再挤成双列。
+
+同一批修掉 Iced 台架的一条真缺陷：`INFILTRATOR_CAPTURE_SCENARIOS` 过滤的
+诊断批此前会逐帧覆盖正式 PNG，最后把 190 行 manifest 截成 4 行。现在
+`PUBLISH_CORPUS=0` 令过滤批与矩阵覆盖批只写 `.evidence`，只有完整 canonical
+矩阵才发布图像与索引；`iced-observation-routes-guard.py` 加 planted 自测钉住
+「诊断能覆盖正式语料即违规」。这是回执管线本身的空间/身份正确性，不属放宽
+任何页面阈值。Bevy 仍消费 tier 查表，文件所有权落地后由跨表面切片收口。

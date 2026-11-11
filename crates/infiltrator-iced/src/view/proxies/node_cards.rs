@@ -1,6 +1,7 @@
 use super::*;
 use crate::view::theme;
 use iced::widget;
+use infiltrator_contract::responsive_viewport::{ProxyGridForm, proxy_node_columns};
 use infiltrator_presentation::proxies_page_model::proxy_protocol_chip;
 use lurker_core_contract::outbound::preferences::OutboundLayout;
 
@@ -113,9 +114,27 @@ impl NodeMetadata {
     }
 }
 
-/// 2-column grid of node cards for one expanded group. Column count follows
-/// the shared tier operator (1 / 2 / 3 / 4), or a single dense column while the
-/// user's compact-view preference is on.
+/// Grid of node cards for one expanded group. The count is the shared width
+/// rule's: the user's compact-view preference and every shell without a
+/// labelled column stack the cards, and a labelled desktop page divides its
+/// own body width by the exported 250dp floor.
+pub(crate) fn proxy_node_grid_columns(state: &AppState) -> (ProxyGridForm, usize) {
+    let tier = state.shell.viewport.tier;
+    let form = if state.runtime.proxies_model.layout() == OutboundLayout::CompactList
+        || !tier.has_labelled_sidebar()
+    {
+        ProxyGridForm::Stacked
+    } else {
+        ProxyGridForm::Desktop
+    };
+    let columns = proxy_node_columns(
+        form,
+        tier.page_body_width_px(state.shell.viewport.width_px.round() as u16),
+    )
+    .max(1) as usize;
+    (form, columns)
+}
+
 pub(super) fn node_grid<'a>(
     state: &'a AppState,
     group_name: &str,
@@ -130,12 +149,7 @@ pub(super) fn node_grid<'a>(
             .is_some_and(|group| group.current() == Some(member))
     };
 
-    let columns = state
-        .shell
-        .viewport
-        .tier
-        .proxy_grid_columns(state.runtime.proxies_model.layout() == OutboundLayout::CompactList)
-        .max(1);
+    let (_, columns) = proxy_node_grid_columns(state);
 
     let mut grid = widget::column![].spacing(theme::SP_SM);
     let mut cells = row![].spacing(theme::SP_SM);

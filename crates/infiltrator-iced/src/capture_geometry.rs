@@ -768,6 +768,10 @@ impl AppState {
                 InteractionRegion::SettingsAbout.id(),
                 Id::new(SETTINGS_SCROLL_ID),
             ),
+            CaptureSection::ProfilesGrid => (
+                InteractionRegion::ProfilesGrid.id(),
+                Id::new(PROFILES_SCROLL_ID),
+            ),
         };
         let probe = AlignSection {
             scroll_id: page_scroll,

@@ -24,19 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-12 第二百一十二批次；b111–b211 见下方批次八问摘要）
+## 当前状态（2026-11-12 第二百一十三批次；b111–b212 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b212 是共享页宽规则 + v14 导出 + Slint 代理页 199 帧重采，零平台 API / 零 wire；`--locked` contract+Slint nextest **984/984**、定向 clippy `--all-targets -D warnings`、`cargo fmt --all --check` 为 `L`。交叉架构与 aarch64 目标产物未复跑，仍由 CI / 设备矩阵补证（GAP-1.1） |
-| 2 | 部分 | L | 本机 Linux 完成两包定向测试 / clippy / fmt、Slint 199 帧整批重采、空间门与回执新鲜度；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）。FlClash 桌面条带差异仍归 `FLPARITY-050` |
-| 3 | 部分 | L | 未改 Android/iOS 代码、资源或 wire；`ProxyGridForm::Stacked` 保持底栏/手机档单列，已由 400×800 诊断帧复核，但没有实机回执 |
-| 4 | 部分 | L | Slint 代理节点网格消费 v14 `proxy_grid` 宽度规则；Iced 与 Bevy 仍消费 tier 查表，Bevy 文件由另一会话持有，本批按所有权纪律未接入 |
-| 5 | 完整 | L | 250dp 最小卡宽、32dp 页身边距与两列地板由 `responsive_viewport` 一处发布，v14 `proxy_grid` 导出、生成器与守卫共用 `page_structure_version.py` 一个版本 pin；旧无消费者 tier 查表同批退役，`slint-viewport-tier-guard` **43/43** + enforce 0 |
-| 5a | 部分 | L | 本批无字体 / 字重 / 图标族 / 视觉资产身份变化；4 张 `proxies-*` 标准/紧凑双视口真实像素回执随 199/199 整批重采，`space_utilization --surface slint --enforce` violations=0、`receipt-freshness 0`；Bevy 浅色像素回执仍缺席且另一会话的 `runtime-dark` / `overview-dark` 别名仍是全仓身份门唯一红腿，故本项按全局证据记「部分」 |
-| 6 | 部分 | L | 本批补齐 Slint 代理页宽度规则的 contract anchor、scenario anchor 与双视口像素；`resolve_surface_evidence.py` 未复跑，180 个 ready surface cells 仍缺 product-build receipts；跨表面 Iced/Bevy 接线未变 |
-| 7 | 完整 | L | 契约 typed `ProxyGridForm` → v14 导出 → 生成函数 → Slint 页面一条链完成；守卫对无人消费生成函数、私写 250/32、重命名词表可咬；`line` / `import` / `typed-state` / `implicit-state` / `doc-governance` / `closure-questions` 全 0 |
-| 8 | 部分 | L | 开发期只跑受影响两包测试与专属守卫；产出期一次 199 帧重采（369s）+ 空间门 + 全组 planted 自测；全仓 `--workspace` nextest / clippy、结构门全腿与 `resolve_surface_evidence.py` 仍留统一验证批次一次跑完 |
+| 1 | 部分 | L | b213 是共享页身宽 + v15 导出 + Iced/Slint 双网格与两台架回执修复，零平台 API / 零 wire；`--locked` contract+Slint+Iced nextest **1626/1626**、三包 Clippy `--all-targets -D warnings`、`cargo fmt --all --check` 为 `L`。交叉架构与 aarch64 目标产物未复跑，仍由 CI / 设备矩阵补证（GAP-1.1） |
+| 2 | 部分 | L | 本机 Linux 完成三包定向测试 / Clippy / fmt、Iced 192 + Slint 199 帧整批重采、双表面空间门与回执新鲜度；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）。FlClash 桌面条带差异仍归 `FLPARITY-050` |
+| 3 | 部分 | L | 未改 Android/iOS 代码、资源或 wire；两个 typed `Stacked` 形态保持底栏/轨档单列，已由 720×480 与 400×800 诊断帧复核，但没有实机回执 |
+| 4 | 部分 | L | Iced 的 Profiles / 代理节点网格与 Slint 双网格都消费 v15 页宽规则；Bevy 仍消费 tier 查表且文件由另一会话持有，本批按所有权纪律未接入 |
+| 5 | 完整 | L | 页身宽由 `ViewportTier::page_body_width_px` 一处发布，250/300dp 两个宽度规则与 typed `Stacked/Desktop` 词表都经 v15 导出、生成器与 `page_structure_version.py` 一个版本 pin；无人消费的旧 tier 查表已退役，`slint-viewport-tier-guard` **45/45** + enforce 0 |
+| 5a | 部分 | L | 本批无字体 / 字重 / 图标族 / 视觉资产身份变化；Iced 新增 2 张 `profiles-grid-*` 双视口真实像素回执，Iced **192/192** / Slint **199/199** 整批重采，双表面空间门 0 违规、回执新鲜度 0；Bevy 浅色像素回执仍缺席且另一会话的 `runtime-dark` / `overview-dark` 别名仍是全仓身份门唯一红腿，故按全局证据记「部分」 |
+| 6 | 部分 | L | 本批补齐 Iced Profiles 网格的 contract anchor、scenario anchor 与双视口像素；`resolve_surface_evidence.py` 未复跑，180 个 ready surface cells 仍缺 product-build receipts；Bevy 双网格接线未变 |
+| 7 | 完整 | L | 契约页身宽 + typed forms → v15 导出 → 生成函数 → Iced/Slint 页面一条链完成；守卫对无人消费生成函数、私写 250/32、重命名词表、诊断批覆盖正式语料可咬；`line` / `import` / `typed-state` / `implicit-state` / `doc-governance` / `closure-questions` 全 0 |
+| 8 | 部分 | L | 开发期只跑受影响三包测试与专属守卫；产出期一次 Iced 192 帧重采（304s）+ 一次 Slint 199 帧重采（457s）+ 双表面空间门与全组 planted 自测；全仓 `--workspace` nextest / clippy、结构门全腿与 `resolve_surface_evidence.py` 仍留统一验证批次一次跑完 |
+
+## 最近一批问答（2026-11-12 第二百一十三批次：Iced 双网格消费共享页身宽）
+
+1. x86_64/aarch64：本批改共享页身宽、v15 导出、Iced/Slint 双网格与诊断台架隔离，零平台 API / 零 wire；`--locked` contract+Slint+Iced nextest **1626/1626**、三包 Clippy `--all-targets -D warnings`、`cargo fmt --all --check` 为 `L`。交叉构建与 aarch64 目标机产物未复跑 → 部分（L）。
+2. Windows/Linux/macOS：本机 Linux 完成三包定向测试 / Clippy / fmt、Iced **192/192** run `20261111T220532Z_923ba4af7b2f_dirty_2656390` 与 Slint **199/199** run `20261111T221050Z_923ba4af7b2f_dirty_2705566`、双表面空间门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
+3. Android/iOS：未动 Kotlin/JNI/VPNService 与 Android 资源；两个 typed `Stacked` 形态保持底栏/轨档单列，720×480 与 400×800 诊断帧复核，但没有实机回执 → 部分（L）。
+4. 各 UI：Iced Profiles / 代理节点网格与 Slint 双网格都消费 v15 页宽规则；Bevy 文件由另一会话持有，本批按所有权纪律未接入 → 部分（L）。
+5. 复用：页身宽由 `ViewportTier::page_body_width_px` 一处发布，250/300dp 规则与 typed `Stacked/Desktop` 词表都经 v15 导出、生成器与守卫共用一个版本 pin；UI 不写私有 300/250/32，旧 tier 查表因无消费者同批退役 → 完整（L）。
+5a. 设计资源：本批无字体 / 字重 / 图标族 / 视觉资产身份变化；Iced 新增 `profiles-grid-standard` / `profiles-grid-compact` 两张真实像素回执，Iced 192 / Slint 199 帧整批重采，空间门 0 违规、回执新鲜度 0；Bevy 浅色像素回执仍缺席且另一会话的 `runtime-dark` / `overview-dark` 别名仍是全仓身份门唯一红腿 → 部分（L）。
+6. 功能接入：Iced Profiles 网格补齐 contract anchor、scenario anchor 与双视口像素；`resolve_surface_evidence.py` 未复跑，180 个 ready cells 仍缺 product-build receipts，Bevy 双网格接线未变 → 部分（L）。
+7. 模块化：契约页身宽 + typed forms → v15 导出 → 生成函数 → Iced/Slint 页面一条链完成；`slint-viewport-tier-guard` 45/45、`iced-observation-routes-guard` 14/14；诊断批不再发布正式语料；`line` / `import` / `typed-state` / `implicit-state` / `doc-governance` / `closure-questions` 全 0 → 完整（L）。
+8. CI 与批次效率：开发期只跑受影响三包；产出期一次 Iced 192 帧（304s）+ 一次 Slint 199 帧（457s）+ 双表面空间门与全组 planted 自测，未重复全仓重编；全仓 `--workspace` nextest / clippy、结构门全腿与 `resolve_surface_evidence.py` 留统一批次一次跑完 → 部分（L）。
 
 ## 最近一批问答（2026-11-12 第二百一十二批次：Slint 代理节点网格按页宽连续裁决）
 

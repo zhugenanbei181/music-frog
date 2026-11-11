@@ -2,6 +2,8 @@
 use iced::advanced::widget::Id;
 
 pub(crate) enum InteractionRegion {
+    /// The profiles page's width-rule card grid.
+    ProfilesGrid,
     RestoreReview,
     RestoreDetails,
     RestoreConfirm,
@@ -140,6 +142,7 @@ pub(crate) enum InteractionRegion {
 impl InteractionRegion {
     pub fn id(self) -> Id {
         Id::new(match self {
+            Self::ProfilesGrid => "profiles-grid",
             Self::RestoreReview => "snapshot-restore-review",
             Self::RestoreDetails => "snapshot-restore-details",
             Self::RestoreConfirm => "snapshot-restore-confirm",

@@ -21,7 +21,8 @@ use crate::responsive_viewport::{
     DASHBOARD_DESKTOP_MIN_PX, DASHBOARD_FOUR_COLUMN_MIN_PX, DASHBOARD_MOBILE_MAX_PX,
     DASHBOARD_STANDARD_FOUR_COLUMN_MIN_PX, DASHBOARD_STANDARD_HEIGHT_MIN_PX, DashboardColumns,
     DashboardDensity, PROFILE_MAX_COLUMNS, PROFILE_MIN_ITEM_WIDTH_PX, PROXY_GRID_INSET_PX,
-    PROXY_MIN_COLUMNS, PROXY_MIN_ITEM_WIDTH_PX, ProxyGridForm, SidebarForm, TIERS, ViewportTier,
+    PROXY_MIN_COLUMNS, PROXY_MIN_ITEM_WIDTH_PX, ProfileGridForm, ProxyGridForm, SidebarForm, TIERS,
+    ViewportTier,
 };
 use crate::shell_receipt::CHROME_KEYS;
 use crate::shell_sidebar_preference::{
@@ -65,7 +66,7 @@ impl PageShapeOwner {
 
 /// The exported document's identity. Consumers pin this version so a shape
 /// added to the registry cannot be mistaken for an older export's vocabulary.
-pub const PAGE_STRUCTURE_EXPORT_VERSION: u16 = 14;
+pub const PAGE_STRUCTURE_EXPORT_VERSION: u16 = 15;
 
 /// Resolve a capture page slug onto the page and the shape it renders.
 pub fn shape_for_slug(slug: &str) -> Option<PageShape> {
@@ -121,6 +122,9 @@ pub fn shape_for_slug(slug: &str) -> Option<PageShape> {
 /// Version 14 exports the proxy node grid's width rule, so a page body can
 /// decide its own columns without a surface keeping the reference's 250dp
 /// floor and 32dp inset as private literals.
+/// Version 15 gives profile cards the same typed stacked/desktop form, so a
+/// 720px icon-rail page stays one readable column while a labelled desktop
+/// page follows the 300dp width rule.
 pub fn page_structure_json() -> String {
     let pages: Vec<String> = ShellPage::ALL
         .iter()
@@ -220,9 +224,16 @@ fn navigation_limits_json() -> String {
 /// numbers rather than inventing a tier table, and the structure gate fails
 /// when the export and the contract drift.
 fn profile_grid_json() -> String {
+    let forms = [ProfileGridForm::Stacked, ProfileGridForm::Desktop];
+    let variants: Vec<String> = forms
+        .iter()
+        .map(|form| format!("{{\"id\":\"{}\"}}", form.id()))
+        .collect();
     format!(
-        "{{\"min_item_width_px\":{},\"max_columns\":{}}}",
-        PROFILE_MIN_ITEM_WIDTH_PX, PROFILE_MAX_COLUMNS
+        "{{\"variants\":[{}],\"min_item_width_px\":{},\"max_columns\":{},\"stacked_columns\":1}}",
+        variants.join(","),
+        PROFILE_MIN_ITEM_WIDTH_PX,
+        PROFILE_MAX_COLUMNS
     )
 }
 
@@ -716,6 +727,8 @@ mod tests {
         // The profile grid rule travels with the same export, so a surface
         // never has to keep the reference's 300px floor for itself.
         let profile = &document["profile_grid"];
+        assert_eq!(profile["variants"][0]["id"], "stacked");
+        assert_eq!(profile["variants"][1]["id"], "desktop");
         assert_eq!(profile["min_item_width_px"], PROFILE_MIN_ITEM_WIDTH_PX);
         assert_eq!(profile["max_columns"], PROFILE_MAX_COLUMNS);
         let proxy = &document["proxy_grid"];

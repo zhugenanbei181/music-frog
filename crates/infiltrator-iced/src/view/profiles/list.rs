@@ -13,8 +13,10 @@ use crate::view::components::{
 use crate::view::svg_icons::Icon;
 use crate::view::theme;
 use crate::view::theme::{R_CARD, SP_MD, tokens};
+use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Space, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
+use infiltrator_contract::responsive_viewport::{ProfileGridForm, profile_columns};
 use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_presentation::profiles_page_model::{ProfileFilterTarget, ProfilesOperation};
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -36,9 +38,31 @@ impl ProfileFilterTarget for ProfileRow<'_> {
     }
 }
 
+/// The profiles grid geometry for the current window: the seam the row pays
+/// and the column count the shared width rule answers for the page body.
+pub(crate) fn profile_grid_geometry(state: &AppState) -> (f32, usize) {
+    let tier = state.shell.viewport.tier;
+    let grid_gap = if tier.has_labelled_sidebar() {
+        SP_MD
+    } else {
+        theme::SP_SM
+    };
+    let columns = profile_columns(
+        if tier.has_labelled_sidebar() {
+            ProfileGridForm::Desktop
+        } else {
+            ProfileGridForm::Stacked
+        },
+        tier.page_body_width_px(state.shell.viewport.width_px.round() as u16),
+        grid_gap as u16,
+    ) as usize;
+    (grid_gap, columns)
+}
+
 pub(super) fn profiles_section<'a>(state: &'a AppState) -> Element<'a, Message> {
     let lang = Lang(&state.shell.lang);
     let mut profiles_list = column![].spacing(SP_MD);
+    let (grid_gap, grid_columns) = profile_grid_geometry(state);
     // The list filter is the shared page model's; the surface keeps no
     // second copy of the match rule.
     let profile_rows: Vec<ProfileRow<'_>> = state.profile.profiles.iter().map(ProfileRow).collect();
@@ -63,46 +87,47 @@ pub(super) fn profiles_section<'a>(state: &'a AppState) -> Element<'a, Message> 
             "",
         ));
     } else {
-        for profile in filtered_profiles {
-            let profile = profile.0;
-            let is_active = profile.active;
-            let is_subscription = profile.subscription_url.is_some();
+        let profile_cards: Vec<Element<'_, Message>> = filtered_profiles
+            .iter()
+            .map(|row_profile| -> Element<'_, Message> {
+                let profile = row_profile.0;
+                let is_active = profile.active;
+                let is_subscription = profile.subscription_url.is_some();
 
-            let source_badge: Element<'_, Message> = if is_subscription {
-                badge(lang.tr("subscription").as_ref(), BadgeKind::Accent)
-            } else {
-                chip(lang.tr("profiles_badge_local").to_string())
-            };
+                let source_badge: Element<'_, Message> = if is_subscription {
+                    badge(lang.tr("subscription").as_ref(), BadgeKind::Accent)
+                } else {
+                    chip(lang.tr("profiles_badge_local").to_string())
+                };
 
-            let mut actions = row![].spacing(theme::SP_SM).align_y(Alignment::Center);
-            if !is_active {
-                actions = actions.push(text_btn(
-                    lang.tr("use").to_string(),
-                    style_ghost,
-                    Some(Message::SetActiveProfile(profile.name.clone())),
-                ));
-            }
-            actions = actions.push(icon_button(
-                Icon::Pencil,
-                14.0,
-                Message::EditProfile(profile.path.clone().into()),
-            ));
-            actions = actions.push(icon_button(
-                Icon::Code2,
-                14.0,
-                Message::EditProfileAs(profile.path.clone().into(), EditorPane::Mixin),
-            ));
-            if !is_active {
+                let mut actions = row![].spacing(theme::SP_SM).align_y(Alignment::Center);
+                if !is_active {
+                    actions = actions.push(text_btn(
+                        lang.tr("use").to_string(),
+                        style_ghost,
+                        Some(Message::SetActiveProfile(profile.name.clone())),
+                    ));
+                }
                 actions = actions.push(icon_button(
-                    Icon::Trash2,
+                    Icon::Pencil,
                     14.0,
-                    Message::RequestConfirmation(ConfirmAction::DeleteProfile(
-                        profile.name.clone(),
-                    )),
+                    Message::EditProfile(profile.path.clone().into()),
                 ));
-            }
+                actions = actions.push(icon_button(
+                    Icon::Code2,
+                    14.0,
+                    Message::EditProfileAs(profile.path.clone().into(), EditorPane::Mixin),
+                ));
+                if !is_active {
+                    actions = actions.push(icon_button(
+                        Icon::Trash2,
+                        14.0,
+                        Message::RequestConfirmation(ConfirmAction::DeleteProfile(
+                            profile.name.clone(),
+                        )),
+                    ));
+                }
 
-            profiles_list = profiles_list.push(
                 container(
                     column![
                         row![
@@ -179,6 +204,7 @@ pub(super) fn profiles_section<'a>(state: &'a AppState) -> Element<'a, Message> 
                 )
                 .padding(SP_MD)
                 .width(Length::Fill)
+                .height(Length::Shrink)
                 .style(move |t: &Theme| {
                     let tk = tokens(t);
                     container::Style {
@@ -201,12 +227,42 @@ pub(super) fn profiles_section<'a>(state: &'a AppState) -> Element<'a, Message> 
                         shadow: tk.card_shadow,
                         ..Default::default()
                     }
-                }),
-            );
+                })
+                .into()
+            })
+            .collect();
+        if grid_columns > 1 {
+            let mut grid = column![].spacing(grid_gap);
+            let mut grid_row = row![].spacing(grid_gap).align_y(Alignment::Start);
+            let mut row_used = 0usize;
+            for profile_card in profile_cards {
+                if row_used == grid_columns {
+                    grid = grid.push(grid_row);
+                    grid_row = row![].spacing(grid_gap).align_y(Alignment::Start);
+                    row_used = 0;
+                }
+                grid_row = grid_row.push(
+                    container(profile_card)
+                        .width(Length::FillPortion(1))
+                        .height(Length::Shrink),
+                );
+                row_used += 1;
+            }
+            for _ in row_used..grid_columns {
+                grid_row = grid_row.push(Space::new().width(Length::FillPortion(1)));
+            }
+            grid = grid.push(grid_row);
+            profiles_list = profiles_list.push(grid);
+        } else {
+            let mut stacked = column![].spacing(SP_MD);
+            for profile_card in profile_cards {
+                stacked = stacked.push(profile_card);
+            }
+            profiles_list = profiles_list.push(stacked);
         }
     }
 
-    card(
+    container(card(
         None,
         column![
             section_header(
@@ -222,5 +278,7 @@ pub(super) fn profiles_section<'a>(state: &'a AppState) -> Element<'a, Message> 
             Space::new().height(theme::SP_MD),
             profiles_list,
         ],
-    )
+    ))
+    .id(InteractionRegion::ProfilesGrid.id())
+    .into()
 }

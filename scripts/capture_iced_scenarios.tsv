@@ -189,3 +189,5 @@ traffic-audit-standard	traffic-audit	traffic	forest	1180x780			30d:process
 traffic-audit-compact	traffic-audit	traffic	forest	720x480			30d:process
 connections-page-compact	connections	connections	forest	720x480			
 logs-page-compact	logs	logs	forest	720x480			
+profiles-grid-standard	profiles-grid	profiles	forest	1180x780			
+profiles-grid-compact	profiles-grid	profiles	forest	720x480			

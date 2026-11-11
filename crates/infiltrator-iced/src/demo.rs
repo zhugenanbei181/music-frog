@@ -202,6 +202,7 @@ fn parse_page_name(value: &str) -> Option<(Route, CaptureSection)> {
         "runtime" => Some((Route::Runtime, CaptureSection::RouteTop)),
         "dns" => Some((Route::Dns, CaptureSection::RouteTop)),
         "profiles" => Some((Route::Profiles, CaptureSection::RouteTop)),
+        "profiles-grid" | "profiles_grid" => Some((Route::Profiles, CaptureSection::ProfilesGrid)),
         "sync" => Some((Route::Sync, CaptureSection::RouteTop)),
         "editor" | "mixin" | "filter" => Some((Route::Editor, CaptureSection::RouteTop)),
         "rules" | "rules-providers" => Some((Route::Rules, CaptureSection::RouteTop)),

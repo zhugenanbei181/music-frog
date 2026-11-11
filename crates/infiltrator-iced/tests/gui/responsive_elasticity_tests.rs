@@ -7,8 +7,13 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
+use crate::view::profiles::list::profile_grid_geometry;
+use crate::view::proxies::node_cards::proxy_node_grid_columns;
 use crate::view::sidebar::sidebar_form_for_width;
-use infiltrator_contract::responsive_viewport::{SidebarForm, ViewportTier};
+use infiltrator_contract::responsive_viewport::{
+    ProfileGridForm, ProxyGridForm, SidebarForm, ViewportTier, profile_columns, proxy_node_columns,
+};
+use lurker_core_contract::outbound::preferences::OutboundLayout;
 
 #[test]
 fn window_resize_updates_shared_viewport_tier() {
@@ -102,6 +107,40 @@ fn proxy_compact_view_forces_single_column_every_tier() {
     assert_eq!(state.shell.viewport.tier, ViewportTier::Ultra);
     assert_eq!(state.shell.viewport.tier.proxy_grid_columns(false), 4);
     assert_eq!(state.shell.viewport.tier.proxy_grid_columns(true), 1);
+}
+
+#[test]
+fn page_width_rules_size_profile_and_proxy_grids() {
+    let (mut state, _) = AppState::new();
+    let _ = state.update(Message::WindowResized(1180.0, 780.0));
+    state
+        .runtime
+        .proxies_model
+        .select_layout(OutboundLayout::Grid);
+    let tier = state.shell.viewport.tier;
+    let page_width = tier.page_body_width_px(1180);
+    assert_eq!(page_width, 860);
+
+    let (profile_gap, profile_columns_actual) = profile_grid_geometry(&state);
+    assert_eq!(
+        profile_columns_actual as u16,
+        profile_columns(ProfileGridForm::Desktop, page_width, profile_gap as u16,)
+    );
+
+    let (proxy_form, proxy_columns_actual) = proxy_node_grid_columns(&state);
+    assert_eq!(proxy_form, ProxyGridForm::Desktop);
+    assert_eq!(
+        proxy_columns_actual as u16,
+        proxy_node_columns(proxy_form, page_width)
+    );
+
+    // A phone has no labelled column; both grids stay readable and stacked.
+    let _ = state.update(Message::WindowResized(400.0, 800.0));
+    let (_, phone_profile_columns) = profile_grid_geometry(&state);
+    let (phone_proxy_form, phone_proxy_columns) = proxy_node_grid_columns(&state);
+    assert_eq!(phone_profile_columns, 1);
+    assert_eq!(phone_proxy_form, ProxyGridForm::Stacked);
+    assert_eq!(phone_proxy_columns, 1);
 }
 
 #[test]

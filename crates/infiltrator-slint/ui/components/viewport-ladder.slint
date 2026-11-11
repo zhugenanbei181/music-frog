@@ -10,7 +10,7 @@
 // user zoom itself and the ladder never has an opinion about it.
 
 import { LumenUiScale } from "../lumen-ui-scale.slint";
-import { DashboardDensity, NavigationForm, NavigationSeparator, ProxyGridForm, SidebarExpansionPreference, ViewportTier } from "./viewport_tier.slint";
+import { DashboardDensity, NavigationForm, NavigationSeparator, ProfileGridForm, ProxyGridForm, SidebarExpansionPreference, ViewportTier } from "./viewport_tier.slint";
 
 export global ViewportLadder {
     // The first window width that leaves each tier behind, in design units.
@@ -176,7 +176,8 @@ export global ViewportLadder {
     // the grid is already paying, so the same arithmetic is a pure function of
     // room. Exporting the two numbers keeps every surface from stacking cards
     // one per row and leaving the horizontal twin of page dead ground.
-    public pure function profile_columns(page-width: length, gap: length) -> int {
+    public pure function profile_columns(form: ProfileGridForm, page-width: length, gap: length) -> int {
+        if (form == ProfileGridForm.stacked) { return 1; }
         return Math.min(3, Math.max(1, Math.floor((page-width + gap) / (300 * LumenUiScale.unit + gap))));
     }
 

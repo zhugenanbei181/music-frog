@@ -138,6 +138,26 @@ pub enum ProxyGridForm {
     Desktop,
 }
 
+/// Which profile grid rule owns a page at this shell form.
+///
+/// A labelled desktop page has room to ask the 300dp width rule; a bottom-nav
+/// or icon-rail page keeps one readable column even when its body would
+/// numerically fit two narrow cards.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ProfileGridForm {
+    Stacked,
+    Desktop,
+}
+
+impl ProfileGridForm {
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::Stacked => "stacked",
+            Self::Desktop => "desktop",
+        }
+    }
+}
+
 impl ProxyGridForm {
     pub const fn id(self) -> &'static str {
         match self {
@@ -154,7 +174,10 @@ impl ProxyGridForm {
 /// clamped into `1..=PROFILE_MAX_COLUMNS`. The gap is the caller's own - it is
 /// the seam the grid is already paying, not a second layout constant - which
 /// is why the count is a pure function of room rather than of a viewport tier.
-pub const fn profile_columns(page_width_px: u16, gap_px: u16) -> u16 {
+pub const fn profile_columns(form: ProfileGridForm, page_width_px: u16, gap_px: u16) -> u16 {
+    if matches!(form, ProfileGridForm::Stacked) {
+        return 1;
+    }
     let min = PROFILE_MIN_ITEM_WIDTH_PX;
     let columns = (page_width_px + gap_px) / (min + gap_px);
     if columns < 1 {
@@ -371,6 +394,19 @@ impl ViewportTier {
             Self::Expanded => 40,
             Self::Ultra => 48,
         }
+    }
+
+    /// The page-body width a shell of this tier leaves for its pages.
+    ///
+    /// A wide shell reserves its navigation column beside the page; a compact
+    /// shell stacks the bottom bar under it, so only the page's own padding
+    /// narrows the body. The width-rule lookups (`profile_columns`,
+    /// `proxy_node_columns`) and the surfaces must all measure the same room,
+    /// so the subtraction lives here once instead of being re-derived per
+    /// view (and drifting by one surface's private margin).
+    pub const fn page_body_width_px(self, window_width_px: u16) -> u16 {
+        let padded = window_width_px.saturating_sub(2 * self.content_padding_px());
+        padded.saturating_sub(self.nav_column_px())
     }
 
     /// Whether this tier is narrow enough that the shell must shed its full sidebar.
@@ -911,16 +947,29 @@ mod tests {
         // instead of stacking every card on its own row.
         assert_eq!(PROFILE_MIN_ITEM_WIDTH_PX, 300);
         assert_eq!(PROFILE_MAX_COLUMNS, 3);
-        assert_eq!(profile_columns(0, 12), 1);
-        assert_eq!(profile_columns(299, 0), 1);
-        assert_eq!(profile_columns(300, 0), 1);
-        assert_eq!(profile_columns(300 + 12, 12), 1);
-        assert_eq!(profile_columns(300 * 2 + 12, 12), 2);
-        assert_eq!(profile_columns(300 * 2 + 11, 12), 1);
-        assert_eq!(profile_columns(300 * 3 + 24, 12), 3);
-        assert_eq!(profile_columns(300 * 4 + 48, 12), 3);
-        assert_eq!(profile_columns(1, 1), 1);
-        assert_eq!(profile_columns(u16::MAX, 0), 3);
+        assert_eq!(profile_columns(ProfileGridForm::Stacked, 940, 12), 1);
+        assert_eq!(profile_columns(ProfileGridForm::Desktop, 0, 12), 1);
+        assert_eq!(profile_columns(ProfileGridForm::Desktop, 299, 0), 1);
+        assert_eq!(profile_columns(ProfileGridForm::Desktop, 300, 0), 1);
+        assert_eq!(profile_columns(ProfileGridForm::Desktop, 300 + 12, 12), 1);
+        assert_eq!(
+            profile_columns(ProfileGridForm::Desktop, 300 * 2 + 12, 12),
+            2
+        );
+        assert_eq!(
+            profile_columns(ProfileGridForm::Desktop, 300 * 2 + 11, 12),
+            1
+        );
+        assert_eq!(
+            profile_columns(ProfileGridForm::Desktop, 300 * 3 + 24, 12),
+            3
+        );
+        assert_eq!(
+            profile_columns(ProfileGridForm::Desktop, 300 * 4 + 48, 12),
+            3
+        );
+        assert_eq!(profile_columns(ProfileGridForm::Desktop, 1, 1), 1);
+        assert_eq!(profile_columns(ProfileGridForm::Desktop, u16::MAX, 0), 3);
     }
 
     #[test]
@@ -957,6 +1006,18 @@ mod tests {
         ] {
             assert_eq!(tier.proxy_grid_columns(true), 1);
         }
+    }
+
+    #[test]
+    fn page_body_width_subtracts_the_chrome_the_tier_reserves() {
+        // 1180 desktop: 240 labelled column + 2 x 40 padding.
+        assert_eq!(ViewportTier::Expanded.page_body_width_px(1180), 860);
+        // 720 rail: 64 icon column + 2 x 24 padding.
+        assert_eq!(ViewportTier::Medium.page_body_width_px(720), 608);
+        // 400 phone: no column, bottom bar stacks below the page.
+        assert_eq!(ViewportTier::Compact.page_body_width_px(400), 368);
+        // A window narrower than its own chrome saturates at zero.
+        assert_eq!(ViewportTier::Ultra.page_body_width_px(10), 0);
     }
 
     #[test]

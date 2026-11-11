@@ -340,6 +340,11 @@ fn page_sections_parse_to_their_typed_capture_anchor() {
         ("runtime", Route::Runtime, CaptureSection::RouteTop),
         ("traffic", Route::Traffic, CaptureSection::RouteTop),
         (
+            "profiles-grid",
+            Route::Profiles,
+            CaptureSection::ProfilesGrid,
+        ),
+        (
             "traffic-audit",
             Route::Traffic,
             CaptureSection::TrafficAudit,
@@ -366,8 +371,13 @@ fn page_sections_parse_to_their_typed_capture_anchor() {
 fn section_captures_need_a_measured_region_the_route_top_does_not() {
     assert!(CaptureSection::RouteTop.is_ready(false));
     assert!(!CaptureSection::TrafficAudit.is_ready(false));
+    assert!(!CaptureSection::ProfilesGrid.is_ready(false));
     assert!(!CaptureSection::SettingsAbout.is_ready(false));
-    for section in [CaptureSection::TrafficAudit, CaptureSection::SettingsAbout] {
+    for section in [
+        CaptureSection::TrafficAudit,
+        CaptureSection::ProfilesGrid,
+        CaptureSection::SettingsAbout,
+    ] {
         assert!(section.is_ready(true));
     }
 }

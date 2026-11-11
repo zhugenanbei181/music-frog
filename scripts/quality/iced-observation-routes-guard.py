@@ -116,6 +116,14 @@ def findings(
         found.append("capture-iced-matrix.sh: connections receipts are aliased back to runtime")
     if '[ "$marker_page" = "logs" ] && marker_page="runtime"' in capture:
         found.append("capture-iced-matrix.sh: logs receipts are aliased back to runtime")
+    if (
+        "PUBLISH_CORPUS=0" not in capture
+        or 'if [ "$MATRIX" != "$MATRIX_SRC" ]; then' not in capture
+        or 'if [ "$PUBLISH_CORPUS" -eq 1 ]; then' not in capture
+    ):
+        found.append(
+            "capture-iced-matrix.sh: a filtered capture can overwrite the published corpus"
+        )
     if "selected_navigation_destination_count" not in sidebar:
         found.append("sidebar.rs: selected destinations are not counted from the mounted registry")
     if (
@@ -299,6 +307,13 @@ class GuardSelfTest(unittest.TestCase):
             '  local marker_page="$page"\n  [ "$marker_page" = "connections" ] && marker_page="runtime"\n',
         )
         self.assertTrue(any("aliased back" in problem for problem in self.findings(capture=capture)))
+
+    def test_a_filtered_capture_must_not_publish(self) -> None:
+        capture = self.capture.replace("PUBLISH_CORPUS=0", "")
+        self.assertTrue(
+            any("overwrite the published corpus" in problem
+                for problem in self.findings(capture=capture))
+        )
 
     def test_old_matrix_carrier_is_rejected(self) -> None:
         matrix = self.matrix.replace(

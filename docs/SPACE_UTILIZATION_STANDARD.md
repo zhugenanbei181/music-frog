@@ -202,6 +202,16 @@ pinned FlClash `getProxiesColumns` 把 250dp 最小节点卡宽和 32dp 页身�
 标准帧实测 4 列且无文字裁切，720/400 档仍单列。形态与 82% 上限均不变：这是横向
 密度的 owner 收口，不是偷偷放宽或收紧按形态阈值。
 
+**页身宽与双网格（b213）**：b212 的代理宽度规则先在契约裁决，b213 把「窗口
+减去导航列与两侧页边距」也收成 `ViewportTier::page_body_width_px`，让 Iced 与
+Slint 对同一个窗口不再各自重算可用房间。Iced 的 Profiles 与代理节点网格同时消费
+契约页宽规则；profiles 另新增 typed `ProfileGridForm::{Stacked, Desktop}`，因为
+720×480 诊断帧证明「数值上能放两列」会把卡片文本挤成竖排碎字，轨形态必须保持
+单列可读。v15 导出同时发布 `profile_grid.forms` 与 `proxy_grid.forms`，生成器投影
+成两个 typed 查表，Slint / Iced 都只按 `labelled_sidebar` 选形态；Bevy 文件仍由
+另一会话持有，跨表面接线按所有权纪律留后续切片。`content` 82% / `framed` 4% /
+`dense` 12% 三档阈值均不变。
+
 | 侧栏 | 上限 | 依据 |
 | --- | --- | --- |
 | `chrome_band` | **0%** | FlClash 桌面侧栏实测只有导航行（边界 x=429，5 个行带 y89–579，下方无非导航区块）；统计数据全部属于仪表盘卡片 |

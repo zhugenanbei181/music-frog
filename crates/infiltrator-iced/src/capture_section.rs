@@ -15,6 +15,8 @@ pub enum CaptureSection {
     RouteTop,
     /// The traffic audit card's range/dimension controls and ranked entities.
     TrafficAudit,
+    /// The profile card grid whose column count follows the page-width rule.
+    ProfilesGrid,
     SettingsAbout,
 }
 
@@ -24,7 +26,7 @@ impl CaptureSection {
     pub fn is_ready(self, region_measured: bool) -> bool {
         match self {
             Self::RouteTop => true,
-            Self::TrafficAudit | Self::SettingsAbout => region_measured,
+            Self::TrafficAudit | Self::ProfilesGrid | Self::SettingsAbout => region_measured,
         }
     }
 }

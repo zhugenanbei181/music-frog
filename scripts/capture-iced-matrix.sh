@@ -40,6 +40,7 @@ APP_ID="infiltrator-iced"
 APP_TITLE="Ice"
 APP="${CARGO_TARGET_DIR:-$REPO/target}/debug/infiltrator-iced"
 MATRIX_SRC="${INFILTRATOR_CAPTURE_MATRIX:-$REPO/scripts/capture_iced_scenarios.tsv}"
+CANONICAL_MATRIX="$REPO/scripts/capture_iced_scenarios.tsv"
 OUT_DIR="${INFILTRATOR_CAPTURE_OUT_DIR:-$REPO/crates/infiltrator-iced/docs/screenshots}"
 MANIFEST_PUBLISHED="$OUT_DIR/manifest.tsv"
 EVIDENCE_ROOT="$REPO/.evidence/captures/iced"
@@ -191,7 +192,9 @@ chmod 700 "$RUNTIME_DIR"
 # --------------------------------------------------------- scenario matrix --
 SCENARIO_FILTER="${INFILTRATOR_CAPTURE_SCENARIOS:-${1:-}}"
 MATRIX="$MATRIX_SRC"
+PUBLISH_CORPUS=1
 if [ -n "$SCENARIO_FILTER" ]; then
+  PUBLISH_CORPUS=0
   MATRIX="$RUN_DIR/scenarios-selected.tsv"
   awk -F '\t' -v list="$SCENARIO_FILTER" '
     BEGIN {
@@ -248,7 +251,7 @@ while IFS=$'\t' read -r name page shape skin window_size interaction sidebar_exp
     exit 2
   }
   case "$page" in
-  overview | proxies | runtime | traffic | traffic-audit | rules | rules-providers | dns | profiles | sync | editor | mixin | filter | settings | about | app_routing | doctor | connections | logs) ;;
+  overview | proxies | runtime | traffic | traffic-audit | rules | rules-providers | dns | profiles | profiles-grid | sync | editor | mixin | filter | settings | about | app_routing | doctor | connections | logs) ;;
   *)
     printf 'invalid scenario row (bad page): %s -> %s\n' "$name" "$page" >&2
     exit 2
@@ -297,11 +300,15 @@ SCENARIO_COUNT="$(awk -F '\t' 'NR > 1 && $1 != "" { count += 1 } END { print cou
   printf 'capture matrix is empty: %s\n' "$MATRIX" >&2
   exit 2
 }
-# The published tree must reflect exactly this run: drop previous outputs for
-# the scenarios about to be captured (full-matrix runs therefore start clean).
-awk -F '\t' 'NR > 1 && $1 != "" { print $1 }' "$MATRIX" | while IFS= read -r name; do
-  rm -f "$OUT_DIR/$name.png"
-done
+# A name-filtered run is diagnostic: it must never delete or overwrite the
+# published corpus. A full canonical run publishes images first and its index
+# last, so an interrupted batch cannot leave a truncated manifest behind.
+if [ "$MATRIX" != "$MATRIX_SRC" ]; then
+  PUBLISH_CORPUS=0
+fi
+if [ "$MATRIX_SRC" != "$CANONICAL_MATRIX" ]; then
+  PUBLISH_CORPUS=0
+fi
 
 # ------------------------------------------------------------------- build --
 SOURCE_FINGERPRINT="$(python3 scripts/parity/visual_receipts.py --fingerprint)"
@@ -511,6 +518,7 @@ capture_one() {
   [ "$marker_page" = "filter" ] && marker_page="editor"
   [ "$marker_page" = "rules-providers" ] && marker_page="rules"
   [ "$marker_page" = "traffic-audit" ] && marker_page="traffic"
+  [ "$marker_page" = "profiles-grid" ] && marker_page="profiles"
   local scenario_dir="$RUN_DIR/$name"
   local log="$scenario_dir/app.log"
   local marker="$scenario_dir/marker.log"
@@ -683,7 +691,9 @@ capture_one() {
   fi
 
   if [ "$action_status" = ok ]; then
-    install -m 644 "$image" "$OUT_DIR/$name.png"
+    if [ "$PUBLISH_CORPUS" -eq 1 ]; then
+      install -m 644 "$image" "$OUT_DIR/$name.png"
+    fi
     printf '  pass  %-22s %sx%s %s B\n' "$name" "$width" "$height" "$bytes"
   else
     printf '  FAIL  %-22s %s (app log: %s)\n' "$name" "$action_status" "$log" >&2
@@ -727,15 +737,25 @@ while IFS=$'\t' read -r name page shape skin window_size interaction sidebar_exp
 done < <(awk -F '\t' 'BEGIN { OFS="\t" } { for (i = 1; i <= NF; i++) if ($i == "") $i = "-"; print }' "$MATRIX")
 
 # ----------------------------------------------------------------- summary --
-install -m 644 "$MANIFEST" "$MANIFEST_PUBLISHED"
 ELAPSED=$(( $(date +%s) - START_EPOCH ))
+if [ "$PUBLISH_CORPUS" -eq 0 ]; then
+  printf 'diagnostic run: %d scenario(s) captured under %s; the published corpus and its index are untouched\n' \
+    "$SCENARIO_COUNT" "$RUN_DIR"
+  if [ "$FAILURES" -ne 0 ]; then
+    printf 'CAPTURE MATRIX FAILED: %d/%d scenario(s) failed:%s\n' \
+      "$FAILURES" "$SCENARIO_COUNT" "$FAILED_NAMES" >&2
+    exit 1
+  fi
+  printf 'CAPTURE DIAGNOSTIC PASS: %d scenario(s) in %ds\n' "$SCENARIO_COUNT" "$ELAPSED"
+  exit 0
+fi
 if [ "$FAILURES" -ne 0 ]; then
   printf 'CAPTURE MATRIX FAILED: %d/%d scenario(s) failed:%s\n' \
     "$FAILURES" "$SCENARIO_COUNT" "$FAILED_NAMES" >&2
-  printf 'successful shots and the manifest were still published to %s\n' "$OUT_DIR" >&2
   printf 'debug evidence retained at %s\n' "$RUN_DIR" >&2
   exit 1
 fi
+install -m 644 "$MANIFEST" "$MANIFEST_PUBLISHED"
 
 printf 'CAPTURE MATRIX PASS: %d scenario(s) in %ds -> %s\n' \
   "$SCENARIO_COUNT" "$ELAPSED" "$OUT_DIR"

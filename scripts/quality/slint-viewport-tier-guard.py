@@ -373,6 +373,20 @@ def ladder_findings(ui: pathlib.Path) -> list[str]:
             "pages/page_proxies.slint: the proxy node grid keeps a private proxy "
             "width rule instead of reading ViewportLadder.proxy_columns"
         )
+    profiles_code = (
+        mask_comments((UI / "pages/page_profiles.slint").read_text(encoding="utf-8"))
+        if (UI / "pages/page_profiles.slint").is_file()
+        else ""
+    )
+    if (
+        "ViewportLadder.profile_columns(" not in profiles_code
+        or "ProfileGridForm.stacked" not in profiles_code
+        or "ProfileGridForm.desktop" not in profiles_code
+    ):
+        found.append(
+            "pages/page_profiles.slint: the profile grid lost its typed "
+            "stacked/desktop width rule"
+        )
     if "ViewportLadder.sidebar_nav_column(" not in theme_code:
         found.append(
             "components/theme.slint: the navigation column is no longer the exported width"
@@ -518,6 +532,15 @@ def tier_vocabulary_findings() -> list[str]:
         return [
             "components/viewport_tier.slint: the proxy grid forms are "
             f"{declared_proxy_forms} but the exported table says {proxy_forms}"
+        ]
+    profile_forms = [
+        entry["id"] for entry in exported_document()["profile_grid"]["variants"]
+    ]
+    declared_profile_forms = enum_variants("ProfileGridForm")
+    if profile_forms != declared_profile_forms:
+        return [
+            "components/viewport_tier.slint: the profile grid forms are "
+            f"{declared_profile_forms} but the exported table says {profile_forms}"
         ]
     return []
 
@@ -1175,6 +1198,31 @@ class GuardSelfTest(unittest.TestCase):
         findings = self._findings_with({"viewport_tier.slint": planted})
         self.assertTrue(
             any("proxy grid forms are" in item for item in findings), findings
+        )
+
+    def test_a_renamed_profile_grid_form_is_caught(self) -> None:
+        """The profile grid's two forms must stay typed and export-aligned."""
+        tier_file = TIER_FILE.read_text(encoding="utf-8")
+        planted = tier_file.replace(
+            "export enum ProfileGridForm {\n    stacked,\n    desktop,",
+            "export enum ProfileGridForm {\n    single,\n    desktop,",
+            1,
+        )
+        self.assertNotEqual(tier_file, planted)
+        findings = self._findings_with({"viewport_tier.slint": planted})
+        self.assertTrue(
+            any("profile grid forms are" in item for item in findings), findings
+        )
+
+    def test_a_private_profile_grid_rule_is_caught(self) -> None:
+        """The page must name both typed forms, not a private boolean."""
+        profiles = (UI / "pages/page_profiles.slint").read_text(encoding="utf-8")
+        planted = profiles.replace("ProfileGridForm.stacked", "ViewportTier.compact", 1)
+        self.assertNotEqual(profiles, planted)
+        findings = self._findings_with({"page_profiles.slint": planted})
+        self.assertTrue(
+            any("typed stacked/desktop width rule" in item for item in findings),
+            findings,
         )
 
     def test_a_renamed_tier_in_the_surface_is_caught(self) -> None:

@@ -13,7 +13,7 @@ use infiltrator_shared::locales::Lang;
 
 mod helpers;
 mod imports;
-mod list;
+pub(crate) mod list;
 mod subscription;
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
