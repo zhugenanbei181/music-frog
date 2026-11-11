@@ -18,9 +18,9 @@ pub(crate) enum InteractionRegion {
     ConfirmationCancel,
     Connection,
     ConnectionGroups,
-    /// The whole connections workbench card of the runtime page.
+    /// The whole connections workbench page or runtime section.
     ConnectionsSection,
-    /// The whole logs workbench card of the runtime page.
+    /// The whole logs workbench page or runtime section.
     LogsSection,
     ConnectionGroupingControls,
     ConnectionGroupFlat,

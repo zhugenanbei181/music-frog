@@ -19,6 +19,7 @@ use infiltrator_contract::mini_hud::MiniHudWaveformStrip;
 use infiltrator_contract::resources::CoreResourceSnapshot;
 use infiltrator_contract::resources::ResourceAvailability;
 use infiltrator_contract::shell_sidebar_preference::SidebarExpansionPreference;
+use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::outbound::inventory::OutboundInventoryState;
 use lurker_core_contract::routing_intent::RoutingIntent;
 use std::env::temp_dir;
@@ -52,8 +53,13 @@ fn demo_fixture_inventory_covers_all_pages() {
     assert!(state.shell.demo);
     assert!(state.runtime.runtime.is_none());
 
-    // runtime status
-    assert!(matches!(state.runtime.status, RuntimeStatus::Stopped));
+    // The active outbound, stream and overview fixtures all share one running
+    // Core lifecycle, independent of which route the capture opens.
+    assert_eq!(state.runtime.status, RuntimeStatus::Running);
+    assert_eq!(
+        state.core_lifecycle_snapshot().lifecycle,
+        CoreLifecycle::Running
+    );
     assert_eq!(
         state.runtime.routing_intent.as_ref(),
         Some(&RoutingIntent::FollowRules)
@@ -151,18 +157,31 @@ fn demo_state_reflects_requested_page_and_skin() {
         Route::Overview,
         Route::Proxies,
         Route::Runtime,
+        Route::Connections,
+        Route::Logs,
         Route::Rules,
         Route::Dns,
         Route::Profiles,
         Route::Sync,
         Route::Editor,
         Route::Settings,
+        Route::AppRouting,
+        Route::Doctor,
+        Route::Tools,
+        Route::About,
+        Route::Disclaimer,
+        Route::Licenses,
     ] {
         let mut env = demo_env(page);
         env.skin = iced::Theme::Light;
         let (state, _) = AppState::demo(&env);
         assert_eq!(state.shell.current_route, page);
         assert_eq!(state.shell.theme, iced::Theme::Light);
+        assert_eq!(
+            state.core_lifecycle_snapshot().lifecycle,
+            CoreLifecycle::Running
+        );
+        assert_eq!(state.runtime.status, RuntimeStatus::Running);
     }
 }
 
@@ -293,6 +312,8 @@ fn env_page_mapping_is_exhaustive() {
         ("overview", Route::Overview),
         ("proxies", Route::Proxies),
         ("runtime", Route::Runtime),
+        ("connections", Route::Connections),
+        ("logs", Route::Logs),
         ("rules", Route::Rules),
         ("dns", Route::Dns),
         ("profiles", Route::Profiles),
@@ -317,12 +338,8 @@ fn page_sections_parse_to_their_typed_capture_anchor() {
     let cases = [
         ("runtime", Route::Runtime, CaptureSection::RouteTop),
         ("settings", Route::Settings, CaptureSection::RouteTop),
-        (
-            "connections",
-            Route::Runtime,
-            CaptureSection::RuntimeConnections,
-        ),
-        ("logs", Route::Runtime, CaptureSection::RuntimeLogs),
+        ("connections", Route::Connections, CaptureSection::RouteTop),
+        ("logs", Route::Logs, CaptureSection::RouteTop),
         (
             "settings-about",
             Route::Settings,
@@ -340,12 +357,10 @@ fn page_sections_parse_to_their_typed_capture_anchor() {
 #[test]
 fn section_captures_need_a_measured_region_the_route_top_does_not() {
     assert!(CaptureSection::RouteTop.is_ready(false));
-    assert!(!CaptureSection::RuntimeConnections.is_ready(false));
-    assert!(!CaptureSection::RuntimeLogs.is_ready(false));
+    assert!(!CaptureSection::RuntimeTrafficAudit.is_ready(false));
     assert!(!CaptureSection::SettingsAbout.is_ready(false));
     for section in [
-        CaptureSection::RuntimeConnections,
-        CaptureSection::RuntimeLogs,
+        CaptureSection::RuntimeTrafficAudit,
         CaptureSection::SettingsAbout,
     ] {
         assert!(section.is_ready(true));

@@ -108,6 +108,16 @@ terminate_owned() {
   wait "$pid" 2>/dev/null || true
 }
 
+window_geometry_matches() {
+  local windows_json="$1" pid="$2" id="$3" width="$4" height="$5"
+  jq -e --arg pid "$pid" --arg id "$id" --arg width "$width" --arg height "$height" \
+    'any(.[]; ((.pid | tostring) == $pid)
+      and ((.id | tostring) == $id)
+      and (.layout.window_size == [($width | tonumber), ($height | tonumber)])
+      and (.layout.tile_size == [($width | tonumber), ($height | tonumber)]))' \
+    "$windows_json" >/dev/null 2>&1
+}
+
 niri_ipc() {
   # Run a niri msg command against the nested compositor's IPC socket.
   NIRI_SOCKET="$NIRI_IPC" timeout 3s niri msg "$@"
@@ -500,9 +510,7 @@ capture_one() {
   [ "$marker_page" = "mixin" ] && marker_page="editor"
   [ "$marker_page" = "filter" ] && marker_page="editor"
   [ "$marker_page" = "rules-providers" ] && marker_page="rules"
-  [ "$marker_page" = "connections" ] && marker_page="runtime"
   [ "$marker_page" = "runtime-traffic" ] && marker_page="runtime"
-  [ "$marker_page" = "logs" ] && marker_page="runtime"
   local scenario_dir="$RUN_DIR/$name"
   local log="$scenario_dir/app.log"
   local marker="$scenario_dir/marker.log"
@@ -567,11 +575,12 @@ capture_one() {
         if niri_ipc -j windows >"$windows_tmp" 2>"$windows_error" \
           && jq -e --arg app "$APP_ID" --arg title "$APP_TITLE" --arg pid "$APP_PID" \
             'any(.[]; ((.pid | tostring) == $pid) and (.title == $title or .app_id == $app))' \
-            "$windows_tmp" >/dev/null 2>&1; then
-          mv "$windows_tmp" "$windows_json"
-          window_id="$(jq -r --arg app "$APP_ID" --arg title "$APP_TITLE" --arg pid "$APP_PID" \
+            "$windows_tmp" >/dev/null 2>&1 \
+          && window_id="$(jq -r --arg app "$APP_ID" --arg title "$APP_TITLE" --arg pid "$APP_PID" \
             '.[] | select(((.pid | tostring) == $pid) and (.title == $title or .app_id == $app)) | .id' \
-            "$windows_json" | head -1)"
+            "$windows_tmp" | head -1)" \
+          && window_geometry_matches "$windows_tmp" "$APP_PID" "$window_id" "$exp_w" "$exp_h"; then
+          mv "$windows_tmp" "$windows_json"
           window_ready=1
           break
         fi
@@ -606,7 +615,8 @@ capture_one() {
       && niri_ipc -j windows >"$windows_tmp" 2>/dev/null \
       && jq -e --arg app "$APP_ID" --arg title "$APP_TITLE" --arg pid "$APP_PID" --arg id "$window_id" \
         'any(.[]; ((.pid | tostring) == $pid) and (.title == $title or .app_id == $app) and ((.id | tostring) == $id))' \
-        "$windows_tmp" >/dev/null 2>&1; then
+        "$windows_tmp" >/dev/null 2>&1 \
+      && window_geometry_matches "$windows_tmp" "$APP_PID" "$window_id" "$exp_w" "$exp_h"; then
       mv "$windows_tmp" "$windows_json"
       local shot
       for shot in 1 2 3 4 5; do
@@ -641,9 +651,10 @@ capture_one() {
       if [ "$bytes" -gt 5000 ] && dims="$(png_dims "$image")"; then
         read -r width height <<<"$dims"
         hash="$(sha256sum "$image" | cut -d' ' -f1)"
-        # niri's screenshot-window includes the compositor's shadow margin, so
-        # the PNG is larger than the toplevel (same on the reference project's
-        # stack); require the render to fully contain the requested window.
+        # The compositor window geometry, shell viewport and native readback
+        # must all agree with the requested app viewport. The comparison above
+        # and CaptureFrameGate::finish_capture_frame bind these three readings;
+        # this manifest records the requested size beside the measured PNG.
         if [ "$width" -ne "$exp_w" ] || [ "$height" -ne "$exp_h" ]; then
           action_status="failed-dims ($width x $height, different from requested $window_size)"
         fi

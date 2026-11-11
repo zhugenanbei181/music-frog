@@ -233,7 +233,7 @@ fn overview_topology_pipeline_adapts_to_viewport_tier() {
 }
 
 #[test]
-fn full_spectrum_elasticity_across_all_four_tiers_and_eleven_routes() {
+fn full_spectrum_elasticity_across_all_four_tiers_and_thirteen_routes() {
     use crate::types::app::Route;
 
     let (mut state, _) = AppState::new();
@@ -243,6 +243,8 @@ fn full_spectrum_elasticity_across_all_four_tiers_and_eleven_routes() {
         Route::Profiles,
         Route::Proxies,
         Route::Runtime,
+        Route::Connections,
+        Route::Logs,
         Route::Rules,
         Route::Dns,
         Route::Sync,

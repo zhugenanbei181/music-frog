@@ -27,8 +27,8 @@ use view::mini_hud::mini_hud_view;
 use view::routing_intent_issue::routing_intent_issue;
 use view::sidebar::sidebar_for_tier;
 use view::{
-    about, app_routing, dns, doctor, editor, overview, profiles, proxies, rules, runtime, settings,
-    sync,
+    about, app_routing, dns, doctor, editor, observation_pages, overview, profiles, proxies, rules,
+    runtime, settings, sync,
 };
 pub(crate) mod aggregator_modal;
 mod command_palette;
@@ -70,6 +70,8 @@ impl AppState {
             Route::Profiles => profiles::view(self),
             Route::Proxies => proxies::view(self),
             Route::Runtime => runtime::view(self),
+            Route::Connections => observation_pages::connections_body(self, Lang(&self.shell.lang)),
+            Route::Logs => observation_pages::logs_body(self, Lang(&self.shell.lang)),
             Route::Rules => rules::view(self),
             Route::Dns => dns::view(self),
             Route::Sync => sync::view(self),

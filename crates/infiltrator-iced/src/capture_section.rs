@@ -4,16 +4,14 @@
 
 /// Page-level capture anchor: the scenario page a capture names, typed.
 ///
-/// `connections`, `logs` and `about` share their route with `runtime` /
-/// `settings` but name one section of that route's page. A capture with a
-/// section anchor scrolls that section into view before the marker is
-/// written; the route default stays at the page top.
+/// `about` shares its route with `settings` but names one section of that
+/// route's page. The runtime traffic audit also names one section of its
+/// route. A capture with a section anchor scrolls that section into view before
+/// the marker is written; the route default stays at the page top.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CaptureSection {
     #[default]
     RouteTop,
-    RuntimeConnections,
-    RuntimeLogs,
     /// The runtime page's traffic audit card (its range/dimension controls and
     /// the window's ranked entities), which sits below the live rates chart.
     RuntimeTrafficAudit,
@@ -26,10 +24,7 @@ impl CaptureSection {
     pub fn is_ready(self, region_measured: bool) -> bool {
         match self {
             Self::RouteTop => true,
-            Self::RuntimeConnections
-            | Self::RuntimeLogs
-            | Self::RuntimeTrafficAudit
-            | Self::SettingsAbout => region_measured,
+            Self::RuntimeTrafficAudit | Self::SettingsAbout => region_measured,
         }
     }
 }

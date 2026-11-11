@@ -63,11 +63,11 @@ fn sidebar_rows() -> Vec<NavigationItem> {
 /// Map a registry destination onto this surface's route.
 ///
 /// The one surface-local row is the traffic page: Slint paints it as its own
-/// page, and Iced folds it into the runtime page (which hosts the log and
-/// traffic sections), so `Runtime` is the route that owns that destination
-/// here. A surface-local id this surface does not own cannot arrive - the
-/// registry filters those out through `owns_surface_local` - so reaching the
-/// fallback arm is a registry/surface disagreement, not a user state.
+/// page, and Iced folds it into the runtime page, so `Runtime` owns that
+/// destination here. Connections and logs use their shared dedicated routes.
+/// A surface-local id this surface does not own cannot arrive - the registry
+/// filters those out through `owns_surface_local` - so reaching the fallback
+/// arm is a registry/surface disagreement, not a user state.
 fn route_for_destination(target: NavigationTarget) -> Route {
     match target {
         NavigationTarget::Shared(page) => Route::from_shell_page(page),
@@ -76,6 +76,13 @@ fn route_for_destination(target: NavigationTarget) -> Route {
             "the Iced desktop mounts no surface-local row, but `{id}` reached the pane"
         ),
     }
+}
+
+pub(crate) fn selected_navigation_destination_count(route: Route) -> usize {
+    sidebar_rows()
+        .into_iter()
+        .filter(|item| route_for_destination(item.target) == route)
+        .count()
 }
 
 /// The localized label of one row. A shared destination is named by the copy

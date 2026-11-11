@@ -89,6 +89,8 @@ python3 scripts/quality/bevy-sidebar-nav-guard.py --mode enforce
 # 同一律法在 Iced 侧栏：列只挂导航，行集唯一来自 shell_navigation 注册表，无路由→字形表。
 python3 scripts/quality/iced-sidebar-nav-guard.py --self-test
 python3 scripts/quality/iced-sidebar-nav-guard.py --mode enforce
+python3 scripts/quality/iced-observation-routes-guard.py --self-test
+python3 scripts/quality/iced-observation-routes-guard.py --mode enforce
 python3 scripts/quality/iced-dead-input-guard.py --self-test
 python3 scripts/quality/iced-dead-input-guard.py --mode enforce
 python3 scripts/quality/android-owner-client-guard.py --self-test

@@ -83,13 +83,13 @@ fn navigate_messages_retarget_current_route_without_touching_runtime() {
             state.shell.current_route, route,
             "Navigate must retarget route"
         );
-        // Demo gate: navigation stays pure state, no runtime is created, and
-        // the demo never claims that a Core process is running.
+        // Demo gate: navigation stays pure state and no live runtime is
+        // created; every route reads the same published fixture lifecycle.
         assert!(
             state.runtime.runtime.is_none(),
             "demo gate: no live runtime"
         );
-        assert!(matches!(state.runtime.status, RuntimeStatus::Stopped));
+        assert!(matches!(state.runtime.status, RuntimeStatus::Running));
     }
 }
 

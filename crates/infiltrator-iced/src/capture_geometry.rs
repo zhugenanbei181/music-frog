@@ -4,6 +4,7 @@ use crate::sidebar_chrome::{
     SIDEBAR_DOCK_ID, SIDEBAR_STACK_END_ID, SIDEBAR_TOGGLE_ID, SidebarChromeReceipt,
 };
 use crate::state::AppState;
+use crate::types::app::Route;
 use crate::types::message::Message;
 use crate::view::app_routing::APP_ROUTING_SCROLL_ID;
 use crate::view::doctor::DOCTOR_SCROLL_ID;
@@ -14,7 +15,8 @@ use crate::view::proxies::node_region_id;
 use crate::view::proxies_controls::search_region_id;
 use crate::view::rules::rules_list::row_region_id;
 use crate::view::rules_tracer::TRACER_SCROLL_ID;
-use crate::view::runtime::connection_search::{highlight_id, row_id};
+use crate::view::runtime::connection_search::highlight_id;
+use crate::view::runtime::connections::CONNECTIONS_PAGE_SCROLL_ID;
 use crate::view::settings::SETTINGS_SCROLL_ID;
 use crate::view::sync::SYNC_SCROLL_ID;
 use crate::view_root::aggregator_modal::AGGREGATOR_SCROLL_ID;
@@ -459,7 +461,7 @@ impl AppState {
             FeatureId::ConnectionsGrouping => InteractionRegion::ConnectionGroups.id(),
             FeatureId::LogsRedactedExport => InteractionRegion::LogExportDialog.id(),
             FeatureId::RuntimeTelemetryObservation => InteractionRegion::TrafficObservation.id(),
-            FeatureId::ConnectionsSearchHighlight => row_id("group-0"),
+            FeatureId::ConnectionsSearchHighlight => highlight_id("group-0"),
             FeatureId::LogsSearchHighlight | FeatureId::LogsScrollLock => {
                 Id::from("log-row-1".to_string())
             }
@@ -541,18 +543,18 @@ impl AppState {
             feature,
             FeatureId::ConnectionsGrouping | FeatureId::ConnectionsSearchHighlight
         ) {
+            let standalone = self.shell.current_route == Route::Connections;
             probe = probe
-                .revealing(Id::new("runtime-scroll"))
+                .revealing(if standalone {
+                    Id::new(CONNECTIONS_PAGE_SCROLL_ID)
+                } else {
+                    Id::new("runtime-scroll")
+                })
                 .requiring_peer(InteractionRegion::ConnectionGroupingControls.id())
                 .requiring_peer(InteractionRegion::ConnectionSearch.id());
         }
-        if feature == FeatureId::ConnectionsSearchHighlight {
-            probe = probe.requiring(highlight_id("group-0"));
-        }
         if feature == FeatureId::LogsScrollLock {
-            probe = probe
-                .revealing(Id::new("runtime-scroll"))
-                .requiring_peer(InteractionRegion::LogFollow.id());
+            probe = probe.requiring_peer(InteractionRegion::LogFollow.id());
         }
         if feature == FeatureId::LogsRedactedExport {
             probe = probe
@@ -562,9 +564,7 @@ impl AppState {
                 .requiring(InteractionRegion::LogExportCancel.id());
         }
         if feature == FeatureId::LogsSearchHighlight {
-            probe = probe
-                .revealing(Id::new("runtime-scroll"))
-                .requiring_peer(InteractionRegion::LogsSearch.id());
+            probe = probe.requiring_peer(InteractionRegion::LogsSearch.id());
         }
         if feature == FeatureId::ProfilesFilterEditor {
             // The narrow tier scrolls the editor page itself, so the filter
@@ -755,14 +755,6 @@ impl AppState {
     fn capture_section_geometry_task(&self) -> Task<Message> {
         let (target, page_scroll) = match self.shell.capture_section {
             CaptureSection::RouteTop => return Task::none(),
-            CaptureSection::RuntimeConnections => (
-                InteractionRegion::ConnectionsSection.id(),
-                Id::new("runtime-scroll"),
-            ),
-            CaptureSection::RuntimeLogs => (
-                InteractionRegion::LogsSection.id(),
-                Id::new("runtime-scroll"),
-            ),
             CaptureSection::RuntimeTrafficAudit => (
                 InteractionRegion::TrafficAudit.id(),
                 Id::new("runtime-scroll"),

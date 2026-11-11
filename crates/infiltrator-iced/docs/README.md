@@ -26,7 +26,8 @@ INFILTRATOR_CAPTURE_SCENARIOS='<scenario>' bash scripts/capture-iced-matrix.sh
 场景参数来自 `scripts/capture_iced_scenarios.tsv`。发布截图位于本目录的 `screenshots/`，最近运行的清单由脚本生成；完整运行日志与原始证据保存在 `.evidence/captures/iced/`。
 
 矩阵一行是 `name page shape skin window_size interaction sidebar_expansion`：`page`
-是表面打开的路线（`runtime`/`mixin`/`settings`），`shape` 是**契约页形态**——
+是表面打开的路线（如 `runtime`、`connections`、`logs`），Iced 的连接和日志入口分别
+落在独立路线；`shape` 是**契约页形态**——
 判定器按它选密度上限，所以 manifest 的 `page` 列写的是形态而不是路线；`interaction`
 是这条行要打开的业务夹具（空＝只开页），不再由场景名推导（推导曾让「折叠侧栏」这种
 非业务行的夹具 panic）；`sidebar_expansion` 是夹具发布的 owner 偏好，只有本表面

@@ -133,6 +133,42 @@ fn redraw_gate_rejects_stale_or_malformed_readback_and_saves_the_current_native_
     assert_eq!(read_to_string(directory.marker()).unwrap(), line);
 }
 
+#[test]
+fn observation_routes_publish_only_after_eight_stable_single_selection_readbacks() {
+    use crate::types::app::Route;
+
+    for (route, expected_page) in [
+        (Route::Runtime, "runtime"),
+        (Route::Connections, "connections"),
+        (Route::Logs, "logs"),
+    ] {
+        let directory = CaptureDirectory::new();
+        let mut state = capture_state(&directory);
+        state.shell.current_route = route;
+        assert_eq!(selected_navigation_destination_count(route), 1);
+        let revision = state.surface.revision();
+        let bytes = [31u8, 61, 91, 255].repeat(720 * 480);
+        let screenshot = Screenshot::new(bytes, Size::new(720, 480), 1.0);
+
+        for readback in 0..SETTLED_READBACKS {
+            arm(&mut state);
+            state.finish_capture_frame(revision, None, screenshot.clone());
+            if readback + 1 < SETTLED_READBACKS {
+                assert!(
+                    !directory.marker().exists(),
+                    "the {route:?} route published before the settled readback window"
+                );
+            }
+        }
+
+        let line = read_to_string(directory.marker()).unwrap();
+        assert!(
+            line.starts_with(&format!("CAPTURE_READY page={expected_page} ")),
+            "the {route:?} route receipt must describe its own page"
+        );
+    }
+}
+
 /// A frame that cannot state its sidebar's own geometry publishes nothing.
 ///
 /// The chrome line is the frame's description of the pane behind its pixels,

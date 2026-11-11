@@ -1,4 +1,4 @@
-# MusicFrog 工程 TODO · 过去佛（3条待验证；归档见 [TODO.md](../TODO.md) 第一百零八批次）
+# MusicFrog 工程 TODO · 过去佛（4条待验证；归档见 [TODO.md](../TODO.md) 第一百零八批次）
 
 > 层级：L4
 
@@ -117,3 +117,23 @@
 - 统一批次：`cargo nextest --workspace`、全仓 clippy `--all-targets -D warnings`、全仓结构门全腿。
 
 **证据身份**：contract/presentation/Slint 三包 1372/1372、Slint lib 29/29、诊断批 `20261111T035742Z_d20b90df8159_dirty_1198518`（`overview-dark` sha256 `b66c11ab17c2…` == 发布帧）。
+
+## 12.74 Iced 连接与日志成为独立观察页（1条待验证）
+
+| ID | 状态 / 优先级 | points | owner | 依赖 |
+| --- | --- | --- | --- | --- |
+| `SPACEUTIL-014` | `Integrated` / P1（b190 实测立项、b205 收口，待统一批次办结） | 2 | infiltrator-contract（`FeatureSpec::iced_page`）+ infiltrator-iced（`Route::{Connections,Logs}`、观察页、列表滚动 owner、捕获几何）+ 全量 Iced 像素矩阵与路由守卫 | `SPACEUTIL-013`（页身卡 owner）、`SPACEUTIL-012`（契约形态映射） |
+
+**`SPACEUTIL-014` Iced 的 `Connections` / `Logs` 不再折在 runtime 页里（b190 立项、b205 收口，2 pt / P1 / `Integrated`）**：
+
+① **架构缺口**：共享导航注册表已有 `Connections` / `Logs`，但 Iced 曾把两项都映射到 `Route::Runtime`，多个目的地因此共享选中态，业务捕获矩阵也把独立能力拍在 runtime 页。现由独立 typed route 承载，demo 路由、侧栏单选、运行态订阅与矩阵 `page` carrier 同批对齐；形态仍由共享 `FeatureSpec` 派生，契约阈值和 `page-structure.json` 不变。
+② **连接页几何根因**：独立页接线后，紧凑搜索高亮帧仍无法发布——探针测整张连接行，行底部被内部列表滚动窗裁掉；分组列表也没有发布独立页滚动 ID。平铺与分组两种列表现在共用 `CONNECTIONS_PAGE_SCROLL_ID`，搜索高亮捕获量实际可见的文字锚点；窄档 headline 纵排，主机名单行，避免 chip 与操作控件把主机名挤成竖排碎字。
+③ **日志页像素根因**：结果视口用森林皮肤近地色 `control_bg` 铺满页身，而实际页面地面采样色与该表面距离不足，被真实像素判定成内部死带；搜索帧实测标准 **62.0%**、紧凑 **26.0%**，超 `framed` 4%。移除这层近地表面并让滚动区透明并入页身卡，没放宽阈值、没记欠账。
+④ **定向证据**：Iced nextest 阶段性 **638/638**；路由守卫 `iced-observation-routes-guard.py --self-test` **8/8**、enforce 0；完整矩阵最终为 **188/188**，binary SHA 和 run ID 在 2026-11-11 b205 capture manifest；发布矩阵 `space_utilization --surface iced --enforce` **0 违规**，`receipt-freshness-guard.py` **0 违规**。日志样式修复前诊断 run `20261111T094030Z_8e1c2a6d7c71_dirty_3157883` 的四帧复测已证明根因修复将两条超标收敛到 0；随后完整 188 帧按最终代码重采。
+⑤ **待验证范围**：
+- 单元：最终代码下重跑 `cargo nextest run -p infiltrator-iced --features capture-tools -j 2` 与 `cargo clippy -p infiltrator-iced --all-targets --features capture-tools -- -D warnings`。
+- 守卫：`iced-observation-routes-guard.py` self-test/enforce、`iced-sidebar-nav-guard`、`iced-dead-input-guard`、矩阵 `generate_unified_matrix.py --check --surface=iced --surface=slint`、回执新鲜度。
+- 像素：完整 Iced 188 帧发布批、`space_utilization --surface iced --enforce`；刷新 Iced about/settings、sync-restore 既有别名摘要。全仓身份门另有 Bevy 并行工作流像素差异，按文件所有权单独归属。
+- 统一批次：`cargo nextest --workspace --no-fail-fast`、全仓 clippy `--all-targets -D warnings`、`check-structure.sh` 与 `resolve_surface_evidence.py`；该条保持 Integrated，统一批次后办结并归档 2 pt。
+
+**证据身份**：Iced nextest 638/638、路由守卫 self-test 8/8 与 enforce 0 findings、源码指纹回归单测 1/1、最终 188 帧发布 run `20261111T101129Z_8e1c2a6d7c71_dirty_3339388`（binary SHA-256 `59f611a2b60c27b96476e6f46e99ceff61891c48ad3804fe96edd636e5af7ea0`，source fingerprint `25d635ddc8fa5d3941d1ad5deb638f8f1583fc36a656893e212030997eb45a72`）、空间违规 0、回执新鲜度违规 0；搜索日志 near-ground 根因复测 run `20261111T094030Z_8e1c2a6d7c71_dirty_3157883`。

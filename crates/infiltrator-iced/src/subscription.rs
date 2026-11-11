@@ -373,7 +373,7 @@ impl AppState {
             ));
         }
         if self.runtime.runtime.is_some()
-            && self.shell.current_route == Route::Runtime
+            && self.shell.current_route.observes_runtime()
             && self.runtime.runtime_auto_refresh
             && matches!(self.runtime.status, RuntimeStatus::Running)
         {
@@ -449,7 +449,7 @@ impl AppState {
             || self.shell.animations.is_animating(Instant::now())
             || (self.shell.current_route == Route::Overview
                 && self.runtime.traffic_topology.is_flowing())
-            || (self.shell.current_route == Route::Runtime && self.diag.connection_pulse_active())
+            || (self.shell.current_route.observes_runtime() && self.diag.connection_pulse_active())
         {
             let cadence = if capture_pending {
                 RenderCadence::Active

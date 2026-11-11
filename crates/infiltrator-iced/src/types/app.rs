@@ -11,6 +11,8 @@ pub enum Route {
     Profiles,
     Proxies,
     Runtime,
+    Connections,
+    Logs,
     Rules,
     Dns,
     Sync,
@@ -25,17 +27,17 @@ pub enum Route {
 }
 
 impl Route {
-    /// Map a shared command-catalogue page onto this surface's route. Iced has
-    /// no dedicated logs page (the runtime page hosts the logs section) and
-    /// keeps the config editor as a local page, so those two are the only
-    /// non-identical arms.
+    /// Map a shared command-catalogue page onto this surface's route. Iced
+    /// keeps the config editor as a local page; all other shared destinations
+    /// have a dedicated route.
     pub fn from_shell_page(page: ShellPage) -> Self {
         match page {
             ShellPage::Overview => Self::Overview,
             ShellPage::Proxies => Self::Proxies,
             ShellPage::Profiles => Self::Profiles,
             ShellPage::Rules => Self::Rules,
-            ShellPage::Connections | ShellPage::Logs => Self::Runtime,
+            ShellPage::Connections => Self::Connections,
+            ShellPage::Logs => Self::Logs,
             ShellPage::Dns => Self::Dns,
             ShellPage::Doctor => Self::Doctor,
             ShellPage::AppRouting => Self::AppRouting,
@@ -46,6 +48,14 @@ impl Route {
             ShellPage::Disclaimer => Self::Disclaimer,
             ShellPage::Licenses => Self::Licenses,
         }
+    }
+
+    /// Whether this route consumes the live runtime observation snapshot.
+    pub fn observes_runtime(self) -> bool {
+        matches!(
+            self,
+            Self::Overview | Self::Runtime | Self::Connections | Self::Logs
+        )
     }
 }
 

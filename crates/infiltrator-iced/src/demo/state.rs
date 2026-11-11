@@ -13,7 +13,7 @@ use crate::admin_server::ADMIN_DEFAULT_PORT;
 use crate::capture_scenario;
 use crate::state::AppState;
 use crate::state::runtime::SystemProxyStage;
-use crate::types::app::{Route, SyncConflict};
+use crate::types::app::SyncConflict;
 use crate::types::dns::{FakeIpFormDraft, TunFormDraft};
 use crate::types::message::Message;
 use crate::types::options::{MrsProviderDetail, SyncDiffBundle, SyncDiffState};
@@ -96,15 +96,7 @@ impl AppState {
         state.observe_probe_settings(&RuntimeProbeSettingsState::Available {
             settings: RuntimeProbeSettings::default(),
         });
-        // The runtime workbench only exists while the fixture core runs, so
-        // the runtime route boots its demo surface as Running; every other
-        // page keeps the stopped surface (and its empty-state guards).
-        let lifecycle = if env.page == Route::Runtime {
-            CoreLifecycle::Running
-        } else {
-            CoreLifecycle::Stopped
-        };
-        let _ = state.apply_shared_surface_snapshot(demo_outbound_surface(lifecycle));
+        let _ = state.apply_shared_surface_snapshot(demo_outbound_surface(CoreLifecycle::Running));
         state.runtime.traffic_topology = TrafficTopologySnapshot::demo_fixture();
         state.runtime.active_exit = ActiveExitSnapshot::demo_fixture();
         state.runtime.subscription_quota = SubscriptionQuotaSnapshot::demo_fixture();

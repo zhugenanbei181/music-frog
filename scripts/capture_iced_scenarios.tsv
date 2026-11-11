@@ -1,14 +1,14 @@
 name	page	shape	skin	window_size	interaction	sidebar_expansion	traffic_audit
 app-routing-policy-editor-standard	app_routing	app_routing	forest	1180x780	app-routing-policy-editor		
 app-routing-policy-editor-compact	app_routing	app_routing	forest	720x480	app-routing-policy-editor		
-connections-close-all-confirm-standard	runtime	connections_workbench	forest	1180x780	connections-close-all-confirm		
-connections-close-all-confirm-compact	runtime	connections_workbench	forest	720x480	connections-close-all-confirm		
-connections-details-drawer-standard	runtime	connections_workbench	forest	1180x780	connections-details-drawer		
-connections-details-drawer-compact	runtime	connections_workbench	forest	720x480	connections-details-drawer		
-connections-grouping-standard	runtime	connections_workbench	forest	1180x780	connections-grouping		
-connections-grouping-compact	runtime	connections_workbench	forest	720x480	connections-grouping		
-connections-search-highlight-standard	runtime	connections	forest	1180x780	connections-search-highlight		
-connections-search-highlight-compact	runtime	connections	forest	720x480	connections-search-highlight		
+connections-close-all-confirm-standard	connections	connections_workbench	forest	1180x780	connections-close-all-confirm		
+connections-close-all-confirm-compact	connections	connections_workbench	forest	720x480	connections-close-all-confirm		
+connections-details-drawer-standard	connections	connections_workbench	forest	1180x780	connections-details-drawer		
+connections-details-drawer-compact	connections	connections_workbench	forest	720x480	connections-details-drawer		
+connections-grouping-standard	connections	connections_workbench	forest	1180x780	connections-grouping		
+connections-grouping-compact	connections	connections_workbench	forest	720x480	connections-grouping		
+connections-search-highlight-standard	connections	connections	forest	1180x780	connections-search-highlight		
+connections-search-highlight-compact	connections	connections	forest	720x480	connections-search-highlight		
 core-version-rollback-confirm-standard	settings	settings_workbench	forest	1180x780	core-version-rollback-confirm		
 core-version-rollback-confirm-compact	settings	settings_workbench	forest	720x480	core-version-rollback-confirm		
 dns-fake-ip-flush-confirm-standard	dns	dns	forest	1180x780	dns-fake-ip-flush-confirm		
@@ -31,12 +31,12 @@ editor-yaml-error-navigation-standard	editor	editor	forest	1180x780	editor-yaml-
 editor-yaml-error-navigation-compact	editor	editor	forest	720x480	editor-yaml-error-navigation		
 lifecycle-recovery-panel-standard	doctor	doctor	forest	1180x780	lifecycle-recovery-panel		
 lifecycle-recovery-panel-compact	doctor	doctor	forest	720x480	lifecycle-recovery-panel		
-logs-redacted-export-standard	runtime	logs_workbench	forest	1180x780	logs-redacted-export		
-logs-redacted-export-compact	runtime	logs_workbench	forest	720x480	logs-redacted-export		
-logs-scroll-lock-standard	runtime	logs_workbench	forest	1180x780	logs-scroll-lock		
-logs-scroll-lock-compact	runtime	logs_workbench	forest	720x480	logs-scroll-lock		
-logs-search-highlight-standard	runtime	logs	forest	1180x780	logs-search-highlight		
-logs-search-highlight-compact	runtime	logs	forest	720x480	logs-search-highlight		
+logs-redacted-export-standard	logs	logs_workbench	forest	1180x780	logs-redacted-export		
+logs-redacted-export-compact	logs	logs_workbench	forest	720x480	logs-redacted-export		
+logs-scroll-lock-standard	logs	logs_workbench	forest	1180x780	logs-scroll-lock		
+logs-scroll-lock-compact	logs	logs_workbench	forest	720x480	logs-scroll-lock		
+logs-search-highlight-standard	logs	logs	forest	1180x780	logs-search-highlight		
+logs-search-highlight-compact	logs	logs	forest	720x480	logs-search-highlight		
 overview-card-reorder-standard	overview	overview	forest	1180x780	overview-card-reorder		
 overview-card-reorder-compact	overview	overview	forest	720x480	overview-card-reorder		
 overview-reconnect-mask-standard	overview	overview_workbench	forest	1180x780	overview-reconnect-mask		
@@ -185,3 +185,5 @@ sidebar-collapsed-standard	overview	overview	forest	1180x780		collapsed
 sidebar-collapsed-compact	overview	overview	forest	720x480		collapsed	
 runtime-traffic-audit-standard	runtime-traffic	runtime	forest	1180x780			30d:process
 runtime-traffic-audit-compact	runtime-traffic	runtime	forest	720x480			30d:process
+connections-page-compact	connections	connections	forest	720x480			
+logs-page-compact	logs	logs	forest	720x480			

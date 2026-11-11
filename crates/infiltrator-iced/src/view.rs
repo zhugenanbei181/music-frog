@@ -25,6 +25,8 @@ pub mod mini_hud;
 pub mod mixin_studio;
 pub mod mrs_panel;
 pub mod net_roam_card;
+pub mod observation_layout;
+pub mod observation_pages;
 pub mod overview;
 pub mod overview_hero;
 pub mod overview_ip;

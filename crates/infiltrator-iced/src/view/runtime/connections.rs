@@ -17,6 +17,7 @@ use crate::view::components::{
     BadgeKind, badge, chip, empty_state, icon_button, modern_scrollable, section_header,
     segmented_control, status_dot,
 };
+use crate::view::observation_layout::connection_rows_use_stacked_headline;
 use crate::view::svg_icons::Icon;
 use crate::view::theme::{SP_MD, tokens};
 use crate::view::{svg_icons, theme};
@@ -31,6 +32,16 @@ use infiltrator_presentation::connection_grouping::sort_label_key;
 use infiltrator_presentation::connection_page_model::{CONNECTION_SORT_OPTIONS, sort_option_at};
 use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer};
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ConnectionListScrollOwner {
+    RuntimePage,
+    ConnectionsPage,
+}
+
+/// Native capture operations address this owner, so its identity lives with
+/// the widget that owns the standalone page's scroll.
+pub(crate) const CONNECTIONS_PAGE_SCROLL_ID: &str = "connections-list-scroll";
 
 /// Extract clean executable/binary name from a system process path.
 pub fn extract_process_name(path: &str) -> String {
@@ -84,7 +95,22 @@ pub fn format_rate(bps: f64) -> String {
     format!("{}/s", format_bytes(bps.max(0.0) as u64))
 }
 
-pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<'a, Message> {
+pub(crate) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<'a, Message> {
+    connections_section_with_scroll_owner(state, lang, ConnectionListScrollOwner::RuntimePage)
+}
+
+pub(crate) fn connections_page_section<'a>(
+    state: &'a AppState,
+    lang: Lang<'a>,
+) -> Element<'a, Message> {
+    connections_section_with_scroll_owner(state, lang, ConnectionListScrollOwner::ConnectionsPage)
+}
+
+fn connections_section_with_scroll_owner<'a>(
+    state: &'a AppState,
+    lang: Lang<'a>,
+    scroll_owner: ConnectionListScrollOwner,
+) -> Element<'a, Message> {
     let _is_zh = state.shell.lang.starts_with("zh");
 
     // 1. Sort segmented control: cumulative download / cumulative upload /
@@ -355,12 +381,17 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
                     .style(row_card_surface);
                     grouped_list = grouped_list.push(group_card);
                 }
-                connections_section = connections_section.push(
-                    modern_scrollable(
-                        container(grouped_list).id(InteractionRegion::ConnectionGroups.id()),
-                    )
-                    .height(Length::Fill),
-                );
+                let grouped_scroll = modern_scrollable(
+                    container(grouped_list).id(InteractionRegion::ConnectionGroups.id()),
+                )
+                .height(Length::Fill);
+                let grouped_scroll = match scroll_owner {
+                    ConnectionListScrollOwner::RuntimePage => grouped_scroll,
+                    ConnectionListScrollOwner::ConnectionsPage => {
+                        grouped_scroll.id(CONNECTIONS_PAGE_SCROLL_ID)
+                    }
+                };
+                connections_section = connections_section.push(grouped_scroll);
             }
         } else {
             // Windowed rendering: only current window items are instantiated into widgets
@@ -458,7 +489,12 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
                     Message::CloseConnection(conn.id.clone()),
                 ));
 
-                let headline = row(headline_items).align_y(Alignment::Center);
+                let headline: Element<'_, Message> = if connection_rows_use_stacked_headline(state)
+                {
+                    column(headline_items).spacing(theme::SP_XS).into()
+                } else {
+                    row(headline_items).align_y(Alignment::Center).into()
+                };
                 let match_detail = search
                     .filter(|row| !row.matched_term.is_empty())
                     .map(|row| connection_search::connection_text(state, &row.matched_term, 11));
@@ -561,7 +597,14 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
                 );
             }
 
-            connections_section = connections_section.push(conn_list);
+            let connection_list: Element<'_, Message> = match scroll_owner {
+                ConnectionListScrollOwner::RuntimePage => conn_list.into(),
+                ConnectionListScrollOwner::ConnectionsPage => modern_scrollable(conn_list)
+                    .id(CONNECTIONS_PAGE_SCROLL_ID)
+                    .height(Length::Fill)
+                    .into(),
+            };
+            connections_section = connections_section.push(connection_list);
 
             if total > state.diag.connections_page_size {
                 connections_section = connections_section.push(
@@ -596,7 +639,12 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
         ));
     }
 
-    connections_section.into()
+    match scroll_owner {
+        ConnectionListScrollOwner::RuntimePage => connections_section.into(),
+        ConnectionListScrollOwner::ConnectionsPage => {
+            connections_section.height(Length::Fill).into()
+        }
+    }
 }
 
 /// DUAL-13-10: the pulsing chip of a connection above the shared

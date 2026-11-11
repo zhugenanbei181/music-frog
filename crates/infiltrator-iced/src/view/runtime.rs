@@ -9,7 +9,7 @@ use infiltrator_presentation::routing_intent_projection::{
 use lurker_core_contract::routing_intent::{RoutingIntent, RoutingIntentStatus};
 use std::fmt::{self, Display, Formatter};
 pub(crate) mod connection_search;
-mod connections;
+pub(crate) mod connections;
 pub(crate) mod connections_controls;
 mod delay;
 pub(crate) mod logs;
@@ -54,19 +54,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         state.runtime.status,
         RuntimeStatus::Running | RuntimeStatus::Starting
     ) {
-        let stopped = card(
-            None,
-            column![
-                empty_state(Icon::Plug, lang.tr("core_not_running").as_ref(), ""),
-                Space::new().height(SP_MD),
-                text_btn(
-                    lang.tr("start_core").to_string(),
-                    style_accent,
-                    Some(Message::StartCore)
-                ),
-            ]
-            .align_x(Alignment::Center),
-        );
+        let stopped = card(None, not_running_content(&lang));
         return modern_scrollable(
             column![
                 stopped,
@@ -339,4 +327,18 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         .id("runtime-scroll")
         .height(Length::Fill)
         .into()
+}
+
+pub(crate) fn not_running_content<'a>(lang: &Lang<'a>) -> Element<'a, Message> {
+    column![
+        empty_state(Icon::Plug, lang.tr("core_not_running").as_ref(), ""),
+        Space::new().height(SP_MD),
+        text_btn(
+            lang.tr("start_core").to_string(),
+            style_accent,
+            Some(Message::StartCore)
+        ),
+    ]
+    .align_x(Alignment::Center)
+    .into()
 }

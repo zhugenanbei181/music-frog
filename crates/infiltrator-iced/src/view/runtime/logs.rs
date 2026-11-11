@@ -6,14 +6,15 @@ use crate::types::message::Message;
 use crate::types::runtime::RuntimeStreamState;
 use crate::view::component_forms::form_pick_style;
 use crate::view::components::{BadgeKind, badge, icon_button, section_header};
+use crate::view::observation_layout::ObservationListOwner;
 use crate::view::runtime::logs_controls;
 use crate::view::svg_icons::Icon;
 use crate::view::theme;
-use crate::view::theme::{R_CONTROL, tokens};
+use crate::view::theme::tokens;
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::advanced::text::Wrapping;
 use iced::widget::{Id, Scrollable, Space, column, container, pick_list, row};
-use iced::{Alignment, Border, Element, Length, Theme, border};
+use iced::{Alignment, Element, Length};
 use infiltrator_contract::logs::LogLevel;
 use infiltrator_presentation::log_search::LogSearchRow;
 use infiltrator_shared::i18n_interpolator::interpolate;
@@ -39,7 +40,11 @@ impl Display for LogChoice {
 /// Fixed right padding so log text does not sit under the scrollbar.
 const SCROLL_PAD: f32 = 16.0;
 
-pub(crate) fn logs_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<'a, Message> {
+pub(crate) fn logs_section_with_owner<'a>(
+    state: &'a AppState,
+    lang: Lang<'a>,
+    owner: ObservationListOwner,
+) -> Element<'a, Message> {
     let log_count = state
         .surface
         .latest()
@@ -139,21 +144,21 @@ pub(crate) fn logs_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<'
                 content: viewport.content_bounds().height,
                 viewport: viewport.bounds().height
             })
-            .height(Length::Fixed(260.0))
+            .height(owner.list_height())
         )
-        .style(|t: &Theme| container::Style {
-            background: Some(tokens(t).control_bg.into()),
-            border: Border {
-                radius: border::Radius::from(R_CONTROL),
-                ..Default::default()
-            },
-            ..Default::default()
-        })
         .id(InteractionRegion::LogsResults.id())
         .width(Length::Fill)
         .height(Length::Fill),
     ]
     .into()
+}
+
+pub(crate) fn logs_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<'a, Message> {
+    logs_section_with_owner(state, lang, ObservationListOwner::RuntimeCard)
+}
+
+pub(crate) fn logs_page_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<'a, Message> {
+    logs_section_with_owner(state, lang, ObservationListOwner::PageBody)
 }
 
 /// Native presentation replays neutral spans without parsing or filtering log facts.

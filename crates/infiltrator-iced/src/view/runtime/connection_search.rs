@@ -1,6 +1,7 @@
 //! Native Iced text runs replay the shared connection search decisions.
 use crate::state::AppState;
 use crate::types::message::Message;
+use crate::view::observation_layout::connection_rows_use_single_line_text;
 use crate::view::theme::tokens;
 use iced::advanced::text::Wrapping;
 use iced::advanced::widget::Id;
@@ -15,15 +16,18 @@ pub(crate) fn connection_text<'a>(
     size: u32,
 ) -> Element<'a, Message> {
     let palette = tokens(&state.shell.theme);
-    highlighted(
+    let text = highlighted(
         runs.iter().map(|run| (run.text.as_str(), run.highlighted)),
         palette.text_primary,
         palette.accent,
     )
     .size(size)
-    .width(Length::Fill)
-    .wrapping(Wrapping::WordOrGlyph)
-    .into()
+    .width(Length::Fill);
+    if connection_rows_use_single_line_text(state) {
+        text.wrapping(Wrapping::None).into()
+    } else {
+        text.wrapping(Wrapping::WordOrGlyph).into()
+    }
 }
 
 pub(crate) fn row_id(id: &str) -> Id {

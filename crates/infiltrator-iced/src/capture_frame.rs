@@ -4,7 +4,7 @@ use crate::capture_scenario;
 use crate::state::AppState;
 use crate::types::message::Message;
 #[cfg(any(feature = "capture-tools", test))]
-use crate::view::sidebar::sidebar_presentation;
+use crate::view::sidebar::{selected_navigation_destination_count, sidebar_presentation};
 use iced::window::Screenshot;
 use iced::{Rectangle, Task, window};
 use image::{ImageFormat, RgbaImage};
@@ -66,6 +66,8 @@ impl AppState {
                 .shell
                 .capture_section
                 .is_ready(self.shell.capture_region_bounds.is_some())
+            && (!self.shell.current_route.observes_runtime()
+                || selected_navigation_destination_count(self.shell.current_route) == 1)
             && self
                 .shell
                 .capture_scenario

@@ -99,6 +99,21 @@ fn every_registry_row_resolves_onto_a_route_of_this_surface() {
     }
 }
 
+#[test]
+fn each_observation_destination_has_one_selected_sidebar_row() {
+    let rows = desktop_items(SurfaceKind::IcedDesktop);
+    for current_route in [Route::Runtime, Route::Connections, Route::Logs] {
+        let selected = rows
+            .iter()
+            .filter(|item| route_for_destination(item.target) == current_route)
+            .count();
+        assert_eq!(
+            selected, 1,
+            "each observation destination must own exactly one selected row: {current_route:?}"
+        );
+    }
+}
+
 /// The two morphologies of one pane read the same rows, so a destination
 /// cannot exist in the rail and be missing from the labelled column.
 #[test]

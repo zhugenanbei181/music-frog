@@ -208,8 +208,8 @@ fn parse_page_name(value: &str) -> Option<(Route, CaptureSection)> {
         "settings" => Some((Route::Settings, CaptureSection::RouteTop)),
         "app_routing" | "app-routing" => Some((Route::AppRouting, CaptureSection::RouteTop)),
         "doctor" => Some((Route::Doctor, CaptureSection::RouteTop)),
-        "connections" => Some((Route::Runtime, CaptureSection::RuntimeConnections)),
-        "logs" => Some((Route::Runtime, CaptureSection::RuntimeLogs)),
+        "connections" => Some((Route::Connections, CaptureSection::RouteTop)),
+        "logs" => Some((Route::Logs, CaptureSection::RouteTop)),
         "runtime-traffic" | "runtime_traffic" => {
             Some((Route::Runtime, CaptureSection::RuntimeTrafficAudit))
         }
@@ -234,6 +234,8 @@ pub fn route_env_name(route: Route) -> &'static str {
         Route::Overview => "overview",
         Route::Proxies => "proxies",
         Route::Runtime => "runtime",
+        Route::Connections => "connections",
+        Route::Logs => "logs",
         Route::Rules => "rules",
         Route::Dns => "dns",
         Route::Profiles => "profiles",

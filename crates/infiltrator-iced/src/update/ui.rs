@@ -72,7 +72,7 @@ impl AppState {
                 if route == Route::Proxies || route == Route::Overview {
                     tasks.push(Task::done(Message::RefreshOutboundInventory));
                 }
-                if route == Route::Runtime {
+                if route.observes_runtime() {
                     tasks.push(Task::done(Message::RefreshRuntimeNow));
                 }
                 if route == Route::Doctor {
@@ -121,7 +121,7 @@ impl AppState {
                     if target == Route::Proxies || target == Route::Overview {
                         tasks.push(Task::done(Message::RefreshOutboundInventory));
                     }
-                    if target == Route::Runtime {
+                    if target.observes_runtime() {
                         tasks.push(Task::done(Message::RefreshRuntimeNow));
                     }
                     if target == Route::Doctor {
@@ -158,7 +158,7 @@ impl AppState {
                     if target == Route::Proxies || target == Route::Overview {
                         tasks.push(Task::done(Message::RefreshOutboundInventory));
                     }
-                    if target == Route::Runtime {
+                    if target.observes_runtime() {
                         tasks.push(Task::done(Message::RefreshRuntimeNow));
                     }
                     if target == Route::Doctor {
