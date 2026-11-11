@@ -64,14 +64,25 @@ class UnifiedMatrixTests(unittest.TestCase):
                 matrix.generate_surface_tsv(surface, output)
                 header = output.read_text(encoding="utf-8").splitlines()[0].split("\t")
             self.assertEqual(header, ["name", "page", "skin", "window_size"])
+            self.assertNotIn("traffic_audit", header)
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "iced.tsv"
             matrix.generate_surface_tsv("iced", output)
             header = output.read_text(encoding="utf-8").splitlines()[0].split("\t")
         self.assertEqual(
             header,
-            ["name", "page", "shape", "skin", "window_size", "interaction", "sidebar_expansion"],
+            [
+                "name",
+                "page",
+                "shape",
+                "skin",
+                "window_size",
+                "interaction",
+                "sidebar_expansion",
+                "traffic_audit",
+            ],
         )
+        self.assertEqual(header[-1], "traffic_audit")
 
     def test_a_surface_owned_row_keeps_its_place_and_its_columns(self):
         """Twelve of the Slint rows sit inside the generated block, not after it."""

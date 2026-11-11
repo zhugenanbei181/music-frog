@@ -24,19 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-11 第一百九十七批次；b111–b196 见下方批次八问摘要）
+## 当前状态（2026-11-11 第一百九十八批次；b111–b197 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b197 改 contract / presentation / Slint 三层 Rust 与两个 `.slint` 文件，零平台 API、零 wire；三包 `cargo nextest` **1372/1372**、Slint lib **29/29**、定向 clippy `--lib -D warnings` 与 `fmt --check` 为 `L`。交叉构建、aarch64 与目标机仍由 CI / 设备矩阵补证（GAP-1.1） |
-| 2 | 部分 | L | 本机 Linux 跑完定向测试、单帧 `overview-dark` 诊断（176s）与守卫；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
-| 3 | 部分 | L | 不触 Android/iOS 代码、资源或 wire；侧栏 label fit 是桌面导航契约，手机 dock 仍按既有条目收口，没有本批实机回执可声称 |
-| 4 | 部分 | L | Slint 的 `NavigationSlot` 消费共享 `label_truncated` 并条件挂载 tooltip；Iced / Bevy / Android 未消费此事实（其侧栏形态不同），由各自条目收口。Bevy 文件正由另一会话重写，本批不碰；判定器仍未覆盖 Bevy |
-| 5 | 完整 | L | 文字几何/截断规则只在 `infiltrator_contract::sidebar_label`，字体度量只在 `infiltrator_presentation::sidebar_label_projection`，最终显示词只在 Slint 投影；UI 只消费一个 typed bool，不量字宽、不猜列名，语言切换时导航重新投影 |
-| 5a | 完整 | L | 本批不改变字体 / 字重 / 图标族 / 视觉资产与任何发布像素；诊断 `overview-dark` 与已发布帧 sha256 同为 `b66c11ab17c2…`、全帧差异 0 px，`receipt-freshness 0`、199 帧 `space_utilization --enforce` violations=0。Bevy 浅色像素回执仍属另一会话待办，但本批不产生新的身份变化 |
-| 6 | 部分 | L | `FLPARITY-048` 1 pt 由 `Planned` 转 `Integrated` 迁入过去佛 §12.73 等统一批次办结；rail 每行 tooltip 与展开态截断行 tooltip 已按上游规则接线，但 hover 交互本身不进像素回执（台架不投指针），共享度量是字符宽度类近似而非 shaping/kerning 级 advance |
-| 7 | 完整 | L | contract 新模块、presentation 度量桥、Slint 投影与被动 UI 四层边界清楚；新增 12 条单测分别钉住几何、度量、缩放、语言显示词；`slint-syntax-guard` 100% PASS、`slint-dead-input` 0、`doc-governance` OK |
-| 8 | 部分 | L | 本批零重采、零像素变更，只跑一次单帧诊断（176s）+ 三包定向测试/编译；未跑全仓 `--workspace` nextest/clippy 与结构门全腿（留统一批次一次跑完）；另一会话未提交的 Bevy 像素仍是全仓身份门唯一红腿 |
+| 1 | 部分 | L | b198 只改一个 parity 单测，零 Rust / 零平台 API / 零 wire；`python3 scripts/parity/test_generate_unified_matrix.py` **7/7 OK**、`python3 -m unittest discover -s scripts/parity -p 'test_*.py'` **65/65 OK** 为 `L`。交叉构建、aarch64 与目标机仍由 CI / 设备矩阵补证（GAP-1.1） |
+| 2 | 部分 | L | 本机 Linux 跑完 parity 单测、生成器 `--check` 双表面、文档门与收口门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
+| 3 | 部分 | L | 不触 Android/iOS 代码、资源或 wire；本批只裁决 Iced 捕获矩阵 header，不产生任何实机回执 |
+| 4 | 部分 | L | Iced 的第 8 列 `traffic_audit` 被单测钉住，Slint / Bevy 明确不得带该列；Bevy 文件正由另一会话重写，本批不碰；判定器仍未覆盖 Bevy |
+| 5 | 完整 | L | Iced 矩阵的列契约只有一处：生成器写 8 列，单测断言 8 列且末列是 `traffic_audit`，`--check` 逐行锁住；没有第二份 header 常量或跨表面列扩散 |
+| 5a | 完整 | L | 本批无字体 / 字重 / 图标族 / 视觉资产与发布像素变化；`receipt-freshness 0`、Slint 199 / Iced 186 帧 `space_utilization --enforce` violations=0，零重采 |
+| 6 | 部分 | L | 只修复 b195 遗留的生成器单测红腿，不推进 `SPACEUTIL-014` 的独立 connections/logs 页；ClashParty 侦察确认其 `/connections`、`/logs`、`/traffic` 都是独立页，补页会改变 186 帧发布语料，另立批次处理 |
+| 7 | 完整 | L | 单测按表面分别断言 header：Slint / Bevy 保持 4 列且不含审计列，Iced 保持 8 列；原有 6 项生成器自测不变，`doc-governance OK` |
+| 8 | 部分 | L | 本批零 Rust、零像素、零重编，只跑 parity 单测与生成器 `--check`；未跑全仓 `--workspace` nextest/clippy 与结构门全腿（留统一批次一次跑完）；另一会话未提交的 Bevy 像素仍是全仓身份门唯一红腿 |
+
+## 最近一批问答（2026-11-11 第一百九十八交付批次：Iced 8 列矩阵单测回归收口）
+
+1. x86_64/aarch64：本批只改 `scripts/parity/test_generate_unified_matrix.py`，零 Rust / 零平台 API / 零 wire；`python3 scripts/parity/test_generate_unified_matrix.py` **7/7 OK**、`python3 -m unittest discover -s scripts/parity -p 'test_*.py'` **65/65 OK** 为 `L`。交叉构建、aarch64 与目标机仍由 CI / 设备矩阵补证 → 部分（L）。
+2. Windows/Linux/macOS：本机 Linux 跑完 parity 单测、生成器 `--check --surface=iced --surface=slint`、文档门与收口门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
+3. Android/iOS：不触三端代码、资源或 wire；本批只裁决 Iced 捕获矩阵 header，不产生任何实机回执 → 部分（L）。
+4. 各 UI：Iced 的第 8 列 `traffic_audit` 被单测钉住，Slint / Bevy 明确不得带该列；Bevy 文件正由另一会话重写、本批不碰；空间利用率判定器仍未覆盖 Bevy → 部分（L）。
+5. 复用：Iced 矩阵的列契约只有一处——生成器写 8 列，单测断言 8 列且末列是 `traffic_audit`，`--check` 逐行锁住；没有第二份 header 常量，也没有跨表面列扩散 → 完整（L）。
+5a. 设计资源强制标准：本批无字体 / 字重 / 图标族 / 视觉资产与发布像素变化；`receipt-freshness 0`、Slint 199 / Iced 186 帧 `--enforce` violations=0，零重采 → 完整（L）。
+6. 各处界面的功能接入：只修复 b195 遗留的生成器单测红腿，不推进 `SPACEUTIL-014` 的独立 connections/logs 页；ClashParty 侦察确认其 `/connections`、`/logs`、`/traffic` 都是独立页，补页会改变 186 帧发布语料，另立批次处理 → 部分（L）。
+7. 模块化：单测按表面分别断言 header——Slint / Bevy 保持 4 列且不含审计列，Iced 保持 8 列且末列是 `traffic_audit`；原有 6 项生成器自测不变，`doc-governance OK` → 完整（L）。
+8. CI 与批次效率：本批零 Rust、零像素、零重编，只跑 parity 单测与生成器 `--check`；全仓 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py` 仍留统一批次一次跑完；另一会话未提交的 Bevy 像素仍是全仓身份门唯一红腿 → 部分（L）。
 
 ## 最近一批问答（2026-11-11 第一百九十七交付批次：`FLPARITY-048` 标签截断收归共享 owner）
 
