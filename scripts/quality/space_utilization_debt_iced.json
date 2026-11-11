@@ -1,8 +1,5 @@
 {
   "frames": {},
-  "rail": {
-    "chrome_band_pct": 0.0,
-    "void_pct": 6.2
-  },
+  "rail": {},
   "version": 1
 }

@@ -333,7 +333,13 @@ pub const NAV_CHROME_BAND_LIMIT_PCT: f64 = 0.0;
 
 /// The largest dead band allowed between destination rows, as a share of the
 /// window height. Stretch air belongs at the end of the stack, not inside it.
-pub const NAV_VOID_LIMIT_PCT: f64 = 12.0;
+///
+/// The FlClash desktop reference's own largest inter-row gap measures 3.06%
+/// of its 1665px window. Our shortest tier is 480px tall and paints eight
+/// destinations instead of five, so the same absolute gap is a larger share:
+/// 8% is a bounded 2.6x scale headroom over the reference, not a flat copy.
+/// `flclash-sidebar-void-guard.py` measures the reference and pins this ratio.
+pub const NAV_VOID_LIMIT_PCT: f64 = 8.0;
 
 /// The ground limit for one page shape.
 pub const fn ground_limit(structure: PageStructure) -> f64 {

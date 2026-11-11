@@ -24,19 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-11 第二百零三批次；b111–b202 见下方批次八问摘要）
+## 当前状态（2026-11-11 第二百零四批次；b111–b203 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b203 把侧栏两项上限从 Python 判定器的私有常量收归契约导出：contract 新增 2 个 typed 常量、`page-structure.json` 升 v11、判定器与 3 个版本门同批迁移，零平台 API / 零 wire / 零快照变更；contract nextest **593/593**、contract clippy `--all-targets -D warnings`、`fmt --check`、判定器自测 **61/61**、生成器 `--check`、两个版本守卫自测 36/36 与 9/9 为 `L`。交叉构建、aarch64 与目标机仍由 CI / 设备矩阵补证（GAP-1.1） |
+| 1 | 部分 | L | b204 用 tracked FlClash 参考图像素把 `void` 上限从 12% 收紧到 8%，新增 1 个守卫、修掉 `--update-debt` 可扩张 rail 欠账的真实缺陷，零平台 API / 零 wire / 零快照变更；contract nextest **593/593**、contract clippy `--all-targets -D warnings`、`fmt --check`、判定器自测 **62/62**、新守卫 7/7、quality/parity 单测全绿为 `L`。交叉构建、aarch64 与目标机仍由 CI / 设备矩阵补证（GAP-1.1） |
 | 2 | 部分 | L | 本机 Linux 跑完 contract 定向测试/clippy/fmt、判定器 6 模式、双表面 `--enforce`、生成器与全部相关守卫、quality/parity 单测与结构门切片；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
 | 3 | 部分 | L | 不触 Android/iOS 代码、资源或 wire；导出物是共享契约的机器可读真源，不产生任何实机回执 |
-| 4 | 部分 | L | 判定器（`space_utilization.py`）仍是两个表面发布回执的唯一入口，本批只把它的两个侧栏常量改为读导出；Slint 生成器由同一 v11 导出喂养、`--check` fresh。Bevy 仍未被判定器覆盖且文件由另一会话重写，本批不碰 |
-| 5 | 完整 | L | `chrome_band` 0% / `void` 12% 现在只由 `infiltrator_contract::page_structure` 的 `NAV_CHROME_BAND_LIMIT_PCT` / `NAV_VOID_LIMIT_PCT` 一处发布，经 v11 `navigation_limits` 送达判定器；判定器 `rail_findings()` 逐帧只读导出、缺键即拒判，旧的 `RAIL_CHROME_BAND_LIMIT` / `RAIL_VOID_LIMIT` 私有镜像全仓清零，`FRAMED_LIMIT` / `CONTENT_LIMIT` 仅作 planted 断言保留 |
+| 4 | 部分 | L | 判定器（`space_utilization.py`）仍是两个表面发布回执的唯一入口，本批仅改共享上限与欠账更新规则；Slint 生成器由同一 v11 导出喂养、`--check` fresh，两表面发布帧逐字不变。Bevy 仍未被判定器覆盖且文件由另一会话重写，本批不碰 |
+| 5 | 完整 | L | 参照图实测行间最大死带 51/1665=3.06%，由新守卫逐像素复量并钉住 SHA-256；`chrome_band` 0% 也由该图栈底 y579 后无墨迹证明；8% = 3.06% 的 2.6x 有界缩放余量（短视口 8 项对参照物 5 项），契约常量、v11 导出、L0/L2/L3 文档与判定器读数一致，不再有 12% 旧双轨 |
 | 5a | 完整 | L | 本批无字体 / 字重 / 图标族 / 视觉资产与发布像素变化；Iced 186 / Slint 199 帧 `space_utilization --enforce` violations=0，`receipt-freshness 0`，零重采 |
-| 6 | 部分 | L | 这是判据所有权收口，不改变任何页面形态或业务行为；`TRAFFICAUDIT-001` 仍留过去佛等统一验收，Slint / Bevy 审计页未开工，`SPACEUTIL-014` 独立页也未推进 |
-| 7 | 完整 | L | 契约常量 → 导出 v11 → 判定器 → 3 个版本门一次迁移，不留新旧双轨；新增 planted「把导出 `void` 上限改成 0 会改变判定」，两处旧阶梯 fixture 同步补 `navigation_limits`；全仓搜索 `RAIL_*` 私有常量为 0，`line` / `import` / `typed-state` / `doc-governance` 全 0 |
+| 6 | 部分 | L | 这是空间标准上限与门禁收口，不改变任何页面形态或业务行为；`TRAFFICAUDIT-001` 仍留过去佛等统一验收，Slint / Bevy 审计页未开工，`SPACEUTIL-014` 独立页也未推进 |
+| 7 | 完整 | L | 新守卫 7 项 planted 覆盖换图、错测量、栈底非导航块、平铺照抄 3.06%、任意放宽上限、结构门漏接；判定器新增 `debt_growth_findings` / `rail_debt_from_results` 与第 62 项 planted，证明 `--update-debt` 只把低于上限的实测值从欠账里删除而非登记为新欠账；`line` / `import` / `typed-state` / `doc-governance` 全 0 |
 | 8 | 部分 | L | 本批零发布像素、零重采，只跑 contract 定向测试/clippy 与 Python 守卫；全仓结构门仍在另一会话未提交的 Bevy 像素身份腿上红（`runtime-dark` / `overview-dark` 不再同字节），该腿之后的切片单独跑完为 exit 0；全仓 `--workspace` nextest/clippy 与 `resolve_surface_evidence.py` 仍留统一批次 |
+
+## 最近一批问答（2026-11-11 第二百零四交付批次：侧栏空隙上限按 FlClash 实测像素收紧）
+
+1. x86_64/aarch64：本批用 tracked FlClash 参考图像素把 `void` 上限从 12% 收紧到 8%，新增 1 个守卫、修掉 `--update-debt` 可扩张 rail 欠账的真实缺陷，零平台 API / 零 wire / 零快照变更；contract nextest **593/593**、contract clippy `--all-targets -D warnings` exit 0、`cargo fmt --all --check` 干净、判定器自测 **62/62**、新守卫 7/7、quality/parity 单测全绿为 `L`。交叉构建、aarch64 与目标机仍由 CI / 设备矩阵补证 → 部分（L）。
+2. Windows/Linux/macOS：本机 Linux 跑完 contract 定向测试/clippy/fmt、判定器 6 模式、双表面 `--enforce`、生成器与全部相关守卫、quality/parity 单测与结构门切片；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
+3. Android/iOS：不触三端代码、资源或 wire；导出物是共享契约的机器可读真源，不产生任何实机回执 → 部分（L）。
+4. 各 UI：判定器仍是两个表面发布回执的唯一入口，本批仅改共享上限与欠账更新规则；Slint 生成器由同一 v11 导出喂养、`--check` fresh，两表面发布帧逐字不变。Bevy 仍未被判定器覆盖且文件由另一会话重写，本批不碰 → 部分（L）。
+5. 复用：参照图实测行间最大死带 51/1665=3.06%，由新守卫逐像素复量并钉住 SHA-256；`chrome_band` 0% 也由该图栈底 y579 后无墨迹证明；8% = 3.06% 的 2.6x 有界缩放余量（短视口 8 项对参照物 5 项），契约常量、v11 导出、L0/L2/L3 文档与判定器读数一致，不再有 12% 旧双轨 → 完整（L）。
+5a. 设计资源强制标准：本批无字体 / 字重 / 图标族 / 视觉资产与发布像素变化；Iced 186 / Slint 199 帧 `--enforce` violations=0，`receipt-freshness 0`，零重采 → 完整（L）。
+6. 各处界面的功能接入：这是空间标准上限与门禁收口，不改变任何页面形态或业务行为；`TRAFFICAUDIT-001` 仍留过去佛等统一验收，Slint / Bevy 审计页未开工，`SPACEUTIL-014` 独立页也未推进 → 部分（L）。
+7. 模块化：新守卫 7 项 planted 覆盖换图、错测量、栈底非导航块、平铺照抄 3.06%、任意放宽上限、结构门漏接；判定器新增 `debt_growth_findings` / `rail_debt_from_results` 与第 62 项 planted，证明 `--update-debt` 只把低于上限的实测值从欠账里删除而非登记为新欠账；`line` / `import` / `typed-state` / `doc-governance` 全 0 → 完整（L）。
+8. CI 与批次效率：本批零发布像素、零重采，只跑 contract 定向测试/clippy 与 Python 守卫；全仓结构门仍在另一会话未提交的 Bevy 像素身份腿上红（`runtime-dark.png` / `overview-dark.png` 不再同字节），该腿之后的切片单独跑完为 exit 0；全仓 `--workspace` nextest/clippy 与 `resolve_surface_evidence.py` 仍留统一批次一次跑完 → 部分（L）。
 
 ## 最近一批问答（2026-11-11 第二百零三交付批次：侧栏上限收归契约导出，判定器不再留私有数字）
 

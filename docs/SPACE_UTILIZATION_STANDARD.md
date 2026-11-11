@@ -166,7 +166,7 @@ ClashParty 折叠了 traffic/log 页），仍按 framed 4% 判定，b190 实测 
 | 侧栏 | 上限 | 依据 |
 | --- | --- | --- |
 | `chrome_band` | **0%** | FlClash 桌面侧栏实测只有导航行（边界 x=429，5 个行带 y89–579，下方无非导航区块）；统计数据全部属于仪表盘卡片 |
-| `void` | **12%** | stretch 空气必须留在栈尾，不得长在导航行之间；b164 起桌面四种导航形态统一由契约导出 `NavigationSeparator::None`，不画分组标题与它的额外上空气 |
+| `void` | **8%** | FlClash 桌面参照图实测导航行间最大死带 **51px / 1665px = 3.06%**（`flclash-sidebar-void-guard.py` 逐像素复量）；本仓最短档 480px 要画 8 项而非参照物 5 项，同一绝对缝在短窗口占比更大，故给 2.6x 有界缩放余量（8%），不是照抄参照物比例；b164 起 `NavigationSeparator::None` 不画分组标题，stretch 空气只留在栈尾 |
 
 **b203 架构收口**：这两个数字此前只写在 L2 表格里、由判定器以
 `RAIL_CHROME_BAND_LIMIT` / `RAIL_VOID_LIMIT` 两个 Python 常量**私有镜像**执行，
@@ -176,6 +176,16 @@ ClashParty 折叠了 traffic/log 页），仍按 framed 4% 判定，b190 实测 
 判定器 `rail_findings()` 逐帧只读导出，缺键或旧版导出直接拒判而不是回落到记住的数，
 `ladder_problems()` 与 `--check-export` 同时把这两个键列为导出新鲜度的一部分。
 planted 自测把导出 `void` 上限改成 0 实测会改变判定，证明执法确实随导出变化。
+
+**b204 实测重定 `void` 上限**：12% 来自 b144，当时理由是「分组标题与 stretch
+空气必须留在簇边界」；b164 已删掉分组标题，该上限却一直沿用。重新量 tracked
+FlClash 桌面参考图：侧栏 5 个目的地行的最大行间死带为 **51px / 1665px = 3.06%**，
+导航栈底 y579 后没有非导航墨迹。判定器对 720×480 的本仓 8 项图标轨实测最差
+**6.2%**，故按短视口的相同比例需要留有余量，定为参照值的 **2.6x = 8%**
+（依据与逐像素复量由 `scripts/quality/flclash-sidebar-void-guard.py` 锁住）；
+这收紧了仅有 prose 理由的 12%，不改变当前任何像素，两表面现存 `void` 最大值
+6.2% 仍达标。该 guard 同时量 `chrome_band` 的参考值 0%，并阻止参照图漂移、
+导出上限任意放宽或再次遗留一份 Python 常量。
 
 侧栏形态与按钮可用性由 `page-structure.json` 的 `sidebar_variants` 16 行封闭表
 给定：`preference × tier × touch_surface` 唯一决定 `nav_form`、列宽、标签与
@@ -473,7 +483,7 @@ b173 把折叠钮接进侧栏（wire 从 9 键扩到 12 键，新增两张折叠
 | `expanded`（1180×780） | 124 | 3.7% | 40.6% | 59.4% | **0** |
 
 - 侧栏（只有 `expanded` 档绘制带标签列，判定器按导出 `labelled_sidebar` 取轴）：
-  `chrome_band` **0.0%**（上限 0.0%）、`void` 最差 **6.2%**（上限 12.0%，186 帧拥有列），
+  `chrome_band` **0.0%**（上限 0.0%）、`void` 最差 **6.2%**（上限 8.0%，186 帧拥有列），
   两项均在上限内；`space_utilization.py --enforce` 对 199 帧 violations=0，
   欠账台账 `frames` 保持为空。
 - p90/max 落在 `content` 形态页（上限 82%）：同形态的参考产品实测留白 80.6%，

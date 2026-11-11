@@ -732,6 +732,46 @@ def write_debt(document: dict, path: pathlib.Path = DEBT_FILE) -> None:
                     encoding="utf-8")
 
 
+def debt_growth_findings(frames: dict[str, float], rail: dict[str, float],
+                         debt: dict, first_baseline: bool = False) -> list[str]:
+    """A debt update may remove or shrink entries, never add or grow them."""
+    if first_baseline:
+        return []
+    previous_frames = debt["frames"]
+    previous_rail = debt["rail"]
+    found = [
+        f"{name}: frame debt grew from {float(previous_frames.get(name, -1.0))}% to {value}%"
+        for name, value in frames.items()
+        if float(previous_frames.get(name, -1.0)) < value
+    ]
+    found.extend(
+        f"rail {name} debt grew from {float(previous_rail.get(name, -1.0))}% to {value}%"
+        for name, value in rail.items()
+        if float(previous_rail.get(name, -1.0)) < value
+    )
+    return sorted(found)
+
+
+def rail_debt_from_results(results: list[dict], limits: dict[str, float]) -> dict[str, float]:
+    """Record only measured rail violations above the contract's caps."""
+    columned = [entry for entry in results if "chrome_band_pct" in entry]
+    if not columned:
+        return {}
+    observed = {
+        "chrome_band_pct": max(entry.get("chrome_band_pct", 0.0) for entry in columned),
+        "void_pct": max(entry.get("void_pct", 0.0) for entry in columned),
+    }
+    cap_for = {
+        "chrome_band_pct": "chrome_band_limit_pct",
+        "void_pct": "void_limit_pct",
+    }
+    return {
+        key: value
+        for key, value in observed.items()
+        if value > limits[cap_for[key]]
+    }
+
+
 def chrome_findings(results: list[dict]) -> list[str]:
     """Every frame must describe its own chrome, and agree with the ladder.
 
@@ -1235,6 +1275,21 @@ class SelfTest(unittest.TestCase):
         found = frame_findings([entry], debt)
         self.assertTrue(any("grew past its registered debt" in item for item in found), found)
 
+    def test_a_rail_debt_cannot_grow_when_a_cap_is_tightened(self) -> None:
+        results = [
+            dict(chrome_band_pct=0.0, void_pct=6.2),
+            dict(chrome_band_pct=0.0, void_pct=4.0),
+        ]
+        limits = {"chrome_band_limit_pct": 0.0, "void_limit_pct": 8.0}
+        self.assertEqual(rail_debt_from_results(results, limits), {})
+        previous = {"frames": {}, "rail": {"chrome_band_pct": 0.0, "void_pct": 4.4}}
+        self.assertEqual(debt_growth_findings({}, {}, previous), [])
+        grown = {"void_pct": 6.2}
+        self.assertTrue(
+            any("rail void_pct debt grew" in item
+                for item in debt_growth_findings({}, grown, previous)),
+            "a measured value below its cap must not become new debt")
+
     def test_debt_for_a_missing_scenario_is_a_violation(self) -> None:
         debt = {"frames": {"gone": 40.0}, "rail": {}}
         found = frame_findings([], debt)
@@ -1616,7 +1671,7 @@ class SelfTest(unittest.TestCase):
             "version": 4, "pages": [], "slugs": [],
             "chrome_keys": CHROME_KEYS_FOR_TEST,
             "navigation_limits": {"chrome_band_limit_pct": 0.0,
-                                  "void_limit_pct": 12.0},
+                                  "void_limit_pct": 8.0},
             "tiers": [
                 {"id": "compact", "min_width_px": 0, "max_width_px": 500,
                  "nav_form": "bottom_nav", "nav_column_px": 0,
@@ -1666,7 +1721,7 @@ class SelfTest(unittest.TestCase):
             "version": 4, "pages": [], "slugs": [],
             "chrome_keys": CHROME_KEYS_FOR_TEST,
             "navigation_limits": {"chrome_band_limit_pct": 0.0,
-                                  "void_limit_pct": 12.0},
+                                  "void_limit_pct": 8.0},
             "tiers": [
                 {"id": "compact", "min_width_px": 0, "max_width_px": 500,
                  "nav_form": "bottom_nav", "nav_column_px": 0,
@@ -1972,16 +2027,11 @@ def main(argv: list[str] | None = None) -> int:
         frames = {entry["scenario"]: entry["unused_pct"] for entry in measured
                   if entry["unused_pct"] > limit_for(entry["scenario"], entry["tier"],
                                                     structures, entry.get("page", ""))}
-        columned = [entry for entry in results if "chrome_band_pct" in entry]
-        rail = {}
-        if columned:
-            rail["chrome_band_pct"] = max(
-                entry.get("chrome_band_pct", 0.0) for entry in columned)
-            rail["void_pct"] = max(entry.get("void_pct", 0.0) for entry in columned)
-        grew = sorted(name for name, value in frames.items()
-                      if float(debt["frames"].get(name, -1.0)) < value)
-        if grew and not first_baseline:
-            print(f"space-utilization: refusing to register new debt for {grew}", file=sys.stderr)
+        rail = rail_debt_from_results(results, navigation_limits())
+        grew = debt_growth_findings(frames, rail, debt, first_baseline)
+        if grew:
+            print(f"space-utilization: refusing to register new debt: {grew}",
+                  file=sys.stderr)
             return 1
         if first_baseline:
             print(f"space-utilization: writing the first debt baseline "
