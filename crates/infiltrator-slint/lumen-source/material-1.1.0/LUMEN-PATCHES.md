@@ -19,6 +19,19 @@ page: on the published `proxies-dark` receipt the page-header action ink measure
 rgb(65, 73, 75) on rgb(10, 11, 14) — about 2.1:1 — where the app's own dark
 `onSurfaceVariant` token is `#A5B0BC` at about 7.4:1. Colour values are unchanged.
 
+`ui/lumen-app.slint` feeds the same resolved fact into `std-widgets`' own
+`Palette.color-scheme` (imported as `StdPalette`). Slint 1.18's standard
+`ScrollView` thumb border reads the built-in material `MaterialPalette.border`,
+which that style derives from the process-level platform colour scheme instead
+of the vendored `@material` channel. b181 therefore left a second light/dark
+owner: a light host drew a dark 2px scrollbar on a dark page, and the corpus
+was reproducible only within one host theme. The standard palette is an
+`in-out` global, so the root writes `StdPalette.color-scheme` in the same two
+places it writes `MaterialPalette.application-dark-mode` (`init` and
+`update-color-scheme()`); `slint-theme-channel-guard.py` now rejects a missing,
+extra or pinned standard-widget write. No page-level boolean, capture-only
+host declaration, or custom scrollbar is introduced.
+
 `ui/components/navigation_bar.slint` adds opt-in `compact` and `show_layout_bounds` inputs alongside `border_radius`. The compact phone bar is 56 px high, with 22 px icons, 12 px labels, and a 48 px high selected pill. After 4 px padding on each side, every item gets exactly one equal share of the available width. It retains BaseNavigation accessibility and ExtendedTouchArea keyboard activation. The regular navigation/rail branch remains available. The compact branch bypasses the regular icon row's 20 px padding on each side: four 26+40 px items, 24 px of gaps, and 16 px outer padding previously required at least 304 px inside a roughly 280 px bar. That minimum-size conflict clipped the fourth item; clip alone hid the error. Debug frames now show the actual slot, icon, and label bounds.
 
 `ui/components/app_bar.slint` makes `show_background: false` transparent, so large page titles share the page canvas instead of forming a separate white band.

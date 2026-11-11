@@ -1,4 +1,4 @@
-# MusicFrog 工程 TODO · 过去佛（1条待验证；归档见 [TODO.md](../TODO.md) 第一百零八批次）
+# MusicFrog 工程 TODO · 过去佛（2条待验证；归档见 [TODO.md](../TODO.md) 第一百零八批次）
 
 > 层级：L4
 
@@ -75,3 +75,24 @@
 - 诚实边界（发布范围）：186 帧发布批 `20261111T015000Z_ac6d8f958d10_dirty_353763` 的 binary sha256 `af62c849…` 与本条源码一致；29 帧 AA 变化随 b195 的 runtime 控件树重排，需在统一批次连同全仓门一起复核，不得把它写成「只有两张新回执变化」或「判定器/环境缺陷」。
 
 **证据身份**：domain 631/631、application 675/675、presentation 3 条、iced 634/634、dead-input 0/0、quality 脚本单测 367/367、发布批 `20261111T015000Z_ac6d8f958d10_dirty_353763`（186/186）、诊断对 `20261111T012325Z_..._191669` / `20261111T012342Z_..._192980`（131,853 px）。
+
+## 12.72 Slint 标准控件回执不再随宿主主题翻转（1条待验证）
+
+| ID | 状态 / 优先级 | points | owner | 依赖 |
+| --- | --- | --- | --- | --- |
+| `SLINT-022` | `Integrated` / P1（b181 实测立项、b196 交付，待统一批次办结） | 2 | `crates/infiltrator-slint/ui/lumen-app.slint`（明暗通道）+ Slint 供应商补丁说明 + `scripts/quality/slint-theme-channel-guard.py` | `SLINT-021`（同一条明暗事实） |
+
+**`SLINT-022` 标准控件的滚动条墨色不再读平台（b181 实测立项，b196 收口，2 pt / P1 / `Integrated`）**：
+① **真根因是第二条明暗通道，不是「Slint 没有写入口」**：b181 只把 vendored `@material` 的 `MaterialPalette.scheme` / `Elevation.dark` 收归 `application-dark-mode`；页面 `app_body.slint` 用的却是 `std-widgets.slint` 的 `ScrollView`，其 1px 句柄描边读内置 material style 的 `MaterialPalette.border`，而该 style 的 `MaterialPalette.color-scheme` 默认来自 `ColorSchemeSelector.color-scheme = SlintInternal.color-scheme`（进程级平台方案）。`std-widgets` 导出的 `Palette.color-scheme` 是 `in-out` 全局，因此 b181 记录的「Slint 1.18 未公开应用侧写入口」被本批实测推翻；不是要自建滚动条或给台架加布尔，而是把同一条已裁决事实喂进第二个消费者。
+② **修在唯一 owner**：`ui/lumen-app.slint` 显式 `import { Palette as StdPalette } from "std-widgets.slint"`，并在根窗口写 `LumenTheme.dark-mode` 与 `MaterialPalette.application-dark-mode` 的**同两处**（`init` 与 `update-color-scheme()`）同笔写 `StdPalette.color-scheme = root.application-dark-mode ? ColorScheme.dark : ColorScheme.light`。`MaterialPalette.color-scheme` 仍保留为平台观测，只由 `platform-dark-mode`（偏好为 `system` 时）合法读取，不引入第二种真源。
+③ **机器不变量**：`slint-theme-channel-guard.py` 从 6 项 planted 扩到 **8/8**，新增 `STD_CHANNEL_WRITE` 判据——`StdPalette.color-scheme` 写点数必须等于 `LumenTheme.dark-mode` 写点数、每个写表达式必须读 `application-dark-mode`；两条新负例分别把标准控件通道删掉、钉死成 `ColorScheme.dark`，实测都会咬。原「写点不喂 Material」负例同步改成同时删两个通道，保持它的原始语义。
+④ **真实像素验收（两种宿主主题）**：`gsettings set org.gnome.desktop.interface color-scheme prefer-light` 下诊断批 `20261111T030014Z_bce353de8462_dirty_813495`，`prefer-dark` 下诊断批 `20261111T030327Z_bce353de8462_dirty_837205`，同一 `proxies-dark` 帧两次 `image.png` **sha256 同为 `e43974c613e4…`、全帧与右缘 2px 带差异均为 0 px**；宿主设置随后恢复 `prefer-light`。修复后的 light 宿主诊断帧又与已发布 `proxies-dark.png` 逐字节相同，说明现存发布语料本来就是 light 宿主状态，本批把「碰巧一致」变成结构保证，因此 **199 帧无需重采、零像素变更、`receipt-freshness 0`**。
+⑤ **证据（L）**：`cargo check -p infiltrator-slint --features capture-tools` exit 0、`slint-syntax-guard` 100% PASS、`slint-dead-input` findings=0 / allowed=8、`slint-source-import-guard` 718 files / 36 patched / 8,726,178 bytes、`slint-theme-channel-guard --mode enforce` findings=0 且 `--self-test` **8/8**、两宿主诊断帧逐字节相同、`space_utilization --enforce` 199 帧 violations=0。
+⑥ **诚实边界**：A/B 只在同一台机器、同一私有 KWin/niri 台架上切换宿主明暗设置；未覆盖 Wayland/Qt/其它桌面环境对 `SlintInternal.color-scheme` 的写入差异，也不声称标准控件的所有颜色都归应用主题（这里只裁决滚动条描边所依赖的 `color-scheme` 选择）。全仓 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py` 仍待统一批次；另一会话未提交的 Bevy 像素仍是全仓身份门唯一红腿。
+
+**待验证范围**：
+- 本机可复跑：`slint-theme-channel-guard --self-test`（8/8）与 `--mode enforce`（0）、`cargo check -p infiltrator-slint --features capture-tools`、`slint-syntax-guard`、`slint-source-import-guard`、两宿主诊断批的 PNG sha256 与右缘 2px 带比对、`space_utilization --enforce` 199 帧 0 违规、`receipt-freshness 0`。
+- 统一批次：`cargo nextest --workspace`、全仓 clippy `--all-targets -D warnings`、全仓结构门全腿。
+- 诚实边界：本批不重采、不改任何 PNG / manifest；`Integrated` 不等于办结，统一验证通过后登记 archived points。
+
+**证据身份**：`slint-theme-channel-guard --self-test 8/8`、`cargo check --features capture-tools` exit 0、诊断批 `20261111T030014Z_..._813495`（light 宿主）与 `20261111T030327Z_..._837205`（dark 宿主）的 `proxies-dark/image.png` sha256 `e43974c613e4…` 相同、发布帧 `proxies-dark.png` 与 light 宿主诊断帧逐字节相同。

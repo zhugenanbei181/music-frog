@@ -24,6 +24,13 @@ The rules this guard holds:
    - one owner, and every consumer written in the same breath.
 4. `MaterialPalette.color-scheme` stays the platform observation, because the
    root seeds `platform-dark-mode` from it; that is the one legitimate read.
+5. `StdPalette.color-scheme` is the standard widgets' own light/dark input.
+   Slint 1.18's built-in `ScrollView` paints its 2px thumb border from
+   `MaterialPalette.border`, which the built-in `std-widgets` style derives
+   from `SlintInternal.color-scheme`; b181 left that second channel on the
+   platform, so a light host drew a dark scrollbar on a dark page and the
+   published corpus mixed two host states. The root writes the application's
+   resolved fact into that input in the same breath as the vendored channel.
 """
 
 from __future__ import annotations
@@ -41,6 +48,7 @@ APP = ROOT / "crates/infiltrator-slint/ui/lumen-app.slint"
 
 DARK_MODE_WRITE = re.compile(r"LumenTheme\.dark-mode\s*=\s*([^;]+);")
 CHANNEL_WRITE = re.compile(r"MaterialPalette\.application-dark-mode\s*=\s*([^;]+);")
+STD_CHANNEL_WRITE = re.compile(r"StdPalette\.color-scheme\s*=\s*([^;]+);")
 SCHEME_SELECTOR = re.compile(r"property <MaterialScheme> scheme:\s*([^;]+);")
 ELEVATION_DARK = re.compile(r"property <bool> dark:\s*([^;]+);")
 
@@ -78,6 +86,7 @@ def violations(palette: str, elevation: str, app: str) -> list[str]:
 
     owners = DARK_MODE_WRITE.findall(app)
     channels = CHANNEL_WRITE.findall(app)
+    std_channels = STD_CHANNEL_WRITE.findall(app)
     if not owners:
         found.append("the root window no longer publishes LumenTheme.dark-mode at all")
     if len(channels) != len(owners):
@@ -86,11 +95,23 @@ def violations(palette: str, elevation: str, app: str) -> list[str]:
             f"MaterialPalette.application-dark-mode {len(channels)} time(s); every "
             "writer of the fact must feed Material in the same breath"
         )
+    if len(std_channels) != len(owners):
+        found.append(
+            f"the root writes LumenTheme.dark-mode {len(owners)} time(s) but "
+            f"StdPalette.color-scheme {len(std_channels)} time(s); standard widgets "
+            "must see the same resolved light/dark fact in the same breath"
+        )
     missing = sorted({value.strip() for value in owners} - {value.strip() for value in channels})
     if missing:
         found.append(
             "expression(s) published as the app dark mode never reach Material: " + ", ".join(missing)
         )
+    for std in std_channels:
+        if "application-dark-mode" not in std:
+            found.append(
+                "StdPalette.color-scheme does not read the application's resolved "
+                f"light/dark fact: {std.strip()}"
+            )
     return found
 
 
@@ -165,10 +186,38 @@ class GuardSelfTest(unittest.TestCase):
             "MaterialPalette.application-dark-mode = root.application-dark-mode; root.color-scheme-changed",
             "root.color-scheme-changed",
             1,
+        ).replace(
+            "MaterialPalette.application-dark-mode = root.application-dark-mode; StdPalette.color-scheme",
+            "StdPalette.color-scheme",
+            1,
         )
         self.assertNotEqual(planted, self.app)
         self.assertTrue(
             any("must feed Material in the same breath" in item for item in self.findings(app=planted)),
+            self.findings(app=planted),
+        )
+
+    def test_standard_widgets_falling_back_to_the_platform_is_caught(self) -> None:
+        planted = self.app.replace(
+            "StdPalette.color-scheme = root.application-dark-mode ? ColorScheme.dark : ColorScheme.light;",
+            "",
+            1,
+        )
+        self.assertNotEqual(planted, self.app)
+        self.assertTrue(
+            any("standard widgets must see the same resolved" in item for item in self.findings(app=planted)),
+            self.findings(app=planted),
+        )
+
+    def test_standard_widgets_pinned_to_one_scheme_is_caught(self) -> None:
+        planted = self.app.replace(
+            "StdPalette.color-scheme = root.application-dark-mode ? ColorScheme.dark : ColorScheme.light;",
+            "StdPalette.color-scheme = ColorScheme.dark;",
+            1,
+        )
+        self.assertNotEqual(planted, self.app)
+        self.assertTrue(
+            any("does not read the application's resolved" in item for item in self.findings(app=planted)),
             self.findings(app=planted),
         )
 

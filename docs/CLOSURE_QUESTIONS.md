@@ -24,19 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-11 第一百九十五批次；b111–b194 见下方批次八问摘要）
+## 当前状态（2026-11-11 第一百九十六批次；b111–b195 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b195 改 domain / application / presentation / Iced 四层 Rust，零平台 API、零 wire；`cargo nextest run -p infiltrator-domain` **631/631**、`-p infiltrator-application` **675/675**、`-p infiltrator-iced --features capture-tools` **634/634**、合并 **1309/1309** 与定向 clippy `-D warnings` 为 `L`。交叉构建、aarch64 与目标机仍由 CI / 设备矩阵补证（GAP-1.1） |
-| 2 | 部分 | L | 本机 Linux 跑完四包 nextest / clippy / fmt、Iced 186/186 真实像素重采、结构门定向腿与质量脚本单测 367/367；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
-| 3 | 部分 | L | 不触 Android/iOS 代码、资源或 wire；新增的窗口/维度/读回类型不在任何持久化或 wire 面上，没有本批实机回执可声称 |
-| 4 | 部分 | L | Iced 的两个范围/维度控件由 `Message::Noop` 改接 typed 意图并消费 application 读回，视图内 5 个私有 fold 全删；Slint / Bevy / Android **尚未消费这份读回**，由各自条目收口。判定器仍未覆盖 Bevy（另一会话正在重写其文件） |
-| 5 | 完整 | L | 字节增量、进程名、出口名、窗口分桶各有唯一 owner；application 是唯一喂数与读回点，presentation 只投影词表，Iced 只发意图 + 读回；`iced_dead_input_inventory.json` 2 → 0，旧视图枚举/`compute_*_rankings`/`extract_process_name` 同批删除，无第二份业务真源 |
-| 5a | 部分 | L | 本批无字体 / 字重 / 图标族 / 视觉资产身份变更；`runtime-traffic-audit-{standard,compact}` 两张标准/紧凑双视口真实像素回执已发布，`receipt-freshness 0`、186/186 帧 `space_utilization --surface iced --enforce` violations=0。Bevy 浅色像素回执依旧缺席（其矩阵无浅色帧、正由另一会话重写），本项仍记「部分」 |
-| 6 | 部分 | L | Iced 的 `TRAFFICAUDIT-001` 3 pt 由 `InProgress` 转 `Integrated` 迁入过去佛 §12.71 等统一批次办结；Slint / Bevy 的审计页未开工，点击本身不进像素回执（台架按设计不投指针），选区证据来自同一条生产消息路径。29 帧 AA 变化已逐像素归因于 runtime 控件树重排引起的滚动对齐小数位移，不记作新业务 |
-| 7 | 完整 | L | 域窗口/累加器、application 读回、presentation 词表、Iced 状态各自成模块；测试与被测同目录（新增 domain 6 / application 5 / presentation 3 条）；`import-guard` 0（开发期 6 项内联长路径已归位）、`line-guard` 0、`typed-state` 0、`test-layout` / `mod-rs` 守卫全 0 |
-| 8 | 部分 | L | 开发期只跑受影响包，产出期一次跑 Iced 186 帧重采（453s）+ 双表面判定器 + 质量脚本单测 367/367；未跑全仓 `--workspace` nextest/clippy 与结构门全腿（留统一批次一次跑完）；`--features capture-tools` 下 `tests/capture_marker_tests.rs` 的既有编译失败按 b154/b180 记录属他人欠账 |
+| 1 | 部分 | L | b196 只改 Slint 表面 `ui/lumen-app.slint`、供应商说明与一个质量守卫，零平台 API、零 wire；`cargo check -p infiltrator-slint --features capture-tools` exit 0、`slint-syntax-guard` 100% PASS、`slint-theme-channel-guard --self-test` **8/8** 为 `L`。交叉构建、aarch64 与目标机仍由 CI / 设备矩阵补证（GAP-1.1） |
+| 2 | 部分 | L | 本机 Linux 在 `prefer-light` / `prefer-dark` 两种宿主设置下各采一帧真实像素并完成逐字节比对，宿主设置随后恢复；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
+| 3 | 部分 | L | 不触 Android/iOS 代码、资源或 wire；`std-widgets` 的明暗输入是桌面/移动共用的 Slint 全局，但本批没有 Android 实机或目标产物回执可声称 |
+| 4 | 部分 | L | Slint 的第二条明暗通道由根窗口统一写入，标准 `ScrollView` 不再跟平台；Iced / Bevy / Android 的明暗 owner 各自按条目收口，本批不越权改另一个会话正在重写的 Bevy 文件。判定器仍未覆盖 Bevy |
+| 5 | 完整 | L | `application-dark-mode` 是唯一裁决结果；`LumenTheme.dark-mode`、vendored `MaterialPalette.application-dark-mode` 与 `std-widgets` 的 `StdPalette.color-scheme` 在 `init` / `update-color-scheme()` 两处同笔写入，守卫钉住写点数与表达式集合；`MaterialPalette.color-scheme` 只作平台观测，没有第三份推导 |
+| 5a | 完整 | L | 本批不改变字体 / 字重 / 图标族 / 视觉资产与任何发布像素；两宿主诊断帧逐字节相同、light 宿主诊断帧与已发布 `proxies-dark.png` 逐字节相同，`receipt-freshness 0`、199 帧 `space_utilization --enforce` violations=0。Bevy 浅色像素回执仍属另一会话待办，但本批不产生新的身份变化 |
+| 6 | 部分 | L | `SLINT-022` 2 pt 由 `Planned` 转 `Integrated` 迁入过去佛 §12.72 等统一批次办结；A/B 覆盖同一台机器、同一私有 KWin/niri 台架上的 GNOME 明暗设置切换，不覆盖其它桌面环境对 `SlintInternal.color-scheme` 的写入差异，也不声称标准控件所有颜色都归应用主题 |
+| 7 | 完整 | L | 明暗事实只在根窗口两处发布；`slint-theme-channel-guard.py` 的 enforce + self-test 双腿原已在结构门内，本批只扩展判据、不新增并行真源；`LUMEN-PATCHES.md` 更正 b181 过时结论，`slint-syntax-guard` 100% PASS、`slint-source-import-guard` 718 files / 36 patched 全绿 |
+| 8 | 部分 | L | 本批零重采、零像素变更，只跑两次单帧诊断（185s + 220s）与定向守卫/编译；未跑全仓 `--workspace` nextest/clippy 与结构门全腿（留统一批次一次跑完）；另一会话未提交的 Bevy 像素仍是全仓身份门唯一红腿 |
+
+## 最近一批问答（2026-11-11 第一百九十六交付批次：`SLINT-022` 标准控件回执不随宿主翻转）
+
+1. x86_64/aarch64：本批只改 `crates/infiltrator-slint/ui/lumen-app.slint`、`LUMEN-PATCHES.md` 与 `scripts/quality/slint-theme-channel-guard.py`，零平台 API、零 wire；`cargo check -p infiltrator-slint --features capture-tools` exit 0、`slint-syntax-guard` 100% PASS、`slint-theme-channel-guard --self-test` **8/8** 为 `L`。交叉构建与 aarch64 目标产物未变，仍由 CI / 设备矩阵补证 → 部分（L）。
+2. Windows/Linux/macOS：本机 Linux 在 `prefer-light` 与 `prefer-dark` 宿主设置下各采一帧 `proxies-dark`，两次 `image.png` sha256 同为 `e43974c613e4…`、全帧与右缘 2px 带差异 0 px，宿主设置随后恢复；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
+3. Android/iOS：不触三端代码、资源与 wire；`std-widgets` 的 `Palette.color-scheme` 是跨桌面/移动共用的 Slint 全局，但本批没有 Android 实机或目标产物回执可声称 → 部分（L）。
+4. 各 UI：Slint 的 `std-widgets` 通道由根窗口统一写入，标准 `ScrollView` 不再跟平台；Iced / Bevy / Android 的明暗裁决不在本切片内，Bevy 文件正由另一会话重写、本批不碰；空间利用率判定器仍未覆盖 Bevy → 部分（L）。
+5. 复用：`application-dark-mode` 是唯一裁决结果；`LumenTheme.dark-mode`、vendored `MaterialPalette.application-dark-mode` 与 `StdPalette.color-scheme` 在 `init` / `update-color-scheme()` 两处同笔写入，守卫要求标准控件写点数等于 `LumenTheme.dark-mode` 写点数且每个表达式都读 `application-dark-mode`；`MaterialPalette.color-scheme` 只作平台观测，没有第三份推导 → 完整（L）。
+5a. 设计资源强制标准：本批无字体 / 字重 / 图标族 / 视觉资产与发布像素变化；两宿主诊断帧逐字节相同、light 宿主帧又与已发布 `proxies-dark.png` 逐字节相同，`receipt-freshness 0`、199 帧 `--enforce` violations=0，因此没有需要重取的身份回执 → 完整（L）。
+6. 各处界面的功能接入：`SLINT-022` 2 pt 由 `Planned` 转 `Integrated` 迁入过去佛 §12.72 等统一批次办结；A/B 覆盖同一台机器、同一私有 KWin/niri 台架上的 GNOME 明暗切换，不覆盖其它桌面环境对 `SlintInternal.color-scheme` 的写入差异，也不声称标准控件所有颜色都归应用主题（这里只裁决滚动条描边依赖的 `color-scheme` 选择） → 部分（L）。
+7. 模块化：明暗事实只在根窗口两处发布；`slint-theme-channel-guard.py` 的 enforce + self-test 双腿原已接入结构门，本批只把判据从 6 项扩到 8 项，`LUMEN-PATCHES.md` 同步更正 b181 的过时结论；`slint-syntax-guard` 100% PASS、`slint-source-import-guard` 718 files / 36 patched / 8,726,178 bytes → 完整（L）。
+8. CI 与批次效率：本批零重采、零像素变更，只跑两次单帧诊断与定向守卫/编译，未触发全仓重编；全仓 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py` 仍留统一批次一次跑完；另一会话未提交的 Bevy 像素仍是全仓身份门唯一红腿 → 部分（L）。
 
 ## 最近一批问答（2026-11-11 第一百九十五交付批次：`TRAFFICAUDIT-001` 全链接真 / 29 帧 AA 归因）
 
