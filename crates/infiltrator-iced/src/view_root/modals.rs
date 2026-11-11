@@ -8,8 +8,10 @@ pub(super) mod card;
 pub(super) mod confirmation;
 pub(super) mod dns_cache;
 pub(super) mod dns_hosts;
-pub(super) mod dns_query;
-pub(crate) use dns_query::DNS_QUERY_SCROLL_ID;
+// The capture probe reads this modal's scroll id to bind the frame's reveal
+// target, so the module is reachable crate-wide and callers import the
+// constant from here instead of re-exporting it (`import-guard`).
+pub(crate) mod dns_query;
 pub(crate) mod log_export;
 pub(super) mod outbound_inspect;
 pub(super) mod proxy_group_order;

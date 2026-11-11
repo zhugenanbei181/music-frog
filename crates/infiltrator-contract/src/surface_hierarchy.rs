@@ -344,10 +344,10 @@ mod tests {
     /// (`#EFF0F3`) to clear it.
     #[test]
     fn every_skin_card_is_a_visible_step_off_its_canvas() {
+        use crate::color_science::HctColor;
+
         const MIN_TONE_STEP: f32 = 3.0;
-        let tone = |token: RgbaToken| {
-            crate::color_science::HctColor::from_rgb(token.r, token.g, token.b).tone
-        };
+        let tone = |token: RgbaToken| HctColor::from_rgb(token.r, token.g, token.b).tone;
         for skin in ThemeSkin::ALL {
             let tokens = MaterialSurfaceTokens::of(skin);
             let step = tone(tokens.container_card) - tone(tokens.canvas);

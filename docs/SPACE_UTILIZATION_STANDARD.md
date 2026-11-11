@@ -141,6 +141,20 @@
 形态），映射表由 contract 导出为 `crates/infiltrator-contract/assets/page-structure.json`，
 判定器只消费导出物，不保存第二份数字；页面形态与上限的裁决见共享契约的 `page_structure` 模块（L2 crate 公共契约）。
 
+**形态是业务的契约形态，跨表面同一（b192 裁决）**：一行业务的形态由契约的功能注册表
+（`crates/infiltrator-contract/src/parity.rs`）一处给出，采集矩阵的形态列是它的投影，
+不是各表面自己挑的数。Iced 的矩阵因此把形态单独成列（它的 `page` 是路线），由
+`scripts/parity/generate_unified_matrix.py` 的同一条注册表行派生、并被 `--check`
+逐字节锁住；实测 Slint 与 Iced 两份矩阵共有的 **184 个场景**声明了**同一个形态，
+0 处不一致**。于是任何表面都不可能通过改自己的形态列放松自己的预算——要改只能改
+注册表，而那是共享契约的一次显式变更。
+
+**一个表面把某业务折进另一张页，并不因此免除该业务的密度门槛**：Iced 的
+`connections` / `logs` 帧渲染的是 runtime 页里的两个区块（它按自己的参照物
+ClashParty 折叠了 traffic/log 页），仍按 framed 4% 判定，b190 实测 3.1% / 3.8% 达标。
+「要不要为它们补出独立页」是产品排布问题（登记为 Iced 侧的待办），不是把形态列改宽
+的理由——那正是本条要挡住的做法。
+
 | 侧栏 | 上限 | 依据 |
 | --- | --- | --- |
 | `chrome_band` | **0%** | FlClash 桌面侧栏实测只有导航行（边界 x=429，5 个行带 y89–579，下方无非导航区块）；统计数据全部属于仪表盘卡片 |

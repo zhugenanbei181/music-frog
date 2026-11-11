@@ -19,7 +19,7 @@ use crate::view::settings::SETTINGS_SCROLL_ID;
 use crate::view::sync::SYNC_SCROLL_ID;
 use crate::view_root::aggregator_modal::AGGREGATOR_SCROLL_ID;
 use crate::view_root::interaction_regions::InteractionRegion;
-use crate::view_root::modals::DNS_QUERY_SCROLL_ID;
+use crate::view_root::modals::dns_query::DNS_QUERY_SCROLL_ID;
 use iced::advanced::widget::operation::{Outcome, Scrollable};
 use iced::advanced::widget::{Id, Operation, operate};
 use iced::widget::scrollable::AbsoluteOffset;

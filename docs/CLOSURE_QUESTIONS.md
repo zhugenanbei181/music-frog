@@ -24,19 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-11 第一百九十一批次；b111–b190 见下方批次八问摘要）
+## 当前状态（2026-11-11 第一百九十二批次；b111–b191 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b191 只改判定器（`scripts/parity/space_utilization.py`：`content_box` 的底边 + 一条 planted 负例）与文档，零平台 API、零设备交互、零 Rust 改动；`space_utilization --self-test` **60/60**、双表面 `--enforce` violations=0 为 `L`；交叉构建、aarch64 与目标机仍由 CI / 设备矩阵补证（GAP-1.1） |
-| 2 | 部分 | L | 本机 Linux 完成判据自测、双表面判定与报告复核；Windows/macOS 构建腿与安装包未复跑、且本批无平台相关改动，macOS 沿用 `Unsupported`（GAP-2.2） |
-| 3 | 部分 | L | 不触 Android/iOS 代码、资源或 wire；本批是桌面判定器口径修正，Android 三 flavor 与 iOS 产物不受影响，也没有本批实机回执可声称 |
-| 4 | 部分 | L | 判定腿本身被修正：两轴（横向导航列、纵向底栏带）现在对称地从测量盒裁掉，Slint 199 / Iced 184 帧仍 violations=0、两侧欠账台账保持为空。诚实边界：Bevy 仍未接入判定器（其矩阵由另一会话重写） |
-| 5 | 完整 | L | 一处事实一个 owner：底栏带的事实由外壳发布（回执第七键 `dock_band_px`），判定器只消费它、不记忆任何状态栏高度；「导航占掉的空间不进页身」在两轴上由同一条 `content_box` 表达 |
-| 5a | 部分 | L | 本批无字体 / 字重 / 图标族 / 视觉资产与任何像素变化（改的是判据），因此不产生新的身份回执，`receipt-freshness 0`；Bevy 浅色像素回执依旧缺席（其矩阵无浅色帧、正由另一会话重写），故本项仍只能写「部分」 |
-| 6 | 部分 | L | 手机档 13 帧的读数从「被栏伪装的死带」变成诚实的页尾空地（`profiles-mobile-dark` 47.1% → 51.3%，仍在上限 82% 内），判定结果不变而口径变正；同批把「死带」一词收窄为「内容跨度内部」的空地。诚实边界：本批不收紧任何页面的留白比例，`SPACEUTIL-014` 仍待裁决 |
-| 7 | 完整 | L | 修正点收在一个函数（`content_box`）里，planted 负例与它同批落地并验证过「改动前会咬」；标准 §2 与 §11 是它的文档面，没有第二处实现或第二份数字 |
-| 8 | 部分 | L | 本批零 Rust 改动、零像素改动、零重采，成本只有判据自测（1.9s）与两次判定（各约 5s）；尚未跑全仓统一验证批次（`--workspace` nextest/clippy 由收口批次一次跑完），`--features capture-tools` 下 `tests/capture_marker_tests.rs` 的既有编译失败按 b154/b180 记录仍属他人欠账 |
+| 1 | 部分 | L | b192 新增守卫 `scripts/quality/iced-dead-input-guard.py` 与只减台账 `iced_dead_input_inventory.json`、结构门两条腿，加上标准与三份台账文档；零平台 API、零设备交互、零 Rust 改动。守卫 `--self-test` PASS、`--mode enforce` findings=0 为 `L`；交叉构建、aarch64 与目标机仍由 CI / 设备矩阵补证（GAP-1.1） |
+| 2 | 部分 | L | 本机 Linux 完成守卫自测与 enforce、判定器双腿复核（Slint 199 / Iced 184 帧）、文档门与收口门；本批无平台相关改动，Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
+| 3 | 部分 | L | 不触 Android/iOS 代码、资源或 wire；守卫只读 Iced 桌面源码，没有本批实机回执可声称 |
+| 4 | 部分 | L | Iced 侧第一次有了「死控件」守卫，且它为 Iced 独有（Slint 早有同位守卫），两表面判定仍 violations=0、两侧欠账台账保持为空。诚实边界：守卫登记的两个死控件仍未修（`TRAFFICAUDIT-001`），Bevy 仍未接入判定器 |
+| 5 | 完整 | L | 两处事实各只有一个 owner：形态来自契约功能注册表（矩阵形态列是它的投影，`--check` 逐字节锁住，实测共有 184 场景 0 处不一致）；Iced 的节奏事实归 Iced 自己的守卫台账（只减，新增被拒） |
+| 5a | 部分 | L | 本批无字体 / 字重 / 图标族 / 视觉资产变更、无像素变更，因此不产生新回执（`receipt-freshness 0`）；Bevy 浅色像素回执依旧缺席（其矩阵无浅色帧、正由另一会话重写），本项仍记「部分」 |
+| 6 | 部分 | L | 守卫口径经四条负例校准（受限 `pick_list`、`unwrap_or` 兜底、模态遮罩吞点击、`Task::perform` 完成回调都不咬），活体探测恰好命中两个真实死控件；同批把 `SPACEUTIL-014` 的形态疑虑审计掉并重述为产品排布问题，把 `TRAFFICAUDIT-001` 立成可推任务。诚实边界：本批不改产品行为，两个控件仍是死的 |
+| 7 | 完整 | L | 守卫自带 planted 自测（正例 + 四条负例，且在只放正例/负例时都能分别咬对），台账与守卫同目录、只减不增且 `--update-inventory` 拒绝新增；标准 §3.1 的形态条款是判据的文档面，不存在第二处实现或第二份数字 |
+| 8 | 部分 | L | 本批零 Rust 改动、零像素改动、零重采，成本只有守卫自测（毫秒级）与两条判定复核；尚未跑全仓统一验证批次（`--workspace` nextest/clippy 由收口批次一次跑完）；`--features capture-tools` 下 `tests/capture_marker_tests.rs` 的既有编译失败按 b154/b180 记录仍属他人欠账 |
+
+## 最近一批问答（2026-11-11 第一百九十二交付批次：Iced 死控件守卫落地 / 形态归属审计）
+
+1. x86_64/aarch64：本批只新增守卫与台账并改文档/账本（`scripts/quality/iced-dead-input-guard.py`、`iced_dead_input_inventory.json`、`check-structure.sh` 两条腿、空间利用率标准与三份台账），零平台 API、零 Rust；`--self-test` PASS、`--mode enforce` findings=0 为 `L`。交叉构建与 aarch64 目标产物未变，仍由 CI / 设备矩阵补证 → 部分（L）。
+2. Windows/Linux/macOS：本机 Linux 完成守卫自测、enforce、判定器双腿复核与文档/收口门；本批无平台相关改动，Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
+3. Android/iOS：不触三端代码、资源与 wire；守卫只读 Iced 桌面源码，没有本批实机回执可声称 → 部分（L）。
+4. 各 UI：Iced 有了 Slint 同位守卫（Slint 的 `slint-dead-input-guard.py` 自 SLINT-005 起就在结构门里），两表面判定仍 violations=0、欠账台账皆空。诚实边界：守卫登记的两个死控件还没修（`TRAFFICAUDIT-001`），Bevy 仍未接入判定器 → 部分（L）。
+5. 复用：形态只有一个 owner（契约功能注册表；矩阵形态列是投影且被 `--check` 逐字节锁住，实测 184 个共有场景 0 处不一致），节奏事实只有 Iced 守卫的只减台账一份；「谁咬、咬什么」的判据集中在守卫自身，没有第二处实现 → 完整（L）。
+5a. 设计资源强制标准：本批无字体 / 字重 / 图标族 / 视觉资产与像素变化，故无新身份回执要取（`receipt-freshness 0`、无需重采）；Bevy 浅色像素回执依旧缺席（其矩阵没有浅色帧且正由另一会话重写），本项仍记「部分」 → 部分（L）。
+6. 各处界面的功能接入：守卫的活体探测恰为两个真实死控件——流量页的 1h/24h/7d/30d 范围药丸（`view/runtime/traffic.rs:160`）与 Domains/Devices/Proxies/Processes 维度选择器（`:243`），两者都画「选中」态却对点击回 `Noop`；根因是域层 `TrafficAuditAccumulator` **0 个消费者**而视图自己折了 5 份排名，已立 `TRAFFICAUDIT-001`（3 pt）按自底向上顺序收口。诚实边界：本批不改产品行为 → 部分（L）。
+7. 模块化：守卫自带 planted 自测（一条正例 + 四条负例：受限 `pick_list`、`unwrap_or` 兜底、模态遮罩吞点击、`Task::perform` 完成回调），台账与守卫同目录且只减不增，新增死控件会被 `--update-inventory` 拒绝（实测）；标准 §3.1 是判据唯一的文档面 → 完整（L）。
+8. CI 与批次效率：零 Rust、零像素、零重采，成本只有守卫自测（毫秒级）与两条判定复核；守卫两条腿已接入结构门（紧邻 Iced 侧栏守卫）。**未跑全仓统一验证批次**（`--workspace` nextest/clippy 由收口批次一次跑完）；`--features capture-tools` 下 `tests/capture_marker_tests.rs` 的既有编译失败按 b154/b180 记录仍属他人欠账 → 部分（L）。
 
 ## 最近一批问答（2026-11-11 第一百九十一交付批次：底栏不是页身内容，测量盒两轴对称）
 
