@@ -24,19 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-12 第二百零八批次；b111–b207 见下方批次八问摘要）
+## 当前状态（2026-11-12 第二百零九批次；b111–b208 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b208 只改 contract 视口规则、v12 导出、Slint 生成器与 Profiles 页布局；contract nextest **594/594**、Slint nextest **389/389**、clippy `--all-targets -D warnings`、`cargo fmt --all --check` 均为 `L`。交叉架构与 aarch64 目标产物未复跑，仍由 CI / 设备矩阵补证（GAP-1.1） |
-| 2 | 部分 | L | 本机 Linux 完成 contract+Slint 定向 nextest / clippy / capture 构建与 199 帧像素发布；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）。pinned FlClash 桌面条带 Windows/Linux 32dp / macOS 28dp 差异仍归 `FLPARITY-050` |
-| 3 | 部分 | L | 未改 Android/iOS 代码、资源或 wire；Slint 触摸紧凑档在 Profiles 页仍单列，桌面档按契约 300px 规则重排，Android 三 flavor 实机回执仍缺 |
-| 4 | 部分 | L | Slint Profiles 桌面档由宽度驱动 1–3 列（1180 页身 940px 实测 2 列）；Iced / Bevy 仍单列，跨表面统一由共享 owner + 表面接线待后续批次；Bevy 矩阵与像素仍由另一会话持有，本批未接入 |
-| 5 | 完整 | L | 规则只有一个真源：契约 `PROFILE_MIN_ITEM_WIDTH_PX=300` / `PROFILE_MAX_COLUMNS=3` + `profile_columns()` 导出为 v12 `profile_grid`；生成器 `profile_columns()` 只读导出，页面只消费生成 lookup，判定器 fixture 不涉及该轴；contract/Slint 守卫与版本门同步 v12 |
-| 5a | 完整 | L | 无字体 / 字重 / 图标族 / 视觉资产变化；Profiles 页面身份变化整批重采 **199/199**（run `20261111T163713Z_75e05722ce81_dirty_999303`，394s），`space_utilization --surface slint --enforce` violations=0、`receipt-freshness 0`；Slint 别名仍只有另一会话 Bevy 1 条 |
-| 6 | 部分 | L | 本批提升 Profiles 密度并落实上游列数规则，不新增业务能力；`resolve_surface_evidence.py` 未在本批复跑，180 个 ready surface cells 仍缺 product-build receipts 与双视口像素绑定 |
-| 7 | 部分 | L | 契约 → 导出 → 生成器 → 页面一条链完成，版本门与 owner guard 同批迁移；`slint-viewport-tier-guard` 41/41 + enforce 0、`sidebar-expansion-owner-guard` 9/9 + enforce 0、`slint-dashboard-grid-guard` 0、`slint-syntax-guard` 100% PASS；`check-structure.sh` 唯一红项仍是另一会话的 Bevy `runtime-dark` / `overview-dark` 别名像素，文件保持未改 |
-| 8 | 部分 | L | 开发期只跑 contract/Slint 定向测试、专属守卫与 capture check；Profiles 身份变化一次整批重采（394s）而非逐场景补帧；全仓 `--workspace` nextest / clippy、结构门全腿与 `resolve_surface_evidence.py` 仍留统一验证批次一次跑完 |
+| 1 | 部分 | L | b209 只删 Iced 侧栏两份宽度字面量并接回 `SidebarForm::width_px()`，零平台 API / 零 wire / 零像素；Iced nextest **547/547**、clippy `--all-targets -D warnings`、`cargo fmt --all --check` 均为 `L`。交叉架构与 aarch64 目标产物未复跑，仍由 CI / 设备矩阵补证（GAP-1.1） |
+| 2 | 部分 | L | 本机 Linux 完成 Iced 定向 nextest / clippy / fmt 与既有 188 帧空间门复核；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）。FlClash 桌面条带差异仍归 `FLPARITY-050` |
+| 3 | 部分 | L | 未改 Android/iOS 代码、资源或 wire；本批不影响触摸外壳，也没有实机回执 |
+| 4 | 部分 | L | Iced 侧栏宽度只剩契约一个真源（`SidebarForm::width_px()`）；Slint 与 Bevy 几何不变，Bevy 矩阵与像素仍由另一会话持有，本批未接入 |
+| 5 | 完整 | L | `SIDEBAR_WIDTH=240` / `RAIL_WIDTH=64` 字面量全仓清零，宽度只读 `responsive_viewport::SidebarForm::width_px()`；`iced-sidebar-nav-guard` 新增第 8 项 planted「宽度字面量回仓即咬」，self-test **8/8** + enforce 0 |
+| 5a | 完整 | L | 无字体 / 字重 / 图标族 / 视觉资产变化，零像素重采；Iced 188 帧 `--enforce` violations=0、`receipt-freshness 0` |
+| 6 | 部分 | L | 本批是几何真源收口，不新增业务能力；`resolve_surface_evidence.py` 未在本批复跑，180 个 ready surface cells 仍缺 product-build receipts 与双视口像素绑定 |
+| 7 | 完整 | L | 契约 → 表面消费一条链完成；guard 新腿对旧源码形态可咬；`line` / `import` / `typed-state` / `doc-governance` / `closure-questions` 全 0 |
+| 8 | 部分 | L | 开发期只跑 Iced 定向测试、专属守卫与 fmt；零像素重采、零全仓验证；全仓 `--workspace` nextest / clippy、结构门全腿与 `resolve_surface_evidence.py` 仍留统一验证批次一次跑完 |
+
+## 最近一批问答（2026-11-12 第二百零九批次：Iced 侧栏宽度只读契约）
+
+1. x86_64/aarch64：本批删除 `SIDEBAR_WIDTH` / `RAIL_WIDTH` 字面量并改读 `SidebarForm::width_px()`，零平台 API / 零 wire / 零像素；Iced nextest **547/547**、clippy `--all-targets -D warnings`、`cargo fmt --all --check` 为 `L`。交叉构建与 aarch64 目标机产物未复跑 → 部分（L）。
+2. Windows/Linux/macOS：本机 Linux 完成 Iced 定向测试/clippy/fmt 与既有 188 帧空间门复核；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
+3. Android/iOS：未动 Kotlin/JNI/VPNService 与 Android 资源；本批不影响触摸外壳，也没有实机回执 → 部分（L）。
+4. 各 UI：Iced 侧栏宽度只剩契约一个真源；Slint / Bevy 几何不变，Bevy 矩阵与像素仍由另一会话持有，本批未接入 → 部分（L）。
+5. 复用：几何只读 `responsive_viewport::SidebarForm::width_px()`，`SIDEBAR_WIDTH` / `RAIL_WIDTH` 全仓清零；`iced-sidebar-nav-guard` 新增第 8 项 planted（把宽度字面量插回 sidebar.rs 会咬），self-test **8/8** + enforce 0 → 完整（L）。
+5a. 设计资源：无字体 / 字重 / 图标族 / 视觉资产变化，零像素重采；Iced 188 帧 `--enforce` violations=0、`receipt-freshness 0` → 完整（L）。
+6. 功能接入：本批是几何真源收口，不新增业务能力；跨表面 parity resolver 未在本批复跑，180 个 ready cells 仍缺 product-build receipts 与双视口像素绑定 → 部分（L）。
+7. 模块化：契约 → 表面消费一条链完成；guard 新腿对旧源码形态可咬；`line` / `import` / `typed-state` / `doc-governance` / `closure-questions` 全 0 → 完整（L）。
+8. CI 与批次效率：开发期只跑 Iced 定向测试、专属守卫与 fmt；零像素重采、零全仓验证；全仓 `--workspace` nextest / clippy、结构门全腿与 `resolve_surface_evidence.py` 留统一批次一次跑完 → 部分（L）。
 
 ## 最近一批问答（2026-11-12 第二百零八交付批次：Profiles 页面按上游 300px 规则重排）
 

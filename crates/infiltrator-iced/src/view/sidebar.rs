@@ -48,13 +48,6 @@ use infiltrator_presentation::sidebar_material_projection::{
 };
 use infiltrator_shared::locales::{Lang, Localizer};
 
-/// Standard labelled sidebar width. Mirrors
-/// `responsive_viewport::SidebarForm::Standard`, the authoritative value.
-pub(crate) const SIDEBAR_WIDTH: f32 = 240.0;
-
-/// Compact 64px rail sidebar for responsive tablet or narrow desktop views.
-pub const RAIL_WIDTH: f32 = 64.0;
-
 /// The rows this desktop surface mounts, in the registry's own order.
 fn sidebar_rows() -> Vec<NavigationItem> {
     desktop_items(SurfaceKind::IcedDesktop)
@@ -340,7 +333,10 @@ fn sidebar_background_color(state: &AppState, t: &Theme) -> Color {
 
 fn sidebar_with_form(state: &AppState, presentation: SidebarPresentation) -> Element<'_, Message> {
     let form = presentation.form();
-    let width = form.width_px().map(f32::from).unwrap_or(SIDEBAR_WIDTH);
+    let width = form
+        .width_px()
+        .map(f32::from)
+        .expect("a labelled sidebar form always reserves a column");
     let inner = sidebar_inner(state, presentation);
     let bg = sidebar_background_color(state, &state.shell.theme);
     container(inner)
@@ -397,7 +393,11 @@ fn sidebar_rail_with(state: &AppState, presentation: SidebarPresentation) -> Ele
 
     let bg = sidebar_background_color(state, &state.shell.theme);
     container(items)
-        .width(RAIL_WIDTH)
+        .width(f32::from(
+            SidebarForm::Rail
+                .width_px()
+                .expect("the rail always reserves a column"),
+        ))
         .height(Length::Fill)
         .padding([theme::SP_MD, theme::SP_XS])
         .style(move |_t: &Theme| container::Style {

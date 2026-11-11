@@ -183,3 +183,17 @@
 ③ **像素与门**：整批 199/199 重采发布 run `20261111T163713Z_75e05722ce81_dirty_999303`（394s），`space_utilization --surface slint --enforce` violations=0、`receipt-freshness 0`；实测 1180 页身 940px 为 2 列（每卡 ~420px，超 300px 底线），紧凑 720 档仍 1 列。contract nextest **594/594**、Slint nextest **389/389**、contract/Slint clippy `--all-targets -D warnings`、`cargo fmt --all --check` 全绿；`slint-viewport-tier-guard` 41/41 + enforce 0、`sidebar-expansion-owner-guard` 9/9 + enforce 0、`slint-dashboard-grid-guard` 0、`slint-syntax-guard` 100% PASS。
 ④ **待验证范围**：统一批次复跑 `cargo nextest run --workspace` 与全仓结构门；`resolve_surface_evidence.py` 与跨表面 parity 收口仍待产品级回执；另一会话未提交的 Bevy `runtime-dark` / `overview-dark` 像素别名仍是全仓身份门唯一红腿，本条不负责该红腿。
 ⑤ **证据身份**：contract nextest **594/594**、Slint nextest **389/389**、发布批 `20261111T163713Z_75e05722ce81_dirty_999303`（199/199，394s）、`space_utilization --surface slint --enforce` violations=0、`receipt-freshness` 0、`slint-viewport-tier-guard` 41/41、`sidebar-expansion-owner-guard` 9/9、`slint-dashboard-grid-guard` 0、`slint-syntax-guard` 100% PASS。
+
+## 12.77 Iced 侧栏宽度只读契约（1条待验证）
+
+| ID | 状态 / 优先级 | points | owner | 依赖 |
+| --- | --- | --- | --- | --- |
+| `ICEDRAIL-001` | `Integrated` / P2（b209 实测立项并交付，待统一批次办结） | 1 | infiltrator-iced（`view/sidebar.rs`、`tests/gui/{responsive_elasticity_tests,view_sidebar_tests}.rs`）+ `scripts/quality/iced-sidebar-nav-guard.py` | `SPACEUTIL-011`（Iced 侧栏与 Slint 同一条律法） |
+
+**`ICEDRAIL-001` Iced 侧栏宽度只读契约（b209 交付，1 pt / P2 / `Integrated`）**：
+
+① **缺口**：`view/sidebar.rs` 自持 `SIDEBAR_WIDTH=240.0` / `RAIL_WIDTH=64.0`，注释自称 mirror `SidebarForm::width_px()`，同一几何两个真源。
+② **收口**：删除字面量；标签列宽度直接 `form.width_px().expect(...)`，rail 宽度 `SidebarForm::Rail.width_px().expect(...)`；测试改钉契约值（64/240/280）。
+③ **门禁**：`iced-sidebar-nav-guard.py` 新增第 8 项 planted（宽度字面量回仓即咬），self-test **8/8** + enforce 0；Iced nextest **547/547**、clippy `--all-targets -D warnings`、`cargo fmt --all --check` 全绿；`space_utilization --surface iced --enforce` 188 帧 violations=0、`receipt-freshness 0`（零像素变化，无需重采）。
+④ **待验证范围**：统一批次复跑 `cargo nextest run --workspace` 与全仓结构门；另一会话未提交的 Bevy `runtime-dark` / `overview-dark` 像素别名仍是全仓身份门唯一红腿，本条不负责该红腿。
+⑤ **证据身份**：Iced nextest **547/547**、guard self-test **8/8** + enforce 0、Iced 188 帧 `--enforce` violations=0、`receipt-freshness` 0。

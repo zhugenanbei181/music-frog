@@ -7,7 +7,7 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
-use crate::view::sidebar::{RAIL_WIDTH, SIDEBAR_WIDTH, sidebar_form_for_width};
+use crate::view::sidebar::sidebar_form_for_width;
 use infiltrator_contract::responsive_viewport::{SidebarForm, ViewportTier};
 
 #[test]
@@ -45,12 +45,11 @@ fn sidebar_form_follows_tier_and_is_width_consistent() {
 
     // Medium: slim rail at the rail width.
     assert_eq!(sidebar_form_for_width(700.0), SidebarForm::Rail);
-    assert_eq!(SidebarForm::Rail.width_px(), Some(RAIL_WIDTH as u16));
+    assert_eq!(SidebarForm::Rail.width_px(), Some(64));
 
     // Expanded: standard labelled sidebar, width from the shared contract.
     assert_eq!(sidebar_form_for_width(1000.0), SidebarForm::Standard);
-    assert_eq!(SidebarForm::Standard.width_px(), Some(SIDEBAR_WIDTH as u16));
-    assert_eq!(SIDEBAR_WIDTH, 240.0);
+    assert_eq!(SidebarForm::Standard.width_px(), Some(240));
 
     // Ultra: wide sidebar.
     assert_eq!(sidebar_form_for_width(1600.0), SidebarForm::Wide);

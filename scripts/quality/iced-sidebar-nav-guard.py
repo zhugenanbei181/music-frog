@@ -74,6 +74,7 @@ FOREIGN_NODES = (
 
 ROUTE_GLYPH_TABLE = re.compile(r"Route::\w+\s*=>\s*(?:svg_icons::)?Icon::\w+")
 ROUTE_LITERAL_TABLE = re.compile(r"\[\s*\(\s*Route::\w+\s*,")
+WIDTH_LITERAL = re.compile(r"\b(?:SIDEBAR|RAIL)_WIDTH\s*:\s*f32\s*=\s*\d")
 
 
 def masked(text: str) -> str:
@@ -114,6 +115,11 @@ def sidebar_findings(sidebar: str) -> list[str]:
                 f"{SIDEBAR}: `{node}` is mounted in the column again; the shell's own facts "
                 "belong to the title bar and the dashboard, not to the rail"
             )
+    if WIDTH_LITERAL.search(sidebar):
+        found.append(
+            f"{SIDEBAR}: a sidebar width literal is back; `SidebarForm::width_px()` "
+            "is the contract's one answer to how much column a form reserves"
+        )
     return found
 
 
@@ -204,6 +210,16 @@ class GuardSelfTest(unittest.TestCase):
         }
         found = self.findings(sources=planted)
         self.assertTrue(any("route-to-glyph table" in item for item in found), found)
+
+    def test_a_private_sidebar_width_literal_is_caught(self) -> None:
+        planted = self.sidebar.replace(
+            "use crate::sidebar_chrome::{",
+            "const RAIL_WIDTH: f32 = 64.0;\n\nuse crate::sidebar_chrome::{",
+            1,
+        )
+        self.assertNotEqual(planted, self.sidebar)
+        found = self.findings(sidebar=planted)
+        self.assertTrue(any("sidebar width literal" in item for item in found), found)
 
 
 def main() -> int:

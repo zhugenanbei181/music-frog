@@ -131,5 +131,8 @@ fn the_labelled_column_and_the_rail_share_one_row_set() {
 fn test_sidebar_rail_render_smoke() {
     let (state, _) = AppState::new();
     let _rail = sidebar_rail(&state);
-    assert_eq!(RAIL_WIDTH, 64.0);
+    assert_eq!(
+        infiltrator_contract::responsive_viewport::SidebarForm::Rail.width_px(),
+        Some(64)
+    );
 }
