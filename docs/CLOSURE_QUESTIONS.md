@@ -24,19 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-11 第一百九十批次；b111–b189 见下方批次八问摘要）
+## 当前状态（2026-11-11 第一百九十一批次；b111–b190 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b190 改 Iced 表面（`view/components.rs` 的 `page_body_card`、`view/chrome.rs`、`sidebar_chrome.rs`、`view/rules.rs`、`view/runtime.rs`、`tests/gui/sidebar_chrome_tests.rs`）、共享契约（`design_tokens.rs` 的浅色页身令牌与 `SurfaceElevation::Background`、`surface_hierarchy.rs` 的新判据）、Bevy 侧同值拷贝（`infiltrator-bevy-widgets/src/theme.rs`）与 Iced 语料 184 帧 + 文档，零平台 API、零设备交互；`cargo check -p infiltrator-iced --features capture-tools` exit 0、Iced nextest **636/636**、contract nextest **588/588** 为 `L`；交叉构建、aarch64 与目标机仍由 CI / 设备矩阵补证（GAP-1.1） |
-| 2 | 部分 | L | 本机 Linux 完成编译、定向 nextest、定向 clippy、`cargo fmt`、Iced 整批重采（184/184，298s）与结构门身份腿之后 **160 条腿**（`set -e` 下 exit 0）；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
-| 3 | 部分 | L | 不触 Android/iOS 代码、资源或 wire。浅色页身令牌是共享契约事实，Android Compose 读的是导出的 `AppTypography`/主题物，本批未改其生成物与 Kotlin 侧消费；Android 三 flavor 与 iOS 的实机回执不受影响，本批亦无实机回执可声称 |
-| 4 | 部分 | L | Iced 欠账台账**归零**：184/184 帧发布几何、`--surface iced --enforce` violations=0、`--update-debt` 一次收紧 19 → 0；Slint 侧 199 帧 violations=0 且像素逐字不变（其表面读自己的 `zinc-*` 阶梯）。诚实边界：Bevy 侧只做了源码对齐与交叉断言，浅色像素回执缺席（其矩阵由另一会话重写，且现矩阵没有浅色帧） |
-| 5 | 完整 | L | 四处事实各只有一个 owner：页身框架 = `view/components.rs::page_body_card`（Slint 侧同 owner 是 `CardHeight.page-body`）；标题条占位 = `view/chrome.rs::mounted_strip_height_px`（与 `chrome_strip` 同一挂载规则）；浅色页身地面 = `skin_core(Light).canvas`（`SurfaceElevation::Background` 与 Bevy 拷贝的差由既有交叉断言钉住）；卡与地面的可辨性 = 契约新判据（3 个 L\*），判定器不再有任何第二份数字 |
-| 5a | 部分 | L | 浅色页身地面是**视觉身份变化**：Iced 侧取回 standard（1180×780）与 compact（720×480）双视口真实像素回执（整批 184/184，4 个浅色形态 8 帧全覆），`screenshot-identity` 无新增违规、`receipt-freshness 0`；**Bevy 侧没有浅色像素回执**——同值拷贝已按交叉断言对齐，但其采集矩阵中没有浅色帧（另一会话重写中），故只能写「部分」，不拿 Iced 像素替 Bevy 背书 |
-| 6 | 部分 | L | 四条根因各自修在 owner 并都有该帧真实发布为证：页身框架（`rules-search-highlight-standard` 尾空 40.8% → 0.0%）、回执页身空气（`connections-*` 5.1% → 0.0%）、浅色页身令牌（`rules-light` 13.0% → 2.3%、`logs-light` 10.8% → 1.7%、`overview-light` 13.2% → 6.8%）、两处紧凑实带（`rules-search-highlight-compact` 4.8% → 3.8%、`connections-search-highlight-compact` 4.1% → 3.1%）。诚实边界：同一次收口暴露 Iced 的 `connections` / `logs` 形态归属未决，据实新立 `SPACEUTIL-014`；Bevy 尚未接入判定器 |
-| 7 | 完整 | L | Iced 的页面与共享事实分开：页身框架是组件（`page_body_card`）、标题条占位由画条的人发布、浅色地面由契约令牌发布、可辨性判据在契约里；页面不再自持第二个滚动窗，`rules_page_scroll` 退役；runtime 的卡栈缝读数来自文档化的间距阶梯（`SP_LG` → `SP_MD`），不是页面私有魔数 |
-| 8 | 部分 | L | 一次 Iced 构建 + 一次 184 帧重采（298s）+ 结构门身份腿之后 160 条腿（`set -e` 下 exit 0）+ contract/Iced nextest 与定向 clippy/fmt；**未跑全仓统一验证批次**（`cargo nextest --workspace`、clippy `--workspace` 由收口批次一次跑完），`--features capture-tools` 下 `tests/capture_marker_tests.rs` 的既有编译失败按 b154/b180 记录仍属他人欠账、本批不越权修 |
+| 1 | 部分 | L | b191 只改判定器（`scripts/parity/space_utilization.py`：`content_box` 的底边 + 一条 planted 负例）与文档，零平台 API、零设备交互、零 Rust 改动；`space_utilization --self-test` **60/60**、双表面 `--enforce` violations=0 为 `L`；交叉构建、aarch64 与目标机仍由 CI / 设备矩阵补证（GAP-1.1） |
+| 2 | 部分 | L | 本机 Linux 完成判据自测、双表面判定与报告复核；Windows/macOS 构建腿与安装包未复跑、且本批无平台相关改动，macOS 沿用 `Unsupported`（GAP-2.2） |
+| 3 | 部分 | L | 不触 Android/iOS 代码、资源或 wire；本批是桌面判定器口径修正，Android 三 flavor 与 iOS 产物不受影响，也没有本批实机回执可声称 |
+| 4 | 部分 | L | 判定腿本身被修正：两轴（横向导航列、纵向底栏带）现在对称地从测量盒裁掉，Slint 199 / Iced 184 帧仍 violations=0、两侧欠账台账保持为空。诚实边界：Bevy 仍未接入判定器（其矩阵由另一会话重写） |
+| 5 | 完整 | L | 一处事实一个 owner：底栏带的事实由外壳发布（回执第七键 `dock_band_px`），判定器只消费它、不记忆任何状态栏高度；「导航占掉的空间不进页身」在两轴上由同一条 `content_box` 表达 |
+| 5a | 部分 | L | 本批无字体 / 字重 / 图标族 / 视觉资产与任何像素变化（改的是判据），因此不产生新的身份回执，`receipt-freshness 0`；Bevy 浅色像素回执依旧缺席（其矩阵无浅色帧、正由另一会话重写），故本项仍只能写「部分」 |
+| 6 | 部分 | L | 手机档 13 帧的读数从「被栏伪装的死带」变成诚实的页尾空地（`profiles-mobile-dark` 47.1% → 51.3%，仍在上限 82% 内），判定结果不变而口径变正；同批把「死带」一词收窄为「内容跨度内部」的空地。诚实边界：本批不收紧任何页面的留白比例，`SPACEUTIL-014` 仍待裁决 |
+| 7 | 完整 | L | 修正点收在一个函数（`content_box`）里，planted 负例与它同批落地并验证过「改动前会咬」；标准 §2 与 §11 是它的文档面，没有第二处实现或第二份数字 |
+| 8 | 部分 | L | 本批零 Rust 改动、零像素改动、零重采，成本只有判据自测（1.9s）与两次判定（各约 5s）；尚未跑全仓统一验证批次（`--workspace` nextest/clippy 由收口批次一次跑完），`--features capture-tools` 下 `tests/capture_marker_tests.rs` 的既有编译失败按 b154/b180 记录仍属他人欠账 |
+
+## 最近一批问答（2026-11-11 第一百九十一交付批次：底栏不是页身内容，测量盒两轴对称）
+
+1. x86_64/aarch64：本批只改判定器与文档（`scripts/parity/space_utilization.py`、空间利用率强制标准、账本与收口表），零平台 API、零 Rust；`space_utilization --self-test` **60/60**、双表面 `--enforce` violations=0 为 `L`。交叉构建与 aarch64 目标产物未变，仍由 CI / 设备矩阵补证 → 部分（L）。
+2. Windows/Linux/macOS：本机 Linux 完成自测、双表面判定与报告复核；本批无平台相关改动，Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
+3. Android/iOS：不触三端代码、资源与 wire；本批是桌面判定器口径修正，没有本批实机回执可声称 → 部分（L）。
+4. 各 UI：判定腿修正后两轴（横向导航列、纵向底栏带）对称，Slint 199 帧与 Iced 184 帧仍 violations=0，两侧欠账台账保持为空。诚实边界：Bevy 仍未接入判定器 → 部分（L）。
+5. 复用：底栏带的高度由外壳在回执里发布（第七键 `dock_band_px`，实测手机帧 84 而 shell 空气为 0），判定器只消费；「导航占掉的空间不进页身」这条规则现在在 `content_box` 一处表达、两轴共用，不存在第二份记忆或第二套阈值 → 完整（L）。
+5a. 设计资源强制标准：本批不产生任何字体 / 字重 / 图标族 / 视觉资产变化，也没有像素变化（`receipt-freshness 0`、无需重采），故没有新的身份回执要取；Bevy 浅色像素回执依旧缺席（其矩阵没有浅色帧且正由另一会话重写），本项仍记「部分」 → 部分（L）。
+6. 各处界面的功能接入：手机档 13 帧的读数得到更正——`profiles-mobile-dark` 的 47.1% 是**栏被算进页身**造成的死带假象，真实读数是页身 51.3% 的页尾空地（形态 `content`，上限 82%）；`proxies-mobile-*` 29.3% → 同向修正；medium 与 expanded 两档数字逐字不变（`dock_band_px=0`），这正是改动范围的自证。诚实边界：本批不改任何页面排布，`SPACEUTIL-014`（Iced 形态归属）仍待裁决 → 部分（L）。
+7. 模块化：修正点只有 `content_box` 一个函数，planted 负例与它同批落地（栏内墨迹必须在盒外、空页身必须读成 100% 页尾），并且把该负例在改动前复跑证明会咬（FAIL → OK）；标准 §2/§11 是它的唯一文档面 → 完整（L）。
+8. CI 与批次效率：本批零 Rust 改动、零像素改动、零重采，成本只有判据自测（1.9s）与两次判定（各约 5s）——先量、再改判据、再用同一份已发布语料复核，是这一批能做到的最小成本。**未跑全仓统一验证批次**（`--workspace` nextest/clippy 由收口批次一次跑完）；`--features capture-tools` 下 `tests/capture_marker_tests.rs` 的既有编译失败按 b154/b180 记录仍属他人欠账 → 部分（L）。
 
 ## 最近一批问答（2026-11-11 第一百九十交付批次：Iced 密度缺口一次收口、欠账台账归零）
 

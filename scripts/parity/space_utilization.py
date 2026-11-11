@@ -529,11 +529,20 @@ def content_box(width: int, height: int, chrome: dict):
     keeps above and below. Every one of those numbers is the frame's own, read
     out of the receipt the shell wrote, which is what makes the measured box
     equal the painted box by construction instead of by agreement.
+
+    Navigation is taken off the box on both axes. The labelled column is the
+    horizontal one, and a phone's bottom bar is the same fact rotated: the
+    shell's own column reserves `dock_band_px` of its height for the bar, so
+    that band sits outside the page body exactly as the rail sits outside it
+    horizontally. Without this the bar's own glyphs are the last "content" a
+    phone page has, every honest page tail is relabelled an interior band, and
+    the rows a bar reserved are billed to the page that never used them.
     """
     left = int(chrome["nav_column_px"])
     margin = page_margin_px(chrome)
     return (left + 2, left + margin - 2, left + margin, width - 6,
-            shell_top_air_px(chrome), height - 1 - shell_bottom_air_px(chrome))
+            shell_top_air_px(chrome),
+            height - 1 - shell_bottom_air_px(chrome) - int(chrome["dock_band_px"]))
 
 
 def runs(mask: np.ndarray) -> list[tuple[int, int]]:
@@ -955,6 +964,22 @@ def _desktop_body_dark() -> np.ndarray:
     image = _canvas(1180, 780)
     _fill(image, 0, 780, 0, column, (20, 23, 27))
     _fill(image, 0, 780, column, 1180, (11, 13, 16))
+    return image
+
+
+def _phone_body() -> np.ndarray:
+    """A 400x800 phone frame: page ground on top, the bottom bar's band under it.
+
+    The bar's band is the shell's own column, rotated: it reserves the rows,
+    so the page body ends above it. The bar paints one glyph row of its own -
+    ink a page never drew, and which must therefore never be read as page
+    content.
+    """
+    image = _canvas(400, 800)
+    _fill(image, 0, 800, 0, 400, GROUND)
+    band = int(_chrome(400, 800)["dock_band_px"])
+    _fill(image, 800 - band, 800, 0, 400, (241, 246, 237))
+    _fill(image, 800 - band + 20, 800 - band + 40, 160, 240, INK)
     return image
 
 
@@ -1660,6 +1685,32 @@ class SelfTest(unittest.TestCase):
         self.assertFalse(owns_nav_column(phone))
         self.assertEqual(content_box(400, 800, phone)[0], 2)
         self.assertTrue(phone["dock_band_px"] > 0)
+
+    def test_the_phone_dock_band_is_shell_chrome_and_not_page_content(self) -> None:
+        # The labelled column comes off the box horizontally; a phone's bar is
+        # the same fact on the other axis, and the published receipts already
+        # say so (`dock_band_px=84` with `shell_bottom_air_px=0` on a 400x800
+        # frame). The box therefore ends above the band - otherwise the bar's
+        # own glyphs are the last "content" a phone page has, every honest page
+        # tail is relabelled an interior band, and the rows the bar reserved are
+        # billed to the page that never used them.
+        phone = _chrome(400, 800)
+        band = int(phone["dock_band_px"])
+        self.assertGreater(band, 0)
+        self.assertEqual(content_box(400, 800, phone)[5], 800 - 1 - band)
+        # A page body with nothing of its own in it reads as one empty body,
+        # not as a page whose content ends at the bar.
+        empty = self.measure_one(_phone_body())
+        self.assertEqual(empty["tail_pct"], 100.0, empty)
+        self.assertEqual(empty["band_pct"], 0.0, empty)
+        # A short block at the top is the page's own content, and everything
+        # under it is its tail - one band, no invented interior dead space.
+        image = _phone_body()
+        _fill(image, 40, 120, 20, 380, CARD)
+        _fill(image, 60, 78, 40, 360, INK)
+        entry = self.measure_one(image)
+        self.assertGreater(entry["tail_pct"], 50.0, entry)
+        self.assertEqual(entry["band_pct"], 0.0, entry)
 
     def test_a_frame_that_says_nothing_about_its_chrome_is_not_measured(self) -> None:
         # The whole point of the receipt: without it the judge would have to
