@@ -24,19 +24,19 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-11 第二百零五批次；b111–b204 见下方批次八问摘要）
+## 当前状态（2026-11-11 第二百零六批次；b111–b205 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b205 仅改 Iced 表面/捕获映射与 `visual_receipts.py` 的运行回执排除规则；Iced nextest **638/638**、全目标 Clippy `-D warnings`、fmt clean 为 `L`。本批未跑 x86_64/aarch64 交叉构建与 aarch64 目标产物，仍由 CI / 设备矩阵补证（GAP-1.1） |
-| 2 | 部分 | L | 本机 Linux 跑完 Iced 定向构建、nextest、clippy、生成矩阵、像素矩阵及空间判定；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
-| 3 | 部分 | L | 不触 Android/iOS 代码、资源或 wire；本批没有对应实机回执 |
-| 4 | 部分 | L | Iced 现由独立 typed `Route::{Connections,Logs}` 消费导航注册项；捕获矩阵、demo 路由、refresh subscription、滚动 owner 与像素锚点同步。Iced 188 帧真实矩阵空间违规 0、回执新鲜度 0；Slint、Bevy 与 Android 不在本切片，Bevy 的并行像素别名仍未收口 |
-| 5 | 完整 | L | `FeatureSpec::iced_page` 是业务场景到 Iced 独立页面的唯一载体；`ObservationListOwner` 区分 runtime 固定视口与页身剩余高度，平铺/分组连接滚动共用页 owner，捕获测量可见高亮文本；日志列表透明并入页身卡，没有另存阈值、业务状态或近地色面。矩阵生成 `--check` current |
-| 5a | 完整 | L | 本批不改字体、字重、图标、主题资产；产品布局/像素身份变化按双视口重采 Iced **188/188**，`design-resource-authority --skip-exporter` 0 violations；`space_utilization --surface iced --enforce` 与 `receipt-freshness` 均 0 |
-| 6 | 部分 | L | Iced Connections/Logs 独立页面与矩阵 carrier 已接通，`iced-observation-routes-guard` self-test **8/8** / enforce 0；跨表面 `resolve_surface_evidence.py` 未在本批复跑，Slint/Bevy 对这两项的等价行为未随本批变更 |
-| 7 | 完整 | L | `observation_pages`、`observation_layout` 与连接/日志 view 模块各自承载布局职责；路由守卫 planted 8/8，`import`、`line`、`typed-state`、`doc-governance` 均 0。全仓结构门运行至截图身份腿，Iced 侧身份与别名无违规 |
-| 8 | 部分 | L | Iced 完整像素矩阵 **188/188**（最终 run `20261111T101129Z_8e1c2a6d7c71_dirty_3339388`，binary SHA-256 `59f611a2b60c27b96476e6f46e99ceff61891c48ad3804fe96edd636e5af7ea0`，source fingerprint `25d635ddc8fa5d3941d1ad5deb638f8f1583fc36a656893e212030997eb45a72`）、Iced nextest 638/638、Clippy 0 warnings；`check-structure.sh` 唯一红腿为另一会话的 Bevy `runtime-dark` / `overview-dark` 别名差异。全仓 `--workspace` nextest/clippy 与 `resolve_surface_evidence.py` 仍待统一批次 |
+| 1 | 部分 | L | b206 修复 Bevy Android 帧观测输入与 Iced capture-only 路由计数的 Clippy 缺口；locked workspace nextest **6716/6716（15 skipped）**、workspace Clippy `-D warnings`、fmt check 均为 `L`。未跑交叉架构与 aarch64 目标产物，仍由 CI / 设备矩阵补证（GAP-1.1） |
+| 2 | 部分 | L | 本机 Linux 完成 workspace nextest / Clippy / fmt；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）。结构门唯一失败是另一会话的 Bevy 像素别名 |
+| 3 | 部分 | L | 未改 Android/iOS Kotlin、资源或 wire；Bevy Android 入口只收拢既有帧观测参数，本批没有 Android/iOS 实机回执 |
+| 4 | 部分 | L | Iced Connections/Logs 独立页回执仍为 **188/188**；Bevy 帧观测输入改为 `FrameObservationSelection::{None, Android { internal_data_path }}`，但不改变 Bevy 页面行为；四表面 parity 仍有未闭环场景 |
+| 5 | 完整 | L | 观测阶段与 Android 路径现在由一个 typed enum variant 共同承载；Iced 路由唯一性计数仅在 capture/test 消费端编译；Bevy parity 的 scenario test ID 已对齐 HEAD 中真实测试名。未新增业务真源或 wire |
+| 5a | 完整 | L | 本批不改字体、字重、图标或页面像素身份；Iced 188 帧空间门 / 回执新鲜度、Slint 199 帧空间门均为 0 违规 |
+| 6 | 部分 | L | `resolve_surface_evidence.py` registry/discovery/anchors 均验证通过，`dangling=0`；180 个 ready surface cells 仍未闭环，因为本次未绑定完整 product-build receipts 与标准/紧凑像素回执 |
+| 7 | 部分 | L | `typed-state`、文档治理与格式门通过；`check-structure.sh` 唯一红项为 Bevy `runtime-dark` 与 `overview-dark` 别名像素不同，文件归另一会话，保持未改 |
+| 8 | 部分 | L | locked workspace nextest **6716/6716（15 skipped）**、workspace Clippy 零警告、`cargo fmt --all --check` clean；结构门仍有上述 Bevy 别名，parity cells 仍缺产品级回执 |
 
 ## 最近一批问答（2026-11-11 第二百零五交付批次：Iced 连接/日志独立页与日志页真实留白根因）
 
@@ -49,6 +49,18 @@
 6. 功能接入：Iced 连接与日志页已独立接入；四种 compact 交互捕获通过。跨表面 parity resolver 未复跑，Slint/Bevy 需各自确认等价业务体验 → 部分（L）。
 7. 模块化：捕获路由/页面布局/连接和日志呈现分别在 owner 模块；路由守卫 self-test 8/8/enforce 0，源码指纹回归单测 1/1（截图/manifest 更新不再改变源码身份，源码资产变化仍会改变指纹），`line` / `import` / `typed-state` / 文档治理通过。全结构门到截图身份项才被 Bevy 既有别名差异拦截 → 完整（L）。
 8. CI 与批次效率：最终统一捕获 188 帧耗时 280 秒，run `20261111T101129Z_8e1c2a6d7c71_dirty_3339388`，binary SHA-256 `59f611a2b60c27b96476e6f46e99ceff61891c48ad3804fe96edd636e5af7ea0`；Iced nextest 638/638，Clippy 无警告；未跑全 workspace nextest/clippy。结构门红腿为另一会话的 Bevy runtime/overview 像素别名；此项与本批 Iced 文件分离 → 部分（L）。
+
+## 最近一批问答（2026-11-11 第二百零六批次：统一验证修复 typed frame stage 与失效 parity 锚点）
+
+1. x86_64/aarch64：本批只改 Bevy UI 内部帧观测参数结构、Iced capture-only 计数门与 parity test ID；不改 platform API、wire 或 snapshot。locked workspace nextest **6716/6716（15 skipped）**、workspace Clippy `--all-targets -D warnings`、`cargo fmt --all --check` 为 `L`；交叉构建与目标设备未验 → 部分（L）。
+2. Windows/Linux/macOS：Linux 完成全仓 nextest、Clippy 与 fmt；`check-structure.sh` 唯一红腿为 Bevy `runtime-dark` / `overview-dark` 截图别名差异，场景文件与截图由另一会话持有；Windows/macOS 构建及安装包未复跑 → 部分（L）。
+3. Android/iOS：Bevy Android 帧观测选择现在将 `internal_data_path` 绑定在 `Android` enum variant 内，减少 capture 构建里未使用参数；未改 Kotlin/JNI/VPNService 和 Android 包，本批无设备/模拟器回执 → 部分（L）。
+4. 各 UI：Iced `selected_navigation_destination_count` 与它的 capture readiness 消费者统一 gated；Bevy `FrameObservationSelection` 显式携带 Android 路径；ClashParty parity 台账中的 Bevy `rules-list-editor` 锚点已改为真实测试 `native_rule_counts_follow_the_real_reader_and_locale_without_replacing_the_line`。Slint/Bevy/Iced 的其他业务像素没有新增，本批不办结跨端功能 → 部分（L）。
+5. 复用：帧观测阶段与路径从「typed enum + 独立 Option」合成一份 typed stage；Iced 选中计数只存在于实际消费它的 capture/test 构建；scenario anchor 与测试符号一致，不再有失效名字 → 完整（L）。
+5a. 设计资源：没有字体、字重、图标、色彩或截图资产改动，沿用已发布身份；因此无需重采 → 完整（L）。
+6. 功能接入：统一 resolver 结果 `status=pass`、registry/discovery 为 true、360 anchors、dangling 0；180 个 cells 因未选择所有表面具体 build IDs 和 receipts 而保持 unclosed，不能宣称完成 → 部分（L）。
+7. 模块化：typed frame stage 归 Bevy frame-observation owner，捕获路由计数归 Iced sidebar/capture 边界，ClashParty 场景锚点归 feature evidence 台账；没有在测试或 UI 写临时状态 → 完整（L）。
+8. CI 与批次效率：全仓 locked nextest **6716/6716（15 skipped）**、workspace Clippy `-D warnings` exit 0、fmt clean；完整结构门唯一失败是另一会话 Bevy `runtime-dark` / `overview-dark` alias。resolver schema/registry/discovery 检查通过，但不含 product receipts，180 cells unclosed → 部分（L）。
 
 ## 最近一批问答（2026-11-11 第二百零四交付批次：侧栏空隙上限按 FlClash 实测像素收紧）
 

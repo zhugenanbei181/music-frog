@@ -15,6 +15,14 @@
 - **并行工流与验证纪律（2026-10-20 起强制）：** 并行开发按文件所有权切分，编译不通过的半成品不得放进会被 `cargo nextest --workspace`、结构门或 capture 构建扫到的路径（WIP 先放草稿或 `.evidence/wip/`）；开发期只跑受影响包，全仓 `cargo nextest --workspace` 与全量结构门统一放到收尾批次只跑一次；共享 `/tmp` 配额、cargo lane 争用与合成器起栈失败等外部故障先判定归属，只修本切片能修的那一类。
 - 当前证据行只保留 run ID 与计数；完整证据文本见 `.evidence/CODE_TODO_PAST_EVIDENCE.md`（本地，不入库）。
 
+## 0.1 2026-11-11 第二百零六统一验证批次
+
+- `cargo nextest run --locked --workspace --features infiltrator-iced/capture-tools,infiltrator-bevy-ui/capture-tools --no-fail-fast --build-jobs 4 --test-threads 4`：**6716/6716 passed，15 skipped**。
+- `cargo clippy --workspace --all-targets -- -D warnings`、`cargo fmt --all --check`：exit 0。
+- `resolve_surface_evidence.py`：`status=pass registry=True discovery=True anchors=360 dangling=0 cells=180 aligned=0 unclosed=180`；本次未给所有表面选定具体 product build IDs 与 pixel receipts，故不把 `ready` cell 误记为已验收。
+- `check-structure.sh`：唯一红项为另一会话持有的 Bevy `runtime-dark` / `overview-dark` PNG 别名差异；保留原 owner 文件，四条 Integrated 不办结。
+- 本批修正三处真实门禁缺陷：Bevy Android 帧观测把路径绑定到 `Android { internal_data_path }` typed variant，消除 `capture-tools` Clippy 未使用参数；Iced 导航唯一性计数只在其 capture/test 消费端编译；Bevy `rules-list-editor` scenario anchor 改为 HEAD 实际存在的测试名。定向 Bevy **831/831**、Iced **638/638** 均通过。
+
 ## 一、Android VPN 生命周期与系统服务（0条，已清空；归档见 [TODO.md](../TODO.md) 第一百零六批次）
 ## 二、Android IPC 与 Kotlin Host 边界（0条，已清空；归档见 [TODO.md](../TODO.md) 第一百零四批次）
 
@@ -70,7 +78,7 @@
 - 单元（本机可复跑）：domain 631/631、application 675/675、presentation（含 `traffic_audit_options` 3 条）、`infiltrator-iced --features capture-tools` 634/634。
 - 守卫（本机可复跑）：`iced-dead-input-guard --self-test` PASS / `--mode enforce` 0/0、`iced-sidebar-nav-guard` 0、`import`/`line`/`typed-state` 0、`generate_unified_matrix.py --check`（iced+slint）逐行一致、`python3 -m unittest discover -s scripts/quality/tests` **367/367 OK**。
 - 像素（本机可复跑）：Iced 发布批 `20261111T015000Z_ac6d8f958d10_dirty_353763`（**186/186**，453s）、`space_utilization --surface iced --enforce` **violations=0**、`receipt-freshness 0`；Slint 批 `20261110T220049Z_7c92aaf890f3_dirty_2457766` 199 帧 violations=0 逐字不变。
-- 统一批次：`cargo nextest --workspace`、全仓 clippy `--all-targets -D warnings`、全仓结构门（本批只跑了受影响包的定向腿与相关门）。
+- 统一批次：本文件 §0.1 的 b206 结果已更新；全仓测试/Clippy/fmt 通过，但结构门别名与跨表面产品回执仍未收口，本条保持 `Integrated`。
 - 诚实边界：控件的**点击**本身不进像素回执（捕获台架按设计不投指针），像素证据来自同一条生产消息路径的选区行；Slint 与 Bevy 表面尚未消费这份读回，其审计页由各自条目收口；`FLAGART-001`（Iced/Bevy 旗面依赖平台 emoji 字形）与本条无关。
 - 诚实边界（发布范围）：186 帧发布批 `20261111T015000Z_ac6d8f958d10_dirty_353763` 的 binary sha256 `af62c849…` 与本条源码一致；29 帧 AA 变化随 b195 的 runtime 控件树重排，需在统一批次连同全仓门一起复核，不得把它写成「只有两张新回执变化」或「判定器/环境缺陷」。
 
@@ -92,7 +100,7 @@
 
 **待验证范围**：
 - 本机可复跑：`slint-theme-channel-guard --self-test`（8/8）与 `--mode enforce`（0）、`cargo check -p infiltrator-slint --features capture-tools`、`slint-syntax-guard`、`slint-source-import-guard`、两宿主诊断批的 PNG sha256 与右缘 2px 带比对、`space_utilization --enforce` 199 帧 0 违规、`receipt-freshness 0`。
-- 统一批次：`cargo nextest --workspace`、全仓 clippy `--all-targets -D warnings`、全仓结构门全腿。
+- 统一批次：本文件 §0.1 的 b206 结果已更新；全仓测试/Clippy/fmt 通过，但结构门别名与跨表面产品回执仍未收口，本条保持 `Integrated`。
 - 诚实边界：本批不重采、不改任何 PNG / manifest；`Integrated` 不等于办结，统一验证通过后登记 archived points。
 
 **证据身份**：`slint-theme-channel-guard --self-test 8/8`、`cargo check --features capture-tools` exit 0、诊断批 `20261111T030014Z_..._813495`（light 宿主）与 `20261111T030327Z_..._837205`（dark 宿主）的 `proxies-dark/image.png` sha256 `e43974c613e4…` 相同、发布帧 `proxies-dark.png` 与 light 宿主诊断帧逐字节相同。
@@ -114,7 +122,7 @@
 - 单元（本机可复跑）：`cargo nextest run -p infiltrator-contract -p infiltrator-presentation -p infiltrator-slint`（1372/1372）、`cargo nextest run -p infiltrator-slint --lib`（29/29）、`cargo clippy -p infiltrator-contract -p infiltrator-presentation -p infiltrator-slint --lib -- -D warnings`、`cargo fmt` 三包 `--check`。
 - 守卫（本机可复跑）：`slint-syntax-guard` 100% PASS、`slint-dead-input` 0、`slint-theme-channel-guard` 0/8、`doc-governance`、`closure-questions 8/8`、双表面 `space_utilization --enforce`、`receipt-freshness 0`。
 - 像素（本机可复跑）：诊断批 `20261111T035742Z_d20b90df8159_dirty_1198518` 与发布 `overview-dark.png` 逐字节相同；hover tooltip 的交互证据仍需带指针台架，按既有诚实边界不冒充已验收。
-- 统一批次：`cargo nextest --workspace`、全仓 clippy `--all-targets -D warnings`、全仓结构门全腿。
+- 统一批次：本文件 §0.1 的 b206 结果已更新；全仓测试/Clippy/fmt 通过，但结构门别名与跨表面产品回执仍未收口，本条保持 `Integrated`。
 
 **证据身份**：contract/presentation/Slint 三包 1372/1372、Slint lib 29/29、诊断批 `20261111T035742Z_d20b90df8159_dirty_1198518`（`overview-dark` sha256 `b66c11ab17c2…` == 发布帧）。
 
@@ -134,6 +142,6 @@
 - 单元：最终代码下重跑 `cargo nextest run -p infiltrator-iced --features capture-tools -j 2` 与 `cargo clippy -p infiltrator-iced --all-targets --features capture-tools -- -D warnings`。
 - 守卫：`iced-observation-routes-guard.py` self-test/enforce、`iced-sidebar-nav-guard`、`iced-dead-input-guard`、矩阵 `generate_unified_matrix.py --check --surface=iced --surface=slint`、回执新鲜度。
 - 像素：完整 Iced 188 帧发布批、`space_utilization --surface iced --enforce`；刷新 Iced about/settings、sync-restore 既有别名摘要。全仓身份门另有 Bevy 并行工作流像素差异，按文件所有权单独归属。
-- 统一批次：`cargo nextest --workspace --no-fail-fast`、全仓 clippy `--all-targets -D warnings`、`check-structure.sh` 与 `resolve_surface_evidence.py`；该条保持 Integrated，统一批次后办结并归档 2 pt。
+- 统一批次：本文件 §0.1 的 b206 结果已更新；全仓测试/Clippy/fmt 通过，但结构门别名与跨表面产品回执仍未收口，本条保持 `Integrated`。
 
 **证据身份**：Iced nextest 638/638、路由守卫 self-test 8/8 与 enforce 0 findings、源码指纹回归单测 1/1、最终 188 帧发布 run `20261111T101129Z_8e1c2a6d7c71_dirty_3339388`（binary SHA-256 `59f611a2b60c27b96476e6f46e99ceff61891c48ad3804fe96edd636e5af7ea0`，source fingerprint `25d635ddc8fa5d3941d1ad5deb638f8f1583fc36a656893e212030997eb45a72`）、空间违规 0、回执新鲜度违规 0；搜索日志 near-ground 根因复测 run `20261111T094030Z_8e1c2a6d7c71_dirty_3157883`。

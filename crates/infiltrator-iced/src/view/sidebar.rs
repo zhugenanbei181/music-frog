@@ -78,6 +78,14 @@ fn route_for_destination(target: NavigationTarget) -> Route {
     }
 }
 
+/// How many registry destinations resolve to this route.
+///
+/// The capture gate reads it: a frame that claims to be the connections page
+/// is only publishable while exactly one destination is selected, so a folded
+/// route (two destinations, one selection) cannot masquerade as its own page.
+/// Production rendering never needs the count, so the entry is gated with its
+/// consumers instead of being kept alive by an `#[allow(dead_code)]`.
+#[cfg(any(feature = "capture-tools", test))]
 pub(crate) fn selected_navigation_destination_count(route: Route) -> usize {
     sidebar_rows()
         .into_iter()

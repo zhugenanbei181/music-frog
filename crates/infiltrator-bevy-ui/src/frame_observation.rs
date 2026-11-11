@@ -13,10 +13,16 @@ use zhuge_ui_kit_bevy::frame_timing::{
 const SINK_VAR: &str = "INFILTRATOR_ANDROID_FRAME_TIMING_SINK";
 const BUDGET_VAR: &str = "INFILTRATOR_ANDROID_FRAME_TIMING_BUDGET_MS";
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FrameObservationSelection {
     None,
-    Android,
+    /// The host wrote a one-shot request and the driver knows the app's
+    /// internal data directory. The path belongs to this stage alone: a
+    /// `None` selection cannot carry one, and a build that does not consume
+    /// the request has no parameter left over to declare.
+    Android {
+        internal_data_path: Option<PathBuf>,
+    },
 }
 
 /// Read the one-shot host request from the app's internal data directory.
@@ -39,15 +45,11 @@ pub fn android_request(
 ///
 /// Desktop/capture compositions keep their existing env-bound owner; this
 /// function does not create a second desktop sink authority.
-pub fn install(
-    app: &mut App,
-    selection: FrameObservationSelection,
-    android_internal_data_path: Option<PathBuf>,
-) -> bool {
+pub fn install(app: &mut App, selection: FrameObservationSelection) -> bool {
     match selection {
         FrameObservationSelection::None => false,
-        FrameObservationSelection::Android => {
-            install_android_from_app_path(app, android_internal_data_path)
+        FrameObservationSelection::Android { internal_data_path } => {
+            install_android_from_app_path(app, internal_data_path)
         }
     }
 }

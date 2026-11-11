@@ -198,8 +198,7 @@ pub fn run_with_host_surface_and_command_sink_for_android(
             refresh_interval,
             tray: None,
         },
-        frame_observation::FrameObservationSelection::Android,
-        internal_data_path,
+        frame_observation::FrameObservationSelection::Android { internal_data_path },
     );
 }
 
@@ -211,7 +210,6 @@ fn run_with_command_sink_and_composition(
         sink,
         composition,
         frame_observation::FrameObservationSelection::None,
-        None,
     );
 }
 
@@ -281,7 +279,6 @@ fn run_with_command_sink_and_composition_with_frame_observation(
     sink: Arc<dyn UiCommandSink>,
     composition: SurfaceComposition,
     frame_observation_selection: frame_observation::FrameObservationSelection,
-    android_internal_data_path: Option<PathBuf>,
 ) {
     #[cfg(feature = "capture-tools")]
     let preference = capture::skin_from_env()
@@ -401,13 +398,9 @@ fn run_with_command_sink_and_composition_with_frame_observation(
     #[cfg(not(feature = "capture-tools"))]
     if matches!(
         frame_observation_selection,
-        frame_observation::FrameObservationSelection::Android
+        frame_observation::FrameObservationSelection::Android { .. }
     ) {
-        frame_observation::install(
-            &mut app,
-            frame_observation_selection,
-            android_internal_data_path,
-        );
+        frame_observation::install(&mut app, frame_observation_selection);
     }
     #[cfg(feature = "capture-tools")]
     if let Some(feature) = interaction_capture::feature_from_environment() {
