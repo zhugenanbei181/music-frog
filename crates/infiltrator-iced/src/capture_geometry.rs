@@ -9,6 +9,7 @@ use crate::types::message::Message;
 use crate::view::app_routing::APP_ROUTING_SCROLL_ID;
 use crate::view::doctor::DOCTOR_SCROLL_ID;
 use crate::view::editor::EDITOR_SCROLL_ID;
+use crate::view::observation_pages::TRAFFIC_PAGE_SCROLL_ID;
 use crate::view::overview::OVERVIEW_SCROLL_ID;
 use crate::view::profiles::PROFILES_SCROLL_ID;
 use crate::view::proxies::node_region_id;
@@ -755,10 +756,14 @@ impl AppState {
     fn capture_section_geometry_task(&self) -> Task<Message> {
         let (target, page_scroll) = match self.shell.capture_section {
             CaptureSection::RouteTop => return Task::none(),
-            CaptureSection::RuntimeTrafficAudit => (
-                InteractionRegion::TrafficAudit.id(),
-                Id::new("runtime-scroll"),
-            ),
+            CaptureSection::TrafficAudit => {
+                let page_scroll = if self.shell.current_route == Route::Traffic {
+                    Id::new(TRAFFIC_PAGE_SCROLL_ID)
+                } else {
+                    Id::new("runtime-scroll")
+                };
+                (InteractionRegion::TrafficAudit.id(), page_scroll)
+            }
             CaptureSection::SettingsAbout => (
                 InteractionRegion::SettingsAbout.id(),
                 Id::new(SETTINGS_SCROLL_ID),

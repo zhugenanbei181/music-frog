@@ -55,45 +55,58 @@ fn sidebar_rows() -> Vec<NavigationItem> {
 
 /// Map a registry destination onto this surface's route.
 ///
-/// The one surface-local row is the traffic page: Slint paints it as its own
-/// page, and Iced folds it into the runtime page, so `Runtime` owns that
-/// destination here. Connections and logs use their shared dedicated routes.
+/// The one surface-local row is the traffic page; both desktop surfaces mount
+/// it as its own destination. Connections and logs use their shared dedicated
+/// routes.
 /// A surface-local id this surface does not own cannot arrive - the registry
 /// filters those out through `owns_surface_local` - so reaching the fallback
 /// arm is a registry/surface disagreement, not a user state.
 fn route_for_destination(target: NavigationTarget) -> Route {
     match target {
         NavigationTarget::Shared(page) => Route::from_shell_page(page),
-        NavigationTarget::SurfaceLocal("traffic") => Route::Runtime,
+        NavigationTarget::SurfaceLocal("traffic") => Route::Traffic,
         NavigationTarget::SurfaceLocal(id) => unreachable!(
-            "the Iced desktop mounts no surface-local row, but `{id}` reached the pane"
+            "the Iced desktop mounts no surface-local row except traffic, but `{id}` reached the pane"
         ),
     }
 }
 
-/// How many registry destinations resolve to this route.
+/// The one navigation row selected by the contract's owner for this route.
+///
+/// Some routes are nested under a shared destination: Iced's runtime page is
+/// the `Network` child of Settings, while Traffic owns its own surface-local
+/// destination. Resolve both directions through the shared contract before
+/// painting the active row.
+pub(crate) fn selected_navigation_route(route: Route) -> Route {
+    route_for_destination(route.navigation_target())
+}
+
+/// How many registry destinations resolve to this route's contract owner.
 ///
 /// The capture gate reads it: a frame that claims to be the connections page
 /// is only publishable while exactly one destination is selected, so a folded
 /// route (two destinations, one selection) cannot masquerade as its own page.
+/// `Runtime` is a nested Settings route and selects the Settings row;
+/// `Traffic` resolves to the separate local traffic row.
 /// Production rendering never needs the count, so the entry is gated with its
 /// consumers instead of being kept alive by an `#[allow(dead_code)]`.
 #[cfg(any(feature = "capture-tools", test))]
 pub(crate) fn selected_navigation_destination_count(route: Route) -> usize {
+    let selected_route = selected_navigation_route(route);
     sidebar_rows()
         .into_iter()
-        .filter(|item| route_for_destination(item.target) == route)
+        .filter(|item| route_for_destination(item.target) == selected_route)
         .count()
 }
 
 /// The localized label of one row. A shared destination is named by the copy
-/// table the contract points at ([`ShellPage::sidebar_key`]); the
-/// surface-local row has no shared key by design and is named by this
-/// surface's own entry for the page it opens.
+/// table the contract points at ([`ShellPage::sidebar_key`]); the surface-local
+/// traffic row has no shared key by design and is named by this surface's own
+/// entry for the page it opens.
 fn label_for(item: NavigationItem, lang: &Lang<'_>) -> String {
     match item.target {
         NavigationTarget::Shared(page) => lang.tr(page.sidebar_key()).into_owned(),
-        NavigationTarget::SurfaceLocal(_) => lang.tr("nav_runtime").into_owned(),
+        NavigationTarget::SurfaceLocal(_) => lang.tr("nav_traffic").into_owned(),
     }
 }
 
@@ -119,12 +132,13 @@ pub fn sidebar_presentation(state: &AppState) -> SidebarPresentation {
 /// air that belongs below the stack.
 fn sidebar_inner(state: &AppState, presentation: SidebarPresentation) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
+    let selected_route = selected_navigation_route(state.shell.current_route);
     let mut rows = column![].spacing(theme::SP_XS).width(Length::Fill);
     for item in sidebar_rows() {
         rows = rows.push(nav_button(
             label_for(item, &lang),
             route_for_destination(item.target),
-            &state.shell.current_route,
+            &selected_route,
             icon_for_semantic(item.icon),
         ));
     }
@@ -234,6 +248,7 @@ fn sidebar_toggle(state: &AppState, presentation: SidebarPresentation) -> Elemen
 /// registry's dock rows, which are the destinations a four-item bar can carry.
 fn sidebar_bottom_nav(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
+    let selected_route = selected_navigation_route(state.shell.current_route);
     let mut bar = row![]
         .spacing(theme::SP_XS)
         .padding([theme::SP_XS, theme::SP_SM]);
@@ -241,7 +256,7 @@ fn sidebar_bottom_nav(state: &AppState) -> Element<'_, Message> {
     for item in NavigationItem::items(NavigationSurface::Dock) {
         let route = route_for_destination(item.target);
         let label = label_for(*item, &lang);
-        let is_active = route == state.shell.current_route;
+        let is_active = route == selected_route;
         let glyph = icon_themed(icon_for_semantic(item.icon), 18.0, move |t: &Theme| {
             if is_active {
                 theme::tokens(t).accent

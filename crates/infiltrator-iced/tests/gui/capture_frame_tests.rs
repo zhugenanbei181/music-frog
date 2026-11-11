@@ -3,7 +3,7 @@
 //! surface has not settled on cannot publish one either.
 use super::*;
 use crate::sidebar_chrome::{SidebarChromeReceipt, shell_chrome_facts};
-use crate::view::sidebar::sidebar_presentation;
+use crate::view::sidebar::{selected_navigation_route, sidebar_presentation};
 use iced::Rectangle;
 use iced::Size;
 use image::open;
@@ -139,6 +139,7 @@ fn observation_routes_publish_only_after_eight_stable_single_selection_readbacks
 
     for (route, expected_page) in [
         (Route::Runtime, "runtime"),
+        (Route::Traffic, "traffic"),
         (Route::Connections, "connections"),
         (Route::Logs, "logs"),
     ] {
@@ -146,6 +147,14 @@ fn observation_routes_publish_only_after_eight_stable_single_selection_readbacks
         let mut state = capture_state(&directory);
         state.shell.current_route = route;
         assert_eq!(selected_navigation_destination_count(route), 1);
+        assert_eq!(
+            selected_navigation_route(route),
+            match route {
+                Route::Runtime => Route::Settings,
+                _ => route,
+            },
+            "capture uses the same contract-owned selected row as rendering"
+        );
         let revision = state.surface.revision();
         let bytes = [31u8, 61, 91, 255].repeat(720 * 480);
         let screenshot = Screenshot::new(bytes, Size::new(720, 480), 1.0);

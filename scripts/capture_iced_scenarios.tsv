@@ -183,7 +183,9 @@ about-forest	settings	about	forest	1180x780
 about-amoled	settings	about	amoled	1180x780			
 sidebar-collapsed-standard	overview	overview	forest	1180x780		collapsed	
 sidebar-collapsed-compact	overview	overview	forest	720x480		collapsed	
-runtime-traffic-audit-standard	runtime-traffic	runtime	forest	1180x780			30d:process
-runtime-traffic-audit-compact	runtime-traffic	runtime	forest	720x480			30d:process
+traffic-standard	traffic	traffic	forest	1180x780			
+traffic-compact	traffic	traffic	forest	720x480			
+traffic-audit-standard	traffic-audit	traffic	forest	1180x780			30d:process
+traffic-audit-compact	traffic-audit	traffic	forest	720x480			30d:process
 connections-page-compact	connections	connections	forest	720x480			
 logs-page-compact	logs	logs	forest	720x480			

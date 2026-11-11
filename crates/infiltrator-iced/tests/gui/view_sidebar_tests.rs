@@ -8,6 +8,8 @@
 //! restate them.
 
 use super::*;
+use infiltrator_contract::command_catalogue::ShellPage;
+use infiltrator_contract::responsive_viewport::SidebarForm;
 use infiltrator_contract::runtime_control::{RuntimeControlSnapshot, RuntimeControlStatus};
 use infiltrator_contract::shell_navigation::{NavigationTarget, desktop_items};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
@@ -89,8 +91,8 @@ fn every_registry_row_resolves_onto_a_route_of_this_surface() {
             ),
             NavigationTarget::SurfaceLocal("traffic") => assert_eq!(
                 route_for_destination(item.target),
-                Route::Runtime,
-                "Iced folds the traffic destination into the runtime page"
+                Route::Traffic,
+                "the traffic row opens its standalone route"
             ),
             NavigationTarget::SurfaceLocal(other) => {
                 panic!("the Iced pane owns no surface-local row, got {other}")
@@ -100,17 +102,83 @@ fn every_registry_row_resolves_onto_a_route_of_this_surface() {
 }
 
 #[test]
-fn each_observation_destination_has_one_selected_sidebar_row() {
+fn each_route_selects_the_contract_owner_and_opens_its_actual_sidebar_route() {
     let rows = desktop_items(SurfaceKind::IcedDesktop);
-    for current_route in [Route::Runtime, Route::Connections, Route::Logs] {
+    for (current_route, expected_route) in [
+        (Route::Runtime, Route::Settings),
+        (Route::Traffic, Route::Traffic),
+        (Route::Connections, Route::Connections),
+        (Route::Logs, Route::Logs),
+    ] {
+        let selected_route = selected_navigation_route(current_route);
+        assert_eq!(
+            selected_route, expected_route,
+            "the shared navigation contract owns the selected row"
+        );
         let selected = rows
             .iter()
-            .filter(|item| route_for_destination(item.target) == current_route)
+            .filter(|item| route_for_destination(item.target) == selected_route)
             .count();
         assert_eq!(
             selected, 1,
-            "each observation destination must own exactly one selected row: {current_route:?}"
+            "each route resolves to exactly one selected row: {current_route:?}"
         );
+        assert_eq!(
+            selected_navigation_destination_count(current_route),
+            selected,
+            "capture readiness counts the row the sidebar actually paints"
+        );
+    }
+}
+
+#[test]
+fn runtime_and_traffic_have_distinct_contract_navigation_owners() {
+    assert_eq!(
+        Route::Runtime.navigation_target(),
+        NavigationTarget::Shared(ShellPage::Settings)
+    );
+    assert_eq!(
+        Route::Traffic.navigation_target(),
+        NavigationTarget::SurfaceLocal("traffic")
+    );
+    assert_ne!(
+        selected_navigation_route(Route::Runtime),
+        selected_navigation_route(Route::Traffic)
+    );
+}
+
+#[test]
+fn every_iced_route_resolves_to_exactly_one_mounted_navigation_row() {
+    for route in [
+        Route::Overview,
+        Route::Profiles,
+        Route::Proxies,
+        Route::Runtime,
+        Route::Traffic,
+        Route::Connections,
+        Route::Logs,
+        Route::Rules,
+        Route::Dns,
+        Route::Sync,
+        Route::Editor,
+        Route::Settings,
+        Route::AppRouting,
+        Route::Doctor,
+        Route::Tools,
+        Route::About,
+        Route::Disclaimer,
+        Route::Licenses,
+    ] {
+        let selected_route = selected_navigation_route(route);
+        let painted_rows = desktop_items(SurfaceKind::IcedDesktop)
+            .iter()
+            .filter(|item| route_for_destination(item.target) == selected_route)
+            .count();
+        assert_eq!(
+            painted_rows, 1,
+            "{route:?} must resolve through the contract to one mounted row"
+        );
+        assert_eq!(selected_navigation_destination_count(route), painted_rows);
     }
 }
 
@@ -131,8 +199,5 @@ fn the_labelled_column_and_the_rail_share_one_row_set() {
 fn test_sidebar_rail_render_smoke() {
     let (state, _) = AppState::new();
     let _rail = sidebar_rail(&state);
-    assert_eq!(
-        infiltrator_contract::responsive_viewport::SidebarForm::Rail.width_px(),
-        Some(64)
-    );
+    assert_eq!(SidebarForm::Rail.width_px(), Some(64));
 }

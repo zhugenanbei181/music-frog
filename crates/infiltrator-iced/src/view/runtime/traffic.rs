@@ -35,7 +35,7 @@ use infiltrator_presentation::traffic_readout::TrafficFreshness;
 use infiltrator_shared::locales::{Lang, Localizer};
 use std::collections::VecDeque;
 
-pub(super) fn traffic_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<'a, Message> {
+pub(crate) fn traffic_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<'a, Message> {
     let theme_tokens = tokens(&state.shell.theme);
     let _is_zh = !lang.0.starts_with("en");
 

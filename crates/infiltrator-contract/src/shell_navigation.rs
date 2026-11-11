@@ -16,7 +16,7 @@ use crate::surface::SurfaceKind;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum NavigationTarget {
     Shared(ShellPage),
-    /// The Slint desktop traffic-statistics page. The other surfaces fold
+    /// The standalone traffic-statistics page on Slint and Iced. Bevy folds
     /// traffic into the overview, so this id stays surface-local by design.
     SurfaceLocal(&'static str),
 }
@@ -89,8 +89,8 @@ pub enum NavigationSurface {
 /// into the overview on others, so a surface that does not own the page must
 /// not be handed the row: a nav row that navigates nowhere is a lie the shell
 /// tells the user. This is the one place the pairing is stated, and it is
-/// read off [`destination_for_route`], which already resolves the Slint
-/// `Traffic` page and the Iced `Runtime` route onto this id. The Bevy desktop
+/// read off [`destination_for_route`], which resolves the Slint and Iced
+/// `Traffic` routes onto this id. The Bevy desktop
 /// surface owns no traffic route — its `runtime-*` capture scenarios render
 /// its overview page — so it mounts the shared destinations alone.
 pub fn owns_surface_local(surface: SurfaceKind, id: &str) -> bool {
@@ -272,7 +272,7 @@ pub fn destination_for_route(route: &str) -> Option<NavigationTarget> {
         "Config" | "Profiles" | "ProfileSettings" | "Preview" => {
             NavigationTarget::Shared(ShellPage::Profiles)
         }
-        "Settings" | "Network" | "AppSettings" | "Overrides" | "About" | "Licenses"
+        "Settings" | "Network" | "Runtime" | "AppSettings" | "Overrides" | "About" | "Licenses"
         | "LicenseDetail" | "Dns" | "Editor" | "Filters" | "Doctor" | "Sync" | "AppRouting"
         | "Meta" | "SettingsWorkbench" | "ShellWorkbench" | "Tools" | "Disclaimer" => {
             NavigationTarget::Shared(ShellPage::Settings)
@@ -282,7 +282,7 @@ pub fn destination_for_route(route: &str) -> Option<NavigationTarget> {
         }
         "Logs" | "LogsWorkbench" => NavigationTarget::Shared(ShellPage::Logs),
         "Rules" | "Providers" | "RulesWorkbench" => NavigationTarget::Shared(ShellPage::Rules),
-        "Traffic" | "Runtime" | "RuntimeWorkbench" => NavigationTarget::SurfaceLocal("traffic"),
+        "Traffic" | "RuntimeWorkbench" => NavigationTarget::SurfaceLocal("traffic"),
         _ => return None,
     };
     Some(target)
@@ -484,6 +484,7 @@ mod tests {
                 "RuntimeWorkbench",
                 NavigationTarget::SurfaceLocal("traffic"),
             ),
+            ("Runtime", NavigationTarget::Shared(ShellPage::Settings)),
             (
                 "SettingsWorkbench",
                 NavigationTarget::Shared(ShellPage::Settings),
@@ -518,6 +519,7 @@ mod tests {
             "Logs",
             "Rules",
             "Traffic",
+            "Runtime",
             "Dns",
             "About",
             "AppRouting",

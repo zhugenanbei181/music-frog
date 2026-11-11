@@ -19,6 +19,9 @@ import sys
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts" / "parity"))
+from page_structure_version import PAGE_STRUCTURE_EXPORT_VERSION
+
 COMMAND = ROOT / "crates/infiltrator-contract/src/command.rs"
 SNAPSHOT = ROOT / "crates/infiltrator-contract/src/surface_snapshot.rs"
 SETTINGS = ROOT / "crates/infiltrator-domain/src/settings.rs"
@@ -126,7 +129,6 @@ REQUIRED = {
         "sidebar_variants",
     ),
     "page_structure_export": (
-        "\"version\":12",
         "\"sidebar_variants\"",
         "\"toggle_available\":true",
     ),
@@ -163,7 +165,7 @@ REQUIRED = {
         "LumenTheme.touch-surface = root.android-platform;",
     ),
     "viewport_guard": (
-        'document.get("version") != 12',
+        'document.get("version") != PAGE_STRUCTURE_EXPORT_VERSION',
         "sidebar-variant export",
         "enum_variants(\"SidebarExpansionPreference\")",
     ),
@@ -241,6 +243,11 @@ def findings(texts: dict[str, str], gate: str, export: dict | None = None) -> li
     if "sidebar-expansion-owner-guard.py --mode enforce" not in gate:
         found.append("the guard enforce leg is not part of the structure gate")
     document = export if export is not None else {}
+    if document.get("version") != PAGE_STRUCTURE_EXPORT_VERSION:
+        found.append(
+            f"the exported page structure has version {document.get('version')!r}, "
+            f"expected {PAGE_STRUCTURE_EXPORT_VERSION}"
+        )
     variants = document.get("sidebar_variants", [])
     if len(variants) != 16:
         found.append(f"the exported sidebar variant table has {len(variants)} rows, expected 16")
@@ -316,6 +323,11 @@ class GuardSelfTest(unittest.TestCase):
         planted = dict(self.export)
         planted["sidebar_variants"] = []
         self.assertTrue(any("variant table has 0 rows" in item for item in self.found(export=planted)))
+
+    def test_a_stale_page_structure_version_is_caught(self) -> None:
+        planted = dict(self.export)
+        planted["version"] -= 1
+        self.assertTrue(any("page structure has version" in item for item in self.found(export=planted)))
 
     def test_a_touch_surface_with_a_toggle_is_caught(self) -> None:
         planted = json.loads(json.dumps(self.export))

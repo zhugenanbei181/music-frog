@@ -70,6 +70,7 @@ impl AppState {
             Route::Profiles => profiles::view(self),
             Route::Proxies => proxies::view(self),
             Route::Runtime => runtime::view(self),
+            Route::Traffic => observation_pages::traffic_body(self, Lang(&self.shell.lang)),
             Route::Connections => observation_pages::connections_body(self, Lang(&self.shell.lang)),
             Route::Logs => observation_pages::logs_body(self, Lang(&self.shell.lang)),
             Route::Rules => rules::view(self),

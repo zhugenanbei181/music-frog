@@ -4,8 +4,8 @@
 ClashParty ships connections and logs as independent destinations. Iced used
 to fold both into `Route::Runtime`, which made three sidebar rows share one
 selected state and made business captures name a section of an unrelated page.
-This bounded lexical reader holds the two halves of the correction together:
-the typed route mapping and the generated capture carrier.
+This bounded lexical reader holds route ownership, selected-row projection,
+capture readiness, and the generated page carrier together.
 """
 
 from __future__ import annotations
@@ -29,6 +29,7 @@ OBSERVATION_LAYOUT = ROOT / "crates/infiltrator-iced/src/view/observation_layout
 CONNECTIONS = ROOT / "crates/infiltrator-iced/src/view/runtime/connections.rs"
 LOGS = ROOT / "crates/infiltrator-iced/src/view/runtime/logs.rs"
 CONNECTION_SEARCH = ROOT / "crates/infiltrator-iced/src/view/runtime/connection_search.rs"
+NAVIGATION = ROOT / "crates/infiltrator-contract/src/shell_navigation.rs"
 
 BUSINESS_PREFIXES = (
     "connections-close-all-confirm",
@@ -59,8 +60,9 @@ def findings(
     connections: str,
     logs: str,
     connection_search: str,
+    navigation: str,
 ) -> list[str]:
-    app, demo, capture, sidebar, capture_frame, demo_state, capture_geometry, observation_pages, observation_layout, connections, logs, connection_search = map(
+    app, demo, capture, sidebar, capture_frame, demo_state, capture_geometry, observation_pages, observation_layout, connections, logs, connection_search, navigation = map(
         masked,
         (
             app,
@@ -75,6 +77,7 @@ def findings(
             connections,
             logs,
             connection_search,
+            navigation,
         ),
     )
     found: list[str] = []
@@ -87,12 +90,39 @@ def findings(
             found.append(f"demo.rs: the {page.lower()} page is not its own route top")
         if f'Route::{page} => "{page.lower()}"' not in demo:
             found.append(f"demo.rs: Route::{page} lost its inverse env name")
+    if "    Traffic," not in app or "Self::Traffic => \"Traffic\"" not in app:
+        found.append("app.rs: traffic has no standalone typed route identity")
+    if (
+        "Self::Runtime => \"Runtime\"" not in app
+        or "destination_for_route(route)" not in app
+    ):
+        found.append("app.rs: runtime route ownership is not resolved through the contract")
+    if (
+        '"Settings" | "Network" | "Runtime" | "AppSettings"' not in navigation
+        or '"Traffic" | "RuntimeWorkbench" => NavigationTarget::SurfaceLocal("traffic")'
+        not in navigation
+    ):
+        found.append("shell_navigation.rs: Runtime and Traffic do not have distinct owners")
+    if '"traffic" => Some((Route::Traffic, CaptureSection::RouteTop))' not in demo:
+        found.append("demo.rs: traffic is not the standalone route top")
+    if (
+        '"traffic-audit" | "traffic_audit" => Some((Route::Traffic, CaptureSection::TrafficAudit))'
+        not in demo
+    ):
+        found.append("demo.rs: traffic audit captures do not anchor their named section")
+    if 'Route::Traffic => "traffic"' not in demo:
+        found.append("demo.rs: Route::Traffic lost its inverse capture name")
     if '[ "$marker_page" = "connections" ] && marker_page="runtime"' in capture:
         found.append("capture-iced-matrix.sh: connections receipts are aliased back to runtime")
     if '[ "$marker_page" = "logs" ] && marker_page="runtime"' in capture:
         found.append("capture-iced-matrix.sh: logs receipts are aliased back to runtime")
     if "selected_navigation_destination_count" not in sidebar:
         found.append("sidebar.rs: selected destinations are not counted from the mounted registry")
+    if (
+        "route_for_destination(route.navigation_target())" not in sidebar
+        or "route_for_destination(item.target) == selected_route" not in sidebar
+    ):
+        found.append("sidebar.rs: rendered selection does not use the contract-owned route target")
     if (
         "selected_navigation_destination_count(self.shell.current_route) == 1" not in capture_frame
         or "self.shell.current_route.observes_runtime()" not in capture_frame
@@ -143,10 +173,22 @@ def findings(
         cells = by_name.get(name)
         if cells is None or cells[1] != expected or cells[4] != "720x480" or cells[2] != expected:
             found.append(f"matrix: missing compact page-only receipt {name}")
+    for name in ("traffic-standard", "traffic-compact"):
+        cells = by_name.get(name)
+        if cells is None or cells[1] != "traffic" or cells[2] != "traffic":
+            found.append(f"matrix: {name} must publish the standalone traffic page top")
+    for name in ("traffic-audit-standard", "traffic-audit-compact"):
+        cells = by_name.get(name)
+        if cells is None or cells[1] != "traffic-audit" or cells[2] != "traffic":
+            found.append(f"matrix: {name} must anchor the traffic audit under the traffic shape")
+    if '[ "$marker_page" = "traffic-audit" ] && marker_page="traffic"' not in capture:
+        found.append("capture-iced-matrix.sh: traffic audit section captures do not publish the traffic route")
+    if '[ "$marker_page" = "traffic-audit" ] && marker_page="runtime"' in capture:
+        found.append("capture-iced-matrix.sh: traffic receipts are aliased back to runtime")
     return found
 
 
-def load() -> tuple[str, str, str, str, str, str, str, str, str, str, str, str, str]:
+def load() -> tuple[str, str, str, str, str, str, str, str, str, str, str, str, str, str]:
     return (
         APP_TYPES.read_text(encoding="utf-8"),
         DEMO.read_text(encoding="utf-8"),
@@ -161,6 +203,7 @@ def load() -> tuple[str, str, str, str, str, str, str, str, str, str, str, str, 
         CONNECTIONS.read_text(encoding="utf-8"),
         LOGS.read_text(encoding="utf-8"),
         CONNECTION_SEARCH.read_text(encoding="utf-8"),
+        NAVIGATION.read_text(encoding="utf-8"),
     )
 
 
@@ -180,6 +223,7 @@ class GuardSelfTest(unittest.TestCase):
             self.connections,
             self.logs,
             self.connection_search,
+            self.navigation,
         ) = load()
 
     def test_current_sources_have_no_findings(self) -> None:
@@ -198,6 +242,7 @@ class GuardSelfTest(unittest.TestCase):
                 self.connections,
                 self.logs,
                 self.connection_search,
+                self.navigation,
             ),
             [],
         )
@@ -208,6 +253,45 @@ class GuardSelfTest(unittest.TestCase):
             "ShellPage::Connections | ShellPage::Logs => Self::Runtime,",
         )
         self.assertTrue(any("folded back" in problem for problem in self.findings(app=app)))
+
+    def test_traffic_route_must_remain_standalone(self) -> None:
+        app = self.app.replace("    Traffic,\n", "", 1)
+        self.assertTrue(any("standalone typed route" in problem for problem in self.findings(app=app)))
+
+    def test_runtime_and_traffic_contract_owners_must_remain_distinct(self) -> None:
+        navigation = self.navigation.replace(
+            '"Settings" | "Network" | "Runtime" | "AppSettings"',
+            '"Settings" | "Network" | "AppSettings"',
+        ).replace(
+            '"Traffic" | "RuntimeWorkbench" => NavigationTarget::SurfaceLocal("traffic")',
+            '"Traffic" | "Runtime" | "RuntimeWorkbench" => NavigationTarget::SurfaceLocal("traffic")',
+        )
+        self.assertTrue(
+            any("distinct owners" in problem for problem in self.findings(navigation=navigation))
+        )
+
+    def test_selected_row_must_be_the_contract_resolved_route(self) -> None:
+        sidebar = self.sidebar.replace(
+            "route_for_destination(route.navigation_target())",
+            "route",
+        )
+        self.assertTrue(
+            any("contract-owned route target" in problem for problem in self.findings(sidebar=sidebar))
+        )
+
+    def test_traffic_receipts_must_use_the_traffic_shape(self) -> None:
+        matrix = self.matrix.replace(
+            "traffic-audit-standard\ttraffic-audit\ttraffic",
+            "traffic-audit-standard\ttraffic-audit\truntime",
+        )
+        self.assertTrue(any("traffic shape" in problem for problem in self.findings(matrix=matrix)))
+
+    def test_standalone_traffic_page_requires_top_and_audit_receipts(self) -> None:
+        matrix = "\n".join(
+            line for line in self.matrix.splitlines()
+            if not line.startswith("traffic-compact\t")
+        )
+        self.assertTrue(any("standalone traffic page top" in problem for problem in self.findings(matrix=matrix)))
 
     def test_old_capture_aliases_are_rejected(self) -> None:
         capture = self.capture.replace(
@@ -268,6 +352,7 @@ class GuardSelfTest(unittest.TestCase):
             connections=self.connections,
             logs=self.logs,
             connection_search=self.connection_search,
+            navigation=self.navigation,
         )
         sources.update(overrides)
         return findings(**sources)

@@ -14,7 +14,7 @@ pub(crate) mod connections_controls;
 mod delay;
 pub(crate) mod logs;
 pub(crate) mod logs_controls;
-mod traffic;
+pub(crate) mod traffic;
 pub(crate) mod traffic_legend;
 
 use crate::state::AppState;

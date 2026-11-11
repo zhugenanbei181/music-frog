@@ -40,38 +40,63 @@ use serde::Serialize;
 /// product's own layout as broken.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct PageShape {
-    pub page: ShellPage,
+    pub owner: PageShapeOwner,
     pub structure: PageStructure,
 }
 
+/// The destination family a capture slug belongs to.
+///
+/// Capture shape is shared across products, but a surface-local destination
+/// must not be disguised as a shared `ShellPage` just to fit the export.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum PageShapeOwner {
+    Shared(ShellPage),
+    SurfaceLocal(&'static str),
+}
+
+impl PageShapeOwner {
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::Shared(page) => page.id(),
+            Self::SurfaceLocal(id) => id,
+        }
+    }
+}
+
+/// The exported document's identity. Consumers pin this version so a shape
+/// added to the registry cannot be mistaken for an older export's vocabulary.
+pub const PAGE_STRUCTURE_EXPORT_VERSION: u16 = 13;
+
 /// Resolve a capture page slug onto the page and the shape it renders.
 pub fn shape_for_slug(slug: &str) -> Option<PageShape> {
-    let (page, structure) = match slug {
-        "overview" => (ShellPage::Overview, PageStructure::Dense),
-        "overview_workbench" => (ShellPage::Overview, PageStructure::Content),
-        "proxies" => (ShellPage::Proxies, PageStructure::Content),
-        "proxies_workbench" => (ShellPage::Proxies, PageStructure::Content),
-        "profiles" => (ShellPage::Profiles, PageStructure::Content),
-        "rules" => (ShellPage::Rules, PageStructure::Framed),
-        "rules_workbench" => (ShellPage::Rules, PageStructure::Content),
-        "connections" => (ShellPage::Connections, PageStructure::Framed),
-        "connections_workbench" => (ShellPage::Connections, PageStructure::Content),
-        "logs" => (ShellPage::Logs, PageStructure::Framed),
-        "logs_workbench" => (ShellPage::Logs, PageStructure::Content),
-        "dns" => (ShellPage::Dns, PageStructure::Content),
-        "doctor" => (ShellPage::Doctor, PageStructure::Content),
-        "app_routing" => (ShellPage::AppRouting, PageStructure::Content),
-        "sync" => (ShellPage::Sync, PageStructure::Content),
-        "settings" => (ShellPage::Settings, PageStructure::Content),
-        "settings_workbench" | "shell_workbench" => (ShellPage::Settings, PageStructure::Content),
-        "about" => (ShellPage::About, PageStructure::Content),
-        "editor" => (ShellPage::Settings, PageStructure::Content),
-        "filters" => (ShellPage::Settings, PageStructure::Content),
-        "runtime" => (ShellPage::Overview, PageStructure::Content),
-        "runtime_workbench" => (ShellPage::Overview, PageStructure::Content),
+    use PageShapeOwner::{Shared, SurfaceLocal};
+    let (owner, structure) = match slug {
+        "overview" => (Shared(ShellPage::Overview), PageStructure::Dense),
+        "overview_workbench" => (Shared(ShellPage::Overview), PageStructure::Content),
+        "proxies" => (Shared(ShellPage::Proxies), PageStructure::Content),
+        "proxies_workbench" => (Shared(ShellPage::Proxies), PageStructure::Content),
+        "profiles" => (Shared(ShellPage::Profiles), PageStructure::Content),
+        "rules" => (Shared(ShellPage::Rules), PageStructure::Framed),
+        "rules_workbench" => (Shared(ShellPage::Rules), PageStructure::Content),
+        "connections" => (Shared(ShellPage::Connections), PageStructure::Framed),
+        "connections_workbench" => (Shared(ShellPage::Connections), PageStructure::Content),
+        "logs" => (Shared(ShellPage::Logs), PageStructure::Framed),
+        "logs_workbench" => (Shared(ShellPage::Logs), PageStructure::Content),
+        "dns" => (Shared(ShellPage::Dns), PageStructure::Content),
+        "doctor" => (Shared(ShellPage::Doctor), PageStructure::Content),
+        "app_routing" => (Shared(ShellPage::AppRouting), PageStructure::Content),
+        "sync" => (Shared(ShellPage::Sync), PageStructure::Content),
+        "settings" => (Shared(ShellPage::Settings), PageStructure::Content),
+        "settings_workbench" | "shell_workbench" => {
+            (Shared(ShellPage::Settings), PageStructure::Content)
+        }
+        "about" => (Shared(ShellPage::About), PageStructure::Content),
+        "editor" | "filters" => (Shared(ShellPage::Settings), PageStructure::Content),
+        "runtime" | "runtime_workbench" => (Shared(ShellPage::Overview), PageStructure::Content),
+        "traffic" => (SurfaceLocal("traffic"), PageStructure::Framed),
         _ => return None,
     };
-    Some(PageShape { page, structure })
+    Some(PageShape { owner, structure })
 }
 
 /// Emit the page-shape table for the cross-language space-utilization judge.
@@ -90,6 +115,9 @@ pub fn shape_for_slug(slug: &str) -> Option<PageShape> {
 /// Version 12 exports the profile-card grid rule (`profile_grid`), so the
 /// number of profile columns a page may draw is one contract answer instead
 /// of a surface's wish to look like a list.
+/// Version 13 exports the standalone traffic page as a framed capture slug,
+/// so an independent traffic destination is judged by its own shape instead
+/// of borrowing the runtime workbench's content-page budget.
 pub fn page_structure_json() -> String {
     let pages: Vec<String> = ShellPage::ALL
         .iter()
@@ -127,6 +155,7 @@ pub fn page_structure_json() -> String {
         "filters",
         "runtime",
         "runtime_workbench",
+        "traffic",
     ]
     .iter()
     .filter_map(|slug| {
@@ -134,7 +163,7 @@ pub fn page_structure_json() -> String {
             format!(
                 "{{\"slug\":\"{}\",\"page\":\"{}\",\"structure\":\"{}\",\"ground_limit_pct\":{}}}",
                 slug,
-                shape.page.id(),
+                shape.owner.id(),
                 shape.structure.id(),
                 ground_limit(shape.structure)
             )
@@ -142,7 +171,8 @@ pub fn page_structure_json() -> String {
     })
     .collect();
     format!(
-        "{{\"version\":12,\"dashboard_columns\":{},\"dashboard_density\":{},\"navigation_limits\":{},\"profile_grid\":{},\"pages\":[{}],\"slugs\":[{}],\"tiers\":{},\"sidebar_variants\":{},\"navigation_separators\":{},\"chrome_keys\":{}}}\n",
+        "{{\"version\":{},\"dashboard_columns\":{},\"dashboard_density\":{},\"navigation_limits\":{},\"profile_grid\":{},\"pages\":[{}],\"slugs\":[{}],\"tiers\":{},\"sidebar_variants\":{},\"navigation_separators\":{},\"chrome_keys\":{}}}\n",
+        PAGE_STRUCTURE_EXPORT_VERSION,
         dashboard_columns_json(),
         dashboard_density_json(),
         navigation_limits_json(),
@@ -630,7 +660,7 @@ mod tests {
     fn the_exported_document_carries_the_ladder() {
         let json = page_structure_json();
         let document: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
-        assert_eq!(document["version"], 12);
+        assert_eq!(document["version"], PAGE_STRUCTURE_EXPORT_VERSION);
         // The chrome vocabulary travels with the ladder it describes, so a
         // reader that has the document already has the key list.
         assert_eq!(
@@ -665,6 +695,23 @@ mod tests {
         let profile = &document["profile_grid"];
         assert_eq!(profile["min_item_width_px"], PROFILE_MIN_ITEM_WIDTH_PX);
         assert_eq!(profile["max_columns"], PROFILE_MAX_COLUMNS);
+        let slug_shapes = document["slugs"]
+            .as_array()
+            .expect("the exported slug shapes");
+        let shapes: Vec<&str> = slug_shapes
+            .iter()
+            .map(|entry| entry["slug"].as_str().expect("a slug"))
+            .collect();
+        assert!(shapes.contains(&"traffic"));
+        let traffic_export = slug_shapes
+            .iter()
+            .find(|entry| entry["slug"] == "traffic")
+            .expect("the traffic export");
+        assert_eq!(traffic_export["page"], "traffic");
+        assert_eq!(traffic_export["structure"], "framed");
+        let traffic = shape_for_slug("traffic").expect("the traffic shape");
+        assert_eq!(traffic.owner, PageShapeOwner::SurfaceLocal("traffic"));
+        assert_eq!(traffic.structure, PageStructure::Framed);
         let tiers = document["tiers"].as_array().expect("the exported ladder");
         assert_eq!(tiers.len(), TIERS.len());
         assert_eq!(tiers[2]["id"], "expanded");

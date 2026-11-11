@@ -27,7 +27,6 @@ fn translate_zh_cn_primary(key: &str) -> Cow<'static, str> {
         "nav_group_observation" => "运行观测".into(),
         "nav_profiles" => "配置管理".into(),
         "nav_proxies" => "代理节点".into(),
-        "nav_runtime" => "运行状态".into(),
         "nav_rules" => "规则管理".into(),
         "nav_dns" => "DNS 设置".into(),
         "nav_sync" => "数据同步".into(),

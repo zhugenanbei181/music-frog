@@ -2,6 +2,7 @@
 
 use infiltrator_contract::command_catalogue::ShellPage;
 use infiltrator_contract::rule_tracer::TracerRuleOverride;
+use infiltrator_contract::shell_navigation::{NavigationTarget, destination_for_route};
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -11,6 +12,7 @@ pub enum Route {
     Profiles,
     Proxies,
     Runtime,
+    Traffic,
     Connections,
     Logs,
     Rules,
@@ -50,11 +52,42 @@ impl Route {
         }
     }
 
+    /// Resolve this Iced route through the shared navigation owner.
+    ///
+    /// Route spelling is an adapter detail. Whether it selects a shared
+    /// destination or the local traffic destination is decided by the
+    /// contract, so nested `Runtime` and standalone `Traffic` cannot share an
+    /// accidental sidebar selection.
+    pub fn navigation_target(self) -> NavigationTarget {
+        let route = match self {
+            Self::Overview => "Overview",
+            Self::Profiles => "Profiles",
+            Self::Proxies => "Proxies",
+            Self::Runtime => "Runtime",
+            Self::Traffic => "Traffic",
+            Self::Connections => "Connections",
+            Self::Logs => "Logs",
+            Self::Rules => "Rules",
+            Self::Dns => "Dns",
+            Self::Sync => "Sync",
+            Self::Editor => "Editor",
+            Self::Settings => "Settings",
+            Self::AppRouting => "AppRouting",
+            Self::Doctor => "Doctor",
+            Self::Tools => "Tools",
+            Self::About => "About",
+            Self::Disclaimer => "Disclaimer",
+            Self::Licenses => "Licenses",
+        };
+        destination_for_route(route)
+            .expect("every Iced route has an owner in the shared navigation contract")
+    }
+
     /// Whether this route consumes the live runtime observation snapshot.
     pub fn observes_runtime(self) -> bool {
         matches!(
             self,
-            Self::Overview | Self::Runtime | Self::Connections | Self::Logs
+            Self::Overview | Self::Runtime | Self::Traffic | Self::Connections | Self::Logs
         )
     }
 }

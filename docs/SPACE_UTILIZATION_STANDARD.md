@@ -176,8 +176,13 @@
 表问题。b205 让 Iced 的 typed `Route` 分别承载 `Connections`、`Logs`，并复用同一
 页身卡 owner；共享导航注册表本来就有这两个目的地，捕获矩阵的 `page` 列现由
 `FeatureSpec::iced_page` 与路由一致投影。形态继续来自同一契约注册表，`connections`
-与 `logs` 仍是 `framed` 4%，不改 `page-structure.json`。流量仍是 Iced 的
-surface-local 目的地，落在 `Runtime` 路由。
+与 `logs` 仍是 `framed` 4%，不改当时的 `page-structure.json`。b211 复核 ClashParty
+独立 `/traffic` 路由后，发现 Iced 虽有共享注册表里的 surface-local `traffic` 行，却把
+它映射到 `Route::Runtime`；这使 Runtime 与 Traffic 两行共享一个选中态，流量审计帧也借用
+Runtime 的 `content` 82% 上限。Iced 现在以 typed `Route::Traffic` 呈现独立流量页，Runtime
+经共享路由契约归属 Settings，Traffic 仍是 Slint/Iced 的 surface-local destination；
+`traffic` shape slug 由契约导出为 `framed` 4%，捕获矩阵用 `traffic-audit` 定位审计卡、
+用 `traffic` 契约形态判定。Bevy 继续把流量并入概览。
 
 **日志页的近地结果面（b205）**：独立 `logs` 页虽由页身卡填满，滚动结果区却曾另涂
 森林主题下接近页身地面的 `control_bg`。§2 的实际像素因此把它读成空带，日志搜索

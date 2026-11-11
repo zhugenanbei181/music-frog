@@ -59,6 +59,9 @@ import unittest
 import unittest.mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts" / "parity"))
+from page_structure_version import PAGE_STRUCTURE_EXPORT_VERSION
+
 UI = ROOT / "crates/infiltrator-slint/ui"
 THEME = UI / "components/theme.slint"
 TITLE_FILE = UI / "components/page_titles.slint"
@@ -295,9 +298,9 @@ def ladder_findings(ui: pathlib.Path) -> list[str]:
 
     # The adapter must be the generator's own output, not a hand edit.
     document = exported_document()
-    if document.get("version") != 12 or not document.get("sidebar_variants"):
+    if document.get("version") != PAGE_STRUCTURE_EXPORT_VERSION or not document.get("sidebar_variants"):
         found.append(
-            "page-structure.json is not the version 12 sidebar-variant export; "
+            f"page-structure.json is not the version {PAGE_STRUCTURE_EXPORT_VERSION} sidebar-variant export; "
             "rerun export_page_structure"
         )
         return found

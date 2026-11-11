@@ -16,6 +16,9 @@ import pathlib
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts" / "parity"))
+from page_structure_version import PAGE_STRUCTURE_EXPORT_VERSION
+
 EXPORT = ROOT / "crates/infiltrator-contract/assets/page-structure.json"
 OUTPUT = ROOT / "crates/infiltrator-slint/ui/components/viewport-ladder.slint"
 
@@ -311,9 +314,9 @@ def main() -> int:
         print(f"viewport ladder export is missing: {EXPORT.relative_to(ROOT)}", file=sys.stderr)
         return 1
     document = json.loads(EXPORT.read_text(encoding="utf-8"))
-    if document.get("version") != 12:
+    if document.get("version") != PAGE_STRUCTURE_EXPORT_VERSION:
         print(
-            "page-structure.json is not the ladder-bearing version 12 export; "
+            f"page-structure.json is not the ladder-bearing version {PAGE_STRUCTURE_EXPORT_VERSION} export; "
             "rerun export_page_structure",
             file=sys.stderr,
         )

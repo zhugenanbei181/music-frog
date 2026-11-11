@@ -24,7 +24,6 @@ fn translate_en_primary(key: &str) -> Cow<'static, str> {
         "nav_group_observation" => "Observation".into(),
         "nav_profiles" => "Profiles".into(),
         "nav_proxies" => "Proxies".into(),
-        "nav_runtime" => "Runtime".into(),
         "nav_rules" => "Rules".into(),
         "nav_dns" => "DNS Settings".into(),
         "nav_sync" => "Sync".into(),

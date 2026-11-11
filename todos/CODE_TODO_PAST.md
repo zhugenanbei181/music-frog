@@ -1,4 +1,4 @@
-# MusicFrog 工程 TODO · 过去佛（5条待验证；归档见 [TODO.md](../TODO.md) 第一百零八批次）
+# MusicFrog 工程 TODO · 过去佛（8条待验证；归档见 [TODO.md](../TODO.md) 第一百零八批次）
 
 > 层级：L4
 
@@ -197,3 +197,17 @@
 ③ **门禁**：`iced-sidebar-nav-guard.py` 新增第 8 项 planted（宽度字面量回仓即咬），self-test **8/8** + enforce 0；Iced nextest **547/547**、clippy `--all-targets -D warnings`、`cargo fmt --all --check` 全绿；`space_utilization --surface iced --enforce` 188 帧 violations=0、`receipt-freshness 0`（零像素变化，无需重采）。
 ④ **待验证范围**：统一批次复跑 `cargo nextest run --workspace` 与全仓结构门；另一会话未提交的 Bevy `runtime-dark` / `overview-dark` 像素别名仍是全仓身份门唯一红腿，本条不负责该红腿。
 ⑤ **证据身份**：Iced nextest **547/547**、guard self-test **8/8** + enforce 0、Iced 188 帧 `--enforce` violations=0、`receipt-freshness` 0。
+
+## 12.78 Iced 流量统计成为独立目的地（1条待验证）
+
+| ID | 状态 / 优先级 | points | owner | 依赖 |
+| --- | --- | --- | --- | --- |
+| `ICEDTRAFFIC-001` | `Integrated` / P1（b210 立项、b211 收口，待统一批次办结） | 3 | infiltrator-contract（`shell_navigation`、`page_structure`、v13 导出）+ infiltrator-iced（`Route::Traffic`、侧栏、观察页、捕获几何）+ Iced 矩阵与守卫 | `SPACEUTIL-014`（独立页先例）、`TRAFFICAUDIT-001`（审计读回已交付） |
+
+**`ICEDTRAFFIC-001` Iced 的流量统计成为独立目的地（b211 交付，3 pt / P1 / `Integrated`）**：
+
+① **架构缺口**：共享注册表已有 surface-local `traffic` 行，Iced 却把它折到 `Route::Runtime`，而契约 `destination_for_route` 又把 `Runtime` 自身折成 `traffic`；设置页 Runtime 与流量页因此共用选中态。旧 `runtime-traffic-audit-*` 两帧 `CAPTURE_READY page=runtime` 借 `content` 82% 上限判定，独立流量页从未按自己的形态测量。pinned ClashParty `72af7d8` 的 `/traffic` 是独立路由。
+② **自底向上收口**：契约把 `Runtime` 归 Settings、`Traffic` / `RuntimeWorkbench` 归 `SurfaceLocal("traffic")`；`page_structure` 以 typed `PageShapeOwner` 表达「共享页 / surface-local 目的地」，v13 导出 `traffic` slug 为 `framed` 4%，生成器与两个版本守卫共用 `scripts/parity/page_structure_version.py` 一处版本 pin。Iced 新增 `Route::Traffic` 与只读共享契约的 `navigation_target()`，侧栏单选、demo 路由、观察页 body / 滚动 ID、捕获几何与路由守卫同批迁移；`capture-iced-matrix.sh` 的 `runtime-traffic`→`runtime` 别名删除，旧两帧退役，新增页顶与审计卡各一对标准/紧凑帧，矩阵 188 → **190 帧**。
+③ **定向证据**：`--locked` contract+shared+Iced nextest **1313/1313**、定向 clippy `--all-targets -D warnings`、`cargo fmt --all --check`；`iced-observation-routes-guard` **13/13**、`iced-sidebar-nav-guard` **8/8**、`sidebar-expansion-owner-guard` **10/10**、`slint-viewport-tier-guard` **41/41**、`flclash-sidebar-void-guard` **7/7**、`space_utilization --self-test` **63/63** + `--check-export` current + Iced **190** / Slint **199** 帧 `--enforce` violations=0；`receipt-freshness` 0、Iced 5 条别名摘要刷新、`generate_unified_matrix --check` 双表面一致、`doc-governance` / `line` / `import` / `typed-state` / `implicit-state` / `closure-questions` 全 0。
+④ **待验证范围**：统一批次复跑 `cargo nextest run --workspace`、全仓 Clippy / 结构门全腿与 `resolve_surface_evidence.py`；另一会话未提交的 Bevy `runtime-dark` / `overview-dark` 像素别名仍是全仓身份门唯一红腿，本条不负责该红腿。Bevy 继续把流量并入概览，台架不投指针，选区证据来自同一条生产消息路径。
+⑤ **证据身份**：Iced 190/190 帧发布 run `20261111T192135Z_a866e860b2d7_dirty_1788701`（binary SHA-256 `0b9d58144cab3302a8efe139c6845be73c739e4460f3032aa03823ce694eace8`）、Iced nextest 1313/1313（三包合并）、路由守卫 13/13 + enforce 0、空间门 0 违规、回执新鲜度 0。

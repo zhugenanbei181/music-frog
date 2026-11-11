@@ -312,6 +312,7 @@ fn env_page_mapping_is_exhaustive() {
         ("overview", Route::Overview),
         ("proxies", Route::Proxies),
         ("runtime", Route::Runtime),
+        ("traffic", Route::Traffic),
         ("connections", Route::Connections),
         ("logs", Route::Logs),
         ("rules", Route::Rules),
@@ -337,6 +338,12 @@ fn env_page_mapping_is_exhaustive() {
 fn page_sections_parse_to_their_typed_capture_anchor() {
     let cases = [
         ("runtime", Route::Runtime, CaptureSection::RouteTop),
+        ("traffic", Route::Traffic, CaptureSection::RouteTop),
+        (
+            "traffic-audit",
+            Route::Traffic,
+            CaptureSection::TrafficAudit,
+        ),
         ("settings", Route::Settings, CaptureSection::RouteTop),
         ("connections", Route::Connections, CaptureSection::RouteTop),
         ("logs", Route::Logs, CaptureSection::RouteTop),
@@ -352,17 +359,15 @@ fn page_sections_parse_to_their_typed_capture_anchor() {
         assert_eq!(parse_page_name(name), Some((route, section)));
     }
     assert_eq!(parse_page_name("nope"), None);
+    assert_eq!(parse_page_name("runtime-traffic"), None);
 }
 
 #[test]
 fn section_captures_need_a_measured_region_the_route_top_does_not() {
     assert!(CaptureSection::RouteTop.is_ready(false));
-    assert!(!CaptureSection::RuntimeTrafficAudit.is_ready(false));
+    assert!(!CaptureSection::TrafficAudit.is_ready(false));
     assert!(!CaptureSection::SettingsAbout.is_ready(false));
-    for section in [
-        CaptureSection::RuntimeTrafficAudit,
-        CaptureSection::SettingsAbout,
-    ] {
+    for section in [CaptureSection::TrafficAudit, CaptureSection::SettingsAbout] {
         assert!(section.is_ready(true));
     }
 }
