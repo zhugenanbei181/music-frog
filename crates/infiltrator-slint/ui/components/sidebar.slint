@@ -212,6 +212,15 @@ export component DesktopSideBar inherits Rectangle {
                     clicked => { root.navigate-to(item.id); }
                 }
 
+                // Upstream `sidebar_test.dart` pins the navigation-only rule:
+                // an icon rail names every row in a hover tooltip; an expanded
+                // row shows a tooltip only when its label was cut. The cut is
+                // a typed readback from the shared label owner, so the rail
+                // never measures text or guesses a width.
+                if !root.labelled || item.label-truncated: Tooltip {
+                    text: @markdown("\{root.primary-name(item.id) != "" ? root.primary-name(item.id) : item.label}");
+                }
+
                 if item.id == root.active-destination: Rectangle {
                     x: 0 * LumenUiScale.unit;
                     y: (parent.height - LumenTheme.nav-indicator-height) / 2;

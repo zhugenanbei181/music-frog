@@ -165,6 +165,7 @@ pub mod shell_receipt;
 pub mod shell_sidebar_preference;
 pub mod shell_sidebar_presentation;
 pub mod shortcuts;
+pub mod sidebar_label;
 pub mod sidebar_material;
 pub mod skeleton_shimmer;
 pub mod snapshot;

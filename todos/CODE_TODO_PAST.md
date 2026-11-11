@@ -1,4 +1,4 @@
-# MusicFrog 工程 TODO · 过去佛（2条待验证；归档见 [TODO.md](../TODO.md) 第一百零八批次）
+# MusicFrog 工程 TODO · 过去佛（3条待验证；归档见 [TODO.md](../TODO.md) 第一百零八批次）
 
 > 层级：L4
 
@@ -96,3 +96,24 @@
 - 诚实边界：本批不重采、不改任何 PNG / manifest；`Integrated` 不等于办结，统一验证通过后登记 archived points。
 
 **证据身份**：`slint-theme-channel-guard --self-test 8/8`、`cargo check --features capture-tools` exit 0、诊断批 `20261111T030014Z_..._813495`（light 宿主）与 `20261111T030327Z_..._837205`（dark 宿主）的 `proxies-dark/image.png` sha256 `e43974c613e4…` 相同、发布帧 `proxies-dark.png` 与 light 宿主诊断帧逐字节相同。
+
+## 12.73 Slint 侧栏标签截断成为共享 typed 事实（1条待验证）
+
+| ID | 状态 / 优先级 | points | owner | 依赖 |
+| --- | --- | --- | --- | --- |
+| `FLPARITY-048` | `Integrated` / P2（b176 立项、b197 交付，待统一批次办结） | 1 | `crates/infiltrator-contract/src/sidebar_label.rs` + `crates/infiltrator-presentation/src/sidebar_label_projection.rs` + `crates/infiltrator-slint/src/lumen_projection.rs` + `ui/components/{models,sidebar}.slint` + FlClash 桌面参照基准 | `FLPARITY-011`（跨端 hover 基线） |
+
+**`FLPARITY-048` 目的地行 tooltip 只在标签被截断时出现（b176 实测立项，b197 收口，1 pt / P2 / `Integrated`）**：
+① **上游真判据**：pinned `be847366` 的 `test/widgets/sidebar_test.dart` 钉住 rail 每行有 tooltip、展开态短标签无 tooltip、展开态超长西里尔标签保留 tooltip；prism_ui `lib/sidebar.dart` 先算 `labelWidth = rowWidth - iconInset - iconSize - 2*labelGap`，再读 `TextPainter(maxLines: 1).layout(maxWidth: labelWidth)` 的 `didExceedMaxLines`。本仓 Slint 1.18 `Text` 不暴露 elide 读回，b176 因此按自底向上铁律停在上层之外，等底层文字宽度事实。
+② **底层先裁决**：新增 `infiltrator_contract::sidebar_label` 的 `SidebarLabelGeometry`（240px 列 / 8px leading / 16px trailing / 24px 图标 / 12px gap / 14px label size / scale），以一处 `available_px()` 给出 180px，并用既有 `text_truncation::plan_truncation` 的 `TextMeasure` 规则回答 `is_truncated()`；非法宽度/NaN 诚实返回「未截断」。`infiltrator_presentation::sidebar_label_projection` 用 `infiltrator_shared::effect_assets::char_width_em` 实现度量桥，缩放同时作用于可用宽度与字号，避免两个真源。
+③ **表面纯消费**：`NavigationSlot` 增 `label_truncated: bool`；`lumen_projection.rs` 按当前 `page_scale_percent` 与**实际绘制词**（四个主项走 `PageTitles.page-name` 的 msgid，其余用投影 label）计算它，并在 `project_snapshot` 里按快照语言重新投影导航，杜绝语言切换后标签与截断不同步。`sidebar.slint` 只按 `!labelled || label_truncated` 条件挂载原生 `Tooltip`；rail 每行都有完整词，展开态短标签没有，展开态截断标签保留。
+④ **测试与像素**：contract 5 条、presentation 5 条、Slint lib 2 条新增单测覆盖短/超长中文与西里尔标签、缩放、非法盒、空串、主项显示词；三包 nextest **1372/1372**、Slint lib nextest **29/29**、定向 clippy `--lib -D warnings` 与 `cargo fmt --check` 全绿；`slint-syntax-guard` 100% PASS、`slint-dead-input` findings=0、`slint-rail-edge-dialect` 待统一批次复核。诊断批 `20261111T035742Z_d20b90df8159_dirty_1198518` 的 `overview-dark/image.png` 与已发布 `overview-dark.png` **sha256 同为 `b66c11ab17c2…`、全帧差异 0 px**：tooltip 只在 hover 出现，捕获台架按设计不投指针，故零重采、零像素变化、零 manifest 变化。
+⑤ **诚实边界**：共享度量是随包字体的半/全/零宽字符近似，不是 shaping/kerning 级 glyph advance；`SidebarLabelGeometry::DESKTOP` 是桌面展开档的度量几何，ultra 280px 列与未来缩放由 `scale_percent` / 新几何实例扩展，不在 UI 层猜列宽；hover tooltip 本身不进像素回执；全仓 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py` 仍待统一批次；另一会话未提交的 Bevy 像素仍是全仓身份门唯一红腿。
+
+**待验证范围**：
+- 单元（本机可复跑）：`cargo nextest run -p infiltrator-contract -p infiltrator-presentation -p infiltrator-slint`（1372/1372）、`cargo nextest run -p infiltrator-slint --lib`（29/29）、`cargo clippy -p infiltrator-contract -p infiltrator-presentation -p infiltrator-slint --lib -- -D warnings`、`cargo fmt` 三包 `--check`。
+- 守卫（本机可复跑）：`slint-syntax-guard` 100% PASS、`slint-dead-input` 0、`slint-theme-channel-guard` 0/8、`doc-governance`、`closure-questions 8/8`、双表面 `space_utilization --enforce`、`receipt-freshness 0`。
+- 像素（本机可复跑）：诊断批 `20261111T035742Z_d20b90df8159_dirty_1198518` 与发布 `overview-dark.png` 逐字节相同；hover tooltip 的交互证据仍需带指针台架，按既有诚实边界不冒充已验收。
+- 统一批次：`cargo nextest --workspace`、全仓 clippy `--all-targets -D warnings`、全仓结构门全腿。
+
+**证据身份**：contract/presentation/Slint 三包 1372/1372、Slint lib 29/29、诊断批 `20261111T035742Z_d20b90df8159_dirty_1198518`（`overview-dark` sha256 `b66c11ab17c2…` == 发布帧）。

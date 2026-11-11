@@ -383,12 +383,19 @@ b176 因此把可见身份改回上游的形状：
 - 折叠钮仍只发 `ApplySidebarExpansion { intent: Toggle }`，`sidebar_toggle_px`
   仍由按钮盒自己测量（本批实测仍是 106px），wire 与 12 键都不变。
 
-存异的边界要写清：上游「目的地行的 tooltip 只在标签被截断时出现」这一条本批
-**没有实现**，因为 Slint 1.18 的 `Text` 不暴露「是否被 elide」的事实，而本仓禁止
-在 UI 层用字号×字数去猜一个宽度测量（那会成为第二个真源）。这条已登记为
-`FLPARITY-048`，等底层给出文字宽度事实之后再接。hover 提示本身也不进像素回执：
-捕获矩阵按设计不投指针（`capture-pointer-absent`），因此折叠钮的 tooltip 只有
-源码与结构门禁可证，没有截图证据。
+目的地行的 tooltip 规则随后由 b197 按「底层先裁决」补齐（`FLPARITY-048`）：上游
+prism_ui 的 `lib/sidebar.dart` 先算 `labelWidth = rowWidth - iconInset - iconSize -
+2*labelGap`，再用 `TextPainter(maxLines: 1).layout(maxWidth: labelWidth)` 的
+`didExceedMaxLines` 决定 tooltip；`sidebar_test.dart` 钉住 rail 每行有 tooltip、
+展开态短标签无 tooltip、展开态超长西里尔标签保留 tooltip。本仓没有 Slint `Text`
+的 elide 读回，也不允许 UI 用字号×字数猜宽度，因此新增
+`infiltrator_contract::sidebar_label`（一处几何 + `plan_truncation` 规则）与
+`infiltrator_presentation::sidebar_label_projection`（随包字体的半/全/零宽度量桥），
+把 `label_truncated` 作为 typed readback 发布进 `NavigationSlot`；`sidebar.slint`
+只按 `!labelled || label_truncated` 挂载原生 `Tooltip`。诚实边界：共享度量是字符
+宽度类近似，不是 shaping/kerning 级 glyph advance；hover tooltip 本身仍不进像素
+回执（捕获矩阵按设计不投指针 `capture-pointer-absent`），只有源码、单测与结构门
+可证，b197 诊断帧与已发布帧逐字节相同。
 
 可见身份变化（pane 少一行文字、rail 图标移位）按标准整批重采：发布批
 `20261110T090346Z_8b86599df608_dirty_1204003`（199/199，499s），

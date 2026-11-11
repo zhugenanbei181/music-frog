@@ -110,6 +110,7 @@ pub mod settings_page_model;
 pub mod settings_status_projection;
 pub mod shell_readout;
 pub mod shell_readout_fold;
+pub mod sidebar_label_projection;
 pub mod sidebar_material_projection;
 pub mod skeleton_projection;
 pub mod snapshot_presentation;

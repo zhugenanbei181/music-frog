@@ -24,19 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-11 第一百九十六批次；b111–b195 见下方批次八问摘要）
+## 当前状态（2026-11-11 第一百九十七批次；b111–b196 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b196 只改 Slint 表面 `ui/lumen-app.slint`、供应商说明与一个质量守卫，零平台 API、零 wire；`cargo check -p infiltrator-slint --features capture-tools` exit 0、`slint-syntax-guard` 100% PASS、`slint-theme-channel-guard --self-test` **8/8** 为 `L`。交叉构建、aarch64 与目标机仍由 CI / 设备矩阵补证（GAP-1.1） |
-| 2 | 部分 | L | 本机 Linux 在 `prefer-light` / `prefer-dark` 两种宿主设置下各采一帧真实像素并完成逐字节比对，宿主设置随后恢复；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
-| 3 | 部分 | L | 不触 Android/iOS 代码、资源或 wire；`std-widgets` 的明暗输入是桌面/移动共用的 Slint 全局，但本批没有 Android 实机或目标产物回执可声称 |
-| 4 | 部分 | L | Slint 的第二条明暗通道由根窗口统一写入，标准 `ScrollView` 不再跟平台；Iced / Bevy / Android 的明暗 owner 各自按条目收口，本批不越权改另一个会话正在重写的 Bevy 文件。判定器仍未覆盖 Bevy |
-| 5 | 完整 | L | `application-dark-mode` 是唯一裁决结果；`LumenTheme.dark-mode`、vendored `MaterialPalette.application-dark-mode` 与 `std-widgets` 的 `StdPalette.color-scheme` 在 `init` / `update-color-scheme()` 两处同笔写入，守卫钉住写点数与表达式集合；`MaterialPalette.color-scheme` 只作平台观测，没有第三份推导 |
-| 5a | 完整 | L | 本批不改变字体 / 字重 / 图标族 / 视觉资产与任何发布像素；两宿主诊断帧逐字节相同、light 宿主诊断帧与已发布 `proxies-dark.png` 逐字节相同，`receipt-freshness 0`、199 帧 `space_utilization --enforce` violations=0。Bevy 浅色像素回执仍属另一会话待办，但本批不产生新的身份变化 |
-| 6 | 部分 | L | `SLINT-022` 2 pt 由 `Planned` 转 `Integrated` 迁入过去佛 §12.72 等统一批次办结；A/B 覆盖同一台机器、同一私有 KWin/niri 台架上的 GNOME 明暗设置切换，不覆盖其它桌面环境对 `SlintInternal.color-scheme` 的写入差异，也不声称标准控件所有颜色都归应用主题 |
-| 7 | 完整 | L | 明暗事实只在根窗口两处发布；`slint-theme-channel-guard.py` 的 enforce + self-test 双腿原已在结构门内，本批只扩展判据、不新增并行真源；`LUMEN-PATCHES.md` 更正 b181 过时结论，`slint-syntax-guard` 100% PASS、`slint-source-import-guard` 718 files / 36 patched 全绿 |
-| 8 | 部分 | L | 本批零重采、零像素变更，只跑两次单帧诊断（185s + 220s）与定向守卫/编译；未跑全仓 `--workspace` nextest/clippy 与结构门全腿（留统一批次一次跑完）；另一会话未提交的 Bevy 像素仍是全仓身份门唯一红腿 |
+| 1 | 部分 | L | b197 改 contract / presentation / Slint 三层 Rust 与两个 `.slint` 文件，零平台 API、零 wire；三包 `cargo nextest` **1372/1372**、Slint lib **29/29**、定向 clippy `--lib -D warnings` 与 `fmt --check` 为 `L`。交叉构建、aarch64 与目标机仍由 CI / 设备矩阵补证（GAP-1.1） |
+| 2 | 部分 | L | 本机 Linux 跑完定向测试、单帧 `overview-dark` 诊断（176s）与守卫；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
+| 3 | 部分 | L | 不触 Android/iOS 代码、资源或 wire；侧栏 label fit 是桌面导航契约，手机 dock 仍按既有条目收口，没有本批实机回执可声称 |
+| 4 | 部分 | L | Slint 的 `NavigationSlot` 消费共享 `label_truncated` 并条件挂载 tooltip；Iced / Bevy / Android 未消费此事实（其侧栏形态不同），由各自条目收口。Bevy 文件正由另一会话重写，本批不碰；判定器仍未覆盖 Bevy |
+| 5 | 完整 | L | 文字几何/截断规则只在 `infiltrator_contract::sidebar_label`，字体度量只在 `infiltrator_presentation::sidebar_label_projection`，最终显示词只在 Slint 投影；UI 只消费一个 typed bool，不量字宽、不猜列名，语言切换时导航重新投影 |
+| 5a | 完整 | L | 本批不改变字体 / 字重 / 图标族 / 视觉资产与任何发布像素；诊断 `overview-dark` 与已发布帧 sha256 同为 `b66c11ab17c2…`、全帧差异 0 px，`receipt-freshness 0`、199 帧 `space_utilization --enforce` violations=0。Bevy 浅色像素回执仍属另一会话待办，但本批不产生新的身份变化 |
+| 6 | 部分 | L | `FLPARITY-048` 1 pt 由 `Planned` 转 `Integrated` 迁入过去佛 §12.73 等统一批次办结；rail 每行 tooltip 与展开态截断行 tooltip 已按上游规则接线，但 hover 交互本身不进像素回执（台架不投指针），共享度量是字符宽度类近似而非 shaping/kerning 级 advance |
+| 7 | 完整 | L | contract 新模块、presentation 度量桥、Slint 投影与被动 UI 四层边界清楚；新增 12 条单测分别钉住几何、度量、缩放、语言显示词；`slint-syntax-guard` 100% PASS、`slint-dead-input` 0、`doc-governance` OK |
+| 8 | 部分 | L | 本批零重采、零像素变更，只跑一次单帧诊断（176s）+ 三包定向测试/编译；未跑全仓 `--workspace` nextest/clippy 与结构门全腿（留统一批次一次跑完）；另一会话未提交的 Bevy 像素仍是全仓身份门唯一红腿 |
+
+## 最近一批问答（2026-11-11 第一百九十七交付批次：`FLPARITY-048` 标签截断收归共享 owner）
+
+1. x86_64/aarch64：本批改 `infiltrator-contract` / `infiltrator-presentation` / `infiltrator-slint` 三层 Rust 与两个 `.slint` 文件，零平台 API、零 wire；三包 nextest **1372/1372**、Slint lib **29/29**、定向 clippy `--lib -D warnings` 与 `fmt --check` 为 `L`。交叉构建、aarch64 与目标机仍由 CI / 设备矩阵补证 → 部分（L）。
+2. Windows/Linux/macOS：本机 Linux 跑完定向测试、`overview-dark` 单帧诊断（176s）与 Slint/文档守卫；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
+3. Android/iOS：不触三端代码、资源与 wire；本批只裁决桌面展开/轨侧栏的文字 fit，手机 dock 与 Android 导航仍按既有条目收口，没有本批实机回执可声称 → 部分（L）。
+4. 各 UI：Slint 的 `NavigationSlot` 消费 `label_truncated` 并按 `!labelled || label_truncated` 挂载 tooltip；Iced / Bevy / Android 的导航形态不同、未消费此事实，Bevy 文件正由另一会话重写、本批不碰；空间利用率判定器仍未覆盖 Bevy → 部分（L）。
+5. 复用：几何与截断规则只在 `infiltrator_contract::sidebar_label`，字体度量只在 `infiltrator_presentation::sidebar_label_projection`，最终显示词只在 Slint 投影；UI 只读一个 typed bool，不量字宽、不猜列名，且 `project_snapshot` 按当前语言重新投影导航，避免第二份旧标签 → 完整（L）。
+5a. 设计资源强制标准：本批无字体 / 字重 / 图标族 / 视觉资产与发布像素变化；度量桥复用随包 `char_width_em` 与 `LABEL_LARGE`，没有新增资源或第二套图标；诊断 `overview-dark` 与发布帧逐字节相同，`receipt-freshness 0`、199 帧 `--enforce` violations=0 → 完整（L）。
+6. 各处界面的功能接入：`FLPARITY-048` 1 pt 由 `Planned` 转 `Integrated` 迁入过去佛 §12.73 等统一批次办结；rail 每行 tooltip、展开态短标签无 tooltip、超长标签保留 tooltip 的上游规则已由源码 + 单测证明。诚实边界：hover 交互本身不进像素回执（台架不投指针），共享度量是半/全/零宽近似而非 shaping/kerning 级 advance → 部分（L）。
+7. 模块化：contract 新模块、presentation 度量桥、Slint 投影、被动 `.slint` 消费四层边界清楚；新增 12 条单测（contract 5 / presentation 5 / Slint lib 2）分别钉住几何、度量、缩放、非法盒、空串与实际显示词；`slint-syntax-guard` 100% PASS、`slint-dead-input` 0、`doc-governance` OK → 完整（L）。
+8. CI 与批次效率：本批零重采、零像素变更，只跑一次单帧诊断（176s）+ 三包定向测试/编译；未跑全仓 `--workspace` nextest/clippy 与结构门全腿（留统一批次一次跑完）；另一会话未提交的 Bevy 像素仍是全仓身份门唯一红腿 → 部分（L）。
 
 ## 最近一批问答（2026-11-11 第一百九十六交付批次：`SLINT-022` 标准控件回执不随宿主翻转）
 

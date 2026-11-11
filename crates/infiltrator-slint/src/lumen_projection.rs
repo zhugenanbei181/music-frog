@@ -27,6 +27,7 @@ use infiltrator_contract::public_ip::PublicIpProbeStatus;
 use infiltrator_contract::shell_navigation::{
     NavigationGroup, NavigationItem, NavigationSurface, NavigationTarget,
 };
+use infiltrator_contract::sidebar_label::SidebarLabelGeometry;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_contract::system_proxy::SystemProxyRecoveryStatus;
 use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
@@ -36,6 +37,7 @@ use infiltrator_presentation::overview_page_model::{
 };
 use infiltrator_presentation::profile_preview::redact_profile_preview_bounded;
 use infiltrator_presentation::shell_readout::profile_name;
+use infiltrator_presentation::sidebar_label_projection::sidebar_label_is_truncated;
 use infiltrator_presentation::subscription_quota_projection::{QuotaGrade, project_quota};
 use infiltrator_presentation::traffic_readout::{TrafficFreshness, project_traffic_readout};
 use infiltrator_shared::byte_units::format_bytes;
@@ -76,14 +78,23 @@ pub(super) fn project_initial(window: &AppWindow, language: &str, autostart: Opt
 /// `ShellPage::sidebar_key`. The one surface-local page has no shared copy key
 /// and is localized through the same shared catalog by its own key.
 fn project_navigation(window: &AppWindow, lang: &Lang<'_>) {
+    let geometry = SidebarLabelGeometry {
+        scale_percent: window.get_page_scale_percent().clamp(1, 400) as u16,
+        ..SidebarLabelGeometry::DESKTOP
+    };
     let rows = NavigationItem::items(NavigationSurface::Desktop)
         .iter()
-        .map(|item| NavigationSlot {
-            id: item.id().into(),
-            label: navigation_label(*item, lang).into(),
-            group: item.group.id().into(),
-            group_label: navigation_group_label(item.group, lang).into(),
-            icon: item.icon.canonical_name().into(),
+        .map(|item| {
+            let label = navigation_label(*item, lang);
+            let display_label = navigation_display_label(*item, &label, lang);
+            NavigationSlot {
+                id: item.id().into(),
+                label_truncated: sidebar_label_is_truncated(&display_label, geometry),
+                label: label.into(),
+                group: item.group.id().into(),
+                group_label: navigation_group_label(item.group, lang).into(),
+                icon: item.icon.canonical_name().into(),
+            }
         })
         .collect::<Vec<_>>();
     window.set_navigation_items(slint_model(rows));
@@ -95,6 +106,29 @@ fn navigation_label(item: NavigationItem, lang: &Lang<'_>) -> String {
         NavigationTarget::SurfaceLocal("traffic") => lang.tr("nav_traffic").into_owned(),
         NavigationTarget::SurfaceLocal(id) => id.to_owned(),
     }
+}
+
+/// The word the desktop rail actually paints. Four primary rows ask
+/// `PageTitles.page-name`, whose msgids are the route words the app bar and
+/// this rail share; the remaining rows consume the projection's label as-is.
+/// The truncation readback must measure this word, not another vocabulary.
+fn navigation_display_label(item: NavigationItem, label: &str, lang: &Lang<'_>) -> String {
+    let msgid = match item.target {
+        NavigationTarget::Shared(infiltrator_contract::command_catalogue::ShellPage::Overview) => {
+            Some("核心概览")
+        }
+        NavigationTarget::Shared(infiltrator_contract::command_catalogue::ShellPage::Proxies) => {
+            Some("代理策略")
+        }
+        NavigationTarget::Shared(infiltrator_contract::command_catalogue::ShellPage::Profiles) => {
+            Some("配置订阅")
+        }
+        NavigationTarget::Shared(infiltrator_contract::command_catalogue::ShellPage::Settings) => {
+            Some("系统设置")
+        }
+        _ => None,
+    };
+    msgid.map_or_else(|| label.to_owned(), |key| lang.tr(key).into_owned())
 }
 
 fn navigation_group_label(group: NavigationGroup, lang: &Lang<'_>) -> String {
@@ -181,6 +215,7 @@ pub(super) fn project_snapshot(
 ) {
     let language = snapshot_language(snapshot);
     let lang = Lang(&language);
+    project_navigation(window, &lang);
     // The theme fact is projected first: `theme-mode` and
     // `application-dark-mode` are the two window facts every theme-dependent
     // binding in the tree reads, including the rail's surface tier. Getting
@@ -763,4 +798,43 @@ fn project_profiles(window: &AppWindow, snapshot: &SurfaceSnapshot, language: &s
         })
         .collect();
     window.set_profile_settings_overrides(slint_model(choices));
+}
+
+#[cfg(test)]
+mod sidebar_label_tests {
+    use super::*;
+    use infiltrator_contract::command_catalogue::ShellPage;
+
+    fn desktop_item(page: ShellPage) -> NavigationItem {
+        NavigationItem::items(NavigationSurface::Desktop)
+            .iter()
+            .copied()
+            .find(|item| item.target == NavigationTarget::Shared(page))
+            .expect("the desktop registry carries the shared page")
+    }
+
+    #[test]
+    fn primary_rows_measure_the_word_the_rail_paints() {
+        let lang = Lang("zh-CN");
+        let item = desktop_item(ShellPage::Overview);
+        let label = navigation_label(item, &lang);
+        let display = navigation_display_label(item, &label, &lang);
+        assert_eq!(display, "核心概览");
+        assert!(!sidebar_label_is_truncated(
+            &display,
+            SidebarLabelGeometry::DESKTOP
+        ));
+    }
+
+    #[test]
+    fn an_overlong_observation_label_is_marked_cut() {
+        let lang = Lang("zh-CN");
+        let item = desktop_item(ShellPage::Connections);
+        let label = navigation_label(item, &lang);
+        let long = format!("{label}：Подключения и активные соединения");
+        assert!(sidebar_label_is_truncated(
+            &long,
+            SidebarLabelGeometry::DESKTOP
+        ));
+    }
 }
