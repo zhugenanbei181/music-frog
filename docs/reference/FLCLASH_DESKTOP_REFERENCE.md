@@ -11,8 +11,13 @@
 `lib/sidebar.dart` 对照）。桌面场景图见
 [flclash-desktop/flclash-desktop-dashboard.png](flclash-desktop/flclash-desktop-dashboard.png)
 （2265×1665，SHA-256 `f6406be498613bc0249e9ae2350125a0e670e9620d0ae4b1be1aec7353372bcc`），
-另有两张同源缩放图在 `.private/`（`flclash-dashboard-reference.png`、
-`target-proxies-reference.png`），侧栏边界实测 430–440px、底色 (14,14,17)/(12,14,15)。
+代理页参照图已纳入版本库
+[flclash-desktop/flclash-desktop-proxies.png](flclash-desktop/flclash-desktop-proxies.png)
+（3193×1949，SHA-256 `ebe094bae677d5419cb380e800d5eee74197d20a48891fbe25ba340af7f98e8e`），
+侧栏边界实测 431px、底色 (14,14,17)/(12,14,15)。它此前只是 `.private/` 里的
+一张 gitignored 缩放图；b201 把它提升为可复跑的门禁输入，
+`scripts/quality/flclash-content-ground-guard.py` 逐像素复量页身 80.64% 页尾空地，
+并把空间利用率标准 §3.1 的 `content` 82% 上限钉在实测值加 1.4pp 余量上。
 
 ## 1. 上游架构（要求对标的「高级架构」）
 

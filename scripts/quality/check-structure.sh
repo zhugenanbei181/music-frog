@@ -171,6 +171,8 @@ python3 scripts/quality/flclash-dashboard-widget-guard.py --self-test
 python3 scripts/quality/flclash-dashboard-widget-guard.py --mode enforce
 python3 scripts/quality/flclash-sidebar-expansion-guard.py --self-test
 python3 scripts/quality/flclash-sidebar-expansion-guard.py --mode enforce
+python3 scripts/quality/flclash-content-ground-guard.py --self-test
+python3 scripts/quality/flclash-content-ground-guard.py --mode enforce
 python3 scripts/quality/sidebar-expansion-owner-guard.py --self-test
 python3 scripts/quality/sidebar-expansion-owner-guard.py --mode enforce
 python3 scripts/quality/slint-relative-time-guard.py --self-test
