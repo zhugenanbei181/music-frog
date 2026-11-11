@@ -16,10 +16,9 @@ use lurker_core_contract::routing_intent::RoutingIntent;
 
 /// A page both surfaces can navigate to by a stable, shared id.
 ///
-/// This is not either toolkit's route enum: Iced folds `Logs` into its
-/// runtime page (the runtime page hosts the logs section) and Bevy has a
-/// dedicated logs page. The id is the contract, the route mapping is
-/// surface-local.
+/// This is not either toolkit's route enum: Iced and Bevy each map these ids
+/// onto their own routes (for example, both now have dedicated logs pages).
+/// The id is the contract, the route mapping is surface-local.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ShellPage {
     Overview,
