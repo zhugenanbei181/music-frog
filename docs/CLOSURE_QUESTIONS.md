@@ -24,19 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-11 第二百零一批次；b111–b200 见下方批次八问摘要）
+## 当前状态（2026-11-11 第二百零二批次；b111–b201 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b201 是空间利用率标准的判据收口：新增 1 张 tracked 参考图、1 个 Python 守卫、结构门 2 条腿与 2 份 L2/L3 文档，零 Rust / 零平台 API / 零 wire / 零快照变更；守卫自测 **7/7**、enforce findings=0、quality/parity 单测全绿、`doc-governance OK` 为 `L`。交叉构建、aarch64 与目标机仍由 CI / 设备矩阵补证（GAP-1.1） |
-| 2 | 部分 | L | 本机 Linux 跑完新守卫双腿、结构门从该腿之后的切片、双表面空间判定器、回执新鲜度与文档门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
-| 3 | 部分 | L | 不触 Android/iOS 代码、资源或 wire；本批只裁决共享空间标准的数字来源，不产生任何实机回执 |
+| 1 | 部分 | L | b202 修的是 L2 标准内部矛盾与守卫覆盖：1 份 L2 文档 §4 重写 + 守卫新增 §4 判据与第 8 项 planted，零 Rust / 零平台 API / 零 wire / 零快照变更；守卫自测 **8/8**、enforce findings=0、`doc-governance OK`、`closure 8/8` 为 `L`。交叉构建、aarch64 与目标机仍由 CI / 设备矩阵补证（GAP-1.1） |
+| 2 | 部分 | L | 本机 Linux 跑完守卫双腿、结构门从该腿之后的切片、双表面空间判定器、回执新鲜度与文档门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
+| 3 | 部分 | L | 不触 Android/iOS 代码、资源或 wire；本批只裁决共享空间标准的条文一致性，不产生任何实机回执 |
 | 4 | 部分 | L | 判定器（`space_utilization.py`）仍是两个表面发布回执的唯一入口，本批不改它、不改任何表面；Bevy 仍未被判定器覆盖且文件由另一会话重写，本批不碰 |
-| 5 | 完整 | L | 「参考页身留白比例」只有一个真源：tracked `flclash-desktop-proxies.png` 的实测像素，由新守卫用标准自己的测量盒复量为 **80.64%**；导出的 `content` 82% 上限、契约源码常量与 L2 文本同批对齐，无第二份数字 |
-| 5a | 完整 | L | 本批无字体 / 字重 / 图标族 / 视觉资产与发布像素变化；新增的是外部参考图（不是产品资产），不进设计权威导出；Iced 186 / Slint 199 帧 `space_utilization --enforce` violations=0，`receipt-freshness 0`，零重采 |
-| 6 | 部分 | L | 这是判据收口，不改变业务行为；`TRAFFICAUDIT-001` 仍留过去佛等统一验收，Slint / Bevy 审计页未开工，`SPACEUTIL-014` 独立页也未推进 |
-| 7 | 完整 | L | 守卫按仓库既有 `flclash-*-guard.py` 形态自成模块，7 项 planted 自测覆盖换图、错盒、填满页、错误摘要、放宽上限、源码与导出漂移、结构门漏接；`line` / `import` / `typed-state` / `doc-governance` 全 0 |
+| 5 | 完整 | L | 「`content` 形态允许多少地面」在 L2 标准 §3.1、§4、§7/§9/§11、契约导出表与守卫里是同一个数（实测 80.6% + 1.4pp = 82%），不再留一份与之冲突的 b144 旧文 |
+| 5a | 完整 | L | 本批无字体 / 字重 / 图标族 / 视觉资产与发布像素变化；Iced 186 / Slint 199 帧 `space_utilization --enforce` violations=0，`receipt-freshness 0`，零重采 |
+| 6 | 部分 | L | 这是标准条文收口，不改变业务行为；`TRAFFICAUDIT-001` 仍留过去佛等统一验收，Slint / Bevy 审计页未开工，`SPACEUTIL-014` 独立页也未推进 |
+| 7 | 完整 | L | 守卫第 8 项 planted 用临时文件把 §4 改回 b144 旧文，实测会报「b144 one-size-fits-all ban 与 §3.1 形态上限冲突」；`line` / `import` / `typed-state` / `doc-governance` 全 0 |
 | 8 | 部分 | L | 本批零发布像素、零重采、零 Rust 重编；全仓结构门仍在另一会话未提交的 Bevy 像素身份腿上红（`runtime-dark` / `overview-dark` 不再同字节），该腿之后的切片单独跑完为 exit 0；全仓 `--workspace` nextest/clippy 与 `resolve_surface_evidence.py` 仍留统一批次 |
+
+## 最近一批问答（2026-11-11 第二百零二交付批次：删掉标准里与实测相矛盾的一刀切旧文）
+
+1. x86_64/aarch64：本批改 L2 空间利用率标准 §4 与守卫判据，新增第 8 项 planted，零 Rust / 零平台 API / 零 wire / 零快照变更；守卫自测 **8/8**、`--mode enforce` findings=0、`doc-governance OK`、`closure 8/8` 为 `L`。交叉构建、aarch64 与目标机仍由 CI / 设备矩阵补证 → 部分（L）。
+2. Windows/Linux/macOS：本机 Linux 跑完守卫双腿、结构门切片、双表面空间判定器、回执新鲜度与文档门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
+3. Android/iOS：不触三端代码、资源或 wire；本批只裁决共享空间标准的条文一致性，不产生任何实机回执 → 部分（L）。
+4. 各 UI：判定器 `space_utilization.py` 仍是两个表面发布回执的唯一入口，本批不改它、不改任何表面绘制或像素；Bevy 仍未被判定器覆盖且文件由另一会话重写，本批不碰 → 部分（L）。
+5. 复用：「`content` 形态允许多少地面」在 L2 标准 §3.1、§4、§7/§9/§11、契约导出表与守卫里是同一个数（实测 80.6% + 1.4pp = 82%），不再留一份与之冲突的 b144 旧文 → 完整（L）。
+5a. 设计资源强制标准：本批无字体 / 字重 / 图标族 / 视觉资产与发布像素变化；Iced 186 / Slint 199 帧 `--enforce` violations=0，`receipt-freshness 0`，零重采 → 完整（L）。
+6. 各处界面的功能接入：这是标准条文收口，不改变业务行为；`TRAFFICAUDIT-001` 仍留过去佛等统一验收，Slint / Bevy 审计页未开工，`SPACEUTIL-014` 独立页也未推进 → 部分（L）。
+7. 模块化：守卫第 8 项 planted 用临时文件把 §4 改回 b144 旧文，实测会报「b144 one-size-fits-all ban 与 §3.1 形态上限冲突」；`line` / `import` / `typed-state` / `doc-governance` 全 0 → 完整（L）。
+8. CI 与批次效率：本批零发布像素、零重采、零 Rust 重编；全仓结构门仍在另一会话未提交的 Bevy 像素身份腿上红（`runtime-dark.png` / `overview-dark.png` 不再同字节），该腿之后的切片单独跑完为 exit 0；全仓 `--workspace` nextest/clippy 与 `resolve_surface_evidence.py` 仍留统一批次一次跑完 → 部分（L）。
 
 ## 最近一批问答（2026-11-11 第二百零一交付批次：空间利用率上限钉在真实参考像素上）
 

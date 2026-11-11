@@ -135,6 +135,19 @@ def findings() -> list[str]:
             f"the contract source declares {declared.group(1)}% but the export "
             f"publishes {limit}%; rerun export_page_structure"
         )
+    standard_text = STANDARD.read_text(encoding="utf-8")
+    section = re.search(r"^## 4\..*?(?=^## 5\.)", standard_text, re.MULTILINE | re.DOTALL)
+    if section is None:
+        found.append("the space-utilization standard lost its §4 no-exemption section")
+    else:
+        body = section.group(0)
+        if "半屏以上留成地面" in body and "b149" not in body:
+            found.append(
+                "§4 still carries the b144 one-size-fits-all ban on half-screen "
+                "ground, which contradicts the shape-based content cap in §3.1"
+            )
+        if "80.6" not in body or "82" not in body:
+            found.append("§4 no longer reconciles its no-exemption rule with the measured content cap")
     for leg in ("flclash-content-ground-guard.py --self-test",
                 "flclash-content-ground-guard.py --mode enforce"):
         if leg not in GATE.read_text(encoding="utf-8"):
@@ -196,6 +209,21 @@ class GuardSelfTest(unittest.TestCase):
                 self.assertTrue(any("structure gate is missing" in item for item in findings()))
             finally:
                 GATE = original_gate
+
+    def test_a_stale_b144_section_four_is_rejected(self) -> None:
+        global STANDARD
+        original_standard = STANDARD
+        with tempfile.TemporaryDirectory() as directory:
+            planted = pathlib.Path(directory) / "SPACE_UTILIZATION_STANDARD.md"
+            planted.write_text(
+                "## 4. 内容少不是豁免\n\n这是本标准最容易被误解之处，必须写死：\n"
+                "- 页面仍不得把半屏以上留成地面。\n\n## 5. 超标时的三种收口\n",
+                encoding="utf-8")
+            STANDARD = planted
+            try:
+                self.assertTrue(any("b144 one-size-fits-all" in item for item in findings()))
+            finally:
+                STANDARD = original_standard
 
 
 def main() -> int:
