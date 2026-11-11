@@ -65,7 +65,8 @@ primary 色竖向指示条（16dp 高，随选中项动画移动），没有强�
 | 行几何 | 40dp 高 / 4dp 间距 / 24dp 图标 / 12dp 标签间隙；行内墨迹带 37–40px（19–21dp），即两侧各约 10dp 空气；参照物实测 5 行 | 44u 高 / 4u 间距 / 24u 图标 / 12u 标签间隙 / 3u×16u 指示条（`LumenTheme` 一处令牌，无第二套列规格）；行内图标墨迹 22u，即两侧各 11u 空气；本仓轨道实测 8 项 | **求同 + 一处存异（b158 实测裁决，见 §2.1）**：间距、图标、标签间隙、指示条四项与上游同数；行高 **保留 44u**，理由是三条实测量而不是观感——① 参照物那 40dp 行里的墨迹只有 19–21dp，两侧各约 10dp 空气，本仓 44u 行内 22u 墨迹给出 11u 空气；**落到 40u 会把两侧空气压到 9u，比参照物更紧**；② 40u 在这条栈上少用 32u，而 `rail-row-height` 在桌面**没有内容消费者**（实测 0 处非 compact `NavButton` 实例），这 32u 全部变成导航列内部地面，判定器按 `void` 记账（实测 6.2% → 10.0%，上限 12%，预算占用 52% → 83%），`chrome_band` 两种行高都是 0.0%；③ 本仓轨道 8 项对参照物实测 5 行，同一行高差在更长的栈上代价更大。**所以 40dp 不可移植：它在参照物里是对的，在本仓会更紧且更空。** |
 | 列内起始边界（leading） | 字形盒起于列缘 7.2dp、标签墨迹 44.1dp（场景实测）；源码推导为 12dp / 48dp（`min(12,(48−40)/2) + (40−24)/2`） | b158 实测 x32（= 2 × `rail-item-padding`）、标签 x68，占 240u 列的 13.3%，是状态卡时代的嵌套遗留，从未被任何判据审过 | **求同（b159 落地，`SPACEUTIL-010`）**：令牌改 `space-2`（8u），得字形盒 x8、标签 x44 —— **与场景实测的 7.2dp / 44.1dp 逐条对齐在 1u 内**（比源码推导的 12dp/48dp 更贴真实发布物）；列现在逐帧发布 `nav_content_offset_px`，判定器按导出的 `nav_leading_limit_px`（列宽的 8%，240 → 19u）判定，源码那组较宽松的读法（12u，5.5%）仍在预算内 |
 | 导航项来源 | `NavigationPort.getItems()` typed 列表 + `modes` | `shell_navigation::NavigationItem::items(surface)` typed 注册表（`NavigationSurface::{Desktop, Dock}` 即上游 `modes`），投影为 `NavigationSlot`（id/label/group/group-label/icon 语义名）供侧栏纯消费；`group` 仍是注册表事实，但桌面呈现由 `shell_sidebar_presentation::NavigationSeparator` 单独裁决是否画成标题 | **求同（b146 已落地，b164 补上呈现策略）**：字面量清单已删；侧栏不读任何业务快照，图标只经设计权威的 canonical 名；上游 `_SidebarPane` 的 `Column(destinations.indexed)` 不插标题，本仓因此也不再花一行标题盒 + 16u 上空气把 8 行切成两簇 |
-| 折叠 | `expanded` / `compactWidth=48` 两档；`canExpandSidebar` 只在 desktop 档放行标签 | `compact-layout` 一处布尔兼职决定「有无侧栏」 | **求同（b153 推翻 b145 的「存异」判断）**：上游按档给形态，本仓同样由契约给——`compact` 底部导航、`medium` 64px 图标轨、`expanded/ultra` 带标签列。b145 当时以「避免过度工程」为由拒绝桌面折叠档，实测代价是同一 720×480 窗口在 Iced 得竖轨、在 Slint 得横栏，短窗口多付一整条 72u 底部带（480 行的 15%）；真源早已裁决（契约 `SidebarForm::Rail`），缺的是组件而非理由，故按上游补齐 |
+| 折叠 | `expanded` / `compactWidth=48` 两档；`canExpandSidebar` 只在 desktop 档放行标签 | 导航形态由契约 `NavigationForm` 决定，`compact-layout` 只控制页面密度；但旧标题栏条件错误地跟随 `compact-layout` | **求同（b153 推翻 b145 的「存异」判断；b207 修正标题栏挂载）**：上游按档给形态，本仓同样由契约给——`compact` 底部导航、`medium` 64px 图标轨、`expanded/ultra` 带标签列。页面密度不能替代窗口 chrome 状态；frameless desktop shell 即使使用 rail，也必须挂载桌面标题栏与窗口控制。 |
+| 窗口 chrome 与页身原点 | pinned v0.9.3 `lib/common/layout.dart::getWindowHeaderHeight`：桌面 Windows/Linux 32dp、macOS 28dp；真实场景图顶部保留 pin / minimize / maximize / close 控件带，截图实测约 27dp，与 macOS 分支相符 | `overview-dark`（1180×780）曾自绘 40px 标题栏、页身顶边另留 8px；旧 `CAPTURE_CHROME` 却只报 `shell_top_air_px=8`。`overview-compact-dark`（720×480）挂 rail，却因 `compact-layout` 条件漏掉标题栏并报 0px | **求同并删掉 Slint 第二真源（b207）**：标题栏挂载与窗饰由桌面宿主读 `WindowChrome::FRAMELESS` 一次规划；其 38px 被 Slint / Iced / Bevy 共用，但与 pinned FlClash 的 Windows/Linux 32dp 仍差 6dp（macOS 28dp，本仓当前 `Unsupported`），另立 `FLPARITY-050` 收口共同契约与三表面回执。`shell_top_air_px` 回报窗口坐标 `AppBody.y + page-content-padding-top`，底边同步包含窗口到 AppBody 的距离。标准帧回执从 8px 校正为 **46px**，rail / 窄桌面帧从 0px 校正为 **38px**；`compact-layout` 从此只决定页面密度。 |
 | 标签何时出现 | `labelOpacity = (progress − 0.4)/0.6`，轨形态不画标签，靠 tooltip 补 | 与上游同判：`ViewportLadder.labelled_sidebar(tier)` 决定行内是否画标签 | **求同**：轨形态只画图标（图标 24u 居中、选中全宽淡底 + 3u 指示条），标签留给带标签列；分组标题不再由「有标签」推导 |
 | 列宽的比例依据 | 48/600 = 8.0%，220 只在 >840 使用 | 64/600 = 10.7%；240 = 840 − 600（内容地板）；280 ≤ 1200 − 600 | **求同并成标准**：上限由 `ViewportTier::max_nav_column_px()` 一处裁决并导出，判定器与 Rust 测试复算同一条不变量（比例条款归 L2 空间利用率强制标准 §3.3） |
 
@@ -357,6 +358,9 @@ collapsed bool，也不从当前列宽反推偏好。按钮是否可用只读 b1
 b173 的收口修正因此把事实交回测量者：`DesktopSideBar` 在按钮盒上用
 `absolute-position.y + height + rail-item-gap` 发布 `sidebar-toggle`（init 加
 `changed absolute-position` / `changed height` 两条腿，缩放、皮肤与页面切换都会重发），
+**b207 补记**：b173 的 40px / y≈106 是当时 Slint 自持 40px 标题栏的历史实测；b207
+把 Slint 接回既有 38px 契约条带后，同一测量给出的当前值是 y≈104。
+历史数值保留在此处作为那次接线缺陷的证据，不再作为当前几何的判据。
 沿 `AppBody` 上传，回执实测 1180×780 = **106px**，导航 leading 回到 **9–10**，与声明的
 8px 在 2px 容差内。
 

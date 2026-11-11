@@ -24,19 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-11 第二百零六批次；b111–b205 见下方批次八问摘要）
+## 当前状态（2026-11-11 第二百零七批次；b111–b206 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b206 修复 Bevy Android 帧观测输入与 Iced capture-only 路由计数的 Clippy 缺口；locked workspace nextest **6716/6716（15 skipped）**、workspace Clippy `-D warnings`、fmt check 均为 `L`。未跑交叉架构与 aarch64 目标产物，仍由 CI / 设备矩阵补证（GAP-1.1） |
-| 2 | 部分 | L | 本机 Linux 完成 workspace nextest / Clippy / fmt；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）。结构门唯一失败是另一会话的 Bevy 像素别名 |
-| 3 | 部分 | L | 未改 Android/iOS Kotlin、资源或 wire；Bevy Android 入口只收拢既有帧观测参数，本批没有 Android/iOS 实机回执 |
-| 4 | 部分 | L | Iced Connections/Logs 独立页回执仍为 **188/188**；Bevy 帧观测输入改为 `FrameObservationSelection::{None, Android { internal_data_path }}`，但不改变 Bevy 页面行为；四表面 parity 仍有未闭环场景 |
-| 5 | 完整 | L | 观测阶段与 Android 路径现在由一个 typed enum variant 共同承载；Iced 路由唯一性计数仅在 capture/test 消费端编译；Bevy parity 的 scenario test ID 已对齐 HEAD 中真实测试名。未新增业务真源或 wire |
-| 5a | 完整 | L | 本批不改字体、字重、图标或页面像素身份；Iced 188 帧空间门 / 回执新鲜度、Slint 199 帧空间门均为 0 违规 |
-| 6 | 部分 | L | `resolve_surface_evidence.py` registry/discovery/anchors 均验证通过，`dangling=0`；180 个 ready surface cells 仍未闭环，因为本次未绑定完整 product-build receipts 与标准/紧凑像素回执 |
-| 7 | 部分 | L | `typed-state`、文档治理与格式门通过；`check-structure.sh` 唯一红项为 Bevy `runtime-dark` 与 `overview-dark` 别名像素不同，文件归另一会话，保持未改 |
-| 8 | 部分 | L | locked workspace nextest **6716/6716（15 skipped）**、workspace Clippy 零警告、`cargo fmt --all --check` clean；结构门仍有上述 Bevy 别名，parity cells 仍缺产品级回执 |
+| 1 | 部分 | L | b207 只改 Slint 桌面宿主、共享契约 `shell_receipt` 语义、判定器 fixture 与文档，零平台 API / 零 wire / 零快照；定向 contract+Slint nextest **982/982**、两包 clippy `--all-targets -D warnings`、`cargo check -p infiltrator-slint --features gpu-skia,capture-tools`、`cargo fmt --all --check` 均为 `L`。交叉架构与 aarch64 目标产物未复跑，仍由 CI / 设备矩阵补证（GAP-1.1） |
+| 2 | 部分 | L | 本机 Linux 完成 contract+Slint 定向 nextest / clippy / capture 构建与 199 帧像素发布；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）。pinned FlClash 桌面条带为 Windows/Linux 32dp、macOS 28dp，本仓共享契约 38 尚未按上游分支裁决，记 `FLPARITY-050` |
+| 3 | 部分 | L | 未改 Kotlin / JNI / VPNService 与 Android 资源；触摸与紧凑外壳 `desktop-title-bar-units` 恒 0，本批 Android 像素不受影响，但按截图认证硬门仍缺三 flavor 实机回执 |
+| 4 | 部分 | L | Slint 桌面 frameless 在标准、rail、折叠三态都挂载自绘标题栏与三枚窗控（`overview-compact-dark` 真实像素复核）；Iced 回执口径本已含条带，统一批次复跑 `--surface iced --enforce` 确认无回归；Bevy 矩阵与像素由另一会话持有，本批未接入 |
+| 5 | 完整 | L | 条带高度只剩契约一个真源：宿主 `desktop_window_chrome::install()` 一次读 `WindowChrome::FRAMELESS` 同时决定窗饰与挂载带，`.slint` 删除自持 40px 字面量，`demo.rs` 第二次 `set_frameless(true)` 同批删除；判定器与 Python 侧不记任何标题栏高度（既有「再记即违规」腿继续 0） |
+| 5a | 完整 | L | 无字体 / 字重 / 图标族 / 视觉资产变化；可见身份变化按「身份改动一次做完」整批重采 **199/199**（run `20261111T133556Z_14d5cbbf6ef1_dirty_153449`，418s），`space_utilization --surface slint --enforce` violations=0、`receipt-freshness 0`、Slint 5 条别名摘要逐条实测 摘要==实际字节==canonical |
+| 6 | 部分 | L | 本批是回执原点与窗饰挂载的收口，不新增业务能力；`resolve_surface_evidence.py` 未在本批复跑，180 个 ready surface cells 仍缺产品级 build receipts 与双视口像素绑定 |
+| 7 | 部分 | L | `lib.rs` 937 行曾超 800 预算，按业务缝拆出 `desktop_window_chrome.rs` 后 `line-guard` 0；`import` / `typed-state` / `implicit-state` 23/0/0 / `slint-syntax` / `slint-dead-input` / `slint-mobile-chrome` / `doc-governance` 全 0；`check-structure.sh` 唯一红项仍是另一会话的 Bevy `runtime-dark` / `overview-dark` 别名像素，文件保持未改 |
+| 8 | 部分 | L | 开发期只跑受影响包（contract+Slint 定向 nextest / clippy / capture check）与专属守卫，整批像素一次重采而非逐场景补帧；全仓 `--workspace` nextest / clippy、结构门全腿与 `resolve_surface_evidence.py` 仍留统一验证批次一次跑完 |
+
+## 最近一批问答（2026-11-11 第二百零七交付批次：回执的页身原点与桌面标题栏挂载）
+
+1. x86_64/aarch64：本批改共享契约 `shell_receipt` 的字段语义、Slint 桌面宿主与 `.slint` 挂载条件、判定器 fixture 与 L2/L3 文档，零平台 API / 零 wire / 零快照；contract+Slint nextest **982/982**（run `7123c0ed-f3dc-4db2-ba50-01b62d48ad08`）、两包 clippy `--all-targets -D warnings`、`cargo check -p infiltrator-slint --features gpu-skia,capture-tools`、`cargo fmt --all --check` 为 `L`。交叉构建与 aarch64 目标机产物未复跑 → 部分（L）。
+2. Windows/Linux/macOS：本机 Linux 完成定向测试/clippy/capture 构建、199 帧整批重采、空间门与回执新鲜度；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`。pinned FlClash v0.9.3 `getWindowHeaderHeight` 为 Windows/Linux 32dp、macOS 28dp，本仓 38 尚未按上游分支裁决，据实记 `FLPARITY-050` → 部分（L）。
+3. Android/iOS：未动 Kotlin/JNI/VPNService 与 Android 资源；触摸与紧凑外壳的 `desktop-title-bar-units` 恒 0，本批不改变 Android 像素，也没有实机回执 → 部分（L）。
+4. 各 UI：Slint frameless 桌面在标准 / rail / 折叠三态都挂载自绘标题栏与最小化、最大化、关闭三枚窗控（旧发布帧 `overview-compact-dark` 实测顶部无任何窗控，新帧已复核出现 `Lumen` + 速率胶囊 + 搜索 + 窗控）；Iced 的 `shell_top_air_px` 由 `chrome_strip` 挂载高度给出、本已含条带，统一批次复跑确认无回归；Bevy 矩阵与像素由另一会话持有，本批不碰 → 部分（L）。
+5. 复用：条带高度只剩契约 `WindowChrome::FRAMELESS.chrome_height_px()` 一处发布，宿主 `desktop_window_chrome::install()` 一次规划并同时写窗饰与 `desktop-title-bar-units`，`.slint` 与 `demo.rs` 的第二份写法同批删除；页身原点由外壳实测 `AppBody.y` / `root.height - AppBody.y - AppBody.height` 发布，判定器不记标题栏高度 → 完整（L）。
+5a. 设计资源：无字体 / 字重 / 图标族 / 视觉资产变化；属可见身份变化的部分按「身份改动集中一次做完」整批重采 199/199（run `20261111T133556Z_14d5cbbf6ef1_dirty_153449`，418s），`--surface slint --enforce` violations=0、`receipt-freshness 0`，Slint 5 条别名摘要刷新后逐条实测 摘要==实际字节==canonical；发布后仅纯重构与测试/守卫改动，两帧诊断复采 run `20261111T143739Z_14d5cbbf6ef1_dirty_489754` 与发布帧 sha256 逐字节相同 → 完整（L）。
+6. 功能接入：本批收口的是回执坐标口径与窗饰挂载，不新增业务能力；跨表面 parity resolver 未在本批复跑，180 个 ready cells 仍缺 product-build receipts 与双视口像素绑定 → 部分（L）。
+7. 模块化：窗饰规划从 `lib.rs` 拆出 `desktop_window_chrome.rs`（937 行超 800 预算 → `line-guard` 0），契约语义、宿主规划、`.slint` 消费、判定器测量四层各自单一职责；`slint-viewport-tier-guard` planted 36 → **41/41**，HEAD 旧 `.slint` / `demo.rs` 喂入 enforce 腿实测 **10 findings**、改后 0；判定器新增第 63 项原点 planted（改回旧原点时恰好它 FAIL `0 != 38`），`--self-test` **63/63**；`import` / `typed-state` / `implicit-state` 23/0/0 / `slint-syntax` / `slint-dead-input` / `slint-mobile-chrome` / `doc-governance` 全 0；全仓结构门唯一红腿仍是另一会话的 Bevy 别名像素 → 完整（L）。
+8. CI 与批次效率：开发期只跑受影响包与专属守卫，像素一次整批重采（418s）而非逐场景补帧，收口期把两处口径缺陷修在门上（L2 §3.1 曾写「b207 起契约规划 32px / 实测 98px」，与契约 38 及 387 帧已发布回执 `shell_top_air_px=46/38`、`sidebar_toggle_px=104` 同时矛盾，按实测改写；判定器 planted `_chrome()` 的窗口原点是自洽硬编码，改回旧带高时像素与回执一起漂移而 `--self-test` 仍全绿，该 fixture 无法自证原点，据实并入 `FLPARITY-050` 验收而非在 Python 另记数）。全仓 `--workspace` nextest / clippy、结构门全腿与 `resolve_surface_evidence.py` 留统一批次一次跑完 → 部分（L）。
 
 ## 最近一批问答（2026-11-11 第二百零五交付批次：Iced 连接/日志独立页与日志页真实留白根因）
 

@@ -417,6 +417,11 @@ component WindowControlButton inherits Rectangle {
 // callbacks land in the host (lib.rs installs them on the real window).
 export component DesktopTitleBar inherits Rectangle {
     in property <bool> maximized;
+    /// The band the host's window chrome reserves, in design units. Zero means
+    /// the operating system still draws the title bar, and the shell mounts
+    /// nothing at all; the host feeds the same contract fact it used to decide
+    /// the window decorations.
+    in property <int> title-bar-units;
     in property <string> upload-rate: "0 B/s";
     in property <string> download-rate: "0 B/s";
     in property <bool> has-traffic-capsule: true;
@@ -424,7 +429,7 @@ export component DesktopTitleBar inherits Rectangle {
     callback window-minimize();
     callback window-toggle-maximize();
     callback window-close();
-    height: 40 * LumenUiScale.unit;
+    height: root.title-bar-units * LumenUiScale.unit;
     background: LumenTheme.zinc-1;
     clip: true;
 

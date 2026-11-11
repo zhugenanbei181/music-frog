@@ -46,6 +46,7 @@ import csv
 import io
 import json
 import pathlib
+import re
 import statistics
 import subprocess
 import sys
@@ -1065,7 +1066,10 @@ def _labelled_nav(image: np.ndarray, first_x: int = 8) -> None:
 def _chrome(width: int, height: int, **override) -> dict:
     """The chrome a planted frame of this size says it painted.
 
-    The defaults are what the published shell really draws at that width -
+    The defaults are what the published Slint shell really draws at that width
+    (b207: the page body starts under the mounted title-bar band, so the top
+    air is the band plus the body's own air, and the stack end / toggle band
+    are measured in the same window coordinates) -
     `chrome_findings` refuses a frame whose column, form, band or scale
     contradicts the exported ladder, so a test cannot plant a geometry the
     contract would reject without the planted frame saying so.
@@ -1076,16 +1080,16 @@ def _chrome(width: int, height: int, **override) -> dict:
     chrome = {
         "nav_form": form,
         "nav_column_px": int(fact["nav_column_px"]),
-        "nav_stack_bottom_px": 0 if form == "bottom_nav" else (488 if labelled else 398),
+        "nav_stack_bottom_px": 0 if form == "bottom_nav" else (484 if labelled else 436),
         "nav_content_offset_px": 12 if labelled else 0,
         "page_margin_px": 30 if labelled else 16,
-        "shell_top_air_px": 8 if labelled else 0,
+        "shell_top_air_px": 46 if labelled else 38,
         "shell_bottom_air_px": 72 if labelled else 0,
         "dock_band_px": 72 if form == "bottom_nav" else 0,
         "scale_percent": 100,
         "sidebar_expansion": "expanded",
         "touch_surface": 0,
-        "sidebar_toggle_px": 106 if labelled and form != "bottom_nav" else 0,
+        "sidebar_toggle_px": 104 if labelled and form != "bottom_nav" else 0,
     }
     chrome.update(override)
     return chrome
@@ -1885,11 +1889,18 @@ class SelfTest(unittest.TestCase):
         self.assertNotIn("chrome_band_pct", entry, entry)
 
     def _icon_rail(self, image: np.ndarray) -> None:
-        """A medium frame's rail: background, one selected wash, eight glyphs."""
+        """A medium frame's rail: background, one selected wash, eight glyphs.
+
+        The stack starts below the band the same frame's receipt says it
+        mounted (b207: a desktop rail keeps its window controls), so the
+        planted pixels and the planted receipt describe one geometry.
+        """
+        top = int(_chrome(image.shape[1], image.shape[0])["shell_top_air_px"])
         _fill(image, 0, image.shape[0], 0, 64, (241, 246, 237))
-        for y in (18, 62, 106, 150, 194, 238, 282, 326):
-            _fill(image, y + 10, y + 26, 24, 40, INK)
-        _fill(image, 18, 54, 0, 64, (220, 238, 226))
+        for index in range(8):
+            box = top + 18 + index * 48
+            _fill(image, box + 10, box + 26, 24, 40, INK)
+        _fill(image, top + 18, top + 54, 0, 64, (220, 238, 226))
 
     def test_an_icon_rail_frame_is_judged_by_the_same_receipt_rule(self) -> None:
         # SPACEUTIL-009 opens the rail axis to the icon rail: the receipt says
@@ -1898,7 +1909,8 @@ class SelfTest(unittest.TestCase):
         # and a card parked below it is the rail spending itself on chrome.
         image = _canvas(720, 480)
         self._icon_rail(image)
-        _fill(image, 404, 463, 12, 52, CARD)
+        bottom = int(_chrome(720, 480)["nav_stack_bottom_px"])
+        _fill(image, bottom + 4, 463, 12, 52, CARD)
         entry = self.measure_one(image)
         self.assertGreater(
             entry["chrome_band_pct"],
@@ -1911,7 +1923,8 @@ class SelfTest(unittest.TestCase):
         # charged to a rail that never painted it.
         image = _canvas(720, 480)
         self._icon_rail(image)
-        _fill(image, 404, 463, 0, 720, CARD)
+        bottom = int(_chrome(720, 480)["nav_stack_bottom_px"])
+        _fill(image, bottom + 4, 463, 0, 720, CARD)
         entry = self.measure_one(image)
         self.assertEqual(entry["chrome_band_pct"], 0.0, entry)
 
@@ -1948,6 +1961,35 @@ class SelfTest(unittest.TestCase):
             self.assertNotEqual(rail_findings([entry], debt), [], entry)
         finally:
             PAGE_STRUCTURE_FILE = original
+
+    def test_the_planted_origins_follow_the_contract_band(self) -> None:
+        # SPACEUTIL-015's defect was a planted receipt that started the page
+        # body at the window top: the fixture was self-consistent at 8/0, so
+        # every planted pixel moved with it and the self-test stayed green.
+        # The one truth for where a frameless desktop's page body may start is
+        # the contract's own band, read out of the source that owns it - not a
+        # number this file remembers.
+        source = (ROOT / "crates/infiltrator-contract/src/window_chrome.rs").read_text(
+            encoding="utf-8")
+        band = int(re.search(
+            r"CHROME_DRAG_STRIP_HEIGHT_PX: u32 = (\d+)", source).group(1))
+        rail = _chrome(720, 480)
+        labelled = _chrome(1180, 780)
+        # A rail frame keeps no page air of its own, so its top distance IS the
+        # mounted band; the labelled desktop adds its own page breath on top.
+        self.assertEqual(int(rail["shell_top_air_px"]), band, rail)
+        self.assertGreater(int(labelled["shell_top_air_px"]), band, labelled)
+        # The planted pixels must say the same thing: navigation starts below
+        # the band the receipt declares, never inside it.
+        image = _canvas(720, 480)
+        self._icon_rail(image)
+        column = painted_nav_column(720)
+        strip = image[:, 0:column].astype(int)
+        ground = np.median(strip[image.shape[0] // 2, 4:10].reshape(-1, 3), axis=0)
+        ink = (np.abs(strip - ground).sum(axis=2) > 14).mean(axis=1) > 0.01
+        first = next(y for y, painted in enumerate(ink) if painted)
+        self.assertGreaterEqual(first, band,
+                                f"planted nav starts at y{first}, inside the {band}px band")
 
 
 def self_test(argv: list[str] | None = None) -> int:

@@ -571,6 +571,7 @@ def receipt_findings(ui: pathlib.Path) -> list[str]:
     app_code = mask_comments((ui / "lumen-app.slint").read_text(encoding="utf-8"))
     rail_code = mask_comments((ui / "components/sidebar.slint").read_text(encoding="utf-8"))
     body_code = mask_comments((ui / "components/app_body.slint").read_text(encoding="utf-8"))
+    chrome_code = mask_comments((ui / "components/app_chrome.slint").read_text(encoding="utf-8"))
     for needle, message in [
         ("out property <ReceiptChrome> receipt-chrome:",
          "lumen-app.slint: the shell no longer publishes the chrome it paints"),
@@ -580,13 +581,58 @@ def receipt_findings(ui: pathlib.Path) -> list[str]:
          "lumen-app.slint: the receipt no longer reports the leading the pane gives away"),
         ("page-margin: app-body.page-margin",
          "lumen-app.slint: the receipt no longer reports the page margin the body binds"),
-        ("shell-bottom-air: app-body.page-content-padding-bottom",
-         "lumen-app.slint: the receipt no longer reports the shell's bottom air"),
+        ("shell-top-air: app-body.y + app-body.page-content-padding-top",
+         "lumen-app.slint: the receipt omits the page body's window-relative top origin"),
+        ("shell-bottom-air: root.height - app-body.y - app-body.height + app-body.page-content-padding-bottom",
+         "lumen-app.slint: the receipt omits the page body's window-relative bottom origin"),
         ("dock-band: app-body.dock-band-height",
          "lumen-app.slint: the receipt no longer reports the reserved dock band"),
+        ("in-out property <int> desktop-title-bar-units: 0;",
+         "lumen-app.slint: the shell no longer holds the title-bar band its host planned"),
+        ("if root.desktop-title-bar-units > 0: DesktopTitleBar",
+         "lumen-app.slint: the desktop title bar is no longer mounted from the planned band"),
+        ("title-bar-units: root.desktop-title-bar-units;",
+         "lumen-app.slint: the mounted title bar no longer draws the planned band"),
+        ("private property <length> desktop-title-bar-band: root.desktop-title-bar-units * LumenUiScale.unit;",
+         "lumen-app.slint: the title-bar band is not the planned height in design units"),
+        ("y: root.safe-area-insets.top + root.desktop-title-bar-band",
+         "lumen-app.slint: the page body no longer starts below the mounted title bar"),
+        ("root.height - root.safe-area-insets.top - root.safe-area-insets.bottom - root.desktop-title-bar-band",
+         "lumen-app.slint: the page body no longer reserves the mounted title-bar band"),
     ]:
         if needle not in app_code:
             found.append(message)
+    if "height: root.title-bar-units * LumenUiScale.unit;" not in chrome_code:
+        found.append(
+            "components/app_chrome.slint: the title bar no longer draws the band its host planned"
+        )
+    # The band a frameless window reserves is one contract fact that every
+    # surface consumes; a Slint literal for it is a second answer, which is how
+    # Slint came to paint 40px while Iced and Bevy reserved the contract's 38px.
+    if re.search(r"desktop-title-bar-units: *(?!0;)[0-9]+", app_code) or re.search(
+        r"desktop-title-bar-band: *[0-9]+ *\* *LumenUiScale", app_code
+    ):
+        found.append(
+            "lumen-app.slint: the title-bar band is spelled as a surface literal again; "
+            "the host plans it from the contract's window chrome"
+        )
+    host = ROOT / "crates/infiltrator-slint/src/desktop_window_chrome.rs"
+    if host.is_file():
+        host_code = host.read_text(encoding="utf-8")
+        if "WindowChrome::FRAMELESS" not in host_code:
+            found.append(
+                "src/lib.rs: the desktop host no longer plans its chrome from the shared contract"
+            )
+        if "set_desktop_title_bar_units" not in host_code:
+            found.append(
+                "src/lib.rs: the host does not publish the title-bar band it planned"
+            )
+    demo = ROOT / "crates/infiltrator-slint/src/demo.rs"
+    if demo.is_file() and "set_frameless" in demo.read_text(encoding="utf-8"):
+        found.append(
+            "src/demo.rs: the capture host decorates the window on its own again; "
+            "the product host's chrome plan is the only writer"
+        )
     if "nav-stack-bottom <=> root.nav-stack-bottom" not in body_code:
         found.append(
             "components/app_body.slint: the pane's measured stack end no longer "
@@ -1174,6 +1220,83 @@ class GuardSelfTest(unittest.TestCase):
         findings = self._findings_with({"app_body.slint": planted})
         self.assertTrue(
             any("the sidebar mounts on" in item for item in findings), findings)
+
+    def test_title_bar_band_that_falls_back_to_a_surface_literal_is_caught(self) -> None:
+        """The band is planned by the host from the contract, not spelled here."""
+        app = (UI / "lumen-app.slint").read_text(encoding="utf-8")
+        anchor = "in-out property <int> desktop-title-bar-units: 0;"
+        assert anchor in app, anchor
+        planted = app.replace(anchor, "in-out property <int> desktop-title-bar-units: 40;", 1)
+        findings = self._findings_with({"lumen-app.slint": planted})
+        self.assertTrue(
+            any("title-bar band is spelled as a surface literal" in item for item in findings),
+            findings,
+        )
+
+    def test_capture_host_that_decorates_the_window_itself_is_caught(self) -> None:
+        """One chrome writer: the product host plans decorations for every launch."""
+        demo = (ROOT / "crates/infiltrator-slint/src/demo.rs").read_text(encoding="utf-8")
+        anchor = "    window.set_capture_pointer_absent(settings.marker.is_some());"
+        assert anchor in demo, anchor
+        planted = demo.replace(
+            anchor, "    window.set_frameless(true);\n" + anchor, 1
+        )
+        findings = self._findings_with({"demo.rs": planted})
+        self.assertTrue(
+            any("capture host decorates the window on its own" in item for item in findings),
+            findings,
+        )
+
+    def test_host_that_forgets_the_planned_band_is_caught(self) -> None:
+        """The mounted band must be the number the chrome plan states."""
+        host = (ROOT / "crates/infiltrator-slint/src/desktop_window_chrome.rs").read_text(
+            encoding="utf-8"
+        )
+        anchor = "    window.set_desktop_title_bar_units(title_bar_units(chrome));\n"
+        assert anchor in host, anchor
+        planted = host.replace(anchor, "", 1)
+        findings = self._findings_with({"desktop_window_chrome.rs": planted})
+        self.assertTrue(
+            any("does not publish the title-bar band" in item for item in findings),
+            findings,
+        )
+
+    def test_shell_receipt_includes_the_page_body_window_origin(self) -> None:
+        """A page-local padding is not a window-relative measurement-box edge."""
+        app = (UI / "lumen-app.slint").read_text(encoding="utf-8")
+        anchor = "shell-top-air: app-body.y + app-body.page-content-padding-top"
+        assert anchor in app, anchor
+        planted = app.replace(
+            anchor,
+            "shell-top-air: app-body.page-content-padding-top",
+            1,
+        )
+        findings = self._findings_with({"lumen-app.slint": planted})
+        self.assertTrue(
+            any("omits the page body's window-relative top origin" in item
+                for item in findings),
+            findings,
+        )
+
+    def test_shell_receipt_includes_the_page_body_bottom_origin(self) -> None:
+        """Bottom safe area and body padding both sit outside the measurement box."""
+        app = (UI / "lumen-app.slint").read_text(encoding="utf-8")
+        anchor = (
+            "shell-bottom-air: root.height - app-body.y - app-body.height + "
+            "app-body.page-content-padding-bottom"
+        )
+        assert anchor in app, anchor
+        planted = app.replace(
+            anchor,
+            "shell-bottom-air: app-body.page-content-padding-bottom",
+            1,
+        )
+        findings = self._findings_with({"lumen-app.slint": planted})
+        self.assertTrue(
+            any("omits the page body's window-relative bottom origin" in item
+                for item in findings),
+            findings,
+        )
 
     def test_a_dock_band_that_reads_density_is_caught(self) -> None:
         """A band belongs to a bar. The projection reads the form or it is wrong."""

@@ -19,6 +19,8 @@ mod callbacks;
 pub mod capture_scenario;
 #[cfg(feature = "capture-tools")]
 pub mod demo;
+#[cfg(not(target_os = "android"))]
+mod desktop_window_chrome;
 mod flag_assets;
 mod lumen_projection;
 pub mod mascot_driver;
@@ -86,33 +88,6 @@ pub(crate) fn set_page(window: &AppWindow, page: &str) {
         .map(|target| target.id())
         .unwrap_or("");
     window.set_active_destination(destination.into());
-}
-
-/// EFFECTS-041 #167: the production desktop window goes frameless and the
-/// self-drawn title bar's controls land on the real window: minimize and
-/// maximize through the core window API, close ends the event loop (the
-/// same semantics the system decoration's close button had), and the
-/// `maximized` readback keeps the title bar's restore affordance honest.
-#[cfg(not(target_os = "android"))]
-fn install_desktop_window_chrome(window: &AppWindow) {
-    window.set_frameless(true);
-    let handle_weak = window.as_weak();
-    window.on_window_minimize(move || {
-        if let Some(window) = handle_weak.upgrade() {
-            window.window().set_minimized(true);
-        }
-    });
-    let handle_weak = window.as_weak();
-    window.on_window_toggle_maximize(move || {
-        if let Some(window) = handle_weak.upgrade() {
-            let maximized = !window.window().is_maximized();
-            window.window().set_maximized(maximized);
-            window.set_is_maximized(maximized);
-        }
-    });
-    window.on_window_close(|| {
-        let _ = slint::quit_event_loop();
-    });
 }
 
 /// Refresh a long-list property in place (EFFECTS-040 #18): when the window
@@ -409,7 +384,7 @@ fn run_with_host_prepared_impl(
     let window = AppWindow::new()?;
     window.set_android_platform(cfg!(target_os = "android"));
     #[cfg(not(target_os = "android"))]
-    install_desktop_window_chrome(&window);
+    desktop_window_chrome::install(&window);
 
     let initial_language = env::var("INFILTRATOR_LANG")
         .map(|value| resolve_language_code(&value))

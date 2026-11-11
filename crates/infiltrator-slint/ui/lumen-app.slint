@@ -47,10 +47,12 @@ export component AppWindow inherits MaterialWindow {
         shell-receipt := ShellReceipt {
         navigation-form: root.navigation-form; sidebar-expansion: root.sidebar-expansion; touch-surface: root.android-platform;
         sidebar-toggle: app-body.sidebar-toggle; nav-stack-bottom: app-body.nav-stack-bottom; nav-content-offset: app-body.nav-content-offset;
-        page-margin: app-body.page-margin; shell-top-air: app-body.page-content-padding-top; shell-bottom-air: app-body.page-content-padding-bottom;
+        page-margin: app-body.page-margin; shell-top-air: app-body.y + app-body.page-content-padding-top; shell-bottom-air: root.height - app-body.y - app-body.height + app-body.page-content-padding-bottom;
         dock-band: app-body.dock-band-height; scale-percent: root.page-scale-percent;
         }
         property <bool> platform-dark-mode: MaterialPalette.color-scheme == ColorScheme.dark; in-out property <bool> frameless: false;
+        in-out property <int> desktop-title-bar-units: 0;
+        private property <length> desktop-title-bar-band: root.desktop-title-bar-units * LumenUiScale.unit;
         // EFFECTS-041 #167: the frameless desktop chrome's window controls.
         callback window-minimize(); callback window-toggle-maximize(); callback window-close();
         in-out property <bool> is-maximized: false; in-out property <bool> window-focused: true; callback window-focus-changed(bool);
@@ -257,7 +259,8 @@ export component AppWindow inherits MaterialWindow {
         else { if root.predictive-back-enabled { root.commit-back-preview(); } root.page = "Settings"; root.navigate("Settings"); }
         }
 
-        if !root.android-platform && !root.compact-layout: DesktopTitleBar {
+        if root.desktop-title-bar-units > 0: DesktopTitleBar {
+        title-bar-units: root.desktop-title-bar-units;
         // EFFECTS-041 #167: the frameless chrome; callbacks land on the
         // real window via lib.rs's installer.
         x: root.safe-area-insets.left; y: root.safe-area-insets.top; width: max(0 * LumenUiScale.unit, root.width - root.safe-area-insets.left - root.safe-area-insets.right); maximized: root.is-maximized;
@@ -266,7 +269,7 @@ export component AppWindow inherits MaterialWindow {
         window-minimize => { root.window-minimize(); } window-toggle-maximize => { root.window-toggle-maximize(); } window-close => { root.window-close(); }
         }
         app-body := AppBody {
-        x: root.safe-area-insets.left; y: root.safe-area-insets.top + (!root.android-platform && !root.compact-layout ? 40 * LumenUiScale.unit : 0 * LumenUiScale.unit); width: max(0 * LumenUiScale.unit, root.width - root.safe-area-insets.left - root.safe-area-insets.right); height: max(0 * LumenUiScale.unit, root.height - root.safe-area-insets.top - root.safe-area-insets.bottom - (!root.android-platform && !root.compact-layout ? 40 * LumenUiScale.unit : 0 * LumenUiScale.unit));
+        x: root.safe-area-insets.left; y: root.safe-area-insets.top + root.desktop-title-bar-band; width: max(0 * LumenUiScale.unit, root.width - root.safe-area-insets.left - root.safe-area-insets.right); height: max(0 * LumenUiScale.unit, root.height - root.safe-area-insets.top - root.safe-area-insets.bottom - root.desktop-title-bar-band);
         page: root.page; page-origin: root.page-origin; compact-layout: root.compact-layout; navigation-form: root.navigation-form; primary-page: root.primary-page; android-platform: root.android-platform; application-dark-mode: root.application-dark-mode; layout-debug-bounds: root.layout-debug-bounds;
         toggle-sidebar-expansion => { root.toggle-sidebar-expansion(); }
         mobile-dock-band-state: root.mobile-dock-band-state;

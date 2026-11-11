@@ -1,4 +1,4 @@
-# MusicFrog 工程 TODO · 过去佛（4条待验证；归档见 [TODO.md](../TODO.md) 第一百零八批次）
+# MusicFrog 工程 TODO · 过去佛（5条待验证；归档见 [TODO.md](../TODO.md) 第一百零八批次）
 
 > 层级：L4
 
@@ -145,3 +145,27 @@
 - 统一批次：本文件 §0.1 的 b206 结果已更新；全仓测试/Clippy/fmt 通过，但结构门别名与跨表面产品回执仍未收口，本条保持 `Integrated`。
 
 **证据身份**：Iced nextest 638/638、路由守卫 self-test 8/8 与 enforce 0 findings、源码指纹回归单测 1/1、最终 188 帧发布 run `20261111T101129Z_8e1c2a6d7c71_dirty_3339388`（binary SHA-256 `59f611a2b60c27b96476e6f46e99ceff61891c48ad3804fe96edd636e5af7ea0`，source fingerprint `25d635ddc8fa5d3941d1ad5deb638f8f1583fc36a656893e212030997eb45a72`）、空间违规 0、回执新鲜度违规 0；搜索日志 near-ground 根因复测 run `20261111T094030Z_8e1c2a6d7c71_dirty_3157883`。
+
+## 12.75 回执的页身原点与桌面标题栏挂载（1条待验证）
+
+| ID | 状态 / 优先级 | points | owner | 依赖 |
+| --- | --- | --- | --- | --- |
+| `SPACEUTIL-015` | `Integrated` / P1（b207 实测立项并交付，待统一批次办结） | 3 | infiltrator-contract（`shell_receipt` 的 `shell_top_air_px` / `shell_bottom_air_px` 语义）+ infiltrator-slint（`desktop_window_chrome.rs`、`ui/lumen-app.slint`、`ui/components/app_chrome.slint`、`src/demo.rs`）+ `scripts/parity/space_utilization.py`（planted fixture 与像素腿）+ `scripts/quality/slint-viewport-tier-guard.py` | `SPACEUTIL-007`（回执建盒）、`SPACEUTIL-006`（chrome 与密度分离）、`FLPARITY-018`（CSD 标题栏） |
+
+**`SPACEUTIL-015` 回执必须说「窗边到页身」，桌面标题栏不得由页面密度决定（b207 交付，3 pt / P1 / `Integrated`）**：
+
+① **两条真实缺陷都由像素与回执同时证明**：(a) **坐标原点**——已发布帧 `overview-dark`（1180×780）的页身实际从 y=48 起画（40px 自绘标题栏 + 8u 页身空气），而 `CAPTURE_CHROME` 只发布 `shell_top_air_px=8`，判定器 `content_box()` 因此从 y=8 开始量，把 40 行标题栏像素当成页身内容/页尾空地记账；720×480 rail 帧更报 `shell_top_air_px=0`。根因是 Slint 把**页身组件内部的 padding** 当成**窗口坐标**发布。(b) **挂载条件**——`if !root.android-platform && !root.compact-layout: DesktopTitleBar` 让「页面密度」决定「窗口 chrome」，于是 frameless 桌面在 rail / 折叠态**整条标题栏连同最小化/最大化/关闭控件一起消失**（旧发布帧 `overview-compact-dark` 实测顶部无任何窗控，而 FlClash 真实场景图在收起侧栏时窗控仍在）。
+② **自底向上收口，不在 UI 猜数**：契约 `shell_receipt::ShellChromeFacts` 把两个字段的语义钉成「窗口边缘到页身测量盒的距离（含祖先偏移：标题栏带 / safe area）+ 页身自己的空气」，不再只描述组件 padding；Slint 顶边发布 `AppBody.y + page-content-padding-top`、底边发布 `window.height - AppBody.y - AppBody.height + page-content-padding-bottom`，即**由画出这些像素的外壳实测**，判定器与任何 Python 常量都不再记标题栏高度（既有「判定器记标题栏高度即违规」腿继续为 0）。
+③ **chrome 与密度彻底分离**：新增 `desktop_window_chrome::install()`（宿主唯一写者），一次读 `WindowChrome::FRAMELESS` 同时决定 `set_frameless` 与挂载带 `desktop-title-bar-units`；`.slint` 只消费该带（`if root.desktop-title-bar-units > 0`、页身 `y = safe-top + band`、`height -= band`），**表面不再持有 40px 字面量**；`src/demo.rs` 的第二次 `set_frameless(true)` 同批删除，不留两个窗饰写者。`compact-layout` 从此只回答页面密度。
+④ **实测结果**：标准帧 `shell_top_air_px` 8 → **46**、rail 帧 0 → **38**；rail 帧导航栈底 398 → **436**（整条栈随带下移），带标签帧栈底 486 → **484**、折叠钮带 106 → **104**（与 38px 契约带自洽）。`overview-compact-dark` 真实像素复核：顶部出现 `Lumen` + 速率胶囊 + 搜索 + 三枚窗控，页身仍按紧凑密度排布。判定器 planted fixture 的「published shell really draws」注释此前仍写 8/0/106，本批把它改为实测的 46/38/104 与对应栈底，并让 `_icon_rail` 的种植像素随带下移——**修 fixture 而非放宽断言**。收口期实测仅改 fixture 仍不自证：把带高改回 8/0/106，种植像素与种植回执一起漂移，其余 62 项全绿。据此补第 63 项 planted `test_the_planted_origins_follow_the_contract_band`，从契约源码读条带并断言 rail 顶距==带高、带标签顶距>带高、种植导航墨迹不得落在带内；改回旧原点实测恰好该单项 FAIL（`0 != 38`），`--self-test` **63/63**。
+⑤ **门禁跟上（对 HEAD 真实旧代码验咬）**：`slint-viewport-tier-guard.py` planted 自测 36 → **41/41**，新增「回执漏掉页身窗口原点（顶/底各一条）」「标题栏挂载不再读规划带」「带高被写成表面字面量」「捕获宿主自行装饰窗口」「宿主不再从契约规划 chrome」五腿；把 HEAD 的旧 `.slint` / `demo.rs` 喂给 enforce 腿实测报 **10 条** findings，改后 0 条。
+⑥ **像素身份**：整批 199/199 重采发布 run `20261111T133556Z_14d5cbbf6ef1_dirty_153449`（418s），`space_utilization --surface slint --enforce` **violations=0**（rail 轴 `chrome_band` 0.0% / `void` 6.2%，限 8%），`receipt-freshness 0`；Slint 侧 5 条别名摘要按新字节刷新并逐条实测 摘要==实际字节==canonical，`screenshot-identity` 的 Slint 腿 0 违规（全仓仅剩另一会话的 Bevy `runtime-dark`/`overview-dark` 别名 1 条）。发布后改的仅是纯重构（把 chrome 宿主拆成 `desktop_window_chrome.rs`）与测试/判定器/守卫，两帧复采证明像素逐字节不变，故沿用该满批回执。
+⑦ **定向证据（L）**：`cargo nextest run -p infiltrator-contract -p infiltrator-slint --locked` **982/982**（run `7123c0ed-f3dc-4db2-ba50-01b62d48ad08`，含新用例「planned band == 契约 chrome 高度」）；`cargo clippy -p infiltrator-contract -p infiltrator-slint --all-targets -- -D warnings` 与 `cargo check -p infiltrator-slint --features gpu-skia,capture-tools` exit 0；`cargo fmt --all --check` 0 偏差；`slint-viewport-tier-guard` 41/41 + enforce 0、`slint-syntax-guard` 100% PASS、`slint-dead-input` findings=0 / allowed=8、`slint-mobile-chrome` 0、`line-guard` 0（`lib.rs` 937 行曾超 800 预算，按业务缝拆出 chrome 宿主后归零）、`import-guard` 0、`typed-state` 0、`implicit-state` 23/0/0、`doc-governance OK`、`closure-questions 8/8`、`space_utilization --self-test` 63/63。
+⑧ **待验证范围**：
+- 单元：统一批次复跑 `cargo nextest run --workspace`（含 contract `the_frameless_style_owns_a_real_drag_strip` 新增的 38px 钉值断言）。
+- 守卫：`slint-viewport-tier-guard` 自测/enforce、`screenshot-identity`、`receipt-freshness`、`space_utilization --enforce`（两表面）与全仓结构门。
+- 像素：Slint 199 帧已发布；Iced 侧回执口径未随本批改写（其 `shell_top_air_px` 由 `chrome_strip` 挂载高度给出，本已含条带），统一批次需复跑 `--surface iced --enforce` 确认无回归。
+- 设备：Android 三 flavor 未取本批实机回执——紧凑/触摸外壳不挂桌面标题栏，`desktop-title-bar-units` 恒 0，故 Android 像素不受本批影响，但仍按截图认证硬门要求补证。
+- 统一批次：本文件 §0.1 的 b206 结果不适用本批；全仓 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py` 仍待统一批次，Bevy 并行像素差异按文件所有权单独归属。
+
+**证据身份**：contract+Slint nextest **982/982**（run `7123c0ed-f3dc-4db2-ba50-01b62d48ad08`）、`slint-viewport-tier-guard --self-test` **41/41** 且 enforce findings=0、HEAD 旧源码喂入 enforce 腿实测 **10 findings**、发布批 `20261111T133556Z_14d5cbbf6ef1_dirty_153449`（199/199，418s）`--surface slint --enforce` violations=0 / `receipt-freshness` 0、`space_utilization --self-test` 63/63、诊断复采 run `20261111T143739Z_14d5cbbf6ef1_dirty_489754` 两帧与发布帧 sha256 逐字节相同（`f3e687a9…` / `f894f449…`）。

@@ -88,11 +88,14 @@ pub const CHROME_KEYS: [&str; 12] = [
 /// Every field is consumed by the reader, and every one is a fact this frame
 /// observed rather than a stage: `nav_form` is the typed navigation the shell
 /// mounted, `nav_column_px` is the width that form really reserved (0 for a
-/// bar) and `nav_stack_bottom_px` is where its rows stop, the three paddings
-/// are the page body's own box, `nav_content_offset_px` is the leading inside
-/// the column, `dock_band_px` is the band the bar reserved, and
-/// `scale_percent` says the unit the rest were measured in. Nothing here is
-/// kept "in case" a reader wants it.
+/// bar) and `nav_stack_bottom_px` is where its rows stop. `page_margin_px` is
+/// the page body's horizontal inset. `shell_top_air_px` and
+/// `shell_bottom_air_px` are the distances from the window edges to the
+/// page-body measurement box, including any ancestor offset such as a title
+/// bar or safe area as well as the body's own air. `nav_content_offset_px` is
+/// the leading inside the column, `dock_band_px` is the band the bar reserved,
+/// and `scale_percent` says the unit the rest were measured in. Nothing here
+/// is kept "in case" a reader wants it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct ShellChromeFacts {

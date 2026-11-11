@@ -278,7 +278,6 @@ fn prepare_demo_window(
     settings: &DemoSettings,
     snapshot: &SurfaceSnapshot,
 ) {
-    window.set_frameless(true);
     // A capture run has no pointing device: the nested compositor parks its
     // pointer at the output centre, which would otherwise publish a hovered
     // control that no user ever hovered.

@@ -42,6 +42,19 @@
    shell_receipt_host.rs` 从活的窗口读回），判定器逐帧解析后据此建盒：换皮肤、
    换缩放或改外壳-padding 都不会让测量盒与像素脱钩。帧若没有这行，判定器直接
    报违规而不是用记住的数——回执是判据的来源，不是判据的注释。
+   **b207 追加**：`shell_top_air_px` / `shell_bottom_air_px` 是窗口边缘到页身测量盒的
+   距离，必须包含页身组件自身的窗口坐标与其内部空气，不能只回报组件内部的
+   `padding`。Slint 的顶边按 `AppBody.y + page-content-padding-top` 发布；底边按
+   `window.height - AppBody.y - AppBody.height + page-content-padding-bottom` 发布。
+   自绘标题栏的挂载由 frameless desktop shell 决定，页面 `compact-layout` 只决定
+   内容密度；两者混用会让窄桌面 rail 丢掉窗口控制，同时把标题栏像素误算进页身。
+   条带高度本身同样是**一个契约事实**：`WindowChrome::FRAMELESS.chrome_height_px()`
+   = 38，由桌面宿主 `desktop_window_chrome::install` 一次规划并同时设置窗口装饰与挂载
+   带。Slint 此前自持 40px；b207 删除这份表面副本，让 Slint 与 Iced / Bevy 重新共享
+   契约值，因此标准帧顶距 8 → **46**、rail 帧 0 → **38**，§3.4 的折叠钮带 106 → **104**。
+   复核 pinned FlClash v0.9.3 `lib/common/layout.dart::getWindowHeaderHeight` 又发现
+   Windows/Linux 为 32、macOS 为 28；本仓当前桌面契约 38 与上游仍有差异，须在
+   `FLPARITY-050` 中先修 shared chrome plan，再由 Iced / Bevy / Slint 一次更新双视口回执。
    **b173 追加**：回执行从 9 键扩到 12 键，新增 typed `sidebar_expansion`、
    `touch_surface` 与 `sidebar_toggle_px`。它们不是画面里猜出来的阶段，而是外壳
    从设置 owner 与表面身份读到的决议输入；判定器用前两个从导出表选择唯一合法
@@ -205,7 +218,8 @@ FlClash 桌面参考图：侧栏 5 个目的地行的最大行间死带为 **51p
 `sidebar_toggle_px` 不是记下来的行高：b173 起它由绘制按钮的侧栏自己测量
 `absolute-position.y + height + rail-item-gap`，沿 `AppBody` 上传，b174 起再由独立
 组件 `ShellReceipt` 投影进回执，实测 1180×780 为 **106px**。接线初版在侧栏局部坐标
-里按 token 算出 `18 + 44 + 4 = 66`，漏掉了外壳把侧栏挂在 40px 标题栏之下这一偏移，
+里按 token 算出 `18 + 44 + 4 = 66`，漏掉了外壳把侧栏挂在标题栏带之下这一偏移（当时是
+Slint 自持的 40px，b207 起是契约规划的 38px，实测随之为 **104px**），
 于是按钮字形那一行被当成第一行导航——那是虚假的确定性。判定器只用这个键确定导航
 测量的起点，
 `chrome_band` 的 0% 上限不变，因此按钮带既不会被误算进导航 leading，
@@ -531,9 +545,10 @@ b189 给 Iced 留下 19 帧真实密度缺口（`SPACEUTIL-013`）。b190 一次
    `shell_top_air_px` / `shell_bottom_air_px` 写死 0，判定器于是把外壳自己留的那条
    带当成页尾空地，于是「卡已画到页身最后一像素」的帧仍报 5% 浪费。现在两者都从
    画出这些像素的外壳发布：**顶 = 标题条（`WindowChrome::FRAMELESS.chrome_height_px`
-   = 38，由 `chrome_strip` 自己的挂载规则给出，未挂载即 0）+ 页边距**，
-   **底 = 页边距**。（Slint 的标题条是覆盖层，故它只发布 8/72；Iced 的标题条是真实
-   行，故顶距含条高。两边发布的是同一件事——页身到窗边的距离。）
+   = 38，由桌面 chrome plan 给出，未挂载即 0）+ 页边距**，
+   **底 = 页边距**。b207 复核推翻了此处旧注：Slint 的标题条同样是真实行，不是覆盖层；
+   它此前只发布 8/72 是把页身局部 padding 冒充了窗边距离。现在两表面都按同一口径
+   发布「页身到窗边的距离」，条带与页身内部空气全部计入顶距。
 3. **浅色页身底色（求同本仓自己的阶梯）**：契约 `skin_core(Light).canvas` 曾是
    `#F8F9FA`，与白卡只差 **2.1 个 L\***，读者与判定器都看不见卡——同一帧在暗色量得
    0.0%、在浅色量得 13%。台阶本来是「白卡压在暖灰地面上」（Slint `zinc-0` 浅色

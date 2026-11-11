@@ -286,6 +286,7 @@ mod tests {
     #[test]
     fn the_frameless_style_owns_a_real_drag_strip() {
         let chrome = WindowChrome::FRAMELESS;
+        assert_eq!(CHROME_DRAG_STRIP_HEIGHT_PX, 38);
         assert!(!chrome.os_decorations());
         assert!(chrome.needs_custom_controls());
         assert_eq!(chrome.chrome_height_px(), CHROME_DRAG_STRIP_HEIGHT_PX);
