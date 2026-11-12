@@ -259,6 +259,7 @@ fn default_settings_snapshot() -> SettingsPageSnapshot {
         custom_accent_color: None,
         tray_icon_color_mode: TrayIconColorMode::default(),
         sidebar_expansion: Default::default(),
+        connection_view: Default::default(),
     }
 }
 

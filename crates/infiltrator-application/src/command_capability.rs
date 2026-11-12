@@ -169,6 +169,7 @@ pub fn terminal_scope_policy(intent: &CommandIntent) -> CoreTerminalScopePolicy 
         | CommandIntent::ResolveCertificateAuthority { .. }
         | CommandIntent::SetLanguage { .. }
         | CommandIntent::ApplySidebarExpansion { .. }
+        | CommandIntent::ApplyConnectionViewPreference { .. }
         | CommandIntent::UpdateSetting { .. }
         | CommandIntent::UpdatePalettePreferenceDraft { .. }
         | CommandIntent::SavePalettePreference { .. }
@@ -487,6 +488,7 @@ pub fn classify_command(intent: &CommandIntent) -> CommandCapabilityRoute {
         | CommandIntent::ImportCustomNodeUri { .. }
         | CommandIntent::UpdateCustomNodeDraftField { .. }
         | CommandIntent::ApplySidebarExpansion { .. }
+        | CommandIntent::ApplyConnectionViewPreference { .. }
         | CommandIntent::UpdatePalettePreferenceDraft { .. }
         | CommandIntent::SavePalettePreference { .. }
         | CommandIntent::CancelPalettePreferenceDraft => LocalOnly,

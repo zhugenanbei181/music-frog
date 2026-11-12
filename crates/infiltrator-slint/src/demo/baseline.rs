@@ -6,8 +6,8 @@
 
 use super::fixtures;
 use super::outbound;
+use super::public_ip_probe::PublicIpProbeOwner;
 use infiltrator_contract::active_exit::ActiveExitSnapshot;
-use infiltrator_contract::public_ip::PublicIpProbeSnapshot;
 use infiltrator_contract::resources::{CoreGcStatus, CoreResourceSnapshot, ResourceAvailability};
 use infiltrator_contract::shell_readout::{ShellObservation, ShellProfile};
 use infiltrator_contract::snapshot::CoreSessionObservation;
@@ -177,7 +177,10 @@ pub(super) fn apply_theme_readback(snapshot: &mut SurfaceSnapshot, theme_str: &s
 }
 
 /// Publishes the shared workbench read models the capture's panels render.
-pub(super) fn apply_workbench_read_models(snapshot: &mut SurfaceSnapshot) {
+pub(super) fn apply_workbench_read_models(
+    snapshot: &mut SurfaceSnapshot,
+    public_ip_probe: &PublicIpProbeOwner,
+) {
     // The workbench panels of the capture read the shared read models of the
     // businesses they carry, so a receipt shows the interaction and never an
     // empty panel.
@@ -185,7 +188,7 @@ pub(super) fn apply_workbench_read_models(snapshot: &mut SurfaceSnapshot) {
     snapshot.dns_cache = fixtures::dns_cache_snapshot();
     snapshot.dns_query = fixtures::dns_query_snapshot();
     snapshot.dns_hosts = PageData::ready(fixtures::dns_hosts_profile());
-    snapshot.public_ip = PublicIpProbeSnapshot::demo_fixture();
+    snapshot.public_ip = public_ip_probe.peek_snapshot();
     snapshot.pages.doctor = PageData::ready(fixtures::doctor_page());
     snapshot.pages.sync = PageData::ready(fixtures::sync_page());
     snapshot.pages.app_routing = PageData::ready(fixtures::app_routing_page());

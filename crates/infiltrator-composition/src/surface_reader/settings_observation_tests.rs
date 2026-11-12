@@ -2,6 +2,9 @@
 use super::{build_settings_page, build_sync_page};
 use infiltrator_application::runtime_configuration_application::RuntimeConfigurationReadout;
 use infiltrator_application::runtime_control_projection::RuntimeControlApplication;
+use infiltrator_contract::connection_view_preference::{
+    ConnectionViewMode, ConnectionViewPreference,
+};
 use infiltrator_contract::shell_sidebar_preference::SidebarExpansionPreference;
 use infiltrator_contract::sync::SyncStatus;
 use infiltrator_domain::settings::AppSettings;
@@ -96,6 +99,11 @@ fn preference_flags_are_observed_false_values_and_failed_reads_cannot_invent_ena
         close_to_tray: false,
         notifications_enabled: false,
         sidebar_expansion: SidebarExpansionPreference::Collapsed,
+        connection_view: ConnectionViewPreference::from_wire(
+            "table",
+            &["host", "process", "uploadSpeed"],
+        )
+        .expect("valid connection view preference"),
         ..AppSettings::default()
     });
     let page = build_settings_page(
@@ -110,6 +118,11 @@ fn preference_flags_are_observed_false_values_and_failed_reads_cannot_invent_ena
     assert_eq!(
         facts.sidebar_expansion,
         SidebarExpansionPreference::Collapsed
+    );
+    assert_eq!(facts.connection_view.mode, ConnectionViewMode::Table);
+    assert_eq!(
+        facts.connection_view.visible_columns.wire_ids(),
+        ["host", "process", "uploadSpeed"]
     );
     let failed = Err(Failure::new(ErrorCode::Storage, "preferences denied", true));
     let page = build_settings_page(

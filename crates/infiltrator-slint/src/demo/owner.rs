@@ -8,6 +8,7 @@
 //! changed.
 
 use super::fixtures;
+use super::public_ip_probe::{PublicIpProbeOwner, failure_reason};
 use crate::{CommandIntent, CommandOutput, SlintAction};
 use infiltrator_contract::script_export_review::{ScriptExportIdentity, ScriptExportReview};
 use infiltrator_contract::snapshot_restore::{SnapshotRestoreIdentity, SnapshotRestoreReview};
@@ -27,12 +28,13 @@ use lurker_core_contract::profile_document_identity::{
 /// Answers one owner action the way the capture's business needs it.
 pub fn respond(
     snapshot: &mut SurfaceSnapshot,
+    public_ip_probe: &mut PublicIpProbeOwner,
     action: SlintAction,
 ) -> Result<CommandOutput, Failure> {
     match action {
-        SlintAction::Command(intent) => respond_to_intent(snapshot, &intent),
+        SlintAction::Command(intent) => respond_to_intent(snapshot, public_ip_probe, &intent),
         SlintAction::Sequence(intents) => match intents.first() {
-            Some(intent) => Err(refusal(intent)),
+            Some(intent) => Err(refusal(snapshot, intent)),
             None => Ok(CommandOutput::Unit),
         },
         _ => Ok(CommandOutput::Unit),
@@ -48,9 +50,22 @@ pub fn respond(
 /// never a route change.
 fn respond_to_intent(
     snapshot: &mut SurfaceSnapshot,
+    public_ip_probe: &mut PublicIpProbeOwner,
     intent: &CommandIntent,
 ) -> Result<CommandOutput, Failure> {
     match intent {
+        CommandIntent::RefreshPublicIpProbe => {
+            let language = snapshot
+                .language_settings
+                .preference
+                .map(|preference| preference.as_setting().to_owned())
+                .unwrap_or_else(|| "zh-CN".to_owned());
+            public_ip_probe
+                .begin_refresh(&language)
+                .map_err(|error| Failure::new(ErrorCode::InvalidState, error.to_string(), true))?;
+            snapshot.public_ip = public_ip_probe.peek_snapshot();
+            Ok(CommandOutput::Unit)
+        }
         CommandIntent::MoveOverviewCard { kind, direction } => {
             let mut layout = snapshot.overview_layout.clone();
             layout.move_card(*kind, *direction);
@@ -76,7 +91,7 @@ fn respond_to_intent(
                     apply_search_query(snapshot, query)?;
                     Ok(CommandOutput::Unit)
                 }
-                _ => Err(refusal(intent)),
+                _ => Err(refusal(snapshot, intent)),
             }
         }
         CommandIntent::LoadSnapshotDiff { .. } => {
@@ -130,7 +145,7 @@ fn respond_to_intent(
             };
             Ok(CommandOutput::SnapshotRestorePrepared(Box::new(review)))
         }
-        _ => Err(refusal(intent)),
+        _ => Err(refusal(snapshot, intent)),
     }
 }
 
@@ -162,8 +177,8 @@ fn apply_search_query(snapshot: &mut SurfaceSnapshot, query: &str) -> Result<(),
 /// The typed refusal the demo owner answers a business command with.
 ///
 /// The message names the business that refused, so the receipt shows which
-/// command ran.
-fn refusal(intent: &CommandIntent) -> Failure {
+/// command ran. The probe's reason follows the owner's published language.
+fn refusal(snapshot: &SurfaceSnapshot, intent: &CommandIntent) -> Failure {
     let message = match intent {
         CommandIntent::TestDnsLeak => "DNS 泄漏探测无法连接到已配置的解析服务器",
         CommandIntent::QueryDns { .. } => "上游解析服务器拒绝了 DNS 查询",
@@ -188,7 +203,14 @@ fn refusal(intent: &CommandIntent) -> Failure {
         CommandIntent::CloseAllConnections => "核心拒绝中断所有活动连接",
         CommandIntent::CloseConnection { .. } => "核心拒绝中断该活动连接",
         CommandIntent::PrepareLogExport => "无法生成日志导出工件",
-        CommandIntent::RefreshPublicIpProbe => "公网 IP探测未能连通目标服务",
+        CommandIntent::RefreshPublicIpProbe => {
+            let language = snapshot
+                .language_settings
+                .preference
+                .map(|preference| preference.as_setting())
+                .unwrap_or("zh-CN");
+            return Failure::new(ErrorCode::Internal, failure_reason(language), true);
+        }
         CommandIntent::StartSpeedtest { .. } => "测速任务无法连接到测速目标",
         CommandIntent::SetRuntimeProbeSettings { .. } => "无法将探测配置写入核心",
         CommandIntent::ApplyOutboundUiPreference { .. } => "无法应用节点显示偏好设置",

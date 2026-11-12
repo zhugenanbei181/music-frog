@@ -5,17 +5,19 @@
 //! and writes the `CAPTURE_READY` marker for background virtual compositor screenshots.
 
 mod baseline;
-mod capture_marker;
+pub mod capture_marker;
 mod fixtures;
 mod outbound;
 mod owner;
 mod pages;
+mod public_ip_probe;
 
 use super::*;
 use crate::capture_scenario::{self, CaptureBounds};
 use crate::demo::capture_marker::write_capture_marker;
 use crate::mascot_driver::publish_receipt_frame;
 use infiltrator_contract::language::LanguagePreference;
+use infiltrator_contract::public_ip_probe::PublicIpProbeState;
 use infiltrator_contract::shell_sidebar_preference::SidebarExpansionPreference;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
@@ -200,30 +202,41 @@ impl DemoSettings {
 
 pub struct DemoProductHost {
     snapshot: Mutex<SurfaceSnapshot>,
+    public_ip_probe: Mutex<public_ip_probe::PublicIpProbeOwner>,
 }
 
 impl DemoProductHost {
     pub fn new(settings: &DemoSettings) -> Self {
-        let snapshot = build_demo_snapshot(settings);
+        let public_ip_probe = public_ip_probe::PublicIpProbeOwner::default();
+        let snapshot = build_demo_snapshot(settings, &public_ip_probe);
         Self {
             snapshot: Mutex::new(snapshot),
+            public_ip_probe: Mutex::new(public_ip_probe),
         }
+    }
+
+    pub fn public_ip_probe_state(&self) -> Result<PublicIpProbeState, Failure> {
+        Ok(self
+            .public_ip_probe
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .state()
+            .clone())
     }
 }
 
 impl SlintProductHost for DemoProductHost {
     fn read_snapshot(&self) -> Result<SurfaceSnapshot, Failure> {
-        Ok(self
+        let mut guard = self
             .snapshot
             .lock()
-            .map(|guard| guard.clone())
-            .unwrap_or_else(|_| {
-                SurfaceSnapshot::unavailable(
-                    SurfaceKind::SlintDesktop,
-                    HostKind::Desktop,
-                    Failure::unsupported("the demo snapshot is poisoned"),
-                )
-            }))
+            .map_err(|_| Failure::unsupported("the demo snapshot is poisoned"))?;
+        let mut probe = self
+            .public_ip_probe
+            .lock()
+            .map_err(|_| Failure::unsupported("the demo public IP probe is poisoned"))?;
+        guard.public_ip = probe.snapshot();
+        Ok(guard.clone())
     }
 
     fn execute(
@@ -243,7 +256,11 @@ impl SlintProductHost for DemoProductHost {
             .snapshot
             .lock()
             .map_err(|_| Failure::unsupported("the demo snapshot is poisoned"))?;
-        owner::respond(&mut guard, action)
+        let mut probe = self
+            .public_ip_probe
+            .lock()
+            .map_err(|_| Failure::unsupported("the demo public IP probe is poisoned"))?;
+        owner::respond(&mut guard, &mut probe, action)
     }
 
     fn autostart_enabled(&self) -> Option<bool> {
@@ -251,7 +268,10 @@ impl SlintProductHost for DemoProductHost {
     }
 }
 
-fn build_demo_snapshot(settings: &DemoSettings) -> SurfaceSnapshot {
+fn build_demo_snapshot(
+    settings: &DemoSettings,
+    public_ip_probe: &public_ip_probe::PublicIpProbeOwner,
+) -> SurfaceSnapshot {
     let mut snapshot = SurfaceSnapshot::unavailable(
         SurfaceKind::SlintDesktop,
         HostKind::Desktop,
@@ -269,7 +289,7 @@ fn build_demo_snapshot(settings: &DemoSettings) -> SurfaceSnapshot {
     ));
     snapshot.language_settings.preference = Some(settings.language);
     snapshot.pages.profiles = PageData::ready(pages::profiles_page());
-    baseline::apply_workbench_read_models(&mut snapshot);
+    baseline::apply_workbench_read_models(&mut snapshot, public_ip_probe);
     snapshot.pages.connections = PageData::ready(pages::connections_page());
     snapshot.pages.rules = PageData::ready(pages::rules_page());
     snapshot.pages.logs = PageData::ready(pages::logs_page());

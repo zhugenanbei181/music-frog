@@ -4,6 +4,7 @@
 //! TOML/filesystem persistence and keyring hydration live in
 //! `infiltrator-core::settings_io`.
 
+use infiltrator_contract::connection_view_preference::ConnectionViewPreference;
 use infiltrator_contract::mini_hud::MiniHudPlacement;
 use infiltrator_contract::runtime_settings::{RuntimeDelaySortOrder, RuntimeProbeSettings};
 use infiltrator_contract::shell_sidebar_preference::SidebarExpansionPreference;
@@ -126,6 +127,10 @@ pub struct AppSettings {
     /// whether the preference can be honoured; this field only stores it.
     #[serde(default)]
     pub sidebar_expansion: SidebarExpansionPreference,
+    /// User-owned Connections view mode and ordered visible columns. A surface
+    /// reads and mutates this only through the typed intent owner.
+    #[serde(default)]
+    pub connection_view: ConnectionViewPreference,
 }
 
 fn default_notifications_enabled() -> bool {
@@ -165,6 +170,7 @@ impl Default for AppSettings {
             custom_accent_color: None,
             tray_icon_color_mode: default_tray_icon_color_mode(),
             sidebar_expansion: SidebarExpansionPreference::default(),
+            connection_view: ConnectionViewPreference::default(),
         }
     }
 }
@@ -197,6 +203,51 @@ mod tests {
             settings.runtime_panel.probe_settings,
             RuntimeProbeSettings::default()
         );
+        assert_eq!(
+            settings.connection_view,
+            ConnectionViewPreference::default()
+        );
+        assert_eq!(settings.connection_view.mode, Default::default());
+        assert_eq!(
+            settings.connection_view.visible_columns.wire_ids(),
+            ConnectionViewPreference::default()
+                .visible_columns
+                .wire_ids()
+        );
+    }
+
+    #[test]
+    fn old_toml_without_connection_view_defaults_to_one_typed_preference() {
+        let settings: AppSettings = toml::from_str(
+            r#"
+                settings_schema_version = 2
+                language = "zh-CN"
+                theme = "system"
+                sidebar_expansion = "expanded"
+            "#,
+        )
+        .expect("old settings document still deserializes");
+        assert_eq!(
+            settings.connection_view,
+            ConnectionViewPreference::default()
+        );
+    }
+
+    #[test]
+    fn connection_view_round_trips_through_toml_as_one_nested_preference() {
+        let settings = AppSettings {
+            connection_view: ConnectionViewPreference::from_wire(
+                "table",
+                &["host", "process", "uploadSpeed"],
+            )
+            .expect("valid connection view preference"),
+            ..AppSettings::default()
+        };
+        let encoded = toml::to_string(&settings).expect("settings serialize");
+        assert!(encoded.contains("[connection_view]"));
+        assert!(encoded.contains("mode = \"table\""));
+        let decoded: AppSettings = toml::from_str(&encoded).expect("settings deserialize");
+        assert_eq!(decoded.connection_view, settings.connection_view);
     }
 
     #[test]

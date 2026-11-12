@@ -7,6 +7,9 @@
 
 use super::*;
 use async_trait::async_trait;
+use infiltrator_contract::connection_view_preference::{
+    ConnectionColumn, ConnectionViewIntent, ConnectionViewMode, ConnectionViewPreference,
+};
 use infiltrator_contract::language::LanguagePreference;
 use infiltrator_contract::mini_hud::MiniHudPlacement;
 use infiltrator_contract::runtime_settings::RuntimeProbeSettings;
@@ -422,5 +425,162 @@ async fn sidebar_expansion_intents_persist_one_typed_preference() {
     assert_eq!(
         store.settings.lock().expect("lock").sidebar_expansion,
         SidebarExpansionPreference::Expanded
+    );
+}
+
+#[tokio::test]
+async fn connection_view_defaults_to_one_persisted_typed_preference() {
+    let (_application, store) = settings_application();
+
+    assert_eq!(
+        store.settings.lock().expect("lock").connection_view,
+        ConnectionViewPreference::default()
+    );
+    assert_eq!(
+        store.settings.lock().expect("lock").connection_view.mode,
+        ConnectionViewMode::List
+    );
+    assert_eq!(
+        store
+            .settings
+            .lock()
+            .expect("lock")
+            .connection_view
+            .visible_columns
+            .wire_ids(),
+        ConnectionViewPreference::default()
+            .visible_columns
+            .wire_ids()
+    );
+}
+
+#[tokio::test]
+async fn connection_view_intents_write_the_exact_typed_preference_to_the_store() {
+    let (application, store) = settings_application();
+
+    application
+        .execute(CommandIntent::ApplyConnectionViewPreference {
+            intent: ConnectionViewIntent::SetViewMode {
+                mode: ConnectionViewMode::Table,
+            },
+        })
+        .await
+        .expect("typed view mode applies");
+    let after_mode = store.settings.lock().expect("lock").connection_view.clone();
+    assert_eq!(after_mode.mode, ConnectionViewMode::Table);
+    assert_eq!(
+        after_mode.visible_columns.wire_ids(),
+        ConnectionViewPreference::default()
+            .visible_columns
+            .wire_ids()
+    );
+
+    application
+        .execute(CommandIntent::ApplyConnectionViewPreference {
+            intent: ConnectionViewIntent::ToggleColumn {
+                column: ConnectionColumn::Status,
+            },
+        })
+        .await
+        .expect("typed visible-column toggle applies");
+    let after_toggle = store.settings.lock().expect("lock").connection_view.clone();
+    assert_eq!(after_toggle.mode, ConnectionViewMode::Table);
+    assert!(
+        !after_toggle
+            .visible_columns
+            .contains(ConnectionColumn::Status)
+    );
+    assert_eq!(
+        after_toggle.visible_columns.wire_ids(),
+        [
+            "establishTime",
+            "type",
+            "host",
+            "process",
+            "rule",
+            "proxyChain",
+            "remoteDestination",
+            "uploadSpeed",
+            "downloadSpeed",
+            "upload",
+            "download",
+        ]
+    );
+
+    application
+        .execute(CommandIntent::ApplyConnectionViewPreference {
+            intent: ConnectionViewIntent::ResetColumns,
+        })
+        .await
+        .expect("typed column reset applies");
+    let after_reset = store.settings.lock().expect("lock").connection_view.clone();
+    assert_eq!(after_reset.mode, ConnectionViewMode::Table);
+    assert_eq!(
+        after_reset.visible_columns.wire_ids(),
+        ConnectionViewPreference::default()
+            .visible_columns
+            .wire_ids()
+    );
+}
+
+#[tokio::test]
+async fn connection_view_readback_equals_the_persisted_store_value() {
+    let (application, store) = settings_application();
+
+    application
+        .execute(CommandIntent::ApplyConnectionViewPreference {
+            intent: ConnectionViewIntent::SetViewMode {
+                mode: ConnectionViewMode::Table,
+            },
+        })
+        .await
+        .expect("typed view mode applies");
+    application
+        .execute(CommandIntent::ApplyConnectionViewPreference {
+            intent: ConnectionViewIntent::ToggleColumn {
+                column: ConnectionColumn::DnsMode,
+            },
+        })
+        .await
+        .expect("typed visible-column addition applies");
+
+    let stored = store.settings.lock().expect("lock").connection_view.clone();
+    let readback = application
+        .settings()
+        .expect("settings application is composed")
+        .load()
+        .await
+        .expect("settings store readback")
+        .connection_view;
+    assert_eq!(readback, stored);
+    assert_eq!(readback.mode, ConnectionViewMode::Table);
+    assert_eq!(
+        readback.visible_columns.wire_ids().last().copied(),
+        Some("dnsMode")
+    );
+}
+
+#[tokio::test]
+async fn removing_the_last_connection_view_column_fails_without_changing_the_store() {
+    let (application, store) = settings_application();
+    let single_column =
+        ConnectionViewPreference::from_wire("table", &["host"]).expect("single column is valid");
+    *store.settings.lock().expect("lock") = AppSettings {
+        connection_view: single_column.clone(),
+        ..AppSettings::default()
+    };
+
+    let failure = application
+        .execute(CommandIntent::ApplyConnectionViewPreference {
+            intent: ConnectionViewIntent::ToggleColumn {
+                column: ConnectionColumn::Host,
+            },
+        })
+        .await
+        .expect_err("removing the last visible column is rejected");
+    assert_eq!(failure.code, ErrorCode::InvalidInput);
+    assert_eq!(
+        store.settings.lock().expect("lock").connection_view,
+        single_column
     );
 }

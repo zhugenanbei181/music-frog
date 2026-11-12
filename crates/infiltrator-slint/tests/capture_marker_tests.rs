@@ -14,7 +14,8 @@
 use infiltrator_contract::language::LanguagePreference;
 use infiltrator_contract::shell_sidebar_preference::SidebarExpansionPreference;
 use infiltrator_slint::capture_scenario::CaptureBounds;
-use infiltrator_slint::demo::{DemoSettings, write_capture_marker};
+use infiltrator_slint::demo::DemoSettings;
+use infiltrator_slint::demo::capture_marker::write_capture_marker;
 use std::fs;
 use std::path::PathBuf;
 

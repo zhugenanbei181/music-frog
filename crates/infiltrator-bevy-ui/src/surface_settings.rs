@@ -72,6 +72,7 @@ impl From<SettingsProjection> for surface_snapshot::SettingsPageSnapshot {
             custom_accent_color: None,
             tray_icon_color_mode: value.tray_icon_color_mode,
             sidebar_expansion: Default::default(),
+            connection_view: Default::default(),
         }
     }
 }

@@ -212,6 +212,7 @@ pub mod yaml_snippets;
 mod tests {
     use super::capability::{Availability, CapabilityReason, CapabilitySnapshot, CapabilityStatus};
     use super::command::{CommandIntent, CommandKind, CoreLogLevel};
+    use super::connection_view_preference::{ConnectionViewIntent, ConnectionViewMode};
     use super::ipv6::Ipv6RoutingSnapshot;
     use super::lan::LanCredentials;
     use super::shell_sidebar_preference::SidebarExpansionIntent;
@@ -238,6 +239,15 @@ mod tests {
         assert_eq!(
             CommandIntent::ApplySidebarExpansion {
                 intent: SidebarExpansionIntent::Toggle
+            }
+            .kind(),
+            CommandKind::Update
+        );
+        assert_eq!(
+            CommandIntent::ApplyConnectionViewPreference {
+                intent: ConnectionViewIntent::SetViewMode {
+                    mode: ConnectionViewMode::Table
+                }
             }
             .kind(),
             CommandKind::Update

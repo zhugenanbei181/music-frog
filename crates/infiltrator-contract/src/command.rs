@@ -1,6 +1,7 @@
 use crate::aggregator::AggregationDraft;
 use crate::app_routing::{AppRoutingMode, AppRoutingPackageSelection, AppRoutingRule};
 use crate::command_output::CommandOutput;
+use crate::connection_view_preference::ConnectionViewIntent;
 use crate::dns::DnsSettingsPatch;
 use crate::dns_cache::DnsCacheOperationId;
 use crate::dns_query::{DnsQueryOperationId, DnsQueryRequest};
@@ -547,6 +548,9 @@ pub enum CommandIntent {
     ApplySidebarExpansion {
         intent: SidebarExpansionIntent,
     },
+    ApplyConnectionViewPreference {
+        intent: ConnectionViewIntent,
+    },
     UpdateSetting {
         key: String,
         value: String,
@@ -726,6 +730,7 @@ impl CommandIntent {
             Self::LoadProfileOptions { .. } | Self::SaveMixinOverlay { .. } => CommandKind::Profile,
             Self::RollbackCore
             | Self::ApplySidebarExpansion { .. }
+            | Self::ApplyConnectionViewPreference { .. }
             | Self::SetLanguage { .. }
             | Self::UpdateSetting { .. }
             | Self::UpdatePalettePreferenceDraft { .. }

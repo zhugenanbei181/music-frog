@@ -52,6 +52,7 @@ pub(super) fn settings_page(
         custom_accent_color: None,
         tray_icon_color_mode: TrayIconColorMode::default(),
         sidebar_expansion,
+        connection_view: Default::default(),
     }
 }
 

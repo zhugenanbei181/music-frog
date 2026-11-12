@@ -57,6 +57,10 @@ use crate::version_application::VersionApplication;
 use crate::vpn_application::VpnServiceApplication;
 use infiltrator_contract::capability::Availability;
 use infiltrator_contract::command::CommandIntent;
+use infiltrator_contract::connection_view_preference::{
+    ConnectionColumnSet, ConnectionViewIntent, ConnectionViewPreferenceError,
+    apply_connection_view_intent,
+};
 use infiltrator_contract::language::LanguagePreference;
 use infiltrator_contract::mtu::MtuProbeState;
 use infiltrator_contract::shell_sidebar_preference::{
@@ -525,6 +529,23 @@ impl CommandApplication {
             .await
     }
 
+    /// Apply one typed Connections view intent against the persisted owner.
+    ///
+    /// The contract validates the intent against the complete ordered column
+    /// registry. A rejected intent never falls back to a default and never
+    /// writes a partial preference.
+    async fn apply_connection_view_preference(
+        &self,
+        intent: ConnectionViewIntent,
+    ) -> Result<(), Failure> {
+        let current = self.settings()?.load().await?.connection_view;
+        let next = apply_connection_view_intent(&current, &ConnectionColumnSet::all(), intent)
+            .map_err(connection_view_failure)?;
+        self.settings()?
+            .update(|settings| settings.connection_view = next)
+            .await
+    }
+
     fn shortcuts(&self) -> Result<ShortcutApplication, Failure> {
         Ok(ShortcutApplication::new(self.settings()?))
     }
@@ -757,6 +778,10 @@ fn missing(capability: &str) -> Failure {
         format!("{capability} is not configured for this host"),
         false,
     )
+}
+
+fn connection_view_failure(error: ConnectionViewPreferenceError) -> Failure {
+    Failure::new(ErrorCode::InvalidInput, error.to_string(), false)
 }
 
 fn unsupported() -> Failure {

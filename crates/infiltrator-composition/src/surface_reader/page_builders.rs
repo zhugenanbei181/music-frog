@@ -238,5 +238,6 @@ pub(super) fn build_settings_page(
             TrayIconColorMode::Colored
         },
         sidebar_expansion: settings.sidebar_expansion,
+        connection_view: settings.connection_view.clone(),
     })
 }

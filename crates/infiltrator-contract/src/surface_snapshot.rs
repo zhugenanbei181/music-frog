@@ -13,6 +13,7 @@ use crate::backup_restore::BackupRestoreSnapshot;
 use crate::capability::CapabilitySnapshot;
 use crate::command_catalogue::ShellPage;
 use crate::connection::ConnectionRateObservation;
+use crate::connection_view_preference::ConnectionViewPreference;
 use crate::controller::ControllerAuthSnapshot;
 use crate::core_capabilities::CoreCapabilitySnapshot;
 use crate::dns::{
@@ -581,6 +582,10 @@ pub struct SettingsPageSnapshot {
     /// this against the viewport capability; it is never a local UI boolean.
     #[serde(default)]
     pub sidebar_expansion: SidebarExpansionPreference,
+    /// User-owned Connections view preference. Surfaces consume exactly this
+    /// persisted readback and never keep a second mode/column truth.
+    #[serde(default)]
+    pub connection_view: ConnectionViewPreference,
 }
 
 fn default_language_code() -> String {

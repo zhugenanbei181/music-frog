@@ -489,6 +489,9 @@ impl CommandApplication {
             CommandIntent::ApplySidebarExpansion { intent } => {
                 self.apply_sidebar_expansion(intent).await
             }
+            CommandIntent::ApplyConnectionViewPreference { intent } => {
+                self.apply_connection_view_preference(intent).await
+            }
             CommandIntent::UpdateSetting { key, value } => self.update_setting(&key, &value).await,
             CommandIntent::SetRoutingIntent { .. } | CommandIntent::GetRoutingIntent => Err(
                 Failure::unsupported("routing intent requires its validated Core scope route"),
