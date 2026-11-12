@@ -46,7 +46,10 @@ impl AppState {
         self.runtime.runtime_auto_refresh = settings.runtime_panel.auto_refresh;
         self.runtime.core_channel = normalized_release_channel(&settings.core_channel);
         self.runtime.runtime_panel_delay_sort_order = settings.runtime_panel.delay_sort_order;
-        self.runtime.runtime_connection_filter = settings.runtime_panel.connection_filter;
+        self.runtime.connection_query = settings.runtime_panel.connection_filter;
+        self.diag
+            .connections_model
+            .edit_query(&self.runtime.connection_query);
         // The persisted sort is the shared typed key's identifier; the page
         // model owns the selection itself.
         self.diag

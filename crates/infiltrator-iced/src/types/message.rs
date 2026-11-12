@@ -9,6 +9,7 @@ use super::runtime::{IpProbeResult, RuntimeStreamKind, RuntimeStreamState};
 use crate::admin_server::AdminHostCommand;
 use crate::sidebar_chrome::SidebarChromeReceipt;
 use crate::state::core_operations::{CoreDownloadRunId, CoreUpdateCheckId};
+use crate::state::runtime::ConnectionTab;
 use crate::types::{
     app::SnapshotDiffMode,
     dns_query::QueryAction,
@@ -226,6 +227,8 @@ pub enum Message {
     UpdateRuntimeSelectedGroup(String),
     ApplyRuntimeSelectedProxy,
     UpdateRuntimeConnectionFilter(String),
+    SetConnectionTab(ConnectionTab),
+    ClearClosedConnections,
     /// Reorder the connections page. The payload is the shared typed sort
     /// key, so a surface can never carry a sort the shared model does not
     /// know.

@@ -55,7 +55,7 @@ fn native_connection_search_preserves_original_runs_metadata_empty_and_clear_thr
     for message in messages {
         let _ = state.update(message);
     }
-    assert_eq!(state.runtime.runtime_connection_filter, "");
+    assert_eq!(state.runtime.connection_query, "");
     assert_eq!(state.diag.connections_model.matched_count(), 9);
 }
 
@@ -78,7 +78,7 @@ fn native_connection_search_refresh_and_core_stop_retire_observations_without_lo
         (1, 1)
     );
     let _ = state.update(Message::CoreStopped);
-    assert_eq!(state.runtime.runtime_connection_filter, "API-0");
+    assert_eq!(state.runtime.connection_query, "API-0");
     assert!(!state.diag.connections_model.source_current());
     assert!(!state.diag.connections_model.summary_empty());
     assert_eq!(state.diag.connections_model.source_count(), 0);

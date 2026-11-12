@@ -240,7 +240,7 @@ pub(crate) fn ready(state: &AppState, feature: FeatureId) -> bool {
         }
         FeatureId::ConnectionsSearchHighlight => {
             state.diag.connections_model.mode().is_flat()
-                && state.runtime.runtime_connection_filter == "API-0"
+                && state.runtime.connection_query == "API-0"
                 && state.diag.connections_model.matched_count() == 2
                 && state.diag.connections_model.source_count() == 9
                 && state
@@ -256,7 +256,7 @@ pub(crate) fn ready(state: &AppState, feature: FeatureId) -> bool {
         FeatureId::ConnectionsGrouping => {
             let groups = &state.diag.connections_model;
             groups.mode() == ConnectionGroupingMode::ByProcess
-                && state.runtime.runtime_connection_filter == "CLIENT-0"
+                && state.runtime.connection_query == "CLIENT-0"
                 && groups.rows().len() == 1
                 && groups.rows()[0].key == "client-0"
                 && groups.rows()[0].count == 2

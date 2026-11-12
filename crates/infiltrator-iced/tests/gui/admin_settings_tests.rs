@@ -134,7 +134,7 @@ fn test_settings_loaded_applies_runtime_panel_state() {
         "https://example.com/generate_204"
     );
     assert_eq!(state.runtime.runtime_probe_timeout_draft, "1200");
-    assert_eq!(state.runtime.runtime_connection_filter, "api");
+    assert_eq!(state.runtime.connection_query, "api");
     assert_eq!(
         state.diag.connections_model.sort_key(),
         ConnectionSortKey::HostAsc

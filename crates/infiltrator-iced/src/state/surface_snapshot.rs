@@ -280,6 +280,15 @@ impl AppState {
         self.runtime.core_session_token = snapshot.core.session_token;
         self.runtime.core_versions = snapshot.versions.clone();
         self.runtime.core_integrity = snapshot.versions.verification.clone();
+        self.diag
+            .closed_connections_model
+            .edit_query(&self.runtime.connection_query);
+        self.diag
+            .closed_connections_model
+            .select_sort(self.diag.connections_model.sort_key());
+        self.diag
+            .closed_connections_model
+            .observe(&snapshot.closed_connections.records);
         // The settings page facts are owned by the shared settings page
         // model: the owner's readbacks become the committed baselines of the
         // drafts. The LAN sharing readback is published whole or not at all,

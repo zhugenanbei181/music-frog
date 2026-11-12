@@ -65,6 +65,13 @@ use std::time::Instant;
 use zhuge_ui_core::text::SearchTextRun;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ConnectionTab {
+    #[default]
+    Active,
+    Closed,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum TunServiceInstallState {
     #[default]
     Idle,
@@ -356,7 +363,10 @@ pub struct RuntimeState {
     pub runtime_selected_group: String,
     pub runtime_selected_proxy: String,
     pub runtime_outbound_selection: Option<(CoreScope, OutboundSelectionRequest)>,
-    pub runtime_connection_filter: String,
+    /// The typed active/closed destination of the connections page.
+    pub connection_tab: ConnectionTab,
+    /// The user's search text, independent of the selected destination.
+    pub connection_query: String,
     pub runtime_prev_upload_total: Option<u64>,
     pub runtime_prev_download_total: Option<u64>,
     pub runtime_prev_snapshot_at: Option<Instant>,

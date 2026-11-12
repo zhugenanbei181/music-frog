@@ -355,12 +355,7 @@ impl AppState {
                 };
                 let application =
                     ConnectionApplication::new(rt.core_scope_source(), rt.connection_port());
-                let raw_filter = self.runtime.runtime_connection_filter.clone();
-                let query = raw_filter
-                    .strip_prefix("tab:closed")
-                    .unwrap_or(&raw_filter)
-                    .trim()
-                    .to_string();
+                let query = self.runtime.connection_query.trim().to_string();
                 if query.is_empty() {
                     return Task::none();
                 }
@@ -513,10 +508,9 @@ impl AppState {
         {
             self.diag.inspecting_connection_id = None;
         }
-        let filter = self.runtime.runtime_connection_filter.trim();
         self.diag
             .connections_model
-            .edit_query(filter.strip_prefix("tab:closed").unwrap_or(filter).trim());
+            .edit_query(self.runtime.connection_query.trim());
         self.diag.connections_model.observe(&data.connections);
         self.diag.connections = Some(data);
         self.clamp_connections_page();

@@ -146,10 +146,10 @@ fn test_profiles_filter_state() {
 }
 
 #[test]
-fn test_runtime_connection_filter_state() {
+fn test_connection_query_state() {
     let (mut state, _) = AppState::new();
     let _ = state.update(Message::UpdateRuntimeConnectionFilter("api".into()));
-    assert_eq!(state.runtime.runtime_connection_filter, "api");
+    assert_eq!(state.runtime.connection_query, "api");
 }
 
 #[test]

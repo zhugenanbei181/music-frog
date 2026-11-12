@@ -16,6 +16,7 @@ use infiltrator_application::connection_rate_application::ConnectionRateApplicat
 use infiltrator_contract::dns_cache::DnsCacheFlushReport;
 use infiltrator_contract::overview_layout::OverviewCardKind;
 use infiltrator_contract::speedtest::SpeedtestSnapshot;
+use infiltrator_contract::traffic_history::ClosedConnectionSnapshot;
 use infiltrator_domain::connection_activity::ConnectionActivityTracker;
 use infiltrator_domain::connection_rate::ConnectionRates;
 use infiltrator_domain::runtime::Connection;
@@ -95,6 +96,9 @@ pub struct DiagnosticsState {
     /// dimension, the query and the row order are derived once, in the shared
     /// owner.
     pub connections_model: ConnectionsPageModel<Connection>,
+    /// The closed destination of the same page, reduced by the shared page
+    /// model from the authoritative SurfaceSnapshot history.
+    pub closed_connections_model: ConnectionsPageModel<ClosedConnectionSnapshot>,
     /// DUAL-13-11: byte-change tracking that backs idle detection.
     pub connection_activity: ConnectionActivityTracker,
     /// DUAL-13-10/12: the shared rate window fed by successive live snapshots.

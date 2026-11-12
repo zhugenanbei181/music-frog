@@ -24,7 +24,7 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-12 第二百一十四批次；b111–b213 见下方批次八问摘要）
+## 当前状态（2026-11-12 第二百一十五批次；b111–b214 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
@@ -37,6 +37,18 @@
 | 6 | 部分 | L | Core 已发布并复位 `closed_connections`，但 Iced 消费端 contract anchor、scenario anchor 与 standard/compact 像素回执尚未补；`resolve_surface_evidence.py` 未复跑，180 个 ready surface cells 仍缺 product-build receipts |
 | 7 | 完整 | L | typed `NoBaseline/Tracking{scope,revision}` → domain 差集 owner → application 单例 → SurfaceReader/命令 → 宿主组合一条链；两个超 800 行文件按业务缝拆出 `observed_values.rs` 与 `surface_reader_closed_history_tests.rs`；`line` / `import` / `typed-state` / `implicit-state` / `doc-governance` / `closure-questions` 全 0 |
 | 8 | 部分 | L | 开发期只跑受影响三包 nextest 与静态门；Cargo lane 被其它工作区占用时中断一次重复全仓门，改由收口方集中跑一次六包 Clippy + 三包 nextest；全仓 `--workspace` nextest / 结构门全腿与 `resolve_surface_evidence.py` 仍留统一验证批次一次跑完 |
+
+## 最近一批问答（2026-11-12 第二百一十五批次：Iced 已关闭连接 typed 消费）
+
+1. x86_64/aarch64：本批只改 Iced 状态、视图、消息与 headless 测试，零平台 API / 零 wire；`--locked` Iced lib nextest **550/550**、headless **92/92**、Clippy `--all-targets -D warnings`、`cargo fmt --all --check` 为 `L`。交叉架构与 aarch64 目标产物未复跑 → 部分（L）。
+2. Windows/Linux/macOS：本机 Linux 完成 Iced 编译 / 测试 / Clippy / fmt；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
+3. Android/iOS：未动 Kotlin/JNI/VPNService 与资源；Core owner 已在上一批由 Android/iOS 组合共享，本批没有 APK 或真机回执 → 部分（L）。
+4. 各 UI：Iced 已把 `tab:closed` 字符串状态改为 typed `ConnectionTab + query`，真实消费 `SurfaceSnapshot.closed_connections` 并接清空命令；Slint 既有共享投影保持，Bevy 文件由另一会话持有 → 部分（L）。
+5. 复用：active 与 closed 两个目的地各自消费同一个 `ConnectionsPageModel` 泛型实现；查询、排序、匹配计数都来自共享 presentation/domain，Iced 不再拆字符串也不保留私有关闭数组 → 完整（L）。
+5a. 设计资源：本批无字体 / 字重 / 图标族 / 视觉资产身份变化，未改设计令牌；页面增加了关闭记录行，但 standard/compact 双视口真实像素回执尚未重采，按全局证据记「部分」→ 部分（L）。
+6. 功能接入：headless 行为回归证明权威快照、typed tab、query 与清空消息路径；contract/scenario 锚点、双视口真实像素回执和 `resolve_surface_evidence.py` 未复跑，故任务保持 `InProgress` → 部分（L）。
+7. 模块化：`ConnectionTab` 在 state 层 typed 表达，消息/View/Update/Demo/测试各只消费状态；`line` / `import` / `typed-state` / `implicit-state` / `doc-governance` / `closure-questions` 全 0 → 完整（L）。
+8. CI 与批次效率：开发期只跑 Iced lib、headless feature 批与静态门；未重复全仓重编；全仓 `--workspace` nextest / 结构门全腿与 `resolve_surface_evidence.py` 留统一验证批次一次跑完 → 部分（L）。
 
 ## 最近一批问答（2026-11-12 第二百一十四批次：已关闭连接 Core 单一 owner）
 

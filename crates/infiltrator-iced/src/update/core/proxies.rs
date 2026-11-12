@@ -292,14 +292,14 @@ impl AppState {
     pub(super) fn persist_runtime_panel_settings_task(&self) -> Task<Message> {
         let auto_refresh = self.runtime.runtime_auto_refresh;
         let delay_sort_order = self.runtime.runtime_panel_delay_sort_order;
-        let connection_filter = self.runtime.runtime_connection_filter.clone();
+        let connection_query = self.runtime.connection_query.clone();
         let connection_sort = self.diag.connections_model.sort_key().as_str().to_string();
         Task::perform(
             async move {
                 update(|settings| {
                     settings.runtime_panel.auto_refresh = auto_refresh;
                     settings.runtime_panel.delay_sort_order = delay_sort_order;
-                    settings.runtime_panel.connection_filter = connection_filter;
+                    settings.runtime_panel.connection_filter = connection_query;
                     settings.runtime_panel.connection_sort = connection_sort;
                 })
                 .await
@@ -690,17 +690,32 @@ impl AppState {
                         ))
                     })
             }
-            Message::UpdateRuntimeConnectionFilter(filter) => {
-                self.diag.connections_model.edit_query(
-                    filter
-                        .trim()
-                        .strip_prefix("tab:closed")
-                        .unwrap_or(&filter)
-                        .trim(),
-                );
-                self.runtime.runtime_connection_filter = filter;
+            Message::UpdateRuntimeConnectionFilter(query) => {
+                self.runtime.connection_query = query;
+                self.diag
+                    .connections_model
+                    .edit_query(&self.runtime.connection_query);
+                self.diag
+                    .closed_connections_model
+                    .edit_query(&self.runtime.connection_query);
                 self.diag.connections_page = 0;
                 self.persist_runtime_panel_settings_task()
+            }
+            Message::SetConnectionTab(tab) => {
+                self.runtime.connection_tab = tab;
+                self.diag.connections_page = 0;
+                Task::none()
+            }
+            Message::ClearClosedConnections => {
+                let Some(ingress) = self.command_ingress() else {
+                    return Task::none();
+                };
+                Task::perform(
+                    async move {
+                        ingress.execute(CommandIntent::ClearClosedConnections).await;
+                    },
+                    |_| Message::Noop,
+                )
             }
             Message::UpdateRuntimeConnectionSort(sort_key) => {
                 self.diag.connections_model.select_sort(sort_key);

@@ -245,6 +245,8 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         Message::UpdateRuntimeConnectionFilter(s) => {
             write!(f, "UpdateRuntimeConnectionFilter({})", s)
         }
+        Message::SetConnectionTab(tab) => write!(f, "SetConnectionTab({tab:?})"),
+        Message::ClearClosedConnections => write!(f, "ClearClosedConnections"),
         Message::UpdateRuntimeConnectionSort(s) => {
             write!(f, "UpdateRuntimeConnectionSort({:?})", s)
         }

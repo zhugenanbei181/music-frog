@@ -5,6 +5,7 @@
 //! high-throughput pulse, plus kill buttons.
 
 use crate::state::AppState;
+use crate::state::runtime::ConnectionTab;
 use crate::types::app::ConfirmAction;
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStreamState;
@@ -170,40 +171,22 @@ fn connections_section_with_scroll_owner<'a>(
     .spacing(theme::SP_SM)
     .align_y(Alignment::Center);
 
-    // 5. Sub-tabs: 活动中 (Active) and 已关闭 (Closed)
-    let (is_closed_tab, user_filter) = if let Some(stripped) = state
-        .runtime
-        .runtime_connection_filter
-        .strip_prefix("tab:closed")
-    {
-        (true, stripped.trim())
-    } else {
-        (false, state.runtime.runtime_connection_filter.trim())
-    };
-
-    let total_active_conns = state
-        .diag
-        .connections
-        .as_ref()
-        .map(|c| c.connections.len())
-        .unwrap_or(0);
-
+    // 5. Sub-tabs: the typed destination is state, not a string prefix.
+    let user_filter = state.runtime.connection_query.trim();
+    let is_closed_tab = matches!(state.runtime.connection_tab, ConnectionTab::Closed);
+    let total_active_conns = state.diag.connections_model.source_count();
+    let total_closed_conns = state.diag.closed_connections_model.source_count();
     let tab_labels = vec![
         format!("{} ({total_active_conns})", lang.tr("conn_status_active")),
-        format!("{} (0)", lang.tr("conn_status_closed")),
+        format!("{} ({total_closed_conns})", lang.tr("conn_status_closed")),
     ];
-    let tab_index = if is_closed_tab { 1 } else { 0 };
-    let sub_tabs = segmented_control(&tab_labels, tab_index, move |idx| {
-        if idx == 1 {
-            let q = if user_filter.is_empty() {
-                "tab:closed".to_string()
-            } else {
-                format!("tab:closed {user_filter}")
-            };
-            Message::UpdateRuntimeConnectionFilter(q)
+    let tab_index = usize::from(is_closed_tab);
+    let sub_tabs = segmented_control(&tab_labels, tab_index, |idx| {
+        Message::SetConnectionTab(if idx == 1 {
+            ConnectionTab::Closed
         } else {
-            Message::UpdateRuntimeConnectionFilter(user_filter.to_string())
-        }
+            ConnectionTab::Active
+        })
     });
 
     let group_control = connections_controls::grouping(state);
@@ -315,12 +298,56 @@ fn connections_section_with_scroll_owner<'a>(
     ];
 
     if is_closed_tab {
-        // Sub-tab: 已关闭 (Closed)
-        connections_section = connections_section.push(empty_state(
-            Icon::Plug,
-            lang.tr("conn_no_closed").as_ref(),
-            lang.tr("conn_no_closed_desc").as_ref(),
-        ));
+        let mut closed_rows = state
+            .diag
+            .closed_connections_model
+            .visible_rows()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        state
+            .diag
+            .closed_connections_model
+            .sort_rows(&mut closed_rows);
+        if closed_rows.is_empty() {
+            connections_section = connections_section.push(empty_state(
+                Icon::Plug,
+                lang.tr("conn_no_closed").as_ref(),
+                lang.tr("conn_no_closed_desc").as_ref(),
+            ));
+        } else {
+            let mut closed_list = column![].spacing(theme::SP_SM);
+            for row in closed_rows {
+                let traffic = format!(
+                    "↑ {} · ↓ {}",
+                    format_bytes(row.upload_bytes),
+                    format_bytes(row.download_bytes)
+                );
+                closed_list = closed_list.push(
+                    container(
+                        row![
+                            status_dot(false),
+                            Space::new().width(theme::SP_SM),
+                            theme::role_body_text(row.destination).width(Length::Fill),
+                            badge(row.outbound, BadgeKind::Neutral),
+                            Space::new().width(theme::SP_SM),
+                            theme::role_body_text(traffic),
+                        ]
+                        .align_y(Alignment::Center),
+                    )
+                    .padding([10, 16])
+                    .style(row_card_surface),
+                );
+            }
+            connections_section = connections_section.push(
+                button(theme::role_body_text(lang.tr("common_clear")))
+                    .padding([7, 10])
+                    .style(style_ghost)
+                    .on_press(Message::ClearClosedConnections),
+            );
+            connections_section =
+                connections_section.push(modern_scrollable(closed_list).height(Length::Fill));
+        }
     } else if state.diag.connections_model.source_current() {
         // The shared page model owns the query fold and the row order; this
         // surface only renders the rows it hands back.

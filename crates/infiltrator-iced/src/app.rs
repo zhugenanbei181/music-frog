@@ -12,9 +12,9 @@ use crate::state::editor::ConfigEditorState;
 use crate::state::profiles::ProfileState;
 use crate::state::proxy_probe;
 use crate::state::runtime::{
-    CoreLifecycleStage, CustomNodeSaveState, OutboundProbeStage, ProbeSettingsDialogState,
-    ProxyGroupOrderDialogState, RuntimePatchStage, RuntimeState, SystemProxyStage,
-    TunServiceInstallState,
+    ConnectionTab, CoreLifecycleStage, CustomNodeSaveState, OutboundProbeStage,
+    ProbeSettingsDialogState, ProxyGroupOrderDialogState, RuntimePatchStage, RuntimeState,
+    SystemProxyStage, TunServiceInstallState,
 };
 use crate::state::shell::ShellState;
 use crate::types::app::RouteHistory;
@@ -198,7 +198,8 @@ impl AppState {
                 runtime_selected_group: String::new(),
                 runtime_selected_proxy: String::new(),
                 runtime_outbound_selection: None,
-                runtime_connection_filter: String::new(),
+                connection_tab: ConnectionTab::Active,
+                connection_query: String::new(),
                 runtime_auto_refresh: true,
                 runtime_poll_tick: 0,
                 runtime_prev_upload_total: None,
@@ -457,6 +458,7 @@ impl AppState {
                 overview_card_order: OverviewCardKind::DEFAULT_ORDER.to_vec(),
                 crash_watchdog: Default::default(),
                 connections_model: Default::default(),
+                closed_connections_model: Default::default(),
                 connection_activity: ConnectionActivityTracker::new(),
                 connection_rates: ConnectionRateApplication::new(),
                 connection_rate_book: Default::default(),
