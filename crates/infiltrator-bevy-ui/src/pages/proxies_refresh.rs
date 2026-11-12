@@ -112,10 +112,7 @@ pub fn apply_proxies_projection(
             if label.name.is_some() {
                 label.text.0.clear();
             } else if label.flag.is_some() {
-                label.text.0 = NodeRegion::classify(&node.name)
-                    .plate_label()
-                    .to_string()
-                    .into();
+                label.text.0 = NodeRegion::classify(&node.name).plate_label().to_string();
             } else if label.protocol.is_some() {
                 label.text.0 = proxy_protocol_chip(&node.node_type);
             } else if label.latency.is_some() {

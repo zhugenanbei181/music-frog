@@ -8,8 +8,9 @@ use crate::command_application::handler::{
     CommandFuture, CommandHandler, CommandOutputFuture, CoreLifecycleChildPermit,
     ValidatedCoreCommandScope,
 };
+use crate::core_application::CoreApplication;
 use crate::core_application::ReadinessPolicy;
-use crate::core_application::{CoreApplication, test_execute_result_at_current_scope};
+use crate::core_application::test_support::test_execute_result_at_current_scope;
 use crate::core_capability_application::CoreCapabilityApplication;
 use infiltrator_contract::android_control::AndroidProductControlIntent;
 use infiltrator_contract::command::{CommandIntent, CommandResult};

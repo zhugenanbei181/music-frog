@@ -130,6 +130,7 @@ mod adapter_operation_declaration_tests;
 #[path = "protocol_params_test.rs"]
 mod protocol_params_test;
 pub mod public_ip;
+pub mod public_ip_probe;
 pub mod reconnect_mask;
 pub mod relative_time;
 pub mod request_tracker;

@@ -230,7 +230,7 @@ fn test_proxies_node_cards_reflow_across_tiers() {
             .expect("at least one proxy node card")
     };
 
-    let cases = [(400.0_f32, 1usize), (700.0, 2), (1000.0, 3), (1600.0, 4)];
+    let cases = [(400.0_f32, 1usize), (720.0, 1), (1180.0, 4), (1920.0, 7)];
     for (width, columns) in cases {
         app.world_mut()
             .resource_mut::<ResponsiveContext>()
@@ -574,7 +574,7 @@ fn test_proxies_empty_and_edge_case_projection() {
         testing: false,
         filter_alive: false,
         sort_order: Default::default(),
-        compact_view: false,
+        layout: OutboundLayout::Grid,
         active_exit: "无可用出口".to_owned(),
         custom_node: Default::default(),
     };

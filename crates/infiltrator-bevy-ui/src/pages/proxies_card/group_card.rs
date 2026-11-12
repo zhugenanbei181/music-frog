@@ -1,7 +1,7 @@
 //! The strategy group card scene: group identity, current node, group test
 //! trigger, reorder/fold actions and the collapsible node rows.
 
-use super::node_card::proxy_node_scene;
+use super::node_card::{ProxyNodeSceneContext, proxy_node_scene};
 use crate::pages::proxies::{
     GroupCurrentText, GroupFoldText, GroupNodesContainer, ProxyGroup, ProxyGroupFoldButton,
     ProxyGroupMoveDownButton, ProxyGroupMoveUpButton, ProxyNode, TestProxyGroupButton,
@@ -11,7 +11,7 @@ use bevy::ecs::hierarchy::Children;
 use bevy::feathers::theme::{ThemeBackgroundColor, ThemeTextColor};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
-    AlignItems, BorderRadius, Display, FlexDirection, FlexWrap, JustifyContent, Node, UiRect,
+    AlignItems, BorderRadius, Display, FlexDirection, FlexWrap, JustifyContent, Node, UiRect, Val,
     percent, px,
 };
 use bevy::ui::widget::Text;
@@ -56,9 +56,10 @@ fn group_kind_label(classification: ProxyGroupClassification) -> LocalizedText {
 pub fn group_card_scene(
     g_idx: usize,
     group: &ProxyGroup,
+    width: Val,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    group_card_scene_impl(g_idx, group, palette, true)
+    group_card_scene_impl(g_idx, group, width, palette, true)
 }
 
 /// Renders a strategy group card header only: the same identity, controls and
@@ -69,12 +70,13 @@ pub fn group_header_scene(
     group: &ProxyGroup,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    group_card_scene_impl(g_idx, group, palette, false)
+    group_card_scene_impl(g_idx, group, percent(100), palette, false)
 }
 
 fn group_card_scene_impl(
     g_idx: usize,
     group: &ProxyGroup,
+    width: Val,
     palette: &UiPalette,
     with_nodes: bool,
 ) -> impl Scene + use<> {
@@ -97,12 +99,15 @@ fn group_card_scene_impl(
             .into_iter()
             .map(|(n_idx, node)| {
                 Box::new(proxy_node_scene(
-                    g_idx,
-                    n_idx,
-                    &group_name,
-                    group.collection_id.clone(),
+                    ProxyNodeSceneContext {
+                        group_idx: g_idx,
+                        node_idx: n_idx,
+                        group_name: &group_name,
+                        collection_id: group.collection_id.clone(),
+                        selection_available: group.outbound_selection_available,
+                    },
                     node,
-                    group.outbound_selection_available,
+                    width,
                     palette,
                 )) as Box<dyn Scene>
             })

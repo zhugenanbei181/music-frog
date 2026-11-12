@@ -4,7 +4,7 @@ use crate::command_application::handler::{
     CommandFuture, CommandHandler, CommandOutputFuture, ValidatedCoreCommandScope,
 };
 use crate::core_application::CoreApplication;
-use crate::core_application::{
+use crate::core_application::test_support::{
     test_dispatch_at_current_scope, test_execute_result_at_current_scope,
 };
 use futures_util::poll;

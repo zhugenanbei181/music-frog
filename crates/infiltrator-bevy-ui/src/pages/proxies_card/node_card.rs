@@ -316,26 +316,12 @@ pub fn sync_proxy_selection_rails(
 
 /// Renders a single proxy node card with flag, title, protocol, features, and latency.
 pub fn proxy_node_scene(
-    g_idx: usize,
-    n_idx: usize,
-    group_name: &str,
-    collection_id: Option<OutboundId>,
+    context: ProxyNodeSceneContext<'_>,
     node: &ProxyNode,
-    selection_available: bool,
+    width: Val,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    proxy_node_scene_sized(
-        ProxyNodeSceneContext {
-            group_idx: g_idx,
-            node_idx: n_idx,
-            group_name,
-            collection_id,
-            selection_available,
-        },
-        node,
-        percent(31),
-        palette,
-    )
+    proxy_node_scene_sized(context, node, width, palette)
 }
 
 pub struct ProxyNodeSceneContext<'a> {
@@ -366,10 +352,7 @@ pub fn proxy_node_scene_sized(
     let flag = if node.node_type.is_empty() {
         String::new()
     } else {
-        NodeRegion::classify(&node.name)
-            .plate_label()
-            .to_string()
-            .into()
+        NodeRegion::classify(&node.name).plate_label().to_string()
     };
     let latency = project_proxy_latency(node.delay_ms);
     let delay_color_val = latency_color(latency.band, palette);

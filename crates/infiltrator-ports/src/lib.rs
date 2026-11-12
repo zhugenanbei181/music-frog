@@ -23,6 +23,7 @@ pub mod core_binary_selection;
 pub mod core_capability_provider;
 pub mod core_lifecycle;
 pub mod core_log_level;
+pub mod core_snapshot_source;
 pub mod core_watchdog;
 pub mod data_dir;
 pub mod data_store;

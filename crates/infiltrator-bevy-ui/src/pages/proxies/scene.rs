@@ -8,21 +8,31 @@ use crate::pages::proxies_card::{group_card, node_card, toolbar};
 use crate::pages::proxies_custom::custom_node_scene;
 use crate::pages::proxies_identity::ProxyCardsContainer;
 use crate::pages::proxies_virtual::{PROXIES_VIRTUAL_THRESHOLD, ProxiesVirtualNodes};
+use crate::pages::proxy_grid_geometry::{ProxyGridContainer, proxy_grid_geometry};
 use crate::pages::proxy_inspection::inspection_scene;
 use crate::pages::{proxy_group_order, proxy_probe_settings};
 use crate::route::{PageRoot, Route};
 use bevy::ecs::hierarchy::Children;
 use bevy::scene::{Scene, bsn};
-use bevy::ui::prelude::{FlexDirection, Node, Overflow, percent, px};
+use bevy::ui::prelude::{FlexDirection, Node, Overflow, Val, percent, px};
 use bevy::ui_widgets::ScrollArea;
+use infiltrator_bevy_widgets::fluid_grid::FluidCardGrid;
 use infiltrator_bevy_widgets::gesture::{PullToRefreshState, pull_to_refresh_scene};
 use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::responsive_viewport::ResponsiveViewportSnapshot;
 
 /// The top-level Proxies page scene.
-pub fn proxies_page(projection: &ProxiesProjection, palette: &UiPalette) -> impl Scene + use<> {
+pub fn proxies_page(
+    projection: &ProxiesProjection,
+    viewport: &ResponsiveViewportSnapshot,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
+    let geometry = proxy_grid_geometry(viewport, projection.layout);
+    let grid_container = ProxyGridContainer(geometry);
+    let fallback_width = Val::Percent(FluidCardGrid::wrapped_item_percent(geometry.columns));
     let summary = LocalizedText::new(
         "proxies_summary",
         vec![
@@ -86,7 +96,7 @@ pub fn proxies_page(projection: &ProxiesProjection, palette: &UiPalette) -> impl
             .iter()
             .enumerate()
             .map(|(g_idx, group)| {
-                Box::new(group_card_scene(g_idx, group, palette)) as Box<dyn Scene>
+                Box::new(group_card_scene(g_idx, group, fallback_width, palette)) as Box<dyn Scene>
             })
             .collect();
         root_children.push(Box::new(bsn! {
@@ -134,6 +144,7 @@ pub fn proxies_page(projection: &ProxiesProjection, palette: &UiPalette) -> impl
             }
             PageRoot(Route::Proxies)
             ProxiesPageRoot
+            grid_container
             Children [ { root_children } ]
     }
 }
@@ -150,9 +161,10 @@ pub(super) fn header_card_scene(
 pub(super) fn group_card_scene(
     g_idx: usize,
     group: &ProxyGroup,
+    width: Val,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    group_card::group_card_scene(g_idx, group, palette)
+    group_card::group_card_scene(g_idx, group, width, palette)
 }
 
 pub fn proxy_node_scene(
@@ -161,15 +173,19 @@ pub fn proxy_node_scene(
     group_name: &str,
     node: &ProxyNode,
     selection_available: bool,
+    width: Val,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     node_card::proxy_node_scene(
-        g_idx,
-        n_idx,
-        group_name,
-        None,
+        node_card::ProxyNodeSceneContext {
+            group_idx: g_idx,
+            node_idx: n_idx,
+            group_name,
+            collection_id: None,
+            selection_available,
+        },
         node,
-        selection_available,
+        width,
         palette,
     )
 }

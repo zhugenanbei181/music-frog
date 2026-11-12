@@ -1,5 +1,5 @@
 use super::*;
-use crate::core_application::{
+use crate::core_application::test_support::{
     test_dispatch_at_current_scope, test_execute_result_at_current_scope,
 };
 use crate::core_capability_test_support::core_scope;

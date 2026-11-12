@@ -617,8 +617,11 @@ runtime 页里的区块；本批只把卡栈缝收到预算内（`SP_LG` → `SP
 存异是**不引入上游三档偏好**：本仓 `OutboundLayout` 只有 Grid / CompactList 两个真实
 语义，手机/底栏档继续以 typed `ProxyGridForm::Stacked` 保持单列可读，桌面档才按页宽
 连续计算。因此 1180 标准帧从 3 列变 4 列，720 与 400 档仍单列，既不照抄 250 字面量
-进 UI，也不让「窗口档」冒充「页身可用宽」。Iced / Bevy 仍消费 tier 查表，跨表面接线
-由共享契约后续切片按文件所有权收口，本批不争写另一会话持有的 Bevy 文件。
+进 UI，也不让「窗口档」冒充「页身可用宽」。Iced 在 b213 已接入共享页身宽规则；
+Bevy 于 b225 接入 `ProxyGridGeometry`，其场景、动态 resize 与虚拟列表都消费
+`proxy_node_columns(form, page_body_width_px)`，旧 `Breakpoint 1/2/3/4` 与
+`compact_view: bool` 同批退役。Bevy 192 帧像素仍由另一会话持有，源码接线与
+像素验收分别记账。
 
 ## 18. 页身宽只有一个 owner，Iced 接入双网格（b213）
 

@@ -36,10 +36,13 @@ use infiltrator_bevy_widgets::responsive::{
 };
 use infiltrator_bevy_widgets::smart_truncate::{truncate_adaptive, truncate_middle, truncate_tail};
 use infiltrator_bevy_widgets::theme::{Breakpoint, space};
-use infiltrator_contract::responsive_viewport::ViewportTier;
+use infiltrator_contract::responsive_viewport::{
+    ProxyGridForm, ResponsiveViewportSnapshot, ViewportTier, proxy_node_columns,
+};
 use infiltrator_contract::shell_gesture;
 use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
 use infiltrator_contract::window_chrome::CHROME_DRAG_STRIP_HEIGHT_PX;
+use lurker_core_contract::outbound::preferences::OutboundLayout;
 use std::sync::Arc;
 
 use crate::support::*;
@@ -109,9 +112,9 @@ fn test_overview_metrics_columns_match_shared_contract() {
     }
 }
 
-/// The Bevy proxy node grid and the Iced proxy grid must read the same tier
-/// column operator (1 / 2 / 3 / 4), and the wrapped item percent must leave
-/// enough slack that N columns never wrap early.
+/// The Bevy proxy node grid and the shared page-width rule must give the same
+/// answer, and the wrapped item percent must leave enough slack that N columns
+/// never wrap early.
 #[test]
 fn test_proxy_grid_columns_match_shared_contract() {
     use infiltrator_bevy_widgets::fluid_grid::FluidCardGrid;
@@ -126,8 +129,32 @@ fn test_proxy_grid_columns_match_shared_contract() {
         );
     }
 
-    // The Bevy grid and the shared operator agree at the desktop tier.
-    assert_eq!(ViewportTier::Expanded.proxy_grid_columns(false), 3);
+    // The Bevy grid derives its count from the same page-body width contract
+    // as Iced and Slint, not from a window-tier lookup.
+    use infiltrator_bevy_ui::pages::proxy_grid_geometry::proxy_grid_geometry;
+
+    let viewport = ResponsiveViewportSnapshot::from_dimensions(1180.0, 780.0);
+    let geometry = proxy_grid_geometry(&viewport, OutboundLayout::Grid);
+    assert_eq!(geometry.tier, ViewportTier::Expanded);
+    assert_eq!(geometry.form, ProxyGridForm::Desktop);
+    assert_eq!(geometry.page_body_width_px, 908);
+    assert_eq!(
+        geometry.columns as u16,
+        proxy_node_columns(geometry.form, geometry.page_body_width_px)
+    );
+    assert_eq!(geometry.columns, 4);
+
+    for width in [720.0, 400.0] {
+        let stacked = proxy_grid_geometry(
+            &ResponsiveViewportSnapshot::from_dimensions(width, 780.0),
+            OutboundLayout::Grid,
+        );
+        assert_eq!(stacked.form, ProxyGridForm::Stacked);
+        assert_eq!(stacked.columns, 1);
+    }
+    let compact_list = proxy_grid_geometry(&viewport, OutboundLayout::CompactList);
+    assert_eq!(compact_list.form, ProxyGridForm::Stacked);
+    assert_eq!(compact_list.columns, 1);
 }
 
 fn setup_responsive_app(width: f32) -> App {

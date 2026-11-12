@@ -128,7 +128,11 @@ pub(crate) fn page_scene(
     let projection = overview_projection(snapshot);
     match route {
         Route::Overview => Box::new(overview_page(&projection, history, palette, language)),
-        Route::Proxies => Box::new(proxies_page(&proxies_projection(snapshot), palette)),
+        Route::Proxies => Box::new(proxies_page(
+            &proxies_projection(snapshot),
+            viewport,
+            palette,
+        )),
         Route::Profiles => Box::new(profiles_page(
             &profiles_projection(snapshot),
             viewport,

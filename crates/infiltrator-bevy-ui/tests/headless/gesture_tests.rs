@@ -34,7 +34,9 @@ use lurker_core_contract::outbound::probe::OutboundProbeBatchScope;
 use crate::support::allow_outbound_probe;
 use infiltrator_bevy_ui::pages::connections_row::connection_row_scene;
 use infiltrator_bevy_ui::pages::proxies::ProxyNode;
-use infiltrator_bevy_ui::pages::proxies_card::node_card::proxy_node_scene;
+use infiltrator_bevy_ui::pages::proxies_card::node_card::{
+    ProxyNodeSceneContext, proxy_node_scene,
+};
 use infiltrator_bevy_ui::route::{ActiveRoute, Route};
 use infiltrator_bevy_ui::route::{PagesPlugin, RouteChanged};
 use infiltrator_bevy_ui::surface::LatestSurfaceSnapshot;
@@ -531,7 +533,18 @@ fn test_proxy_card_swipe_to_action_spring_slides_content_and_reveals_drawer() {
         favorite: false,
         features: vec!["udp".to_owned()],
     };
-    let scene = proxy_node_scene(0, 0, "DefaultGroup", None, &node, true, &palette);
+    let scene = proxy_node_scene(
+        ProxyNodeSceneContext {
+            group_idx: 0,
+            node_idx: 0,
+            group_name: "DefaultGroup",
+            collection_id: None,
+            selection_available: true,
+        },
+        &node,
+        Val::Px(220.0),
+        &palette,
+    );
     app.world_mut().commands().spawn_scene(scene);
     app.update();
 

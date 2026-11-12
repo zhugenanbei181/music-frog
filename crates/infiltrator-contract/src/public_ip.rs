@@ -1,5 +1,6 @@
 //! Shared read model for the public IP and privacy probe.
 
+use crate::public_ip_probe::PublicIpProbeState;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -31,6 +32,34 @@ pub struct PublicIpProbeSnapshot {
 }
 
 impl PublicIpProbeSnapshot {
+    /// Project the one owner-authored state into the stable surface readback.
+    pub fn from_state(state: &PublicIpProbeState) -> Self {
+        match state {
+            PublicIpProbeState::Idle => Self::default(),
+            PublicIpProbeState::Probing { stamp } => Self {
+                generation: stamp.core_generation,
+                revision: stamp.revision,
+                status: PublicIpProbeStatus::Probing,
+                ..Self::default()
+            },
+            PublicIpProbeState::Succeeded { stamp, observation } => Self {
+                generation: stamp.core_generation,
+                revision: stamp.revision,
+                status: PublicIpProbeStatus::Ready,
+                ip: Some(observation.ip.clone()),
+                country_code: observation.country.clone(),
+                city: observation.city.clone(),
+                provider: Some(observation.provider.clone()),
+                checked_at_epoch_ms: Some(observation.checked_at_epoch_ms),
+                ..Self::default()
+            },
+            PublicIpProbeState::Failed { stamp, reason } => {
+                Self::failed(stamp.core_generation, stamp.revision, reason.clone())
+            }
+            PublicIpProbeState::Stale { .. } => Self::default(),
+        }
+    }
+
     /// Explicit fixture for demo/screenshot hosts.
     pub fn demo_fixture() -> Self {
         Self {

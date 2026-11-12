@@ -133,6 +133,12 @@ gate python3 scripts/quality/bevy-desktop-host-boundary-guard.py
 # 侧栏导航律法：Bevy 的侧栏列只挂导航列，行来自契约注册表，选中态由 widget 层单一作者绘制。
 gate python3 scripts/quality/bevy-sidebar-nav-guard.py --self-test
 gate python3 scripts/quality/bevy-sidebar-nav-guard.py --mode enforce
+# 代理节点网格律法：Bevy 只读共享页身宽规则，不按窗口档私画 1/2/3/4 列。
+gate python3 scripts/quality/bevy-proxy-grid-owner-guard.py --self-test
+gate python3 scripts/quality/bevy-proxy-grid-owner-guard.py --mode enforce
+# 公共 IP 探针律法：dispatch / owner / SurfaceReader 三者必须形成真实状态闭环。
+gate python3 scripts/quality/public-ip-probe-owner-guard.py --self-test
+gate python3 scripts/quality/public-ip-probe-owner-guard.py --mode enforce
 # 同一律法在 Iced 侧栏：列只挂导航，行集唯一来自 shell_navigation 注册表，无路由→字形表。
 gate python3 scripts/quality/iced-sidebar-nav-guard.py --self-test
 gate python3 scripts/quality/iced-sidebar-nav-guard.py --mode enforce

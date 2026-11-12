@@ -6,6 +6,7 @@ use crate::core_capability_application::CoreCapabilityApplication;
 use crate::log_application::LogApplication;
 use crate::log_stream::LogPump;
 use crate::outbound_application::preferences::OutboundUiPreferencesApplication;
+use crate::public_ip_probe_application::PublicIpProbeApplication;
 use crate::rule_provider_runtime_application::RuleProviderRuntimeApplication;
 use crate::speedtest_application::{
     SpeedtestApplication, SpeedtestCompletionAdmission, SpeedtestTaskOutcome,
@@ -120,6 +121,7 @@ struct Inner {
     rule_provider_port: RwLock<Option<Arc<dyn RuleProviderPort>>>,
     geo_database_port: RwLock<Option<Arc<dyn GeoDatabasePort>>>,
     outbound_ui_preferences: OutboundUiPreferencesApplication,
+    public_ip_probe: RwLock<Option<PublicIpProbeApplication>>,
     /// The one live traffic sample history. Both the surface reader (which
     /// records samples) and the command handler (which clears them on an
     /// explicit owner command) derive their owner from this single instance;
@@ -144,6 +146,9 @@ struct Inner {
     next_session_sequence: AtomicU64,
     events: Mutex<VecDeque<CoreEvent>>,
 }
+
+#[path = "core_application/public_ip_probe.rs"]
+mod public_ip_probe;
 
 pub(super) struct DispatchedCommand {
     request_id: RequestId,
@@ -354,6 +359,7 @@ impl CoreApplication {
             rule_provider_port: RwLock::new(None),
             geo_database_port: RwLock::new(None),
             outbound_ui_preferences: OutboundUiPreferencesApplication::default(),
+            public_ip_probe: RwLock::new(None),
             traffic_waveform: TrafficWaveformApplication::new(),
             closed_connections: ClosedConnectionsApplication::default(),
             speedtest: RwLock::new(None),
@@ -394,6 +400,18 @@ impl CoreApplication {
             "cannot configure a closed application"
         );
         *slot = Some(handler);
+    }
+
+    /// Install the single public IP probe owner for this Core application.
+    pub fn install_public_ip_probe_application(
+        &self,
+        owner: PublicIpProbeApplication,
+    ) -> Result<(), Failure> {
+        public_ip_probe::install_public_ip_probe_application(self, owner)
+    }
+
+    pub fn public_ip_probe_application(&self) -> Option<PublicIpProbeApplication> {
+        public_ip_probe::public_ip_probe_application(self)
     }
 
     /// Register the owner-scoped outbound port shared by command dispatch and
@@ -844,46 +862,8 @@ mod editor;
 mod lifecycle_port;
 
 #[cfg(test)]
-pub(crate) fn test_request_at_current_scope(
-    application: &CoreApplication,
-    intent: CommandIntent,
-) -> CoreCommandRequest {
-    CoreCommandRequest {
-        scope: application
-            .snapshot()
-            .scope()
-            .expect("Core application test fixture must expose its owner identity"),
-        intent,
-    }
-}
-
-#[cfg(test)]
-pub(crate) async fn test_execute_at_current_scope(
-    application: &CoreApplication,
-    intent: CommandIntent,
-) -> CoreCommandOutcome {
-    application
-        .execute_scoped(test_request_at_current_scope(application, intent))
-        .await
-}
-
-#[cfg(test)]
-pub(crate) async fn test_execute_result_at_current_scope(
-    application: &CoreApplication,
-    intent: CommandIntent,
-) -> CommandResult {
-    test_execute_at_current_scope(application, intent)
-        .await
-        .result
-}
-
-#[cfg(test)]
-pub(crate) fn test_dispatch_at_current_scope(
-    application: &CoreApplication,
-    intent: CommandIntent,
-) -> (RequestId, Receiver<CoreCommandOutcome>) {
-    application.dispatch_scoped_tracked(test_request_at_current_scope(application, intent))
-}
+#[path = "core_application/test_support.rs"]
+pub(crate) mod test_support;
 
 #[path = "core_telemetry.rs"]
 mod telemetry;

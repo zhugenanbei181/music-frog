@@ -24,19 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-13 第二百二十四批次；b111–b223 见下方批次八问摘要）
+## 当前状态（2026-11-13 第二百二十五批次；b111–b224 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b224 只新增 contract/presentation 纯 Rust 与相邻测试，零平台 API、零 wire identity 变更；`cargo fmt --all -- --check`、import/typed-state/implicit-state 与两包 lib nextest **995/995** 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1） |
-| 2 | 部分 | L | Linux 本机完成定向 Rust 与静态门验证；本批零 UI/像素变化，未触发 capture；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）；未取受控 CI run ID |
-| 3 | 部分 | L | 零 Android/iOS 代码与资源改动；新 contract 类型按构造对两个平台中立，但未编译 Android flavor、无 APK/三 flavor 实机回执、iOS 无新证据 |
-| 4 | 部分 | L | Iced 只获得底层 typed Connections view/column owner，尚未接入 `view/runtime/connections.rs`、state、CommandIntent 或截图；Slint/Bevy/Android 本批不改消费端。当前证据只证明 Core-first 模型，不证明 UI 功能 |
-| 5 | 完整 | L | pinned ClashParty `72af7d82` 的 `connectionViewMode` / `connectionTableColumns` 只保留行为语义：contract 一处发布 `ConnectionViewMode::{List,Table}`、22 列闭集、12 个默认可见列、失败关闭的 wire 解析和三个 typed intent；presentation 只做 registry 校验与稳定 semantic ID 投影，不复制文案或列词汇 |
-| 5a | 完整 | L | 本批零可见 UI 身份变化、零 wire/snapshot 变更、零设计资源/截图变化；按标准无须双视口重采，`Slint 211/211` / `Iced 184/184` 发布回执保持有效。`space_utilization --check-export` 与现有空间门不因纯底层模型变化失效 |
-| 6 | 部分 | L | two-package lib nextest **995/995**、`cargo fmt --all -- --check`、`import-guard violations=0`、`typed-state findings=0`、`implicit-state 23/0/0`、`doc-governance OK`、`closure 8/8` 为 `L`；`resolve_surface_evidence.py` 的 180 个 ready cells 与 UI 接入仍留统一批次 |
-| 7 | 完整 | L | contract owner（mode / column set / preference / intent / error）→ presentation projection（registry 校验 + semantic ID）两层分离；presentation 不执行命令、不持有用户偏好、不生成 label；旧 UI 侧 view-mode/column 状态仍未引入，因此没有第二业务真源 |
-| 8 | 部分 | L | 单次构建后一次跑完两包 lib nextest 与受影响静态门，未边改边跑全仓；未触发 211/184 帧重采。全仓 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py` 仍留统一批次一次跑完 |
+| 1 | 部分 | L | b225 改 Bevy 网格 owner、PublicIpProbe Core 闭环、九份干净测试/模块、两个 owner guard 与结构门四腿；`cargo fmt --all -- --check`、五包 `cargo clippy --all-targets -D warnings`、Bevy lib **199/199**、Core 三包 lib **1346/1346**、定向 headless **27/27** 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1） |
+| 2 | 部分 | L | Linux 本机完成 Bevy/Core 定向编译、测试、五包 Clippy、import/line/typed-state/implicit-state/BSN/rem/scene 与两个 owner guard；本批不改截图矩阵，不触发整批 capture；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID |
+| 3 | 部分 | L | 零 Android/iOS 代码与资源改动；共享页宽与 PublicIpProbe 状态机按构造对移动平台中立，但 Bevy 192 帧像素与 Android/iOS 实机回执仍由其它会话或统一验证批次持有，本批不声称像素验收 |
+| 4 | 部分 | L | Bevy 的 Proxies 场景、首帧、动态 resize、reconcile 与 virtual recycler 已消费共享 `ProxyGridGeometry`；PublicIpProbe 只在 contract/ports/application/composition 闭环，不改任何 UI 消费端。Iced/Slint 早先已消费同一网格契约；Bevy 双视口真实像素仍留 `FLPROFILES-002` 统一收口 |
+| 5 | 完整 | L | 两条真源链同时收口：FlClash `getProxiesColumns(max(width-32,0))` / `250dp` 由 `proxy_node_columns` 一处发布，Bevy 只以 typed `OutboundLayout` / `ProxyGridForm` 消费；PublicIpProbe 以 typed state、route stamp、stale answer fence 和 SurfaceReader 真实读回收到单一 owner，旧 `unsupported()` / `default()` / hardcoded `checked_at_epoch_ms` 同批退役 |
+| 5a | 完整 | L | 本批只改 Bevy 布局源码与测试，不制造国旗、字体、图标、圆形徽章或新可见文案；既有 4:3 直角旗资产与容器规则不变。无身份变化不重采 211/184 帧；Bevy 192 帧由另一会话持有，按所有权纪律不触碰，`space_utilization --check-export` 不受源码-only 改动影响 |
+| 6 | 部分 | L | Bevy 网格与 PublicIpProbe Core 两条闭环均有源码/单测证据：Bevy lib **199/199**、Core 三包 lib **1346/1346**、定向 headless **27/27**、两个 owner guard **9/9 + 6/6**、结构收集器 **198 腿静态形状 0 findings**。standard/compact 双视口像素、全仓结构门动态执行、`resolve_surface_evidence.py` 的 ready cells 仍留统一批次 |
+| 7 | 完整 | L | 网格链：contract `ProxyGridForm` / `proxy_node_columns` → Bevy 纯几何 `ProxyGridContainer` → scene / card / reconcile / virtual 四路消费；探针链：contract typed state / stamp → ports → application → `CoreApplication` → `SurfaceReader` readback。两个 owner guard 共 15 项 planted 负例，含 tier 表、compact bool、首帧 31%、缺场景 marker、unsupported dispatch、default readback、硬编码时间；无跨 UI 私有业务真源 |
+| 8 | 部分 | L | 同主题源码一次落地后集中跑五包 Clippy、Bevy/Core lib nextest、一组 Bevy headless、一组静态门和两个 owner guard；没有逐文件反复全仓验证，也未触发 192 帧重采。全仓 `--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` 仍留统一批次一次跑完 |
+
+## 最近一批问答（2026-11-13 第二百二十五批次：Bevy 代理节点网格回到 FlClash 页宽 owner）
+
+1. x86_64/aarch64：本批为 Bevy/Core 纯 Rust、headless 测试、Python guards 与结构门四腿，零平台 API、零 wire identity；`cargo fmt --all -- --check`、五包 `cargo clippy --all-targets -D warnings`、Bevy lib **199/199**、Core 三包 lib **1346/1346**、定向 headless **27/27** 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
+2. Windows/Linux/macOS：Linux 本机完成 Bevy/Core 定向编译、动态 resize 测试、大列表回收器测试、两个 owner guard、BSN/rem/scene/typed-state/implicit-state/line/import 门；本批不改截图矩阵、不触发 capture，Windows/macOS 构建腿和安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID → 部分（L）。
+3. Android/iOS：零 Android/iOS 代码与资源改动；共享页宽与 PublicIpProbe 状态机按构造对移动平台中立，但 Bevy 192 帧像素、Android 三 flavor 与 iOS 实机回执均未在本批复跑，不写「已验收」→ 部分（L）。
+4. 各 UI：Bevy 的 `proxies_page` 接受 `ResponsiveViewportSnapshot` 并发布 typed `ProxyGridContainer`，scene / card / reconcile / virtual 四路读共享几何；PublicIpProbe 只在 Core 闭环，不改任何 UI 消费端。Iced/Slint 早已消费同一 `proxy_node_columns` / 导出规则，本批不重绘其它表面；Android 不消费桌面代理网格。Bevy 源码与动态列数已接入，standard/compact 双视口真实像素仍由 `FLPROFILES-002` 统一批次收口 → 部分（L）。
+5. 复用：pinned FlClash `be847366` 的 `lib/common/layout.dart::getProxiesColumns` 与 `lib/views/proxies/tab.dart::max(width-32,0)` 共同给出「页身可用宽 / 250dp、至少 2 列」连续规则，tracked `flclash-desktop-proxies.png` 真实场景图在同一宽度铺满多列节点卡；本仓不照抄 Flutter `WidthBuilder`、`tight/standard/loose` 三档或上游 UI 私有 loading bool，而把规则留在 `proxy_node_columns`，把 Public IP probe 收敛为 typed `Idle/Probing/Succeeded/Failed/Stale`、route stamp 与 stale answer fence。旧 `compact_view: bool`、tier `1/2/3/4`、`RefreshPublicIpProbe => unsupported()`、`SurfaceReader::default()` 与硬编码 `checked_at_epoch_ms` 同批退役 → 完整（L）。
+5a. 设计资源：本批零可见身份变化：不改字体、图标、文案、PO、wire、截图矩阵或旗资产；用户强调的「一般国旗都是方形，不要圆形旗帜图案容器」继续由 4:3 直角矢量与 `flag-plate-guard` 钉住，本批没有新增圆形/clover/旋转徽章容器。按标准无须重采 211/184 帧；Bevy 192 帧像素属另一会话所有权，不触碰也不冒充新鲜回执 → 完整（L）。
+6. 各处界面的功能接入：Bevy 标准页 1180 页身 `908px → 4 列`、1920 `1608px → 7 列`、720/400 与 `CompactList` 均单列；首帧与 reconcile 新挂载卡也按共享列宽构造。PublicIpProbe 的 refresh / stale / failure / readback 全走 typed owner。Bevy lib **199/199**、Core 三包 lib **1346/1346**、定向 headless **27/27**、两个 owner guard **9/9 + 6/6**、结构收集器 **198 腿静态形状 0 findings** 为 `L`。双视口像素、`resolve_surface_evidence.py` 的 180 个 ready cells 与全仓结构门动态执行仍留统一批次 → 部分（L）。
+7. 模块化：新增 `proxy_grid_geometry.rs` 作为 Bevy 唯一页宽几何 owner，暴露 `ProxyGridGeometry` / `ProxyGridContainer` / 纯函数；route 只传视口，scene 只挂 typed marker，full-mount / reconcile / virtual 三条渲染路径只消费几何。Core 侧新增 `public_ip_probe` contract/port/application 模块，按业务缝拆出 `core_application/public_ip_probe.rs`、`core_application/test_support.rs` 与 `surface_reader/theme.rs`，两个超 800 行文件归零。两个 owner guard 共 15 项 planted 覆盖 tier 表、compact bool、首帧 31%、unsupported dispatch、default readback、硬编码时间与缺结构门腿，实测 **9/9 + 6/6**，无第二业务真源 → 完整（L）。
+8. CI 与批次效率：一次完成同主题源码/测试/守卫/结构门接线后，集中跑五包 Clippy、Bevy/Core lib nextest、一组 Bevy headless、一组静态门和两个 owner guard；没有边改边跑全仓，也没有因源码-only 改动触发 192 帧 capture。全仓 `--workspace` nextest、结构门动态全腿与 `resolve_surface_evidence.py` 仍留统一批次一次跑完 → 部分（L）。
 
 ## 最近一批问答（2026-11-13 第二百二十四批次：ClashParty 连接视图的 typed 底层 owner）
 

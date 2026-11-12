@@ -18,6 +18,7 @@ use crate::pages::proxies::{
 };
 use crate::pages::proxies_card::group_card::group_header_scene;
 use crate::pages::proxies_card::node_card::{ProxyNodeSceneContext, proxy_node_scene_sized};
+use crate::pages::proxy_grid_geometry::proxy_grid_geometry;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::{ChildOf, Children};
@@ -33,7 +34,10 @@ use infiltrator_bevy_widgets::list::VirtualListState;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::responsive::ResponsiveContext;
-use infiltrator_bevy_widgets::theme::{Breakpoint, space};
+use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::responsive_viewport::ResponsiveViewportSnapshot;
+#[cfg(test)]
+use lurker_core_contract::outbound::preferences::OutboundLayout;
 use zhuge_ui_core::virtual_list::max_band_rows;
 use zhuge_ui_kit_bevy::control::{SlotAction, VirtualScrollSlot, sync_virtual_slots};
 
@@ -72,22 +76,6 @@ impl ProxiesVirtualRow {
             Self::Group { .. } => PROXY_GROUP_ROW_HEIGHT_PX,
             Self::Nodes { .. } => PROXY_NODE_ROW_HEIGHT_PX,
         }
-    }
-}
-
-/// The shared tier column operator for the proxies node grid.
-pub fn proxies_virtual_columns(compact_view: bool, context: Option<&ResponsiveContext>) -> usize {
-    if compact_view {
-        return 1;
-    }
-    match context
-        .map(|c| c.breakpoint)
-        .unwrap_or(Breakpoint::Expanded)
-    {
-        Breakpoint::Compact => 1,
-        Breakpoint::Medium => 2,
-        Breakpoint::Expanded => 3,
-        Breakpoint::Ultra => 4,
     }
 }
 
@@ -401,7 +389,14 @@ pub(crate) fn sync_proxies_virtual_window(mut commands: Commands, surface: Proxi
         },
     );
 
-    let columns = proxies_virtual_columns(projection.compact_view, responsive.as_deref());
+    let columns = responsive
+        .as_deref()
+        .map(|context| {
+            let viewport =
+                ResponsiveViewportSnapshot::from_dimensions(context.width_px, context.height_px);
+            proxy_grid_geometry(&viewport, projection.layout).columns
+        })
+        .unwrap_or(1);
     let rows = flatten_proxy_rows(&projection, columns);
     let signature = row_signature(&projection, columns);
     let structure_changed = signature != state.signature;
@@ -510,7 +505,7 @@ mod tests {
             testing: false,
             filter_alive: false,
             sort_order: Default::default(),
-            compact_view: false,
+            layout: OutboundLayout::Grid,
             active_exit: "node-0".to_owned(),
             custom_node: Default::default(),
             groups: vec![ProxyGroup {

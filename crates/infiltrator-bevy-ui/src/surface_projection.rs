@@ -275,11 +275,9 @@ pub(super) fn proxies_projection(
         groups,
         testing: false,
         filter_alive: model.healthy_only(),
-        // The layout is an owner-published preference, not a derivation: an
-        // unread preference read keeps the grid instead of claiming a layout
-        // the owner never published.
-        compact_view: preferences
-            .is_some_and(|preferences| preferences.layout == OutboundLayout::CompactList),
+        // The layout is an owner-published preference, not a boolean
+        // derivation. An unread preference read is its typed default.
+        layout: preferences.map_or(OutboundLayout::default(), |preferences| preferences.layout),
         // The sort order is an owner-published preference, not a derivation:
         // the strip seeds its selection from the order the owner publishes.
         sort_order: preferences.map_or_else(OutboundSortOrder::default, |preferences| {

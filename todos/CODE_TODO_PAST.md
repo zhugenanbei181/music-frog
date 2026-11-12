@@ -237,7 +237,7 @@
 ① **架构缺口**：b208 / b212 的 Profiles 与代理节点规则都要求「页身可用宽」，本仓却只有窗口宽、导航列宽、页边距三个分散事实；Iced 仍把配置卡叠成单列、代理节点按窗口档固定 3 列。另实测诊断批 `INFILTRATOR_CAPTURE_SCENARIOS` 会逐帧覆盖正式 PNG 并把 190 行 manifest 截成 4 行。
 ② **自底向上收口**：契约新增 `ViewportTier::page_body_width_px(window_width)`，一处扣除导航列与双侧页边距；v15 导出 `profile_grid.forms` / `proxy_grid.forms`，新增 typed `ProfileGridForm::{Stacked, Desktop}`，生成器投影到 Slint，Iced 与 Slint 都按 `labelled_sidebar` 选形态。720×480 诊断证明 profiles 数值上能放 2 列却会把文本挤成竖排碎字，故轨/底栏档固定单列。Iced 新增 `CaptureSection::ProfilesGrid` 与 `profiles-grid-{standard,compact}` 两帧，把配置列表滚入真实视口；标准帧 2 列且卡高按内容收缩。捕获脚本引入 `PUBLISH_CORPUS=0`：过滤批与矩阵覆盖批只写 `.evidence`，完整 canonical 矩阵才发布图像与索引；`iced-observation-routes-guard` 加 planted 自测钉住这条隔离。
 ③ **证据（L）**：契约+Slint+Iced nextest **1626/1626**、三包 Clippy `--all-targets -D warnings`、fmt；Iced **192/192**、Slint **199/199** 整批重采，`space_utilization --surface iced|slint --enforce` 均 0 违规、`receipt-freshness 0`、`--check-export` current、生成器 `--check` fresh、统一矩阵双表面一致；`slint-viewport-tier-guard` **45/45**、`iced-observation-routes-guard` **14/14**、`sidebar-expansion-owner-guard` **10/10**，doc/line/import/typed-state/implicit-state 全 0。
-④ **待验证范围**：统一批次复跑 `cargo nextest run --workspace`、全仓结构门与 `resolve_surface_evidence.py`；另一会话未提交的 Bevy `runtime-dark` / `overview-dark` 像素别名仍是全仓身份门唯一红腿。Bevy 的 Profiles / 代理网格仍消费 tier 查表，由 `FLPROFILES-002` 在其文件所有权落地后收口。
+④ **待验证范围**：统一批次复跑 `cargo nextest run --workspace`、全仓结构门与 `resolve_surface_evidence.py`；另一会话未提交的 Bevy `runtime-dark` / `overview-dark` 像素别名仍是全仓身份门唯一红腿。b225 后注：Bevy 代理网格已改读 `ProxyGridGeometry` / `proxy_node_columns`，Profiles 源码半已由 b223 接线；剩余为 `FLPROFILES-002` 的双视口像素验收。
 ⑤ **证据身份**：Iced 192/192 发布 run `20261111T220532Z_923ba4af7b2f_dirty_2656390`、Slint 199/199 发布 run `20261111T221050Z_923ba4af7b2f_dirty_2705566`、三包 nextest **1626/1626**、两个网格诊断批 `20261111T220101Z_923ba4af7b2f_dirty_2639332` / `20261111T220246Z_923ba4af7b2f_dirty_2649539`。
 
 ## 12.81 已关闭连接的 Core 单一 owner 与权威读回（1条待验证）
@@ -380,6 +380,25 @@ owner 分别是另一会话的 Bevy 像素与 `I18NNAV-001`，任一转绿须同
 ⑦ **待验证范围**：统一批次复跑 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py`；
 `I18NCAT-001` 办结前不声称 Slint 全量 `@tr` 已本地化；Bevy 的 192 帧像素仍由另一会话持有，
 本批不重采、不碰。
+
+## 12.90 Bevy 代理节点网格回到共享页宽 owner（本批证据切片，不新增待验证条目）
+
+| 项目 | 证据 |
+| --- | --- |
+| 根因 | Bevy 把 FlClash 页身宽规则写成 `Breakpoint 1/2/3/4` 表，并把 typed `OutboundLayout` 压扁成 `compact_view: bool`；full-mount 与 virtual recycler 各推一次列数 |
+| 上游真源 | pinned FlClash `be847366` 的 `lib/common/layout.dart::getProxiesColumns`、`lib/views/proxies/tab.dart::max(width-32,0)` 与 `docs/reference/flclash-desktop/flclash-desktop-proxies.png` |
+| owner 链 | `infiltrator-contract::responsive_viewport::proxy_node_columns` → `pages::proxy_grid_geometry::ProxyGridContainer` → `proxies_page` / `group_card_scene` / `proxy_node_scene` / reconcile / `sync_proxies_node_columns` / `sync_proxies_virtual_window` → `bevy-proxy-grid-owner-guard.py` |
+| 本地证据 | `cargo fmt --all -- --check`、Bevy `cargo check --all-targets` zero warning、lib nextest **199/199**、定向 headless **27/27**、owner guard **9/9 + 0**、BSN/rem/scene/typed-state/implicit-state 全 0、closure 8/8 |
+| 诚实边界 | 源码-only，无 Bevy 192 帧重采；`FLPROFILES-002` 的 standard/compact 双视口像素、全仓结构门与 `resolve_surface_evidence.py` 仍待统一批次；不触碰外部脏文件 |
+
+## 12.91 PublicIpProbe typed owner 与权威读回（本批证据切片，不新增待验证条目）
+
+| 项目 | 证据 |
+| --- | --- |
+| 根因 | `RefreshPublicIpProbe` 落入 generic unsupported，`SurfaceReader` 发布 `default()`，没有 `Probing` 生产写入者，时间来自硬编码 |
+| owner 链 | contract typed state / route stamp → ports probe contract → application refresh + stale answer fence → `CoreApplication` 单例持有 → `SurfaceReader` 真实读回 |
+| 本地证据 | 三包 lib nextest **1346/1346**、五包 Clippy `-D warnings`、owner guard **6/6 + enforce 0**、import/line/typed-state/implicit-state 全 0 |
+| 诚实边界 | 零 UI/像素/wire/snapshot identity 变化；UI 刷新控件接入、product build receipts 与全仓动态结构门仍留统一批次 |
 
 ## 12.89 ClashParty 连接视图 typed 底层 owner（本批证据切片，不新增待验证条目）
 

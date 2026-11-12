@@ -33,6 +33,7 @@ use crate::privileged_network_application::PrivilegedNetworkApplication;
 use crate::profile_application::ProfileApplication;
 use crate::profile_document_application::ProfileDocumentApplication;
 use crate::profile_options_application::ProfileOptionsApplication;
+use crate::public_ip_probe_application::PublicIpProbeApplication;
 use crate::routing_application::RoutingApplication;
 use crate::rule_list_application::RuleListApplication;
 use crate::rule_provider_application::{RuleProviderApplication, RuleProviderRuntimeAccess};
@@ -140,6 +141,7 @@ pub struct CommandApplication {
     network_roaming: Option<NetworkRoamingApplication>,
     vpn: Option<VpnServiceApplication>,
     privileged_network: Option<PrivilegedNetworkApplication>,
+    public_ip_probe: Option<PublicIpProbeApplication>,
     /// Shared live traffic history owner (same instance as the surface
     /// reader), so `ClearTrafficHistory` resets the real curve.
     traffic_waveform: Option<TrafficWaveformApplication>,
@@ -707,6 +709,12 @@ impl CommandApplication {
         })
     }
 
+    fn public_ip_probe(&self) -> Result<PublicIpProbeApplication, Failure> {
+        self.public_ip_probe
+            .clone()
+            .ok_or_else(|| Failure::unsupported("public IP probe application is not composed"))
+    }
+
     fn outbound(&self) -> Result<OutboundApplication, Failure> {
         self.outbound
             .clone()
@@ -774,3 +782,7 @@ mod traffic_history_tests;
 #[cfg(test)]
 #[path = "command_application_closed_history_tests.rs"]
 mod closed_history_tests;
+
+#[cfg(test)]
+#[path = "public_ip_probe_command_tests.rs"]
+mod public_ip_probe_command_tests;

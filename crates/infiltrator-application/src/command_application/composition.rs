@@ -16,6 +16,7 @@ use super::{
 };
 use crate::closed_connections_application::ClosedConnectionsApplication;
 use crate::palette_preference_application::PalettePreferenceApplication;
+use crate::public_ip_probe_application::PublicIpProbeApplication;
 use crate::traffic_waveform_application::TrafficWaveformApplication;
 use infiltrator_ports::runtime_configuration::RuntimeConfigurationPorts;
 use std::sync::Arc;
@@ -237,6 +238,12 @@ impl CommandApplication {
 
     pub fn with_privileged_network(mut self, application: PrivilegedNetworkApplication) -> Self {
         self.privileged_network = Some(application);
+        self
+    }
+
+    /// Install the same public IP probe owner that the surface reader uses.
+    pub fn with_public_ip_probe(mut self, application: PublicIpProbeApplication) -> Self {
+        self.public_ip_probe = Some(application);
         self
     }
 

@@ -16,6 +16,7 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::responsive::ResponsiveContext;
 use infiltrator_bevy_widgets::theme::{breakpoint, space};
+use lurker_core_contract::outbound::preferences::OutboundLayout;
 
 /// Short windows reduce empty inter-card space while retaining every input and action.
 pub fn sync_proxy_vertical_spacing(
@@ -126,7 +127,7 @@ pub fn sync_proxy_preferences(
         let enabled = if control.filter {
             projection.filter_alive
         } else {
-            projection.compact_view
+            matches!(projection.layout, OutboundLayout::CompactList)
         };
         control.fill.0 = if enabled {
             palette.accent_container
@@ -134,7 +135,7 @@ pub fn sync_proxy_preferences(
             palette.surface_elevated
         };
     }
-    let key = if projection.compact_view {
+    let key = if matches!(projection.layout, OutboundLayout::CompactList) {
         "proxies_list_view"
     } else {
         "proxies_grid_view"

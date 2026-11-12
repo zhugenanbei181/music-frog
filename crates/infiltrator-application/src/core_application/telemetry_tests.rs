@@ -1,7 +1,7 @@
 //! test-intent: behavior
 //! Telemetry blocked at the real port boundary cannot cross a core-stop/session fence.
 use super::*;
-use crate::core_application::test_execute_result_at_current_scope;
+use crate::core_application::test_support::test_execute_result_at_current_scope;
 use infiltrator_ports::overview::OverviewSample;
 use tokio::sync::oneshot;
 

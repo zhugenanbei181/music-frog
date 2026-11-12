@@ -337,6 +337,47 @@ fn native_health_and_layout_controls_replay_the_observed_typed_preferences() {
 }
 
 #[test]
+fn compact_layout_preference_keeps_one_column_after_dynamic_resize() {
+    use bevy::ui::Val;
+    use infiltrator_bevy_widgets::fluid_grid::FluidCardGrid;
+    use infiltrator_bevy_widgets::responsive::ResponsiveContext;
+
+    let (mut app, sink) = app_with_preferences();
+    apply_preference(
+        &mut app,
+        &sink,
+        OutboundUiPreferenceIntent::SetLayout(OutboundLayout::CompactList),
+    );
+    let observed = app.world().resource::<LatestSurfaceSnapshot>().0.clone();
+    publish(&mut app, &sink, observed);
+
+    for width in [1180.0_f32, 1920.0] {
+        app.world_mut()
+            .resource_mut::<ResponsiveContext>()
+            .set_dimensions(width, 900.0);
+        app.update();
+        let projected = app
+            .world()
+            .resource::<LastProxiesProjection>()
+            .0
+            .as_ref()
+            .expect("the owner published a typed proxies projection");
+        assert_eq!(projected.layout, OutboundLayout::CompactList);
+        let mut cards = app.world_mut().query::<(&Node, &ProxyNodeButton)>();
+        let expected = Val::Percent(FluidCardGrid::wrapped_item_percent(1));
+        let widths: Vec<Val> = cards
+            .iter(app.world())
+            .map(|(node, _)| node.width)
+            .collect();
+        assert!(!widths.is_empty(), "proxy node cards are mounted");
+        assert!(
+            widths.iter().all(|width| *width == expected),
+            "CompactList stays stacked at {width}px: {widths:?}"
+        );
+    }
+}
+
+#[test]
 fn reordered_changed_and_removed_collections_keep_typed_node_identity_and_reject_stale_controls() {
     let (mut app, sink) = app_with_preferences();
     let mut snapshot = app.world().resource::<LatestSurfaceSnapshot>().0.clone();

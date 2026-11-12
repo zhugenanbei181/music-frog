@@ -688,7 +688,8 @@ b218 的收口按自底向上一次做完，不放宽任何阈值：
   `app_body.slint` 的 `page-margin` 不再按 `compact-layout` 分叉；Iced 的
   `view_root` / `sidebar_chrome` / `rules_list` 都读 `PAGE_PADDING_PX`，
   且 `shell_chrome_facts()` 不再接受一个已无用的 `ViewportTier` 参数。
-  Bevy 的 12px 副本按文件所有权留 `FLPROFILES-002` 同一批收口。
+  Bevy 的 12px 副本按文件所有权留 `FLPROFILES-002` 同一批收口；b225 先把
+  Proxies 节点网格接入同一页宽 owner，但仍不声称 192 帧像素已验收。
 - **判定器不记数**：`page_padding_px()` 逐帧从导出物读，
   `chrome_findings()` 要求帧自述的 `page_margin_px` 等于该值；
   一帧私自画 30/40/12px 都会被拒（`--self-test` **63 → 64**，

@@ -39,6 +39,7 @@ use infiltrator_application::privileged_network_application::PrivilegedNetworkAp
 use infiltrator_application::profile_aggregation_application::last_aggregation_report;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::protocol_codec_application::studio_snapshot;
+use infiltrator_application::public_ip_probe_application::PublicIpProbeApplication;
 use infiltrator_application::reconnect_mask_application::ReconnectMaskApplication;
 use infiltrator_application::request_tracker_application::RequestTrackerApplication;
 use infiltrator_application::resource_application::ResourceApplication;
@@ -132,6 +133,8 @@ mod page_builders;
 mod projections;
 mod rules_page;
 mod snapshot_views;
+#[path = "surface_reader/theme.rs"]
+mod theme;
 #[path = "surface_reader_versions.rs"]
 mod versions;
 
@@ -167,6 +170,7 @@ pub struct ProductSurfaceReader {
     network_roaming: Option<NetworkRoamingApplication>,
     vpn: Option<VpnServiceApplication>,
     privileged_network: Option<PrivilegedNetworkApplication>,
+    public_ip_probe: Option<PublicIpProbeApplication>,
     traffic_waveform: TrafficWaveformApplication,
     traffic_scale: TrafficScaleApplication,
     traffic_topology: TrafficTopologyApplication,
@@ -262,6 +266,17 @@ impl SurfaceReader for ProductSurfaceReader {
         let vpn = self.read_vpn().await;
         let vpn_authorization = self.read_vpn_authorization().await;
         let privileged_network = self.read_privileged_network().await;
+        let public_ip = self
+            .public_ip_probe
+            .as_ref()
+            .map(|owner| owner.snapshot())
+            .unwrap_or_else(|| {
+                PublicIpProbeSnapshot::unsupported(
+                    core.generation,
+                    revision,
+                    "public IP probe application is not composed",
+                )
+            });
         let speedtest = self.core.speedtest_snapshot();
         let outbound_observation = match (&self.outbound, core.scope()) {
             (Some(outbound), Some(scope)) => {
@@ -765,7 +780,7 @@ impl SurfaceReader for ProductSurfaceReader {
             outbound_inventory,
             outbound_details,
             outbound_ui_preferences,
-            public_ip: PublicIpProbeSnapshot::default(),
+            public_ip,
             ip_quality: IpQualitySnapshot::default(),
             overview_layout: overview_layout_snapshot,
             reconnect_mask,
@@ -834,27 +849,6 @@ mod script_tests;
 #[path = "surface_reader_profile_tests.rs"]
 mod profile_tests;
 
-impl ProductSurfaceReader {
-    /// One authoritative theme readback per snapshot: the stored preference
-    /// plus the host observation (unobserved unless a host adapter is injected).
-    fn theme_readback(
-        &self,
-        hydrated_settings: Option<&Result<AppSettings, Failure>>,
-    ) -> ResolvedThemePalette {
-        let preference = hydrated_settings
-            .and_then(|result| result.as_ref().ok())
-            .map(|settings| ThemePreference::from_setting(&settings.theme))
-            .unwrap_or_default();
-        let observation = self
-            .system_theme
-            .as_ref()
-            .map(|port| port.observe())
-            .unwrap_or_default();
-        let palette = self
-            .palette_preference
-            .as_ref()
-            .map(PalettePreferenceApplication::snapshot)
-            .unwrap_or_default();
-        project_theme_readback_with_palette(preference, observation, palette)
-    }
-}
+#[cfg(test)]
+#[path = "surface_reader_public_ip_tests.rs"]
+mod public_ip_tests;

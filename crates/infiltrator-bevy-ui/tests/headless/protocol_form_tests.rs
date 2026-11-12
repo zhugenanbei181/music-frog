@@ -43,6 +43,7 @@ use infiltrator_presentation::protocol_editor_operation::ProtocolEditorOperation
 use infiltrator_presentation::protocol_form::draft_from_uri;
 use infiltrator_test_support::dns_hosts_fixtures::HostsCaptureStore;
 use lurker_core_contract::error::{ErrorCode, Failure};
+use lurker_core_contract::outbound::preferences::OutboundLayout;
 use lurker_core_contract::page::PageData;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
@@ -498,7 +499,7 @@ fn unrelated_projection_refresh_cannot_erase_the_open_native_draft() {
             testing: false,
             filter_alive: false,
             sort_order: Default::default(),
-            compact_view: false,
+            layout: OutboundLayout::Grid,
             active_exit: "—".into(),
             custom_node: Default::default(),
         }));

@@ -1,19 +1,28 @@
 //! Reconcile only added/removed identities and child order; preserve surviving native controls.
-use crate::pages::proxies::{GroupNodesContainer, LastProxiesProjection, ProxyNodeButton};
+use crate::pages::proxies::{
+    GroupNodesContainer, LastProxiesProjection, ProxiesPageRoot, ProxyNodeButton,
+};
 use crate::pages::proxies_card::group_card::group_card_scene;
-use crate::pages::proxies_card::node_card::proxy_node_scene;
+use crate::pages::proxies_card::node_card::{ProxyNodeSceneContext, proxy_node_scene};
 use crate::pages::proxies_identity::{
     ProxyCardsContainer, ProxyGroupIdentity, ProxyGroupOutboundIdentity,
 };
 use crate::pages::proxies_virtual::ProxiesVirtualNodes;
+use crate::pages::proxy_grid_geometry::ProxyGridContainer;
+use crate::pages::proxy_grid_geometry::proxy_grid_geometry;
 use bevy::ecs::change_detection::DetectChanges;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::query::{QueryData, QueryFilter, With, Without};
-use bevy::ecs::system::{Commands, Query, Res};
+use bevy::ecs::system::{Commands, Query, Res, SystemParam};
 use bevy::scene::CommandsSceneExt;
+use bevy::ui::prelude::Val;
+use infiltrator_bevy_widgets::fluid_grid::FluidCardGrid;
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::responsive::ResponsiveContext;
+use infiltrator_contract::responsive_viewport::ResponsiveViewportSnapshot;
 use lurker_core_contract::outbound::identity::OutboundId;
+use lurker_core_contract::outbound::preferences::OutboundLayout;
 use std::collections::HashMap;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -42,6 +51,45 @@ pub struct ProxyNodeReconcileContainer {
     children: Option<&'static Children>,
     identity: &'static ProxyGroupIdentity,
     outbound_identity: Option<&'static ProxyGroupOutboundIdentity>,
+}
+
+#[derive(SystemParam)]
+pub struct ProxyCardReconcileSurface<'w, 's> {
+    root: Query<'w, 's, (Entity, Option<&'static Children>), With<ProxyCardsContainer>>,
+    children: Query<'w, 's, &'static Children, Without<ProxyCardsContainer>>,
+    groups: Query<'w, 's, &'static ProxyGroupIdentity>,
+    outbound_groups: Query<'w, 's, &'static ProxyGroupOutboundIdentity>,
+}
+
+#[derive(SystemParam)]
+pub struct ProxyGridReadback<'w, 's> {
+    geometry_root: Query<'w, 's, &'static ProxyGridContainer, With<ProxiesPageRoot>>,
+    context: Option<Res<'w, ResponsiveContext>>,
+}
+
+impl ProxyGridReadback<'_, '_> {
+    fn columns(&self, layout: OutboundLayout) -> usize {
+        self.context
+            .as_deref()
+            .map(|context| {
+                let viewport = ResponsiveViewportSnapshot::from_dimensions(
+                    context.width_px,
+                    context.height_px,
+                );
+                proxy_grid_geometry(&viewport, layout).columns
+            })
+            .or_else(|| {
+                self.geometry_root
+                    .single()
+                    .ok()
+                    .map(|container| container.0.columns)
+            })
+            .unwrap_or(1)
+    }
+
+    fn width(&self, layout: OutboundLayout) -> Val {
+        Val::Percent(FluidCardGrid::wrapped_item_percent(self.columns(layout)))
+    }
 }
 
 fn group_key<'a, F: QueryFilter>(
@@ -148,10 +196,8 @@ pub fn reconcile_proxy_cards(
     mut commands: Commands,
     last: Option<Res<LastProxiesProjection>>,
     palette: Res<UiPalette>,
-    root: Query<(Entity, Option<&Children>), With<ProxyCardsContainer>>,
-    children: Query<&Children, Without<ProxyCardsContainer>>,
-    groups: Query<&ProxyGroupIdentity>,
-    outbound_groups: Query<&ProxyGroupOutboundIdentity>,
+    surface: ProxyCardReconcileSurface,
+    grid: ProxyGridReadback,
 ) {
     let Some(last) = last else {
         return;
@@ -162,9 +208,16 @@ pub fn reconcile_proxy_cards(
     let Some(projection) = &last.0 else {
         return;
     };
+    let ProxyCardReconcileSurface {
+        root,
+        children,
+        groups,
+        outbound_groups,
+    } = surface;
     let Ok((root, current)) = root.single() else {
         return;
     };
+    let width = grid.width(projection.layout);
     let existing: HashMap<_, _> = current
         .into_iter()
         .flat_map(|children| children.iter().copied())
@@ -179,7 +232,7 @@ pub fn reconcile_proxy_cards(
         );
         if !existing.contains_key(&key) {
             commands
-                .spawn_scene(group_card_scene(index, group, &palette))
+                .spawn_scene(group_card_scene(index, group, width, &palette))
                 .insert(ChildOf(root));
         }
     }
@@ -202,6 +255,7 @@ pub fn reconcile_proxy_nodes(
     containers: Query<ProxyNodeReconcileContainer, With<GroupNodesContainer>>,
     identities: Query<&ProxyNodeButton>,
     virtual_containers: Query<(), With<ProxiesVirtualNodes>>,
+    grid: ProxyGridReadback,
 ) {
     let Some(last) = last else {
         return;
@@ -218,6 +272,7 @@ pub fn reconcile_proxy_nodes(
         // collection (or refill group-header rows).
         return;
     }
+    let width = grid.width(projection.layout);
     for container in &containers {
         let Some((group_index, group)) = projection.groups.iter().enumerate().find(|(_, group)| {
             container
@@ -251,16 +306,20 @@ pub fn reconcile_proxy_nodes(
                 |id| NodeKey::Outbound(id.clone()),
             );
             if !existing.contains_key(&key) {
+                let node_scene = proxy_node_scene(
+                    ProxyNodeSceneContext {
+                        group_idx: group_index,
+                        node_idx: index,
+                        group_name: &group.name,
+                        collection_id: group.collection_id.clone(),
+                        selection_available: group.outbound_selection_available,
+                    },
+                    node,
+                    width,
+                    &palette,
+                );
                 commands
-                    .spawn_scene(proxy_node_scene(
-                        group_index,
-                        index,
-                        &group.name,
-                        group.collection_id.clone(),
-                        node,
-                        group.outbound_selection_available,
-                        &palette,
-                    ))
+                    .spawn_scene(node_scene)
                     .insert(ChildOf(container.entity));
             }
         }

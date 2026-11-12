@@ -25,6 +25,7 @@ use crate::pages::proxies_card::overlays::{sync_proxy_latency_sparklines, sync_p
 use crate::pages::proxies_custom::{on_custom_node_action_activated, sync_custom_node_studio};
 use crate::pages::proxies_refresh::apply_proxies_projection;
 use crate::pages::proxies_virtual::ProxiesVirtualState;
+use crate::pages::proxy_grid_geometry::proxy_grid_geometry;
 use crate::route::Route;
 use crate::surface::LatestSurfaceSnapshot;
 use bevy::app::{App, Last, Plugin, Update};
@@ -44,10 +45,11 @@ use infiltrator_bevy_widgets::button::sync_control_visuals;
 use infiltrator_bevy_widgets::fluid_grid::{FluidCardGrid, compute_ideal_column_layout};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::responsive::ResponsiveContext;
-use infiltrator_bevy_widgets::theme::{Breakpoint, space};
+use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::latency_display::LatencyBand;
 use infiltrator_contract::protocol_fidelity::ProtocolStudioSnapshot;
 use infiltrator_contract::proxies::ProxyGroupClassification;
+use infiltrator_contract::responsive_viewport::ResponsiveViewportSnapshot;
 use infiltrator_presentation::proxies_page_model::ProxyFilterTarget;
 use lurker_core_contract::outbound::{
     details::{OutboundHealthObservation, OutboundLatencySample},
@@ -341,7 +343,7 @@ pub struct ProxiesProjection {
     pub groups: Vec<ProxyGroup>,
     pub testing: bool,
     pub filter_alive: bool,
-    pub compact_view: bool,
+    pub layout: OutboundLayout,
     pub active_exit: String,
     /// The order the owner publishes for the member list. The sort strip
     /// seeds its selection from this answer instead of guessing an order
@@ -380,7 +382,7 @@ impl ProxiesProjection {
             active_exit: HK_PRIMARY.to_owned(),
             testing: false,
             filter_alive: false,
-            compact_view: false,
+            layout: OutboundLayout::Grid,
             sort_order: OutboundSortOrder::default(),
             custom_node: Default::default(),
             groups: vec![
@@ -572,7 +574,7 @@ impl Plugin for ProxiesPagePlugin {
     }
 }
 
-/// Reflow proxy node cards to the shared tier column count (1 / 2 / 3 / 4).
+/// Reflow proxy node cards to the shared page-width column count.
 /// When container dimensions are measured via [`ComputedNode`], the exact card
 /// width is computed via [`compute_ideal_column_layout`] to fill 100% of the
 /// container width symmetrically. Otherwise, it falls back to the authoritative
@@ -586,20 +588,12 @@ pub fn sync_proxies_node_columns(
     let Some(ctx) = ctx else {
         return;
     };
-    let columns = if last
+    let layout = last
         .as_ref()
         .and_then(|last| last.0.as_ref())
-        .is_some_and(|projection| projection.compact_view)
-    {
-        1
-    } else {
-        match ctx.breakpoint {
-            Breakpoint::Compact => 1,
-            Breakpoint::Medium => 2,
-            Breakpoint::Expanded => 3,
-            Breakpoint::Ultra => 4,
-        }
-    };
+        .map_or(OutboundLayout::default(), |projection| projection.layout);
+    let viewport = ResponsiveViewportSnapshot::from_dimensions(ctx.width_px, ctx.height_px);
+    let columns = proxy_grid_geometry(&viewport, layout).columns;
     let fallback_width = Val::Percent(FluidCardGrid::wrapped_item_percent(columns));
 
     if containers.is_empty() {

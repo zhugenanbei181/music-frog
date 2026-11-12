@@ -780,6 +780,11 @@ impl CommandApplication {
             CommandIntent::TestDnsLatency => self.test_dns_latency().await,
             CommandIntent::TestDnsLeak => self.test_dns_leak().await,
             CommandIntent::RunStunProbe => self.run_stun_probe().await,
+            CommandIntent::RefreshPublicIpProbe => {
+                let owner = self.public_ip_probe()?;
+                owner.refresh(owner.refresh_route()).await;
+                Ok(())
+            }
             CommandIntent::ClearLogs => {
                 self.logs
                     .as_ref()
@@ -792,8 +797,7 @@ impl CommandApplication {
                 .as_ref()
                 .ok_or_else(|| Failure::unsupported("log buffer is not composed"))?
                 .set_filter(level),
-            CommandIntent::RefreshPublicIpProbe
-            | CommandIntent::SimulateRuleTrace { .. }
+            CommandIntent::SimulateRuleTrace { .. }
             | CommandIntent::RunScriptSandbox { .. }
             | CommandIntent::ClearScriptSandbox { .. }
             | CommandIntent::PrepareScriptExport { .. }

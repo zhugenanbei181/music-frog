@@ -78,7 +78,7 @@ pub mod profile_options_application;
 pub mod profile_reset_application;
 pub mod protocol_codec_application;
 pub mod protocol_codec_matrix_application;
-pub mod public_ip_application;
+pub mod public_ip_probe_application;
 pub mod reconnect_mask_application;
 pub mod request_tracker_application;
 pub mod resource_application;

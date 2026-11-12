@@ -1,5 +1,5 @@
 use super::*;
-use crate::core_application::test_execute_result_at_current_scope;
+use crate::core_application::test_support::test_execute_result_at_current_scope;
 use infiltrator_contract::snapshot::CoreWatchdogState;
 use infiltrator_domain::watchdog::WatchdogConfig;
 use infiltrator_ports::core_watchdog::{CoreWatchdogPort, WatchdogTick};

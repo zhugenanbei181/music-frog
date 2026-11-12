@@ -1,4 +1,5 @@
 use super::*;
+use infiltrator_application::public_ip_probe_application::PublicIpProbeApplication;
 
 impl ProductSurfaceReader {
     pub fn new(core: Arc<CoreApplication>, surface: SurfaceKind, host: HostKind) -> Self {
@@ -34,6 +35,7 @@ impl ProductSurfaceReader {
             network_roaming: None,
             vpn: None,
             privileged_network: None,
+            public_ip_probe: None,
             traffic_waveform,
             traffic_scale: TrafficScaleApplication,
             traffic_topology: TrafficTopologyApplication,
@@ -220,6 +222,13 @@ impl ProductSurfaceReader {
 
     pub fn with_privileged_network(mut self, application: PrivilegedNetworkApplication) -> Self {
         self.privileged_network = Some(application);
+        self
+    }
+
+    /// Share the Core-owned public IP probe application so the surface
+    /// publishes the real typed refresh result instead of a fabricated readback.
+    pub fn with_public_ip_probe(mut self, application: PublicIpProbeApplication) -> Self {
+        self.public_ip_probe = Some(application);
         self
     }
 

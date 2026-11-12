@@ -83,6 +83,7 @@ use lurker_core_contract::identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
 use lurker_core_contract::outbound::details::OutboundHealthObservation;
+use lurker_core_contract::outbound::preferences::OutboundLayout;
 use lurker_core_contract::page::PageStatus;
 
 fn create_test_app() -> App {
@@ -166,7 +167,7 @@ fn proxies_page_in_place_update() {
         testing: true,
         filter_alive: false,
         sort_order: Default::default(),
-        compact_view: false,
+        layout: OutboundLayout::Grid,
         custom_node: Default::default(),
         groups: vec![ProxyGroup {
             collection_id: None,

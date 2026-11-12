@@ -35,6 +35,7 @@ use infiltrator_ports::profile_document_codec::{
     ProfileConfigurationReadout, ProfileConfigurationUpdate,
 };
 use infiltrator_presentation::protocol_form::{draft_from_uri, uri_from_draft};
+use lurker_core_contract::outbound::preferences::OutboundLayout;
 use lurker_core_contract::profile_document_identity::{
     ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
     ProfileDocumentSourceKind, ProfileId, ProfileSourceId,
@@ -181,7 +182,7 @@ fn custom_node_save_refuses_without_a_shared_draft_and_submits_the_shared_one() 
         testing: false,
         filter_alive: false,
         sort_order: Default::default(),
-        compact_view: false,
+        layout: OutboundLayout::Grid,
         active_exit: "—".to_owned(),
         custom_node: studio,
     };
@@ -250,7 +251,7 @@ fn custom_node_slots_render_the_shared_studio_facts() {
             testing: false,
             filter_alive: false,
             sort_order: Default::default(),
-            compact_view: false,
+            layout: OutboundLayout::Grid,
             active_exit: "—".to_owned(),
             custom_node: studio,
         }));
@@ -283,7 +284,7 @@ fn custom_node_slots_render_the_shared_studio_facts() {
             testing: false,
             filter_alive: false,
             sort_order: Default::default(),
-            compact_view: false,
+            layout: OutboundLayout::Grid,
             active_exit: "—".to_owned(),
             custom_node: studio,
         }));
@@ -322,7 +323,7 @@ fn custom_node_slots_render_the_shared_studio_facts() {
             testing: false,
             filter_alive: false,
             sort_order: Default::default(),
-            compact_view: false,
+            layout: OutboundLayout::Grid,
             active_exit: "—".to_owned(),
             custom_node: studio,
         }));
@@ -362,7 +363,7 @@ fn custom_node_notes_slot_reports_pinned_core_fallbacks_verbatim() {
             testing: false,
             filter_alive: false,
             sort_order: Default::default(),
-            compact_view: false,
+            layout: OutboundLayout::Grid,
             active_exit: "—".to_owned(),
             custom_node: studio,
         }));
@@ -444,7 +445,7 @@ fn custom_node_audit_line_reports_the_measured_lossless_verdict() {
             testing: false,
             filter_alive: false,
             sort_order: Default::default(),
-            compact_view: false,
+            layout: OutboundLayout::Grid,
             active_exit: "—".to_owned(),
             custom_node: live,
         }));
@@ -489,7 +490,7 @@ fn custom_node_dialer_and_ca_slots_render_the_shared_facts() {
             testing: false,
             filter_alive: false,
             sort_order: Default::default(),
-            compact_view: false,
+            layout: OutboundLayout::Grid,
             active_exit: "—".to_owned(),
             custom_node: studio,
         }));
@@ -516,7 +517,7 @@ fn custom_node_dialer_and_ca_slots_render_the_shared_facts() {
             testing: false,
             filter_alive: false,
             sort_order: Default::default(),
-            compact_view: false,
+            layout: OutboundLayout::Grid,
             active_exit: "—".to_owned(),
             custom_node: studio,
         }));
@@ -551,7 +552,7 @@ fn custom_node_dialer_and_ca_slots_render_the_shared_facts() {
             testing: false,
             filter_alive: false,
             sort_order: Default::default(),
-            compact_view: false,
+            layout: OutboundLayout::Grid,
             active_exit: "—".to_owned(),
             custom_node: studio,
         }));
@@ -583,7 +584,7 @@ fn custom_node_scan_and_ca_buttons_submit_the_shared_commands() {
             testing: false,
             filter_alive: false,
             sort_order: Default::default(),
-            compact_view: false,
+            layout: OutboundLayout::Grid,
             active_exit: "—".to_owned(),
             custom_node: studio,
         }));
