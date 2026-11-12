@@ -624,3 +624,32 @@ b190 之后 Iced 欠账归零、Slint 0 违规，本批把一处**口径错误**
   这也是这次改动范围的自证：只有真正拥有栏的帧换了口径。
 - 无需重采：像素与回执都没有变，本批改的是判据；`receipt-freshness 0`。
 
+
+## 12. 现状（b216 收口：折叠偏好不再把桌面页做成手机页）
+
+§2 第 1 条早就写明「页面 `compact-layout` 只决定内容密度」，但本仓把这句话反过来
+执行了：Slint 的 `compact-layout` 由 `!labelled-sidebar` 推导，而 `labelled-sidebar`
+跟着用户的侧栏折叠偏好走。于是桌面档收起侧栏 = 声明「这是手机页」，页身几何、
+页边距与两个网格形态一起降级；参考产品在同一个动作上给的是更宽的桌面页
+（`getViewMode` 只看窗口宽度，`sidebarExpanded` 只改列宽）。
+
+收口不新增任何数字：`page-structure.json` 的 `tiers[].labelled_sidebar` 本来就是
+「这一档有没有带标签列」的档事实，生成器把它投影为 `ViewportLadder.labelled_sidebar(tier)`，
+Slint 页面密度只读这一处；侧栏自己继续读偏好感知的 `sidebar_labelled(...)`。
+`slint-viewport-tier-guard.py` 的 `page_density_findings()` 把方向钉死（密度不得读
+偏好、网格形态不得读偏好、侧栏必须读偏好），三条 planted 负例实测会咬。
+
+发布批 `20261112T033526Z_d03a849e2929_dirty_433821` 整批 199 帧重采后：唯一身份变化是
+`sidebar-collapsed-standard` 一帧，其回执由 `margin 16 / top 38 / bottom 0`
+（手机页）改为 `margin 30 / top 46 / bottom 72`（桌面页），`unused` 3.2% → 4.1%
+（`dense` 12% 上限内）；`sidebar-collapsed-compact` 逐字节不变（medium 档两种偏好
+本就是同一 64px 轨），既有别名声明继续成立。`--enforce` 199 帧 violations=0，
+欠账台账 `frames` 保持为空。
+
+同批修掉取证台架的一条回执完整性缺陷（改的是证据管线，不是任何阈值或判据）：
+三个矩阵脚本在 niri 仍在刷新 PNG 时就 `stat`+`sha256sum`，实测一帧最终 75920 字节
+而 manifest 记 65536 字节（恰为一个 pipe buffer）与对应旧摘要——索引描述了已不存在
+的字节。现在「尺寸连续两次轮询不再变化后一次性读出字节数与摘要」收进
+`scripts/parity/capture_attempt.sh::capture_settled_image()`，三表面共用，
+`scripts/parity/test_capture_attempt.py` 6 项自测钉住（含增长中文件必须等落定、
+缺失/过小拒收、三脚本不得再各自取摘要）。

@@ -642,3 +642,46 @@ Slint 同步按 `labelled_sidebar` 选择形态，其 720 帧整批重采后不�
 矩阵才发布图像与索引；`iced-observation-routes-guard.py` 加 planted 自测钉住
 「诊断能覆盖正式语料即违规」。这是回执管线本身的空间/身份正确性，不属放宽
 任何页面阈值。Bevy 仍消费 tier 查表，文件所有权落地后由跨表面切片收口。
+
+## 19. 折叠偏好只能改列宽，不能改页面形态（b216）
+
+上游 `lib/views/navigation.dart` 与 `plugins/prism_ui/lib/sidebar.dart` 把
+`sidebarExpanded` 只用于一处：`expanded ? _expandedWidth(220) : _compactWidth(48)`。
+页面形态来自另一个事实——`lib/common/layout.dart::getViewMode(width)` 只看窗口
+宽度，`DashboardLayout` / `proxies/tab.dart` 也从 `LayoutBuilder` 的页身可用区
+推导密度与列数，**没有任何一处把折叠偏好读成「这是手机页」**。因此上游收起
+1200px 桌面的侧栏，得到的是更宽的桌面仪表盘，而不是手机单列页。
+
+本仓 `lumen-app.slint` 此前写 `compact-layout = android-platform || !labelled-sidebar`，
+而 `labelled-sidebar` 来自 b172 的 `preference × tier × touch` 变体表——它跟着用户的
+折叠偏好走。于是桌面档（`expanded`/`ultra`）一旦点折叠钮，`compact-layout` 翻成
+`true`，整页切到手机形态：代理节点与配置卡退回单列、页边距 30→16、页身上下空气
+46/72→38/0。b173 发布的 `sidebar-collapsed-standard` 帧正是这个错误形态的像素证据
+（回执 `page_margin_px=16 shell_bottom_air_px=0`），而同一窗口在 Iced 上仍是
+`margin=40 bottom_air=40` 的桌面页——两个表面对同一个动作给出两种页面形态。
+
+`SPACEUTIL-006` 当年修掉的是反方向的混淆（密度布尔决定挂哪种导航），这一条是它
+没覆盖到的另一半：导航偏好决定页面密度。收口按自底向上顺序一次做完：
+
+1. **契约导出补一个只读档的事实**：`page-structure.json` 的 `tiers[].labelled_sidebar`
+   本来就是「这一档有没有带标签列」，与偏好无关；生成器新增
+   `ViewportLadder.labelled_sidebar(tier)` 直接投影它，不新增第二份数字。
+2. **表面分两个事实**：`LumenTheme.labelled-sidebar`（偏好感知，仍由侧栏决定要不要画
+   标签）与 `LumenTheme.desktop-page`（只读档，页面密度唯一来源）。`compact-layout`
+   改读后者，两个网格页的 `ProxyGridForm` / `ProfileGridForm` 同批改读后者。
+3. **守卫钉死方向**：`slint-viewport-tier-guard.py` 的 `page_density_findings()` 要求
+   生成查表存在、`desktop-page` 只读 `labelled_sidebar(tier)`、`compact-layout` 不得
+   再出现 `labelled-sidebar`、两个网格不得用偏好选形态、侧栏仍须用偏好感知事实；
+   三条 planted 负例（把 `compact-layout` 换回偏好读法、把网格换回偏好读法、删掉
+   生成查表）实测都会咬。
+
+同批修掉取证台架的一条真缺陷（回执完整性，不是判据）：三个矩阵脚本都用
+「第一次数到 >5000 字节」当作 niri 写完的信号，随后立刻 `sha256sum`。niri 的
+`screenshot-window --write-to-disk true` 会在文件仍在刷新时就返回，于是索引可以
+描述一个已经不存在的字节数——实测 `sidebar-collapsed-compact` 帧最终 75920 字节，
+manifest 却记 65536 字节（恰为一个 pipe buffer）并给出对应的旧摘要，
+`receipt-freshness-guard.py` 因此报 1 条违规。修法是把「等到尺寸连续两次轮询不再
+变化，再一次性读出字节数与摘要」收进 `scripts/parity/capture_attempt.sh` 的
+`capture_settled_image()`，三处调用点共用同一实现；`scripts/parity/test_capture_attempt.py`
+新增 4 项自测（settled 摘要==最终字节、增长中的文件必须等到落定、缺失/过小文件
+拒收、三个矩阵都不得再各自 `stat`/`sha256sum`）。

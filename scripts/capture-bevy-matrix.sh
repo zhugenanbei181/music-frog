@@ -630,20 +630,17 @@ capture_one() {
     fi
 
     if [ "$action_status" = ok ]; then
-      # Wait briefly for niri to finish flushing the file, then verify the
-      # PNG receipt: readable IHDR, exactly the requested window size (shadow disabled; nested
-      # output scale=1 makes logical == physical pixels).
-      local wait
-      for wait in $(seq 1 20); do
-        if [ -s "$image" ]; then
-          bytes="$(stat -c%s "$image")"
-          [ "$bytes" -gt 5000 ] && break
-        fi
-        sleep 0.1
-      done
-      if [ "$bytes" -gt 5000 ] && dims="$(png_dims "$image")"; then
+      # Wait for niri to finish flushing the file, then verify the PNG receipt:
+      # readable IHDR, exactly the requested window size (shadow disabled; nested
+      # output scale=1 makes logical == physical pixels). The size and digest
+      # come from one settled read: breaking on the first size above the floor
+      # used to hash an in-flight write, indexing bytes that no longer existed.
+      local settled
+      if settled="$(capture_settled_image "$image" 5000)"; then
+        read -r bytes hash <<<"$settled"
+      fi
+      if [ "${bytes:-0}" -gt 5000 ] && dims="$(png_dims "$image")"; then
         read -r width height <<<"$dims"
-        hash="$(sha256sum "$image" | cut -d' ' -f1)"
         if [ "$width" -ne "$exp_w" ] || [ "$height" -ne "$exp_h" ]; then
           action_status="failed-dims ($width x $height, different from requested $window_size)"
         fi

@@ -645,20 +645,17 @@ capture_one() {
     fi
 
     if [ "$action_status" = ok ]; then
-      # Wait briefly for niri to finish flushing the file, then verify the
-      # PNG receipt: readable IHDR and exactly the requested window size
-      # (nested output scale=1 makes logical == physical pixels).
-      local wait
-      for wait in $(seq 1 20); do
-        if [ -s "$image" ]; then
-          bytes="$(stat -c%s "$image")"
-          [ "$bytes" -gt 5000 ] && break
-        fi
-        sleep 0.1
-      done
-      if [ "$bytes" -gt 5000 ] && dims="$(png_dims "$image")"; then
+      # Wait for niri to finish flushing the file, then verify the PNG receipt:
+      # readable IHDR and exactly the requested window size (nested output
+      # scale=1 makes logical == physical pixels). The size and digest come
+      # from one settled read: breaking on the first size above the floor used
+      # to hash an in-flight write, indexing bytes that no longer existed.
+      local settled
+      if settled="$(capture_settled_image "$image" 5000)"; then
+        read -r bytes hash <<<"$settled"
+      fi
+      if [ "${bytes:-0}" -gt 5000 ] && dims="$(png_dims "$image")"; then
         read -r width height <<<"$dims"
-        hash="$(sha256sum "$image" | cut -d' ' -f1)"
         # The compositor window geometry, shell viewport and native readback
         # must all agree with the requested app viewport. The comparison above
         # and CaptureFrameGate::finish_capture_frame bind these three readings;

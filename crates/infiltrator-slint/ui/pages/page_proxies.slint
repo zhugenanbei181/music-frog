@@ -30,8 +30,11 @@ export component PageProxies inherits VerticalLayout {
     // a window tier: `getProxiesColumns(max(width - 32, 0))` uses a 250dp
     // floor and keeps at least two columns. The generated lookup reads those
     // exported constants, while the grid passes its own width to the owner.
+    // The form is the tier's own (`LumenTheme.desktop-page`), not the collapse
+    // preference: a desktop window that hides its labels still has a desktop
+    // page body, and Iced's grid already divides the same tier's page width.
     in property <int> node-columns:
-        ViewportLadder.proxy_columns(LumenTheme.labelled-sidebar
+        ViewportLadder.proxy_columns(LumenTheme.desktop-page
             ? ProxyGridForm.desktop
             : ProxyGridForm.stacked, self.width);
 

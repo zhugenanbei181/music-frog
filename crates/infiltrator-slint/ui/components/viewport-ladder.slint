@@ -150,6 +150,25 @@ export global ViewportLadder {
         return false;
     }
 
+    // Whether this tier's shell has a labelled navigation column at all.
+    //
+    // This is the tier-only half of the same exported ladder, and the page
+    // density reads it instead of the preference-aware table above. FlClash
+    // computes `viewMode` from the window width and lets `sidebarExpanded`
+    // narrow only the sidebar (`expanded ? 220 : 48`), so collapsing the
+    // column on a desktop window gives the dashboard MORE room, never a
+    // phone layout. A surface that derived page density from the collapse
+    // preference would turn a 1180x780 desktop into the 400x800 phone page:
+    // one-column grids, no page air, phone margins. `SPACEUTIL-006` retired
+    // the other direction of the same conflation (density answering which
+    // navigation to mount); this lookup retires the remaining one.
+    public pure function labelled_sidebar(tier: ViewportTier) -> bool {
+        if (tier == ViewportTier.compact) { return false; }
+        if (tier == ViewportTier.medium) { return false; }
+        if (tier == ViewportTier.expanded) { return true; }
+        return true;
+    }
+
     // How many equal shares the dashboard's span grid owns at this page width.
     //
     // The contract's `DashboardColumns::GridShares` answers this by page width

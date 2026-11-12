@@ -1,4 +1,4 @@
-# MusicFrog 工程 TODO · 过去佛（11条待验证；归档见 [TODO.md](../TODO.md) 第一百零八批次）
+# MusicFrog 工程 TODO · 过去佛（13条待验证；归档见 [TODO.md](../TODO.md) 第一百零八批次）
 
 > 层级：L4
 
@@ -253,3 +253,24 @@
 ③ **定向证据（L）**：`cargo nextest run --locked -p infiltrator-domain -p infiltrator-application -p infiltrator-composition` **1385/1385**；六包 `cargo clippy --all-targets -- -D warnings`、`cargo fmt --all --check`；`line` / `import` / `typed-state` / `implicit-state` / `closure-questions` 全 0；组合回归以 fake port 给出两个 scoped 观测，证明第一次读为空、第二次读发布 `total_closed=1` 与 `c-1`，clear 后下一帧为空。
 ④ **待验证范围**：统一批次复跑 `cargo nextest run --locked --workspace`、全仓结构门与 `resolve_surface_evidence.py`；`CPPARITY-CLOSED-UI`（typed 页签、演示数据、双视口真实像素回执和截图认证）仍在现在佛，本条不声称 UI 已接入；另一会话的 Bevy 文件按所有权纪律未触碰。
 ⑤ **证据身份**：三包 nextest **1385/1385**、六包 Clippy 0 warning、`line budget 2968 files / 0`、import `2968 / 0`、`typed-state 0`、`implicit-state 23/0/0`、`closure-questions 8/8`。
+
+## 12.82 页面密度不再跟随侧栏折叠偏好，取证回执不再索引半写文件（2条待验证）
+
+| ID | 状态 / 优先级 | points | owner | 依赖 |
+| --- | --- | --- | --- | --- |
+| `SPACEUTIL-016` | `Integrated` / P1（b216 实测立项并交付，待统一批次办结） | 2 | scripts/generate_viewport_ladder.py（新增 `labelled_sidebar(tier)` 投影）+ infiltrator-slint（`ui/components/theme.slint` 的 `desktop-page`、`ui/lumen-app.slint` 的 `compact-layout`、`ui/pages/page_proxies.slint` / `page_profiles.slint` 的网格形态）+ `scripts/quality/slint-viewport-tier-guard.py`（`page_density_findings()`）+ Slint 199 帧整批重采 | `SPACEUTIL-006`（反方向的同一混淆）、`FLPARITY-050`（标题栏条带） |
+| `SPACEUTIL-017` | `Integrated` / P2（b216 实测立项并交付，待统一批次办结） | 1 | `scripts/parity/capture_attempt.sh`（`capture_settled_image()`）+ `scripts/capture-{slint,iced,bevy}-matrix.sh` 三处调用点 + `scripts/parity/test_capture_attempt.py` | `SPACEUTIL-007`（回执即判据来源） |
+
+**`SPACEUTIL-016` 折叠侧栏不再把桌面页做成手机页（b216 交付，2 pt / P1 / `Integrated`）**：
+
+① **真正找到的问题（上游源码 + 本仓已发布像素同时证明）**：pinned FlClash 的 `sidebarExpanded` 只出现在一处算术——`prism_ui/lib/sidebar.dart` 的 `expanded ? _expandedWidth(220) : _compactWidth(48)`；页面形态来自另一个事实 `lib/common/layout.dart::getViewMode(width)`，只看窗口宽度。本仓 `lumen-app.slint` 却写 `compact-layout = android-platform || !labelled-sidebar`，而 `labelled-sidebar` 读的是 b172 的 `preference × tier × touch` 变体表，跟着用户折叠偏好走。已发布帧 `sidebar-collapsed-standard`（1180×780）回执实测 `page_margin_px=16 shell_top_air_px=38 shell_bottom_air_px=0`——桌面窗口在收起侧栏后拿到的是手机页几何；同一窗口在 Iced 上是 `margin=40 top=78 bottom=40` 的桌面页。`SPACEUTIL-006` 当年修掉的是反方向（密度布尔决定挂哪种导航），这一半一直没被覆盖。
+② **自底向上收口，不新增任何数字**：契约 `tiers[].labelled_sidebar` 本来就是「这一档有没有带标签列」的档事实，与偏好无关；生成器把它投影为 `ViewportLadder.labelled_sidebar(tier)`，`theme.slint` 新增 `desktop-page` 只读该查表，`compact-layout` 与两个网格的 `ProxyGridForm` / `ProfileGridForm` 同批改读 `desktop-page`；侧栏继续读偏好感知的 `sidebar_labelled(...)` 决定画不画标签。旧读法不留兼容轨道。
+③ **守卫钉死方向**：`slint-viewport-tier-guard.py` 新增 `page_density_findings()`（生成查表必须存在、`desktop-page` 必须只读 `labelled_sidebar(tier)`、`compact-layout` 与两个网格不得出现 `labelled-sidebar`、侧栏必须保留偏好感知事实），planted 自测 **45 → 48**；三条负例（密度换回偏好读法、网格换回偏好读法、删掉生成查表）实测都会咬。
+④ **像素与门（L）**：整批 **199/199** 重采发布 run `20261112T033526Z_d03a849e2929_dirty_433821`（643s）。唯一身份变化就是 `sidebar-collapsed-standard`：回执 `margin 16→30`、`top 38→46`、`bottom 0→72`，`unused` 3.2% → **4.1%**（`dense` 12% 上限内），像素复核为该帧由手机单列流改为桌面四份额网格。`sidebar-collapsed-compact` 逐字节不变（medium 档两种偏好本就是同一 64px 轨），既有别名声明继续成立。`space_utilization --surface slint --enforce` 199 帧 violations=0、`--surface iced` 192 帧 violations=0、侧栏 `chrome_band` 0.0% / `void` 最差 6.2%、欠账台账 `frames` 保持为空；Slint nextest **389/389**、`receipt-freshness 0`、生成器 `--check` fresh、`--check-export` current、`slint-syntax` 100%、`sidebar-expansion-owner` / `flclash-sidebar-expansion` / `doc-governance` / `line` 全 0。
+
+**`SPACEUTIL-017` 截图回执必须索引落定的字节（b216 交付，1 pt / P2 / `Integrated`）**：
+
+① **真正找到的缺陷**：三个矩阵脚本都以「第一次数到 >5000 字节」当作 niri 写完的信号，随后立刻 `sha256sum`。`screenshot-window --write-to-disk true` 会在 PNG 仍在刷新时返回，于是索引可以描述已经不存在的字节。实测发布批 `20261112T031212Z…` 的 `sidebar-collapsed-compact`：manifest 记 `65536 B`（恰为一个 pipe buffer）与对应摘要，而落盘文件是 `75920 B`，`receipt-freshness-guard.py` 报 1 条违规——这是 b216 第一次重采时被真实抓到的。
+② **修在一处而非三处**：`scripts/parity/capture_attempt.sh` 新增 `capture_settled_image()`，要求尺寸连续两次轮询不再变化后才一次性读出字节数与摘要并成对返回；三个矩阵脚本同批改用它，删除各自的 `stat`/`sha256sum` 内联读法，不留第二套等待策略。
+③ **门禁自证（L）**：`scripts/parity/test_capture_attempt.py` 由 2 项扩到 **6 项**：settled 摘要==最终字节、持续增长中的文件必须等到落定（断言读到的字节与摘要都等于写完后那份）、缺失/过小文件拒收、三个脚本都不得再各自取摘要。修复后整批重采 **199/199**，逐行复核 manifest 的 `bytes`/`sha256` 与实际 PNG **0 处不符**，`receipt-freshness violations=0`。
+④ **诚实边界**：本条改的是证据管线，不改任何阈值、判据或页面绘制；`proxies-search-highlight-compact` 与 `dns-hosts-editor-standard` 两帧在三次运行间字节抖动，属既有的动画相位/提示条时序非确定性（b173 已记 `proxies-search-highlight` 为唯一差异帧），本批不为其放宽任何门，也不声称已收口该非确定性。

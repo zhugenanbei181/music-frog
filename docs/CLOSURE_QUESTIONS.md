@@ -24,19 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-12 第二百一十五批次；b111–b214 见下方批次八问摘要）
+## 当前状态（2026-11-12 第二百一十六批次；b111–b215 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b214 仅改中性 Rust owner / 命令 / 组合层，零平台 API、零 wire；domain+application+composition nextest **1385/1385**、六包 Clippy `--all-targets -D warnings`、`cargo fmt --all --check` 为 `L`。交叉架构与 aarch64 目标产物未复跑，仍由 CI / 设备矩阵补证（GAP-1.1） |
-| 2 | 部分 | L | Linux 本机完成六包 Clippy / fmt 与三包 nextest；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）。FlClash 桌面条带差异仍归 `FLPARITY-050` |
-| 3 | 部分 | L | Android 命令组合与 iOS 组合都改为消费 `CoreApplication` 单例 history，未动 Kotlin/JNI/VPNService/资源；宿主静态 Rust 编译通过，无 APK 或真机回执 |
-| 4 | 部分 | L | 本批按 Core-first 只做 SurfaceSnapshot / 命令 / 宿主接线；Iced 页签仍用字符串前缀，typed `ConnectionTab`、演示数据、双视口像素回执由 `CPPARITY-CLOSED-UI` 留在现在佛；Bevy 文件由另一会话持有 |
-| 5 | 完整 | L | `ClosedConnectionsApplication` 由 `CoreApplication` 单例持有，与 `TrafficWaveformApplication` 同构；SurfaceReader 是唯一观察入口，桌面 / Android / iOS 命令和读回都取同一 clone；无 `ConnectionApplication` 影子历史，无 UI 私有数组 |
-| 5a | 部分 | L | 本批无字体 / 字重 / 图标族 / 视觉资产身份变化，未重采像素；既有 Bevy 浅色像素回执与另一会话的 `runtime-dark` / `overview-dark` 别名仍是全局身份门缺口，按全局证据记「部分」 |
-| 6 | 部分 | L | Core 已发布并复位 `closed_connections`，但 Iced 消费端 contract anchor、scenario anchor 与 standard/compact 像素回执尚未补；`resolve_surface_evidence.py` 未复跑，180 个 ready surface cells 仍缺 product-build receipts |
-| 7 | 完整 | L | typed `NoBaseline/Tracking{scope,revision}` → domain 差集 owner → application 单例 → SurfaceReader/命令 → 宿主组合一条链；两个超 800 行文件按业务缝拆出 `observed_values.rs` 与 `surface_reader_closed_history_tests.rs`；`line` / `import` / `typed-state` / `implicit-state` / `doc-governance` / `closure-questions` 全 0 |
-| 8 | 部分 | L | 开发期只跑受影响三包 nextest 与静态门；Cargo lane 被其它工作区占用时中断一次重复全仓门，改由收口方集中跑一次六包 Clippy + 三包 nextest；全仓 `--workspace` nextest / 结构门全腿与 `resolve_surface_evidence.py` 仍留统一验证批次一次跑完 |
+| 1 | 部分 | L | b216 只改 Slint 布局语言、生成器与共享取证台架脚本，架构中性、零平台 API、零 wire；`cargo nextest run --locked -p infiltrator-slint` **389/389**、`bash -n` 四脚本全通过为 `L`。交叉架构与 aarch64 目标产物未复跑，仍由 CI / 设备矩阵补证（GAP-1.1） |
+| 2 | 部分 | L | Linux 本机完成 Slint 编译 / 测试与 199 帧整批采集；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）。FlClash 桌面条带差异仍归 `FLPARITY-050` |
+| 3 | 部分 | L | Slint Android flavor 与桌面共用同一套 `.slint`，但 `compact-layout` 在 Android 恒 `true`，本批改动按构造不影响手机像素；未跑 `scripts/android-slint-build.sh`，无三 flavor 实机交互回执，iOS 无新回执 |
+| 4 | 部分 | L | Slint 页面密度与两个网格已只读档事实 `desktop-page`；Iced 本就用 `tier.has_labelled_sidebar()`，两表面同一折叠动作从此同解；Bevy 文件由另一会话持有，`FLPROFILES-002` 的 Bevy 半边与 `CAPTURE_CHROME` 发布仍未开工 |
+| 5 | 完整 | L | `ViewportLadder.labelled_sidebar(tier)` 是契约 `tiers[].labelled_sidebar` 的生成投影，零新增数字；`capture_settled_image()` 落在三表面共享的 `scripts/parity/capture_attempt.sh`，三处各自的内联 `stat`/`sha256sum` 读法同批删除，无第二套等待策略 |
+| 5a | 部分 | L | 本批无字体 / 字重 / 图标族 / 视觉资产身份变化；变化是布局身份，已按标准整批重采 199 帧发布 run `20261112T033526Z_d03a849e2929_dirty_433821`，`receipt-freshness 0` 且 manifest 199 行字节/摘要与实际 PNG 逐行相符；`screenshot-identity` 唯一红项仍是另一会话的 Bevy `runtime-dark` / `overview-dark` 别名 |
+| 6 | 部分 | L | `slint-viewport-tier-guard` planted **48/48** + enforce 0、`test_capture_attempt` **6/6**、双表面 `space_utilization --enforce` 199/192 帧 violations=0、欠账台账为空；`resolve_surface_evidence.py` 未复跑，180 个 ready surface cells 仍缺 product-build receipts |
+| 7 | 完整 | L | 契约 `TierFact.labelled_sidebar` → 导出 `tiers[]` → 生成查表 → `theme.slint` 的 `desktop-page` → `compact-layout` 与两个网格 typed 形态一条链；侧栏标签继续只读偏好感知的 `sidebar_labelled(...)`，两个事实互不代答；`line` / `import` / `typed-state` / `implicit-state` / `doc-governance` / `closure-questions` 全 0 |
+| 8 | 部分 | L | 本批有一次真实返工：首轮重采后 `receipt-freshness` 报 1 条，根因是台架在 niri 仍在刷新 PNG 时取摘要（记 65536 B、落盘 75920 B），修在共享 helper 后整批重采第二次（643s），旧批作废不计证据；两帧动画相位/提示条时序非确定性如实登记为未收口事实，未放宽门禁。全仓 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py` 仍留统一验证批次一次跑完 |
+
+## 最近一批问答（2026-11-12 第二百一十六批次：Slint 页面密度不再跟随侧栏折叠偏好 + 取证回执索引落定字节）
+
+1. x86_64/aarch64：本批改的是 Slint 布局语言、两个 Python 台架脚本与生成器，架构中性、零平台 API、零 wire；`cargo nextest run --locked -p infiltrator-slint` **389/389**、`bash -n` 三脚本与共享 helper 全通过为 `L`。交叉架构与 aarch64 目标产物未复跑，仍由 CI / 设备矩阵补证 → 部分（L）。
+2. Windows/Linux/macOS：只在本机 Linux 台架（KWin + 嵌套 niri）编译并整批采集 199 帧；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 `Unsupported`（GAP-2.2）→ 部分（L）。
+3. Android/iOS：Slint 的 Android flavor 与桌面共用同一套 `.slint`，但 `compact-layout` 在 Android 恒为 `true`（`root.android-platform || …`），本批改动对其**按构造无影响**；未跑 `scripts/android-slint-build.sh`，也无三 flavor 实机交互回执，iOS 无新回执 → 部分（L）。
+4. 各 UI：Slint 的页面密度、代理网格与配置网格现在只读档事实 `LumenTheme.desktop-page`；Iced 本来就用 `tier.has_labelled_sidebar()`（不看偏好），本批因此**收敛了两表面同一个动作的两种页面形态**，其 192 帧回执仍是有效证据；Bevy 文件由另一会话持有，本批未碰 → 部分（L）。
+5. 复用：`ViewportLadder.labelled_sidebar(tier)` 是契约 `tiers[].labelled_sidebar` 的生成投影，零新增数字；`capture_settled_image()` 落在三表面共享的 `scripts/parity/capture_attempt.sh`，三处调用点各自的 `stat`/`sha256sum` 内联读法同批删除，不留第二套等待策略 → 完整（L）。
+5a. 设计资源：本批无字体 / 字重 / 图标族 / 视觉资产身份变化（`design-resource-authority` 未受影响）；变化是**布局身份**，因此按标准整批重采 199 帧并发布 run `20261112T033526Z_d03a849e2929_dirty_433821`，`receipt-freshness 0`、manifest 199 行字节/摘要与实际 PNG 逐行相符、`screenshot-identity` 唯一红项仍是另一会话的 Bevy `runtime-dark` / `overview-dark` 别名 → 部分（L）。
+6. 各处界面的功能接入：`slint-viewport-tier-guard.py` planted 自测 **45 → 48**（密度换回偏好读法、网格换回偏好读法、删掉生成查表三类退化实测会咬）且 `--mode enforce` findings=0；`test_capture_attempt.py` **2 → 6** 全绿；`space_utilization --surface slint --enforce` 199 帧 violations=0（该帧 `unused` 3.2% → 4.1%，`dense` 12% 内）、`--surface iced` 192 帧 violations=0，欠账台账 `frames` 保持为空；`resolve_surface_evidence.py` 未复跑，180 个 ready cells 仍缺 product-build receipts → 部分（L）。
+7. 模块化：一条事实一条链——契约 `TierFact.labelled_sidebar` → 导出 `tiers[]` → 生成 `ViewportLadder.labelled_sidebar(tier)` → `theme.slint` 的 `desktop-page` → `lumen-app.slint` 的 `compact-layout` 与两个页面的 typed 网格形态；侧栏标签仍只读偏好感知的 `sidebar_labelled(...)`，两个事实各自唯一、互不代答；`line` / `import` / `typed-state` / `implicit-state` / `doc-governance` / `slint-syntax` 全 0 → 完整（L）。
+8. CI 与批次效率：按「落码 → 定向 nextest/guard → 整批采集一次 → enforce / freshness / identity 三腿」推进，未边改边重采。本批有一次真实返工并如实记账：首轮 199 帧重采后 `receipt-freshness` 报 1 条，追查发现是台架在 niri 仍在刷新 PNG 时就取摘要（记 65536 B、落盘 75920 B），修在共享 helper 后**整批重采第二次**（643s），旧批作废不计证据；两帧动画相位/提示条时序非确定性登记为未收口事实，未用放宽门禁掩盖。全仓 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py` 仍留统一验证批次一次跑完 → 部分（L）。
 
 ## 最近一批问答（2026-11-12 第二百一十五批次：Iced 已关闭连接 typed 消费）
 

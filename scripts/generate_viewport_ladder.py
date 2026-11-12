@@ -101,6 +101,21 @@ SIDEBAR_VARIANT_DOC = [
     "and a touch surface keeps its bottom bar without a second UI decision.",
 ]
 
+LABELLED_TIER_DOC = [
+    "Whether this tier's shell has a labelled navigation column at all.",
+    "",
+    "This is the tier-only half of the same exported ladder, and the page",
+    "density reads it instead of the preference-aware table above. FlClash",
+    "computes `viewMode` from the window width and lets `sidebarExpanded`",
+    "narrow only the sidebar (`expanded ? 220 : 48`), so collapsing the",
+    "column on a desktop window gives the dashboard MORE room, never a",
+    "phone layout. A surface that derived page density from the collapse",
+    "preference would turn a 1180x780 desktop into the 400x800 phone page:",
+    "one-column grids, no page air, phone margins. `SPACEUTIL-006` retired",
+    "the other direction of the same conflation (density answering which",
+    "navigation to mount); this lookup retires the remaining one.",
+]
+
 SEPARATOR_DOC = [
     "Whether a navigation form may paint a group heading.",
     "",
@@ -260,6 +275,13 @@ def slint_ladder(document: dict) -> str:
         "bool",
         variants,
         lambda entry: "true" if entry["toggle_available"] else "false",
+    )
+    body += tier_function(
+        "labelled_sidebar",
+        "bool",
+        LABELLED_TIER_DOC,
+        tiers,
+        lambda entry: "true" if entry["labelled_sidebar"] else "false",
     )
     body += [f"    // {line}".rstrip() for line in DASHBOARD_DOC]
     body.append(

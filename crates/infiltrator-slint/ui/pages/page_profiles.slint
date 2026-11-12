@@ -36,7 +36,7 @@ export component PageConfig inherits VerticalLayout {
     // already pays. A stack that puts every card on its own row spends the
     // whole page body on a single card - the horizontal twin of dead ground.
     property <int> profile-columns:
-        ViewportLadder.profile_columns(LumenTheme.labelled-sidebar
+        ViewportLadder.profile_columns(LumenTheme.desktop-page
             ? ProfileGridForm.desktop
             : ProfileGridForm.stacked, self.width, root.compact-layout
             ? LumenTheme.space-mobile-card-gap

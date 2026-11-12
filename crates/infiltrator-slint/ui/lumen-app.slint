@@ -43,7 +43,7 @@ export component AppWindow inherits MaterialWindow {
         // how the medium tier ended up paying a phone's bottom band for a
         // desktop window's navigation (SPACEUTIL-006).
         in-out property <SidebarExpansionPreference> sidebar-expansion: SidebarExpansionPreference.expanded; out property <NavigationForm> navigation-form: LumenTheme.navigation-form;
-        out property <bool> compact-layout: root.android-platform || !LumenTheme.labelled-sidebar; out property <ReceiptChrome> receipt-chrome: shell-receipt.chrome;
+        out property <bool> compact-layout: root.android-platform || !LumenTheme.desktop-page; out property <ReceiptChrome> receipt-chrome: shell-receipt.chrome;
         shell-receipt := ShellReceipt {
         navigation-form: root.navigation-form; sidebar-expansion: root.sidebar-expansion; touch-surface: root.android-platform;
         sidebar-toggle: app-body.sidebar-toggle; nav-stack-bottom: app-body.nav-stack-bottom; nav-content-offset: app-body.nav-content-offset;

@@ -545,6 +545,83 @@ def tier_vocabulary_findings() -> list[str]:
     return []
 
 
+def page_density_findings(ui: pathlib.Path) -> list[str]:
+    """Page density is a tier fact; the collapse preference only narrows the column.
+
+    `SPACEUTIL-006` retired one direction of the conflation (the density
+    boolean answering which navigation to mount). The other direction survived
+    inside `lumen-app.slint`: `compact-layout` was `!labelled-sidebar`, and
+    `labelled-sidebar` follows the user's collapse preference. So collapsing a
+    1180x780 desktop window answered "this is a phone page" - one-column proxy
+    and profile grids, phone margins, no page air - which is the opposite of
+    what FlClash does, where `viewMode` comes from the width and
+    `sidebarExpanded` only changes `expanded ? 220 : 48`. The sidebar keeps the
+    preference-aware fact; the page reads the tier-only one.
+    """
+    found: list[str] = []
+    theme_code = mask_comments(
+        (ui / "components/theme.slint").read_text(encoding="utf-8"))
+    app_code = mask_comments((ui / "lumen-app.slint").read_text(encoding="utf-8"))
+    adapter_code = mask_comments(
+        (ui / "components/viewport-ladder.slint").read_text(encoding="utf-8"))
+
+    if "public pure function labelled_sidebar(tier: ViewportTier) -> bool {" not in adapter_code:
+        found.append(
+            "components/viewport-ladder.slint: the exported tier-only "
+            "labelled_sidebar(tier) lookup is missing"
+        )
+    if ("out property <bool> desktop-page:\n"
+            "        ViewportLadder.labelled_sidebar(root.viewport-tier);"
+            not in theme_code):
+        found.append(
+            "components/theme.slint: the page-density fact no longer reads the "
+            "exported labelled_sidebar(tier) lookup"
+        )
+    if "out property <bool> labelled-sidebar:\n        ViewportLadder.sidebar_labelled(" not in theme_code:
+        found.append(
+            "components/theme.slint: the sidebar column no longer reads the "
+            "preference-aware sidebar_labelled() variant"
+        )
+    density = re.search(
+        r"out property <bool> compact-layout:([^\n]*)", app_code)
+    if not density:
+        found.append("lumen-app.slint: the page density fact is gone")
+    else:
+        expression = density.group(1)
+        if "LumenTheme.desktop-page" not in expression:
+            found.append(
+                "lumen-app.slint: page density is not the exported tier fact; "
+                "it must read LumenTheme.desktop-page"
+            )
+        if "labelled-sidebar" in expression:
+            found.append(
+                "lumen-app.slint: page density still follows the sidebar "
+                "collapse preference; a collapsed desktop column is not a phone page"
+            )
+    sidebar_code = mask_comments((ui / "components/sidebar.slint").read_text(
+        encoding="utf-8"))
+    if "property <bool> labelled: LumenTheme.labelled-sidebar;" not in sidebar_code:
+        found.append(
+            "components/sidebar.slint: the navigation column no longer paints "
+            "labels from the preference-aware fact"
+        )
+    for page, lookup in (("page_proxies.slint", "ViewportLadder.proxy_columns("),
+                         ("page_profiles.slint", "ViewportLadder.profile_columns(")):
+        text = mask_comments((ui / "pages" / page).read_text(encoding="utf-8"))
+        anchor = f"{lookup}LumenTheme.desktop-page"
+        if anchor not in text:
+            found.append(
+                f"pages/{page}: the grid form no longer reads the tier-only "
+                "page-density fact"
+            )
+        if f"{lookup}LumenTheme.labelled-sidebar" in text:
+            found.append(
+                f"pages/{page}: the grid form still derives its column count "
+                "from the sidebar collapse preference"
+            )
+    return found
+
+
 def navigation_mount_findings(ui: pathlib.Path) -> list[str]:
     """Navigation is mounted by the exported form, never by page density.
 
@@ -800,6 +877,7 @@ def violations(ui: pathlib.Path, dock_checks: bool = True,
         found += dashboard_density_findings(ui)
         found += tier_vocabulary_findings()
         found += navigation_mount_findings(ui)
+        found += page_density_findings(ui)
         found += receipt_findings(ui)
     app_code = mask_comments((ui / "lumen-app.slint").read_text(encoding="utf-8"))
     typed_dock_owner = (
@@ -1172,7 +1250,7 @@ class GuardSelfTest(unittest.TestCase):
     def test_a_generated_lookup_nobody_reads_is_caught(self) -> None:
         """A generated table with no consumer is a dead knob wearing the ladder."""
         proxies = (UI / "pages/page_proxies.slint").read_text(encoding="utf-8")
-        anchor = "ViewportLadder.proxy_columns(LumenTheme.labelled-sidebar"
+        anchor = "ViewportLadder.proxy_columns(LumenTheme.desktop-page"
         assert anchor in proxies, anchor
         planted = proxies.replace(anchor, "2", 1)
         findings = self._findings_with({"page_proxies.slint": planted})
@@ -1183,12 +1261,49 @@ class GuardSelfTest(unittest.TestCase):
     def test_a_private_proxy_width_rule_is_caught(self) -> None:
         """The reference's 250/32 numbers belong to the exported rule."""
         proxies = (UI / "pages/page_proxies.slint").read_text(encoding="utf-8")
-        anchor = "ViewportLadder.proxy_columns(LumenTheme.labelled-sidebar"
+        anchor = "ViewportLadder.proxy_columns(LumenTheme.desktop-page"
         assert anchor in proxies, anchor
         planted = proxies.replace(anchor, "Math.max(2, Math.ceil((self.width - 32px) / 250px))", 1)
         self.assertNotEqual(proxies, planted)
         findings = self._findings_with({"page_proxies.slint": planted})
         self.assertTrue(any("private proxy" in item for item in findings), findings)
+
+    def test_page_density_following_the_collapse_preference_is_caught(self) -> None:
+        """A collapsed desktop column must not answer "this is a phone page"."""
+        app = (UI / "lumen-app.slint").read_text(encoding="utf-8")
+        anchor = "out property <bool> compact-layout: root.android-platform || !LumenTheme.desktop-page;"
+        assert anchor in app, anchor
+        planted = app.replace(
+            anchor,
+            "out property <bool> compact-layout: root.android-platform || !LumenTheme.labelled-sidebar;",
+            1,
+        )
+        self.assertNotEqual(app, planted)
+        findings = self._findings_with({"lumen-app.slint": planted})
+        self.assertTrue(
+            any("still follows the sidebar" in item for item in findings), findings)
+
+    def test_a_grid_reading_the_preference_is_caught(self) -> None:
+        """The grid's column count is a tier fact, not a sidebar preference."""
+        proxies = (UI / "pages/page_proxies.slint").read_text(encoding="utf-8")
+        planted = proxies.replace(
+            "ViewportLadder.proxy_columns(LumenTheme.desktop-page",
+            "ViewportLadder.proxy_columns(LumenTheme.labelled-sidebar", 1)
+        self.assertNotEqual(proxies, planted)
+        findings = self._findings_with({"page_proxies.slint": planted})
+        self.assertTrue(
+            any("collapse preference" in item for item in findings), findings)
+
+    def test_the_tier_only_lookup_being_gone_is_caught(self) -> None:
+        """The page-density fact has one exported source; deleting it is a fork."""
+        adapter = (UI / "components/viewport-ladder.slint").read_text(encoding="utf-8")
+        anchor = "public pure function labelled_sidebar(tier: ViewportTier) -> bool {"
+        assert anchor in adapter, anchor
+        planted = adapter.replace(anchor, "public pure function unused(tier: ViewportTier) -> bool {", 1)
+        findings = self._findings_with({"viewport-ladder.slint": planted})
+        self.assertTrue(
+            any("tier-only labelled_sidebar(tier) lookup is missing" in item
+                for item in findings), findings)
 
     def test_a_renamed_proxy_grid_form_is_caught(self) -> None:
         """The two grid forms must stay typed and export-aligned."""

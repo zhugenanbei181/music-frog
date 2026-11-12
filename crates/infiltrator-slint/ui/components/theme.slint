@@ -354,6 +354,17 @@ export global LumenTheme {
         ViewportLadder.sidebar_form(root.sidebar-expansion, root.viewport-tier, root.touch-surface);
     out property <bool> labelled-sidebar:
         ViewportLadder.sidebar_labelled(root.sidebar-expansion, root.viewport-tier, root.touch-surface);
+    // Whether this window's tier owns a labelled navigation column at all.
+    //
+    // `labelled-sidebar` above answers a different question - "should the
+    // column I am drawing paint its labels" - and it follows the user's
+    // collapse preference, which is exactly right for the sidebar and wrong
+    // for the page. Page density is a tier fact: FlClash derives `viewMode`
+    // from the window width and lets `sidebarExpanded` narrow only the
+    // sidebar, so a collapsed desktop column gives the page MORE room rather
+    // than turning it into the phone layout. The grid pages read this one.
+    out property <bool> desktop-page:
+        ViewportLadder.labelled_sidebar(root.viewport-tier);
     out property <bool> sidebar-toggle-available:
         ViewportLadder.sidebar_toggle_available(root.sidebar-expansion, root.viewport-tier, root.touch-surface);
     out property <length> rail-vertical-inset: 18 * LumenUiScale.unit;
