@@ -1,8 +1,10 @@
 use super::*;
+use crate::view::flag_plate::flag_plate;
 use crate::view::theme;
 use iced::widget;
 use infiltrator_contract::responsive_viewport::{ProxyGridForm, proxy_node_columns};
 use infiltrator_presentation::proxies_page_model::proxy_protocol_chip;
+use infiltrator_shared::country_flags::node_flag_code;
 use lurker_core_contract::outbound::preferences::OutboundLayout;
 
 fn favorite_message(state: &AppState, member_name: &str) -> Message {
@@ -87,7 +89,7 @@ struct NodeMetadata {
     udp: bool,
     is_xudp: bool,
     delay: Option<u32>,
-    flag: &'static str,
+    flag_code: Option<&'static str>,
     is_favorite: bool,
 }
 
@@ -105,7 +107,7 @@ impl NodeMetadata {
             // The typed contract currently reports UDP but has no XUDP field.
             is_xudp: false,
             delay: node.and_then(OutboundMemberView::latency_ms),
-            flag: node_flag_emoji(
+            flag_code: node_flag_code(
                 node.map(OutboundMemberView::search_name)
                     .unwrap_or(member_name),
             ),
@@ -238,7 +240,7 @@ fn node_card<'a>(
     };
 
     let body = row![
-        theme::role_body_text(meta.flag),
+        flag_plate(meta.flag_code),
         Space::new().width(theme::SP_XS),
         widget::column![
             row![
@@ -312,7 +314,7 @@ fn node_compact_row<'a>(
     };
 
     let body = row![
-        theme::role_body_text(meta.flag),
+        flag_plate(meta.flag_code),
         Space::new().width(theme::SP_XS),
         node_name(state, member_name, 12),
         active_pill,

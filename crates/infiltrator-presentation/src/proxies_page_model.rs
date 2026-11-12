@@ -580,11 +580,6 @@ pub fn proxy_node_region(name: &str) -> GeoRegion {
     GeoRegion::from_name_heuristic(name)
 }
 
-/// Maps a proxy node display name to its flag asset token (e.g. "flag-hk", "flag-globe").
-pub fn proxy_flag_icon_token(name: &str) -> &'static str {
-    proxy_node_region(name).flag_icon_token()
-}
-
 /// Maps a proxy node display name to its localized Chinese region name.
 pub fn proxy_region_label_zh(name: &str) -> &'static str {
     proxy_node_region(name).label_zh()

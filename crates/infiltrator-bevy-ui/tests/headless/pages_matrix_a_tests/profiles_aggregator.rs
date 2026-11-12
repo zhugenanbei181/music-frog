@@ -186,7 +186,7 @@ fn test_profiles_aggregator_previews_and_saves_through_shared_command() {
     );
     // The preview is the shared report, never a local fabrication.
     assert!(
-        subtree_has_text(app.world(), root, "🇭🇰 HK 香港 → 香港自动测速（2 节点）"),
+        subtree_has_text(app.world(), root, "HK 香港 → 香港自动测速（2 节点）"),
         "the region cluster line restamps from the shared report"
     );
     assert!(

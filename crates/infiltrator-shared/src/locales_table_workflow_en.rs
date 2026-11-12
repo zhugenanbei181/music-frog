@@ -710,7 +710,7 @@ pub(super) fn translate_workflow_en(key: &str) -> Cow<'static, str> {
         "aggregation_counters" => "Aggregation: input {input} · deduplicated {dedup} · normalized {renamed} · renamed by rules {rules} · rejected by precheck {invalid} · output {total} nodes · regions {regions}{master}{missing}".into(),
         "aggregation_regions_pending" => "Regions: awaiting preview".into(),
         "aggregation_regions_empty" => "Regions: no ISO regions identified".into(),
-        "aggregation_region_row" => "{flag} {iso} {label} → {group} ({count} nodes)".into(),
+        "aggregation_region_row" => "{iso} {label} → {group} ({count} nodes)".into(),
         "aggregation_master_tag" => " [Master selector]".into(),
         "aggregation_custom_tag" => " [Custom]".into(),
         "aggregation_group_row" => "{name}{master}{custom} · {kind} · {count} members".into(),

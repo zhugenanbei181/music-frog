@@ -1,4 +1,4 @@
-# MusicFrog 工程 TODO · 过去佛（14条待验证；归档见 [TODO.md](../TODO.md) 第一百零八批次）
+# MusicFrog 工程 TODO · 过去佛（15条待验证；归档见 [TODO.md](../TODO.md) 第一百零八批次）
 
 > 层级：L4
 
@@ -289,3 +289,18 @@
 ④ **像素与门（L）**：Slint **199/199** 发布 run `20261112T052158Z_79bf9f28e20f_dirty_1094075`、Iced **192/192** 发布 run `20261112T052858Z_79bf9f28e20f_dirty_1173512`；两表面 `--enforce` violations=0、欠账台账 `frames` 保持为空、`receipt-freshness 0`、10 条别名摘要按新字节刷新（唯一红腿仍是另一会话未提交的 Bevy `runtime-dark` / `overview-dark` 别名）。实测页身宽逐档**完全一致**：expanded `908`、medium `624`、compact `368`、折叠桌面 `1084`（此前 Slint 880 / Iced 860）；expanded 124 帧 `unused` 中位 **3.9%** 与上一批逐字相同，网格列数在采集窗口逐个不变，属留白归位而非排布改道。
 ⑤ **定向证据（L）**：contract+Slint+Iced nextest **1535/1535**、三包 Clippy `--all-targets -D warnings`、`cargo fmt --all --check`；`--check-export` current、生成器 `--check` fresh、`--self-test` 64/64、梯守卫 53/53 + enforce 0、双表面矩阵一致、doc/line/import/typed-state/implicit-state/syntax/dead-input/flag/closure 全 0。
 ⑥ **待验证范围**：统一批次复跑 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py`；Bevy 的 12px 副本仍由另一会话持有，随 `FLPROFILES-002` 接线时消费同一导出值（本条不声称 Bevy 已接入）。
+
+## 12.84 旗面只有一个清单：Iced 不再画 emoji 字形（1条待验证）
+
+| ID | 状态 / 优先级 | points | owner | 依赖 |
+| --- | --- | --- | --- | --- |
+| `FLAGART-001` | `Integrated` / P2（b193 实测立项，b219 交付，待统一批次办结） | 2 | infiltrator-contract（`geo_region::NodeRegion` 单一地区真源）+ infiltrator-shared（`country_flags` 只出 ISO 代码）+ infiltrator-presentation（`outbound_flag_code` / `flag_code` / 聚合行去掉 emoji 槽）+ infiltrator-iced（`flag_plate` 组件 + `generate_flag_assets.py` 生成的 258 面字节表）+ infiltrator-bevy-ui（`NodeFlagText` / restamp / 聚合行改文字代码）+ `scripts/quality/flag-plate-guard.py` + Iced 192 帧整批重采 | `SLINT-020`（国旗只有一个几何）、`DSGSTD-001`（资源权威） |
+
+**`FLAGART-001` 旗面不再取决于系统 emoji 字体（b219 交付，2 pt / P2 / `Integrated`）**：
+
+① **真正找到的问题（本仓已发布像素自证）**：用户第五次附同一张裁图后逐帧复核 `crates/infiltrator-iced/docs/screenshots/proxies-dark.png`，HK 节点画的是 **Noto 波浪边 emoji 旗**（红墨迹盒 18×13、顶行跨度 15/18、四角全空，既非 4:3 也非直角），未识别节点 DMIT 画的是 **字面圆形 🌐**（蓝墨迹盒 18×17、长宽比 1.06、四角全空而中心实、填充率 0.703，圆≈0.785 方≈1.0）；`profiles-aggregator-preview-standard.png` 的聚合行同样以 `🇭🇰` 起头。根因不是容器圆角，而是旗面本身是文本字形：`node_flag_emoji` 把 `Region::emoji()` 交给 `role_body_text`，形状、颜色与可用性全押在宿主 emoji 字体上。
+② **求同存异的来源**：pinned FlClash 行内是 emoji 或两字母文字徽记，本仓不照抄其 emoji（那正是被驳回的形状），而是让 Iced 消费 Slint 已在用的同一份 `asset-catalog.json` 4:3 直角矢量：`scripts/generate_flag_assets.py` 从 catalog 生成 `crates/infiltrator-iced/src/flag_assets_generated.rs`（258 面，`--check` 新鲜度腿入结构门），`view/flag_plate.rs` 用 `svg::Handle::from_memory` 画同一几何、圆角恒 0，无旗时是方形代码板。
+③ **自底向上一次收口（不留双轨）**：地区真源合并为契约 `geo_region`，退役 shared `Region` 私有别名表、`node_flag_emoji`、`GeoRegion::emoji_flag`、`GeoRegion::flag_icon_token`、`proxy_flag_icon_token`、domain `region_flag()` 与 `RegionalClusterSnapshot.flag`（全仓旧符号搜索为 0）；presentation DTO 改 `outbound_flag_code` / `flag_code`，聚合行模板去掉 `{flag}` 槽（代码已由 `{iso}` 给出，删字段而非再造第二份事实）；契约词表补齐 shared 表独有的 9 国与 `HKG`/`hong-kong`/台中/高雄/福冈/圣保罗别名，并新增 typed `NodeRegion`（地理旗 vs DIRECT/REJECT/GLOBAL 三个路由目标，恒无旗）。
+④ **门禁**：新守卫 `scripts/quality/flag-plate-guard.py`（FLAGART-001）钉住 catalog↔生成表逐条相等、生成物 fresh、身份层源码不得出现 regional-indicator 序列或 🌐 兜底、退役符号不得回归、`flag_plate` 必须画矢量且零圆角、结构门两腿在场；`--self-test` **8/8**（含删旗、换 glyph、globe 兜底、退役入口、圆角板、漏腿六类 planted 负例），`--mode enforce` findings=0。L2 标准 §3.1 与 §5 判定项第 12 条同批改写，不再声称「四表面都无圆形旗」。
+⑤ **像素与门（L）**：Iced **192/192** 整批重采发布 run `20261112T092915Z_4429d9259479_dirty_2279303`（524s，binary sha256 `ac096112…`），**19 帧**身份变化（`proxies-*` 17 帧 + `profiles-aggregator-preview-{standard,compact}`）；发布帧复量 HK 板 **24×18**（4:3）、顶行跨度 **24/24**、四角全实心，DMIT 旗位蓝色像素 **0**、改画方形「—」代码板；`space_utilization --surface iced --enforce` violations=0、`--self-test` 64/64、`receipt-freshness 0`、别名表内无 Iced 帧受影响。Slint 侧 7 帧诊断复采与发布帧 **逐字节相同**（其 fixture 只用两字母代码，词表合并未改变任何已发布旗面），故不重采、不声称变化。
+⑥ **待验证范围**：统一批次复跑 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py`；**Bevy 只做到「旗位为 ASCII 代码文字」，其 192 帧像素仍由另一会话持有且已与本批源码不一致**（`overview_restamp.rs` / `node_card.rs` / `proxies_refresh.rs` 属 Bevy `src/`，本批按文件所有权纪律未重采 Bevy 矩阵），矩形栅格板与 Bevy 整批重采留 `FLPROFILES-002` 同批收口；Android 不画旗面 artwork，无需本条像素。

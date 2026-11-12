@@ -15,6 +15,8 @@
 extern crate self as infiltrator_iced;
 
 use infiltrator_application::surface_application::SurfacePump;
+mod flag_assets_generated;
+
 pub mod accessibility;
 pub mod admin_server;
 pub mod animation;

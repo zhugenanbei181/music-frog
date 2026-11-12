@@ -23,7 +23,6 @@ use iced::advanced::widget::Id;
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Shadow, Theme, Vector, border};
 use infiltrator_contract::shared_copy::SharedCopyKey;
-use infiltrator_shared::country_flags::node_flag_emoji;
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::outbound::details::OutboundCollectionKind;
 use lurker_core_contract::outbound::details::OutboundObservation;

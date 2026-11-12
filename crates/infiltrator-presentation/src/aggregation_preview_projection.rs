@@ -63,7 +63,6 @@ pub fn aggregation_regions(
                 catalog,
                 "aggregation_region_row",
                 &[
-                    ("flag", region.flag.clone()),
                     ("iso", region.iso.clone()),
                     ("label", region.label.clone()),
                     ("group", region.group_name.clone()),

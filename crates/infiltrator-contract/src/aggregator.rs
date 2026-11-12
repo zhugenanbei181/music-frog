@@ -135,8 +135,6 @@ pub struct RegionalClusterSnapshot {
     pub iso: String,
     /// Native region label, e.g. `香港`.
     pub label: String,
-    /// Regional-indicator flag, e.g. `🇭🇰`.
-    pub flag: String,
     /// Generated `url-test` group name, e.g. `香港自动测速`.
     pub group_name: String,
     /// Node names in this cluster.

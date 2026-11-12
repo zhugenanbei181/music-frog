@@ -9,6 +9,7 @@ use crate::view::component_forms::{
     form_input_style, row_card_surface, style_accent, style_ghost, text_btn,
 };
 use crate::view::components::{chip, empty_state, icon_button, section_header, segmented_control};
+use crate::view::flag_plate::flag_plate_coded;
 use crate::view::proxy_latency::latency_badge;
 use crate::view::svg_icons::Icon;
 use crate::view::theme::{SP_MD, tokens};
@@ -16,7 +17,7 @@ use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Border, Element, Length, Theme, border};
 use infiltrator_contract::runtime_settings::RuntimeDelaySortOrder;
-use infiltrator_shared::country_flags::node_flag_emoji;
+use infiltrator_shared::country_flags::node_flag_code;
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::outbound::details::OutboundObservation;
 use lurker_core_contract::outbound::identity::OutboundId;
@@ -175,10 +176,10 @@ pub(super) fn delay_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<
                 (!is_testing).then_some(probe_message).flatten(),
             );
 
-            let flag = node_flag_emoji(&name);
+            let flag_code = node_flag_code(&name);
 
             let card_content = row![
-                theme::role_body_text(flag),
+                flag_plate_coded(flag_code),
                 Space::new().width(theme::SP_SM),
                 column![
                     theme::role_body_text(name).style(|t: &Theme| {

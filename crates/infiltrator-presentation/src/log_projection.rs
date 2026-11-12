@@ -1,9 +1,9 @@
 //! A single pure parser for original controller log records on all peers.
+use infiltrator_contract::geo_region::NodeRegion;
 use infiltrator_contract::logs::RawLogRecord;
 use infiltrator_contract::logs::{LogFactsSnapshot, LogLevel, LogSession, LogStreamState};
 use infiltrator_contract::snapshot::CoreSnapshot;
 use infiltrator_contract::surface_snapshot::{LogSnapshot, LogsPageSnapshot};
-use infiltrator_shared::country_flags::node_flag_emoji;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::lifecycle::CoreLifecycle;
 use lurker_core_contract::page::{PageData, PageStatus};
@@ -18,7 +18,7 @@ pub struct StructuredLogLine {
     pub rule: Option<String>,
     pub outbound_group: Option<String>,
     pub outbound_node: Option<String>,
-    pub outbound_flag: Option<String>,
+    pub outbound_flag_code: Option<String>,
     pub message: String,
     pub is_connection: bool,
 }
@@ -259,7 +259,7 @@ pub fn parse_structured_log(raw: &str) -> StructuredLogLine {
 
                 let mut outbound_group = None;
                 let mut outbound_node = None;
-                let mut outbound_flag = None;
+                let mut outbound_flag_code = None;
 
                 if let Some(target) = target_part {
                     if let Some(open_b) = target.find('[') {
@@ -270,11 +270,13 @@ pub fn parse_structured_log(raw: &str) -> StructuredLogLine {
                                 outbound_group = Some(grp.to_string());
                             }
                             outbound_node = Some(node.to_string());
-                            outbound_flag = Some(node_flag_emoji(node).to_string());
+                            outbound_flag_code =
+                                Some(NodeRegion::classify(node).plate_label().to_string());
                         }
                     } else {
                         outbound_node = Some(target.to_string());
-                        outbound_flag = Some(node_flag_emoji(target).to_string());
+                        outbound_flag_code =
+                            Some(NodeRegion::classify(target).plate_label().to_string());
                     }
                 }
 
@@ -287,7 +289,7 @@ pub fn parse_structured_log(raw: &str) -> StructuredLogLine {
                     rule: rule_part,
                     outbound_group,
                     outbound_node,
-                    outbound_flag,
+                    outbound_flag_code,
                     message: rest.to_string(),
                     is_connection: true,
                 };
@@ -304,7 +306,7 @@ pub fn parse_structured_log(raw: &str) -> StructuredLogLine {
         rule: None,
         outbound_group: None,
         outbound_node: None,
-        outbound_flag: None,
+        outbound_flag_code: None,
         message: rest.to_string(),
         is_connection: false,
     }

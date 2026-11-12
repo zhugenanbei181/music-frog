@@ -384,7 +384,6 @@ fn report_from_plan(draft: &AggregationDraft, plan: AggregationPlan) -> Aggregat
                 RegionalClusterSnapshot {
                     iso: region.iso,
                     label: region.label,
-                    flag: region.flag,
                     group_name,
                     node_names: region.node_names,
                 }

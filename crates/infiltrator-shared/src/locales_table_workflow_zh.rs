@@ -725,7 +725,7 @@ pub(super) fn translate_workflow_zh(key: &str) -> Cow<'static, str> {
         "aggregation_counters" => "聚合预览：输入 {input} · 去重 {dedup} · 归一化 {renamed} · 规则重命名 {rules} · 预检剔除 {invalid} · 输出 {total} 节点 · 区域 {regions}{master}{missing}".into(),
         "aggregation_regions_pending" => "区域归类：等待预览".into(),
         "aggregation_regions_empty" => "区域归类：未识别到任何 ISO 区域".into(),
-        "aggregation_region_row" => "{flag} {iso} {label} → {group}（{count} 节点）".into(),
+        "aggregation_region_row" => "{iso} {label} → {group}（{count} 节点）".into(),
         "aggregation_master_tag" => " [主选择器]".into(),
         "aggregation_custom_tag" => " [自定义]".into(),
         "aggregation_group_row" => "{name}{master}{custom} · {kind} · {count} 成员".into(),

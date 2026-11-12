@@ -81,7 +81,6 @@ fn plan_reports_real_dedup_and_region_counts() {
 
     let hk = &plan.regions[0];
     assert_eq!(hk.label, "香港");
-    assert_eq!(hk.flag, "🇭🇰");
     assert_eq!(hk.node_names.len(), 1);
     assert_eq!(hk.group_name(), format!("香港{REGION_GROUP_SUFFIX}"));
 }

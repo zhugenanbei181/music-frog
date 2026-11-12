@@ -77,13 +77,17 @@
   `SOURCE_IMPORT_MANIFEST.json` 钉住），不是本仓清单，不得被当作可消费的资产。
 - 上游 FlClash 根本不画圆形国旗（行内是 emoji 或两字母文字徽记），因此这条不是「存异」，
   而是把本仓自造的容器形状改回事实：旗帜归旗帜、圆徽归徽记（选中态对勾仍是圆形）。
-- Android / Iced / Bevy 目前不消费这份 Slint 清单（各端旗面由各自条目收口，见
-  `FLAGART-001`）；一旦接入，只能消费同一矩形几何与同一 owner，不得另建第二套圆角或裁剪。
-- **跨表面通则**：任何表面都不得把国旗放进声明了圆角或裁剪的容器里；本批逐表面核对现状
-  为——Slint 画共享的 4:3 矩形资产（唯一持旗容器 `CountryChip` / `FlagIcon`，不声明圆角），
-  Iced / Bevy 画平台 emoji 字形（没有第二层容器，但字形形状与可用性取决于系统字体，
-  故登记为 `FLAGART-001`），Android 不画任何国旗 artwork（只出地区文字）。因此「圆形旗帜
-  图案容器」在本仓四个表面都没有实现，回归只会来自 Slint 清单或容器形状，由 SLINT-020 咬。
+- 清单只有一个，消费它的表面不止一个（b219 起）：`scripts/generate_flag_assets.py` 从同一
+  `asset-catalog.json` 生成 `crates/infiltrator-iced/src/flag_assets_generated.rs`，Iced 的
+  `view/flag_plate.rs` 因此画的是**同一批 4:3 矢量**，不再画平台 emoji 字形。Bevy 与 Android
+  仍不消费这份清单（Bevy 的旗位现在只剩两字母文字，栅格板与重采另批收口；Android 只出地区
+  文字）。任何新消费者只能吃同一矩形几何与同一 owner，不得另建第二套圆角或裁剪。
+- **跨表面通则**：任何表面都不得把国旗放进声明了圆角或裁剪的容器里，也不得把国旗画成 Uni-
+  code regional-indicator 字形——b219 的已发布 Iced 帧证明后者同样是本条反馈：`proxies-dark`
+  的 HK 节点是波浪边 emoji、未识别节点是**字面圆形 🌐**，形状与可用性都押在系统 emoji 字体上。
+  现状逐表面为——Slint 画共享 4:3 资产（`CountryChip` / `FlagIcon`，零圆角），Iced 画同一批
+  矢量的 `flag_plate`（零圆角、无旗时是方形代码板），Bevy 旗位为 ASCII 代码文字，Android 不画
+  国旗 artwork。两条都由 `scripts/quality/flag-plate-guard.py`（FLAGART-001）与 SLINT-020 咬。
 
 ## 4. 适配物生成（唯一写入者）
 
@@ -106,6 +110,7 @@
 9. Android 语义枚举与 resolver 穷尽覆盖 contract 目录，不创造未登记语义。
 10. 吉祥物主 plate ≥1024px 且通过透明角、alpha (0,255)、真实高频边缘细节门；同一 catalog ID 的 512px hero 绘制档由 shared owner 唯一登记，生成适配物字节一致，surface 目录无第二份青蛙 PNG；资产身份变化必须重采双视口真实像素回执。
 11. 国旗清单只有一个形状（§3.1）：由 `scripts/quality/slint-flag-shape-guard.py`（SLINT-020）在结构门强制——`FlagImages.flags` 必须逐条等于 catalog `flag.*` / `source` 的顺序、`flag_assets::index_for_code` 必须与之一致、shared 目录不得再有 `circle-144` 记录或 `flags/circle-png/`、`FlagIcon` 不得 `clip`/圆角/`cover`，调用点不得喂退役的 `diameter` 入口。
+12. 旗面只有一个清单、且没有任何表面画 emoji 旗（§3.1，b219）：由 `scripts/quality/flag-plate-guard.py`（FLAGART-001）在结构门强制——`crates/infiltrator-iced/src/flag_assets_generated.rs` 的代码集必须逐条等于 catalog `flag.*` / `source`、`generate_flag_assets.py --check` 必须 fresh、身份层源码（Iced `view/`、Bevy `pages/`、Slint `ui/` 与投影、presentation、shared `country_flags`）不得出现 regional-indicator 旗形或 🌐 兜底、退役入口 `node_flag_emoji` / `emoji_flag` / `flag_icon_token` / `proxy_flag_icon_token` 不得回归、`flag_plate` 必须画矢量且圆角为 0。别名表（contract `geo_region`、domain `COUNTRY_DEFS`）匹配用户节点名里的 emoji 属输入解析，不在本条范围。
 
 验收证据最少包含：
 

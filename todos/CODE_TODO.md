@@ -21,6 +21,7 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
+- 2026-11-12 第二百一十九交付批次（旗面只有一个清单：Iced 不再画 emoji 字形；`FLAGART-001` 2 pt 由 `Planned` 转 `Integrated` 迁入过去佛 §12.84，据实新立 `FLAGCODE-001` 3 pt + `GATERUN-001` 2 pt + `I18NNAV-001` 2 pt，不办结、不注销）：① **真正找到的问题（本仓已发布像素自证，不是审美之争）**：第五次收到同一张裁图后逐帧复核 `proxies-dark.png`，HK 节点是 **Noto 波浪边 emoji 旗**（红墨迹盒 18×13、顶行跨度 15/18、四角全空，既非 4:3 也非直角），未识别节点 DMIT 是 **字面圆形 🌐**（蓝墨迹盒 18×17、长宽比 1.06、四角全空而中心实、填充率 0.703），`profiles-aggregator-preview-standard.png` 的聚合行以 `🇭🇰` 起头。根因是旗面是**文本字形**：`node_flag_emoji` 把 emoji 交给 `role_body_text`，形状与可用性全押在宿主 emoji 字体上；b193 曾据「本机恰好渲染成矩形」判为已收口，却没有任何门量过这件事。② **求同而非照抄**：pinned FlClash 行内也是 emoji/两字母徽记，本仓不抄这个形状，而是让 Iced 消费 Slint 早已使用的同一份 `asset-catalog.json` 4:3 直角矢量——`scripts/generate_flag_assets.py` 从 catalog 生成 258 面字节表（唯一写入者，`--check` 新鲜度腿入结构门），`view/flag_plate.rs` 以 `svg::Handle::from_memory` 画同一几何且圆角恒 0，无旗时是方形代码板。③ **自底向上一次收口，不留双轨**：地区真源合并为契约 `geo_region`，退役 shared 私有别名表与 `node_flag_emoji` / `GeoRegion::emoji_flag` / `GeoRegion::flag_icon_token` / `proxy_flag_icon_token` / domain `region_flag()` / `RegionalClusterSnapshot.flag`（全仓旧符号搜索 0）；presentation DTO 改 `outbound_flag_code` / `flag_code`，聚合行模板删掉 `{flag}` 槽（代码已由 `{iso}` 给出，删字段而不是再造第二份事实）；契约词表补齐 shared 表独有的 9 国与 `HKG`/`hong-kong`/台中/高雄/福冈/圣保罗别名，新增 typed `NodeRegion`（地理旗 vs DIRECT/REJECT/GLOBAL 三个恒无旗的路由目标）。④ **顺带抓到一条真实记账缺陷并更正**：见上条 b219 更正行。⑤ **门禁**：新守卫 `scripts/quality/flag-plate-guard.py`（FLAGART-001）钉住 catalog↔生成表逐条相等、生成物 fresh、身份层源码不得出现 regional-indicator 序列或 🌐 兜底、退役符号不得回归、板必须画矢量且零圆角、结构门两腿在场，`--self-test` **8/8**（六类 planted 负例实测都会咬）、enforce 0；L2 标准 §3.1 与 §5 判定项第 12 条同批改写，撤回「四表面都没有圆形旗」这句与像素矛盾的话。⑥ **像素与门（L）**：Iced **192/192** 整批重采发布 run `20261112T092915Z_4429d9259479_dirty_2279303`（524s，binary sha256 `ac096112…`），**19 帧**身份变化（`proxies-*` 17 帧 + 聚合预览 2 帧）；发布帧复量 HK 板 **24×18**（4:3）、顶行跨度 **24/24**、四角全实心；DMIT 旗位蓝色像素 **0**，改画方形「—」代码板；`space_utilization --surface iced --enforce` violations=0、`--self-test` 64/64、`receipt-freshness 0`、别名表无 Iced 帧受影响。Slint 7 帧诊断复采与发布帧**逐字节相同**（其 fixture 只用两字母代码，词表合并未改变任何已发布旗面），故不重采、不声称变化。⑦ **证据（L）**：`--workspace --all-targets` check exit 0；八包 `cargo nextest run --locked -p contract -p shared -p domain -p application -p presentation -p iced -p slint -p bevy-ui --features infiltrator-iced/capture-tools,infiltrator-bevy-ui/capture-tools --no-fail-fast` **4255/4255 passed / 0 failed**（411.8s）、五包 Clippy `--all-targets -D warnings` exit 0、`cargo fmt --all --check` 0 偏差；`resolve_surface_evidence.py` status=pass anchors=360 cells=180；import/line/typed-state/test-layout/flag 各腿 0。⑧ **诚实边界**：本批为收敛真源改了 4 个 Bevy `src/` 文件与 3 个 Bevy 测试 fixture（旗位现为 ASCII 代码文字），但 **Bevy 的 192 帧像素仍由另一会话持有、已与本批源码不一致**，按所有权纪律不重采，故 Bevy 只声称「不再产出 emoji 旗」，不声称已验收；其矩形栅格板与整批重采留 `FLPROFILES-002` 同批收口。全仓 `--workspace` nextest/clippy 与结构门唯一红腿仍是该会话未提交的 Bevy `runtime-dark` / `overview-dark` 别名。⑨ **据实新立 `FLAGCODE-001` 3 pt**：契约地区词表只有 37 个变体，探针实测 258 面 catalog 旗中 **222 面永远解析不到旗**（AC/AD/AF…），emoji 换成矩形资产后这条覆盖率缺口第一次变成用户可见缺陷（葡萄牙/墨西哥/智利等节点拿到方形「—」而非其旗）；收口必须在契约词表裁决，严禁 UI 侧补表。⑩ **另抓到两条真实缺陷并据实立项**：(a) `GATERUN-001`（2 pt）——`check-structure.sh` 的 `set -e` 让门在第 64 行那条 Bevy 身份红腿处中止，**第 65 行起的全部后续腿（含 `receipt-freshness`、`i18n-guard --mode enforce`、`design-resource-authority`、本批新加的 `flag-plate-guard`）在 CI 与本机都从未执行**；本批实测整门 rc=1 且日志无 `flag plate guard` 行，必须手工切片才拿到结果。(b) `I18NNAV-001`（2 pt）——正因上一条，`navigation_display_label` 自 b197 起把 `"核心概览"/"代理策略"/"配置订阅"/"系统设置"` 四个字面量当 msgid 喂给 `lang.tr`，实测 `Lang("en-US").tr("核心概览")` **原样返回中文**（七张表与 552 条产品 msgid 都不认它，落到 `key.to_owned()` 兜底），即英文界面画出中文侧栏；`i18n-guard --mode enforce` 单独跑实测 `literal_errors=4` rc=1。两条都只立项不夹带修复（不同业务结果）。⑪ **台账**：现在佛 16 条 / 37 → **18 条 / 42 pt**（迁出 2、迁入 3 + 新立 3 + 2 + 2），过去佛 14 → **15 条 / 30 → 32 pt**；未办结 65 → **68 条 / 155 → 162 pt**，已归档 **1,258 pt / 463 条**保持，累计 **1,420 pt**，严格交付率 89.0% → **88.6%**（如实登记 7 pt 新缺陷让分母变大，是如实记账而非倒退）。
 - 2026-11-12 第二百一十八交付批次（页身左右留白只付一次 16dp；`SPACEUTIL-018` 3 pt 由 `Planned` 转 `Integrated` 迁入过去佛 §12.83，不办结、不注销）：① **真正找到的问题**：pinned FlClash 五条源码把页面左右留白钉成同一个 16dp 且只付一次，本仓却有四份副本（Slint 桌面 30u / 紧凑 16u、Iced 16/24/40/48 按档 ramp、Bevy 12px），并在 `proxy_node_columns()` 里把 `page_body_width_px()` 已扣过的留白再扣一次 `PROXY_GRID_INSET_PX = 32`；1180×780 实测 Slint 页身 880px、Iced 860px、网格拿到 828/848px，参考物页身 960px 只让 32px、网格拿 928px。② **自底向上收口**：契约一处发布 `PAGE_PADDING_PX = 16`（故意不是 `TierFact` 字段），退役按档 ramp 与第二次扣减，`page-structure.json` 升 **v16** 并新增 `page_padding.px`、删除 `proxy_grid.page_inset_px`；生成器导出唯一 `ViewportLadder.page-padding`，Slint 两个页边距 token 合一、Iced 四处消费点与多余的 `ViewportTier` 参数同批清退。③ **门禁**：判定器逐帧只读导出的 gutter（私自画 30/40/12px 即拒，self-test **63 → 64**），梯守卫新增 `page_gutter_findings()` 四条规则（self-test **48 → 53**，enforce 0）。④ **像素与门（L）**：Slint **199/199** run `20261112T052158Z_79bf9f28e20f_dirty_1094075`、Iced **192/192** run `20261112T052858Z_79bf9f28e20f_dirty_1173512`；双表面 `--enforce` violations=0、欠账台账两侧为空、`receipt-freshness 0`、10 条别名摘要按新字节刷新（唯一红腿仍是另一会话的 Bevy 像素别名）。实测页身宽逐档**完全一致**：expanded `908`、medium `624`、compact `368`、折叠桌面 `1084`（此前 880 / 860）；expanded 124 帧 `unused` 中位 **3.9%** 与上一批逐字相同，网格列数逐个不变——留白归位而非排布改道，未动用 §5 收口、未放宽任何上限。⑤ **证据（L）**：contract+Slint+Iced nextest **1535/1535**、三包 Clippy `--all-targets -D warnings`、fmt、`--check-export` current、生成器 `--check` fresh、统一矩阵一致、doc/line/import/typed-state/implicit-state/syntax/dead-input/flag/closure 全 0。⑥ **诚实边界**：Bevy 的 12px 副本仍由另一会话持有，留 `FLPROFILES-002` 接线时消费同一导出值；全仓 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py` 仍待统一批次。⑦ **台账**：现在佛 17 → **16 条 / 37 → 34 pt**，过去佛 13 → **14 条 / 27 → 30 pt**；未办结 **65 条 / 152 pt 保持**，已归档 **1,258 pt / 463 条**保持，累计 **1,410 pt**、严格交付率 **89.2%** 全部保持（3 pt 只是从现在佛搬到过去佛，不新增交付声明）。
 - 2026-11-12 第二百一十七批次（只读侦察 + 参照物源码复核：实测新立 `SPACEUTIL-018` 3 pt / `Planned`，不办结、不注销、不交付产品代码）：① **真正找到的问题（用户问的「空间利用率」最直接的漏项）**：页身左右留白从来没有被任何判据量过。pinned FlClash `be847366` 五条源码把它钉成同一个 16dp 且只付一次——`dashboard.dart` `fromSTEB(16, …, 24, …)` 后 `room = maxWidth − base.horizontal − gap*(columns−1)`；`proxies/tab.dart` `getProxiesColumns(max(width - 32, 0))`；`proxies/list.dart` `_groupInset = 16`；`profiles.dart` `_horizontalPadding = 16`；`layout.dart::dashboardMobileSideOf = max(16, (width − 560)/2)`。两张 tracked 场景图逐像素同向：桌面页身左缘墨迹 = 侧栏右缘 +30px（÷1.95 = **15.4dp**），手机卡片左 48 / 右 47px（**16.3 / 16.0dp**）。② **本仓有四份互不相等的副本**：Slint 桌面 **30u**（`page-margin-desktop`）、Slint 紧凑 16u（`page-padding`）、Iced **16/24/40/48 按档 ramp**（`ViewportTier::content_padding_px`）、Bevy 12px（`shell_scene.rs` 的 `UiRect::horizontal(rem(space::S12))`）；b216 两表面回执普查实测同一 1180×780 窗口 Slint 页身 880px、Iced 860px，而参考物在 960px 页宽里只让出 32px——expanded 档每侧多付 14–24px 横向死地。③ **另有第二次扣减**：`proxy_node_columns()` 在 `page_body_width_px()`（已扣 2×`content_padding_px`）之后再扣 `PROXY_GRID_INSET_PX = 32`，Slint 生成查表同样再减，而上游那个 32 就是左右留白本身；1180 expanded 网格实际拿到 828px（Iced）/ 848px（Slint），参考物拿到 928px；`profile_columns()` 未再扣，两个网格口径也不一致。④ **为何本批不改代码**：这是三表面共享数与跨表面布局身份，按「不在只有 Slint 一份新证据时擅改共享数」与文件所有权纪律（Bevy 由另一会话持有）登记为底层裁决任务，收口顺序与验收口径写入参照基准 §20 与本条详情；不放宽任何上限，也不在 UI 层加布尔代答。⑤ **证据（L）**：本批零产品代码改动，沿用 b216 发布批 `20261112T033526Z_d03a849e2929_dirty_433821`（Slint 199/199 violations=0、`receipt-freshness 0`）与 Iced `20261111T220532Z_923ba4af7b2f_dirty_2656390`（192 帧 violations=0）；`doc-governance OK`、`closure-questions 8/8`。⑥ **台账**：`SPACEUTIL-018` 3 pt / `Planned` 入现在佛 §0.2；现在佛 16 → **17 条 / 34 → 37 pt**，过去佛 **13 条 / 27 pt 保持**；未办结 62 → **65 条 / 147 → 152 pt**（斗战胜佛 20 条 / 62 pt、未来佛 15 条 / 26 pt 保持），已归档 **1,258 pt / 463 条**保持，累计 1,405 → **1,410 pt**，严格交付率 89.5% → **89.2%**（如实登记 3 pt 新缺陷让分母变大，是如实记账而非倒退）。
 - 2026-11-12 第二百一十六交付批次（Slint 页面密度不再跟随侧栏折叠偏好 + 取证回执不再索引半写文件；实测新立并交付 `SPACEUTIL-016` 2 pt / `SPACEUTIL-017` 1 pt 转 `Integrated`，不办结、不注销）：① **真正找到的问题（上游源码与本仓已发布像素同时证明）**：pinned FlClash 的 `sidebarExpanded` 只做一处算术（`sidebar.dart` 的 `expanded ? 220 : 48`），页面形态来自只看窗口宽度的 `getViewMode`；本仓 `lumen-app.slint` 却写 `compact-layout = android-platform || !labelled-sidebar`，而该事实跟着用户折叠偏好走。已发布 `sidebar-collapsed-standard`（1180×780）回执实测 `margin 16 / top 38 / bottom 0`——桌面窗口收起侧栏就变成手机页；同一窗口在 Iced 是 `margin 40 / top 78 / bottom 40` 的桌面页。`SPACEUTIL-006` 修的是反方向（密度决定挂哪种导航），这一半从未被覆盖。② **自底向上收口，零新增数字**：契约 `tiers[].labelled_sidebar` 本就是档事实，生成器投影为 `ViewportLadder.labelled_sidebar(tier)`，`theme.slint` 新增 `desktop-page` 只读它，`compact-layout` 与两个网格的 typed 形态同批改读，侧栏继续读偏好感知的 `sidebar_labelled(...)`；旧读法不留兼容轨道。③ **守卫**：`slint-viewport-tier-guard.py` 新增 `page_density_findings()`（查表必须存在、密度与网格不得出现 `labelled-sidebar`、侧栏必须保留偏好事实），planted 自测 **45 → 48**，三条负例实测都会咬。④ **顺带抓到取证台架一条真缺陷**：三个矩阵脚本都以「第一次数到 >5000 字节」当 niri 写完信号后立刻 `sha256sum`；首轮重采实测 `sidebar-collapsed-compact` manifest 记 65536 B（恰为一个 pipe buffer）而落盘 75920 B，`receipt-freshness` 报 1 条违规。修法把「尺寸连续两次轮询不变后一次性读出字节与摘要」收进 `capture_attempt.sh::capture_settled_image()`，三处调用点共用，`test_capture_attempt.py` **2 → 6** 项自测钉住（含增长中文件必须等落定、三脚本不得再各自取摘要）。⑤ **证据（L）**：整批 **199/199** 重采发布 run `20261112T033526Z_d03a849e2929_dirty_433821`（643s），唯一身份变化即 `sidebar-collapsed-standard`（`margin 16→30`、`top 38→46`、`bottom 0→72`，`unused` 3.2% → **4.1%**，`dense` 12% 内）；manifest 199 行字节/摘要与实际 PNG **0 处不符**、`receipt-freshness 0`、双表面 `--enforce` 199/192 帧 violations=0、欠账台账保持为空；Slint nextest **389/389**、生成器 `--check` fresh、`--check-export` current、`slint-syntax` 100%、owner/expansion/doc/line 全 0。⑥ **诚实边界**：`proxies-search-highlight-compact` 与 `dns-hosts-editor-standard` 两帧在三次运行间字节抖动，属既有动画相位/提示条时序非确定性（b173 已记前者为唯一差异帧），本批不为其放宽任何门也不声称收口；全仓 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py` 仍待统一批次；Bevy 文件由另一会话持有，本批不碰。⑦ **台账**：`SPACEUTIL-016` / `SPACEUTIL-017` 迁入过去佛 §12.82；现在佛 **16 条 / 34 pt 保持**，过去佛 11 → **13 条 / 24 → 27 pt**；未办结 60 → **62 条 / 144 → 147 pt**，已归档 **1,258 pt / 463 条**保持，累计 1,402 → **1,405 pt**，严格交付率 89.7% → **89.5%**（如实登记 3 pt 新缺陷让分母变大，是如实记账而非倒退）。
@@ -724,6 +725,43 @@ status=pass（registry=True、discovery=True、anchors=360、cells=180）；
 - `FLCLASH-001` core 方法面 wire 对照审计（b146 已审计，发现**两个真实缺陷**，待独立 Core 批次自底向上收口）：① `CommandIntent::ClearTrafficHistory` 在 `command_application/dispatch.rs` 是 `Ok(())` 空操作，从未触碰真实波形 owner；② 同一个意图在 `command_capability.rs` 被映射到 `ConnectionOperation::Close`，而上游 `traffic.reset` 清累计计数、`connection.close` 拆 socket 是**两个不同事实**，会让「能重置统计但不能关连接」的引擎误报不支持。上游 `network.changed` 由 `NetworkRoamingSnapshot` + `FakeIpCacheOperation::Flush` 覆盖，无缺口。正确收口顺序：contract 新增 typed `ConnectionOperation::ResetStatistics`（wire `connection.reset_statistics`）→ adapter 能力矩阵（mihomo/sing-box/desktop/android/composition 五处）→ `TrafficWaveformBuffer::reset` / `TrafficWaveformApplication::reset` → 让 `CommandApplication` 与 `ProductSurfaceReader` **共享同一个** `TrafficWaveformApplication` owner（`Clone` 即共享 `Arc<Mutex>`，需跨 host 注入，禁止各建一个实例做假 reset）→ dispatch 真实调用 + capability 映射拆开 + fake/nextest 验收。本轮 b146 只登记不半改，未提交的源码改动已全部回退（并行纪律：编译不通过的半成品不得留在工作树）。
 - `FLCLASH-002` **复核判定「存异（本仓已更强）」，直接办结，不写码**：逐项核对 `infiltrator-contract::overview_layout` 后确认本仓已有 typed 卡片身份枚举 `OverviewCardKind`（8 变体）、`region` 把 shell 侧栏控件与概览卡分开（上游 `DashboardWidget.platforms` 没有这层裁决）、`DEFAULT_ORDER` 默认顺序、`OverviewLayoutSnapshot` 可重排 owner 与 4 项契约测试；`project_overview_layout` 纯消费、`DashboardFacts` 一次投影 11 类事实。上游 `platforms` 门控（`vpnButton` Android only / `networkTakeover` desktop only）在本仓没有对应真实差异——`MasterSwitches` 在四表面都渲染（Android 走 VPNService），若凭空加平台门控只会造第二个业务真源。b146 首版把「缺卡片身份 enum + registry」登记为缺口是误判，按「不为办结造功能」原则撤销，不新增 CoreOperation / wire / 快照 / UI。
 
+## 0.3 门禁可达性与英文 locale 文案真源（第二百一十九批次实测立项）
+
+结构门是全部强制标准的唯一执行器；一条腿「跑了但没人看」与「没跑」等价。本节两条都
+由 b219 在真实复跑中发现，不是推测。
+
+| ID | 状态 / 优先级 | points | owner | 依赖 |
+| --- | --- | --- | --- | --- |
+| `GATERUN-001` | `Planned` / P1（b219 实测立项） | 2 | `scripts/quality/check-structure.sh`（收集式执行器）+ `scripts/test.sh` 与 `.github/workflows/main-gate.yml` 两条调用腿 + 每条腿的失败签名台账 | `SPACEUTIL-017`（回执索引落定字节，同一「取证台架自身要可信」主题） |
+| `I18NNAV-001` | `Planned` / P1（b219 实测立项） | 2 | infiltrator-contract（`shell_navigation` 的文案 key）+ infiltrator-slint（`lumen_projection.rs::navigation_display_label`）+ `scripts/quality/i18n-guard.py`（`TRANSLATION_REF_PATTERN` 认不出的形状要能判） | `FLPARITY-048`（标签截断事实）、`GATERUN-001`（这条正是被不可达的门漏掉的） |
+
+**`GATERUN-001` 结构门在第一道红腿处中止，其后所有门静默不执行（b219 立项，2 pt / P1）**：
+① **实测**：`check-structure.sh` 第 2 行 `set -euo pipefail`，第 64 行 `screenshot-identity-guard.py --mode enforce`
+因另一会话未提交的 Bevy `runtime-dark` / `overview-dark` 别名返回 1，脚本当场退出；第 65 行起的
+**全部后续腿**（`receipt-freshness`、`i18n-guard --mode enforce`（第 113 行）、`design-resource-authority`、
+`flag-plate-guard`、`parity-coverage`、各 `flclash-*` 参照守卫…）在 CI 与本机都不会跑。b219 亲眼验证：
+整门 rc=1 且日志里没有任何 `flag plate guard` 行，必须手工 `sed -n '65,$p'` 切出剩余腿单独跑一遍才拿到结果。
+② **后果已被证实**：`I18NNAV-001` 那条用户可见缺陷自 b197 就存在，正因为 i18n 腿在第 64 行之后，
+121 个批次里没有任何一次门执行过它。
+③ **收口方向**：执行器改为**收集式**——逐腿记录 `腿名 / rc / 首行失败签名`，全部跑完后一次性汇总并以
+非零码退出；台账（如 `scripts/quality/structure_gate_ledger.json`）登记每条腿的最近通过签名，
+新增红腿必须显式登记理由，禁止「已知红腿」长期吞掉后续全部判据。`main-gate.yml` 与 `scripts/test.sh`
+两条调用腿同步消费同一汇总。
+④ **验收**：故意把第 64 行前的某道门打红，实测后续每条腿仍出现在汇总里且总 rc=1；把 Bevy 别名修好后
+全门 rc=0；`check-test-policy.sh` 与既有守卫无回归；台账里不存在无理由的长期红腿。
+
+**`I18NNAV-001` 桌面导航四个主项在英文 locale 下仍画中文（b219 实测立项，2 pt / P1）**：
+① **实测**：`lumen_projection.rs:115` `navigation_display_label` 用 `match item.target` 返回
+`"核心概览"/"代理策略"/"配置订阅"/"系统设置"` 四个字面量再喂 `lang.tr`；`Lang("en-US").tr("核心概览")`
+**原样返回中文**（`tr` 的七张表与 552 条产品 msgid 都不认，落到 `key.to_owned()` 兜底）。真 key 是
+`nav_overview` 等（`locales_table_en.rs:21` => `"Overview"`）。② **为何 121 批没发现**：`i18n-guard
+--mode enforce` 在第 113 行而门在第 64 行退出（`GATERUN-001`）；守卫其实抓得到——`TRANSLATION_REF_PATTERN`
+只认内联 `.tr("字面量")`，`match` 出变量再 `tr(key)` 不在其列，实测 `literal_errors=4` rc=1。
+③ **收口（底层先决，禁止 UI 侧硬编英文）**：文案 key 由契约 `shell_navigation` 随 `NavigationItem`
+发布 `label_key()`（与 `NavigationGroup::title_key()` 同一条律法），投影只消费该 key；守卫另需能判
+「key 由 match/表产生」的形状。④ **验收**：`en-US` 下四项实测 `Overview/Proxies/Profiles/Settings`、
+`literal_errors=0`，双 locale 侧栏帧补 standard/compact 像素回执；`GATERUN-001` 先行或同批。
+
 ## 一、大计划主线与推进顺序
 
 | 主线 | 覆盖里程碑 | 条目 | 出口判据 |
@@ -770,7 +808,7 @@ status=pass（registry=True、discovery=True、anchors=360、cells=180）；
 
 立项与现状（2026-10-20 实测立项，2026-10-24 复核刷新）：`bsn!` 场景律法与 rem/em 尺寸通道均已机器强制——产品守卫 `scripts/quality/bevy_rem_guard.py` 是唯一阻塞执行器（命名/派生 px 值、硬编码 px 字面量、非 rem 字号、字面量 `em` 全部拦截，存量台账 `scripts/quality/bevy_rem_inventory.json` 已归零，180 处存量迁移由 `BEVYCAP-001.2` 收口），共享包场景门 `scripts/quality/bevy_scene_gate.py` 为上游 advisory 镜像；⑦ 小件收敛（`bsn_list!`/`Ready`/`despawn_all`/胶囊圆角）已由 `BEVYCAP-002.1` 机器化。执行状态的单一事实源是 Bevy UI 能力规范文档的「强制化台账」一节，本节不另记第二份。`BEVYCAP-002` 的全部捕获模块与双视口像素认证均已收口交付至过去佛 §12.21。
 
-## 十、跨平台 GUI/CLI 表现深化 200 点自底向上攻坚（报告实施；现存 7 条 / 15 pt，逐节小计以表内行为准；已交付 37 条见[过去佛](CODE_TODO_PAST.md)）
+## 十、跨平台 GUI/CLI 表现深化 200 点自底向上攻坚（报告实施；本节含 §10.12 / §10.13 / §10.14 合计现存 8 条 / 18 pt，逐节小计以表内行为准；已交付 38 条见[过去佛](CODE_TODO_PAST.md)）
 
 ### 10.4 Layer 3: Bevy UI 0.20 渲染管线与 WESL 材质深化（0条，已清空，涵盖 #76~#115）
 
@@ -800,13 +838,27 @@ b181 实测立项的 `SLINT-022` 已由 b196 把明暗事实收归一个 owner�
 
 ## 10.10 像素认证收口（0条，已清空，GAP-7.6 已由第一百零四统一验证批次办结归档）
 
-## 10.12 FlClash v0.9.2 对标缺口（现存 3 条 / 7 pt；归档见 [TODO.md](../TODO.md) 第一百零七批次）
+## 10.12 FlClash v0.9.2 对标缺口（现存 3 条 / 8 pt；`FLAGART-001` 已由 b219 交付迁入过去佛 §12.84，归档见 [TODO.md](../TODO.md) 第一百零七批次）
 
 | ID | 状态 / 优先级 | points | owner | 依赖 |
 | --- | --- | --- | --- | --- |
 | `FLPARITY-049` | `Integrated` / P1（b183 实测立项、b184 交付，待统一验收） | 2 | infiltrator-slint（`pages/home_widgets.slint` 的 `HomePolicyGroupGrid` 列数裁决与 `HomeConnectionMiniTable.table-content-width`、`pages/home_desktop_grid.slint` 第 4 行份额、`ui/components/theme.slint` 的 `policy-tile-min-width`） | `FLPARITY-003`（仪表盘卡片密度）、`SPACEUTIL-001`（空间利用率标准） |
-| `FLAGART-001` | `Planned` / P2（b193 实测立项） | 2 | infiltrator-iced（`view/active_exit.rs`、`view/runtime/delay.rs`、`view/proxies/node_cards.rs` 的旗面）+ infiltrator-bevy-ui（同源旗面）+ infiltrator-shared（旗面字节的 owner 与随包方式） | `SLINT-020`（国旗只有一个几何）、`DSGSTD-001`（资源权威：字体/资源清单） |
 | `FLPARITY-050` | `Planned` / P1（b207 上游源码复核立项） | 3 | infiltrator-contract（`window_chrome` 平台高度策略）+ infiltrator-desktop（`window_chrome::plan_window_chrome`）+ Iced / Bevy / Slint 的桌面 chrome 消费者与三份矩阵回执 + `scripts/parity/space_utilization.py` fixture | `SPACEUTIL-015`（回执的页身原点）、`FLPARITY-018`（CSD 标题栏） |
+| `FLAGCODE-001` | `Planned` / P2（b219 实测立项） | 3 | infiltrator-contract（`geo_region` 的地区词表）+ `scripts/generate_flag_assets.py` 与旗面清单消费侧 + 三表面帧复核 | `FLAGART-001`（过去佛 §12.84，同一清单的另一半） |
+
+**`FLAGCODE-001` 契约地区词表只覆盖 36 面旗，222 面清单旗永远画不出（b219 实测立项，3 pt / P2）**：
+① **实测**：临时契约用例 `temp_probe_catalog_coverage`（探针已删，读数留此）对
+258 面 catalog 旗逐个用 `"XX-Lisbon-01"` 提问，**222 面 `flag_code()` 为 `None`**（AC/AD/AF…），只有 36 面
+可达；根因是 `GeoRegion` 只有 37 个变体，而清单有 258 面旗——b219 把 emoji 换成矩形资产后，这条覆盖率
+缺口第一次变成用户可见缺陷：葡萄牙、墨西哥、智利、新西兰等节点拿到的是方形「—」代码板，不是它们的旗。
+② **收口方向（不得在 UI 侧补表）**：地区词表必须由一个 owner 覆盖清单的全部代码。两条路二选一：把
+`GeoRegion` 扩到 258 个 ISO 变体（`from_iso` / `iso_code` / `label_*` 同步），或让 `NodeRegion::flag_code()`
+直接以 catalog 代码为 typed 词表（`flag.<code>` 就是事实源，`GeoRegion` 只保留有本地化名称的常用地区）。
+选后者时须同时裁决 domain `COUNTRY_DEFS` 与 contract 词表的重复（b219 实测 domain 有 6 面、contract 有 37 面，
+`CL`/`MX` 两面 domain 可达而 contract 不可达）。
+③ **验收**：一条契约用例逐个断言 258 面 catalog 代码 `NodeRegion::classify("<CODE>-01").flag_code() == Some(<CODE>)`；
+`flag-plate-guard` 的清单等式仍 0 findings；两表面（Slint/Iced）在含新地区名的帧上复核像素并整批重采一次；
+`--workspace` nextest/clippy 与结构门全腿通过。
 
 **`FLPARITY-050` 桌面标题栏条带按上游平台分支裁决（b207 立项，3 pt / `Planned`）**：pinned
 FlClash v0.9.3 `lib/common/layout.dart::getWindowHeaderHeight` 给桌面 **Windows/Linux 32dp、
@@ -823,22 +875,6 @@ planted `_chrome()` 的窗口原点是自己写死的一组自洽数字，把带
 新增页身原点事实供 fixture 消费），不得在 Python 另记一个数。验收：契约用例钉住平台分支且三
 表面读同一数、`space_utilization --enforce` 两表面零违规、`screenshot-identity` /
 `receipt-freshness` 零违规、planted fixture 的原点随契约带漂移即被自测咬住、L2/L3 文档同批改写。
-
-**`FLAGART-001` 旗面在 Iced / Bevy 依赖平台 emoji 字形（b193 实测立项，零交付）**：
-四个表面逐条对账后，唯一还没被 Slint 那份「国旗是矩形资产」口径覆盖的是 Iced 与 Bevy：
-它们把 `country_flags::node_flag_emoji` 的 emoji 直接画成文本（`theme::role_body_text(flag)`），
-旗面形状与可用性于是取决于**系统 emoji 字体**——本机有 Noto Color Emoji 时是矩形旗
-（b193 复量的 `proxies-dark` 发布帧证实），缺字体时退化为方框或两个区域指示字母。
-参照物 FlClash 的处理是随包 `Twemoji.Mozilla.ttf`，所以这不是「各有各的审美」，
-而是本仓少了一份随包资源。收口方向（二选一，不得两个都做）：把共享的 4:3 旗面字节
-做成 Iced / Bevy 可消费的 typed 资源（SVG 或按尺寸派生的栅格，owner 仍是
-`infiltrator-shared` 的旗面清单），或按设计资源强制标准登记一份随包 emoji 字体；
-两条路都必须先过 `design-authority.json` 与 §5 判定项，且旗面几何仍是 4:3 直角
-（不得另建圆角或圆盘）。验收：Iced 与 Bevy 的旗面在**无系统 emoji 字体**的环境里仍渲染
-同一矩形几何（本机可复现：清空 fontconfig 的 emoji 命中后重采两表面帧），
-`screenshot-identity` / `space_utilization` 双表面仍 0 违规，标准 §3.1 的跨表面通则不改。
-
-b176 立项的 `FLPARITY-048` 已由 b197 用共享 typed 文字宽度事实收口，整条迁入[过去佛](CODE_TODO_PAST.md) §12.73 等统一批次验收；本板该节现存 2 条 / 4 pt。
 
 **`FLPARITY-049` 策略组网格的列数按可用宽度裁决，不按「想排两列」（b183 实测立项，零交付）**：
 对照 pinned `be847366` 的 `lib/views/dashboard/widgets/proxy_groups.dart`：上游把列表

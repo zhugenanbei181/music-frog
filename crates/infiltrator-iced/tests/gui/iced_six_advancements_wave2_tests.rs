@@ -251,7 +251,6 @@ fn test_advancement_w2_3b_aggregator_preview_lifecycle_is_shared() {
         regions: vec![RegionalClusterSnapshot {
             iso: "HK".to_string(),
             label: "香港".to_string(),
-            flag: "🇭🇰".to_string(),
             group_name: "香港自动测速".to_string(),
             node_names: vec!["香港 01".to_string()],
         }],

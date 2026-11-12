@@ -482,7 +482,7 @@ fn policy_group_tile_scene(group: &PolicyGroupGridItem, palette: &UiPalette) -> 
         |node| {
             format!(
                 "{} {}",
-                group.selected_flag.as_deref().unwrap_or("🌐"),
+                group.selected_flag_code.as_deref().unwrap_or("—"),
                 truncate_tail(node, POLICY_TILE_NODE_MAX_CHARS)
             )
         },
@@ -569,7 +569,7 @@ fn policy_group_member_scene(
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     let selected = group.selected_outbound_id.as_ref() == Some(&member.outbound_id);
-    let label = format!("{} {}", member.flag_emoji, member.display_name);
+    let label = format!("{} {}", member.flag_code, member.display_name);
     let mut semantic = accesskit::Node::new(accesskit::Role::Button);
     semantic.set_label(if selected {
         format!("{label} · {}", locale.text("overview_active_exit_label"))
@@ -613,7 +613,7 @@ fn policy_group_member_scene(
                     overflow: Overflow::clip_x(),
                 }
                 Children [
-                    Text({ member.flag_emoji.clone() }) TextRole(design_resources::TextRole::Body)
+                    Text({ member.flag_code.clone() }) TextRole(design_resources::TextRole::Body)
                     --
                     Text({ member.display_name.clone() })
                     TextRole(design_resources::TextRole::Body)

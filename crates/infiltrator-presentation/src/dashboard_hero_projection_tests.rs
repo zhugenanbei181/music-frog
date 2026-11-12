@@ -267,7 +267,7 @@ fn policy_group_grid_projection_preserves_ids_and_flags() {
     let group = &projection.groups[0];
     assert_eq!(group.name, "节点选择");
     assert_eq!(group.avatar_char, "节");
-    assert_eq!(group.selected_flag.as_deref(), Some("🇭🇰"));
+    assert_eq!(group.selected_flag_code.as_deref(), Some("HK"));
     assert_eq!(group.members.len(), 2);
     assert_eq!(group.members[1].display_name, "日本东京 02");
 }

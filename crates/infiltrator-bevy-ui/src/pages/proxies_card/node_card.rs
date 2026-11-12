@@ -46,9 +46,9 @@ use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::text::TextRole;
 use infiltrator_bevy_widgets::theme::{radius, space};
 use infiltrator_contract::design_resources;
+use infiltrator_contract::geo_region::NodeRegion;
 use infiltrator_presentation::latency_projection::project_proxy_latency;
 use infiltrator_presentation::proxies_page_model::proxy_protocol_chip;
-use infiltrator_shared::country_flags::node_flag_emoji;
 use lurker_core_contract::outbound::identity::OutboundId;
 
 /// The selected proxy card's accent border width in baseline pixels.
@@ -366,7 +366,10 @@ pub fn proxy_node_scene_sized(
     let flag = if node.node_type.is_empty() {
         String::new()
     } else {
-        node_flag_emoji(&node.name).into()
+        NodeRegion::classify(&node.name)
+            .plate_label()
+            .to_string()
+            .into()
     };
     let latency = project_proxy_latency(node.delay_ms);
     let delay_color_val = latency_color(latency.band, palette);

@@ -12,10 +12,10 @@ fn status_text_tracks_shared_liveness_without_guessing() {
 }
 
 #[test]
-fn country_flag_comes_from_the_shared_region_code() {
+fn country_flag_code_comes_from_the_shared_region_owner() {
     let snapshot = ActiveExitSnapshot::demo_fixture();
-    assert_eq!(country_flag(&snapshot), "🇭🇰");
+    assert_eq!(country_flag_code(&snapshot), "HK");
     let mut unknown = snapshot;
     unknown.country_code = None;
-    assert_eq!(country_flag(&unknown), "🌐");
+    assert_eq!(country_flag_code(&unknown), "—");
 }

@@ -5,6 +5,7 @@
 #[path = "overview_restamp_query_access.rs"]
 pub mod query_access;
 use self::query_access::{OverviewDynamicTextItem, OverviewProjectionTargets};
+use infiltrator_shared::country_flags::node_plate_label;
 use infiltrator_shared::locales::Lang;
 
 use crate::a11y::sync_switch_state;
@@ -116,7 +117,7 @@ pub(crate) fn active_exit_text_value(
     kind: ActiveExitTextKind,
 ) -> String {
     match kind {
-        ActiveExitTextKind::Flag => active_exit_flag(snapshot.country_code.as_deref()).to_owned(),
+        ActiveExitTextKind::Flag => active_exit_flag(snapshot.country_code.as_deref()),
         ActiveExitTextKind::Name => snapshot.name.clone().unwrap_or_else(|| "—".to_owned()),
         ActiveExitTextKind::Protocol => snapshot
             .protocol
@@ -151,39 +152,8 @@ pub(crate) fn active_exit_text_value(
     }
 }
 
-fn active_exit_flag(country_code: Option<&str>) -> &'static str {
-    match country_code
-        .unwrap_or_default()
-        .to_ascii_uppercase()
-        .as_str()
-    {
-        "HK" => "🇭🇰",
-        "TW" => "🇹🇼",
-        "JP" => "🇯🇵",
-        "US" => "🇺🇸",
-        "SG" => "🇸🇬",
-        "KR" => "🇰🇷",
-        "GB" => "🇬🇧",
-        "DE" => "🇩🇪",
-        "FR" => "🇫🇷",
-        "CA" => "🇨🇦",
-        "AU" => "🇦🇺",
-        "RU" => "🇷🇺",
-        "IN" => "🇮🇳",
-        "NL" => "🇳🇱",
-        "BR" => "🇧🇷",
-        "TR" => "🇹🇷",
-        "AR" => "🇦🇷",
-        "PH" => "🇵🇭",
-        "TH" => "🇹🇭",
-        "MY" => "🇲🇾",
-        "VN" => "🇻🇳",
-        "AE" => "🇦🇪",
-        "CN" => "🇨🇳",
-        "DIRECT" => "⚡",
-        "REJECT" => "🚫",
-        _ => "🌐",
-    }
+fn active_exit_flag(country_code: Option<&str>) -> String {
+    country_code.map(node_plate_label).unwrap_or("—").to_owned()
 }
 
 pub(crate) fn subscription_quota_text_value(

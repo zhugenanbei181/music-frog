@@ -18,9 +18,9 @@ use bevy::ui::{Display, Node};
 use infiltrator_bevy_widgets::button::ControlVisual;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_contract::geo_region::NodeRegion;
 use infiltrator_presentation::latency_projection::project_proxy_latency;
 use infiltrator_presentation::proxies_page_model::proxy_protocol_chip;
-use infiltrator_shared::country_flags::node_flag_emoji;
 
 #[derive(QueryData)]
 #[query_data(mutable)]
@@ -112,7 +112,10 @@ pub fn apply_proxies_projection(
             if label.name.is_some() {
                 label.text.0.clear();
             } else if label.flag.is_some() {
-                label.text.0 = node_flag_emoji(&node.name).into();
+                label.text.0 = NodeRegion::classify(&node.name)
+                    .plate_label()
+                    .to_string()
+                    .into();
             } else if label.protocol.is_some() {
                 label.text.0 = proxy_protocol_chip(&node.node_type);
             } else if label.latency.is_some() {

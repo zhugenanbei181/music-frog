@@ -13,7 +13,7 @@ fn test_parse_structured_connection_log() {
     assert_eq!(parsed.rule.as_deref(), Some("DomainSuffix(google.com)"));
     assert_eq!(parsed.outbound_group.as_deref(), Some("节点选择"));
     assert_eq!(parsed.outbound_node.as_deref(), Some("香港 IEPL-01"));
-    assert_eq!(parsed.outbound_flag.as_deref(), Some("🇭🇰"));
+    assert_eq!(parsed.outbound_flag_code.as_deref(), Some("HK"));
     assert!(parsed.is_connection);
 }
 
@@ -27,7 +27,7 @@ fn test_parse_structured_udp_log() {
     assert_eq!(parsed.destination.as_deref(), Some("8.8.8.8:53"));
     assert_eq!(parsed.rule.as_deref(), Some("Ip CIDR(8.8.8.8/32)"));
     assert_eq!(parsed.outbound_node.as_deref(), Some("DIRECT"));
-    assert_eq!(parsed.outbound_flag.as_deref(), Some("⚡"));
+    assert_eq!(parsed.outbound_flag_code.as_deref(), Some("DIRECT"));
     assert!(parsed.is_connection);
 }
 

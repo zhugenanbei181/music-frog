@@ -94,49 +94,6 @@ impl GeoRegion {
         }
     }
 
-    /// Standard Unicode emoji flag or global fallback.
-    pub const fn emoji_flag(self) -> &'static str {
-        match self {
-            Self::HongKong => "🇭🇰",
-            Self::Taiwan => "🇹🇼",
-            Self::Japan => "🇯🇵",
-            Self::Singapore => "🇸🇬",
-            Self::UnitedStates => "🇺🇸",
-            Self::SouthKorea => "🇰🇷",
-            Self::UnitedKingdom => "🇬🇧",
-            Self::Germany => "🇩🇪",
-            Self::France => "🇫🇷",
-            Self::Canada => "🇨🇦",
-            Self::Australia => "🇦🇺",
-            Self::Netherlands => "🇳🇱",
-            Self::Russia => "🇷🇺",
-            Self::India => "🇮🇳",
-            Self::Macau => "🇲🇴",
-            Self::Thailand => "🇹🇭",
-            Self::Vietnam => "🇻🇳",
-            Self::Malaysia => "🇲🇾",
-            Self::Philippines => "🇵🇭",
-            Self::Indonesia => "🇮🇩",
-            Self::Turkey => "🇹🇷",
-            Self::Brazil => "🇧🇷",
-            Self::Argentina => "🇦🇷",
-            Self::SouthAfrica => "🇿🇦",
-            Self::Israel => "🇮🇱",
-            Self::UnitedArabEmirates => "🇦🇪",
-            Self::Switzerland => "🇨🇭",
-            Self::Sweden => "🇸🇪",
-            Self::Norway => "🇳🇴",
-            Self::Finland => "🇫🇮",
-            Self::Italy => "🇮🇹",
-            Self::Spain => "🇪🇸",
-            Self::Ireland => "🇮🇪",
-            Self::Poland => "🇵🇱",
-            Self::Ukraine => "🇺🇦",
-            Self::China => "🇨🇳",
-            Self::Other => "🌐",
-        }
-    }
-
     /// Localized Chinese display label for GUI badges and filters.
     pub const fn label_zh(self) -> &'static str {
         match self {
@@ -223,49 +180,6 @@ impl GeoRegion {
         }
     }
 
-    /// Machine-readable flag asset token for cross-surface icon mapping.
-    pub const fn flag_icon_token(self) -> &'static str {
-        match self {
-            Self::HongKong => "flag-hk",
-            Self::Taiwan => "flag-tw",
-            Self::Japan => "flag-jp",
-            Self::Singapore => "flag-sg",
-            Self::UnitedStates => "flag-us",
-            Self::SouthKorea => "flag-kr",
-            Self::UnitedKingdom => "flag-gb",
-            Self::Germany => "flag-de",
-            Self::France => "flag-fr",
-            Self::Canada => "flag-ca",
-            Self::Australia => "flag-au",
-            Self::Netherlands => "flag-nl",
-            Self::Russia => "flag-ru",
-            Self::India => "flag-in",
-            Self::Macau => "flag-mo",
-            Self::Thailand => "flag-th",
-            Self::Vietnam => "flag-vn",
-            Self::Malaysia => "flag-my",
-            Self::Philippines => "flag-ph",
-            Self::Indonesia => "flag-id",
-            Self::Turkey => "flag-tr",
-            Self::Brazil => "flag-br",
-            Self::Argentina => "flag-ar",
-            Self::SouthAfrica => "flag-za",
-            Self::Israel => "flag-il",
-            Self::UnitedArabEmirates => "flag-ae",
-            Self::Switzerland => "flag-ch",
-            Self::Sweden => "flag-se",
-            Self::Norway => "flag-no",
-            Self::Finland => "flag-fi",
-            Self::Italy => "flag-it",
-            Self::Spain => "flag-es",
-            Self::Ireland => "flag-ie",
-            Self::Poland => "flag-pl",
-            Self::Ukraine => "flag-ua",
-            Self::China => "flag-cn",
-            Self::Other => "flag-globe",
-        }
-    }
-
     /// Map from an ISO 3166-1 alpha-2 code (case-insensitive).
     pub fn from_iso(code: &str) -> Self {
         match code.trim().to_ascii_uppercase().as_str() {
@@ -320,6 +234,8 @@ impl GeoRegion {
             || has_region_token(&lower, "hk")
             || lower.contains("hong kong")
             || lower.contains("hongkong")
+            || lower.contains("hong-kong")
+            || has_region_token(&lower, "hkg")
         {
             return Self::HongKong;
         }
@@ -327,6 +243,8 @@ impl GeoRegion {
             || name.contains("台湾")
             || name.contains("台灣")
             || name.contains("台北")
+            || name.contains("台中")
+            || name.contains("高雄")
             || has_region_token(&lower, "tw")
             || lower.contains("taiwan")
             || lower.contains("taipei")
@@ -341,6 +259,7 @@ impl GeoRegion {
             || lower.contains("japan")
             || lower.contains("tokyo")
             || lower.contains("osaka")
+            || name.contains("福冈")
         {
             return Self::Japan;
         }
@@ -506,6 +425,7 @@ impl GeoRegion {
             || name.contains("巴西")
             || has_region_token(&lower, "br")
             || lower.contains("brazil")
+            || lower.contains("sao paulo")
         {
             return Self::Brazil;
         }
@@ -540,6 +460,79 @@ impl GeoRegion {
         {
             return Self::UnitedArabEmirates;
         }
+        if name.contains("🇨🇭")
+            || name.contains("瑞士")
+            || has_region_token(&lower, "ch")
+            || lower.contains("switzerland")
+            || lower.contains("zurich")
+        {
+            return Self::Switzerland;
+        }
+        if name.contains("🇸🇪")
+            || name.contains("瑞典")
+            || has_region_token(&lower, "se")
+            || lower.contains("sweden")
+            || lower.contains("stockholm")
+        {
+            return Self::Sweden;
+        }
+        if name.contains("🇳🇴")
+            || name.contains("挪威")
+            || has_region_token(&lower, "no")
+            || lower.contains("norway")
+            || lower.contains("oslo")
+        {
+            return Self::Norway;
+        }
+        if name.contains("🇫🇮")
+            || name.contains("芬兰")
+            || has_region_token(&lower, "fi")
+            || lower.contains("finland")
+            || lower.contains("helsinki")
+        {
+            return Self::Finland;
+        }
+        if name.contains("🇮🇹")
+            || name.contains("意大利")
+            || has_region_token(&lower, "it")
+            || lower.contains("italy")
+            || lower.contains("rome")
+            || lower.contains("milan")
+        {
+            return Self::Italy;
+        }
+        if name.contains("🇪🇸")
+            || name.contains("西班牙")
+            || has_region_token(&lower, "es")
+            || lower.contains("spain")
+            || lower.contains("madrid")
+        {
+            return Self::Spain;
+        }
+        if name.contains("🇮🇪")
+            || name.contains("爱尔兰")
+            || has_region_token(&lower, "ie")
+            || lower.contains("ireland")
+            || lower.contains("dublin")
+        {
+            return Self::Ireland;
+        }
+        if name.contains("🇵🇱")
+            || name.contains("波兰")
+            || has_region_token(&lower, "pl")
+            || lower.contains("poland")
+            || lower.contains("warsaw")
+        {
+            return Self::Poland;
+        }
+        if name.contains("🇺🇦")
+            || name.contains("乌克兰")
+            || has_region_token(&lower, "ua")
+            || lower.contains("ukraine")
+            || lower.contains("kyiv")
+        {
+            return Self::Ukraine;
+        }
         if name.contains("🇨🇳")
             || name.contains("中国")
             || name.contains("中國")
@@ -550,6 +543,64 @@ impl GeoRegion {
             return Self::China;
         }
         Self::Other
+    }
+}
+
+/// The identity shown beside a proxy node. Geographic resolution has exactly
+/// one owner ([`GeoRegion::from_name_heuristic`]); the three routing targets
+/// are explicit products facts, never geographic regions and never flags.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum NodeRegion {
+    Geographic(GeoRegion),
+    Direct,
+    Reject,
+    Global,
+}
+
+impl NodeRegion {
+    /// Classify a node name from its region aliases or its routing target.
+    pub fn classify(name: &str) -> Self {
+        let lower = name.trim().to_ascii_lowercase();
+        if lower == "direct" || lower.starts_with("direct-") || lower.contains("直连") {
+            return Self::Direct;
+        }
+        if lower == "reject" || lower.starts_with("reject-") || lower.contains("拒绝") {
+            return Self::Reject;
+        }
+        if lower == "global" || lower.starts_with("global-") || lower.contains("全局") {
+            return Self::Global;
+        }
+        Self::Geographic(GeoRegion::from_name_heuristic(name))
+    }
+
+    /// Uppercase search token. Pseudo-targets keep their own words instead of
+    /// being silently folded into the unknown geographic region.
+    pub const fn search_code(self) -> &'static str {
+        match self {
+            Self::Geographic(region) => region.iso_code(),
+            Self::Direct => "DIRECT",
+            Self::Reject => "REJECT",
+            Self::Global => "GLOBAL",
+        }
+    }
+
+    /// Uppercase ISO code only when a rectangular flag asset exists.
+    pub const fn flag_code(self) -> Option<&'static str> {
+        match self {
+            Self::Geographic(GeoRegion::Other) | Self::Direct | Self::Reject | Self::Global => None,
+            Self::Geographic(region) => Some(region.iso_code()),
+        }
+    }
+
+    /// Text drawn on the square plate when no flag asset applies.
+    pub const fn plate_label(self) -> &'static str {
+        match self {
+            Self::Direct => "DIRECT",
+            Self::Reject => "REJECT",
+            Self::Global => "GLOBAL",
+            Self::Geographic(GeoRegion::Other) => "—",
+            Self::Geographic(region) => region.iso_code(),
+        }
     }
 }
 
@@ -650,9 +701,68 @@ mod tests {
     }
 
     #[test]
-    fn flag_token_and_fallback_are_stable() {
-        assert_eq!(GeoRegion::HongKong.flag_icon_token(), "flag-hk");
-        assert_eq!(GeoRegion::Japan.emoji_flag(), "🇯🇵");
-        assert_eq!(GeoRegion::Other.emoji_flag(), "🌐");
+    fn node_region_classifies_flags_and_routing_targets_without_glyphs() {
+        assert_eq!(
+            NodeRegion::classify("🇭🇰 Hong Kong IEPL").flag_code(),
+            Some("HK")
+        );
+        assert_eq!(
+            NodeRegion::classify("瑞士 Zurich 01").flag_code(),
+            Some("CH")
+        );
+        assert_eq!(NodeRegion::classify("DIRECT").flag_code(), None);
+        assert_eq!(NodeRegion::classify("DIRECT").plate_label(), "DIRECT");
+        assert_eq!(NodeRegion::classify("Unknown Node").flag_code(), None);
+        assert_eq!(NodeRegion::classify("Unknown Node").plate_label(), "—");
+        assert_eq!(NodeRegion::classify("DIRECT").search_code(), "DIRECT");
+    }
+
+    #[test]
+    fn every_geographic_variant_is_resolvable_from_a_node_name() {
+        for region in [
+            GeoRegion::HongKong,
+            GeoRegion::Taiwan,
+            GeoRegion::Japan,
+            GeoRegion::Singapore,
+            GeoRegion::UnitedStates,
+            GeoRegion::SouthKorea,
+            GeoRegion::UnitedKingdom,
+            GeoRegion::Germany,
+            GeoRegion::France,
+            GeoRegion::Canada,
+            GeoRegion::Australia,
+            GeoRegion::Netherlands,
+            GeoRegion::Russia,
+            GeoRegion::India,
+            GeoRegion::Macau,
+            GeoRegion::Thailand,
+            GeoRegion::Vietnam,
+            GeoRegion::Malaysia,
+            GeoRegion::Philippines,
+            GeoRegion::Indonesia,
+            GeoRegion::Turkey,
+            GeoRegion::Brazil,
+            GeoRegion::Argentina,
+            GeoRegion::SouthAfrica,
+            GeoRegion::Israel,
+            GeoRegion::UnitedArabEmirates,
+            GeoRegion::Switzerland,
+            GeoRegion::Sweden,
+            GeoRegion::Norway,
+            GeoRegion::Finland,
+            GeoRegion::Italy,
+            GeoRegion::Spain,
+            GeoRegion::Ireland,
+            GeoRegion::Poland,
+            GeoRegion::Ukraine,
+            GeoRegion::China,
+        ] {
+            let name = format!("{} 01", region.iso_code());
+            assert_eq!(
+                GeoRegion::from_name_heuristic(&name),
+                region,
+                "{name} must resolve to its own flag asset"
+            );
+        }
     }
 }

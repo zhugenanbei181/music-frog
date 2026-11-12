@@ -20,7 +20,9 @@ fn test_overview_master_switches_and_exit_node_cards() {
         .filter_map(|e| world.get::<Text>(*e).map(|t| t.0.clone()))
         .collect();
     assert!(exit_texts.iter().any(|t| t.contains("主出口节点")));
-    assert!(exit_texts.iter().any(|t| t.contains("🇭🇰")));
+    // The identity slot is the rectangular plate's ISO code, never an emoji
+    // glyph whose shape depends on the host's colour font.
+    assert!(exit_texts.iter().any(|t| t == "HK"));
     assert!(exit_texts.iter().any(|t| t.contains("香港 IPLC 01")));
     assert!(exit_texts.iter().any(|t| t.contains("VLESS · Reality")));
     assert!(exit_texts.iter().any(|t| t.contains("38 ms")));

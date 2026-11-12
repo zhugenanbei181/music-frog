@@ -24,19 +24,30 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-12 第二百一十八批次；b111–b217 见下方批次八问摘要）
+## 当前状态（2026-11-12 第二百一十九批次；b111–b218 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b218 改的是共享契约、两个桌面表面与生成器/判定器，架构中性、零平台 API、零 wire；`cargo nextest run --locked -p infiltrator-contract -p infiltrator-iced -p infiltrator-slint` **1535/1535**、三包 Clippy `--all-targets -D warnings`、`cargo fmt --all --check` 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1） |
-| 2 | 部分 | L | Linux 本机完成三包编译/Clippy/fmt 与两表面整批采集；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）；条带差异归 `FLPARITY-050` |
-| 3 | 部分 | L | Slint Android flavor 与桌面共用 `.slint`，`page-padding` 现恒为契约 16，紧凑外壳按构造同样受益；未跑 `scripts/android-slint-build.sh`，无三 flavor 实机交互回执，iOS 无新回执 |
-| 4 | 部分 | L | Slint 与 Iced 的页身宽逐档实测完全一致（expanded 908 / medium 624 / compact 368 / 折叠桌面 1084），Iced 的代理/配置网格也随页宽规则同步；Bevy 的 12px 副本仍归 `FLPROFILES-002`（另一会话持有），`CPPARITY-CLOSED-UI` 的截图认证仍在现在佛 |
-| 5 | 完整 | L | 四份留白副本收敛为契约一处 `PAGE_PADDING_PX = 16` → v16 导出 `page_padding.px` → 生成 `ViewportLadder.page-padding` → Slint / Iced 只读；`content_padding_px()` 按档 ramp、`PROXY_GRID_INSET_PX` 双重扣减与 `page_inset_px` 导出键同批删除，旧符号全仓为 0；`shell_chrome_facts()` 多余的 `ViewportTier` 参数与 6 处调用点同批清退 |
-| 5a | 部分 | L | 本批无字体 / 字重 / 图标族 / 视觉资产身份变化；变化是布局身份，按标准整批重采 Slint 199/199 + Iced 192/192，10 条别名摘要按新字节刷新，`receipt-freshness 0`、manifest 逐行字节/摘要相符；`screenshot-identity` 唯一红项仍是另一会话未提交的 Bevy `runtime-dark` / `overview-dark` 别名 |
-| 6 | 部分 | L | 双表面 `--enforce` 199/192 帧 violations=0、`--self-test` 64/64、`--check-export` current、生成器 `--check` fresh、梯守卫 53/53 + enforce 0、欠账台账两侧为空；`resolve_surface_evidence.py` 未复跑，180 个 ready cells 仍缺 product-build receipts |
-| 7 | 完整 | L | 一条事实一条链（契约常量 → v16 导出 → 生成适配器 → 两表面消费 → 帧自述 `page_margin_px` → 判定器逐帧比对），导出故意不含 `TierFact.content_padding_px`，杜绝「我这一档的留白」再次分叉；`line` / `import` / `typed-state` / `implicit-state` / `doc-governance` / `closure-questions` 全 0 |
-| 8 | 部分 | L | 按「契约落码 → 三包定向 nextest/clippy/fmt → 两表面整批各采集一次 → enforce / freshness / identity / 导出新鲜度四腿」推进，未边改边重采；全仓 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py` 仍留统一验证批次一次跑完 |
+| 1 | 部分 | L | b219 改共享契约/shared/presentation 与两个桌面表面 + Iced 生成表，架构中性、零平台 API、零 wire；`cargo check --workspace --all-targets` exit 0、五包 nextest **3423/3423**、Bevy `capture-tools` **831/831** 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1） |
+| 2 | 部分 | L | Linux 本机完成编译/Clippy/fmt 与 Iced 整批采集；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）。本批新增一条平台事实：旗面不再取决于宿主 emoji 字体，故 Windows 的 Segoe UI Emoji 波浪旗风险消失 |
+| 3 | 部分 | L | 零 Android/iOS 代码改动；Android 不画旗面 artwork（只出地区文字），本批的 shared/presentation 字段更名会随其消费端在统一批次编译验证，未跑 `scripts/android-slint-build.sh`，无三 flavor 实机回执 |
+| 4 | 部分 | L | Iced 三个旗位（代理卡、延迟行、活动出口）与聚合预览行都改为消费同一清单；Bevy 只做到「旗位为 ASCII 代码文字」，其矩形栅格板与 192 帧重采仍缺（`FLPROFILES-002`，另一会话持有像素）；Slint 逐字节不变 |
+| 5 | 完整 | L | 地区真源从三处（contract `GeoRegion` / shared `Region` / domain `region_flag`）收敛为契约一处，旗面清单从两处（Slint `.slint` 表 + 各表面 emoji）收敛为 catalog 一处并经生成器下发；`node_flag_emoji` / `emoji_flag` / `flag_icon_token` / `proxy_flag_icon_token` / `RegionalClusterSnapshot.flag` 同批退役，旧符号全仓为 0，无兼容轨道 |
+| 5a | 部分 | L | 资产身份变化（旗面从字形变为矢量）按标准整批重采 Iced **192/192**，19 帧身份变化逐帧复核为旗位；`receipt-freshness 0`、manifest 字节/摘要逐行相符；Bevy 因所有权未重采，故本条只能「部分」，不得称四表面齐备 |
+| 6 | 部分 | L | `flag-plate-guard` self-test **8/8** + enforce 0、`space_utilization --surface iced --enforce` violations=0、`--self-test` 64/64、`--check-export` current、生成器 `--check` fresh、`resolve_surface_evidence.py` anchors=360 cells=180；180 个 ready cells 仍缺 product-build receipts。**新登记的可达性缺陷**：结构门在第 64 行红腿处 `set -e` 退出，本批新加的两条腿在整门里从未被执行（结果全部来自手工切片复跑），归 `GATERUN-001` |
+| 7 | 完整 | L | 一条事实一条链（catalog → 生成器 → Iced 字节表 → `flag_plate` → 发布帧墨迹盒），地区与旗面各只有一个 owner，UI 不再自行推导；`line` / `import` / `typed-state` / `test-layout` / `doc-governance` / `closure-questions` 全 0 |
+| 8 | 缺失 | L | 本批实测证明 `check-structure.sh`（也是 `main-gate.yml` 的唯一执行器）在第一道红腿处 `set -e` 退出，**其后每条腿静默不跑**，「结构门绿/红」都不足以说明判据被执行；修复归 `GATERUN-001`（2 pt，收集式执行器 + 失败签名台账）。同批按「契约与 shared 落码 → 五包定向 nextest/clippy/fmt → Iced 整批一次采集 → enforce/freshness/identity/export 四腿」推进，未边改边重采；并更正一条自 b215 起的 3 pt 台账记账错误 |
+
+## 最近一批问答（2026-11-12 第二百一十九批次：旗面只有一个清单，Iced 不再画 emoji 字形）
+
+1. x86_64/aarch64：本批改动为契约/shared/presentation 纯 Rust、Iced 生成字节表与两个桌面表面消费点，零平台 API、零 wire；`cargo check --workspace --all-targets` exit 0、五包 nextest **3423/3423**（run 见台账）、Bevy `capture-tools` **831/831** 为 `L`；交叉腿与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
+2. Windows/Linux/macOS：Linux 本机完成编译、Clippy、fmt 与 Iced 192 帧整批采集；Windows/macOS 构建腿与安装包仍缺，macOS 显式 `Unsupported`（GAP-2.2）。本批消除一条真实平台差异：旗面此前由宿主 emoji 字体决定（本机 Noto、Windows Segoe UI Emoji 各画各的），现在两端都画同一份 4:3 矢量 → 部分（L）。
+3. Android/iOS：零 Android/iOS 代码与资源改动；Android 不画国旗 artwork（只出地区文字），shared/presentation 的字段更名会随其消费端在统一批次编译验证；未跑 `scripts/android-slint-build.sh`，无三 flavor 实机回执，iOS 无新证据 → 部分（L）。
+4. 各 UI：Slint 早已消费同一 catalog（本批 7 帧诊断复采与发布帧**逐字节相同**，故不重采、不声称变化）；**Iced 本批第一次拿到矩形矢量旗面**（代理卡、延迟行、活动出口卡三个旗位 + 聚合预览行）；Bevy 的旗位改为 ASCII 代码文字（`NodeFlagText` / restamp / 聚合行），但**其 192 帧像素由另一会话持有、已与本批源码不一致，按所有权纪律不重采**，故 Bevy 只声称「不再产出 emoji 旗」，不声称已验收 → 部分（L）。
+5. 复用：**本批是第三个 owner 收敛**——「这个节点属于哪个地区」此前有三份真源（契约 `GeoRegion::from_name_heuristic`、shared `country_flags::match_region`、domain `region_flag`/`COUNTRY_DEFS`），实测 146 个节点名里 **65 个读数不一致**（其中 41 个是覆盖缺口：CH/SE/NO/FI/IT/ES/IE/PL/UA 九国在契约表里根本画不出旗，`HKG`/`hong-kong`/台中/高雄/福冈/圣保罗等别名也只在一份表里）。现在合并为契约一处并新增 typed `NodeRegion`（地理旗 vs DIRECT/REJECT/GLOBAL）；「旗面是什么 artwork」从 Slint 私有 `.slint` 表 + 各表面 emoji 收敛为 catalog 一处经生成器下发；退役 `node_flag_emoji` / `emoji_flag` / `flag_icon_token` / `proxy_flag_icon_token` / `RegionalClusterSnapshot.flag`，旧符号全仓 0。据实新立 `FLAGCODE-001`（3 pt）：词表只有 37 变体，探针实测 258 面旗里 **222 面永远解析不到** → 部分（L）。
+6. 功能接入：`resolve_surface_evidence.py` status=pass（anchors=360 cells=180，aligned=0/unclosed=180 与既有一致）；Iced 19 帧身份变化（`proxies-*` 17 + 聚合预览 2）由发布像素复核；Bevy 的旗面栅格板与双视口回执未做（`FLPROFILES-002`），Android 无本批实机截图。**另据实新立 `I18NNAV-001`**：`navigation_display_label` 自 b197 起把四个中文字面量当 msgid 喂 `lang.tr`，实测 `Lang("en-US").tr("核心概览")` 原样返回中文（七张表与 552 条产品 msgid 均不认，落到 `key.to_owned()` 兜底），英文界面画出中文侧栏；`i18n-guard --mode enforce` 单独跑 `literal_errors=4` rc=1，它之所以一直没被看见，正是第 5 条说的门不可达 → 部分（L）。
+7. 模块化：文件级达标（新文件 `flag_plate.rs` 118 行、`flag_assets_generated.rs` 为生成物、`test-layout-guard` 0 violations——生成表按生产模块声明、测试按 `tests/gui/` 挂载）；无跨 UI 私有业务真源：Iced 不再自行拼旗面字符串，presentation DTO 只出 ISO 代码，UI 侧零 emoji → 完整（L）。
+8. CI：**本批实测推翻了对结构门的长期假设**——`check-structure.sh` 第 2 行 `set -euo pipefail`，第 64 行 `screenshot-identity-guard --mode enforce` 因另一会话未提交的 Bevy `runtime-dark` / `overview-dark` 别名返回 1 就整门退出，第 65 行起的每条腿（`receipt-freshness`、`i18n-guard --mode enforce`、`design-resource-authority`、本批新加的 `flag-plate-guard` 两腿…）在 CI 与本机都不会执行；本批的 `flag-plate-guard` 结果全部来自手工 `sed -n '65,$p'` 切片复跑，故 §八问结论由「部分」下调为「缺失」并立项 `GATERUN-001`（收集式执行器 + 失败签名台账）。同批按「契约落码 → 定向 nextest/clippy/fmt → Iced 整批一次采集 → 四腿复核」推进，未边改边重采；**顺带抓到并更正一条真实记账缺陷**：b215 起台账把现在佛写成 34 pt 而表内实测 37 pt（b214 迁入 2 pt 时把 35→34 写反），b217/b218 继续抄错，本批按「逐节小计以表内行为准」重列并写明更正；全仓 `--workspace` nextest/clippy 仍留统一验证批次 → 部分（L）。
 
 ## 最近一批问答（2026-11-12 第二百一十八批次：页身左右留白只付一次 16dp）
 

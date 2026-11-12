@@ -4,13 +4,14 @@ use crate::state::AppState;
 use crate::types::app::Route;
 use crate::types::message::Message;
 use crate::view::components::{BadgeKind, badge, card_surface, chip};
+use crate::view::flag_plate::flag_plate_label;
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme;
 use crate::view::theme::tokens;
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Element, Length, Theme, border};
 use infiltrator_contract::active_exit::{ActiveExitSnapshot, ActiveExitStatus};
-use infiltrator_shared::country_flags::match_region;
+use infiltrator_contract::geo_region::GeoRegion;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 /// High-fidelity selected outbound card shared by the Iced Overview surface.
@@ -28,7 +29,7 @@ pub fn active_exit_card<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a,
     let name = snapshot.name.as_deref().unwrap_or("—");
     let protocol = snapshot.protocol.as_deref().unwrap_or("—");
     let group = snapshot.group.as_deref().unwrap_or("—");
-    let flag = country_flag(snapshot);
+    let flag_code = country_flag_code(snapshot);
 
     let card_header = row![
         row![
@@ -77,7 +78,7 @@ pub fn active_exit_card<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a,
     .width(Length::Fill);
 
     let node_row = row![
-        theme::role_body_text(flag),
+        flag_plate_label(&flag_code),
         Space::new().width(theme::SP_SM),
         column![
             theme::role_body_text(name).style(|t: &Theme| text::Style {
@@ -118,13 +119,14 @@ pub fn active_exit_card<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a,
     .into()
 }
 
-fn country_flag(snapshot: &ActiveExitSnapshot) -> String {
+fn country_flag_code(snapshot: &ActiveExitSnapshot) -> String {
     snapshot
         .country_code
         .as_deref()
-        .and_then(match_region)
-        .map(|region| region.emoji().to_owned())
-        .unwrap_or_else(|| "🌐".to_owned())
+        .map(GeoRegion::from_iso)
+        .filter(|region| *region != GeoRegion::Other)
+        .map(|region| region.iso_code().to_ascii_uppercase())
+        .unwrap_or_else(|| "—".to_owned())
 }
 
 fn status_text(snapshot: &ActiveExitSnapshot, lang: &Lang<'_>) -> String {

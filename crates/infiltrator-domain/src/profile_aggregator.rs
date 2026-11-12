@@ -61,8 +61,6 @@ pub struct RegionalCluster {
     pub iso: String,
     /// Human label for the region, e.g. `香港`.
     pub label: String,
-    /// Region flag derived from the ISO code, e.g. `🇭🇰`.
-    pub flag: String,
     /// Names of the nodes assigned to this cluster, in report order.
     pub node_names: Vec<String>,
 }
@@ -344,7 +342,6 @@ impl ProfileAggregator {
             .map(|(iso, node_names)| RegionalCluster {
                 iso: iso.to_owned(),
                 label: region_label(iso),
-                flag: region_flag(iso),
                 node_names,
             })
             .collect()
@@ -548,21 +545,4 @@ pub fn contains_cjk(text: &str) -> bool {
         let code = ch as u32;
         (0x4E00..=0x9FFF).contains(&code) || (0x3400..=0x4DBF).contains(&code)
     })
-}
-
-/// Regional-indicator flag derived from an ISO alpha-2 code.
-pub fn region_flag(iso: &str) -> String {
-    let mut flag = String::new();
-    for ch in iso.chars().take(2) {
-        let upper = ch.to_ascii_uppercase();
-        if !upper.is_ascii_alphabetic() {
-            continue;
-        }
-        let base = 0x1F1E6u32;
-        let offset = u32::from(upper as u8 - b'A');
-        if let Some(symbol) = char::from_u32(base + offset) {
-            flag.push(symbol);
-        }
-    }
-    flag
 }

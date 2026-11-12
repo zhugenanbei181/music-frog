@@ -754,3 +754,40 @@ manifest 却记 65536 字节（恰为一个 pipe buffer）并给出对应的旧�
    `the proxy grid must not carry a second page inset` 与
    `the page gutter is not a tier fact`）。列数在采集窗口上逐个不变
    （expanded 4 列、medium 3 列、手机 1 列），所以这次是**留白归位**而不是排布改道。
+
+## 21. 旗面不是字形：上游用 emoji，本仓改用同一份矩形矢量清单（b219）
+
+用户第五次附同一张裁图（「一般国旗都是方形 最好不要做这种圆形旗帜图案容器」）。
+前四轮（b177/b185/b188/b193）都只审了 Slint 的容器与资产，并据此写下「四个表面都没
+有圆形旗帜容器」的结论；本批复量**本仓自己的已发布 Iced 回执**，该结论与像素矛盾：
+
+| 帧 | 实测 | 读法 |
+| --- | --- | --- |
+| `proxies-dark` HK 节点 | 红墨迹盒 **18×13**、顶行跨度 **15/18**、四角全空（既非 4:3 也非直角） | 波浪边 emoji 旗，不是直角矩形 |
+| `proxies-dark` DMIT 节点 | 蓝色墨迹盒 **18×17**（长宽比 1.06）、四角全空而中心实、填充率 **0.703**（圆≈0.785、方≈1.0） | 字面圆形 🌐 地球 emoji 占据旗位 |
+| `profiles-aggregator-preview-standard` | 聚合行以 `🇭🇰` 起头 | 行模板 `{flag}` 槽直接吃 emoji |
+
+根因不是容器形状，而是**旗面是文本字形**：`country_flags::node_flag_emoji` 把
+`Region::emoji()` 交给 `role_body_text`，于是旗面的形状、颜色与「是否存在」全部由宿主
+emoji 字体决定（本机 Noto Color Emoji、Windows Segoe UI Emoji 各画各的；缺字体时退化为
+方框或两枚区域指示字母）。
+
+**上游事实（pinned `be847366`）**：FlClash 行内同样是 emoji 或两字母文字徽记
+（`prism_ui` 的 `CommonTargetIcon` / `GroupMonogram`），并且随包 `Twemoji.Mozilla.ttf`
+把字形固定下来。因此本批**不照抄**上游的 emoji 方案——那正是被驳回的形状——而是求同：
+让 Iced 消费 Slint 早已使用的同一份 `asset-catalog.json` 4:3 直角矢量清单，几何与
+`FlagIcon` 逐字相同，形状从此与宿主字体无关。
+
+**同一轮实测的架构缺陷（三份地区真源）**：「这个节点属于哪个地区」在契约
+`GeoRegion::from_name_heuristic`、shared `country_flags::match_region`、domain
+`COUNTRY_DEFS`/`region_flag` 各有一份别名表。对 146 个真实节点名做差分，**65 个读数
+不一致**：41 个是覆盖缺口（CH/SE/NO/FI/IT/ES/IE/PL/UA 九国在契约表里根本画不出旗，
+`HKG`/`hong-kong`/台中/高雄/福冈/圣保罗等别名只存在于其中一份表），24 个是表示差异
+（`None` 对 `Other`、DIRECT/REJECT/GLOBAL 是否算地区）。本批把真源合并到契约一处，
+新增 typed `NodeRegion`（地理旗 vs 三个恒无旗的路由目标），并退役全部 emoji 入口。
+
+**据实登记的下一半（`FLAGCODE-001`）**：契约词表只有 37 个变体，而清单有 258 面旗。
+探针实测 258 面里 **222 面永远解析不到旗**（AC/AD/AF…，含葡萄牙、墨西哥、智利、新西兰
+等常见机场名）。emoji 时代这个问题被宿主字体掩盖（任何国家都能画出个字形）；换成矢量
+清单后它第一次变成用户可见缺陷——那些节点拿到方形「—」代码板。收口必须在契约词表
+裁决，严禁在 UI 侧补第二份表。

@@ -521,14 +521,12 @@ fn aggregation_preview_report() -> AggregationReport {
             RegionalClusterSnapshot {
                 iso: "HK".to_owned(),
                 label: "香港".to_owned(),
-                flag: "🇭🇰".to_owned(),
                 group_name: "香港自动测速".to_owned(),
                 node_names: vec!["香港 01".to_owned(), "香港 02".to_owned()],
             },
             RegionalClusterSnapshot {
                 iso: "JP".to_owned(),
                 label: "日本".to_owned(),
-                flag: "🇯🇵".to_owned(),
                 group_name: "日本自动测速".to_owned(),
                 node_names: vec!["东京 01".to_owned()],
             },

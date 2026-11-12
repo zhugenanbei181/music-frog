@@ -1,6 +1,6 @@
 //! Smart fuzzy and pinyin-initial search utility for node names and rules.
 
-use crate::country_flags::match_region;
+use infiltrator_contract::geo_region::NodeRegion;
 
 /// Extract common Chinese character pinyin initials for regional keywords.
 fn to_pinyin_initials(text: &str) -> String {
@@ -94,11 +94,11 @@ pub fn pinyin_fuzzy_match(haystack: &str, query: &str) -> bool {
     }
 
     // 3. Region ISO code match
-    if let Some(region) = match_region(haystack) {
-        let code = region.code().to_ascii_lowercase();
-        if code == q || code.starts_with(&q) {
-            return true;
-        }
+    let code = NodeRegion::classify(haystack)
+        .search_code()
+        .to_ascii_lowercase();
+    if code == q || code.starts_with(&q) {
+        return true;
     }
 
     false

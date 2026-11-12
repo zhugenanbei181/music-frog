@@ -2,9 +2,8 @@
 use crate::filter_query::{FilterQuery, LatencyBound};
 use crate::proxies_page_model::{
     PROXY_SORT_OPTIONS, ProxiesPageModel, ProxyFilterTarget, matches_advanced_filter,
-    proxy_feature_tags, proxy_flag_icon_token, proxy_name_runs, proxy_node_region,
-    proxy_protocol_chip, proxy_region_label_en, proxy_region_label_zh, sort_option_at,
-    sort_option_index,
+    proxy_feature_tags, proxy_name_runs, proxy_node_region, proxy_protocol_chip,
+    proxy_region_label_en, proxy_region_label_zh, sort_option_at, sort_option_index,
 };
 use lurker_core_contract::outbound::details::OutboundHealthObservation;
 use lurker_core_contract::outbound::preferences::{OutboundHealthFilter, OutboundSortOrder};
@@ -299,28 +298,31 @@ fn the_feature_tags_are_reduced_to_one_chip_each() {
 }
 
 #[test]
-fn proxy_node_region_and_flag_token_derivation() {
-    use infiltrator_contract::geo_region::GeoRegion;
+fn proxy_node_region_and_flag_code_derivation() {
+    use infiltrator_contract::geo_region::{GeoRegion, NodeRegion};
 
     assert_eq!(proxy_node_region("🇭🇰 香港 01 · 专线"), GeoRegion::HongKong);
-    assert_eq!(proxy_flag_icon_token("HK-IEPL-01"), "flag-hk");
+    assert_eq!(NodeRegion::classify("HK-IEPL-01").flag_code(), Some("HK"));
     assert_eq!(proxy_region_label_zh("HK-IEPL-01"), "香港");
     assert_eq!(proxy_region_label_en("HK-IEPL-01"), "Hong Kong");
 
     assert_eq!(proxy_node_region("JP-Tokyo-02"), GeoRegion::Japan);
-    assert_eq!(proxy_flag_icon_token("JP-Tokyo-02"), "flag-jp");
+    assert_eq!(NodeRegion::classify("JP-Tokyo-02").flag_code(), Some("JP"));
 
     assert_eq!(
         proxy_node_region("US Los Angeles Fast"),
         GeoRegion::UnitedStates
     );
-    assert_eq!(proxy_flag_icon_token("US Los Angeles Fast"), "flag-us");
+    assert_eq!(
+        NodeRegion::classify("US Los Angeles Fast").flag_code(),
+        Some("US")
+    );
 
     assert_eq!(proxy_node_region("Singapore Anycast"), GeoRegion::Singapore);
-    assert_eq!(proxy_flag_icon_token("SG-01"), "flag-sg");
+    assert_eq!(NodeRegion::classify("SG-01").flag_code(), Some("SG"));
 
     assert_eq!(proxy_node_region("Custom Node Relay"), GeoRegion::Other);
-    assert_eq!(proxy_flag_icon_token("Custom Node Relay"), "flag-globe");
+    assert_eq!(NodeRegion::classify("Custom Node Relay").flag_code(), None);
     assert_eq!(proxy_region_label_zh("Custom Node Relay"), "其他地区");
 }
 

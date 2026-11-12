@@ -1,5 +1,6 @@
 use crate::profile_source_projection::ProfileSourceObservation;
 use crate::relative_time_projection::{ProfileUpdateAge, age_of};
+use infiltrator_contract::geo_region::NodeRegion;
 use infiltrator_contract::lan_share::LanShareWizardSnapshot;
 use infiltrator_contract::runtime_status::CoreProcessObservation;
 use infiltrator_contract::shell_readout::ShellObservation;
@@ -10,7 +11,6 @@ use infiltrator_contract::system_proxy::SystemProxyStatus;
 use infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot;
 use infiltrator_contract::ui_fact::{DashboardHeroFactRow, FactAlignment, FactCell, FactValue};
 use infiltrator_shared::byte_units::format_bytes;
-use infiltrator_shared::country_flags::node_flag_emoji;
 use infiltrator_shared::elapsed_time::format_elapsed_ms;
 use lurker_core_contract::outbound::identity::OutboundId;
 use lurker_core_contract::outbound::inventory::{
@@ -493,7 +493,7 @@ impl ProfileQuickCardProjection {
 pub struct PolicyGroupMemberProjection {
     pub outbound_id: OutboundId,
     pub display_name: String,
-    pub flag_emoji: String,
+    pub flag_code: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -503,7 +503,7 @@ pub struct PolicyGroupGridItem {
     pub avatar_char: String,
     pub selected_outbound_id: Option<OutboundId>,
     pub selected_node: Option<String>,
-    pub selected_flag: Option<String>,
+    pub selected_flag_code: Option<String>,
     pub availability: SelectionAvailability,
     pub members: Vec<PolicyGroupMemberProjection>,
 }
@@ -563,16 +563,16 @@ impl PolicyGroupGridProjection {
                     _ => None,
                 };
                 let selected_node = selected_outbound_id.as_ref().map(display_name);
-                let selected_flag = selected_node
+                let selected_flag_code = selected_node
                     .as_ref()
-                    .map(|name| node_flag_emoji(name).into());
+                    .map(|name| NodeRegion::classify(name).plate_label().to_string());
                 let name = display_name(&collection.id);
                 Self::group_item(
                     collection.id.clone(),
                     name,
                     selected_outbound_id,
                     selected_node,
-                    selected_flag,
+                    selected_flag_code,
                     collection.availability,
                     collection
                         .member_ids
@@ -581,7 +581,9 @@ impl PolicyGroupGridProjection {
                             let display_name = display_name(member_id);
                             PolicyGroupMemberProjection {
                                 outbound_id: member_id.clone(),
-                                flag_emoji: node_flag_emoji(&display_name).into(),
+                                flag_code: NodeRegion::classify(&display_name)
+                                    .plate_label()
+                                    .to_string(),
                                 display_name,
                             }
                         })
@@ -601,7 +603,7 @@ impl PolicyGroupGridProjection {
         name: String,
         selected_outbound_id: Option<OutboundId>,
         selected_node: Option<String>,
-        selected_flag: Option<String>,
+        selected_flag_code: Option<String>,
         availability: SelectionAvailability,
         members: Vec<PolicyGroupMemberProjection>,
     ) -> PolicyGroupGridItem {
@@ -617,7 +619,7 @@ impl PolicyGroupGridProjection {
             avatar_char,
             selected_outbound_id,
             selected_node,
-            selected_flag,
+            selected_flag_code,
             availability,
             members,
         }

@@ -834,8 +834,8 @@ pub(crate) fn outbound_ui_preference_request(
 mod tests {
     use super::*;
     use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
+    use infiltrator_contract::geo_region::NodeRegion;
     use infiltrator_presentation::latency_projection::project_proxy_latency;
-    use infiltrator_shared::country_flags::node_flag_emoji;
 
     fn native_caption(delay: Option<u32>) -> (String, LatencyBand) {
         let caption = project_proxy_latency(delay);
@@ -884,17 +884,32 @@ mod tests {
 
     #[test]
     fn test_node_flag_extraction() {
-        assert_eq!(node_flag_emoji("🇭🇰 香港 01 · BGP 专线"), "🇭🇰");
-        assert_eq!(node_flag_emoji("HK-IEPL-01"), "🇭🇰");
-        assert_eq!(node_flag_emoji("🇯🇵 日本东京 02 · 极速"), "🇯🇵");
-        assert_eq!(node_flag_emoji("JP-Tokyo-01"), "🇯🇵");
-        assert_eq!(node_flag_emoji("🇸🇬 新加坡 01 · Anycast"), "🇸🇬");
-        assert_eq!(node_flag_emoji("SG-01"), "🇸🇬");
-        assert_eq!(node_flag_emoji("🇺🇸 美国硅谷 01 · 4K"), "🇺🇸");
-        assert_eq!(node_flag_emoji("US-Silicon-Valley"), "🇺🇸");
-        assert_eq!(node_flag_emoji("Taiwan Premium"), "🇹🇼");
-        assert_eq!(node_flag_emoji("Korea Seoul 01"), "🇰🇷");
-        assert_eq!(node_flag_emoji("Unknown Node"), "🌐");
+        assert_eq!(
+            NodeRegion::classify("🇭🇰 香港 01 · BGP 专线").plate_label(),
+            "HK"
+        );
+        assert_eq!(NodeRegion::classify("HK-IEPL-01").plate_label(), "HK");
+        assert_eq!(
+            NodeRegion::classify("🇯🇵 日本东京 02 · 极速").plate_label(),
+            "JP"
+        );
+        assert_eq!(NodeRegion::classify("JP-Tokyo-01").plate_label(), "JP");
+        assert_eq!(
+            NodeRegion::classify("🇸🇬 新加坡 01 · Anycast").plate_label(),
+            "SG"
+        );
+        assert_eq!(NodeRegion::classify("SG-01").plate_label(), "SG");
+        assert_eq!(
+            NodeRegion::classify("🇺🇸 美国硅谷 01 · 4K").plate_label(),
+            "US"
+        );
+        assert_eq!(
+            NodeRegion::classify("US-Silicon-Valley").plate_label(),
+            "US"
+        );
+        assert_eq!(NodeRegion::classify("Taiwan Premium").plate_label(), "TW");
+        assert_eq!(NodeRegion::classify("Korea Seoul 01").plate_label(), "KR");
+        assert_eq!(NodeRegion::classify("Unknown Node").plate_label(), "—");
     }
 
     #[test]
