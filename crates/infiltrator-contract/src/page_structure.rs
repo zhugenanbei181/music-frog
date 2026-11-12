@@ -66,7 +66,7 @@ impl PageShapeOwner {
 
 /// The exported document's identity. Consumers pin this version so a shape
 /// added to the registry cannot be mistaken for an older export's vocabulary.
-pub const PAGE_STRUCTURE_EXPORT_VERSION: u16 = 17;
+pub const PAGE_STRUCTURE_EXPORT_VERSION: u16 = 18;
 
 /// Resolve a capture page slug onto the page and the shape it renders.
 pub fn shape_for_slug(slug: &str) -> Option<PageShape> {
@@ -125,6 +125,10 @@ pub fn shape_for_slug(slug: &str) -> Option<PageShape> {
 /// Version 15 gives profile cards the same typed stacked/desktop form, so a
 /// 720px icon-rail page stays one readable column while a labelled desktop
 /// page follows the 300dp width rule.
+/// Version 17 added the navigation stack's trailing-ground cap. Version 18
+/// re-adjudicates that cap against both tracked FlClash desktop scenes: the
+/// 1949px proxies frame leaves 70.24% legal ground, so a 68% cap derived from
+/// only the 1665px dashboard frame would fail the reference product itself.
 pub fn page_structure_json() -> String {
     let pages: Vec<String> = ShellPage::ALL
         .iter()
@@ -432,22 +436,23 @@ pub const NAV_CHROME_BAND_LIMIT_PCT: f64 = 0.0;
 /// The largest dead band allowed between destination rows, as a share of the
 /// window height. Stretch air belongs at the end of the stack, not inside it.
 ///
-/// The FlClash desktop reference's own largest inter-row gap measures 3.06%
-/// of its 1665px window. Our shortest tier is 480px tall and paints eight
-/// destinations instead of five, so the same absolute gap is a larger share:
-/// 8% is a bounded 2.6x scale headroom over the reference, not a flat copy.
-/// `flclash-sidebar-void-guard.py` measures the reference and pins this ratio.
+/// Both tracked FlClash desktop scenes measure a bounded inter-row gap: 3.06%
+/// of the 1665px dashboard frame and 3.49% of the 1949px proxies frame. Our
+/// shortest tier is 480px tall and paints eight destinations instead of five,
+/// so the same absolute gap is a larger share: 8% is a bounded 2.3x scale
+/// headroom over the worst reference scene, not a flat copy.
+/// `flclash-sidebar-void-guard.py` measures both references and pins the ratio.
 pub const NAV_VOID_LIMIT_PCT: f64 = 8.0;
 
 /// The largest share of the window that may remain empty below the last
-/// destination row in a navigation column, measured against the FlClash
-/// desktop reference. Its sidebar ends at y579 of 1665px: 65.17% of the
-/// window is legitimate trailing breathing room. A cap of 68% allows under
-/// three points of bounded headroom, keeps the reference legal, and exposes a
-/// column that abandons its lower two thirds while still painting the same
-/// handful of rows. `flclash-sidebar-void-guard.py` measures the reference and
-/// pins both the ratio and this exported cap.
-pub const NAV_TAIL_GROUND_LIMIT_PCT: f64 = 68.0;
+/// destination row in a navigation column, measured against both tracked
+/// FlClash desktop scenes. Both sidebars end at y579; that is 65.17% legal
+/// trailing breathing room in the 1665px dashboard frame and 70.24% in the
+/// 1949px proxies frame. A cap of 73% gives the taller scene under three
+/// points of headroom, keeps every real reference legal, and still exposes a
+/// column that abandons its lower three quarters. The reference guard
+/// measures both frames and pins both ratios and this exported cap.
+pub const NAV_TAIL_GROUND_LIMIT_PCT: f64 = 73.0;
 
 /// The ground limit for one page shape.
 pub const fn ground_limit(structure: PageStructure) -> f64 {

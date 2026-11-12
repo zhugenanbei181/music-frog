@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pin the navigation-column caps to measured FlClash sidebar pixels.
+"""Pin the navigation-column caps to *both* tracked FlClash desktop scenes.
 
 `docs/SPACE_UTILIZATION_STANDARD.md` §3.1 publishes `chrome_band` 0% and
 a `void` cap. The 0% was justified by prose ("the reference sidebar paints only
@@ -7,9 +7,9 @@ destinations"); the 12% was inherited from b144, whose stated reason was
 "group headings and stretch air must stay at cluster boundaries" - but b164
 retired group headings entirely, so the number lost its only rationale.
 
-This guard measures the tracked FlClash desktop reference with the same ink
+This guard measures both tracked FlClash desktop references with the same ink
 rule as the judge: substantial runs of non-ground rows inside the sidebar
-column. It publishes two facts from the pixels:
+column. It publishes three facts from every scene's pixels:
 
 * the largest ground run between destination rows, as a share of window
   height (the reference's own `void`);
@@ -19,11 +19,14 @@ column. It publishes two facts from the pixels:
   `chrome_band`).
 
 Our shortest tier paints eight destinations in a 480px window while the
-reference paints five in 1665px, so a raw share cannot be copied: the same
-absolute gap is a much larger percentage of the shorter window. The exported
-cap is therefore constrained to a bounded multiple of the reference's own
-share, with documented headroom for that scale difference - never a flat
-copy of the reference number.
+references paint five in 1665px and 1949px windows, so a raw share cannot be
+copied: the same absolute gap is a much larger percentage of the shorter
+window. The exported caps are therefore constrained to a bounded multiple of
+the worst reference void and a bounded headroom over the *worst* trailing
+ground - never a flat copy of one scene's number. b228 found the concrete
+regression this prevents: deriving a 68% tail cap from only the 1665px
+dashboard frame would outlaw the tracked 1949px proxies frame itself, whose
+identical navigation stack leaves 70.24% legal ground.
 
 No surface pixels are judged here: `scripts/parity/space_utilization.py`
 remains the single judge of published receipts.
@@ -32,6 +35,7 @@ remains the single judge of published receipts.
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import hashlib
 import json
 import pathlib
@@ -44,38 +48,66 @@ import numpy as np
 from PIL import Image
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-REFERENCE = ROOT / "docs/reference/flclash-desktop/flclash-desktop-dashboard.png"
 EXPORT = ROOT / "crates/infiltrator-contract/assets/page-structure.json"
 CONTRACT = ROOT / "crates/infiltrator-contract/src/page_structure.rs"
 STANDARD = ROOT / "docs/SPACE_UTILIZATION_STANDARD.md"
+REFERENCE_DOC = ROOT / "docs/reference/FLCLASH_DESKTOP_REFERENCE.md"
 GATE = ROOT / "scripts/quality/check-structure.sh"
 
-REFERENCE_SHA256 = "f6406be498613bc0249e9ae2350125a0e670e9620d0ae4b1be1aec7353372bcc"
-SIDEBAR_RIGHT_EDGE_PX = 429
+
+@dataclasses.dataclass(frozen=True)
+class ReferenceScene:
+    path: pathlib.Path
+    sha256: str
+    right_edge_px: int
+    expected_void_pct: float
+    expected_tail_pct: float
+
+
+REFERENCES = (
+    ReferenceScene(
+        path=pathlib.Path("docs/reference/flclash-desktop/flclash-desktop-dashboard.png"),
+        sha256="f6406be498613bc0249e9ae2350125a0e670e9620d0ae4b1be1aec7353372bcc",
+        right_edge_px=429,
+        expected_void_pct=3.06,
+        expected_tail_pct=65.17,
+    ),
+    ReferenceScene(
+        path=pathlib.Path("docs/reference/flclash-desktop/flclash-desktop-proxies.png"),
+        sha256="ebe094bae677d5419cb380e800d5eee74197d20a48891fbe25ba340af7f98e8e",
+        right_edge_px=432,
+        expected_void_pct=3.49,
+        expected_tail_pct=70.24,
+    ),
+)
 SIDEBAR_STACK_BOTTOM_PX = 579
 SUBSTANTIAL_RUN_PX = 3
 ROW_INK_FRACTION = 0.01
 GROUND_DELTA = 14
-MEASURED_VOID_PCT = 3.06
-MEASURED_TAIL_PCT = 65.17
 MAX_TAIL_HEADROOM_PCT = 3.0
+EXPECTED_TAIL_LIMIT_PCT = 73.0
 
 # The shortest published tier is 480px tall with eight destinations; the
-# reference is 1665px with five. A fixed share copied from the reference
-# would penalise the shorter window for the same absolute gap, so the cap is
-# allowed a bounded multiple of the reference share, not an equal one.
+# references are 1665px and 1949px with five. A fixed share copied from one
+# reference would penalise the shorter window for the same absolute gap, so
+# the cap is allowed a bounded multiple of the worst reference share.
 MIN_SCALE_MULTIPLE = 2.0
 MAX_SCALE_MULTIPLE = 4.0
 
 
-def digest(path: pathlib.Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+def digest(scene: ReferenceScene) -> str:
+    return hashlib.sha256((ROOT / scene.path).read_bytes()).hexdigest()
 
 
-def sidebar_bands(image: np.ndarray) -> tuple[list[tuple[int, int]], int]:
-    """Substantial ink bands inside the sidebar, and the window height."""
+def load_scene(scene: ReferenceScene) -> np.ndarray:
+    with Image.open(ROOT / scene.path) as handle:
+        return np.array(handle.convert("RGB"))
+
+
+def sidebar_bands(image: np.ndarray, scene: ReferenceScene) -> tuple[list[tuple[int, int]], int]:
+    """Substantial ink bands inside one scene's sidebar, and its window height."""
     height = image.shape[0]
-    strip = image[:, 0:SIDEBAR_RIGHT_EDGE_PX].astype(int)
+    strip = image[:, 0:scene.right_edge_px].astype(int)
     ground = np.median(strip[height // 2, 4:10].reshape(-1, 3), axis=0)
     ink = np.abs(strip - ground).sum(axis=2) > GROUND_DELTA
     row_ink = ink.mean(axis=1) > ROW_INK_FRACTION
@@ -92,25 +124,25 @@ def sidebar_bands(image: np.ndarray) -> tuple[list[tuple[int, int]], int]:
     return [band for band in bands if band[1] - band[0] + 1 >= SUBSTANTIAL_RUN_PX], height
 
 
-def measured_void_pct(image: np.ndarray) -> float:
-    bands, height = sidebar_bands(image)
+def measured_void_pct(image: np.ndarray, scene: ReferenceScene) -> float:
+    bands, height = sidebar_bands(image, scene)
     if len(bands) < 2:
         return 0.0
     voids = [bands[i + 1][0] - bands[i][1] - 1 for i in range(len(bands) - 1)]
     return round(100.0 * max(voids) / height, 2)
 
 
-def measured_nav_tail_pct(image: np.ndarray) -> float:
-    """Ground below the last substantial row of the reference's nav stack."""
-    bands, height = sidebar_bands(image)
+def measured_nav_tail_pct(image: np.ndarray, scene: ReferenceScene) -> float:
+    """Ground below the last substantial row of one scene's nav stack."""
+    bands, height = sidebar_bands(image, scene)
     if not bands or bands[-1][0] > SIDEBAR_STACK_BOTTOM_PX:
         return 100.0
     return round(100.0 * max(0, height - 1 - bands[-1][1]) / height, 2)
 
 
-def measured_chrome_band_pct(image: np.ndarray) -> float:
-    """The share of the sidebar below the final navigation band that has ink."""
-    bands, height = sidebar_bands(image)
+def measured_chrome_band_pct(image: np.ndarray, scene: ReferenceScene) -> float:
+    """The share of one sidebar below the final navigation band that has ink."""
+    bands, height = sidebar_bands(image, scene)
     below = [end - start + 1 for start, end in bands
              if start > SIDEBAR_STACK_BOTTOM_PX]
     return round(100.0 * max(below, default=0) / height, 2)
@@ -129,50 +161,69 @@ def exported_limits() -> dict[str, float]:
 
 def findings() -> list[str]:
     found: list[str] = []
-    if not REFERENCE.is_file():
-        return [f"{REFERENCE.relative_to(ROOT)} is missing"]
-    if digest(REFERENCE) != REFERENCE_SHA256:
-        found.append("the reference sidebar PNG changed; re-adjudicate its ink bands")
-        return found
-
-    with Image.open(REFERENCE) as handle:
-        image = np.array(handle.convert("RGB"))
-    void = measured_void_pct(image)
-    if abs(void - MEASURED_VOID_PCT) > 0.05:
-        found.append(
-            f"the reference sidebar measures {void}% void, not the documented "
-            f"{MEASURED_VOID_PCT}%"
-        )
-    nav_tail = measured_nav_tail_pct(image)
-    if abs(nav_tail - MEASURED_TAIL_PCT) > 0.05:
-        found.append(
-            f"the reference sidebar measures {nav_tail}% trailing ground, not the "
-            f"documented {MEASURED_TAIL_PCT}%"
-        )
-    chrome_band = measured_chrome_band_pct(image)
-
+    if len(REFERENCES) < 2:
+        found.append("both tracked FlClash desktop scenes must be measured")
+    measurements: list[dict[str, float]] = []
+    for scene in REFERENCES:
+        path = ROOT / scene.path
+        if not path.is_file():
+            found.append(f"{scene.path} is missing")
+            continue
+        if digest(scene) != scene.sha256:
+            found.append(f"{scene.path} changed; re-adjudicate its ink bands")
+            continue
+        image = load_scene(scene)
+        values = {
+            "void": measured_void_pct(image, scene),
+            "nav_tail": measured_nav_tail_pct(image, scene),
+            "chrome_band": measured_chrome_band_pct(image, scene),
+        }
+        measurements.append(values)
+        if abs(values["void"] - scene.expected_void_pct) > 0.05:
+            found.append(
+                f"{scene.path} measures {values['void']}% void, not the documented "
+                f"{scene.expected_void_pct}%"
+            )
+        if abs(values["nav_tail"] - scene.expected_tail_pct) > 0.05:
+            found.append(
+                f"{scene.path} measures {values['nav_tail']}% trailing ground, not the "
+                f"documented {scene.expected_tail_pct}%"
+            )
+        if values["chrome_band"] != 0.0:
+            found.append(
+                f"{scene.path} paints {values['chrome_band']}% ink below the nav stack"
+            )
     limits = exported_limits()
     if not limits:
         return found + ["the exported table carries no navigation_limits"]
-    if limits["chrome_band_limit_pct"] != chrome_band:
-        found.append(
-            f"the exported chrome_band cap is {limits['chrome_band_limit_pct']}%, "
-            f"but the reference measures {chrome_band}% below the nav stack"
-        )
-    multiple = limits["void_limit_pct"] / MEASURED_VOID_PCT
-    if not MIN_SCALE_MULTIPLE <= multiple <= MAX_SCALE_MULTIPLE:
-        found.append(
-            f"the exported void cap {limits['void_limit_pct']}% is {multiple:.2f}x the "
-            f"reference void; the documented scale headroom is "
-            f"[{MIN_SCALE_MULTIPLE}, {MAX_SCALE_MULTIPLE}]x"
-        )
-    headroom = limits["nav_tail_ground_limit_pct"] - nav_tail
-    if not 0.0 <= headroom <= MAX_TAIL_HEADROOM_PCT:
-        found.append(
-            f"the exported nav-tail cap {limits['nav_tail_ground_limit_pct']}% gives "
-            f"{headroom:.2f}pp over the reference's {nav_tail}%; legal headroom is "
-            f"[0, {MAX_TAIL_HEADROOM_PCT}]pp"
-        )
+    if measurements:
+        worst_chrome = max(item["chrome_band"] for item in measurements)
+        worst_void = max(item["void"] for item in measurements)
+        worst_tail = max(item["nav_tail"] for item in measurements)
+        if limits["chrome_band_limit_pct"] != worst_chrome:
+            found.append(
+                f"the exported chrome_band cap is {limits['chrome_band_limit_pct']}%, "
+                f"but the references measure {worst_chrome}% below the nav stack"
+            )
+        multiple = limits["void_limit_pct"] / worst_void
+        if not MIN_SCALE_MULTIPLE <= multiple <= MAX_SCALE_MULTIPLE:
+            found.append(
+                f"the exported void cap {limits['void_limit_pct']}% is {multiple:.2f}x the "
+                f"worst reference void; the documented scale headroom is "
+                f"[{MIN_SCALE_MULTIPLE}, {MAX_SCALE_MULTIPLE}]x"
+            )
+        headroom = limits["nav_tail_ground_limit_pct"] - worst_tail
+        if not 0.0 <= headroom <= MAX_TAIL_HEADROOM_PCT:
+            found.append(
+                f"the exported nav-tail cap {limits['nav_tail_ground_limit_pct']}% gives "
+                f"{headroom:.2f}pp over the worst reference's {worst_tail}%; legal headroom "
+                f"is [0, {MAX_TAIL_HEADROOM_PCT}]pp and cannot outlaw any tracked scene"
+            )
+        if limits["nav_tail_ground_limit_pct"] != EXPECTED_TAIL_LIMIT_PCT:
+            found.append(
+                f"the exported nav-tail cap is {limits['nav_tail_ground_limit_pct']}%, "
+                f"but both real scenes adjudicate {EXPECTED_TAIL_LIMIT_PCT}%"
+            )
 
     source = CONTRACT.read_text(encoding="utf-8")
     declared = re.search(r"pub const NAV_VOID_LIMIT_PCT:\s*f64\s*=\s*([0-9.]+)\s*;", source)
@@ -185,8 +236,14 @@ def findings() -> list[str]:
         found.append("the contract's NAV_TAIL_GROUND_LIMIT_PCT and the export disagree")
 
     standard = STANDARD.read_text(encoding="utf-8")
-    if "3.06" not in standard or "8%" not in standard or "65.17" not in standard:
-        found.append("the standard no longer publishes both measured sidebar gaps and their caps")
+    reference_doc = REFERENCE_DOC.read_text(encoding="utf-8")
+    facts = ("3.06", "3.49", "65.17", "70.24", "8%", "73%")
+    for fact in facts:
+        if fact not in standard:
+            found.append(f"the standard no longer publishes the measured sidebar fact {fact}")
+    for fact in ("70.24", "73%", "flclash-desktop-proxies.png"):
+        if fact not in reference_doc:
+            found.append(f"the upstream reference no longer publishes the real scene fact {fact}")
     for leg in ("flclash-sidebar-void-guard.py --self-test",
                 "flclash-sidebar-void-guard.py --mode enforce"):
         if leg not in GATE.read_text(encoding="utf-8"):
@@ -196,17 +253,34 @@ def findings() -> list[str]:
 
 class GuardSelfTest(unittest.TestCase):
     def setUp(self) -> None:
-        with Image.open(REFERENCE) as handle:
-            self.image = np.array(handle.convert("RGB"))
+        self.images = {scene.path: load_scene(scene) for scene in REFERENCES}
+        self.dashboard, self.proxies = REFERENCES
 
     def test_the_live_reference_and_export_agree(self) -> None:
         self.assertEqual(findings(), [])
 
-    def test_the_reference_void_is_three_point_oh_six_percent(self) -> None:
-        self.assertEqual(measured_void_pct(self.image), MEASURED_VOID_PCT)
+    def test_both_scenes_measure_their_documented_gaps(self) -> None:
+        for scene in REFERENCES:
+            image = self.images[scene.path]
+            self.assertEqual(measured_void_pct(image, scene), scene.expected_void_pct)
+            self.assertEqual(measured_nav_tail_pct(image, scene), scene.expected_tail_pct)
+            self.assertEqual(measured_chrome_band_pct(image, scene), 0.0)
 
-    def test_the_reference_keeps_bounded_trailing_breathing_room(self) -> None:
-        self.assertEqual(measured_nav_tail_pct(self.image), MEASURED_TAIL_PCT)
+    def test_a_dashboard_only_tail_cap_would_outlaw_the_proxies_scene(self) -> None:
+        global EXPORT
+        original_export = EXPORT
+        with tempfile.TemporaryDirectory() as directory:
+            planted = pathlib.Path(directory) / "page-structure.json"
+            document = json.loads(original_export.read_text(encoding="utf-8"))
+            document["navigation_limits"]["nav_tail_ground_limit_pct"] = 68.0
+            planted.write_text(json.dumps(document), encoding="utf-8")
+            EXPORT = planted
+            try:
+                self.assertTrue(any("nav-tail cap" in item for item in findings()),
+                                findings())
+                self.assertGreater(self.proxies.expected_tail_pct, 68.0)
+            finally:
+                EXPORT = original_export
 
     def test_a_widened_nav_tail_cap_is_rejected(self) -> None:
         global EXPORT
@@ -223,19 +297,33 @@ class GuardSelfTest(unittest.TestCase):
                 EXPORT = original_export
 
     def test_a_reference_with_a_status_card_below_the_stack_is_not_zero_chrome(self) -> None:
-        planted = self.image.copy()
+        planted = self.images[self.proxies.path].copy()
         planted[900:1000, 20:200] = 200
-        self.assertEqual(measured_chrome_band_pct(self.image), 0.0)
-        self.assertGreater(measured_chrome_band_pct(planted), 0.0)
+        self.assertEqual(
+            measured_chrome_band_pct(self.images[self.proxies.path], self.proxies), 0.0)
+        self.assertGreater(measured_chrome_band_pct(planted, self.proxies), 0.0)
+
+    def test_dropping_the_taller_scene_is_rejected(self) -> None:
+        global REFERENCES
+        original = REFERENCES
+        REFERENCES = (self.dashboard,)
+        try:
+            self.assertTrue(any("both tracked FlClash desktop scenes" in item
+                                for item in findings()), findings())
+        finally:
+            REFERENCES = original
 
     def test_a_wrong_reference_digest_is_rejected(self) -> None:
-        global REFERENCE_SHA256
-        original = REFERENCE_SHA256
-        REFERENCE_SHA256 = "0" * 64
+        global REFERENCES
+        original = REFERENCES
+        REFERENCES = (
+            dataclasses.replace(self.dashboard, sha256="0" * 64),
+            self.proxies,
+        )
         try:
-            self.assertTrue(any("PNG changed" in item for item in findings()))
+            self.assertTrue(any("changed" in item for item in findings()), findings())
         finally:
-            REFERENCE_SHA256 = original
+            REFERENCES = original
 
     def test_a_flat_copy_of_the_reference_share_is_rejected(self) -> None:
         global EXPORT
@@ -243,7 +331,7 @@ class GuardSelfTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             planted = pathlib.Path(directory) / "page-structure.json"
             document = json.loads(original_export.read_text(encoding="utf-8"))
-            document["navigation_limits"]["void_limit_pct"] = MEASURED_VOID_PCT
+            document["navigation_limits"]["void_limit_pct"] = self.proxies.expected_void_pct
             planted.write_text(json.dumps(document), encoding="utf-8")
             EXPORT = planted
             try:
@@ -296,8 +384,9 @@ def main() -> int:
     if problems and args.mode == "enforce":
         return 1
     print(
-        "flclash sidebar void guard: reference void "
-        f"{MEASURED_VOID_PCT}%, exported limits {exported_limits()}, findings={len(problems)}"
+        "flclash sidebar void guard: "
+        f"{len(REFERENCES)} real scenes, exported limits {exported_limits()}, "
+        f"findings={len(problems)}"
     )
     return 0
 

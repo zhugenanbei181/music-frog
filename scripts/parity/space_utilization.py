@@ -1347,7 +1347,7 @@ class SelfTest(unittest.TestCase):
             dict(chrome_band_pct=0.0, void_pct=4.0),
         ]
         limits = {"chrome_band_limit_pct": 0.0, "void_limit_pct": 8.0,
-                  "nav_tail_ground_limit_pct": 68.0}
+                  "nav_tail_ground_limit_pct": 73.0}
         self.assertEqual(rail_debt_from_results(results, limits), {})
         previous = {"frames": {}, "rail": {"chrome_band_pct": 0.0, "void_pct": 4.4}}
         self.assertEqual(debt_growth_findings({}, {}, previous), [])
@@ -1763,7 +1763,7 @@ class SelfTest(unittest.TestCase):
             "chrome_keys": CHROME_KEYS_FOR_TEST,
             "navigation_limits": {"chrome_band_limit_pct": 0.0,
                                   "void_limit_pct": 8.0,
-                                  "nav_tail_ground_limit_pct": 68.0},
+                                  "nav_tail_ground_limit_pct": 73.0},
             "tiers": [
                 {"id": "compact", "min_width_px": 0, "max_width_px": 500,
                  "nav_form": "bottom_nav", "nav_column_px": 0,
@@ -1814,7 +1814,7 @@ class SelfTest(unittest.TestCase):
             "chrome_keys": CHROME_KEYS_FOR_TEST,
             "navigation_limits": {"chrome_band_limit_pct": 0.0,
                                   "void_limit_pct": 8.0,
-                                  "nav_tail_ground_limit_pct": 68.0},
+                                  "nav_tail_ground_limit_pct": 73.0},
             "tiers": [
                 {"id": "compact", "min_width_px": 0, "max_width_px": 500,
                  "nav_form": "bottom_nav", "nav_column_px": 0,
