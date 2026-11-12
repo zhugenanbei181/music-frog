@@ -24,19 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-12 第二百一十六批次；b111–b215 见下方批次八问摘要）
+## 当前状态（2026-11-12 第二百一十七批次；b111–b216 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b216 只改 Slint 布局语言、生成器与共享取证台架脚本，架构中性、零平台 API、零 wire；`cargo nextest run --locked -p infiltrator-slint` **389/389**、`bash -n` 四脚本全通过为 `L`。交叉架构与 aarch64 目标产物未复跑，仍由 CI / 设备矩阵补证（GAP-1.1） |
-| 2 | 部分 | L | Linux 本机完成 Slint 编译 / 测试与 199 帧整批采集；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）。FlClash 桌面条带差异仍归 `FLPARITY-050` |
-| 3 | 部分 | L | Slint Android flavor 与桌面共用同一套 `.slint`，但 `compact-layout` 在 Android 恒 `true`，本批改动按构造不影响手机像素；未跑 `scripts/android-slint-build.sh`，无三 flavor 实机交互回执，iOS 无新回执 |
-| 4 | 部分 | L | Slint 页面密度与两个网格已只读档事实 `desktop-page`；Iced 本就用 `tier.has_labelled_sidebar()`，两表面同一折叠动作从此同解；Bevy 文件由另一会话持有，`FLPROFILES-002` 的 Bevy 半边与 `CAPTURE_CHROME` 发布仍未开工 |
-| 5 | 完整 | L | `ViewportLadder.labelled_sidebar(tier)` 是契约 `tiers[].labelled_sidebar` 的生成投影，零新增数字；`capture_settled_image()` 落在三表面共享的 `scripts/parity/capture_attempt.sh`，三处各自的内联 `stat`/`sha256sum` 读法同批删除，无第二套等待策略 |
-| 5a | 部分 | L | 本批无字体 / 字重 / 图标族 / 视觉资产身份变化；变化是布局身份，已按标准整批重采 199 帧发布 run `20261112T033526Z_d03a849e2929_dirty_433821`，`receipt-freshness 0` 且 manifest 199 行字节/摘要与实际 PNG 逐行相符；`screenshot-identity` 唯一红项仍是另一会话的 Bevy `runtime-dark` / `overview-dark` 别名 |
-| 6 | 部分 | L | `slint-viewport-tier-guard` planted **48/48** + enforce 0、`test_capture_attempt` **6/6**、双表面 `space_utilization --enforce` 199/192 帧 violations=0、欠账台账为空；`resolve_surface_evidence.py` 未复跑，180 个 ready surface cells 仍缺 product-build receipts |
-| 7 | 完整 | L | 契约 `TierFact.labelled_sidebar` → 导出 `tiers[]` → 生成查表 → `theme.slint` 的 `desktop-page` → `compact-layout` 与两个网格 typed 形态一条链；侧栏标签继续只读偏好感知的 `sidebar_labelled(...)`，两个事实互不代答；`line` / `import` / `typed-state` / `implicit-state` / `doc-governance` / `closure-questions` 全 0 |
-| 8 | 部分 | L | 本批有一次真实返工：首轮重采后 `receipt-freshness` 报 1 条，根因是台架在 niri 仍在刷新 PNG 时取摘要（记 65536 B、落盘 75920 B），修在共享 helper 后整批重采第二次（643s），旧批作废不计证据；两帧动画相位/提示条时序非确定性如实登记为未收口事实，未放宽门禁。全仓 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py` 仍留统一验证批次一次跑完 |
+| 1 | 部分 | L | b217 是只读侦察 + 台账登记，零产品代码 / 零 wire / 零像素；有效证据仍是 b216 的 Slint nextest **389/389** 与发布批 `20261112T033526Z_d03a849e2929_dirty_433821`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1） |
+| 2 | 部分 | L | 本批未构建任何平台产物；页身留白属跨平台布局事实，收口时三表面各自重采。Windows/macOS 构建腿与安装包仍未复跑，macOS 沿用 `Unsupported`（GAP-2.2）；条带差异归 `FLPARITY-050` |
+| 3 | 部分 | L | 未跑 `scripts/android-slint-build.sh`，无三 flavor 实机交互回执，iOS 无新回执；本批复量的手机参照图只用于裁决 16dp 留白，不构成 Android 表面证据 |
+| 4 | 部分 | L | 留白副本逐一定位并登记为 `SPACEUTIL-018`（Slint 30u / 16u、Iced 16/24/40/48 ramp、Bevy 12px）；Bevy 侧 `FLPROFILES-002` 与 `CAPTURE_CHROME` 发布仍未开工，按所有权纪律不争写 |
+| 5 | 部分 | L | 本批的产出正是「同一事实四个真源 + 网格第二次扣减」的实测清单，尚未收口：`content_padding_px` 按档 ramp 与 `PROXY_GRID_INSET_PX` 双重扣减仍在工作区，登记为待裁决底层任务而非已复用 |
+| 5a | 部分 | L | 本批无设计资源与像素变化，沿用 b216 双表面发布批（Slint 199 / Iced 192 帧 violations=0、`receipt-freshness 0`）；`screenshot-identity` 唯一红项仍是另一会话的 Bevy `runtime-dark` / `overview-dark` 别名 |
+| 6 | 部分 | L | `SPACEUTIL-018` 3 pt / `Planned` 已入现在佛 §0.2，判据缺口如实登记、未新增豁免；`resolve_surface_evidence.py` 未复跑，180 个 ready surface cells 仍缺 product-build receipts |
+| 7 | 完整 | L | 收口位置已裁决清楚：契约一处发布 `PAGE_PADDING_PX` → v16 导出 → 生成器 / 判定器 / 三表面只读导出，参照基准 §20 逐条给出上游源码与两张 tracked 场景图的逐像素折算；`doc-governance OK`、`closure-questions 8/8` |
+| 8 | 部分 | L | 本批零 cargo、零重采，只做上游源码拉取与像素复核即立项，避免为台账好看而擅改三表面共享数；全仓 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py` 仍留统一验证批次一次跑完 |
+
+## 最近一批问答（2026-11-12 第二百一十七批次：页身左右留白的参照物源码复核 / 实测新立 `SPACEUTIL-018`）
+
+1. x86_64/aarch64：本批是只读侦察 + 文档/台账登记，零产品代码、零 wire、零快照；结论落在共享契约的待裁决条目上，架构中性，故无新的编译腿可跑（`L` 证据是既有 b216 发布批与两表面 enforce 读数仍然有效）→ 部分（L）。
+2. Windows/Linux/macOS：未构建任何平台产物；页身留白是跨平台布局事实，收口时三表面各自重采即可，本批不声称平台支持状态变化 → 部分（L）。
+3. Android/iOS：未构建、未取实机回执；本批实测的手机参照图（1155×2367，scale 2.939）只用于裁决 16dp 留白，不构成 Android 表面证据 → 部分（L）。
+4. 各 UI：四份副本逐一定位并写入条目 owner——Slint 桌面 30u（`page-margin-desktop`）与紧凑 16u（`page-padding`）、Iced 16/24/40/48 按档 ramp（`content_padding_px`）、Bevy 12px（`shell_scene.rs` 的 `UiRect::horizontal(rem(space::S12))`）；Bevy 按所有权纪律不争写，只登记 → 部分（L）。
+5. 复用：本批正是「同一事实四个真源」的实测清单，且额外发现 `proxy_node_columns()` 在 `page_body_width_px()` 已扣留白之后再扣 `PROXY_GRID_INSET_PX = 32` 的第二次扣减；收口方向是把 16 一处发布并退役 ramp 与第二次扣减，未在任何 UI 层加布尔代答 → 完整（L）。
+5a. 设计资源：本批无字体 / 字重 / 图标族 / 视觉资产变化，也未改任何像素；沿用 b216 发布批 `20261112T033526Z_d03a849e2929_dirty_433821`（Slint 199 帧 violations=0、`receipt-freshness 0`）与 Iced `20261111T220532Z_923ba4af7b2f_dirty_2656390`（192 帧 violations=0）→ 部分（L）。
+6. 各处界面的功能接入：判据缺口如实登记为 `SPACEUTIL-018`（3 pt / `Planned`），未新增豁免、未放宽任何上限；`doc-governance OK`、`closure-questions 8/8`；`resolve_surface_evidence.py` 仍未复跑，180 个 ready cells 仍缺 product-build receipts → 部分（L）。
+7. 模块化：留白的裁决位置已写清（契约一处发布 → v16 导出 → 生成器 / 判定器 / 三表面只读导出），参照基准 §20 逐条给出上游源码位置与两张 tracked 场景图的逐像素折算，结论不依赖散文 → 完整（L）。
+8. CI 与批次效率：本批零 cargo、零重采，只做上游源码拉取与像素复核即立项，避免为「让台账好看」而擅改三表面共享数；统一验证批次仍一次跑完全仓腿 → 部分（L）。
 
 ## 最近一批问答（2026-11-12 第二百一十六批次：Slint 页面密度不再跟随侧栏折叠偏好 + 取证回执索引落定字节）
 

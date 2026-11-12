@@ -685,3 +685,61 @@ manifest 却记 65536 字节（恰为一个 pipe buffer）并给出对应的旧�
 `capture_settled_image()`，三处调用点共用同一实现；`scripts/parity/test_capture_attempt.py`
 新增 4 项自测（settled 摘要==最终字节、增长中的文件必须等到落定、缺失/过小文件
 拒收、三个矩阵都不得再各自 `stat`/`sha256sum`）。
+
+## 20. 页身左右留白：参考物只付一次 16dp，本仓付了四次不同数额（b217 实测立项）
+
+用户要求「因地制宜订立设计标准：最多只能留出多少比例的空间」。侧栏与页尾已经
+有判据与守卫，**页身左右留白（page gutter）至今没有任何判据量过**，实测发现它
+同时违反「每个事实只有一个真源」与「不超过参考物」两条。
+
+**上游真源（pinned `be847366`，逐文件核对）**：页面左右留白在所有页面、所有视口
+档都是同一个 16dp，且**只付一次**——
+
+| 上游位置 | 源码事实 |
+| --- | --- |
+| `lib/views/dashboard/dashboard.dart` | `EdgeInsetsDirectional.fromSTEB(16, contentTopPadding, 24, …)`，随后 `room = constraints.maxWidth − base.horizontal − gap*(columns−1)`，即页宽减一次左右留白后直接分列 |
+| `lib/views/proxies/tab.dart` | `getProxiesColumns(max(width - 32, 0), …)`，32 = 左右各 16；`getProxiesColumns` 本体只做 `max(ceil(viewWidth/250), 2)`，不再减任何 inset |
+| `lib/views/proxies/list.dart` | `const _groupInset = 16.0`，`width = max(maxWidth - _groupInset * 2, 0)`，`SliverPadding(horizontal: _groupInset)` |
+| `lib/views/profiles/profiles.dart` | `static const _horizontalPadding = 16.0`，`_columnsFor` 传 `width - _horizontalPadding * 2` |
+| `lib/views/dashboard/layout.dart` | `dashboardMobileSideOf(width) => max(16, (width - 560) / 2)`——手机档仍是 16 起步，只在超宽时居中 |
+
+真实场景图逐像素复核同向：仪表盘页身左缘墨迹起于侧栏右缘 +30px（÷1.95 = **15.4dp**），
+手机仪表盘图卡片左缘 48px（÷2.94 = **16.3dp**）、右缘 47px（**16.0dp**）。
+
+**本仓现状（三份互不相等的副本）**：
+
+| 表面 | 页身左右留白 | 真源位置 |
+| --- | --- | --- |
+| Slint 桌面 | **30u** | `theme.slint` 的 `page-margin-desktop` |
+| Slint 紧凑 | 16u | `theme.slint` 的 `page-padding` |
+| Iced | **16 / 24 / 40 / 48px 按档递增** | `responsive_viewport::ViewportTier::content_padding_px()` |
+| Bevy | 12px | `shell_scene.rs` 的 `UiRect::horizontal(rem(space::S12))` |
+
+同一个 1180×780 窗口实测：Slint 页身 880px、Iced 页身 860px（本批 b216 的两表面
+回执普查），而参考物在 960px 页宽里只让出 32px。也就是说 Iced 在 expanded 档
+**每侧多付 24px、两侧多 48px**，Slint 每侧多 14px——这些像素既不是内容也不是
+已裁决的呼吸位，是纯粹没人审过的横向死地，正是用户指出的「既不紧凑也不美观」。
+
+**还有一处双重扣减**：`proxy_node_columns()` 在 `page_body_width_px()`（已经扣过
+2×`content_padding_px`）之后**再扣一次** `PROXY_GRID_INSET_PX = 32`，Slint 生成
+查表同样如此。上游那个 32 就是页身留白本身（`max(width - 32, 0)` 里的 width 是
+未加左右 padding 的页宽），本仓把它当成「留白之外的另一个 inset」，于是
+1180 expanded 下 Iced 的网格实际拿到 `1180−240−80−32 = 828px`，参考物拿到
+`1180−220−32 = 928px`。`profile_columns()` 没有再扣，两个网格对同一条留白规则
+的口径也不一致。
+
+**裁决与收口方向（登记 `SPACEUTIL-018`，不在只有 Slint 一份新证据时擅改三表面共享数）**：
+
+1. 契约一处发布 `PAGE_PADDING_PX = 16`（依据上表五条源码与两张场景图），
+   `ViewportTier::content_padding_px()` 的按档 ramp 同批退役，不留兼容轨道；
+   `page-structure.json` 升 v16 导出该常量，生成器与判定器读同一份导出。
+2. `proxy_node_columns()` 删除第二次扣减：入参就是页身宽，`PROXY_GRID_INSET_PX`
+   连同导出键一并清退；`profile_columns()` 口径不变，两个网格从此同解。
+3. Slint `page-margin-desktop` / `page-padding` 合成为生成的单一 `page-padding`，
+   Iced `view_root` / `sidebar_chrome` / `rules_list` 与 Bevy `shell_scene` 都只读
+   契约值；每帧仍由 `CAPTURE_CHROME` 的 `page_margin_px` 自述，判定器不记常量。
+4. 这是**跨表面布局身份变化**，必须 Iced 192 帧与 Slint 199 帧整批重采后
+   按形态上限复判；`dense` / `framed` 页若因页身变高暴露新的页尾地面，
+   按标准 §5 走「填满 / 合并 / 提升密度」收口，不得放宽任何上限。
+5. Bevy 文件与像素仍由另一会话持有（`FLPROFILES-002` 同一纪律），本条只登记
+   其 12px 副本，不争写。
