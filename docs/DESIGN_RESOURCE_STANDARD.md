@@ -88,6 +88,13 @@
   现状逐表面为——Slint 画共享 4:3 资产（`CountryChip` / `FlagIcon`，零圆角），Iced 画同一批
   矢量的 `flag_plate`（零圆角、无旗时是方形代码板），Bevy 旗位为 ASCII 代码文字，Android 不画
   国旗 artwork。两条都由 `scripts/quality/flag-plate-guard.py`（FLAGART-001）与 SLINT-020 咬。
+- **旗码覆盖率也是资产身份的一部分（b226）**：258 面 4:3 清单若只有 36 个契约地区可达，
+  222 面旗在运行时仍会退化成「—」方板。`scripts/generate_flag_assets.py` 同时生成 Iced 字节表
+  与 contract `flag_codes_generated.rs`，`NodeRegion::Catalogued(&'static str)` 以 catalog 码作为
+  typed 地区身份；只有 `XX-01` / `XX 01` / `[XX]` 这类节点编号前缀才触发 catalog 解析，普通英文
+  词不因两字母恰好是 ISO 码而变成国家。domain 的 `normalize_country_code` /
+  `extract_country_code` 改读 `NodeRegion`，旧 `matches_alias` 私有别名匹配器退休；
+  `COUNTRY_DEFS` 只剩有本地化名称的显示别名，不再是第二份地区真源。
 
 ## 4. 适配物生成（唯一写入者）
 
@@ -110,7 +117,7 @@
 9. Android 语义枚举与 resolver 穷尽覆盖 contract 目录，不创造未登记语义。
 10. 吉祥物主 plate ≥1024px 且通过透明角、alpha (0,255)、真实高频边缘细节门；同一 catalog ID 的 512px hero 绘制档由 shared owner 唯一登记，生成适配物字节一致，surface 目录无第二份青蛙 PNG；资产身份变化必须重采双视口真实像素回执。
 11. 国旗清单只有一个形状（§3.1）：由 `scripts/quality/slint-flag-shape-guard.py`（SLINT-020）在结构门强制——`FlagImages.flags` 必须逐条等于 catalog `flag.*` / `source` 的顺序、`flag_assets::index_for_code` 必须与之一致、shared 目录不得再有 `circle-144` 记录或 `flags/circle-png/`、`FlagIcon` 不得 `clip`/圆角/`cover`，调用点不得喂退役的 `diameter` 入口。
-12. 旗面只有一个清单、且没有任何表面画 emoji 旗（§3.1，b219）：由 `scripts/quality/flag-plate-guard.py`（FLAGART-001）在结构门强制——`crates/infiltrator-iced/src/flag_assets_generated.rs` 的代码集必须逐条等于 catalog `flag.*` / `source`、`generate_flag_assets.py --check` 必须 fresh、身份层源码（Iced `view/`、Bevy `pages/`、Slint `ui/` 与投影、presentation、shared `country_flags`）不得出现 regional-indicator 旗形或 🌐 兜底、退役入口 `node_flag_emoji` / `emoji_flag` / `flag_icon_token` / `proxy_flag_icon_token` 不得回归、`flag_plate` 必须画矢量且圆角为 0。别名表（contract `geo_region`、domain `COUNTRY_DEFS`）匹配用户节点名里的 emoji 属输入解析，不在本条范围。
+12. 旗面只有一个清单、且没有任何表面画 emoji 旗（§3.1，b219；b226 补齐覆盖率）：由 `scripts/quality/flag-plate-guard.py`（FLAGART-001）在结构门强制——`crates/infiltrator-iced/src/flag_assets_generated.rs` 与 contract `flag_codes_generated.rs` 的代码集都必须逐条等于 catalog `flag.*` / `source`、`generate_flag_assets.py --check` 必须 fresh、contract 必须逐个测试 258 个码可从节点名解析、domain `filter.rs` 不得恢复私有 `matches_alias` 且必须消费 `NodeRegion`、身份层源码（Iced `view/`、Bevy `pages/`、Slint `ui/` 与投影、presentation、shared `country_flags`）不得出现 regional-indicator 旗形或 🌐 兜底、退役入口 `node_flag_emoji` / `emoji_flag` / `flag_icon_token` / `proxy_flag_icon_token` 不得回归、`flag_plate` 必须画矢量且圆角为 0。`COUNTRY_DEFS` 现仅提供本地化显示词，不再裁决「节点属于哪个地区」。
 
 验收证据最少包含：
 

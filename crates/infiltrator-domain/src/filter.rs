@@ -5,6 +5,7 @@
 
 use crate::error::DomainError;
 use crate::profile_converter::ProxyNodeItem;
+use infiltrator_contract::geo_region::NodeRegion;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -147,7 +148,8 @@ pub struct SubscriptionFilterPipeline {
     pub rule: FilterRule,
 }
 
-/// Global country and region definition mapping (40+ countries and regions).
+/// Localized aliases for the few regions that own a human label. The catalog
+/// owns every other two-letter flag code through `NodeRegion::classify`.
 pub const COUNTRY_DEFS: &[(&str, &[&str])] = &[
     ("HK", &["🇭🇰", "香港", "Hong Kong", "HongKong", "HKG", "HK"]),
     (
@@ -460,33 +462,6 @@ pub const COUNTRY_DEFS: &[(&str, &[&str])] = &[
     ),
 ];
 
-fn matches_alias(text: &str, upper: &str, alias: &str) -> bool {
-    if !alias.is_ascii() {
-        return text.contains(alias);
-    }
-    let alias_upper = alias.to_ascii_uppercase();
-    if alias.len() <= 3 {
-        let mut idx = 0;
-        while let Some(pos) = upper[idx..].find(&alias_upper) {
-            let actual_pos = idx + pos;
-            let before_ok =
-                actual_pos == 0 || !text.as_bytes()[actual_pos - 1].is_ascii_alphabetic();
-            let end = actual_pos + alias_upper.len();
-            let after_ok = end >= text.len() || !text.as_bytes()[end].is_ascii_alphabetic();
-            if before_ok && after_ok {
-                return true;
-            }
-            idx = actual_pos + 1;
-            if idx >= upper.len() {
-                break;
-            }
-        }
-        false
-    } else {
-        upper.contains(&alias_upper)
-    }
-}
-
 /// Normalizes country flags, emojis, and aliases in a node name to standard `[ISO]` prefix.
 pub fn normalize_country_code(name: &str) -> String {
     let trimmed = name.trim();
@@ -500,41 +475,15 @@ pub fn normalize_country_code(name: &str) -> String {
     if already_tagged {
         return trimmed.to_string();
     }
-
-    let upper_name = trimmed.to_ascii_uppercase();
-    for (iso, aliases) in COUNTRY_DEFS {
-        for alias in *aliases {
-            if matches_alias(trimmed, &upper_name, alias) {
-                return format!("[{iso}] {trimmed}");
-            }
-        }
+    match extract_country_code(trimmed) {
+        Some(code) => format!("[{code}] {trimmed}"),
+        None => trimmed.to_string(),
     }
-    trimmed.to_string()
 }
 
 /// Extracts standard ISO 2-letter country code from a node name if recognized.
 pub fn extract_country_code(name: &str) -> Option<&'static str> {
-    let trimmed = name.trim();
-    if trimmed.is_empty() {
-        return None;
-    }
-    if trimmed.starts_with('[') && trimmed.len() >= 4 && trimmed.as_bytes()[3] == b']' {
-        let tag = &trimmed[1..3];
-        for (iso, _) in COUNTRY_DEFS {
-            if tag.eq_ignore_ascii_case(iso) {
-                return Some(iso);
-            }
-        }
-    }
-    let upper_name = trimmed.to_ascii_uppercase();
-    for (iso, aliases) in COUNTRY_DEFS {
-        for alias in *aliases {
-            if matches_alias(trimmed, &upper_name, alias) {
-                return Some(iso);
-            }
-        }
-    }
-    None
+    NodeRegion::classify(name).flag_code()
 }
 
 /// Returns true if character is an emoji or regional indicator flag symbol.

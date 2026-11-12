@@ -29,8 +29,10 @@ The rules this guard holds:
 5. Iced's plate owner is the only element that may paint a flag, and it declares
    a zero corner radius (a rounded container around a flag *is* the container).
 6. Region resolution has one owner: `infiltrator_contract::geo_region` must
-   resolve every catalogued ISO code from a node name (proved by contract tests
-   pinned in rule 6's check).
+   resolve every catalogued ISO code from a node name. The contract's generated
+   code table must equal the asset catalog, its tests must cover the whole
+   table, and domain filtering must consume `NodeRegion` rather than a second
+   alias matcher.
 """
 
 from __future__ import annotations
@@ -47,6 +49,10 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 CATALOG = ROOT / "crates/infiltrator-shared/assets/asset-catalog.json"
 GENERATED = ROOT / "crates/infiltrator-iced/src/flag_assets_generated.rs"
+CONTRACT_GENERATED = ROOT / "crates/infiltrator-contract/src/flag_codes_generated.rs"
+CONTRACT_GEO_REGION = ROOT / "crates/infiltrator-contract/src/geo_region.rs"
+CONTRACT_GEO_TESTS = ROOT / "crates/infiltrator-contract/src/geo_region_tests.rs"
+DOMAIN_FILTER = ROOT / "crates/infiltrator-domain/src/filter.rs"
 GENERATOR = ROOT / "scripts/generate_flag_assets.py"
 PLATE = ROOT / "crates/infiltrator-iced/src/view/flag_plate.rs"
 GATE = ROOT / "scripts/quality/check-structure.sh"
@@ -145,6 +151,27 @@ def findings() -> list[str]:
     )
     if check.returncode != 0:
         problems.append(f"flag byte table is stale: {check.stdout.strip() or check.stderr.strip()}")
+    if not CONTRACT_GENERATED.is_file():
+        problems.append("the contract flag-code vocabulary is missing")
+    else:
+        contract_codes = re.findall(
+            r'"([A-Z]{2})",', CONTRACT_GENERATED.read_text(encoding="utf-8"))
+        if contract_codes != expected:
+            problems.append("the contract flag-code vocabulary does not match the catalog")
+    geo_region = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in (CONTRACT_GEO_REGION, CONTRACT_GEO_TESTS)
+        if path.is_file()
+    )
+    if "fn every_catalogued_flag_is_resolvable_from_a_node_name" not in geo_region:
+        problems.append("the contract no longer tests every catalogued flag code")
+    if "flag_code_from_catalog" not in geo_region:
+        problems.append("geo_region no longer resolves the generated catalog vocabulary")
+    domain_filter = DOMAIN_FILTER.read_text(encoding="utf-8")
+    if "fn matches_alias(" in domain_filter:
+        problems.append("domain filter reintroduced a private country alias matcher")
+    if "NodeRegion::classify(name).flag_code()" not in domain_filter:
+        problems.append("domain filter no longer consumes the contract region owner")
     for path in identity_sources():
         text = shipped_text(path)
         allow_globe = path not in FLAG_SLOT_FILES
@@ -245,6 +272,23 @@ class GuardSelfTest(unittest.TestCase):
                 self.assertTrue(any("zero corner radius" in item for item in findings()))
             finally:
                 PLATE = original
+
+    def test_a_private_domain_country_matcher_is_rejected(self) -> None:
+        global DOMAIN_FILTER
+        original = DOMAIN_FILTER
+        with tempfile.TemporaryDirectory() as directory:
+            planted = pathlib.Path(directory) / "filter.rs"
+            planted.write_text(
+                original.read_text(encoding="utf-8")
+                + "\nfn matches_alias(text: &str, upper: &str, alias: &str) -> bool { true }\n",
+                encoding="utf-8",
+            )
+            DOMAIN_FILTER = planted
+            try:
+                self.assertTrue(
+                    any("private country alias matcher" in item for item in findings()))
+            finally:
+                DOMAIN_FILTER = original
 
     def test_a_missing_gate_leg_is_rejected(self) -> None:
         global GATE

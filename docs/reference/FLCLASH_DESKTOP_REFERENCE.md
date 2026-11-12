@@ -811,3 +811,19 @@ emoji 字体决定（本机 Noto Color Emoji、Windows Segoe UI Emoji 各画各�
 即拒判。`flclash-sidebar-void-guard.py` 用同一把 ink 尺复量 3.06%、65.17% 与 0%，
 拒绝参照图漂移、导出上限放宽或契约常量与导出脱钩。现存 Slint 211 帧最差尾空
 **47.0%**、Iced 192 帧最差 **40.1%**，两表面均低于参照物且无需登记豁免。
+
+## 23. 旗面清单的 258 个码全部成为契约地区（`FLAGCODE-001`）
+
+b219 把 emoji 旗换成 258 面 4:3 直角矢量后，契约 `GeoRegion` 仍只有 37 个变体，探针实测
+**222 面旗永远解析不到**，葡萄牙、墨西哥、智利、新西兰等节点只能拿「—」代码板。本批不在
+Iced/Slint 页面里补表，而让 `asset-catalog.json` 的 `flag.<code>` 同时生成契约码表：
+`NodeRegion::Catalogued(&'static str)` 是清单码的 typed 身份，命名 `GeoRegion` 继续只拥有
+本地化名称与自然语言别名。节点编号前缀（`PT-Lisbon-01`、`MX 01`、`[NZ] Auckland`）才触发
+catalog 解析，避免 `BE Fast` / `IT Relay` 这类普通英文词被两字母 ISO 码误判。
+
+同一批把 domain `normalize_country_code` / `extract_country_code` 改为消费 `NodeRegion`，
+删除私有 `matches_alias` 地区匹配器：`COUNTRY_DEFS` 只保留显示词，不再回答「节点属于哪个
+地区」。`flag-plate-guard.py` 新增契约码表等式、258 码覆盖测试与 domain 单 owner 三条门禁，
+自测 **9/9**；contract/shared/domain/presentation lib nextest **1710/1710**，`cargo check`
+覆盖 Iced/Slint 全目标。本批只改地区解析，不改任何旗资产几何或已发布 fixture；4:3 直角、
+零圆角容器与方形 fallback 代码板保持不变。

@@ -1,4 +1,4 @@
-# MusicFrog 工程 TODO · 过去佛（18条待验证；归档见 [TODO.md](../TODO.md) 第一百零八批次）
+# MusicFrog 工程 TODO · 过去佛（19条待验证；归档见 [TODO.md](../TODO.md) 第一百零八批次）
 
 > 层级：L4
 
@@ -401,6 +401,29 @@ owner 分别是另一会话的 Bevy 像素与 `I18NNAV-001`，任一转绿须同
 | 诚实边界 | 零 UI/像素/wire/snapshot identity 变化；UI 刷新控件接入、product build receipts 与全仓动态结构门仍留统一批次 |
 
 ## 12.89 ClashParty 连接视图 typed 底层 owner（本批证据切片，不新增待验证条目）
+
+## 12.90 旗面清单的 258 个码成为契约地区（1条待验证）
+
+| ID | 状态 / 优先级 | points | owner | 依赖 |
+| --- | --- | --- | --- | --- |
+| `FLAGCODE-001` | `Integrated` / P2（b219 实测立项，b227 交付，待统一批次办结） | 3 | `asset-catalog.json` → `scripts/generate_flag_assets.py` → contract `flag_codes_generated.rs` / `geo_region.rs` → shared / domain / presentation / Iced / Slint 消费链 + `flag-plate-guard.py` | `FLAGART-001`（过去佛 §12.84） |
+
+**`FLAGCODE-001` 222 面不可达旗收口（b227 交付，3 pt / P2 / `Integrated`）**：
+
+① **真正找到的问题**：catalog 有 258 面 4:3 直角旗，契约 `GeoRegion` 只有 37 个命名变体，探针实测 222 面
+旗从 `"XX-01"` 节点名永远解析不到，emoji 换成矢量清单后这些节点退化为方形「—」代码板；domain
+`COUNTRY_DEFS` / `matches_alias` 又是第二份地区解析。② **自底向上收口**：生成器从同一 catalog
+同时写 Iced 字节表与 contract 码表；`NodeRegion::Catalogued(&'static str)` 承载清单码，只有
+`XX-01` / `XX 01` / `[XX]` 等节点编号形态触发，普通英文词不会误判；命名 `GeoRegion` 只保留本地化
+名称与自然别名。domain `normalize_country_code` / `extract_country_code` 改读 `NodeRegion`，删除私有
+`matches_alias`，`COUNTRY_DEFS` 降级为显示词。③ **硬门**：`flag-plate-guard.py` 新增契约码表等式、
+258 码覆盖测试与 domain 单 owner 三条判据，自测 **9/9**、enforce 0；一条 planted「domain 恢复私有
+别名匹配器」实测会咬。④ **证据（L）**：`cargo fmt --all -- --check`、四包 lib nextest
+**1710/1710**、四包 Clippy `--lib -D warnings`、`cargo check -p infiltrator-iced -p infiltrator-slint
+--all-targets`、生成器 fresh、import/line/typed-state/implicit-state/doc/closure 全 0。⑤ **待验证范围**：
+统一批次复跑全仓 nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py`；含 `PT` / `MX` / `NZ`
+等新增地区名的 Slint/Iced standard/compact 真实像素回执与整批重采尚未做，本条不办结、不声称像素已验收；
+本批不改旗资产几何、容器形状或已发布 fixture，4:3 直角与零圆角规则保持。
 
 | 项目 | 证据 |
 | --- | --- |

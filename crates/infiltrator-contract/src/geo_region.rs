@@ -7,6 +7,9 @@
 use serde::{Deserialize, Serialize};
 use std::fmt::{self, Display, Formatter};
 
+use crate::flag_codes_generated::flag_code_from_catalog;
+use std::str;
+
 /// Standard geographic regions and countries commonly encountered in proxy nodes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -546,12 +549,13 @@ impl GeoRegion {
     }
 }
 
-/// The identity shown beside a proxy node. Geographic resolution has exactly
-/// one owner ([`GeoRegion::from_name_heuristic`]); the three routing targets
-/// are explicit products facts, never geographic regions and never flags.
+/// The identity shown beside a proxy node. Named regions own localized
+/// aliases; catalogued-only regions own the two-letter asset code. The three
+/// routing targets are explicit product facts, never geographic regions.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum NodeRegion {
     Geographic(GeoRegion),
+    Catalogued(&'static str),
     Direct,
     Reject,
     Global,
@@ -570,6 +574,9 @@ impl NodeRegion {
         if lower == "global" || lower.starts_with("global-") || lower.contains("全局") {
             return Self::Global;
         }
+        if let Some(code) = prefix_flag_code(name) {
+            return Self::Catalogued(code);
+        }
         Self::Geographic(GeoRegion::from_name_heuristic(name))
     }
 
@@ -578,6 +585,7 @@ impl NodeRegion {
     pub const fn search_code(self) -> &'static str {
         match self {
             Self::Geographic(region) => region.iso_code(),
+            Self::Catalogued(code) => code,
             Self::Direct => "DIRECT",
             Self::Reject => "REJECT",
             Self::Global => "GLOBAL",
@@ -585,10 +593,11 @@ impl NodeRegion {
     }
 
     /// Uppercase ISO code only when a rectangular flag asset exists.
-    pub const fn flag_code(self) -> Option<&'static str> {
+    pub fn flag_code(self) -> Option<&'static str> {
         match self {
             Self::Geographic(GeoRegion::Other) | Self::Direct | Self::Reject | Self::Global => None,
             Self::Geographic(region) => Some(region.iso_code()),
+            Self::Catalogued(code) => flag_code_from_catalog(code),
         }
     }
 
@@ -600,6 +609,7 @@ impl NodeRegion {
             Self::Global => "GLOBAL",
             Self::Geographic(GeoRegion::Other) => "—",
             Self::Geographic(region) => region.iso_code(),
+            Self::Catalogued(code) => code,
         }
     }
 }
@@ -617,152 +627,44 @@ fn has_region_token(lower: &str, code: &str) -> bool {
         .any(|word| word == code)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn iso_codes_round_trip_and_unknown_is_explicit() {
-        for region in [
-            GeoRegion::HongKong,
-            GeoRegion::Taiwan,
-            GeoRegion::Japan,
-            GeoRegion::Singapore,
-            GeoRegion::UnitedStates,
-            GeoRegion::SouthKorea,
-            GeoRegion::UnitedKingdom,
-            GeoRegion::Germany,
-            GeoRegion::France,
-            GeoRegion::Canada,
-            GeoRegion::Australia,
-            GeoRegion::Netherlands,
-            GeoRegion::Russia,
-            GeoRegion::India,
-            GeoRegion::Macau,
-            GeoRegion::Thailand,
-            GeoRegion::Vietnam,
-            GeoRegion::Malaysia,
-            GeoRegion::Philippines,
-            GeoRegion::Indonesia,
-            GeoRegion::Turkey,
-            GeoRegion::Brazil,
-            GeoRegion::Argentina,
-            GeoRegion::SouthAfrica,
-            GeoRegion::Israel,
-            GeoRegion::UnitedArabEmirates,
-            GeoRegion::Switzerland,
-            GeoRegion::Sweden,
-            GeoRegion::Norway,
-            GeoRegion::Finland,
-            GeoRegion::Italy,
-            GeoRegion::Spain,
-            GeoRegion::Ireland,
-            GeoRegion::Poland,
-            GeoRegion::Ukraine,
-            GeoRegion::China,
-        ] {
-            assert_eq!(GeoRegion::from_iso(region.iso_code()), region);
-            assert_eq!(
-                GeoRegion::from_iso(&region.iso_code().to_lowercase()),
-                region
-            );
+/// Resolve a leading ISO token only when the catalog owns its flag asset.
+/// A bare two-letter English word in the middle of a name is not a country:
+/// `BE Fast`, `TO Tokyo` and `IT Relay` must stay unknown.
+fn prefix_flag_code(name: &str) -> Option<&'static str> {
+    let trimmed = name.trim();
+    if let Some(bracketed) = trimmed.strip_prefix('[') {
+        let bytes = bracketed.as_bytes();
+        if bytes.len() >= 3
+            && bytes[0].is_ascii_alphabetic()
+            && bytes[1].is_ascii_alphabetic()
+            && bytes[2] == b']'
+        {
+            let upper = [bytes[0].to_ascii_uppercase(), bytes[1].to_ascii_uppercase()];
+            if let Ok(candidate) = str::from_utf8(&upper) {
+                return flag_code_from_catalog(candidate);
+            }
         }
-        assert_eq!(GeoRegion::from_iso("??"), GeoRegion::Other);
+        return None;
     }
-
-    #[test]
-    fn name_detection_uses_region_tokens_without_matching_substrings() {
-        for (name, region) in [
-            ("🇭🇰 Hong Kong IEPL", GeoRegion::HongKong),
-            ("JP-Tokyo-01", GeoRegion::Japan),
-            ("SG-01", GeoRegion::Singapore),
-            ("US-Silicon Valley", GeoRegion::UnitedStates),
-            ("DE Frankfurt", GeoRegion::Germany),
-            ("TW Taipei", GeoRegion::Taiwan),
-            ("UK London", GeoRegion::UnitedKingdom),
-            ("Unknown Planet", GeoRegion::Other),
-        ] {
-            assert_eq!(GeoRegion::from_name_heuristic(name), region, "{name}");
-        }
-        for name in [
-            "Inspection node",
-            "Default",
-            "Fallback",
-            "TROJAN",
-            "USAGE",
-            "CACHE",
-        ] {
-            assert_eq!(
-                GeoRegion::from_name_heuristic(name),
-                GeoRegion::Other,
-                "{name}"
-            );
+    let bytes = trimmed.as_bytes();
+    if bytes.len() < 2 || !bytes[0].is_ascii_alphabetic() || !bytes[1].is_ascii_alphabetic() {
+        return None;
+    }
+    let separator = bytes.get(2).copied();
+    if !matches!(separator, None | Some(b'-' | b'_' | b' ' | b'[' | b']')) {
+        return None;
+    }
+    if matches!(separator, Some(b' ')) {
+        let tail = trimmed[3..].trim_start();
+        if !tail.as_bytes().first().is_some_and(u8::is_ascii_digit) {
+            return None;
         }
     }
-
-    #[test]
-    fn node_region_classifies_flags_and_routing_targets_without_glyphs() {
-        assert_eq!(
-            NodeRegion::classify("🇭🇰 Hong Kong IEPL").flag_code(),
-            Some("HK")
-        );
-        assert_eq!(
-            NodeRegion::classify("瑞士 Zurich 01").flag_code(),
-            Some("CH")
-        );
-        assert_eq!(NodeRegion::classify("DIRECT").flag_code(), None);
-        assert_eq!(NodeRegion::classify("DIRECT").plate_label(), "DIRECT");
-        assert_eq!(NodeRegion::classify("Unknown Node").flag_code(), None);
-        assert_eq!(NodeRegion::classify("Unknown Node").plate_label(), "—");
-        assert_eq!(NodeRegion::classify("DIRECT").search_code(), "DIRECT");
-    }
-
-    #[test]
-    fn every_geographic_variant_is_resolvable_from_a_node_name() {
-        for region in [
-            GeoRegion::HongKong,
-            GeoRegion::Taiwan,
-            GeoRegion::Japan,
-            GeoRegion::Singapore,
-            GeoRegion::UnitedStates,
-            GeoRegion::SouthKorea,
-            GeoRegion::UnitedKingdom,
-            GeoRegion::Germany,
-            GeoRegion::France,
-            GeoRegion::Canada,
-            GeoRegion::Australia,
-            GeoRegion::Netherlands,
-            GeoRegion::Russia,
-            GeoRegion::India,
-            GeoRegion::Macau,
-            GeoRegion::Thailand,
-            GeoRegion::Vietnam,
-            GeoRegion::Malaysia,
-            GeoRegion::Philippines,
-            GeoRegion::Indonesia,
-            GeoRegion::Turkey,
-            GeoRegion::Brazil,
-            GeoRegion::Argentina,
-            GeoRegion::SouthAfrica,
-            GeoRegion::Israel,
-            GeoRegion::UnitedArabEmirates,
-            GeoRegion::Switzerland,
-            GeoRegion::Sweden,
-            GeoRegion::Norway,
-            GeoRegion::Finland,
-            GeoRegion::Italy,
-            GeoRegion::Spain,
-            GeoRegion::Ireland,
-            GeoRegion::Poland,
-            GeoRegion::Ukraine,
-            GeoRegion::China,
-        ] {
-            let name = format!("{} 01", region.iso_code());
-            assert_eq!(
-                GeoRegion::from_name_heuristic(&name),
-                region,
-                "{name} must resolve to its own flag asset"
-            );
-        }
-    }
+    let upper = [bytes[0].to_ascii_uppercase(), bytes[1].to_ascii_uppercase()];
+    let candidate = str::from_utf8(&upper).ok()?;
+    flag_code_from_catalog(candidate)
 }
+
+#[cfg(test)]
+#[path = "geo_region_tests.rs"]
+mod tests;

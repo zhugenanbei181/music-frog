@@ -65,6 +65,7 @@ pub mod doctor;
 pub mod dpad_navigation;
 pub mod editor_viewport;
 pub mod fixture_identities;
+pub mod flag_codes_generated;
 pub mod frame_observation;
 pub mod general_override;
 pub mod geo_database;

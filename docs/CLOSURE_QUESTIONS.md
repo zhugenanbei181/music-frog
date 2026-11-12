@@ -38,7 +38,7 @@
 | 7 | 完整 | L | 网格链：contract `ProxyGridForm` / `proxy_node_columns` → Bevy 纯几何 `ProxyGridContainer` → scene / card / reconcile / virtual 四路消费；探针链：contract typed state / stamp → ports → application → `CoreApplication` → `SurfaceReader` readback。两个 owner guard 共 15 项 planted 负例，含 tier 表、compact bool、首帧 31%、缺场景 marker、unsupported dispatch、default readback、硬编码时间；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | 同主题源码一次落地后集中跑五包 Clippy、Bevy/Core lib nextest、一组 Bevy headless、一组静态门和两个 owner guard；没有逐文件反复全仓验证，也未触发 192 帧重采。全仓 `--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` 仍留统一批次一次跑完 |
 
-## 当前状态（2026-11-13 第二百二十六批次；b111–b225 见下方批次八问摘要）
+## 历史状态（2026-11-13 第二百二十六批次；b111–b225 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
@@ -51,6 +51,32 @@
 | 6 | 部分 | L | 真实发布批逐帧复判 0 违规；`nav_tail_pct` 的 planted 负例证明确实会咬「只画一行导航」的退化。全仓 `--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` 的 180 个 ready cells 仍留统一批次 |
 | 7 | 完整 | L | 契约常量、v17 导出、生成参照守卫、判定器测量/判罚/欠账、L2 标准与 L3 上游对照分层收口；`doc-governance OK`、`closure 8/8`、结构收集器 **198 腿静态形状 0 findings**，无跨 UI 私有业务真源 |
 | 8 | 部分 | L | 同主题源码与文档一次落地后集中跑定向 Python 门、契约导出器构建、双表面报告与静态结构门；判据改动不触发任何截图重采。全仓 `--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` 仍留统一批次一次跑完 |
+
+## 当前状态（2026-11-13 第二百二十七批次；b111–b226 见下方批次八问摘要）
+
+| # | 结论 | 等级 | 缺口 / owner |
+| --- | --- | --- | --- |
+| 1 | 部分 | L | b227 改 contract/shared/domain/presentation、旗码生成器、守卫与 L2/L3 文档；`cargo fmt --all -- --check`、四包 lib nextest **1710/1710**、四包 Clippy `--lib -D warnings`、Iced/Slint `--all-targets` check 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1） |
+| 2 | 部分 | L | Linux 本机完成四包编译/Clippy、Iced/Slint 全目标 check 与旗面/质量门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID |
+| 3 | 部分 | L | 零 Android/iOS 代码与资源改动；契约地区码按构造对两个平台中立，但三 flavor 实机交互与 iOS 产物仍按既有条目留在外部环境看板，不拿桌面编译冒充移动端证据 |
+| 4 | 部分 | L | Iced/Slint 全目标 check 通过，旗面生成表 fresh；本批不改可见 fixture，含 PT/MX/NZ 等新增地区名的 standard/compact 双视口真实像素回执仍待统一批次，Bevy 192 帧像素归另一会话 |
+| 5 | 完整 | L | `asset-catalog.json` 同时生成 Iced 字节表与 contract 码表，`NodeRegion::Catalogued` 是清单码唯一 typed 身份；domain `normalize_country_code` / `extract_country_code` 改读 `NodeRegion`，删除私有 `matches_alias`，`COUNTRY_DEFS` 降级为显示词，不再回答地区归属 |
+| 5a | 完整 | L | 旗资产仍为同一批 4:3 全出血直角 SVG，`FlagIcon` / `flag_plate` 零圆角与方形 fallback 不变；本批只补齐 258 个码的契约可达性，未制造圆形旗帜图案容器，也无字体/字重/图标族变化 |
+| 6 | 部分 | L | 258 码逐个从 `"XX-01"` 解析到正确旗码，普通英文词负例与 domain 单 owner 守卫均有 `L` 证据；`resolve_surface_evidence.py` 的 ready cells、新增地区名双视口像素和全仓结构门动态执行仍留统一批次 |
+| 7 | 完整 | L | catalog → 生成器 → contract 码表 → `NodeRegion` → shared/domain/presentation → 表面旗码索引 → `flag-plate-guard` 一条链；`geo_region_tests.rs` 拆出后生产文件 670 行、测试文件 192 行，line/import/typed-state/implicit-state 全 0，无跨 UI 私有业务真源 |
+| 8 | 部分 | L | 同主题源码、生成物、守卫、标准和台账一次落地后集中跑四包 nextest/Clippy、Iced/Slint check 与定向质量门；不改截图矩阵、不触发无变化重采。全仓 `--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` 仍留统一批次一次跑完 |
+
+## 最近一批问答（2026-11-13 第二百二十七批次：258 面旗码全部成为契约地区）
+
+1. x86_64/aarch64：本批为 contract/shared/domain/presentation 纯 Rust、Python 生成器/守卫、生成码表与 L2/L3 文档，零平台 API、零 wire；`cargo fmt --all -- --check`、四包 lib nextest **1710/1710**、四包 Clippy `--lib -D warnings`、Iced/Slint `--all-targets` check 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
+2. Windows/Linux/macOS：Linux 本机完成四包编译/Clippy、Iced/Slint 全目标 check、生成器 fresh、旗面守卫 9/9 与质量门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID → 部分（L）。
+3. Android/iOS：零 Android/iOS 代码与资源改动；契约地区码按构造对两个平台中立，但三 flavor 实机交互与 iOS 产物仍按既有条目留在外部环境看板，不拿桌面编译冒充移动端证据 → 部分（L）。
+4. 各 UI：Iced/Slint 全目标 `cargo check` 通过且旗面生成表 fresh；本批不改可见 fixture，含 PT/MX/NZ 等新增地区名的 standard/compact 双视口真实像素回执仍待统一批次，Bevy 192 帧像素仍归另一会话 → 部分（L）。
+5. 复用：`asset-catalog.json` 同时生成 Iced 字节表与 contract `flag_codes_generated.rs`，`NodeRegion::Catalogued` 是清单码唯一 typed 身份；domain 过滤/聚合改读 `NodeRegion`，删除私有 `matches_alias`，`COUNTRY_DEFS` 降级为显示词 → 完整（L）。
+5a. 设计资源：旗资产仍是同一批 4:3 全出血直角 SVG，`FlagIcon` / `flag_plate` 零圆角、方形 fallback、字体与图标族均不变；用户反馈的圆形旗帜图案容器没有回归。本批只补齐 258 个码的契约可达性，未改已发布 fixture，按标准无身份变化不重采 211/192 帧 → 完整（L）。
+6. 各处界面的功能接入：一条契约测试逐个断言 258 面 catalog 旗 `NodeRegion::classify("<CODE>-01").flag_code() == Some(<CODE>)`，另有普通英文词负例；`flag-plate-guard` 自测 **9/9** + enforce 0，其中 planted「domain 恢复私有别名匹配器」实测会咬。四包 lib nextest **1710/1710** 为 `L`；新增地区名双视口像素、`resolve_surface_evidence.py` ready cells 与全仓结构门动态执行仍留统一批次 → 部分（L）。
+7. 模块化：catalog → 生成器 → contract 码表 → `NodeRegion` → shared/domain/presentation → 表面旗码索引 → `flag-plate-guard` 一条链；`geo_region_tests.rs` 拆出后生产文件 670 行、测试文件 192 行，line/import/typed-state/implicit-state/doc/closure 全 0，无跨 UI 私有业务真源 → 完整（L）。
+8. CI 与批次效率：同主题源码、生成物、守卫、标准和台账一次落地后集中跑四包 nextest/Clippy、Iced/Slint check 与定向质量门；不改截图矩阵、不触发无变化重采。全仓 `--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` 仍留统一批次一次跑完 → 部分（L）。
 
 ## 最近一批问答（2026-11-13 第二百二十六批次：侧栏栈尾空气也有比例上限）
 
