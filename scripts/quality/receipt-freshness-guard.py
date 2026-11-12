@@ -54,12 +54,30 @@ EXPECTED_NAV_LABELS = {
 }
 EXPECTED_LOCALE_COPY = {
     "zh-CN": {
-        "overview": {"desktop-title": "核心概览", "mobile-title": "仪表盘"},
-        "settings": {"desktop-title": "系统设置", "mobile-title": "工具"},
+        "overview": {
+            "desktop-title": "核心概览",
+            "mobile-title": "仪表盘",
+            "quality-tag": "质量未观测",
+            "traffic-peak-up": "峰值 2.1 MB/s",
+            "traffic-total-up": "累计 1.60 GB",
+        },
+        "settings": {
+            "desktop-title": "系统设置",
+            "mobile-title": "工具",
+        },
     },
     "en-US": {
-        "overview": {"desktop-title": "Overview", "mobile-title": "Dashboard"},
-        "settings": {"desktop-title": "Settings", "mobile-title": "Tools"},
+        "overview": {
+            "desktop-title": "Overview",
+            "mobile-title": "Dashboard",
+            "quality-tag": "Quality not observed",
+            "traffic-peak-up": "Peak 2.1 MB/s",
+            "traffic-total-up": "Total 1.60 GB",
+        },
+        "settings": {
+            "desktop-title": "Settings",
+            "mobile-title": "Tools",
+        },
     },
 }
 PAGE_LOCALE_ROWS = {
@@ -227,6 +245,12 @@ def locale_receipt_findings(
                         f"{marker}: {locale} page copy {key} reads "
                         f"{published_copy.get(key)!r}, expected {word!r}"
                     )
+            if locale == "en-US":
+                for key, word in published_copy.items():
+                    if any("\u4e00" <= character <= "\u9fff" for character in word):
+                        findings.append(
+                            f"{marker}: en-US page copy {key} contains CJK text {word!r}"
+                        )
     return findings
 
 
@@ -345,7 +369,10 @@ class GuardTests(unittest.TestCase):
                 f"{key}={word.encode('utf-8').hex()}"
                 for key, word in (("desktop-title", "Overview"),
                                   ("mobile-title", "仪表盘"),
-                                  ("network-mode", "TUN"))
+                                  ("network-mode", "TUN"),
+                                  ("quality-tag", "Quality not observed"),
+                                  ("traffic-peak-up", "Peak 2.1 MB/s"),
+                                  ("traffic-total-up", "Total 1.60 GB"))
             ) + ";"
             matrix = (
                 "\t".join(("name", "page", "skin", "window_size", "locale")) + "\n"
@@ -365,6 +392,38 @@ class GuardTests(unittest.TestCase):
             )
             self.assertTrue(
                 any("en-US page copy mobile-title" in item for item in findings),
+                findings,
+            )
+
+    def test_an_english_page_receipt_with_chinese_dashboard_copy_is_caught(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            labels = ";".join(
+                f"{page}={word.encode('utf-8').hex()}"
+                for page, word in EXPECTED_NAV_LABELS["en-US"].items()
+            ) + ";"
+            copy = ";".join(
+                f"{key}={word.encode('utf-8').hex()}"
+                for key, word in EXPECTED_LOCALE_COPY["en-US"]["overview"].items()
+            ) + f";traffic-peak-down={'峰值 6.9 MB/s'.encode('utf-8').hex()};"
+            matrix = (
+                "\t".join(("name", "page", "skin", "window_size", "locale")) + "\n"
+                + "page-locale-en-standard\toverview\tdark\t1180x780\ten-US\n"
+            )
+            findings = locale_receipt_findings(
+                root,
+                pathlib.Path("/unused-run"),
+                matrix=matrix,
+                published_locale="en-US",
+                markers={
+                    "page-locale-en-standard": (
+                        "CAPTURE_NAV labels=" + labels + "\n"
+                        + "CAPTURE_LOCALE copy=" + copy + "\n"
+                    )
+                },
+            )
+            self.assertTrue(
+                any("contains CJK text" in item for item in findings),
                 findings,
             )
 

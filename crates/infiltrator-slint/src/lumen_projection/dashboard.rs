@@ -46,15 +46,28 @@ pub(super) fn project_dashboard_facts(window: &AppWindow, snapshot: &SurfaceSnap
         waveform_path(&waveform.normalized_up_points),
         waveform_path(&waveform.normalized_down_points),
     );
+    let lang = Lang(&language);
 
     window.set_dashboard_facts(DashboardFacts {
-        quality_tag: hero.quality_tag.into(),
+        quality_tag: lang.tr(hero.quality.copy_key()).as_ref().into(),
         hero_fact_uptime: fact_cell(&hero.fact_row.uptime),
         hero_fact_organization: fact_cell(&hero.fact_row.organization),
-        traffic_peak_up: waveform.peak_up_formatted.clone().into(),
-        traffic_peak_down: waveform.peak_down_formatted.clone().into(),
-        traffic_total_up: waveform.total_up_formatted.clone().into(),
-        traffic_total_down: waveform.total_down_formatted.clone().into(),
+        traffic_peak_up: localized_value(&language, "峰值 {value}", &waveform.peak_up_formatted)
+            .into(),
+        traffic_peak_down: localized_value(
+            &language,
+            "峰值 {value}",
+            &waveform.peak_down_formatted,
+        )
+        .into(),
+        traffic_total_up: localized_value(&language, "累计 {value}", &waveform.total_up_formatted)
+            .into(),
+        traffic_total_down: localized_value(
+            &language,
+            "累计 {value}",
+            &waveform.total_down_formatted,
+        )
+        .into(),
         connection_count: snapshot.core.active_connections.to_string().into(),
         request_count: snapshot.requests.total_requests_observed.to_string().into(),
         dns_query_count: snapshot
@@ -92,6 +105,11 @@ pub(super) fn project_dashboard_facts(window: &AppWindow, snapshot: &SurfaceSnap
         upload_wave: upload_wave.into(),
         download_wave: download_wave.into(),
     });
+}
+
+fn localized_value(language: &str, message_id: &str, value: &str) -> String {
+    let template = Lang(language).tr(message_id);
+    template.replace("{value}", value)
 }
 
 /// Project one typed fact cell into the surface's cell.
@@ -202,7 +220,7 @@ fn cpu_facts(snapshot: &SurfaceSnapshot) -> (String, f32) {
 ///
 /// The surface does not choose a scale. Normalization is the owner's fact
 /// (`TrafficWaveformProjection::normalized_*_points`), and it is per series:
-/// each rate card prints its own `峰值`, so the curve has to reach the top of
+/// each rate card prints its own peak, so the curve has to reach the top of
 /// its band at that same peak. Dividing both series by a shared maximum made
 /// the quieter card draw its own peak at a fraction of the band and left the
 /// rest of the card as dead ground.
@@ -240,7 +258,7 @@ fn waveform_path(points: &[f32]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::waveform_path;
+    use super::{localized_value, waveform_path};
     use infiltrator_contract::traffic_waveform::{TrafficSample, TrafficWaveformSnapshot};
     use infiltrator_presentation::dashboard_hero_projection::TrafficWaveformProjection;
 
@@ -279,9 +297,25 @@ mod tests {
         assert!(path.ends_with("L 100.0 30.0 L 0 30.0 Z"));
     }
 
+    #[test]
+    fn dashboard_value_patterns_are_translated_at_the_surface_boundary() {
+        assert_eq!(
+            localized_value("zh-CN", "峰值 {value}", "2.1 MB/s"),
+            "峰值 2.1 MB/s"
+        );
+        assert_eq!(
+            localized_value("en-US", "峰值 {value}", "2.1 MB/s"),
+            "Peak 2.1 MB/s"
+        );
+        assert_eq!(
+            localized_value("en-US", "累计 {value}", "28.2 GB"),
+            "Total 28.2 GB"
+        );
+    }
+
     /// The fact this slice moved: each rate card scales on its own peak, so
     /// the quieter direction still fills its band instead of squatting at the
-    /// baseline while its header prints its own `峰值`.
+    /// baseline while its header prints its own peak.
     #[test]
     fn each_series_reaches_the_top_of_its_own_band() {
         let waveform = TrafficWaveformSnapshot {

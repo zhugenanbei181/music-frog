@@ -6,7 +6,7 @@
 pub mod query_access;
 use self::query_access::{OverviewDynamicTextItem, OverviewProjectionTargets};
 use infiltrator_shared::country_flags::node_plate_label;
-use infiltrator_shared::locales::Lang;
+use infiltrator_shared::locales::{Lang, Localizer};
 
 use crate::a11y::sync_switch_state;
 use crate::command::{CommandSinkHandle, UiCommand};
@@ -301,12 +301,17 @@ pub(crate) fn apply_overview_projection(
             OverviewLineKind::UploadPeak => {
                 let waveform =
                     TrafficWaveformProjection::from_waveform(&projection.traffic_waveform, 0, 0);
-                text.0 = waveform.peak_up_formatted;
+                text.0 =
+                    localized_traffic_value(language, "峰值 {value}", &waveform.peak_up_formatted);
             }
             OverviewLineKind::DownloadPeak => {
                 let waveform =
                     TrafficWaveformProjection::from_waveform(&projection.traffic_waveform, 0, 0);
-                text.0 = waveform.peak_down_formatted;
+                text.0 = localized_traffic_value(
+                    language,
+                    "峰值 {value}",
+                    &waveform.peak_down_formatted,
+                );
             }
             OverviewLineKind::UploadTotal => {
                 let total = projection.total_traffic_bytes.unwrap_or(0);
@@ -315,7 +320,8 @@ pub(crate) fn apply_overview_projection(
                     total / 2,
                     total / 2,
                 );
-                text.0 = waveform.total_up_formatted;
+                text.0 =
+                    localized_traffic_value(language, "累计 {value}", &waveform.total_up_formatted);
             }
             OverviewLineKind::DownloadTotal => {
                 let total = projection.total_traffic_bytes.unwrap_or(0);
@@ -324,7 +330,11 @@ pub(crate) fn apply_overview_projection(
                     total / 2,
                     total / 2,
                 );
-                text.0 = waveform.total_down_formatted;
+                text.0 = localized_traffic_value(
+                    language,
+                    "累计 {value}",
+                    &waveform.total_down_formatted,
+                );
             }
         }
     }
@@ -575,6 +585,10 @@ fn scrubber_status_copy(state: ReplayState, locale: &UiLocale) -> String {
         ReplayState::Empty => locale.text("speedtest_history_empty"),
         ReplayState::Historical { index, len } => format!("⏪ {}/{}", index + 1, len),
     }
+}
+
+fn localized_traffic_value(language: &str, message_id: &str, value: &str) -> String {
+    Lang(language).tr(message_id).replace("{value}", value)
 }
 
 /// The page's token reskin: every filled node re-derives its fill from

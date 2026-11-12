@@ -1968,3 +1968,30 @@ msgstr "连接审计"
 
 msgid "错误"
 msgstr "错误"
+
+msgid "峰值 {value}"
+msgstr "峰值 {value}"
+
+msgid "累计 {value}"
+msgstr "累计 {value}"
+
+msgid "ip_usage_residential"
+msgstr "住宅宽带"
+
+msgid "ip_usage_cellular"
+msgstr "移动蜂窝"
+
+msgid "ip_usage_business"
+msgstr "商业专线"
+
+msgid "ip_usage_hosting"
+msgstr "数据中心"
+
+msgid "ip_usage_education"
+msgstr "教育网"
+
+msgid "ip_usage_unknown"
+msgstr "未知类型"
+
+msgid "ip_usage_unobserved"
+msgstr "质量未观测"

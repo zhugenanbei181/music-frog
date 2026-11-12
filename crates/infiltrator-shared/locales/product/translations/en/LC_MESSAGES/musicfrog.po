@@ -1969,3 +1969,30 @@ msgstr "Connections"
 
 msgid "错误"
 msgstr "Error"
+
+msgid "峰值 {value}"
+msgstr "Peak {value}"
+
+msgid "累计 {value}"
+msgstr "Total {value}"
+
+msgid "ip_usage_residential"
+msgstr "Residential"
+
+msgid "ip_usage_cellular"
+msgstr "Cellular"
+
+msgid "ip_usage_business"
+msgstr "Business"
+
+msgid "ip_usage_hosting"
+msgstr "Hosting"
+
+msgid "ip_usage_education"
+msgstr "Education"
+
+msgid "ip_usage_unknown"
+msgstr "Unknown type"
+
+msgid "ip_usage_unobserved"
+msgstr "Quality not observed"

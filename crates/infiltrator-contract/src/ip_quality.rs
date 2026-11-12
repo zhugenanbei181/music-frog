@@ -45,6 +45,18 @@ impl IpUsageType {
         }
     }
 
+    /// Product catalog message ID for the usage type's badge copy.
+    pub const fn copy_key(&self) -> &'static str {
+        match self {
+            Self::Residential => "ip_usage_residential",
+            Self::Cellular => "ip_usage_cellular",
+            Self::Business => "ip_usage_business",
+            Self::Hosting => "ip_usage_hosting",
+            Self::Education => "ip_usage_education",
+            Self::Unknown => "ip_usage_unknown",
+        }
+    }
+
     /// User-facing localized Chinese label.
     pub const fn label_zh(&self) -> &'static str {
         match self {

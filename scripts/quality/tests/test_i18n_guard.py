@@ -102,6 +102,46 @@ class LocalizationCoverageTests(unittest.TestCase):
         debt = set(json.loads((ROOT / 'scripts/quality/slint_tr_catalog_debt.json').read_text())['missing_msgids'])
         self.assertEqual(debt, set())
 
+    def test_dashboard_projection_cannot_smuggle_localized_copy_into_data(self):
+        self.assertEqual(guard.check_dashboard_projection_locale_boundary(), [])
+        projection = guard.DASHBOARD_PROJECTION.relative_to(ROOT)
+        source = (ROOT / projection).read_text()
+        planted = source.replace(
+            'pub quality: QualityObservation,',
+            'pub quality: QualityObservation,\n    pub quality_tag: String,',
+            1,
+        )
+        original_read = guard.read
+        with patch.object(guard, 'read', side_effect=lambda path, *args, **kwargs:
+                          planted if path == projection
+                          else original_read(path, *args, **kwargs)):
+            failures = guard.check_dashboard_projection_locale_boundary()
+        self.assertTrue(
+            any('localized string fields' in item for item in failures),
+            failures,
+        )
+
+    def test_an_english_dashboard_value_cannot_fall_back_to_a_cjk_template(self):
+        catalogs = {
+            locale: dict(guard.extract_po_catalog(path))
+            for locale, path in guard.PRODUCT_CATALOGS.items()
+        }
+        catalogs['en-US']['峰值 {value}'] = '峰值 {value}'
+        catalogs_by_name = {
+            'en.po': catalogs['en-US'],
+            'zh.po': catalogs['zh-CN'],
+        }
+        with patch.object(guard, 'PRODUCT_CATALOGS', {
+            'en-US': Path('en.po'), 'zh-CN': Path('zh.po'),
+        }), patch.object(guard, 'extract_po_catalog',
+                         side_effect=lambda path: catalogs_by_name[path.name]):
+            failures = guard.check_product_catalogs()
+        self.assertTrue(
+            any("en-US catalog has CJK text for '峰值 {value}'" in item
+                for item in failures),
+            failures,
+        )
+
     def test_a_new_uncovered_slint_msg_is_caught_by_the_catalog_guard(self):
         with patch.object(guard, 'slint_tr_msgids',
                           return_value=guard.slint_tr_msgids() | {'新的未翻译文案'}):

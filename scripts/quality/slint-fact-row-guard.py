@@ -232,8 +232,8 @@ class GuardSelfTest(unittest.TestCase):
 
     def test_a_literal_duration_is_caught(self) -> None:
         planted = PRESENTATION.read_text(encoding="utf-8").replace(
-            "pub quality_tag: String,",
-            'pub quality_tag: String,\n    const FIXED: &str = "03:04:49";',
+            "pub quality: QualityObservation,",
+            'pub quality: QualityObservation,\n    const FIXED: &str = "03:04:49";',
             1,
         )
         with unittest.mock.patch.object(pathlib.Path, "read_text", autospec=True) as read_text:
@@ -248,8 +248,8 @@ class GuardSelfTest(unittest.TestCase):
 
     def test_retired_fact_strings_are_caught(self) -> None:
         planted = PRESENTATION.read_text(encoding="utf-8").replace(
-            "pub quality_tag: String,",
-            "pub quality_tag: String,\n    pub uptime_formatted: String,",
+            "pub quality: QualityObservation,",
+            "pub quality: QualityObservation,\n    pub uptime_formatted: String,",
             1,
         )
         with unittest.mock.patch.object(pathlib.Path, "read_text", autospec=True) as read_text:

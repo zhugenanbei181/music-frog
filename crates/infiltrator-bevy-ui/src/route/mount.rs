@@ -35,6 +35,7 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_contract::responsive_viewport::ResponsiveViewportSnapshot;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_presentation::motion_projection::is_headless_capture_active;
+use infiltrator_shared::locales::resolve_language_code;
 
 #[derive(SystemParam)]
 pub(crate) struct RouteMount<'w, 's> {
@@ -63,17 +64,39 @@ pub(crate) fn sync_route(trigger: On<RouteChanged>, mut mount: RouteMount, mut c
         || mount.source.0.surface_snapshot(),
         |latest| latest.0.clone(),
     );
+    let shell = mount
+        .layout
+        .as_deref()
+        .copied()
+        .unwrap_or_else(ShellLayoutState::default);
+    let viewport = ResponsiveViewportSnapshot::from_dimensions(shell.width_px, 760.0);
     let mut projection = overview_projection(&snapshot);
-    if let Some(layout) = mount.layout.as_deref() {
-        projection.viewport = ResponsiveViewportSnapshot::from_dimensions(layout.width_px, 760.0);
-    }
+    projection.viewport = viewport.clone();
+    let language = snapshot
+        .language_settings
+        .preference
+        .map(|preference| resolve_language_code(preference.as_setting()))
+        .unwrap_or_else(|| {
+            resolve_language_code(&snapshot.pages.settings.data.as_ref().map_or_else(
+                || "system".to_string(),
+                |settings| settings.language.clone(),
+            ))
+        });
     let scene = match route {
         Route::Overview => Box::new(overview_page(
             &projection,
             &mount.history_ring,
             &mount.palette,
+            &language,
         )),
-        _ => page_scene(route, &snapshot, &mount.history_ring, &mount.palette),
+        _ => page_scene(
+            route,
+            &snapshot,
+            &viewport,
+            &mount.history_ring,
+            &mount.palette,
+            &language,
+        ),
     };
     commands.entity(slot).despawn_children();
     let transition = if is_headless_capture_active() {
@@ -97,14 +120,20 @@ pub(crate) fn sync_route(trigger: On<RouteChanged>, mut mount: RouteMount, mut c
 pub(crate) fn page_scene(
     route: Route,
     snapshot: &SurfaceSnapshot,
+    viewport: &ResponsiveViewportSnapshot,
     history: &TrafficHistory,
     palette: &UiPalette,
+    language: &str,
 ) -> Box<dyn Scene> {
     let projection = overview_projection(snapshot);
     match route {
-        Route::Overview => Box::new(overview_page(&projection, history, palette)),
+        Route::Overview => Box::new(overview_page(&projection, history, palette, language)),
         Route::Proxies => Box::new(proxies_page(&proxies_projection(snapshot), palette)),
-        Route::Profiles => Box::new(profiles_page(&profiles_projection(snapshot), palette)),
+        Route::Profiles => Box::new(profiles_page(
+            &profiles_projection(snapshot),
+            viewport,
+            palette,
+        )),
         Route::Rules => Box::new(rules_page(&rules_projection(snapshot), palette)),
         Route::Connections => {
             Box::new(connections_page(&connections_projection(snapshot), palette))

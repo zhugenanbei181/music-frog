@@ -53,6 +53,7 @@ pub fn overview_card_scenes(
     projection: &OverviewProjection,
     history: &TrafficHistory,
     palette: &UiPalette,
+    language: &str,
     order: &[OverviewCardKind],
 ) -> Vec<Box<dyn Scene>> {
     // The shared layout contract marks the routing selector and the master
@@ -75,7 +76,7 @@ pub fn overview_card_scenes(
             }
             OverviewTrafficCard
             Children [
-                @{ traffic_card_scene(projection, history, palette) }
+                @{ traffic_card_scene(projection, history, palette, language) }
             ]
     });
     let metrics: Box<dyn Scene> = Box::new(chips_row_scene(projection, palette));

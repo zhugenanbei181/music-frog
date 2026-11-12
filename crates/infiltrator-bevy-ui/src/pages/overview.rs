@@ -582,9 +582,11 @@ pub fn overview_page(
     projection: &OverviewProjection,
     history: &TrafficHistory,
     palette: &UiPalette,
+    language: &str,
 ) -> impl Scene + use<> {
     let order = overview_card_order::published_order(&projection.layout);
-    let cards = overview_card_order::overview_card_scenes(projection, history, palette, &order);
+    let cards =
+        overview_card_order::overview_card_scenes(projection, history, palette, language, &order);
     let banner: Box<dyn Scene> = Box::new(bsn! { @{ banner_scene(projection, palette) } });
     let card_slots: Box<dyn Scene> = Box::new(bsn! {
             Node {
@@ -684,6 +686,7 @@ pub(crate) fn traffic_card_scene(
     projection: &OverviewProjection,
     history: &TrafficHistory,
     palette: &UiPalette,
+    language: &str,
 ) -> impl Scene + use<> {
     let (up, down, _, _) = chart_inputs(projection, history);
     let upload = up.clone();
@@ -696,6 +699,18 @@ pub(crate) fn traffic_card_scene(
     );
     let total_up = waveform_proj.total_up_formatted.clone();
     let total_down = waveform_proj.total_down_formatted.clone();
+    let peak_up = Lang(language)
+        .tr("峰值 {value}")
+        .replace("{value}", &waveform_proj.peak_up_formatted);
+    let peak_down = Lang(language)
+        .tr("峰值 {value}")
+        .replace("{value}", &waveform_proj.peak_down_formatted);
+    let total_up = Lang(language)
+        .tr("累计 {value}")
+        .replace("{value}", &total_up);
+    let total_down = Lang(language)
+        .tr("累计 {value}")
+        .replace("{value}", &total_down);
     bsn! {
             Node {
                 width: percent(100),
@@ -727,8 +742,8 @@ pub(crate) fn traffic_card_scene(
                             series: WaveformSeries::Upload,
                             icon: IconId::ArrowUp,
                             label_key: "overview_upload",
-                            rate: rate_copy(&projection.readout.upload_bps, &Lang("en-US")),
-                            peak: waveform_proj.peak_up_formatted,
+                            rate: rate_copy(&projection.readout.upload_bps, &Lang(language)),
+                            peak: peak_up,
                             total: total_up,
                             samples: upload,
                         },
@@ -747,8 +762,8 @@ pub(crate) fn traffic_card_scene(
                             series: WaveformSeries::Download,
                             icon: IconId::ArrowDown,
                             label_key: "overview_download",
-                            rate: rate_copy(&projection.readout.download_bps, &Lang("en-US")),
-                            peak: waveform_proj.peak_down_formatted,
+                            rate: rate_copy(&projection.readout.download_bps, &Lang(language)),
+                            peak: peak_down,
                             total: total_down,
                             samples: download,
                         },

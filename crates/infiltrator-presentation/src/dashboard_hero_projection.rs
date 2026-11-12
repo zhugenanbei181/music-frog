@@ -1,6 +1,7 @@
 use crate::profile_source_projection::ProfileSourceObservation;
 use crate::relative_time_projection::{ProfileUpdateAge, age_of};
 use infiltrator_contract::geo_region::NodeRegion;
+use infiltrator_contract::ip_quality::IpUsageType;
 use infiltrator_contract::lan_share::LanShareWizardSnapshot;
 use infiltrator_contract::runtime_status::CoreProcessObservation;
 use infiltrator_contract::shell_readout::ShellObservation;
@@ -22,29 +23,41 @@ use lurker_core_contract::routing_intent::{RoutingIntent, RoutingIntentSnapshot}
 /// Dashboard Hero card presentation model (TODO-021).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DashboardHeroProjection {
-    pub status_label: String,
     pub status_role: &'static str,
     pub is_running: bool,
     pub exit_ip: String,
     pub exit_country_code: String,
-    pub quality_tag: String,
+    pub quality: QualityObservation,
     /// The hero card's bottom fact row, typed: which value is observed, how
     /// it is typeset and which edge of its column it hugs.
     pub fact_row: DashboardHeroFactRow,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum QualityObservation {
+    Observed(IpUsageType),
+    Unobserved,
+}
+
+impl QualityObservation {
+    pub const fn copy_key(self) -> &'static str {
+        match self {
+            Self::Observed(usage) => usage.copy_key(),
+            Self::Unobserved => "ip_usage_unobserved",
+        }
+    }
+}
+
 impl DashboardHeroProjection {
     pub fn from_snapshot(snapshot: &SurfaceSnapshot) -> Self {
-        let (status_label, status_role, is_running) = match &snapshot.runtime_status.core_process {
-            CoreProcessObservation::Running | CoreProcessObservation::Ready => {
-                ("运行中".to_string(), "running", true)
-            }
-            CoreProcessObservation::Starting => ("启动中…".to_string(), "paused", false),
-            CoreProcessObservation::Stopping => ("停止中…".to_string(), "paused", false),
-            CoreProcessObservation::Failed { .. } => ("故障".to_string(), "error", false),
+        let (status_role, is_running) = match &snapshot.runtime_status.core_process {
+            CoreProcessObservation::Running | CoreProcessObservation::Ready => ("running", true),
+            CoreProcessObservation::Starting => ("paused", false),
+            CoreProcessObservation::Stopping => ("paused", false),
+            CoreProcessObservation::Failed { .. } => ("error", false),
             CoreProcessObservation::Stopped
             | CoreProcessObservation::Unselected
-            | CoreProcessObservation::Unknown => ("已停止".to_string(), "offline", false),
+            | CoreProcessObservation::Unknown => ("offline", false),
         };
 
         let exit_ip = snapshot
@@ -55,10 +68,10 @@ impl DashboardHeroProjection {
 
         let exit_country_code = snapshot.public_ip.country_code.clone().unwrap_or_default();
 
-        let quality_tag = if let Some(quality) = &snapshot.ip_quality.record {
-            quality.usage_type.label_zh().to_string()
+        let quality = if let Some(quality) = &snapshot.ip_quality.record {
+            QualityObservation::Observed(quality.usage_type)
         } else {
-            "普通线路".to_string()
+            QualityObservation::Unobserved
         };
 
         // The Core owner publishes the session it runs and the length it
@@ -83,12 +96,11 @@ impl DashboardHeroProjection {
         };
 
         Self {
-            status_label,
             status_role,
             is_running,
             exit_ip,
             exit_country_code,
-            quality_tag,
+            quality,
             fact_row,
         }
     }
@@ -159,10 +171,10 @@ impl TrafficWaveformProjection {
         Self {
             live_down_formatted: format_rate(live_down),
             live_up_formatted: format_rate(live_up),
-            peak_down_formatted: format!("峰值 {}", format_rate(peak_down)),
-            peak_up_formatted: format!("峰值 {}", format_rate(peak_up)),
-            total_down_formatted: format!("累计 {}", format_bytes(total_down_bytes)),
-            total_up_formatted: format!("累计 {}", format_bytes(total_up_bytes)),
+            peak_down_formatted: format_rate(peak_down),
+            peak_up_formatted: format_rate(peak_up),
+            total_down_formatted: format_bytes(total_down_bytes),
+            total_up_formatted: format_bytes(total_up_bytes),
             normalized_down_points,
             normalized_up_points,
         }
@@ -211,11 +223,9 @@ impl OutboundModeSelectorProjection {
 pub struct QuickSwitchesProjection {
     pub system_proxy_enabled: bool,
     pub system_proxy_available: bool,
-    pub system_proxy_state_text: &'static str,
 
     pub tun_enabled: bool,
     pub tun_available: bool,
-    pub tun_state_text: &'static str,
 
     pub lan_share_enabled: bool,
     pub lan_share_available: bool,
@@ -237,18 +247,6 @@ impl QuickSwitchesProjection {
             | SystemProxyStatus::Unsupported { .. }
             | SystemProxyStatus::Unknown => (false, false),
         };
-        let system_proxy_state_text = if system_proxy_enabled {
-            "已开启"
-        } else {
-            "已关闭"
-        };
-
-        let tun_state_text = if tun_enabled {
-            "已开启"
-        } else {
-            "已关闭"
-        };
-
         let (lan_share_enabled, lan_share_available, lan_ip_text, lan_port_text) =
             if let Some(lan) = lan_share {
                 let ip = lan
@@ -264,10 +262,8 @@ impl QuickSwitchesProjection {
         Self {
             system_proxy_enabled,
             system_proxy_available,
-            system_proxy_state_text,
             tun_enabled,
             tun_available,
-            tun_state_text,
             lan_share_enabled,
             lan_share_available,
             lan_ip_text,
@@ -351,8 +347,6 @@ impl ServiceHealthMatrixProjection {
 #[derive(Clone, Debug, PartialEq)]
 pub struct MemoryInfoCardProjection {
     pub total_formatted: String,
-    pub app_formatted: String,
-    pub core_formatted: String,
     pub app_fraction: f32,
     pub core_fraction: f32,
 }
@@ -403,8 +397,6 @@ impl MemoryInfoCardProjection {
     pub fn from_bytes(app_bytes: u64, core_bytes: u64) -> Self {
         let total = app_bytes + core_bytes;
         let total_formatted = format_bytes(total);
-        let app_formatted = format!("应用 {}", format_bytes(app_bytes));
-        let core_formatted = format!("内核 {}", format_bytes(core_bytes));
 
         let (app_fraction, core_fraction) = if total > 0 {
             (
@@ -417,8 +409,6 @@ impl MemoryInfoCardProjection {
 
         Self {
             total_formatted,
-            app_formatted,
-            core_formatted,
             app_fraction,
             core_fraction,
         }
@@ -428,12 +418,18 @@ impl MemoryInfoCardProjection {
 /// Profile summary card projection (TODO-026).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProfileQuickCardProjection {
-    pub profile_name: String,
+    pub profile_name: ProfileNameObservation,
     pub update_age: ProfileUpdateAge,
     pub source: ProfileSourceObservation,
     pub policy_groups_count: usize,
     pub proxies_count: usize,
     pub rules_count: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ProfileNameObservation {
+    Observed(String),
+    Unobserved,
 }
 
 impl ProfileQuickCardProjection {
@@ -445,9 +441,10 @@ impl ProfileQuickCardProjection {
             .as_ref()
             .and_then(|p| p.profiles.iter().find(|prof| prof.is_active));
 
-        let profile_name = active_profile
-            .map(|p| p.name.clone())
-            .unwrap_or_else(|| "默认配置.yaml".to_string());
+        let profile_name = active_profile.map(|p| p.name.clone()).map_or(
+            ProfileNameObservation::Unobserved,
+            ProfileNameObservation::Observed,
+        );
 
         let update_age = active_profile
             .map(|profile| age_of(&profile.updated_at, &snapshot.core.session))
@@ -467,8 +464,7 @@ impl ProfileQuickCardProjection {
             _ => 0,
         };
         // The same authoritative inventory the policy grid reads: a card that
-        // claimed "0 策略组" beside a grid of three groups contradicted the
-        // owner's own readback.
+        // prints one number must not invent a second collections truth.
         let policy_groups_count = match snapshot.outbound_inventory.data.as_ref() {
             Some(inventory) => match inventory.inventory() {
                 OutboundInventoryState::Ready { collections, .. } => collections.len(),

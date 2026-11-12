@@ -381,6 +381,17 @@ owner 分别是另一会话的 Bevy 像素与 `I18NNAV-001`，任一转绿须同
 `I18NCAT-001` 办结前不声称 Slint 全量 `@tr` 已本地化；Bevy 的 192 帧像素仍由另一会话持有，
 本批不重采、不碰。
 
+## 12.88 仪表盘文案从数据字段回到共享词表（本批证据切片，不新增待验证条目）
+
+| 项目 | 证据 |
+| --- | --- |
+| 根因 | b222 真实英文仪表盘像素的 `峰值 / 累计 / 普通线路` 来自 `dashboard_hero_projection.rs` 预拼中文数据字段，不是 Slint `@tr` 目录缺词 |
+| 上游真源 | pinned FlClash `be847366` 的 `trafficPeak` / `trafficTotal` 词形与 `docs/reference/flclash-desktop/flclash-desktop-dashboard.png` 逐项对照 |
+| owner 链 | `IpUsageType::copy_key()` → typed `QualityObservation` / 纯数值 waveform → shared 双 PO 9 个 msgid → Slint/Bevy UI 边界翻译 → `DashboardFacts` / `CAPTURE_LOCALE` → i18n/freshness 判据 |
+| 本地证据 | Slint/Bevy `cargo check`、四包 lib nextest **1092/1092**、`i18n total=0`、Python **374/374 + 69/69**、freshness **8/8**、fact-row **6/6**、空间 211 帧 0 违规、结构门 **194 腿 / 1 红 / findings=0** |
+| 发布回执 | `20261112T152845Z_a694539708a1_dirty_4105135`（211/211，523s），英文 marker 实测 `Quality not observed` / `Peak 2.1 MB/s` / `Total 1.60 GB` |
+| 诚实边界 | Bevy 192 帧像素、外部 Bevy 身份红腿、Iced/ClashParty typed connection view、Android/Windows/macOS/aarch64 与全仓统一验证批次仍未收口；本批不办结任何 task、不改 points 分母 |
+
 ## 12.87 Slint 编译器驱动文案全部回到共享 PO（1条待验证）
 
 | ID | 状态 / 优先级 | points | owner | 依赖 |

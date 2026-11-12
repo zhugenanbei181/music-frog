@@ -71,18 +71,23 @@ use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::scene::{Scene, bsn};
-use bevy::ui::prelude::{FlexDirection, Node, Overflow, percent, px};
+use bevy::ui::prelude::{FlexDirection, FlexWrap, Node, Overflow, percent, px};
 /// Root marker on the Profiles page scene.
 use bevy::ui_widgets::{Activate, ScrollArea};
+use infiltrator_bevy_widgets::fluid_grid::FluidCardGrid;
 use infiltrator_bevy_widgets::gesture::{PullToRefreshState, pull_to_refresh_scene};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::palette::rem;
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::aggregator::{AggregationReport, AggregationTemplate};
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
+use infiltrator_contract::design_tokens::space::{MD, SM};
 use infiltrator_contract::profile_document::ProfileDocumentSnapshot;
 use infiltrator_contract::profile_editor_read::ProfileEditorReadSnapshot;
 use infiltrator_contract::profile_options::ProfileOptionsSnapshot;
+use infiltrator_contract::responsive_viewport::{
+    ProfileGridForm, ResponsiveViewportSnapshot, ViewportTier, profile_columns,
+};
 use infiltrator_contract::script_export::ScriptExportSnapshot;
 use infiltrator_contract::script_sandbox::ScriptSandboxSnapshot;
 use infiltrator_contract::snapshot_history::SnapshotHistorySnapshot;
@@ -97,6 +102,18 @@ pub mod cards;
 
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
 pub struct ProfilesPageRoot;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ProfileGridGeometry {
+    pub tier: ViewportTier,
+    pub form: ProfileGridForm,
+    pub page_body_width_px: u16,
+    pub gap_px: u16,
+    pub columns: usize,
+}
+
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ProfileGridContainer(pub ProfileGridGeometry);
 
 /// Marker for text lines updated by the projection observer.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -404,7 +421,75 @@ pub struct LastProfilesProjection(pub Option<ProfilesProjection>);
 
 // ---- Scene constructors ---------------------------------------------------
 
-pub fn profiles_page(projection: &ProfilesProjection, palette: &UiPalette) -> impl Scene + use<> {
+fn profile_grid_geometry(viewport: &ResponsiveViewportSnapshot) -> ProfileGridGeometry {
+    let tier = ViewportTier::from_width(viewport.width_px);
+    let form = if tier.has_labelled_sidebar() {
+        ProfileGridForm::Desktop
+    } else {
+        ProfileGridForm::Stacked
+    };
+    let gap_px = if tier.has_labelled_sidebar() {
+        MD as u16
+    } else {
+        SM as u16
+    };
+    let page_body_width_px = tier.page_body_width_px(viewport.width_px.round() as u16);
+    let columns = profile_columns(form, page_body_width_px, gap_px) as usize;
+    ProfileGridGeometry {
+        tier,
+        form,
+        page_body_width_px,
+        gap_px,
+        columns,
+    }
+}
+
+fn profile_grid_scene(
+    projection: &ProfilesProjection,
+    geometry: ProfileGridGeometry,
+    palette: &UiPalette,
+) -> Box<dyn Scene> {
+    let profile_scenes: Vec<Box<dyn Scene>> = projection
+        .profiles
+        .iter()
+        .enumerate()
+        .map(|(idx, profile)| {
+            Box::new(bsn! {
+                Node {
+                    width: { percent(FluidCardGrid::wrapped_item_percent(geometry.columns)) },
+                    min_width: px(0.0),
+                    flex_shrink: 0.0,
+                }
+                Children [
+                    @{ profile_card_scene(idx, profile, palette) }
+                ]
+            }) as Box<dyn Scene>
+        })
+        .collect();
+    let grid_container = ProfileGridContainer(geometry);
+
+    Box::new(bsn! {
+        Node {
+            width: percent(100),
+            min_width: px(0.0),
+            flex_direction: FlexDirection::Row,
+            flex_wrap: FlexWrap::Wrap,
+            column_gap: rem(geometry.gap_px as f32),
+            row_gap: rem(geometry.gap_px as f32),
+        }
+        grid_container
+        Children [
+            { profile_scenes }
+        ]
+    })
+}
+
+pub fn profiles_page(
+    projection: &ProfilesProjection,
+    viewport: &ResponsiveViewportSnapshot,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
+    let geometry = profile_grid_geometry(viewport);
     let panels = profiles_panels(projection, palette);
     let summary = profile_metadata_projection::summary(
         projection.profiles.len(),
@@ -412,13 +497,6 @@ pub fn profiles_page(projection: &ProfilesProjection, palette: &UiPalette) -> im
         &Lang(UiLocale::default().code()),
     );
     let auto_update = auto_update_summary(projection, UiLocale::default().code());
-
-    let profile_scenes: Vec<Box<dyn Scene>> = projection
-        .profiles
-        .iter()
-        .enumerate()
-        .map(|(idx, p)| Box::new(profile_card_scene(idx, p, palette)) as Box<dyn Scene>)
-        .collect();
 
     bsn! {
             Node {
@@ -458,7 +536,7 @@ pub fn profiles_page(projection: &ProfilesProjection, palette: &UiPalette) -> im
                 --
                 @{ workbench_scene(palette) }
                 --
-                { profile_scenes }
+                @{ profile_grid_scene(projection, geometry, palette) }
                 ]
                 --
                 { panels }
@@ -765,5 +843,55 @@ mod tests {
         assert_eq!(proj.profiles[0].upload_bytes, Some(1_250_000_000));
         assert_eq!(proj.profiles[0].download_bytes, Some(48_600_000_000));
         assert!(proj.profiles[0].is_active);
+    }
+
+    #[test]
+    fn profile_grid_geometry_follows_the_shared_page_width_rule() {
+        let cases = [
+            (
+                1180.0,
+                ViewportTier::Expanded,
+                ProfileGridForm::Desktop,
+                908,
+                12,
+                2,
+            ),
+            (
+                720.0,
+                ViewportTier::Medium,
+                ProfileGridForm::Stacked,
+                624,
+                8,
+                1,
+            ),
+            (
+                400.0,
+                ViewportTier::Compact,
+                ProfileGridForm::Stacked,
+                368,
+                8,
+                1,
+            ),
+            (
+                1920.0,
+                ViewportTier::Ultra,
+                ProfileGridForm::Desktop,
+                1608,
+                12,
+                3,
+            ),
+        ];
+        for (width, tier, form, page_body_width_px, gap_px, columns) in cases {
+            let viewport = ResponsiveViewportSnapshot::from_dimensions(width, 780.0);
+            let geometry = profile_grid_geometry(&viewport);
+            assert_eq!(geometry.tier, tier, "tier at {width}px");
+            assert_eq!(geometry.form, form, "grid form at {width}px");
+            assert_eq!(
+                geometry.page_body_width_px, page_body_width_px,
+                "page body at {width}px"
+            );
+            assert_eq!(geometry.gap_px, gap_px, "grid gap at {width}px");
+            assert_eq!(geometry.columns, columns, "columns at {width}px");
+        }
     }
 }

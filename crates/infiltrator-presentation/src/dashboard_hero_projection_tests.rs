@@ -1,7 +1,9 @@
 use super::*;
 use infiltrator_contract::relative_time::RelativeTimeBucket;
+use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::ProfilesPageSnapshot;
 use infiltrator_contract::traffic_waveform::TrafficSample;
+use lurker_core_contract::error::Failure;
 use lurker_core_contract::page::PageData;
 use serde_json::{from_value, json};
 
@@ -27,8 +29,10 @@ fn traffic_waveform_projection_peak_and_normalization() {
     let proj = TrafficWaveformProjection::from_waveform(&waveform, 1048576, 524288);
     assert_eq!(proj.live_down_formatted, "10.0 KB/s");
     assert_eq!(proj.live_up_formatted, "5.0 KB/s");
-    assert_eq!(proj.peak_down_formatted, "峰值 10.0 KB/s");
-    assert_eq!(proj.peak_up_formatted, "峰值 5.0 KB/s");
+    assert_eq!(proj.peak_down_formatted, "10.0 KB/s");
+    assert_eq!(proj.peak_up_formatted, "5.0 KB/s");
+    assert_eq!(proj.total_down_formatted, "1.00 MB");
+    assert_eq!(proj.total_up_formatted, "512.00 KB");
     assert_eq!(proj.normalized_down_points, vec![0.2, 1.0]);
     assert_eq!(proj.normalized_up_points, vec![0.2, 1.0]);
 }
@@ -38,6 +42,49 @@ fn memory_info_card_projection_proportions() {
     let proj = MemoryInfoCardProjection::from_bytes(100, 300);
     assert_eq!(proj.app_fraction, 0.25);
     assert_eq!(proj.core_fraction, 0.75);
+    assert_eq!(proj.total_formatted, "400 B");
+}
+
+#[test]
+fn dashboard_projections_publish_typed_facts_without_localized_copy() {
+    let waveform =
+        TrafficWaveformProjection::from_waveform(&TrafficWaveformSnapshot::default(), 0, 0);
+    let switches =
+        QuickSwitchesProjection::from_states(&SystemProxyStatus::Unknown, false, false, None);
+    let hero = DashboardHeroProjection::from_snapshot(&SurfaceSnapshot::unavailable(
+        SurfaceKind::SlintDesktop,
+        HostKind::Desktop,
+        Failure::unsupported("test"),
+    ));
+    let profile = ProfileQuickCardProjection::from_snapshot(&SurfaceSnapshot::unavailable(
+        SurfaceKind::SlintDesktop,
+        HostKind::Desktop,
+        Failure::unsupported("test"),
+    ));
+    let texts = [
+        waveform.live_down_formatted.as_str(),
+        waveform.live_up_formatted.as_str(),
+        waveform.peak_down_formatted.as_str(),
+        waveform.peak_up_formatted.as_str(),
+        waveform.total_down_formatted.as_str(),
+        waveform.total_up_formatted.as_str(),
+        switches.lan_ip_text.as_str(),
+        switches.lan_port_text.as_str(),
+        hero.exit_ip.as_str(),
+        hero.exit_country_code.as_str(),
+    ];
+    assert!(texts.iter().all(|text| {
+        !text
+            .chars()
+            .any(|character| ('\u{4e00}'..='\u{9fff}').contains(&character))
+    }));
+    assert_eq!(hero.quality, QualityObservation::Unobserved);
+    assert_eq!(hero.quality.copy_key(), "ip_usage_unobserved");
+    assert_eq!(
+        QualityObservation::Observed(IpUsageType::Hosting).copy_key(),
+        "ip_usage_hosting"
+    );
+    assert_eq!(profile.profile_name, ProfileNameObservation::Unobserved);
 }
 
 #[test]
@@ -54,9 +101,7 @@ fn quick_switches_projection_states() {
     let switches =
         QuickSwitchesProjection::from_states(&SystemProxyStatus::Enabled, true, true, None);
     assert!(switches.system_proxy_enabled);
-    assert_eq!(switches.system_proxy_state_text, "已开启");
     assert!(switches.tun_enabled);
-    assert_eq!(switches.tun_state_text, "已开启");
     assert!(!switches.lan_share_enabled);
 }
 
@@ -76,10 +121,10 @@ fn hero_and_mode_selector_projection_snapshots() {
 
     let hero = DashboardHeroProjection::from_snapshot(&snap);
     assert!(hero.is_running);
-    assert_eq!(hero.status_label, "运行中");
     assert_eq!(hero.status_role, "running");
     assert_eq!(hero.exit_ip, "189.24.110.20");
     assert_eq!(hero.exit_country_code, "DE");
+    assert_eq!(hero.quality, QualityObservation::Unobserved);
     assert_eq!(hero.fact_row.organization.value.text(), "NetLab Global");
     assert_eq!(hero.fact_row.organization.alignment, FactAlignment::End);
     assert!(!hero.fact_row.uptime.value.is_observed());
@@ -133,7 +178,7 @@ fn profile_quick_card_and_connection_table_projections() {
     );
 
     let card = ProfileQuickCardProjection::from_snapshot(&snap);
-    assert_eq!(card.profile_name, "默认配置.yaml");
+    assert_eq!(card.profile_name, ProfileNameObservation::Unobserved);
     assert_eq!(card.source, ProfileSourceObservation::Unobserved);
     assert_eq!(card.update_age, ProfileUpdateAge::Unobserved);
 

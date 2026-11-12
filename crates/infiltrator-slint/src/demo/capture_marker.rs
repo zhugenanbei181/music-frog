@@ -147,16 +147,21 @@ fn navigation_line(window: &AppWindow) -> String {
 
 /// The localized non-navigation words the live window published.
 ///
-/// `CAPTURE_NAV` proves the navigation model. This line reads three more
-/// compiler-driven strings from the same window: the desktop/app-bar page
-/// title owner, the mobile vocabulary and the typed takeover-mode label.
-/// All are bound directly to `PageTitles`, so the receipt follows the shared
-/// PO catalog instead of inventing a second vocabulary in the capture host.
+/// `CAPTURE_NAV` proves the navigation model. This line reads the other
+/// locale-sensitive words the live window published: page titles, the typed
+/// takeover-mode label and the dashboard's localized traffic/quality facts.
+/// Those values come from `PageTitles` and `DashboardFacts`, so the receipt
+/// follows the shared PO catalog instead of inventing a second vocabulary in
+/// the capture host.
 fn localized_copy_line(window: &AppWindow) -> String {
+    let facts = window.get_dashboard_facts();
     let copy = [
         ("desktop-title", window.get_capture_page_title()),
         ("mobile-title", window.get_capture_phone_title()),
         ("network-mode", window.get_network_mode_label()),
+        ("quality-tag", facts.quality_tag),
+        ("traffic-peak-up", facts.traffic_peak_up),
+        ("traffic-total-up", facts.traffic_total_up),
     ];
     let encoded = copy
         .iter()

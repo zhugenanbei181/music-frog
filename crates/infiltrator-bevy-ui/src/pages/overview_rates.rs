@@ -17,7 +17,7 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::stat_chip::{StatChipLabel, StatChipValue};
 use infiltrator_presentation::dashboard_hero_projection::TrafficWaveformProjection;
 use infiltrator_presentation::shell_readout::{rate_copy, rate_status};
-use infiltrator_shared::locales::Lang;
+use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_ui_presentation::core_status_projection::failure_copy;
 
 #[derive(QueryData)]
@@ -82,12 +82,12 @@ pub fn refresh(mut copy: OverviewCopy) {
             OverviewLineKind::UploadPeak => {
                 let waveform =
                     TrafficWaveformProjection::from_waveform(&projection.traffic_waveform, 0, 0);
-                waveform.peak_up_formatted
+                localized_traffic_value(language, "峰值 {value}", &waveform.peak_up_formatted)
             }
             OverviewLineKind::DownloadPeak => {
                 let waveform =
                     TrafficWaveformProjection::from_waveform(&projection.traffic_waveform, 0, 0);
-                waveform.peak_down_formatted
+                localized_traffic_value(language, "峰值 {value}", &waveform.peak_down_formatted)
             }
             OverviewLineKind::UploadTotal => {
                 let total = projection.total_traffic_bytes.unwrap_or(0);
@@ -96,7 +96,7 @@ pub fn refresh(mut copy: OverviewCopy) {
                     total / 2,
                     total / 2,
                 );
-                waveform.total_up_formatted
+                localized_traffic_value(language, "累计 {value}", &waveform.total_up_formatted)
             }
             OverviewLineKind::DownloadTotal => {
                 let total = projection.total_traffic_bytes.unwrap_or(0);
@@ -105,7 +105,7 @@ pub fn refresh(mut copy: OverviewCopy) {
                     total / 2,
                     total / 2,
                 );
-                waveform.total_down_formatted
+                localized_traffic_value(language, "累计 {value}", &waveform.total_down_formatted)
             }
         };
         if let Some(mut semantic) = line.semantic {
@@ -137,4 +137,8 @@ pub fn refresh(mut copy: OverviewCopy) {
             }
         }
     }
+}
+
+fn localized_traffic_value(language: &str, message_id: &str, value: &str) -> String {
+    Lang(language).tr(message_id).replace("{value}", value)
 }

@@ -24,6 +24,18 @@ PRODUCT_CATALOGS = {
     "en-US": ROOT / "crates/infiltrator-shared/locales/product/translations/en/LC_MESSAGES/musicfrog.po",
     "zh-CN": ROOT / "crates/infiltrator-shared/locales/product/translations/zh-CN/LC_MESSAGES/musicfrog.po",
 }
+DASHBOARD_PROJECTION = ROOT / "crates/infiltrator-presentation/src/dashboard_hero_projection.rs"
+DASHBOARD_CONSUMERS = (
+    ROOT / "crates/infiltrator-slint/src/lumen_projection/dashboard.rs",
+    ROOT / "crates/infiltrator-bevy-ui/src/pages/overview_rates.rs",
+    ROOT / "crates/infiltrator-bevy-ui/src/pages/overview_restamp.rs",
+    ROOT / "crates/infiltrator-bevy-ui/src/pages/overview.rs",
+)
+DASHBOARD_COPY_KEYS = (
+    '"峰值 {value}"',
+    '"累计 {value}"',
+    'copy_key()',
+)
 
 
 def ui_source_roots() -> list[pathlib.Path]:
@@ -171,6 +183,11 @@ def untranslated_cjk_literals(code: str) -> list[tuple[int, str]]:
     translated_spans = [
         match.span(1) for match in TRANSLATION_REF_PATTERN.finditer(code)
     ]
+    for literal in DASHBOARD_COPY_KEYS:
+        start = 0
+        while (position := code.find(literal, start)) != -1:
+            translated_spans.append((position + 1, position + len(literal) - 1))
+            start = position + len(literal)
     result = []
     for match in STRING_LITERAL_PATTERN.finditer(code):
         inside_translation = any(
@@ -339,6 +356,35 @@ def check_slint_tr_debt() -> list[str]:
     ]
 
 
+def check_dashboard_projection_locale_boundary() -> list[str]:
+    """The dashboard projection publishes facts, never localized copy."""
+    violations: list[str] = []
+    source = production_code(read(DASHBOARD_PROJECTION.relative_to(ROOT)))
+    for line_no, literal in untranslated_cjk_literals(source):
+        violations.append(
+            f"{DASHBOARD_PROJECTION.relative_to(ROOT)}:{line_no}: "
+            f"dashboard projection hardcodes CJK string '{literal}'"
+        )
+    retired = re.compile(
+        r"pub (status_label|quality_tag|system_proxy_state_text|tun_state_text|"
+        r"app_formatted|core_formatted):|\.label_zh\(\)"
+    )
+    if retired.search(source):
+        violations.append(
+            f"{DASHBOARD_PROJECTION.relative_to(ROOT)}: "
+            "dashboard projection still publishes localized string fields"
+        )
+    for path in DASHBOARD_CONSUMERS:
+        relative = path.relative_to(ROOT)
+        consumer = production_code(read(relative))
+        uses_values = any(literal in consumer for literal in DASHBOARD_COPY_KEYS)
+        if not uses_values:
+            violations.append(
+                f"{relative}: dashboard consumer does not resolve the shared copy owner"
+            )
+    return violations
+
+
 def run_self_test() -> None:
     zh_keys = extract_all_keys(ZH_TABLES)
     en_keys = extract_all_keys(EN_TABLES)
@@ -352,6 +398,7 @@ def run_self_test() -> None:
         + check_untranslated_literals()
         + check_slint_tr_catalog()
         + check_slint_tr_debt()
+        + check_dashboard_projection_locale_boundary()
         + check_view_references(zh_keys | en_keys | product_catalog_keys())
     )
     if violations:
@@ -380,9 +427,10 @@ def main() -> int:
     literals = check_untranslated_literals()
     slint_catalog = check_slint_tr_catalog()
     slint_debt = check_slint_tr_debt()
+    dashboard = check_dashboard_projection_locale_boundary()
     references = check_view_references(zh_keys | en_keys | product_catalog_keys())
     violations = (parity + parameters + duplicates + names + english + products
-                  + literals + slint_catalog + slint_debt + references)
+                  + literals + slint_catalog + slint_debt + dashboard + references)
 
     for violation in violations:
         print(f"VIOLATION [{args.mode}]: {violation}")
@@ -392,6 +440,7 @@ def main() -> int:
         f"english_errors={len(english)} product_catalog_errors={len(products)} "
         f"literal_errors={len(literals)} slint_catalog_errors={len(slint_catalog)} "
         f"slint_catalog_debt_errors={len(slint_debt)} "
+        f"dashboard_copy_errors={len(dashboard)} "
         f"reference_errors={len(references)} total={len(violations)}"
     )
     return 1 if args.mode == "enforce" and violations else 0
