@@ -1,4 +1,4 @@
-# MusicFrog 工程 TODO · 过去佛（15条待验证；归档见 [TODO.md](../TODO.md) 第一百零八批次）
+# MusicFrog 工程 TODO · 过去佛（16条待验证；归档见 [TODO.md](../TODO.md) 第一百零八批次）
 
 > 层级：L4
 
@@ -304,3 +304,35 @@
 ④ **门禁**：新守卫 `scripts/quality/flag-plate-guard.py`（FLAGART-001）钉住 catalog↔生成表逐条相等、生成物 fresh、身份层源码不得出现 regional-indicator 序列或 🌐 兜底、退役符号不得回归、`flag_plate` 必须画矢量且零圆角、结构门两腿在场；`--self-test` **8/8**（含删旗、换 glyph、globe 兜底、退役入口、圆角板、漏腿六类 planted 负例），`--mode enforce` findings=0。L2 标准 §3.1 与 §5 判定项第 12 条同批改写，不再声称「四表面都无圆形旗」。
 ⑤ **像素与门（L）**：Iced **192/192** 整批重采发布 run `20261112T092915Z_4429d9259479_dirty_2279303`（524s，binary sha256 `ac096112…`），**19 帧**身份变化（`proxies-*` 17 帧 + `profiles-aggregator-preview-{standard,compact}`）；发布帧复量 HK 板 **24×18**（4:3）、顶行跨度 **24/24**、四角全实心，DMIT 旗位蓝色像素 **0**、改画方形「—」代码板；`space_utilization --surface iced --enforce` violations=0、`--self-test` 64/64、`receipt-freshness 0`、别名表内无 Iced 帧受影响。Slint 侧 7 帧诊断复采与发布帧 **逐字节相同**（其 fixture 只用两字母代码，词表合并未改变任何已发布旗面），故不重采、不声称变化。
 ⑥ **待验证范围**：统一批次复跑 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py`；**Bevy 只做到「旗位为 ASCII 代码文字」，其 192 帧像素仍由另一会话持有且已与本批源码不一致**（`overview_restamp.rs` / `node_card.rs` / `proxies_refresh.rs` 属 Bevy `src/`，本批按文件所有权纪律未重采 Bevy 矩阵），矩形栅格板与 Bevy 整批重采留 `FLPROFILES-002` 同批收口；Android 不画旗面 artwork，无需本条像素。
+
+## 12.85 结构门真正跑完每一条腿（1条待验证）
+
+| ID | 状态 / 优先级 | points | owner | 依赖 |
+| --- | --- | --- | --- | --- |
+| `GATERUN-001` | `Integrated` / P1（b219 实测立项，b220 交付，待统一批次办结） | 2 | `scripts/quality/check-structure.sh`（收集式执行器）+ `scripts/quality/structure-gate-guard.py` + `scripts/quality/structure_gate_ledger.json` + `scripts/test.sh` / `.github/workflows/main-gate.yml` 两条调用腿 | `SPACEUTIL-017`（取证台架自身要可信）、`I18NNAV-001`（本条正是被它漏掉的产品缺陷） |
+
+**`GATERUN-001` 结构门不再在第一道红腿处吞掉后续所有判据（b220 交付，2 pt / P1 / `Integrated`）**：
+
+① **真正找到的问题**：b219 实测证明 `check-structure.sh` 第 2 行 `set -euo pipefail` 让整门在第 64 行
+`screenshot-identity-guard --mode enforce`（另一会话未提交的 Bevy 别名，返回 1）当场退出，**第 65 行起
+的全部 170+ 条腿在 CI 与本机都从未执行**——包括 `receipt-freshness`、第 113 行 `i18n-guard --mode enforce`、
+`design-resource-authority`、b219 新加的 `flag-plate-guard` 两腿。b219 的整门日志里连一行 `flag plate guard`
+都没有，所有结果只能靠手工 `sed -n '65,$p'` 切片复跑取得。后果已被证实：`I18NNAV-001` 自 b197 起存在
+（`en-US` 侧栏画中文），正因为 i18n 腿排在 abort 之后，121 个批次里没有任何一次门执行过它。
+② **收口在执行器而非放宽门**：删除 `set -e`（保留 `-uo pipefail`），193 条腿逐条改为 `gate <cmd...>`；
+`gate()` 流式保留原输出、把每条腿的 rc 与首个失败签名写进临时 TSV，红腿仍计入 `FAILED_LEGS`；全批跑完后
+一次性打印 `N leg(s) executed, M failed`、列出失败清单，并由 `structure-gate-guard.py --failures` 把实际
+红腿集合与 `structure_gate_ledger.json` 对账，最后仍以非零码退出——**红标准绝不降级为绿**。
+③ **判据使「已知红腿」不能再当永久借口**：`structure-gate-guard.py`（self-test **11/11**）静态禁止
+`set -e`、禁止任何腿绕过收集器（唯一允许未包装的是对账器自身）、要求汇总必须报告执行条数并显式打印失败
+清单；运行时要求每条红腿都在台账里写明 owner 与成句理由、声明的命令必须是真实存在的腿、转绿的腿必须
+删掉声明（否则会掩盖下一次回归）、新增红腿若不声明立即失败。八类 planted 负例覆盖 `set -e`、裸腿、
+缺台账、未声明红腿、陈旧声明、短理由、虚构腿、TSV 解析。
+④ **证据（L）**：改前整门在第 39 条腿中止（日志无任何对账器输出）；改后整门实测 **194 条腿全部执行**
+（`structure gate: 194 leg(s) executed, 2 failed`），两条红腿逐条带签名列出——`c39 screenshot-identity`
+（另一会话的 Bevy 像素别名）与 `c86 i18n-guard --mode enforce`（`literal_errors=4`）——对账器
+`194 collector leg(s), reconciled with this run, findings=0`，总 rc 仍为 1；把 `set -e` 改回或在任意腿
+去掉 `gate` 前缀，planted 复跑都立即被守卫咬住。`structure-gate-guard --self-test` 11/11、静态 enforce 0。
+⑤ **诚实边界**：本批只修执行器与判据，不改两条红腿本身（不同业务结果）；台账保留两条声明，
+owner 分别是另一会话的 Bevy 像素与 `I18NNAV-001`，任一转绿须同批删声明。全仓 `--workspace` nextest/clippy
+与 `resolve_surface_evidence.py` 仍留统一验证批次；对账器腿自身也计入 194 条执行腿之内。

@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "note": "The structure gate executes every leg and reports the batch once. Each entry below is a leg that is red right now, with the owner who must fix it and the written reason it is allowed to be red while the rest of the standards keep running. Adding a red leg without a declaration fails the gate; so does keeping a declaration for a leg that has turned green.",
+  "declared_red_legs": [
+    {
+      "command": "python3 scripts/quality/screenshot-identity-guard.py --mode enforce",
+      "owner": "another session holding the uncommitted Bevy screenshot corpus",
+      "reason": "The Bevy runtime-dark / overview-dark PNG alias is modified but uncommitted in a parallel session's files; this repo's file-ownership rule forbids staging or re-capturing those pixels here. Declared so every later leg still executes; remove as soon as that session lands its re-capture."
+    },
+    {
+      "command": "python3 scripts/quality/i18n-guard.py --mode enforce",
+      "owner": "I18NNAV-001 (infiltrator-contract shell_navigation + Slint projection)",
+      "reason": "navigation_display_label has fed four Chinese literals to lang.tr as msgids since b197, so the English locale paints a Chinese sidebar and the guard reports literal_errors=4. This leg was unreachable until GATERUN-001 made the collector run all legs; it is now honestly red and must not be hidden."
+    }
+  ]
+}

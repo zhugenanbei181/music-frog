@@ -24,19 +24,30 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-12 第二百一十九批次；b111–b218 见下方批次八问摘要）
+## 当前状态（2026-11-12 第二百二十批次；b111–b219 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b219 改共享契约/shared/presentation 与两个桌面表面 + Iced 生成表，架构中性、零平台 API、零 wire；`cargo check --workspace --all-targets` exit 0、五包 nextest **3423/3423**、Bevy `capture-tools` **831/831** 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1） |
-| 2 | 部分 | L | Linux 本机完成编译/Clippy/fmt 与 Iced 整批采集；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）。本批新增一条平台事实：旗面不再取决于宿主 emoji 字体，故 Windows 的 Segoe UI Emoji 波浪旗风险消失 |
-| 3 | 部分 | L | 零 Android/iOS 代码改动；Android 不画旗面 artwork（只出地区文字），本批的 shared/presentation 字段更名会随其消费端在统一批次编译验证，未跑 `scripts/android-slint-build.sh`，无三 flavor 实机回执 |
-| 4 | 部分 | L | Iced 三个旗位（代理卡、延迟行、活动出口）与聚合预览行都改为消费同一清单；Bevy 只做到「旗位为 ASCII 代码文字」，其矩形栅格板与 192 帧重采仍缺（`FLPROFILES-002`，另一会话持有像素）；Slint 逐字节不变 |
-| 5 | 完整 | L | 地区真源从三处（contract `GeoRegion` / shared `Region` / domain `region_flag`）收敛为契约一处，旗面清单从两处（Slint `.slint` 表 + 各表面 emoji）收敛为 catalog 一处并经生成器下发；`node_flag_emoji` / `emoji_flag` / `flag_icon_token` / `proxy_flag_icon_token` / `RegionalClusterSnapshot.flag` 同批退役，旧符号全仓为 0，无兼容轨道 |
-| 5a | 部分 | L | 资产身份变化（旗面从字形变为矢量）按标准整批重采 Iced **192/192**，19 帧身份变化逐帧复核为旗位；`receipt-freshness 0`、manifest 字节/摘要逐行相符；Bevy 因所有权未重采，故本条只能「部分」，不得称四表面齐备 |
-| 6 | 部分 | L | `flag-plate-guard` self-test **8/8** + enforce 0、`space_utilization --surface iced --enforce` violations=0、`--self-test` 64/64、`--check-export` current、生成器 `--check` fresh、`resolve_surface_evidence.py` anchors=360 cells=180；180 个 ready cells 仍缺 product-build receipts。**新登记的可达性缺陷**：结构门在第 64 行红腿处 `set -e` 退出，本批新加的两条腿在整门里从未被执行（结果全部来自手工切片复跑），归 `GATERUN-001` |
-| 7 | 完整 | L | 一条事实一条链（catalog → 生成器 → Iced 字节表 → `flag_plate` → 发布帧墨迹盒），地区与旗面各只有一个 owner，UI 不再自行推导；`line` / `import` / `typed-state` / `test-layout` / `doc-governance` / `closure-questions` 全 0 |
-| 8 | 缺失 | L | 本批实测证明 `check-structure.sh`（也是 `main-gate.yml` 的唯一执行器）在第一道红腿处 `set -e` 退出，**其后每条腿静默不跑**，「结构门绿/红」都不足以说明判据被执行；修复归 `GATERUN-001`（2 pt，收集式执行器 + 失败签名台账）。同批按「契约与 shared 落码 → 五包定向 nextest/clippy/fmt → Iced 整批一次采集 → enforce/freshness/identity/export 四腿」推进，未边改边重采；并更正一条自 b215 起的 3 pt 台账记账错误 |
+| 1 | 部分 | L | b220 只改结构门执行器、守卫、台账与文档，零产品代码、零平台 API、零 wire；`structure-gate-guard --self-test` **11/11** 与整门 **194 条腿全执行** 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1） |
+| 2 | 部分 | L | Linux 本机整门复跑 rc=1（两条已声明红腿）并证明收集器完整；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）；`main-gate.yml` 复用同一执行器，但本批未取受控 CI run ID |
+| 3 | 部分 | L | 零 Android/iOS 代码或资源改动；结构门内 Android 静态腿（架构红线、manifest、通知资产等）在本批均被执行且无新违规，但无三 flavor 实机交互回执，iOS 无新证据 |
+| 4 | 部分 | L | 本批改的是所有表面共用的判据执行器，不是表面消费点；三桌面 UI 的编译/像素状态沿用 b219，Bevy 的 192 帧仍由另一会话持有（`FLPROFILES-002`），Android 无本批实机回执 |
+| 5 | 完整 | L | 结构门是唯一执行器（193 条腿 + 对账器，一条清单一个 owner）；红腿集合由 `structure_gate_ledger.json` 一处发布，与各腿自报 rc 双向对账，不再有「日志说绿、实际没跑」的第二份真相 |
+| 5a | 部分 | L | 本批零字体/字重/图标族/视觉资产变化，`design-resource-authority` 与全部设计资源腿**首次被整门真正执行**（此前在 abort 之后）；`i18n-guard --mode enforce` 也首次执行并如实报红，归 `I18NNAV-001` |
+| 6 | 部分 | L | 整门 **194/194 腿执行**、两条红腿带签名列出、对账器 `findings=0`、总 rc=1；`resolve_surface_evidence.py` 未在本批复跑，180 个 ready cells 仍缺 product-build receipts |
+| 7 | 完整 | L | 执行器、守卫、台账、文档四处职责分离；`gate()` 只收集不裁决，`structure-gate-guard.py` 只裁决不执行，台账只声明不豁免；`bash -n` 通过，`import` / `line` / `test-layout` / `doc-governance` 各腿 0 |
+| 8 | 部分 | L | **本批修正 CI 的一条真实缺陷**：此前 `set -e` 让第一道红腿吞掉其后全部判据，现改为收集式并强制声明红腿；整门单批耗时实测约 10 分钟（194 腿全跑，比原来多跑 155 腿），`main-gate.yml` 与 `scripts/test.sh` 沿用同一入口，缓存/触发策略未变；无新增 `--locked` 腿 |
+
+## 最近一批问答（2026-11-12 第二百二十批次：结构门真正跑完每一条腿）
+
+1. x86_64/aarch64：本批零产品代码、零平台 API、零 wire，只改 `scripts/quality/check-structure.sh` 的执行模型与两个 Python/JSON 守卫；`bash -n` 通过、`structure-gate-guard --self-test` **11/11**、整门 **194 条腿全部执行** 为 `L`；交叉架构与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
+2. Windows/Linux/macOS：Linux 本机整门复跑 rc=1（两条已声明红腿）证明收集器不再中止；Windows/macOS 构建腿与安装包未复跑，macOS 显式 `Unsupported`（GAP-2.2）。`.github/workflows/main-gate.yml` 直接调用同一 `check-structure.sh`，因此该修复对三个平台的 CI 同样生效，但本批未取受控 CI run ID → 部分（L）。
+3. Android/iOS：零 Android/iOS 代码或资源改动；结构门里 Android 静态腿（架构红线、manifest、通知资产、交互回执守卫等）在本批全部被执行且无新违规，但不产生三 flavor 实机交互截图，iOS 无新回执 → 部分（L）。
+4. 各 UI：本批改的是三表面共用的判据执行器，不是任何表面的消费点；Slint/Iced 的 b219 像素与 Bevy 的文字旗位状态不变，Bevy 的矩形栅格板与 192 帧重采仍归 `FLPROFILES-002`（另一会话持有像素），Android 无本批实机回执 → 部分（L）。
+5. 复用：**本批把「门有没有跑」变成可复跑事实**——此前一句「唯一红腿是另一会话的 Bevy 像素」同时掩盖了 170+ 条从未执行的判据；现在 193 条腿 + 对账器由一个执行器逐条记录 rc 与失败签名，`structure_gate_ledger.json` 是红腿集合的唯一真源，守卫双向对账（未声明红腿 / 陈旧声明 / 虚构腿 / 短理由都失败），不存在第二份「看起来绿」的日志 → 完整（L）。
+6. 功能接入：整门实测 `structure gate: 194 leg(s) executed, 2 failed`，两条红腿逐条带签名（`c39 screenshot-identity` 属另一会话、`c86 i18n-guard --mode enforce` 属 `I18NNAV-001`），对账器 `194 collector leg(s), reconciled with this run, findings=0`，总 rc 仍 1；`resolve_surface_evidence.py` 本批未复跑，180 个 ready cells 仍缺 product-build receipts → 部分（L）。
+7. 模块化：执行器（`check-structure.sh` 的 `gate()` 只收集）、裁决器（`structure-gate-guard.py` 只判形状与对账）、台账（只声明红腿）、文档（L0/L2/L4 同批）四处职责分离；`bash -n` 通过，`import` / `line` / `test-layout` / `doc-governance` 各腿 0，无跨 UI 私有业务真源 → 完整（L）。
+8. CI：**本批修正一条真实的 CI 缺陷**——`set -e` 让第一道红腿中止整个结构门，其后 155 条腿在 `main-gate.yml` 与本机都静默不跑，所以「结构门通过/唯一红腿」从来不能证明判据被执行；改为收集式后整门单批约 10 分钟跑完 194 腿，新增红腿必须显式声明 owner 与理由，转绿必须删声明；`scripts/test.sh` 与 `main-gate.yml` 沿用同一入口，缓存/`--locked`/触发策略未变，未取受控 CI run ID → 部分（L）。
 
 ## 最近一批问答（2026-11-12 第二百一十九批次：旗面只有一个清单，Iced 不再画 emoji 字形）
 
