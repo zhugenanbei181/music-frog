@@ -6,7 +6,7 @@ use crate::view::component_forms::style_ghost;
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme;
 use crate::view::theme::{SP_MD, SP_SM, tokens};
-use infiltrator_contract::responsive_viewport::ViewportTier;
+use infiltrator_contract::responsive_viewport::{PAGE_PADDING_PX, ViewportTier};
 use infiltrator_contract::shared_copy::SharedCopyKey;
 use infiltrator_contract::window_chrome::WindowChrome;
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -94,7 +94,7 @@ impl AppState {
             .id(Id::new("page-content"))
             .width(Length::Fill)
             .height(Length::Fill)
-            .padding(tier.content_padding_px())
+            .padding(PAGE_PADDING_PX)
             .style(move |theme: &Theme| container::Style {
                 background: Some(tokens(theme).canvas.into()),
                 text_color: Some(Color {

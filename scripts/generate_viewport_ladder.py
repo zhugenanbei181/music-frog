@@ -86,10 +86,24 @@ PROFILE_GRID_DOC = [
 
 PROXY_GRID_DOC = [
     "How many proxy node cards fit in the page body. The contract exports",
-    "FlClash's `getProxiesColumns` standard-layout width rule: remove the",
-    "page inset, divide by the 250dp floor and keep at least two columns.",
-    "The page passes its own width, so a wide window no longer paints a",
-    "tier's fixed three oversized cards.",
+    "FlClash's `getProxiesColumns` standard-layout width rule: divide the",
+    "page body by the 250dp floor and keep at least two columns. The page",
+    "passes its own width, so a wide window no longer paints a tier's fixed",
+    "three oversized cards. The rule pays no inset of its own because the",
+    "shell already subtracted `page_padding` once; the reference's",
+    "`max(width - 32, 0)` *is* that gutter, not a second one.",
+]
+
+PAGE_PADDING_DOC = [
+    "The gutter every page body keeps on each side, in design units.",
+    "",
+    "The reference draws the same 16dp on a phone page and on a 4K desktop",
+    "page (`dashboard.dart` `fromSTEB(16, …)`, `proxies/list.dart`",
+    "`_groupInset = 16`, `profiles.dart` `_horizontalPadding = 16`, and",
+    "`dashboardMobileSideOf = max(16, (width - 560) / 2)`), so this is one",
+    "exported number rather than a per-tier table. A surface that could ask",
+    "for \"the padding of my tier\" is a surface that will drift, which is",
+    "exactly how Slint reached 30u while its siblings drew 24/40/48px.",
 ]
 
 SIDEBAR_VARIANT_DOC = [
@@ -225,16 +239,24 @@ def slint_ladder(document: dict) -> str:
     profile_forms = [entry["id"] for entry in profile_grid["variants"]]
     proxy_grid = document["proxy_grid"]
     proxy_min = int(proxy_grid["min_item_width_px"])
-    proxy_inset = int(proxy_grid["page_inset_px"])
     proxy_floor = int(proxy_grid["min_columns"])
     proxy_stacked = int(proxy_grid["stacked_columns"])
     proxy_forms = [entry["id"] for entry in proxy_grid["variants"]]
+    page_padding = int(document["page_padding"]["px"])
+    assert "page_inset_px" not in proxy_grid, (
+        "the export still carries a second page inset for the proxy grid"
+    )
     density = document["dashboard_density"]
     desktop_min = int(density["desktop_min_px"])
     standard_four_column_min = int(density["standard_four_column_min_px"])
     standard_height_min = int(density["standard_height_min_px"])
     body: list[str] = [f"    // {line}".rstrip() for line in BOUNDARY_DOC]
     body += boundary_properties(tiers)
+    body.append("")
+    body += [f"    // {line}".rstrip() for line in PAGE_PADDING_DOC]
+    body.append(
+        f"    out property <length> page-padding: {page_padding} * LumenUiScale.unit;"
+    )
     body.append("")
     body += [f"    // {line}".rstrip() for line in PROXY_GRID_DOC]
     assert proxy_forms == ["stacked", "desktop"], proxy_forms
@@ -246,8 +268,8 @@ def slint_ladder(document: dict) -> str:
         f"        if (form == ProxyGridForm.stacked) {{ return {proxy_stacked}; }}"
     )
     body.append(
-        f"        return Math.max({proxy_floor}, Math.ceil((page-width - "
-        f"{proxy_inset} * LumenUiScale.unit) / ({proxy_min} * LumenUiScale.unit)));"
+        f"        return Math.max({proxy_floor}, Math.ceil(page-width / "
+        f"({proxy_min} * LumenUiScale.unit)));"
     )
     body.append("    }")
     body.append("")

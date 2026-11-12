@@ -73,41 +73,27 @@ fn a_viewport_that_cannot_expand_offers_no_affordance() {
 fn a_frame_whose_boxes_are_unmeasured_publishes_nothing() {
     let presentation =
         SidebarPresentation::resolve(ViewportTier::Expanded, SidebarExpansionPreference::Expanded);
-    assert!(
-        shell_chrome_facts(
-            presentation,
-            SidebarChromeReceipt::default(),
-            ViewportTier::Expanded
-        )
-        .is_none()
-    );
-    assert!(shell_chrome_facts(presentation, measured(), ViewportTier::Expanded).is_some());
+    assert!(shell_chrome_facts(presentation, SidebarChromeReceipt::default()).is_none());
+    assert!(shell_chrome_facts(presentation, measured()).is_some());
 }
 
 #[test]
 fn the_receipt_states_the_boxes_the_pane_painted() {
     let presentation =
         SidebarPresentation::resolve(ViewportTier::Expanded, SidebarExpansionPreference::Expanded);
-    let facts = shell_chrome_facts(presentation, measured(), ViewportTier::Expanded)
-        .expect("a measured form publishes");
+    let facts = shell_chrome_facts(presentation, measured()).expect("a measured form publishes");
     assert_eq!(facts.nav_form, SidebarForm::Standard);
     assert_eq!(facts.nav_column_px, 240);
     assert_eq!(facts.nav_stack_bottom_px, 482);
     assert_eq!(facts.nav_content_offset_px, NAV_CONTENT_OFFSET_PX);
-    assert_eq!(
-        facts.page_margin_px,
-        ViewportTier::Expanded.content_padding_px()
-    );
+    assert_eq!(facts.page_margin_px, PAGE_PADDING_PX);
     // The page body's own band against the window edge: the mounted chrome
     // strip plus the page container's padding above, the padding alone below.
     assert_eq!(
         facts.shell_top_air_px,
-        mounted_strip_height_px() + ViewportTier::Expanded.content_padding_px()
+        mounted_strip_height_px() + PAGE_PADDING_PX
     );
-    assert_eq!(
-        facts.shell_bottom_air_px,
-        ViewportTier::Expanded.content_padding_px()
-    );
+    assert_eq!(facts.shell_bottom_air_px, PAGE_PADDING_PX);
     assert_eq!(facts.dock_band_px, 0);
     assert_eq!(facts.scale_percent, 100);
     assert_eq!(
@@ -129,8 +115,7 @@ fn a_bottom_bar_frame_states_its_own_band_and_no_column() {
     let mut receipt = measured();
     receipt.stack_end = None;
     receipt.toggle = None;
-    let facts = shell_chrome_facts(presentation, receipt, ViewportTier::Compact)
-        .expect("a bar has no column to measure");
+    let facts = shell_chrome_facts(presentation, receipt).expect("a bar has no column to measure");
     assert_eq!(facts.nav_form, SidebarForm::BottomNav);
     assert_eq!(facts.nav_column_px, 0);
     assert_eq!(facts.nav_stack_bottom_px, 0);

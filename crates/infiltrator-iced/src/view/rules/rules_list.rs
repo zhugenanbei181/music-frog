@@ -30,6 +30,7 @@ use iced::widget::{
     Id, Space, button, column, container, mouse_area, pick_list, row, text, text_input,
 };
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
+use infiltrator_contract::responsive_viewport::PAGE_PADDING_PX;
 use infiltrator_contract::rule_document::RuleRowId;
 use infiltrator_domain::rules::edit::CUSTOM_RULE_TYPE_CHOICES;
 use infiltrator_domain::rules::view::RULE_ROW_HEIGHT_PX;
@@ -202,7 +203,7 @@ impl RuleRowBand {
 fn rules_row_width(state: &AppState) -> u32 {
     let viewport = &state.shell.viewport;
     let rail = viewport.tier.sidebar_form().width_px().unwrap_or(0) as f32;
-    let padding = 2.0 * viewport.tier.content_padding_px() as f32;
+    let padding = 2.0 * PAGE_PADDING_PX as f32;
     (viewport.width_px - rail - padding - SCROLLBAR_GUTTER)
         .round()
         .max(0.0) as u32

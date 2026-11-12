@@ -653,3 +653,57 @@ Slint 页面密度只读这一处；侧栏自己继续读偏好感知的 `sideba
 `scripts/parity/capture_attempt.sh::capture_settled_image()`，三表面共用，
 `scripts/parity/test_capture_attempt.py` 6 项自测钉住（含增长中文件必须等落定、
 缺失/过小拒收、三脚本不得再各自取摘要）。
+
+
+## 13. 现状（b218 收口：页身左右留白只付一次 16dp）
+
+§2 的三条判据管页尾地面、内容跨度内部死带与侧栏轴，但**页身给自己留的左右
+空地从未被量过**。上游五条源码把这件事钉成同一个 16dp、且只付一次：
+`dashboard.dart` 的 `fromSTEB(16, …, 24, …)` 随后用
+`constraints.maxWidth − base.horizontal` 分列；`proxies/tab.dart` 传
+`max(width − 32, 0)` 给 `getProxiesColumns`；`proxies/list.dart` 的
+`_groupInset = 16`；`profiles.dart` 的 `_horizontalPadding = 16`；
+`layout.dart::dashboardMobileSideOf = max(16, (width − 560) / 2)`。
+两张 tracked 场景图逐像素同向：桌面页身左缘墨迹 = 侧栏右缘 +30px
+（÷1.95 = 15.4dp），手机卡片左 48px / 右 47px（÷2.94 = 16.3 / 16.0dp）。
+
+本仓此前有四份互不相等的副本：Slint 桌面 `page-margin-desktop: 30u`、
+Slint 紧凑 `page-padding: 16u`、Iced `content_padding_px()` 的
+16/24/40/48 按档 ramp、Bevy `shell_scene.rs` 的 12px。同一个 1180×780
+窗口实测 Slint 页身 880px、Iced 860px，参考物在 960px 页宽里只让出 32px；
+并且 `proxy_node_columns()` 在 `page_body_width_px()` 已扣留白之后再扣
+`PROXY_GRID_INSET_PX = 32`，把上游那个「32 = 左右各 16」当成留白之外的
+第二个 inset，网格实际只拿到 828px（Iced），参考物拿到 928px。
+
+b218 的收口按自底向上一次做完，不放宽任何阈值：
+
+- **契约一处发布** `PAGE_PADDING_PX = 16`（故意不是 `TierFact` 字段，
+  因为「我这一档的留白」这个问法本身就会让表面漂移），
+  `content_padding_px()` 按档 ramp 与 `PROXY_GRID_INSET_PX` 同批退役；
+  `page-structure.json` 升 **v16**，新增 `page_padding.px`、删除
+  `proxy_grid.page_inset_px`。生成器导出唯一 `ViewportLadder.page-padding`，
+  `proxy_columns(page-width)` 不再减第二次 32；`profile_columns()` 口径不变，
+  两个网格从此对同一条留白规则同解。
+- **表面只读导出**：Slint 的 `LumenTheme.page-padding` 改为生成值的别名，
+  `app_body.slint` 的 `page-margin` 不再按 `compact-layout` 分叉；Iced 的
+  `view_root` / `sidebar_chrome` / `rules_list` 都读 `PAGE_PADDING_PX`，
+  且 `shell_chrome_facts()` 不再接受一个已无用的 `ViewportTier` 参数。
+  Bevy 的 12px 副本按文件所有权留 `FLPROFILES-002` 同一批收口。
+- **判定器不记数**：`page_padding_px()` 逐帧从导出物读，
+  `chrome_findings()` 要求帧自述的 `page_margin_px` 等于该值；
+  一帧私自画 30/40/12px 都会被拒（`--self-test` **63 → 64**，
+  新增 planted 逐值验咬）。`slint-viewport-tier-guard.py` 的
+  `page_gutter_findings()` 同时钉「不得再有第二份桌面页边距」、
+  「`page-margin` 必须读 `LumenTheme.page-padding`」、
+  「不得按 shell 形态分叉」、「生成值必须等于导出值」，
+  planted 自测 **48 → 53**。
+
+发布批：Slint **199/199** `20261112T052158Z_79bf9f28e20f_dirty_1094075`、
+Iced **192/192** `20261112T052858Z_79bf9f28e20f_dirty_1173512`。
+两表面 `--enforce` 均 violations=0，欠账台账两侧 `frames` 仍为空，
+`receipt-freshness 0`、manifest 逐行字节/摘要相符。实测页身宽逐档
+**完全一致**：expanded `908`、medium `624`、compact `368`、折叠桌面 `1084`
+（此前 Slint 880 / Iced 860）。expanded 档 124 帧 `unused` 中位 **3.9%**
+与上一批逐字相同，说明页身只是拿回了被多扣的横向地面，没有因此暴露新的
+页尾死带，故未动用 §5 的任何一种收口。网格列数在采集窗口上逐个不变
+（expanded 4 / medium 3 / 手机 1），这是留白归位而非排布改道。

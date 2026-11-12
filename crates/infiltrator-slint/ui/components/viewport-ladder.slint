@@ -21,14 +21,27 @@ export global ViewportLadder {
     out property <length> medium-max: 840 * LumenUiScale.unit;
     out property <length> expanded-max: 1200 * LumenUiScale.unit;
 
+    // The gutter every page body keeps on each side, in design units.
+    //
+    // The reference draws the same 16dp on a phone page and on a 4K desktop
+    // page (`dashboard.dart` `fromSTEB(16, …)`, `proxies/list.dart`
+    // `_groupInset = 16`, `profiles.dart` `_horizontalPadding = 16`, and
+    // `dashboardMobileSideOf = max(16, (width - 560) / 2)`), so this is one
+    // exported number rather than a per-tier table. A surface that could ask
+    // for "the padding of my tier" is a surface that will drift, which is
+    // exactly how Slint reached 30u while its siblings drew 24/40/48px.
+    out property <length> page-padding: 16 * LumenUiScale.unit;
+
     // How many proxy node cards fit in the page body. The contract exports
-    // FlClash's `getProxiesColumns` standard-layout width rule: remove the
-    // page inset, divide by the 250dp floor and keep at least two columns.
-    // The page passes its own width, so a wide window no longer paints a
-    // tier's fixed three oversized cards.
+    // FlClash's `getProxiesColumns` standard-layout width rule: divide the
+    // page body by the 250dp floor and keep at least two columns. The page
+    // passes its own width, so a wide window no longer paints a tier's fixed
+    // three oversized cards. The rule pays no inset of its own because the
+    // shell already subtracted `page_padding` once; the reference's
+    // `max(width - 32, 0)` *is* that gutter, not a second one.
     public pure function proxy_columns(form: ProxyGridForm, page-width: length) -> int {
         if (form == ProxyGridForm.stacked) { return 1; }
-        return Math.max(2, Math.ceil((page-width - 32 * LumenUiScale.unit) / (250 * LumenUiScale.unit)));
+        return Math.max(2, Math.ceil(page-width / (250 * LumenUiScale.unit)));
     }
 
     // Whether a navigation form may paint a group heading.

@@ -117,11 +117,27 @@ pub const PROFILE_MAX_COLUMNS: u16 = 3;
 /// from drawing only three oversized cards.
 pub const PROXY_MIN_ITEM_WIDTH_PX: u16 = 250;
 
-/// The page-body inset the reference removes before counting proxy cards.
+/// The page gutter the reference keeps on each side of every page body.
 ///
-/// `lib/views/proxies/tab.dart` passes `max(width - 32, 0)` to
-/// `getProxiesColumns`; the grid then pays its own horizontal seam.
-pub const PROXY_GRID_INSET_PX: u16 = 32;
+/// This is one fact, not a ramp, and the reference pays it exactly once:
+/// `lib/views/dashboard/dashboard.dart` builds `fromSTEB(16, …, 24, …)` and
+/// then divides `constraints.maxWidth - base.horizontal` by the column count;
+/// `lib/views/proxies/tab.dart` asks `getProxiesColumns(max(width - 32, 0))`,
+/// whose 32 is that same gutter twice over (`_groupInset = 16` in
+/// `lib/views/proxies/list.dart`); `lib/views/profiles/profiles.dart` keeps
+/// `_horizontalPadding = 16.0`; and `dashboardMobileSideOf(width)` is
+/// `max(16, (width - 560) / 2)`, so even the phone starts at 16 and only
+/// centres beyond 560. The two tracked scene images agree: the desktop page
+/// body's first ink sits 30px past the sidebar edge (15.4dp at 1.95) and the
+/// phone cards sit 48px/47px from the window edges (16.3dp/16.0dp at 2.94).
+///
+/// A per-tier ramp would be a second answer to the same question, and it is
+/// strictly worse for space: at 1180px the reference leaves 32px of gutter
+/// while a 40px tier padding spends 80px, and the proxy grid then spent
+/// another 32 on top. Both surfaces now read this one value, and the grid
+/// rules take the page body as handed to them instead of paying the gutter a
+/// second time.
+pub const PAGE_PADDING_PX: u16 = 16;
 
 /// The fewest proxy node columns the reference draws on a desktop page.
 pub const PROXY_MIN_COLUMNS: u16 = 2;
@@ -189,20 +205,23 @@ pub const fn profile_columns(form: ProfileGridForm, page_width_px: u16, gap_px: 
     }
 }
 
-/// How many proxy node cards fit in `page_width_px`.
+/// How many proxy node cards fit in the page body `page_width_px`.
 ///
-/// FlClash's `getProxiesColumns` uses `max(ceil(viewWidth / 250), 2)` for its
-/// standard layout; `viewWidth` is the page body after its 32dp inset. This
-/// contract keeps that width rule without adding the reference's three user
-/// preferences (`tight/standard/loose`) that our outbound model does not own.
-/// A zero-width page still gets the reference's two-column floor rather than a
+/// FlClash's `getProxiesColumns` is `max(ceil(viewWidth / 250), 2)`, and the
+/// `viewWidth` its caller passes is `max(width - 32, 0)` - a page body that has
+/// already paid [`PAGE_PADDING_PX`] once. This contract takes the page body the
+/// shell actually drew, so the gutter is subtracted exactly once; subtracting
+/// 32 again here would spend the reference's whole gutter twice and hand the
+/// grid 828px where the reference gets 928px at the same window. It keeps that
+/// width rule without adding the reference's three user preferences
+/// (`tight/standard/loose`) that our outbound model does not own, and a
+/// zero-width page still gets the reference's two-column floor rather than a
 /// private fallback in the surface.
 pub const fn proxy_node_columns(form: ProxyGridForm, page_width_px: u16) -> u16 {
     if matches!(form, ProxyGridForm::Stacked) {
         return 1;
     }
-    let room = page_width_px.saturating_sub(PROXY_GRID_INSET_PX);
-    let columns = room.div_ceil(PROXY_MIN_ITEM_WIDTH_PX);
+    let columns = page_width_px.div_ceil(PROXY_MIN_ITEM_WIDTH_PX);
     if columns < PROXY_MIN_COLUMNS {
         PROXY_MIN_COLUMNS
     } else {
@@ -386,26 +405,19 @@ impl ViewportTier {
         }
     }
 
-    /// Outer content-region padding in pixels for this tier.
-    pub const fn content_padding_px(self) -> u16 {
-        match self {
-            Self::Compact => 16,
-            Self::Medium => 24,
-            Self::Expanded => 40,
-            Self::Ultra => 48,
-        }
-    }
-
     /// The page-body width a shell of this tier leaves for its pages.
     ///
     /// A wide shell reserves its navigation column beside the page; a compact
-    /// shell stacks the bottom bar under it, so only the page's own padding
-    /// narrows the body. The width-rule lookups (`profile_columns`,
-    /// `proxy_node_columns`) and the surfaces must all measure the same room,
-    /// so the subtraction lives here once instead of being re-derived per
-    /// view (and drifting by one surface's private margin).
+    /// shell stacks the bottom bar under it, so only the page's own gutter
+    /// narrows the body. [`PAGE_PADDING_PX`] is the one gutter and it is not a
+    /// tier fact: the reference keeps 16dp at every width, so a per-tier ramp
+    /// here was a second answer that spent up to 80px where the reference
+    /// spends 32. The width-rule lookups (`profile_columns`,
+    /// `proxy_node_columns`) and the surfaces all measure this same room, so
+    /// the subtraction lives here once instead of being re-derived per view
+    /// (and drifting by one surface's private margin).
     pub const fn page_body_width_px(self, window_width_px: u16) -> u16 {
-        let padded = window_width_px.saturating_sub(2 * self.content_padding_px());
+        let padded = window_width_px.saturating_sub(2 * PAGE_PADDING_PX);
         padded.saturating_sub(self.nav_column_px())
     }
 
@@ -758,8 +770,12 @@ mod tests {
         assert_eq!(SidebarForm::Standard.width_px(), Some(240));
         assert_eq!(SidebarForm::Wide.width_px(), Some(280));
 
-        assert_eq!(ViewportTier::Compact.content_padding_px(), 16);
-        assert_eq!(ViewportTier::Ultra.content_padding_px(), 48);
+        // One gutter at every tier: the reference keeps 16dp on a phone page
+        // and on a 4K desktop page alike, so no surface may ask for "the
+        // padding of my tier".
+        assert_eq!(PAGE_PADDING_PX, 16);
+        assert_eq!(ViewportTier::Compact.page_body_width_px(400), 368);
+        assert_eq!(ViewportTier::Expanded.page_body_width_px(1180), 908);
 
         assert!(ViewportTier::Compact.is_narrow());
         assert!(ViewportTier::Medium.is_narrow());
@@ -975,17 +991,18 @@ mod tests {
     #[test]
     fn proxy_node_columns_follow_the_reference_width_rule() {
         assert_eq!(PROXY_MIN_ITEM_WIDTH_PX, 250);
-        assert_eq!(PROXY_GRID_INSET_PX, 32);
         assert_eq!(PROXY_MIN_COLUMNS, 2);
         assert_eq!(proxy_node_columns(ProxyGridForm::Stacked, 940), 1);
+        // `getProxiesColumns` is `max(ceil(viewWidth / 250), 2)` on a width
+        // that already paid the gutter, so the boundaries land on exact
+        // multiples of the card floor and nowhere else.
         assert_eq!(proxy_node_columns(ProxyGridForm::Desktop, 0), 2);
-        assert_eq!(proxy_node_columns(ProxyGridForm::Desktop, 32), 2);
-        assert_eq!(proxy_node_columns(ProxyGridForm::Desktop, 282), 2);
-        assert_eq!(proxy_node_columns(ProxyGridForm::Desktop, 283), 2);
-        assert_eq!(proxy_node_columns(ProxyGridForm::Desktop, 532), 2);
-        assert_eq!(proxy_node_columns(ProxyGridForm::Desktop, 533), 3);
-        assert_eq!(proxy_node_columns(ProxyGridForm::Desktop, 782), 3);
-        assert_eq!(proxy_node_columns(ProxyGridForm::Desktop, 783), 4);
+        assert_eq!(proxy_node_columns(ProxyGridForm::Desktop, 250), 2);
+        assert_eq!(proxy_node_columns(ProxyGridForm::Desktop, 251), 2);
+        assert_eq!(proxy_node_columns(ProxyGridForm::Desktop, 500), 2);
+        assert_eq!(proxy_node_columns(ProxyGridForm::Desktop, 501), 3);
+        assert_eq!(proxy_node_columns(ProxyGridForm::Desktop, 750), 3);
+        assert_eq!(proxy_node_columns(ProxyGridForm::Desktop, 751), 4);
         assert_eq!(proxy_node_columns(ProxyGridForm::Desktop, 940), 4);
         assert_eq!(proxy_node_columns(ProxyGridForm::Desktop, u16::MAX), 263);
     }
@@ -1010,10 +1027,12 @@ mod tests {
 
     #[test]
     fn page_body_width_subtracts_the_chrome_the_tier_reserves() {
-        // 1180 desktop: 240 labelled column + 2 x 40 padding.
-        assert_eq!(ViewportTier::Expanded.page_body_width_px(1180), 860);
-        // 720 rail: 64 icon column + 2 x 24 padding.
-        assert_eq!(ViewportTier::Medium.page_body_width_px(720), 608);
+        // 1180 desktop: 240 labelled column + 2 x 16 gutter. The reference
+        // spends 32dp of gutter on a 960dp page body; this is the same rule
+        // on our own 240px column.
+        assert_eq!(ViewportTier::Expanded.page_body_width_px(1180), 908);
+        // 720 rail: 64 icon column + 2 x 16 gutter.
+        assert_eq!(ViewportTier::Medium.page_body_width_px(720), 624);
         // 400 phone: no column, bottom bar stacks below the page.
         assert_eq!(ViewportTier::Compact.page_body_width_px(400), 368);
         // A window narrower than its own chrome saturates at zero.

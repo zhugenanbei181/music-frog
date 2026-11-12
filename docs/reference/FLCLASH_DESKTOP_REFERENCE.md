@@ -728,7 +728,7 @@ manifest 却记 65536 字节（恰为一个 pipe buffer）并给出对应的旧�
 `1180−220−32 = 928px`。`profile_columns()` 没有再扣，两个网格对同一条留白规则
 的口径也不一致。
 
-**裁决与收口方向（登记 `SPACEUTIL-018`，不在只有 Slint 一份新证据时擅改三表面共享数）**：
+**裁决与收口（`SPACEUTIL-018`，b218 交付）**：
 
 1. 契约一处发布 `PAGE_PADDING_PX = 16`（依据上表五条源码与两张场景图），
    `ViewportTier::content_padding_px()` 的按档 ramp 同批退役，不留兼容轨道；
@@ -738,8 +738,19 @@ manifest 却记 65536 字节（恰为一个 pipe buffer）并给出对应的旧�
 3. Slint `page-margin-desktop` / `page-padding` 合成为生成的单一 `page-padding`，
    Iced `view_root` / `sidebar_chrome` / `rules_list` 与 Bevy `shell_scene` 都只读
    契约值；每帧仍由 `CAPTURE_CHROME` 的 `page_margin_px` 自述，判定器不记常量。
-4. 这是**跨表面布局身份变化**，必须 Iced 192 帧与 Slint 199 帧整批重采后
-   按形态上限复判；`dense` / `framed` 页若因页身变高暴露新的页尾地面，
-   按标准 §5 走「填满 / 合并 / 提升密度」收口，不得放宽任何上限。
-5. Bevy 文件与像素仍由另一会话持有（`FLPROFILES-002` 同一纪律），本条只登记
-   其 12px 副本，不争写。
+4. 这是**跨表面布局身份变化**，两表面整批重采复判：Slint 199/199 发布 run
+   `20261112T052158Z_79bf9f28e20f_dirty_1094075`、Iced 192/192 发布 run
+   `20261112T052858Z_79bf9f28e20f_dirty_1173512`，两侧 `--enforce` 都 **violations=0**、
+   欠账台账两侧 `frames` 保持为空。实测页身宽（窗口 − 导航列 − 2×留白）逐档
+   **完全一致**：expanded `908`、medium `624`、compact `368`、折叠桌面 `1084`；
+   此前是 Slint 880 对 Iced 860。`dense` / `framed` 页没有因页身变宽暴露新的页尾
+   地面（expanded 档 124 帧 `unused` 中位 3.9%，与上一批逐字相同），因此未动用 §5 的任何一种收口，
+   也未放宽任何上限。
+5. Bevy 文件与像素仍由另一会话持有（`FLPROFILES-002` 同一纪律）：其
+   `shell_scene.rs` 的 12px 副本本批未碰，留作该表面接线时消费同一导出值。
+6. 网格的第二次扣减已同批清退：`proxy_node_columns()` 不再减 32，
+   `PROXY_GRID_INSET_PX` 与导出键 `proxy_grid.page_inset_px` 一并删除，契约与导出
+   各有一条断言拒绝它们回来（`page_structure.rs` 的
+   `the proxy grid must not carry a second page inset` 与
+   `the page gutter is not a tier fact`）。列数在采集窗口上逐个不变
+   （expanded 4 列、medium 3 列、手机 1 列），所以这次是**留白归位**而不是排布改道。

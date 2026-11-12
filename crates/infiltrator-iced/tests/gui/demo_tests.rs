@@ -246,12 +246,8 @@ fn capture_marker_is_idempotent_and_formats_the_contract_line() {
     state.write_capture_marker();
 
     let content = read_to_string(&path).expect("marker file exists");
-    let chrome = shell_chrome_facts(
-        sidebar_presentation(&state),
-        state.shell.sidebar_chrome,
-        state.shell.viewport.tier,
-    )
-    .expect("the measured pane describes its own chrome");
+    let chrome = shell_chrome_facts(sidebar_presentation(&state), state.shell.sidebar_chrome)
+        .expect("the measured pane describes its own chrome");
     assert_eq!(
         content,
         format!(

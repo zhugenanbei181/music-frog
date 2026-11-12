@@ -24,19 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-12 第二百一十七批次；b111–b216 见下方批次八问摘要）
+## 当前状态（2026-11-12 第二百一十八批次；b111–b217 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b217 是只读侦察 + 台账登记，零产品代码 / 零 wire / 零像素；有效证据仍是 b216 的 Slint nextest **389/389** 与发布批 `20261112T033526Z_d03a849e2929_dirty_433821`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1） |
-| 2 | 部分 | L | 本批未构建任何平台产物；页身留白属跨平台布局事实，收口时三表面各自重采。Windows/macOS 构建腿与安装包仍未复跑，macOS 沿用 `Unsupported`（GAP-2.2）；条带差异归 `FLPARITY-050` |
-| 3 | 部分 | L | 未跑 `scripts/android-slint-build.sh`，无三 flavor 实机交互回执，iOS 无新回执；本批复量的手机参照图只用于裁决 16dp 留白，不构成 Android 表面证据 |
-| 4 | 部分 | L | 留白副本逐一定位并登记为 `SPACEUTIL-018`（Slint 30u / 16u、Iced 16/24/40/48 ramp、Bevy 12px）；Bevy 侧 `FLPROFILES-002` 与 `CAPTURE_CHROME` 发布仍未开工，按所有权纪律不争写 |
-| 5 | 部分 | L | 本批的产出正是「同一事实四个真源 + 网格第二次扣减」的实测清单，尚未收口：`content_padding_px` 按档 ramp 与 `PROXY_GRID_INSET_PX` 双重扣减仍在工作区，登记为待裁决底层任务而非已复用 |
-| 5a | 部分 | L | 本批无设计资源与像素变化，沿用 b216 双表面发布批（Slint 199 / Iced 192 帧 violations=0、`receipt-freshness 0`）；`screenshot-identity` 唯一红项仍是另一会话的 Bevy `runtime-dark` / `overview-dark` 别名 |
-| 6 | 部分 | L | `SPACEUTIL-018` 3 pt / `Planned` 已入现在佛 §0.2，判据缺口如实登记、未新增豁免；`resolve_surface_evidence.py` 未复跑，180 个 ready surface cells 仍缺 product-build receipts |
-| 7 | 完整 | L | 收口位置已裁决清楚：契约一处发布 `PAGE_PADDING_PX` → v16 导出 → 生成器 / 判定器 / 三表面只读导出，参照基准 §20 逐条给出上游源码与两张 tracked 场景图的逐像素折算；`doc-governance OK`、`closure-questions 8/8` |
-| 8 | 部分 | L | 本批零 cargo、零重采，只做上游源码拉取与像素复核即立项，避免为台账好看而擅改三表面共享数；全仓 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py` 仍留统一验证批次一次跑完 |
+| 1 | 部分 | L | b218 改的是共享契约、两个桌面表面与生成器/判定器，架构中性、零平台 API、零 wire；`cargo nextest run --locked -p infiltrator-contract -p infiltrator-iced -p infiltrator-slint` **1535/1535**、三包 Clippy `--all-targets -D warnings`、`cargo fmt --all --check` 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1） |
+| 2 | 部分 | L | Linux 本机完成三包编译/Clippy/fmt 与两表面整批采集；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）；条带差异归 `FLPARITY-050` |
+| 3 | 部分 | L | Slint Android flavor 与桌面共用 `.slint`，`page-padding` 现恒为契约 16，紧凑外壳按构造同样受益；未跑 `scripts/android-slint-build.sh`，无三 flavor 实机交互回执，iOS 无新回执 |
+| 4 | 部分 | L | Slint 与 Iced 的页身宽逐档实测完全一致（expanded 908 / medium 624 / compact 368 / 折叠桌面 1084），Iced 的代理/配置网格也随页宽规则同步；Bevy 的 12px 副本仍归 `FLPROFILES-002`（另一会话持有），`CPPARITY-CLOSED-UI` 的截图认证仍在现在佛 |
+| 5 | 完整 | L | 四份留白副本收敛为契约一处 `PAGE_PADDING_PX = 16` → v16 导出 `page_padding.px` → 生成 `ViewportLadder.page-padding` → Slint / Iced 只读；`content_padding_px()` 按档 ramp、`PROXY_GRID_INSET_PX` 双重扣减与 `page_inset_px` 导出键同批删除，旧符号全仓为 0；`shell_chrome_facts()` 多余的 `ViewportTier` 参数与 6 处调用点同批清退 |
+| 5a | 部分 | L | 本批无字体 / 字重 / 图标族 / 视觉资产身份变化；变化是布局身份，按标准整批重采 Slint 199/199 + Iced 192/192，10 条别名摘要按新字节刷新，`receipt-freshness 0`、manifest 逐行字节/摘要相符；`screenshot-identity` 唯一红项仍是另一会话未提交的 Bevy `runtime-dark` / `overview-dark` 别名 |
+| 6 | 部分 | L | 双表面 `--enforce` 199/192 帧 violations=0、`--self-test` 64/64、`--check-export` current、生成器 `--check` fresh、梯守卫 53/53 + enforce 0、欠账台账两侧为空；`resolve_surface_evidence.py` 未复跑，180 个 ready cells 仍缺 product-build receipts |
+| 7 | 完整 | L | 一条事实一条链（契约常量 → v16 导出 → 生成适配器 → 两表面消费 → 帧自述 `page_margin_px` → 判定器逐帧比对），导出故意不含 `TierFact.content_padding_px`，杜绝「我这一档的留白」再次分叉；`line` / `import` / `typed-state` / `implicit-state` / `doc-governance` / `closure-questions` 全 0 |
+| 8 | 部分 | L | 按「契约落码 → 三包定向 nextest/clippy/fmt → 两表面整批各采集一次 → enforce / freshness / identity / 导出新鲜度四腿」推进，未边改边重采；全仓 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py` 仍留统一验证批次一次跑完 |
+
+## 最近一批问答（2026-11-12 第二百一十八批次：页身左右留白只付一次 16dp）
+
+1. x86_64/aarch64：本批改的是共享契约、两个桌面表面与生成器/判定器，零平台 API、零 wire；三包 nextest **1535/1535**、Clippy `--all-targets -D warnings`、fmt 为 `L`；交叉架构与 aarch64 目标产物未复跑 → 部分（L）。
+2. Windows/Linux/macOS：Linux 本机完成三包编译与 Slint/Iced 两表面整批采集（KWin + 嵌套 niri）；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）→ 部分（L）。
+3. Android/iOS：Slint Android flavor 与桌面共用 `.slint`，`page-padding` 恒为契约 16，紧凑外壳按构造同样受益；未跑 `scripts/android-slint-build.sh`，无三 flavor 实机交互回执，iOS 无新回执 → 部分（L）。
+4. 各 UI：Slint / Iced 的页身宽逐档实测**完全一致**（expanded 908、medium 624、compact 368、折叠桌面 1084），两表面发布批各 199/192 帧；Bevy 的 12px 副本仍由另一会话持有，留 `FLPROFILES-002` 接线时消费同一导出值 → 部分（L）。
+5. 复用：四份留白副本收敛为契约一处 `PAGE_PADDING_PX = 16`；`content_padding_px()` 按档 ramp、`PROXY_GRID_INSET_PX` 与 `page_inset_px` 导出键、`shell_chrome_facts()` 多余的 `ViewportTier` 参数及 6 处调用点同批清退，全仓旧符号为 0，不留兼容轨道 → 完整（L）。
+5a. 设计资源：本批无字体 / 字重 / 图标族 / 视觉资产身份变化；布局身份按标准整批重采 Slint 199/199 + Iced 192/192，10 条别名摘要按新字节刷新，`receipt-freshness 0`；`screenshot-identity` 唯一红项仍是另一会话的 Bevy `runtime-dark` / `overview-dark` 别名 → 部分（L）。
+6. 各处界面的功能接入：双表面 `--enforce` violations=0、欠账台账两侧为空；`--self-test` 64/64、梯守卫 53/53 + enforce 0、`--check-export` current、生成器 `--check` fresh、统一矩阵一致、doc/line/import/typed-state/implicit-state/syntax/dead-input/flag/closure 全 0；`resolve_surface_evidence.py` 未复跑，180 个 ready cells 仍缺 product-build receipts → 部分（L）。
+7. 模块化：契约常量 → v16 导出 → 生成 `ViewportLadder.page-padding` → 两表面只读 → 帧自述 `page_margin_px` → 判定器逐帧比对一条链；导出故意不含 `TierFact.content_padding_px`，「我这一档的留白」在结构上不可能再分叉；`line` / `import` / `typed-state` / `implicit-state` / `doc-governance` / `closure-questions` 全 0 → 完整（L）。
+8. CI 与批次效率：先落码、再定向三包验证、再两表面各整批采集一次、最后四腿复判，未边改边重采；`dense` / `framed` 页没有因页身变宽暴露新地面（expanded 中位 3.9% 与上一批逐字相同），故未动用 §5 收口也未放宽上限；全仓 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py` 仍留统一验证批次一次跑完 → 部分（L）。
 
 ## 最近一批问答（2026-11-12 第二百一十七批次：页身左右留白的参照物源码复核 / 实测新立 `SPACEUTIL-018`）
 

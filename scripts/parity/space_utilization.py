@@ -497,6 +497,25 @@ def page_structures() -> dict[str, dict]:
     return {entry["slug"]: entry for entry in document.get("slugs", [])}
 
 
+def page_padding_px() -> int | None:
+    """The exported page gutter, or None when the export predates it.
+
+    `SPACEUTIL-018` exists because this one number was four different numbers:
+    Slint's desktop paid 30u while its own compact page paid 16u, Iced ramped
+    16/24/40/48 by tier and Bevy drew 12px. The reference keeps 16dp on every
+    page at every width, so the contract exports it once - as a top-level fact,
+    deliberately *not* a tier field, because a surface that can ask for "the
+    padding of my tier" is a surface that will drift again.
+    """
+    if not PAGE_STRUCTURE_FILE.is_file():
+        return None
+    document = json.loads(PAGE_STRUCTURE_FILE.read_text(encoding="utf-8"))
+    padding = document.get("page_padding")
+    if not isinstance(padding, dict) or "px" not in padding:
+        return None
+    return int(padding["px"])
+
+
 def navigation_limits() -> dict[str, float]:
     """The exported navigation-column caps; no private copy in the judge.
 
@@ -817,6 +836,22 @@ def chrome_findings(results: list[dict]) -> list[str]:
                 f"{entry['scenario']}: the shell mounted {nav_form(chrome)} while the "
                 f"{entry['tier']} variant says {fact['nav_form']}"
             )
+        gutter = page_padding_px()
+        if gutter is None:
+            found.append(
+                "page-structure.json carries no page_padding; the judge cannot say "
+                "what gutter a frame was told to keep"
+            )
+        elif int(chrome["page_margin_px"]) != gutter:
+            # The measurement box depends on this number, so a frame that
+            # painted a different gutter than the contract exports is not
+            # describing a slightly wider margin - it is spending ground the
+            # reference never spends, and every tail/band reading in this
+            # frame was computed in the wrong room.
+            found.append(
+                f"{entry['scenario']}: the page body kept {chrome['page_margin_px']}px "
+                f"of gutter while the contract exports {gutter}px for every tier"
+            )
         toggle_band = int(chrome["sidebar_toggle_px"])
         if (toggle_band > 0) != bool(fact.get("toggle_available")):
             found.append(
@@ -1077,12 +1112,16 @@ def _chrome(width: int, height: int, **override) -> dict:
     fact = tier_fact(tier(width))
     labelled = bool(fact["labelled_sidebar"])
     form = str(fact["nav_form"])
+    # The gutter comes from the export, not from a remembered pair: a fixture
+    # that planted 30 here would have been a frame the new leg must reject, and
+    # the planted legs would then be proving the fixture rather than the rule.
+    gutter = page_padding_px()
     chrome = {
         "nav_form": form,
         "nav_column_px": int(fact["nav_column_px"]),
         "nav_stack_bottom_px": 0 if form == "bottom_nav" else (484 if labelled else 436),
         "nav_content_offset_px": 12 if labelled else 0,
-        "page_margin_px": 30 if labelled else 16,
+        "page_margin_px": 16 if gutter is None else gutter,
         "shell_top_air_px": 46 if labelled else 38,
         "shell_bottom_air_px": 72 if labelled else 0,
         "dock_band_px": 72 if form == "bottom_nav" else 0,
@@ -1821,11 +1860,30 @@ class SelfTest(unittest.TestCase):
     def test_the_measurement_box_follows_the_receipt(self) -> None:
         # A shell that paints a deeper margin gets a deeper box, with no edit
         # to this file: the box is the frame's, not the judge's.
+        gutter = page_padding_px()
         remembered = content_box(1180, 780, _chrome(1180, 780))
         deeper = content_box(1180, 780, _chrome(1180, 780, page_margin_px=64))
-        self.assertEqual(remembered[2], 240 + 30)
+        self.assertEqual(remembered[2], 240 + gutter)
         self.assertEqual(deeper[2], 240 + 64)
         self.assertEqual(deeper[4], remembered[4])
+
+    def test_a_frame_keeping_a_private_gutter_is_reported(self) -> None:
+        # `SPACEUTIL-018`: three surfaces each kept their own gutter (30u, a
+        # 16/24/40/48 ramp, 12px). The box follows the receipt, so a frame may
+        # still be *measured* in the room it painted - but it must not be
+        # allowed to call that the rule. The verdict is a refusal to let a
+        # surface re-fork one exported number.
+        for wrong in (30, 40, 12):
+            entry = self.measure_one(
+                _desktop_body(), chrome=_chrome(1180, 780, page_margin_px=wrong))
+            found = chrome_findings([entry])
+            self.assertTrue(
+                any(f"kept {wrong}px" in item and "gutter" in item for item in found),
+                (wrong, found))
+        # The exported value itself passes, so this leg is not a blanket ban.
+        entry = self.measure_one(_desktop_body(), chrome=_chrome(1180, 780))
+        self.assertEqual(
+            [item for item in chrome_findings([entry]) if "gutter" in item], [])
 
     def test_a_column_that_disagrees_with_the_ladder_is_reported(self) -> None:
         # The private 228 this surface used to keep is caught per frame now,

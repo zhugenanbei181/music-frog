@@ -65,13 +65,9 @@ fn capture_state(directory: &CaptureDirectory) -> AppState {
 /// contract helper the host uses so the assertion cannot drift from the format.
 fn expected_chrome_line(state: &AppState) -> String {
     let presentation = sidebar_presentation(state);
-    shell_chrome_facts(
-        presentation,
-        state.shell.sidebar_chrome,
-        state.shell.viewport.tier,
-    )
-    .expect("the measured rail describes its own chrome")
-    .to_marker_line()
+    shell_chrome_facts(presentation, state.shell.sidebar_chrome)
+        .expect("the measured rail describes its own chrome")
+        .to_marker_line()
 }
 
 /// Arm the native readback: the gate waits for the rebuilt view before it

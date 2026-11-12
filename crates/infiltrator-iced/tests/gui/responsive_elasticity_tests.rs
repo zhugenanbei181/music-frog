@@ -11,7 +11,8 @@ use crate::view::profiles::list::profile_grid_geometry;
 use crate::view::proxies::node_cards::proxy_node_grid_columns;
 use crate::view::sidebar::sidebar_form_for_width;
 use infiltrator_contract::responsive_viewport::{
-    ProfileGridForm, ProxyGridForm, SidebarForm, ViewportTier, profile_columns, proxy_node_columns,
+    PAGE_PADDING_PX, ProfileGridForm, ProxyGridForm, SidebarForm, ViewportTier, profile_columns,
+    proxy_node_columns,
 };
 use lurker_core_contract::outbound::preferences::OutboundLayout;
 
@@ -62,14 +63,28 @@ fn sidebar_form_follows_tier_and_is_width_consistent() {
 }
 
 #[test]
-fn responsive_padding_shrinks_on_narrow_tiers() {
-    // A compact window must not keep the wide 48px desktop gutters.
+fn the_page_gutter_is_one_contract_value_at_every_tier() {
+    // `SPACEUTIL-018`: this asserted a per-tier ramp (16 / 24 / 40 / 48), which
+    // is how a desktop page spent 80px of side ground where the reference
+    // spends 32dp on a phone page and a 4K page alike. The gutter is one
+    // exported constant, so resizing must never move it - only the tier's own
+    // navigation column may narrow the body.
     let (mut state, _) = AppState::new();
-    let _ = state.update(Message::WindowResized(400.0, 800.0));
-    assert_eq!(state.shell.viewport.tier.content_padding_px(), 16);
-
-    let _ = state.update(Message::WindowResized(1920.0, 1080.0));
-    assert_eq!(state.shell.viewport.tier.content_padding_px(), 48);
+    for (width, expected_body) in [(400.0, 368u16), (720.0, 624), (1180.0, 908), (1920.0, 1608)] {
+        let _ = state.update(Message::WindowResized(width, 800.0));
+        let tier = state.shell.viewport.tier;
+        assert_eq!(
+            tier.page_body_width_px(state.shell.viewport.width_px.round() as u16),
+            expected_body,
+            "page body at {width}px must be the window less one gutter twice and the tier column"
+        );
+        assert_eq!(
+            expected_body + 2 * PAGE_PADDING_PX + tier.nav_column_px(),
+            width as u16,
+            "the gutter must be subtracted exactly once at {width}px"
+        );
+    }
+    assert_eq!(PAGE_PADDING_PX, 16);
 }
 
 #[test]
@@ -119,7 +134,11 @@ fn page_width_rules_size_profile_and_proxy_grids() {
         .select_layout(OutboundLayout::Grid);
     let tier = state.shell.viewport.tier;
     let page_width = tier.page_body_width_px(1180);
-    assert_eq!(page_width, 860);
+    // 1180 less the 240 labelled column less one 16px gutter twice. This was
+    // 860 while the gutter ramped per tier (40px here), which spent 80px of
+    // side ground where the reference spends 32dp on the same page
+    // (`SPACEUTIL-018`).
+    assert_eq!(page_width, 908);
 
     let (profile_gap, profile_columns_actual) = profile_grid_geometry(&state);
     assert_eq!(
@@ -293,7 +312,10 @@ fn full_spectrum_elasticity_across_all_four_tiers_and_thirteen_routes() {
     ];
 
     let viewports = [
-        // Compact (<600px): extreme mobile (360px) & standard mobile
+        // Compact (<600px): extreme mobile (360px) & standard mobile. The
+        // fourth column is the page gutter, one contract value everywhere; it
+        // used to be a per-tier ramp (16/24/40/48) that `SPACEUTIL-018`
+        // retired because the reference keeps 16dp at every width.
         (
             360.0,
             640.0,
@@ -306,21 +328,28 @@ fn full_spectrum_elasticity_across_all_four_tiers_and_thirteen_routes() {
         (414.0, 896.0, ViewportTier::Compact, 16, 1, 2, None),
         (599.0, 800.0, ViewportTier::Compact, 16, 1, 2, None),
         // Medium (600..840px): small tablet / foldables (64px rail)
-        (600.0, 900.0, ViewportTier::Medium, 24, 2, 3, Some(64u16)),
-        (768.0, 1024.0, ViewportTier::Medium, 24, 2, 3, Some(64)),
-        (839.0, 1000.0, ViewportTier::Medium, 24, 2, 3, Some(64)),
+        (600.0, 900.0, ViewportTier::Medium, 16, 2, 3, Some(64u16)),
+        (768.0, 1024.0, ViewportTier::Medium, 16, 2, 3, Some(64)),
+        (839.0, 1000.0, ViewportTier::Medium, 16, 2, 3, Some(64)),
         // Expanded (840..1200px): laptops & standard desktops (240px sidebar)
-        (840.0, 700.0, ViewportTier::Expanded, 40, 3, 6, Some(240)),
-        (1024.0, 768.0, ViewportTier::Expanded, 40, 3, 6, Some(240)),
-        (1199.0, 800.0, ViewportTier::Expanded, 40, 3, 6, Some(240)),
+        (840.0, 700.0, ViewportTier::Expanded, 16, 3, 6, Some(240)),
+        (1024.0, 768.0, ViewportTier::Expanded, 16, 3, 6, Some(240)),
+        (1199.0, 800.0, ViewportTier::Expanded, 16, 3, 6, Some(240)),
         // Ultra (>=1200px): wide monitors & 4K displays (280px wide sidebar)
-        (1200.0, 900.0, ViewportTier::Ultra, 48, 4, 6, Some(280)),
-        (1920.0, 1080.0, ViewportTier::Ultra, 48, 4, 6, Some(280)),
-        (2560.0, 1440.0, ViewportTier::Ultra, 48, 4, 6, Some(280)),
+        (1200.0, 900.0, ViewportTier::Ultra, 16, 4, 6, Some(280)),
+        (1920.0, 1080.0, ViewportTier::Ultra, 16, 4, 6, Some(280)),
+        (2560.0, 1440.0, ViewportTier::Ultra, 16, 4, 6, Some(280)),
     ];
 
-    for (w, h, expected_tier, expected_pad, expected_proxies, expected_metrics, expected_sidebar) in
-        viewports
+    for (
+        w,
+        h,
+        expected_tier,
+        expected_gutter,
+        expected_proxies,
+        expected_metrics,
+        expected_sidebar,
+    ) in viewports
     {
         let _ = state.update(Message::WindowResized(w, h));
 
@@ -328,7 +357,23 @@ fn full_spectrum_elasticity_across_all_four_tiers_and_thirteen_routes() {
             state.shell.viewport.tier, expected_tier,
             "tier mismatch at {w}x{h}"
         );
-        assert_eq!(state.shell.viewport.tier.content_padding_px(), expected_pad);
+        // The `expected_pad` column of this table used to carry a per-tier
+        // ramp (16/24/40/48). One gutter is now subtracted at every tier, so
+        // what this asserts instead is that the page body the grid will be
+        // measured against is exactly the window less that gutter twice and
+        // less the tier's own navigation column - never more than once.
+        assert_eq!(
+            state
+                .shell
+                .viewport
+                .tier
+                .page_body_width_px(w.round() as u16)
+                + state.shell.viewport.tier.nav_column_px()
+                + 2 * PAGE_PADDING_PX,
+            w.round() as u16,
+            "the gutter must be subtracted exactly once at {w}x{h}"
+        );
+        assert_eq!(expected_gutter, usize::from(PAGE_PADDING_PX));
         assert_eq!(
             state.shell.viewport.tier.proxy_grid_columns(false),
             expected_proxies

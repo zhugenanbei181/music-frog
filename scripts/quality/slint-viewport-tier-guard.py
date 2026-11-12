@@ -622,6 +622,65 @@ def page_density_findings(ui: pathlib.Path) -> list[str]:
     return found
 
 
+def page_gutter_findings(ui: pathlib.Path) -> list[str]:
+    """The page gutter is one exported number, not a per-shell-form fork.
+
+    `SPACEUTIL-018` measured four copies of one fact: `page-margin-desktop: 30u`
+    beside `page-padding: 16u` in the same theme, Iced's 16/24/40/48 tier ramp,
+    and Bevy's 12px. The reference keeps 16dp on a phone page and on a 4K page
+    alike (`dashboard.dart` `fromSTEB(16, …)`, `proxies/list.dart`
+    `_groupInset = 16`, `profiles.dart` `_horizontalPadding = 16`,
+    `dashboardMobileSideOf = max(16, …)`), so the ladder exports it once and
+    this surface must read that. A second literal, or a `compact-layout` fork
+    of the horizontal rhythm, is the drift this leg exists to refuse.
+    """
+    found: list[str] = []
+    theme_code = mask_comments(
+        (ui / "components/theme.slint").read_text(encoding="utf-8"))
+    body_code = mask_comments(
+        (ui / "components/app_body.slint").read_text(encoding="utf-8"))
+    adapter_code = mask_comments(
+        (ui / "components/viewport-ladder.slint").read_text(encoding="utf-8"))
+    exported = json.loads(PAGE_STRUCTURE.read_text(encoding="utf-8"))
+    gutter = int(exported["page_padding"]["px"])
+
+    generated = f"out property <length> page-padding: {gutter} * LumenUiScale.unit;"
+    if generated not in adapter_code:
+        found.append(
+            "components/viewport-ladder.slint: the exported page gutter is not the "
+            f"generated {gutter}u"
+        )
+    if "out property <length> page-padding: ViewportLadder.page-padding;" not in theme_code:
+        found.append(
+            "components/theme.slint: the page gutter no longer reads the exported "
+            "ladder value"
+        )
+    if re.search(r"page-margin-desktop\s*:", theme_code):
+        found.append(
+            "components/theme.slint: a second desktop page margin is back; the "
+            "gutter is one exported value for every shell form"
+        )
+    # The binding can span lines once a ternary is involved, so the whole
+    # expression is captured rather than its first line; reading only the
+    # first line would report "it must read LumenTheme.page-padding" for a
+    # fork that does read it on one branch, naming the wrong defect.
+    margin = re.search(
+        r"out property <length> page-margin:([^;]*);", body_code, re.DOTALL)
+    if not margin:
+        found.append("components/app_body.slint: the page gutter binding is gone")
+    elif "LumenTheme.page-padding" not in margin.group(1):
+        found.append(
+            f"components/app_body.slint: the page gutter binds "
+            f"{margin.group(1).strip()!r}; it must read LumenTheme.page-padding"
+        )
+    elif "compact-layout" in margin.group(1):
+        found.append(
+            "components/app_body.slint: the page gutter forks on shell form again; "
+            "the reference keeps one gutter at every width"
+        )
+    return found
+
+
 def navigation_mount_findings(ui: pathlib.Path) -> list[str]:
     """Navigation is mounted by the exported form, never by page density.
 
@@ -878,6 +937,7 @@ def violations(ui: pathlib.Path, dock_checks: bool = True,
         found += tier_vocabulary_findings()
         found += navigation_mount_findings(ui)
         found += page_density_findings(ui)
+        found += page_gutter_findings(ui)
         found += receipt_findings(ui)
     app_code = mask_comments((ui / "lumen-app.slint").read_text(encoding="utf-8"))
     typed_dock_owner = (
@@ -1304,6 +1364,68 @@ class GuardSelfTest(unittest.TestCase):
         self.assertTrue(
             any("tier-only labelled_sidebar(tier) lookup is missing" in item
                 for item in findings), findings)
+
+    def test_a_second_desktop_page_margin_is_caught(self) -> None:
+        """`SPACEUTIL-018`: the desktop gutter was a second copy of one fact."""
+        theme = (UI / "components/theme.slint").read_text(encoding="utf-8")
+        anchor = "    out property <length> page-padding: ViewportLadder.page-padding;"
+        assert anchor in theme, anchor
+        planted = theme.replace(
+            anchor,
+            "    out property <length> page-padding: ViewportLadder.page-padding;\n"
+            "    out property <length> page-margin-desktop: 30 * LumenUiScale.unit;",
+            1,
+        )
+        self.assertNotEqual(theme, planted)
+        findings = self._findings_with({"theme.slint": planted})
+        self.assertTrue(
+            any("second desktop page margin" in item for item in findings), findings)
+
+    def test_a_gutter_forking_on_shell_form_is_caught(self) -> None:
+        """One gutter at every width: the reference does not fork it compact/desktop."""
+        body = (UI / "components/app_body.slint").read_text(encoding="utf-8")
+        anchor = "out property <length> page-margin: LumenTheme.page-padding;"
+        assert anchor in body, anchor
+        planted = body.replace(
+            anchor,
+            "out property <length> page-margin: root.compact-layout\n"
+            "            ? LumenTheme.page-padding\n"
+            "            : 30 * LumenUiScale.unit;",
+            1,
+        )
+        self.assertNotEqual(body, planted)
+        findings = self._findings_with({"app_body.slint": planted})
+        self.assertTrue(
+            any("gutter forks on shell form" in item for item in findings), findings)
+
+    def test_a_theme_not_reading_the_generated_gutter_is_caught(self) -> None:
+        """The surface reads the generated value, never a re-typed 16."""
+        theme = (UI / "components/theme.slint").read_text(encoding="utf-8")
+        anchor = "out property <length> page-padding: ViewportLadder.page-padding;"
+        assert anchor in theme, anchor
+        planted = theme.replace(
+            anchor, "out property <length> page-padding: 16 * LumenUiScale.unit;", 1)
+        findings = self._findings_with({"theme.slint": planted})
+        self.assertTrue(
+            any("no longer reads the exported" in item for item in findings), findings)
+
+    def test_a_generated_gutter_that_drifts_from_the_export_is_caught(self) -> None:
+        """The generated ladder must carry the exported number, not an older one."""
+        adapter = (UI / "components/viewport-ladder.slint").read_text(encoding="utf-8")
+        planted = adapter.replace(
+            "out property <length> page-padding: 16 * LumenUiScale.unit;",
+            "out property <length> page-padding: 24 * LumenUiScale.unit;", 1)
+        self.assertNotEqual(adapter, planted)
+        findings = self._findings_with({"viewport-ladder.slint": planted})
+        self.assertTrue(
+            any("exported page gutter" in item for item in findings), findings)
+
+    def test_the_generated_gutter_survives_only_when_read(self) -> None:
+        """A generated fact nobody consumes is a dead knob."""
+        adapter = (UI / "components/viewport-ladder.slint").read_text(encoding="utf-8")
+        assert "out property <length> page-padding: 16 * LumenUiScale.unit;" in adapter
+        self.assertEqual(
+            [item for item in self._findings_with({}) if "page gutter" in item], [])
 
     def test_a_renamed_proxy_grid_form_is_caught(self) -> None:
         """The two grid forms must stay typed and export-aligned."""

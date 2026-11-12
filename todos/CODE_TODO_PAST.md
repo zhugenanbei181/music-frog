@@ -1,4 +1,4 @@
-# MusicFrog 工程 TODO · 过去佛（13条待验证；归档见 [TODO.md](../TODO.md) 第一百零八批次）
+# MusicFrog 工程 TODO · 过去佛（14条待验证；归档见 [TODO.md](../TODO.md) 第一百零八批次）
 
 > 层级：L4
 
@@ -274,3 +274,18 @@
 ② **修在一处而非三处**：`scripts/parity/capture_attempt.sh` 新增 `capture_settled_image()`，要求尺寸连续两次轮询不再变化后才一次性读出字节数与摘要并成对返回；三个矩阵脚本同批改用它，删除各自的 `stat`/`sha256sum` 内联读法，不留第二套等待策略。
 ③ **门禁自证（L）**：`scripts/parity/test_capture_attempt.py` 由 2 项扩到 **6 项**：settled 摘要==最终字节、持续增长中的文件必须等到落定（断言读到的字节与摘要都等于写完后那份）、缺失/过小文件拒收、三个脚本都不得再各自取摘要。修复后整批重采 **199/199**，逐行复核 manifest 的 `bytes`/`sha256` 与实际 PNG **0 处不符**，`receipt-freshness violations=0`。
 ④ **诚实边界**：本条改的是证据管线，不改任何阈值、判据或页面绘制；`proxies-search-highlight-compact` 与 `dns-hosts-editor-standard` 两帧在三次运行间字节抖动，属既有的动画相位/提示条时序非确定性（b173 已记 `proxies-search-highlight` 为唯一差异帧），本批不为其放宽任何门，也不声称已收口该非确定性。
+
+## 12.83 页身左右留白只有一个契约值，且只付一次（1条待验证）
+
+| ID | 状态 / 优先级 | points | owner | 依赖 |
+| --- | --- | --- | --- | --- |
+| `SPACEUTIL-018` | `Integrated` / P1（b217 上游源码 + 像素实测立项，b218 交付，待统一批次办结） | 3 | infiltrator-contract（`PAGE_PADDING_PX` / v16 导出 / 退役 `content_padding_px` ramp 与 `PROXY_GRID_INSET_PX` 双重扣减）+ infiltrator-slint（`theme.slint` / `app_body.slint` 只读生成值）+ infiltrator-iced（`view_root` / `sidebar_chrome` / `rules_list` / 四处测试）+ `scripts/generate_viewport_ladder.py` + `scripts/parity/space_utilization.py` + `scripts/quality/slint-viewport-tier-guard.py` + 两表面整批重采与别名摘要 | `FLPROXY-001` / `ICEDGRID-001`（页宽规则先例）、`SPACEUTIL-007`（回执自述几何） |
+
+**`SPACEUTIL-018` 页身左右留白只付一次 16dp（b218 交付，3 pt / P1 / `Integrated`）**：
+
+① **真正找到的问题**：pinned FlClash 五条源码把左右留白钉成同一个 16dp 且只付一次（依据与逐像素折算见参照基准 §20、L2 标准 §13）；本仓四份副本：Slint 桌面 30u / 紧凑 16u、Iced 16/24/40/48 按档 ramp、Bevy 12px，且 `proxy_node_columns()` 在 `page_body_width_px()` 已扣留白之后再扣 32，把上游那个「32 = 左右各 16」当成第二个 inset。
+② **收口**：契约发布 `PAGE_PADDING_PX = 16`（故意不是 `TierFact` 字段）、删除 `content_padding_px()` 与 `PROXY_GRID_INSET_PX` 及导出键 `page_inset_px`，`page-structure.json` 升 **v16** 并新增 `page_padding.px`；生成器导出唯一 `ViewportLadder.page-padding` 且 `proxy_columns` 不再二次扣减；Slint 两个页边距 token 合一并由 `page-margin` 单一读取，Iced 四处消费点与 `shell_chrome_facts()` 的多余 `ViewportTier` 参数同批清退，无兼容轨道。
+③ **门禁**：判定器 `page_padding_px()` 逐帧只读导出、`chrome_findings()` 拒绝私自画 30/40/12px 的帧，`--self-test` **63 → 64**；梯守卫新增 `page_gutter_findings()` 四条规则与五条 planted，`--self-test` **48 → 53**，enforce 0。
+④ **像素与门（L）**：Slint **199/199** 发布 run `20261112T052158Z_79bf9f28e20f_dirty_1094075`、Iced **192/192** 发布 run `20261112T052858Z_79bf9f28e20f_dirty_1173512`；两表面 `--enforce` violations=0、欠账台账 `frames` 保持为空、`receipt-freshness 0`、10 条别名摘要按新字节刷新（唯一红腿仍是另一会话未提交的 Bevy `runtime-dark` / `overview-dark` 别名）。实测页身宽逐档**完全一致**：expanded `908`、medium `624`、compact `368`、折叠桌面 `1084`（此前 Slint 880 / Iced 860）；expanded 124 帧 `unused` 中位 **3.9%** 与上一批逐字相同，网格列数在采集窗口逐个不变，属留白归位而非排布改道。
+⑤ **定向证据（L）**：contract+Slint+Iced nextest **1535/1535**、三包 Clippy `--all-targets -D warnings`、`cargo fmt --all --check`；`--check-export` current、生成器 `--check` fresh、`--self-test` 64/64、梯守卫 53/53 + enforce 0、双表面矩阵一致、doc/line/import/typed-state/implicit-state/syntax/dead-input/flag/closure 全 0。
+⑥ **待验证范围**：统一批次复跑 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py`；Bevy 的 12px 副本仍由另一会话持有，随 `FLPROFILES-002` 接线时消费同一导出值（本条不声称 Bevy 已接入）。

@@ -24,7 +24,7 @@
 use crate::view::chrome::mounted_strip_height_px;
 use iced::Rectangle;
 use infiltrator_contract::design_tokens::space;
-use infiltrator_contract::responsive_viewport::{SidebarForm, ViewportTier};
+use infiltrator_contract::responsive_viewport::{PAGE_PADDING_PX, SidebarForm, ViewportTier};
 use infiltrator_contract::shell_receipt::ShellChromeFacts;
 use infiltrator_contract::shell_sidebar_preference::{
     SidebarExpansionCapability, SidebarExpansionPreference, SidebarExpansionPresentation,
@@ -204,7 +204,6 @@ fn round_px(value: f32) -> u16 {
 pub fn shell_chrome_facts(
     presentation: SidebarPresentation,
     receipt: SidebarChromeReceipt,
-    viewport: ViewportTier,
 ) -> Option<ShellChromeFacts> {
     if !receipt.is_complete(presentation) {
         return None;
@@ -215,20 +214,23 @@ pub fn shell_chrome_facts(
         nav_column_px: form.width_px().unwrap_or(0),
         nav_stack_bottom_px: receipt.stack_bottom_px(presentation),
         nav_content_offset_px: presentation.nav_content_offset_px(),
-        // The page body's own margin: the outer padding the page container
-        // paints, straight from the tier the shell laid the window out with.
-        page_margin_px: viewport.content_padding_px(),
+        // The page body's own margin: the one gutter the contract exports,
+        // which is what `view_root` actually paints around the body. It is not
+        // a tier fact - the reference keeps 16dp on a phone page and on a 4K
+        // page alike - so reading it from the tier is what let this surface
+        // spend 80px where the reference spends 32 (`SPACEUTIL-018`).
+        page_margin_px: PAGE_PADDING_PX,
         // The band between the page body and the window edge, measured from the
         // window top exactly as Slint publishes it from
         // `app_body.page-content-padding-{top,bottom}`. The page container pads
-        // the body on every side (`view_root` mounts it with
-        // `content_padding_px`) and the chrome strip is a real row above it, so
+        // the body on every side (`view_root` mounts it with the same
+        // `PAGE_PADDING_PX`) and the chrome strip is a real row above it, so
         // the top band is the strip plus that padding and the bottom band is
         // the padding alone. Declaring zero made the density judge count the
         // band as page-tail air and reported 5% waste on frames whose card
         // already reached the body's last pixel.
-        shell_top_air_px: mounted_strip_height_px() + viewport.content_padding_px(),
-        shell_bottom_air_px: viewport.content_padding_px(),
+        shell_top_air_px: mounted_strip_height_px() + PAGE_PADDING_PX,
+        shell_bottom_air_px: PAGE_PADDING_PX,
         dock_band_px: receipt.dock_band_px(presentation),
         scale_percent: SCALE_PERCENT,
         sidebar_expansion: presentation.preference(),

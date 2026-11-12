@@ -339,10 +339,11 @@ export global LumenTheme {
     // two columns measured 95u each (well under this floor) and left both an
     // odd-count hole and 54px of ground under the last row.
     out property <length> policy-tile-min-width: 172 * LumenUiScale.unit;
-    // One page margin and one rail rhythm. These used to be literals repeated
-    // across the shell, the rail, the header row and the footer, so a header
-    // could disagree with the body column it headed.
-    out property <length> page-margin-desktop: 30 * LumenUiScale.unit;
+    // One rail rhythm. The page gutter used to be a second literal here
+    // (`page-margin-desktop: 30u`), which meant the desktop page paid 60px of
+    // side ground while the reference pays 32dp and this surface's own compact
+    // page paid 16u - three answers to one question inside a single shell.
+    // `SPACEUTIL-018` retired it: both shells now read the one exported gutter.
     // The navigation column this tier reserves, straight from the exported
     // ladder. It used to be a private 228, which is neither the contract's
     // labelled column (240) nor the ultra-wide one (280): one window would
@@ -483,7 +484,12 @@ export global LumenTheme {
     // advance widths keep counters from jittering as digits change.
     out property <string> mono-family: DesignType.mono-family;
     out property <length> min-touch-target: 48 * LumenUiScale.unit;
-    out property <length> page-padding: 16 * LumenUiScale.unit;
+    // The page gutter, exported by the shared contract and generated into the
+    // ladder. It is one value for every shell form: the reference keeps 16dp
+    // on a phone page and on a desktop page alike, so the desktop used to pay
+    // nearly double the ground it needed while the phone paid the right amount
+    // by accident. Nothing here may fork it per tier or per `compact-layout`.
+    out property <length> page-padding: ViewportLadder.page-padding;
     // The desktop rail's own columns, each one a fact of its own:
     //   x18  stack inset - the nav stack starts at `rail-vertical-inset`, and the
     //        title bar's product label sits at `rail-inset` over this column. The

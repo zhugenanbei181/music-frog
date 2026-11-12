@@ -50,11 +50,8 @@ impl AppState {
         // whose sidebar boxes were not measured, so the facts are complete here
         // by construction; a frame that cannot state them publishes nothing
         // rather than a partial line the judge would have to reject.
-        let Some(facts) = shell_chrome_facts(
-            sidebar_presentation(self),
-            self.shell.sidebar_chrome,
-            self.shell.viewport.tier,
-        ) else {
+        let Some(facts) = shell_chrome_facts(sidebar_presentation(self), self.shell.sidebar_chrome)
+        else {
             return;
         };
         line.push_str(&facts.to_marker_line());

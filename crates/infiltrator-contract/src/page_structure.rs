@@ -20,7 +20,7 @@ use crate::command_catalogue::ShellPage;
 use crate::responsive_viewport::{
     DASHBOARD_DESKTOP_MIN_PX, DASHBOARD_FOUR_COLUMN_MIN_PX, DASHBOARD_MOBILE_MAX_PX,
     DASHBOARD_STANDARD_FOUR_COLUMN_MIN_PX, DASHBOARD_STANDARD_HEIGHT_MIN_PX, DashboardColumns,
-    DashboardDensity, PROFILE_MAX_COLUMNS, PROFILE_MIN_ITEM_WIDTH_PX, PROXY_GRID_INSET_PX,
+    DashboardDensity, PAGE_PADDING_PX, PROFILE_MAX_COLUMNS, PROFILE_MIN_ITEM_WIDTH_PX,
     PROXY_MIN_COLUMNS, PROXY_MIN_ITEM_WIDTH_PX, ProfileGridForm, ProxyGridForm, SidebarForm, TIERS,
     ViewportTier,
 };
@@ -66,7 +66,7 @@ impl PageShapeOwner {
 
 /// The exported document's identity. Consumers pin this version so a shape
 /// added to the registry cannot be mistaken for an older export's vocabulary.
-pub const PAGE_STRUCTURE_EXPORT_VERSION: u16 = 15;
+pub const PAGE_STRUCTURE_EXPORT_VERSION: u16 = 16;
 
 /// Resolve a capture page slug onto the page and the shape it renders.
 pub fn shape_for_slug(slug: &str) -> Option<PageShape> {
@@ -178,11 +178,12 @@ pub fn page_structure_json() -> String {
     })
     .collect();
     format!(
-        "{{\"version\":{},\"dashboard_columns\":{},\"dashboard_density\":{},\"navigation_limits\":{},\"profile_grid\":{},\"proxy_grid\":{},\"pages\":[{}],\"slugs\":[{}],\"tiers\":{},\"sidebar_variants\":{},\"navigation_separators\":{},\"chrome_keys\":{}}}\n",
+        "{{\"version\":{},\"dashboard_columns\":{},\"dashboard_density\":{},\"navigation_limits\":{},\"page_padding\":{},\"profile_grid\":{},\"proxy_grid\":{},\"pages\":[{}],\"slugs\":[{}],\"tiers\":{},\"sidebar_variants\":{},\"navigation_separators\":{},\"chrome_keys\":{}}}\n",
         PAGE_STRUCTURE_EXPORT_VERSION,
         dashboard_columns_json(),
         dashboard_density_json(),
         navigation_limits_json(),
+        page_padding_json(),
         profile_grid_json(),
         proxy_grid_json(),
         pages.join(","),
@@ -210,6 +211,18 @@ fn chrome_keys_json() -> String {
 /// The navigation-column caps, exported so the judge does not keep a private
 /// copy of the limits it enforces. Both numbers belong to the same contract
 /// that owns the page-shape caps.
+/// The page gutter, exported as one number instead of a per-tier table.
+///
+/// The reference keeps the same 16dp on every page body at every width, so
+/// this is deliberately *not* a `TierFact` field: exporting it per tier would
+/// invite a surface to read "the padding for my tier" and drift, which is how
+/// Slint ended up at 30u while Iced ramped 16/24/40/48 and Bevy drew 12px.
+/// The judge reads the same key to check that a frame's `page_margin_px` is
+/// the gutter its own tier was told to keep.
+fn page_padding_json() -> String {
+    format!("{{\"px\":{}}}", PAGE_PADDING_PX)
+}
+
 fn navigation_limits_json() -> String {
     format!(
         "{{\"chrome_band_limit_pct\":{},\"void_limit_pct\":{}}}",
@@ -240,7 +253,11 @@ fn profile_grid_json() -> String {
 /// The proxy node grid rule, exported from the same width owner as profiles.
 ///
 /// Surfaces consume the generated `proxy_columns(page-width)` instead of
-/// spelling `250`, `32` or the two-column floor a second time.
+/// spelling `250` or the two-column floor a second time. There is no inset
+/// key here on purpose: the reference's `max(width - 32, 0)` is the page
+/// gutter ([`PAGE_PADDING_PX`], exported as `page_padding_px`) paid once by
+/// the shell, so a grid that subtracted it again would spend the same pixels
+/// twice and starve the row it is counting.
 fn proxy_grid_json() -> String {
     let forms = [ProxyGridForm::Stacked, ProxyGridForm::Desktop];
     let variants: Vec<String> = forms
@@ -248,10 +265,9 @@ fn proxy_grid_json() -> String {
         .map(|form| format!("{{\"id\":\"{}\"}}", form.id()))
         .collect();
     format!(
-        "{{\"variants\":[{}],\"min_item_width_px\":{},\"page_inset_px\":{},\"min_columns\":{},\"stacked_columns\":1}}",
+        "{{\"variants\":[{}],\"min_item_width_px\":{},\"min_columns\":{},\"stacked_columns\":1}}",
         variants.join(","),
         PROXY_MIN_ITEM_WIDTH_PX,
-        PROXY_GRID_INSET_PX,
         PROXY_MIN_COLUMNS
     )
 }
@@ -735,8 +751,26 @@ mod tests {
         assert_eq!(proxy["variants"][0]["id"], "stacked");
         assert_eq!(proxy["variants"][1]["id"], "desktop");
         assert_eq!(proxy["min_item_width_px"], PROXY_MIN_ITEM_WIDTH_PX);
-        assert_eq!(proxy["page_inset_px"], PROXY_GRID_INSET_PX);
         assert_eq!(proxy["min_columns"], PROXY_MIN_COLUMNS);
+        // The grid pays no inset of its own: the page gutter is subtracted
+        // once, by the shell, and re-subtracting it here is the double charge
+        // `SPACEUTIL-018` measured at 828px of grid room where the reference
+        // gets 928px in the same window.
+        assert!(
+            proxy.get("page_inset_px").is_none(),
+            "the proxy grid must not carry a second page inset"
+        );
+        // One gutter, not a per-tier table: a surface that could ask for "the
+        // padding of my tier" is a surface that will drift.
+        assert_eq!(document["page_padding"]["px"], PAGE_PADDING_PX);
+        assert!(
+            document["tiers"]
+                .as_array()
+                .expect("the exported ladder")
+                .iter()
+                .all(|tier| tier.get("content_padding_px").is_none()),
+            "the page gutter is not a tier fact and must not be exported as one"
+        );
         let slug_shapes = document["slugs"]
             .as_array()
             .expect("the exported slug shapes");

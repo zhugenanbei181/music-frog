@@ -61,13 +61,17 @@ export component AppBody inherits Rectangle {
         // precede the navigation leading without calling them a glyph.
         in-out property <length> sidebar-toggle;
 
-        // One horizontal rhythm for the page body. Compact used to fork this per
-        // page (Home 24, AppSettings 10, everything else 16), which meant three
-        // pages could not share a left edge even though the reference phone
-        // layout keeps one 16.6dp inset everywhere.
-        out property <length> page-margin: root.compact-layout
-            ? LumenTheme.page-padding
-            : LumenTheme.page-margin-desktop;
+        // One horizontal rhythm for the page body, at every shell form.
+        //
+        // Compact used to fork this per page (Home 24, AppSettings 10,
+        // everything else 16), which meant three pages could not share a left
+        // edge even though the reference phone layout keeps one 16dp inset
+        // everywhere; the desktop then kept its own 30u, so the same window
+        // spent 60px of side ground here while Iced spent 80px and the
+        // reference spent 32dp. `SPACEUTIL-018` collapses both forks into the
+        // one exported gutter: the left edge is now shared by every page, and
+        // neither shell form owns a margin of its own.
+        out property <length> page-margin: LumenTheme.page-padding;
         // The reserved band is subtracted once from the column that carries
         // the page header and scroll viewport. The height is one theme token,
         // and the decision to use it comes from the typed state alone.
@@ -389,8 +393,8 @@ export component AppBody inherits Rectangle {
 
                 if !root.compact-layout && root.primary-page && !(root.page == "Proxy" && root.selected-group != ""): HorizontalLayout {
                     height: 56 * LumenUiScale.unit;
-                    padding-left: LumenTheme.page-margin-desktop;
-                    padding-right: LumenTheme.page-margin-desktop;
+                    padding-left: root.page-margin;
+                    padding-right: root.page-margin;
                     Text {
                         text: PageTitles.page-name(root.page);
                         color: LumenTheme.text-primary;
@@ -427,8 +431,8 @@ export component AppBody inherits Rectangle {
                 // forks 0/8u between pages.
                 if root.compact-layout && root.primary-page && root.page == "Settings" && !(root.page == "Proxy" && root.selected-group != ""): HorizontalLayout {
                     height: LumenTheme.page-header-height;
-                    padding-left: LumenTheme.page-padding;
-                    padding-right: LumenTheme.page-padding;
+                    padding-left: root.page-margin;
+                    padding-right: root.page-margin;
                     Text {
                         text: PageTitles.phone-title(root.page);
                         color: LumenTheme.text-primary;
