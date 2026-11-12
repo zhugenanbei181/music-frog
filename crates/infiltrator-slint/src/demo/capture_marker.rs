@@ -8,6 +8,7 @@ use super::DemoSettings;
 use crate::AppWindow;
 use crate::capture_scenario::CaptureBounds;
 use crate::shell_receipt_host::shell_chrome_facts;
+use slint::Model;
 use std::fs::{OpenOptions, create_dir_all};
 use std::io::Write as _;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -99,6 +100,7 @@ pub fn write_capture_marker(
         let _ = create_dir_all(parent);
     }
     line.push_str(&chrome_line(window));
+    line.push_str(&navigation_line(window));
     if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path) {
         if file.write_all(line.as_bytes()).is_ok() {
             CAPTURE_MARKER_WRITTEN.store(true, Ordering::SeqCst);
@@ -118,4 +120,26 @@ pub fn write_capture_marker(
 /// The chrome line for this frame: what the live shell is painting.
 fn chrome_line(window: &AppWindow) -> String {
     shell_chrome_facts(window).to_marker_line()
+}
+
+/// The navigation words the live shell published for this frame.
+///
+/// The capture's locale receipt reads this line back instead of trusting the
+/// environment that launched the process: the pixels can only prove a language
+/// if the frame itself states which copy table fed its labels.
+fn navigation_line(window: &AppWindow) -> String {
+    let items = window.get_navigation_items();
+    let labels = (0..items.row_count())
+        .filter_map(|row| items.row_data(row))
+        .map(|item| {
+            let encoded = item
+                .label
+                .as_str()
+                .bytes()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>();
+            format!("{}={};", item.id, encoded)
+        })
+        .collect::<String>();
+    format!("CAPTURE_NAV labels={labels}\n")
 }

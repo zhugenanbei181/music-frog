@@ -1,4 +1,4 @@
-# MusicFrog 工程 TODO · 过去佛（16条待验证；归档见 [TODO.md](../TODO.md) 第一百零八批次）
+# MusicFrog 工程 TODO · 过去佛（17条待验证；归档见 [TODO.md](../TODO.md) 第一百零八批次）
 
 > 层级：L4
 
@@ -336,3 +336,47 @@
 ⑤ **诚实边界**：本批只修执行器与判据，不改两条红腿本身（不同业务结果）；台账保留两条声明，
 owner 分别是另一会话的 Bevy 像素与 `I18NNAV-001`，任一转绿须同批删声明。全仓 `--workspace` nextest/clippy
 与 `resolve_surface_evidence.py` 仍留统一验证批次；对账器腿自身也计入 194 条执行腿之内。
+
+## 12.86 英文侧栏回到共享文案真源（1条待验证）
+
+| ID | 状态 / 优先级 | points | owner | 依赖 |
+| --- | --- | --- | --- | --- |
+| `I18NNAV-001` | `Integrated` / P1（b219 实测立项，b221 交付，待统一批次办结） | 2 | `infiltrator-shared` 双产品 PO（四条 top-title）+ `infiltrator-slint`（`lumen_projection.rs` / `sidebar.slint` / demo locale 与 `CAPTURE_NAV` 回执）+ `scripts/capture_slint_scenarios.tsv` / `capture-slint-matrix.sh`（203 帧矩阵与 locale 列）+ `i18n-guard.py` / `receipt-freshness-guard.py` / `sidebar-expansion-owner-guard.py` / `slint-dock-material-guard.py` / `slint-viewport-tier-guard.py` + `structure_gate_ledger.json` | `GATERUN-001`（不可达门被收口后此腿才显红）、`FLPARITY-048`（标签截断事实）、`I18NCAT-001`（更大的目录欠账已据实留在现在佛） |
+
+**`I18NNAV-001` 桌面导航不再在英文 locale 下画中文（b221 交付，2 pt / P1 / `Integrated`）**：
+
+① **真正找到的问题**：`navigation_display_label` 自 b197 起用 `match item.target` 产出
+`"核心概览"/"代理策略"/"配置订阅"/"系统设置"` 四个中文字面量再喂 `lang.tr`；`Lang("en-US").tr(...)`
+在七张 locale 表与产品 PO 目录都找不到该 msgid，只能回退中文。同时 `DesktopSideBar` 的
+`primary-name` 又让 `PageTitles.page-name` 以第二套词汇覆盖四个主项，而这两个事实都没有被任何
+双 locale 像素回执量过：既有 199 帧矩阵固定 `INFILTRATOR_LANG=zh-CN`，`en-US` 根本没有取证入口。
+② **收口（一个事实一个真源）**：`project_navigation` 只发布 `ShellPage::sidebar_key()` /
+`nav_traffic` 解析出的 localize label；rail 的文字、tooltip 和截断读回都消费 `item.label`，
+`primary-name` / `PageTitles` 的第二套 rail 词汇整条退役。四个 `top-title` msgid 补进双 PO
+目录（`Overview/Proxies/Profiles/Settings` 与中文原文），桌面 app bar、手机顶栏与 dock 由
+同一份编译器驱动目录回答，不再靠中文回退。
+③ **判据**：`slint-viewport-tier-guard` 要求 rail 画 `item.label` 且禁止 `primary-name` /
+`PageTitles.page-name`，planted 自测 **53 → 55**；`i18n-guard` 新增 top-title PO 目录判据，
+同时接入 self-test 与正式 enforce（此前草稿只在自检里重复调用、enforce 根本没接线），
+补 planted 负例后 Python 回归 **9 → 13**；`literal_errors=4` → `0`、`slint_catalog_errors=0`。
+④ **双 locale 真实像素链**：矩阵从 9 列扩到 10 列并新增 `locale` 事实，四张帧
+`sidebar-locale-{zh,en}-{standard,compact}` 覆盖两种语言 × 两种视口；`DemoSettings` 把
+`INFILTRATOR_CAPTURE_LANG` 解析为 typed `LanguagePreference`，同时写进启动语言、
+`language_settings.preference` 与 settings 页字段，不留下三个互相猜的语言来源。每帧的
+`CAPTURE_NAV` 从真实 `NavigationSlot` 模型读回八个标签（hex UTF-8），manifest 发布 locale 列；
+`receipt-freshness-guard` 逐帧核对四主项英文 `Overview/Proxies/Profiles/Settings` 与中文词，
+并新增错词 planted 负例。199 → **203** 帧整批发发布，`sidebar-expansion-owner-guard` /
+`slint-dock-material-guard` / 生成器与统一矩阵测试同步为 203/10 列。
+⑤ **另抓到一条更大缺口并据实立项**：全量扫描 60 份 `.slint` 得 411 个唯一 `@tr` msgid，
+双 PO 同时缺 **98** 条（96 条 CJK）；本批只把四条 top-title 与桌面导航收口，欠账写进
+`slint_tr_catalog_debt.json` 只减台账，由 `I18NCAT-001`（3 pt / P1）在 shared 目录层裁决，
+`i18n-guard` 同时禁止新增漏词与陈旧欠账，不把系统性问题伪装成已解决。
+⑥ **像素与证据（L）**：发布批 `20261112T122258Z_fc1b3c9033d9_dirty_3042836`（**203/203**，580s，binary sha256 `2dbaafe0…`）；四帧 `CAPTURE_NAV` 实测英文四项 `Overview/Proxies/Profiles/Settings` 与中文四项，`receipt-freshness 0`、`space_utilization --surface slint --enforce` 203 帧 violations=0、`screenshot-identity` 仅另一会话 Bevy 别名红（四条 Slint mixin 摘要已刷新）；`cargo check -p infiltrator-slint --features gpu-skia,capture-tools --bin infiltrator-slint`、
+`cargo fmt --all -- --check`、`bash -n scripts/capture-slint-matrix.sh`、定向 `cargo nextest run --locked -p infiltrator-contract -p infiltrator-shared -p infiltrator-slint --features infiltrator-slint/capture-tools --no-fail-fast` **1068/1068**、整门 **194 腿 / 1 红 / findings=0** 通过；`i18n-guard --self-test` /
+`--mode enforce` 0、`slint-viewport-tier-guard --self-test` **55/55**、`sidebar-expansion-owner-guard`
+12/12、`receipt-freshness-guard` 6/6、`structure-gate-guard` 11/11、生成器 `--check` current；
+`structure_gate_ledger.json` 删除已转绿的 i18n 红腿声明，只保留另一会话的 Bevy `screenshot-identity`
+红腿。整门实测 **194 腿 / 1 红 / findings=0**，见 [TODO.md](../TODO.md) b221 与八问。
+⑦ **待验证范围**：统一批次复跑 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py`；
+`I18NCAT-001` 办结前不声称 Slint 全量 `@tr` 已本地化；Bevy 的 192 帧像素仍由另一会话持有，
+本批不重采、不碰。

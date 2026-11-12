@@ -293,6 +293,75 @@ def check_view_references(all_keys: set[str]) -> list[str]:
     return violations
 
 
+PAGE_TITLES = ROOT / "crates/infiltrator-slint/ui/components/page_titles.slint"
+SLINT_UI = ROOT / "crates/infiltrator-slint/ui"
+SLINT_TR_PATTERN = re.compile(r'@tr\(\s*"((?:[^"\\]|\\.)*)"')
+SLINT_TR_DEBT = ROOT / "scripts/quality/slint_tr_catalog_debt.json"
+
+
+def check_slint_tr_catalog() -> list[str]:
+    """I18NNAV-001: a Slint @tr msgid must exist in both product catalogs.
+
+    The desktop rail used to print `@tr("核心概览")` while the PO catalog had
+    no such msgid, so Slint fell back to the Chinese msgid in every locale.
+    This rule covers the four `top-title` msgids, which the desktop rail and
+    the app bar both paint in every locale. The rest of the file's `@tr` sites
+    have a separate pre-existing catalog gap (registered as `I18NCAT-001`);
+    this rule deliberately does not claim to cover them.
+    """
+    catalogs = {locale: set(extract_po_catalog(path)) for locale, path in PRODUCT_CATALOGS.items()}
+    violations: list[str] = []
+    for msgid in top_title_msgids(PAGE_TITLES.read_text(encoding="utf-8")):
+        for locale, keys in catalogs.items():
+            if msgid not in keys:
+                violations.append(
+                    f"product {locale} catalog missing top-title @tr msgid '{msgid}'"
+                )
+    return violations
+
+
+def top_title_msgids(source: str) -> set[str]:
+    """The four CJK msgids whose desktop top bar is painted in both locales."""
+    start = source.index("public pure function top-title")
+    end = source.index("\n    }", start)
+    return {
+        json.loads(f'"{msgid}"')
+        for msgid in SLINT_TR_PATTERN.findall(source[start:end])
+        if CJK_PATTERN.search(msgid)
+    }
+
+
+def slint_tr_msgids() -> set[str]:
+    """Every product msgid the Slint compiler can be asked to localize."""
+    msgids: set[str] = set()
+    for path in sorted(SLINT_UI.rglob("*.slint")):
+        for raw in SLINT_TR_PATTERN.findall(path.read_text(encoding="utf-8")):
+            msgids.add(json.loads(f'"{raw}"'))
+    return msgids
+
+
+def check_slint_tr_debt() -> list[str]:
+    """I18NCAT-001: the known catalog gap can only shrink, never grow."""
+    if not SLINT_TR_DEBT.is_file():
+        return [f"{SLINT_TR_DEBT.relative_to(ROOT)}: missing Slint @tr debt inventory"]
+    document = json.loads(SLINT_TR_DEBT.read_text(encoding="utf-8"))
+    recorded = set(document.get("missing_msgids", []))
+    catalogs = [set(extract_po_catalog(path)) for path in PRODUCT_CATALOGS.values()]
+    current = {
+        msgid for msgid in slint_tr_msgids()
+        if any(msgid not in catalog for catalog in catalogs)
+    }
+    violations = [
+        f"new Slint @tr msgid missing from product catalogs: '{msgid}'"
+        for msgid in sorted(current - recorded)
+    ]
+    violations.extend(
+        f"stale Slint @tr catalog debt entry: '{msgid}'"
+        for msgid in sorted(recorded - current)
+    )
+    return violations
+
+
 def run_self_test() -> None:
     zh_keys = extract_all_keys(ZH_TABLES)
     en_keys = extract_all_keys(EN_TABLES)
@@ -304,6 +373,8 @@ def run_self_test() -> None:
         + check_english_copy()
         + check_product_catalogs()
         + check_untranslated_literals()
+        + check_slint_tr_catalog()
+        + check_slint_tr_debt()
         + check_view_references(zh_keys | en_keys | product_catalog_keys())
     )
     if violations:
@@ -330,8 +401,11 @@ def main() -> int:
     english = check_english_copy()
     products = check_product_catalogs()
     literals = check_untranslated_literals()
+    slint_catalog = check_slint_tr_catalog()
+    slint_debt = check_slint_tr_debt()
     references = check_view_references(zh_keys | en_keys | product_catalog_keys())
-    violations = parity + parameters + duplicates + names + english + products + literals + references
+    violations = (parity + parameters + duplicates + names + english + products
+                  + literals + slint_catalog + slint_debt + references)
 
     for violation in violations:
         print(f"VIOLATION [{args.mode}]: {violation}")
@@ -339,7 +413,9 @@ def main() -> int:
         "i18n quality guard: "
         f"parity_errors={len(parity)} parameter_errors={len(parameters)} duplicate_errors={len(duplicates)} key_name_errors={len(names)} "
         f"english_errors={len(english)} product_catalog_errors={len(products)} "
-        f"literal_errors={len(literals)} reference_errors={len(references)} total={len(violations)}"
+        f"literal_errors={len(literals)} slint_catalog_errors={len(slint_catalog)} "
+        f"slint_catalog_debt_errors={len(slint_debt)} "
+        f"reference_errors={len(references)} total={len(violations)}"
     )
     return 1 if args.mode == "enforce" and violations else 0
 

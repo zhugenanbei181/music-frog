@@ -11,6 +11,8 @@
 
 #![cfg(feature = "capture-tools")]
 
+use infiltrator_contract::language::LanguagePreference;
+use infiltrator_contract::shell_sidebar_preference::SidebarExpansionPreference;
 use infiltrator_slint::capture_scenario::CaptureBounds;
 use infiltrator_slint::demo::{DemoSettings, write_capture_marker};
 use std::fs;
@@ -22,8 +24,14 @@ fn settings(marker: PathBuf, scenario: Option<&str>) -> DemoSettings {
         page: "Config".into(),
         skin: "dark".into(),
         window_size: (1180.0, 780.0),
+        page_scale: None,
         marker: Some(marker),
         scenario: scenario.map(str::to_owned),
+        scroll_to_end: false,
+        mascot_frame: None,
+        mascot_elapsed_millis: 225,
+        sidebar_expansion: SidebarExpansionPreference::Expanded,
+        language: LanguagePreference::SimplifiedChinese,
     }
 }
 

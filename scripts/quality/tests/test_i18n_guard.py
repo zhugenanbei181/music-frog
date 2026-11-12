@@ -1,5 +1,6 @@
 """Regression checks for shared Rust and product-PO localization coverage."""
 import importlib.util
+import json
 from pathlib import Path
 import sys
 import unittest
@@ -53,6 +54,42 @@ class LocalizationCoverageTests(unittest.TestCase):
 
     def test_product_catalogs_have_locale_and_placeholder_parity(self):
         self.assertEqual(guard.check_product_catalogs(), [])
+
+    def test_every_desktop_top_title_has_a_product_catalog_entry(self):
+        source = (ROOT / 'crates/infiltrator-slint/ui/components/page_titles.slint').read_text()
+        self.assertEqual(guard.top_title_msgids(source), {
+            '核心概览', '代理策略', '配置订阅', '系统设置',
+        })
+        self.assertEqual(guard.check_slint_tr_catalog(), [])
+
+    def test_a_missing_top_title_catalog_entry_is_caught(self):
+        catalogs = {
+            locale: set(guard.extract_po_catalog(path))
+            for locale, path in guard.PRODUCT_CATALOGS.items()
+        }
+        catalogs['en-US'].discard('核心概览')
+        catalogs_by_name = {
+            'en.po': catalogs['en-US'],
+            'zh.po': catalogs['zh-CN'],
+        }
+        with patch.object(guard, 'PRODUCT_CATALOGS', {
+            'en-US': Path('en.po'), 'zh-CN': Path('zh.po'),
+        }), patch.object(guard, 'extract_po_catalog',
+                         side_effect=lambda path: catalogs_by_name[path.name]):
+            failures = guard.check_slint_tr_catalog()
+        self.assertIn("product en-US catalog missing top-title @tr msgid '核心概览'", failures)
+
+    def test_the_catalog_debt_inventory_is_current(self):
+        self.assertEqual(guard.check_slint_tr_debt(), [])
+        debt = set(json.loads((ROOT / 'scripts/quality/slint_tr_catalog_debt.json').read_text())['missing_msgids'])
+        self.assertEqual(len(debt), 98)
+        self.assertNotIn('核心概览', debt)
+
+    def test_a_new_uncovered_slint_msg_is_caught_by_the_debt_guard(self):
+        with patch.object(guard, 'slint_tr_msgids',
+                          return_value=guard.slint_tr_msgids() | {'新的未翻译文案'}):
+            failures = guard.check_slint_tr_debt()
+        self.assertIn("new Slint @tr msgid missing from product catalogs: '新的未翻译文案'", failures)
 
     def test_production_speedtest_is_scanned_and_real_test_files_are_skipped(self):
         self.assertFalse(guard.is_test_path(Path('crates/ui/src/pages/speedtest_details.rs')))

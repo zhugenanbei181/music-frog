@@ -13,8 +13,9 @@ mod pages;
 
 use super::*;
 use crate::capture_scenario::{self, CaptureBounds};
-use crate::demo::capture_marker::write_capture_marker;
+pub use crate::demo::capture_marker::write_capture_marker;
 use crate::mascot_driver::publish_receipt_frame;
+use infiltrator_contract::language::LanguagePreference;
 use infiltrator_contract::shell_sidebar_preference::SidebarExpansionPreference;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
@@ -54,6 +55,10 @@ pub struct DemoSettings {
     /// publish the collapsed rail without a UI-private shortcut or a second
     /// source of the persisted setting.
     pub sidebar_expansion: SidebarExpansionPreference,
+    /// The locale the capture's owner snapshot publishes. A capture row states
+    /// it explicitly so the pixel corpus can prove both languages rather than
+    /// silently inheriting the host's system locale.
+    pub language: LanguagePreference,
 }
 
 impl DemoSettings {
@@ -164,6 +169,18 @@ impl DemoSettings {
             }
         };
 
+        let language = match env::var("INFILTRATOR_CAPTURE_LANG")
+            .ok()
+            .as_deref()
+            .map(str::trim)
+        {
+            Some("en-US") => LanguagePreference::English,
+            Some("zh-CN") | None => LanguagePreference::SimplifiedChinese,
+            Some(other) => {
+                panic!("INFILTRATOR_CAPTURE_LANG={other} must be zh-CN or en-US")
+            }
+        };
+
         Self {
             enabled,
             page,
@@ -176,6 +193,7 @@ impl DemoSettings {
             mascot_frame,
             mascot_elapsed_millis,
             sidebar_expansion,
+            language,
         }
     }
 }
@@ -244,8 +262,12 @@ fn build_demo_snapshot(settings: &DemoSettings) -> SurfaceSnapshot {
     let theme_str = baseline::demo_theme_str(&settings.skin);
     baseline::apply_theme_readback(&mut snapshot, theme_str);
 
-    snapshot.pages.settings =
-        PageData::ready(pages::settings_page(theme_str, settings.sidebar_expansion));
+    snapshot.pages.settings = PageData::ready(pages::settings_page(
+        theme_str,
+        settings.sidebar_expansion,
+        settings.language,
+    ));
+    snapshot.language_settings.preference = Some(settings.language);
     snapshot.pages.profiles = PageData::ready(pages::profiles_page());
     baseline::apply_workbench_read_models(&mut snapshot);
     snapshot.pages.connections = PageData::ready(pages::connections_page());

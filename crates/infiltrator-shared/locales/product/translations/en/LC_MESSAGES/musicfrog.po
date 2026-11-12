@@ -1663,3 +1663,15 @@ msgstr "Collapse"
 
 msgid "展开"
 msgstr "Expand"
+
+msgid "核心概览"
+msgstr "Overview"
+
+msgid "代理策略"
+msgstr "Proxies"
+
+msgid "配置订阅"
+msgstr "Profiles"
+
+msgid "系统设置"
+msgstr "Settings"

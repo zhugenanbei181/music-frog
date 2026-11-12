@@ -297,7 +297,7 @@ CAPTURED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   printf 'niri_host=kwin-wayland-virtual\n'
   printf 'command=bash scripts/capture-slint-matrix.sh\n'
 } >"$METADATA"
-printf 'scenario\tpage\tskin\trequested_window\tapp_pid\twindow_id\twidth\theight\tbytes\tsha256\tstatus\n' >"$MANIFEST"
+printf 'scenario\tpage\tskin\trequested_window\tapp_pid\twindow_id\twidth\theight\tbytes\tsha256\tstatus\tlocale\n' >"$MANIFEST"
 
 # Config KDL
 cat >"$CONF" <<KDL
@@ -430,7 +430,11 @@ done
 printf 'compositor: ready (wayland=%s ipc=%s)\n' "$NIRI_SOCK" "$NIRI_IPC"
 
 capture_one() {
-  local name="$1" page="$2" skin="$3" window_size="$4" scroll="${5:-}" mascot_frame="${6:-}" mascot_millis="${7:-}" sidebar_expansion="${8:-expanded}" interaction="${9:-}"
+  local name="$1" page="$2" skin="$3" window_size="$4" scroll="${5:-}" mascot_frame="${6:-}" mascot_millis="${7:-}" sidebar_expansion="${8:-expanded}" interaction="${9:-}" locale="${10:-zh-CN}"
+  case "$locale" in
+    zh-CN|en-US) ;;
+    *) printf 'capture locale must be zh-CN or en-US (got %s)\n' "$locale" >&2; return 1 ;;
+  esac
   local marker_page="$page"
   local scenario_dir="$RUN_DIR/$name"
   local log="$scenario_dir/app.log"
@@ -474,7 +478,8 @@ capture_one() {
     env XDG_RUNTIME_DIR="$RUNTIME_DIR" WAYLAND_DISPLAY="$NIRI_SOCK" DISPLAY= \
       "${perf_env[@]}" \
       INFILTRATOR_DEMO=1 \
-      INFILTRATOR_LANG="${INFILTRATOR_LANG:-zh-CN}" \
+      INFILTRATOR_LANG="$locale" \
+      INFILTRATOR_CAPTURE_LANG="$locale" \
       INFILTRATOR_PAGE="$page" \
       INFILTRATOR_SCENARIO="$interaction" \
       INFILTRATOR_SKIN="$skin" \
@@ -597,9 +602,9 @@ capture_one() {
   fi
   grep 'CAPTURE_READY' "$marker" 2>/dev/null | sed "s/^/$name\t/" \
     >>"$RUN_DIR/capture-markers.log" || true
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
     "$name" "$page" "$skin" "$window_size" \
-    "$APP_PID" "$window_id" "$width" "$height" "$bytes" "$hash" "$action_status" \
+    "$APP_PID" "$window_id" "$width" "$height" "$bytes" "$hash" "$action_status" "$locale" \
     >>"$MANIFEST"
 
   if [ "$action_status" != ok ] && [ "$window_ready" -eq 1 ]; then
@@ -619,19 +624,20 @@ FAILED_NAMES=""
 # IFS whitespace collapses consecutive tabs, which silently shifts every
 # column after an empty field (the mascot frame landed in `scroll` and no
 # notes were ever published). awk replaces empty fields with a placeholder so
-# the read always sees exactly nine fields, including the owner preference and
-# the explicit business interaction. A shell-form receipt has no interaction;
+# the read always sees exactly ten fields, including the owner preference, the
+# explicit business interaction and the locale fact. A shell-form receipt has no interaction;
 # deriving it from the scenario name would ask the demo to open a business
 # that the row never named.
-while IFS=$'\t' read -r name page skin window_size scroll mascot_frame mascot_millis sidebar_expansion interaction; do
+while IFS=$'\t' read -r name page skin window_size scroll mascot_frame mascot_millis sidebar_expansion interaction locale; do
   [ "$name" = name ] && continue
   [ "$scroll" = "-" ] && scroll=""
   [ "$mascot_frame" = "-" ] && mascot_frame=""
   [ "$mascot_millis" = "-" ] && mascot_millis=""
   [ "$sidebar_expansion" = "-" ] && sidebar_expansion="expanded"
   [ "$interaction" = "-" ] && interaction=""
+  [ "$locale" = "-" ] && locale="${INFILTRATOR_LANG:-zh-CN}"
   [ -n "$name" ] || continue
-  if ! capture_one "$name" "$page" "$skin" "$window_size" "$scroll" "$mascot_frame" "$mascot_millis" "${sidebar_expansion:-expanded}" "$interaction"; then
+  if ! capture_one "$name" "$page" "$skin" "$window_size" "$scroll" "$mascot_frame" "$mascot_millis" "${sidebar_expansion:-expanded}" "$interaction" "$locale"; then
     FAILURES=$((FAILURES + 1))
     FAILED_NAMES="$FAILED_NAMES $name"
   fi

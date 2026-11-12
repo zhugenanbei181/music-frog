@@ -2,7 +2,7 @@
 """Guard the freshness of published Slint screenshot receipts.
 
 The published tree must describe exactly one **full** capture run: the most
-recent one that published all 199 scenarios. A name-filtered diagnostic run
+recent one that published all 203 scenarios. A name-filtered diagnostic run
 produces fresh pixels in `.evidence/captures/` for a handful of scenarios but
 explicitly never touches the published corpus, so treating it as the latest
 published batch would report 197 perfectly fresh receipts as stale and force
@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import io
 import pathlib
 import subprocess
 import sys
@@ -28,8 +29,21 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 OUT_DIR = pathlib.Path("crates/infiltrator-slint/docs/screenshots")
 EVIDENCE_ROOT = pathlib.Path(".evidence/captures/slint")
 FIELDS = ("scenario", "page", "skin", "requested_window", "app_pid", "window_id",
-          "width", "height", "bytes", "sha256", "status")
-FULL_MATRIX_SIZE = 199
+          "width", "height", "bytes", "sha256", "status", "locale")
+LEGACY_FIELDS = FIELDS[:-1]
+FULL_MATRIX_SIZE = 203
+LEGACY_MATRIX_SIZE = 199
+LOCALE_MATRIX = ROOT / "scripts/capture_slint_scenarios.tsv"
+LOCALE_ROWS = (
+    "sidebar-locale-zh-standard",
+    "sidebar-locale-zh-compact",
+    "sidebar-locale-en-standard",
+    "sidebar-locale-en-compact",
+)
+EXPECTED_NAV_LABELS = {
+    "zh-CN": {"overview": "核心概览", "proxies": "代理节点", "profiles": "配置管理", "settings": "系统设置"},
+    "en-US": {"overview": "Overview", "proxies": "Proxies", "profiles": "Profiles", "settings": "Settings"},
+}
 
 
 def sha256(path: pathlib.Path) -> str:
@@ -43,7 +57,7 @@ def sha256(path: pathlib.Path) -> str:
 def read_manifest(path: pathlib.Path) -> dict[str, dict[str, str]]:
     with path.open(encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle, delimiter="\t")
-        if tuple(reader.fieldnames or ()) != FIELDS:
+        if tuple(reader.fieldnames or ()) not in (FIELDS, LEGACY_FIELDS):
             raise ValueError(f"{path}: expected columns {FIELDS}")
         return {row["scenario"]: row for row in reader}
 
@@ -63,7 +77,9 @@ def latest_run(root: pathlib.Path) -> pathlib.Path | None:
         # publication and marks the intact corpus stale.
         rows = read_manifest(manifest)
         published = sum(1 for row in rows.values() if row["status"] == "ok")
-        if published != FULL_MATRIX_SIZE:
+        if published not in (FULL_MATRIX_SIZE, LEGACY_MATRIX_SIZE):
+            continue
+        if published == LEGACY_MATRIX_SIZE:
             continue
         candidates.append((manifest.stat().st_mtime_ns, run))
     return max(candidates, default=(0, None))[1]
@@ -92,13 +108,101 @@ def violations(root: pathlib.Path) -> list[str]:
     for image in sorted(out.glob("*.png")):
         if image.stem not in expected:
             problems.append(f"{OUT_DIR}: stale screenshot {image.name}")
+    problems.extend(locale_receipt_findings(root, run))
     return problems
+
+
+def locale_receipt_findings(
+    root: pathlib.Path,
+    run: pathlib.Path,
+    *,
+    matrix: str | None = None,
+    published_locale: str | None = None,
+    markers: dict[str, str] | None = None,
+) -> list[str]:
+    """The four sidebar frames must prove the labels of both locales."""
+    findings: list[str] = []
+    matrix_path = root / LOCALE_MATRIX
+    if matrix is None and not matrix_path.is_file():
+        return [f"{LOCALE_MATRIX}: missing capture matrix"]
+    source = matrix if matrix is not None else matrix_path.read_text(encoding="utf-8")
+    with io.StringIO(source) as handle:
+        rows = {row["name"]: row for row in csv.DictReader(handle, delimiter="\t")}
+    for name in LOCALE_ROWS:
+        row = rows.get(name)
+        if row is None:
+            findings.append(f"{LOCALE_MATRIX}: missing locale receipt {name}")
+            continue
+        locale = row.get("locale")
+        if locale not in EXPECTED_NAV_LABELS:
+            findings.append(f"{LOCALE_MATRIX}: {name} has unsupported locale {locale!r}")
+            continue
+        published = (
+            {"locale": published_locale}
+            if published_locale is not None
+            else read_manifest(root / OUT_DIR / "manifest.tsv").get(name, {})
+        )
+        if published.get("locale") != locale:
+            findings.append(f"{OUT_DIR}: manifest locale for {name} is not {locale}")
+        marker = run / name / "marker.log"
+        marker_text = markers.get(name) if markers is not None else None
+        if marker_text is None and not marker.is_file():
+            findings.append(f"{run / name}: missing capture marker")
+            continue
+        text = marker_text if marker_text is not None else marker.read_text(encoding="utf-8")
+        lines = [line for line in text.splitlines()
+                 if line.startswith("CAPTURE_NAV ")]
+        if len(lines) != 1:
+            findings.append(f"{marker}: expected exactly one CAPTURE_NAV line")
+            continue
+        prefix = "CAPTURE_NAV labels="
+        if not lines[0].startswith(prefix):
+            findings.append(f"{marker}: malformed CAPTURE_NAV line")
+            continue
+        encoded = lines[0][len(prefix):]
+        published_labels = {}
+        try:
+            for entry in filter(None, encoded.split(";")):
+                page, digest = entry.split("=", 1)
+                published_labels[page] = bytes.fromhex(digest).decode("utf-8")
+        except (ValueError, UnicodeDecodeError) as error:
+            findings.append(f"{marker}: CAPTURE_NAV labels are not hex UTF-8: {error}")
+            continue
+        for page, word in EXPECTED_NAV_LABELS[locale].items():
+            if published_labels.get(page) != word:
+                findings.append(
+                    f"{marker}: {locale} navigation row {page} reads "
+                    f"{published_labels.get(page)!r}, expected {word!r}"
+                )
+    return findings
 
 
 class GuardTests(unittest.TestCase):
     def test_manifest_columns_are_stable(self) -> None:
         self.assertEqual(FIELDS[0], "scenario")
-        self.assertEqual(FIELDS[-1], "status")
+        self.assertEqual(FIELDS[-1], "locale")
+
+    def test_a_legacy_full_batch_is_not_the_latest_publication(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            legacy = root / EVIDENCE_ROOT / "legacy"
+            current = root / EVIDENCE_ROOT / "current"
+            legacy.mkdir(parents=True)
+            current.mkdir(parents=True)
+            legacy_rows = "\t".join(LEGACY_FIELDS) + "\n" + "".join(
+                f"s{i}\tpage\tskin\t1180x780\t1\t2\t1180\t780\t1\tabc\tok\n"
+                for i in range(LEGACY_MATRIX_SIZE))
+            current_rows = "\t".join(FIELDS) + "\n" + "".join(
+                f"s{i}\tpage\tskin\t1180x780\t1\t2\t1180\t780\t1\tabc\tok\tzh-CN\n"
+                for i in range(FULL_MATRIX_SIZE))
+            (legacy / "capture-manifest.tsv").write_text(legacy_rows)
+            (current / "capture-manifest.tsv").write_text(current_rows)
+            (legacy / "capture-metadata.txt").write_text("scenario_count=199\n")
+            (current / "capture-metadata.txt").write_text("scenario_count=203\n")
+            import os
+            later_ns = (current / "capture-manifest.tsv").stat().st_mtime_ns + 1000
+            os.utime(legacy / "capture-manifest.tsv", ns=(later_ns, later_ns))
+            self.assertEqual(latest_run(root), current)
 
     def test_diagnostic_runs_are_not_publication_batches(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -153,6 +257,28 @@ class GuardTests(unittest.TestCase):
             later_ns = (complete / "capture-manifest.tsv").stat().st_mtime_ns + 1000
             os.utime(killed / "capture-manifest.tsv", ns=(later_ns, later_ns))
             self.assertEqual(latest_run(root), complete)
+
+    def test_a_locale_receipt_with_the_wrong_nav_word_is_caught(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            labels = ";".join(
+                f"{page}={word.encode('utf-8').hex()}"
+                for page, word in (("overview", "Overview"), ("proxies", "代理节点"))
+            ) + ";"
+            matrix = (
+                "\t".join(("name", "page", "skin", "window_size", "locale")) + "\n"
+                + "sidebar-locale-en-standard\toverview\tdark\t1180x780\ten-US\n"
+            )
+            findings = locale_receipt_findings(
+                root,
+                pathlib.Path("/unused-run"),
+                matrix=matrix,
+                published_locale="en-US",
+                markers={
+                    "sidebar-locale-en-standard": "CAPTURE_NAV labels=" + labels + "\n"
+                },
+            )
+            self.assertTrue(any("en-US navigation row proxies" in item for item in findings), findings)
 
 
 def main() -> int:

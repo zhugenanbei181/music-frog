@@ -1252,8 +1252,16 @@ def violations(ui: pathlib.Path, dock_checks: bool = True,
                 or "padding-top: root.page-content-padding-top;" not in body_code):
             found.append("components/app_body.slint: the compact padding-top fork returned")
         rail = (ui / "components/sidebar.slint").read_text(encoding="utf-8")
-        if "PageTitles.page-name(" not in rail:
-            found.append("components/sidebar.slint: the rail does not read the page-name owner")
+        rail_code = mask_comments(rail)
+        # I18NNAV-001: the rail paints the projection's localized copy-table
+        # label. Its old `primary-name` fork re-translated four Chinese msgids
+        # that the product catalog never carried, so the en-US rail printed
+        # Chinese. `PageTitles.page-name` remains the app-bar heading owner;
+        # the rail must not grow a second page-title vocabulary.
+        if "text: item.label;" not in rail_code:
+            found.append("components/sidebar.slint: the rail does not paint the projection label")
+        if "primary-name" in rail_code or "PageTitles.page-name(" in rail_code:
+            found.append("components/sidebar.slint: the rail re-derives a second page-name vocabulary")
 
     # 4. No dead theme token.
     everywhere = "\n".join(path.read_text(encoding="utf-8") for path in sorted(ui.rglob("*.slint")))
@@ -2097,6 +2105,43 @@ class GuardSelfTest(unittest.TestCase):
             read_text.side_effect = fake
             findings = generated_column_findings(UI)
         self.assertTrue(any("private column unit" in item for item in findings), findings)
+
+    def test_a_rail_that_drops_the_projection_label_is_caught(self) -> None:
+        """I18NNAV-001: the rail must paint the localized projection label."""
+        rail = (UI / "components/sidebar.slint").read_text(encoding="utf-8")
+        planted = rail.replace("text: item.label;", 'text: @tr("核心概览");', 1)
+        self.assertNotEqual(rail, planted)
+        findings = self._findings_with_dock({"sidebar.slint": planted})
+        self.assertTrue(
+            any("rail does not paint the projection label" in item for item in findings),
+            findings,
+        )
+
+    def test_a_rail_that_reintroduces_the_second_page_name_is_caught(self) -> None:
+        """The old primary-name fork printed Chinese in the en-US locale."""
+        rail = (UI / "components/sidebar.slint").read_text(encoding="utf-8")
+        planted = rail.replace(
+            "text: item.label;",
+            'text: root.primary-name(item.id) != "" ? root.primary-name(item.id) : item.label;',
+            1,
+        )
+        findings = self._findings_with_dock({"sidebar.slint": planted})
+        self.assertTrue(
+            any("second page-name vocabulary" in item for item in findings), findings
+        )
+
+    def _findings_with_dock(self, overrides: dict[str, str]) -> list[str]:
+        real = pathlib.Path.read_text
+
+        def fake(self: pathlib.Path, *args, **kwargs):
+            for name, body in overrides.items():
+                if self.name == name:
+                    return body
+            return real(self, *args, **kwargs)
+
+        with unittest.mock.patch.object(pathlib.Path, "read_text", autospec=True) as read:
+            read.side_effect = fake
+            return violations(UI, dock_checks=True)
 
     def test_product_name_as_page_title_is_caught(self) -> None:
         titles = mask_comments(TITLE_FILE.read_text(encoding="utf-8"))

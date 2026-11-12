@@ -7,6 +7,7 @@ use super::baseline::MB;
 use super::fixtures;
 use infiltrator_contract::connection::ConnectionRateObservation;
 use infiltrator_contract::lan::LanSharingSnapshot;
+use infiltrator_contract::language::LanguagePreference;
 use infiltrator_contract::logs::LogStreamState;
 use infiltrator_contract::rule_snapshot::RuleSnapshot;
 use infiltrator_contract::shell_sidebar_preference::SidebarExpansionPreference;
@@ -24,11 +25,12 @@ use lurker_core_contract::routing_intent::RoutingIntentSnapshot;
 pub(super) fn settings_page(
     theme: &str,
     sidebar_expansion: SidebarExpansionPreference,
+    language: LanguagePreference,
 ) -> SettingsPageSnapshot {
     SettingsPageSnapshot {
         close_to_tray: Some(false),
         notifications_enabled: Some(true),
-        language: "zh-CN".into(),
+        language: language.as_setting().into(),
         theme: theme.into(),
         autostart: true,
         system_proxy: true,

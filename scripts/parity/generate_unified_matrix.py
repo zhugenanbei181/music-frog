@@ -12,6 +12,11 @@ for the Iced surface only: the contract `shape` the frame is judged by, the
 `sidebar_expansion` preference the fixture publishes (only the surface-owned
 collapsed-sidebar rows fill that one).
 
+Slint's committed matrix extends that shared header with five capture-owned
+columns and a `locale` column. The generator checks/rewrites its own four
+leading columns and preserves the rest verbatim, so a locale row is a surface
+fact rather than a second contract matrix.
+
 `page` is the selector the surface's own capture opens (a route, a pane or a
 section anchor). For Slint those selectors already ARE the contract's page
 shapes - `connections-details-drawer-standard` opens `connections_workbench`
@@ -197,12 +202,13 @@ def generated_rows(surface: str) -> list[str]:
 def merge_line(generated: str, committed: str) -> str:
     """One row: the generator owns the columns it emits, the surface the rest.
 
-    The Slint matrix carries five columns the generator does not produce
+    The Slint matrix carries six columns the generator does not produce
     (`scroll`, `mascot_frame`, `mascot_millis`, `sidebar_expansion`,
-    `interaction`); those belong to the surface's capture path. When the
-    generator's own leading columns match, the committed line is kept verbatim;
-    when they do not, the generator's columns win and the surface's trailing
-    columns ride along, so a page change never silently drops an interaction.
+    `interaction`, `locale`); those belong to the surface's capture path. When
+    the generator's own leading columns match, the committed line is kept
+    verbatim; when they do not, the generator's columns win and the surface's
+    trailing columns ride along, so a page change never silently drops an
+    interaction or a locale.
     """
     generated_fields = generated.split("\t")
     committed_fields = committed.split("\t")

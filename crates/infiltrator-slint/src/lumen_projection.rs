@@ -20,7 +20,6 @@ use crate::surface::workbenches::Workbenches;
 use crate::theme_util::apply_theme_color;
 use crate::widget_vocabulary;
 use infiltrator_contract::capability::Availability;
-use infiltrator_contract::command_catalogue::ShellPage;
 use infiltrator_contract::language::LanguagePreference;
 use infiltrator_contract::overview_layout::{OverviewCardKind, OverviewLayoutSnapshot};
 use infiltrator_contract::profile_editor_read::ProfileReadStatus;
@@ -109,19 +108,13 @@ fn navigation_label(item: NavigationItem, lang: &Lang<'_>) -> String {
     }
 }
 
-/// The word the desktop rail actually paints. Four primary rows ask
-/// `PageTitles.page-name`, whose msgids are the route words the app bar and
-/// this rail share; the remaining rows consume the projection's label as-is.
-/// The truncation readback must measure this word, not another vocabulary.
-fn navigation_display_label(item: NavigationItem, label: &str, lang: &Lang<'_>) -> String {
-    let msgid = match item.target {
-        NavigationTarget::Shared(ShellPage::Overview) => Some("核心概览"),
-        NavigationTarget::Shared(ShellPage::Proxies) => Some("代理策略"),
-        NavigationTarget::Shared(ShellPage::Profiles) => Some("配置订阅"),
-        NavigationTarget::Shared(ShellPage::Settings) => Some("系统设置"),
-        _ => None,
-    };
-    msgid.map_or_else(|| label.to_owned(), |key| lang.tr(key).into_owned())
+/// The word the desktop rail actually paints. The projection publishes the
+/// localized label for every row (`ShellPage::sidebar_key` / `nav_traffic`);
+/// the rail and its truncation readback consume that one word, so no second
+/// page-title vocabulary can drift from the copy table or leak Chinese into
+/// the English locale.
+fn navigation_display_label(_item: NavigationItem, label: &str, _lang: &Lang<'_>) -> String {
+    label.to_owned()
 }
 
 fn navigation_group_label(group: NavigationGroup, lang: &Lang<'_>) -> String {
@@ -807,16 +800,32 @@ mod sidebar_label_tests {
     }
 
     #[test]
-    fn primary_rows_measure_the_word_the_rail_paints() {
-        let lang = Lang("zh-CN");
-        let item = desktop_item(ShellPage::Overview);
-        let label = navigation_label(item, &lang);
-        let display = navigation_display_label(item, &label, &lang);
-        assert_eq!(display, "核心概览");
-        assert!(!sidebar_label_is_truncated(
-            &display,
-            SidebarLabelGeometry::DESKTOP
-        ));
+    fn both_locales_publish_the_same_word_the_rail_paints() {
+        for (language, expected) in [
+            ("zh-CN", ["核心概览", "代理节点", "配置管理", "系统设置"]),
+            ("en-US", ["Overview", "Proxies", "Profiles", "Settings"]),
+        ] {
+            let lang = Lang(language);
+            for (page, word) in [
+                ShellPage::Overview,
+                ShellPage::Proxies,
+                ShellPage::Profiles,
+                ShellPage::Settings,
+            ]
+            .into_iter()
+            .zip(expected)
+            {
+                let item = desktop_item(page);
+                let label = navigation_label(item, &lang);
+                let display = navigation_display_label(item, &label, &lang);
+                assert_eq!(display, word, "{language} {}", item.id());
+                assert_eq!(label, word);
+                assert!(!sidebar_label_is_truncated(
+                    &display,
+                    SidebarLabelGeometry::DESKTOP
+                ));
+            }
+        }
     }
 
     #[test]

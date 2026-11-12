@@ -53,9 +53,15 @@ VIEWPORT_GUARD = ROOT / "scripts/quality/slint-viewport-tier-guard.py"
 
 MATRIX_HEADER = (
     "name", "page", "skin", "window_size", "scroll", "mascot_frame",
-    "mascot_millis", "sidebar_expansion", "interaction",
+    "mascot_millis", "sidebar_expansion", "interaction", "locale",
 )
-MATRIX_ROW_COUNT = 199
+MATRIX_ROW_COUNT = 203
+LOCALE_ROWS = {
+    "sidebar-locale-zh-standard": "zh-CN",
+    "sidebar-locale-zh-compact": "zh-CN",
+    "sidebar-locale-en-standard": "en-US",
+    "sidebar-locale-en-compact": "en-US",
+}
 
 REQUIRED = {
     "command": (
@@ -121,6 +127,7 @@ REQUIRED = {
         "\t".join(MATRIX_HEADER),
         "sidebar-collapsed-standard",
         "sidebar-collapsed-compact",
+        "sidebar-locale-en-standard",
     ),
     "page_structure": (
         "pub struct SidebarVariantFact",
@@ -203,7 +210,7 @@ def capture_matrix_findings(source: str) -> list[str]:
     lines = source.splitlines()
     found: list[str] = []
     if not lines or tuple(lines[0].split("\t")) != MATRIX_HEADER:
-        return ["capture_matrix does not publish the nine-column typed header"]
+        return ["capture_matrix does not publish the ten-column typed header"]
     rows = [line.split("\t") for line in lines[1:] if line]
     if len(rows) != MATRIX_ROW_COUNT:
         found.append(f"capture_matrix has {len(rows)} rows, expected {MATRIX_ROW_COUNT}")
@@ -211,20 +218,30 @@ def capture_matrix_findings(source: str) -> list[str]:
         if len(row) != len(MATRIX_HEADER):
             found.append(f"capture_matrix line {number} has {len(row)} columns")
             continue
-        name, *_rest, sidebar_expansion, interaction = row
+        name, *_rest, sidebar_expansion, interaction, locale = row
         is_viewport_row = name.endswith(("-standard", "-compact"))
         is_shell_form = name in {"sidebar-collapsed-standard", "sidebar-collapsed-compact"}
+        if locale not in ("zh-CN", "en-US"):
+            found.append(f"capture_matrix row {name} has unsupported locale {locale!r}")
         if is_shell_form:
             if sidebar_expansion != "collapsed":
                 found.append(f"capture_matrix shell form {name} is not collapsed")
             if interaction:
                 found.append(f"capture_matrix shell form {name} must not derive a business interaction")
+        elif name in LOCALE_ROWS:
+            if locale != LOCALE_ROWS[name]:
+                found.append(f"capture_matrix locale receipt {name} is not {LOCALE_ROWS[name]}")
+            if interaction:
+                found.append(f"capture_matrix locale receipt {name} must not carry a business interaction")
         elif is_viewport_row:
             expected_interaction = name.rsplit("-", 1)[0]
             if sidebar_expansion != "expanded" or interaction != expected_interaction:
                 found.append(f"capture_matrix business row {name} has the wrong owner or interaction")
         elif interaction:
             found.append(f"capture_matrix inspection row {name} must not carry a business interaction")
+    for name, locale in LOCALE_ROWS.items():
+        if name not in {row[0] for row in rows}:
+            found.append(f"capture_matrix is missing locale receipt {name}")
     return found
 
 
@@ -344,7 +361,17 @@ class GuardSelfTest(unittest.TestCase):
 
     def test_a_matrix_that_drops_the_explicit_interaction_column_is_caught(self) -> None:
         planted = self.texts["capture_matrix"].replace("\tinteraction", "", 1)
-        self.assertTrue(any("nine-column typed header" in item for item in self.found(capture_matrix=planted)))
+        self.assertTrue(any("ten-column typed header" in item for item in self.found(capture_matrix=planted)))
+
+    def test_a_locale_receipt_with_the_wrong_language_is_caught(self) -> None:
+        planted = self.texts["capture_matrix"].replace(
+            "sidebar-locale-en-standard\toverview\tdark\t1180x780\t\t\t\texpanded\t\ten-US",
+            "sidebar-locale-en-standard\toverview\tdark\t1180x780\t\t\t\texpanded\t\tzh-CN",
+            1,
+        )
+        self.assertNotEqual(planted, self.texts["capture_matrix"])
+        self.assertTrue(any("locale receipt sidebar-locale-en-standard" in item
+                            for item in self.found(capture_matrix=planted)))
 
     def test_a_shell_form_that_derives_a_business_interaction_is_caught(self) -> None:
         planted = self.texts["capture_matrix"].replace(

@@ -5,7 +5,6 @@ import { LumenTheme } from "./theme.slint";
 import { NavigationForm, NavigationSeparator } from "./viewport_tier.slint";
 import { NavigationSlot } from "./models.slint";
 import { NavigationIcons } from "./navigation_icons.slint";
-import { PageTitles } from "./page_titles.slint";
 import { ViewportLadder } from "./viewport-ladder.slint";
 
 // The desktop sidebar is a pure navigation surface, matching the FlClash
@@ -218,7 +217,7 @@ export component DesktopSideBar inherits Rectangle {
                 // a typed readback from the shared label owner, so the rail
                 // never measures text or guesses a width.
                 if !root.labelled || item.label-truncated: Tooltip {
-                    text: @markdown("\{root.primary-name(item.id) != "" ? root.primary-name(item.id) : item.label}");
+                    text: @markdown("\{item.label}");
                 }
 
                 if item.id == root.active-destination: Rectangle {
@@ -251,11 +250,13 @@ export component DesktopSideBar inherits Rectangle {
                         colorize: item.id == root.active-destination ? LumenTheme.accent-active : LumenTheme.text-secondary;
                     }
                     if root.labelled: Text {
-                        // The four primary destinations are named by the
-                        // shared desktop page-name owner; observation rows
-                        // carry the shared copy-table label the projection
-                        // published. Neither path invents a second word.
-                        text: root.primary-name(item.id) != "" ? root.primary-name(item.id) : item.label;
+                        // Every destination carries the projection's localized
+                        // copy-table label (`ShellPage::sidebar_key` / the
+                        // surface-local key). The old primary-name fork asked
+                        // `PageTitles.page-name` for four Chinese msgids that
+                        // the product catalog did not translate, so the rail
+                        // printed Chinese even in the en-US locale.
+                        text: item.label;
                         color: item.id == root.active-destination ? LumenTheme.text-primary : LumenTheme.text-secondary;
                         font-size: DesignType.size(TextRole.label);
                         font-weight: DesignType.weight(TextRole.label);
@@ -275,13 +276,4 @@ export component DesktopSideBar inherits Rectangle {
         Rectangle { vertical-stretch: 1; background: transparent; }
     }
 
-    // Map a typed registry id onto the one desktop page-name owner. A
-    // non-primary id returns empty so its shared copy-table label is used.
-    public pure function primary-name(id: string) -> string {
-        if id == "overview" { return PageTitles.page-name("Home"); }
-        if id == "proxies" { return PageTitles.page-name("Proxy"); }
-        if id == "profiles" { return PageTitles.page-name("Config"); }
-        if id == "settings" { return PageTitles.page-name("Settings"); }
-        return "";
-    }
 }

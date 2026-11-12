@@ -1662,3 +1662,15 @@ msgstr "收起"
 
 msgid "展开"
 msgstr "展开"
+
+msgid "核心概览"
+msgstr "核心概览"
+
+msgid "代理策略"
+msgstr "代理策略"
+
+msgid "配置订阅"
+msgstr "配置订阅"
+
+msgid "系统设置"
+msgstr "系统设置"
