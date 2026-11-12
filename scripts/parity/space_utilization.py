@@ -330,6 +330,14 @@ def nav_content_offset_px(chrome: dict) -> int:
     return int(chrome["nav_content_offset_px"])
 
 
+def window_header_band_px() -> int:
+    """The frameless window strip, read from the contract that owns it."""
+    source = (ROOT / "crates/infiltrator-contract/src/window_chrome.rs").read_text(
+        encoding="utf-8")
+    return int(re.search(
+        r"CHROME_DRAG_STRIP_HEIGHT_PX: u32 = (\d+)", source).group(1))
+
+
 def band_is_window_overlay(image: np.ndarray, ink: np.ndarray,
                            band: tuple[int, int], column: int) -> bool:
     """Whether a band is paint laid over the window rather than the column's own.
@@ -642,6 +650,15 @@ def rail_of(image: np.ndarray, chrome: dict) -> dict | None:
     below it are chrome unless they paint straight across the column edge - the
     title bar, a notice banner and a modal scrim are window overlays that
     happen to cross the rail, not blocks the rail spent its height on.
+
+    `void` is the longest ground run INSIDE the typed destination interval,
+    from the contract's mounted title-bar band to the receipt's stack end.
+    Measuring gaps between every ink band instead charges a title bar, toast,
+    drawer or full-width selected wash as if it were a destination row: a
+    window overlay crossing the rail would invent a dead band, and deleting
+    such a band by colour would invent 16% voids in dark and amoled skins.
+    The shell already publishes both ends of the stack, so the judge needs no
+    second, colour-derived answer to where destinations live.
     """
     height, width, _ = image.shape
     column = int(chrome["nav_column_px"])
@@ -655,7 +672,11 @@ def rail_of(image: np.ndarray, chrome: dict) -> dict | None:
     bands = runs(row_ink)
     if not bands:
         return None
-    voids = [bands[i + 1][0] - bands[i][1] - 1 for i in range(len(bands) - 1)]
+    stack_first = window_header_band_px()
+    stack_last = min(bottom, height) - 1
+    ground_runs = runs(~row_ink[stack_first:stack_last + 1])
+    voids = [last - first + 1 for first, last in ground_runs
+             if first > 0 and last < stack_last - stack_first]
     navigation = [band for band in bands if band[0] < bottom]
     nav_tail = 0.0
     if navigation:
@@ -1456,6 +1477,36 @@ class SelfTest(unittest.TestCase):
         _fill(image, 617, 712, 0, 1180, CARD)
         entry = self.measure_one(image, chrome=_chrome(1180, 780))
         self.assertEqual(entry["chrome_band_pct"], 0.0, entry)
+
+    def test_a_window_header_does_not_create_an_inter_navigation_void(self) -> None:
+        # The title bar crosses the rail before the first destination. Its ink
+        # is window chrome, so the ground below it is not a dead band owned by
+        # the navigation stack.
+        image = _desktop_body()
+        self._nav_only_rail(image)
+        without_header = self.measure_one(
+            image, chrome=_chrome(1180, 780))["void_pct"]
+        _fill(image, 0, 38, 0, 1180, CARD)
+        with_header = self.measure_one(
+            image, chrome=_chrome(1180, 780))["void_pct"]
+        self.assertEqual(with_header, without_header, with_header)
+
+    def test_an_overlay_inside_the_stack_is_not_a_navigation_void(self) -> None:
+        # A drawer or toast may cross the rail and split a destination band.
+        # Its ink is not ground, so it cannot become a 16% phantom void; the
+        # same frame's status card below the stack must still be judged.
+        image = _canvas(720, 480)
+        self._icon_rail(image)
+        bottom = int(_chrome(720, 480)["nav_stack_bottom_px"])
+        baseline = self.measure_one(image)["void_pct"]
+        _fill(image, 296, 339, 0, 720, CARD)
+        overlaid = self.measure_one(image)
+        self.assertLessEqual(overlaid["void_pct"], baseline, overlaid)
+        _fill(image, bottom + 4, 463, 12, 52, CARD)
+        with_card = self.measure_one(image)
+        self.assertGreater(
+            with_card["chrome_band_pct"],
+            navigation_limits()["chrome_band_limit_pct"], with_card)
 
     def test_nav_rows_below_the_old_70pct_line_are_not_accused(self) -> None:
         # The shape-blind line this judge used to guess (70% of the height)
