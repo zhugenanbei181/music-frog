@@ -24,19 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-12 第二百二十三批次；b111–b222 见下方批次八问摘要）
+## 当前状态（2026-11-13 第二百二十四批次；b111–b223 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b223 改 contract/presentation/shared PO/Slint/Bevy 源码与 Python 判据，零平台 API、零 wire；`cargo check -p infiltrator-slint --features gpu-skia,capture-tools --bin infiltrator-slint`、`cargo check -p infiltrator-bevy-ui`、四包 lib nextest **1092/1092** 与 Slint **211/211** 发布批为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1） |
-| 2 | 部分 | L | Linux 本机完成 KWin + 嵌套 niri 的 211 帧整批采集、双语言仪表盘回执与结构门 **194 腿 / 1 红**；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）；`main-gate.yml` 复用同一结构门但未取受控 CI run ID |
-| 3 | 部分 | L | Slint Android flavor 与桌面共用 `.slint` 和 shared PO，新词表按构造同样受益；未跑 `scripts/android-slint-build.sh`，无三 flavor 实机交互回执，iOS 无新证据 |
-| 4 | 部分 | L | Slint 12 张 locale 帧由 211/211 发布批与 `CAPTURE_NAV` / `CAPTURE_LOCALE` 双回执证明英文仪表盘零 CJK；Bevy 三处 replay 与一处建树消费同步本地化且 `cargo check` 通过，但 192 帧像素仍由另一会话持有；Iced 不消费该投影，Android 无本批实机回执 |
-| 5 | 完整 | L | 对照 pinned FlClash `be847366` 的 `trafficPeak` / `trafficTotal` 词形，双产品 PO 一处新增 `峰值 {value}` / `累计 {value}` 与 7 个 IP 质量语义键；contract `IpUsageType::copy_key()` 是质量 key 唯一 owner，presentation 只发布数值和 typed observation，Slint/Bevy 只在 UI 边界经 `Lang` 翻译 |
-| 5a | 完整 | L | 文案身份变化触发 Slint **211/211** 整批重采；standard/compact 双视口真像素与 `CAPTURE_LOCALE` 从 `DashboardFacts` 读回 quality/peak/total，`EXPECTED_LOCALE_COPY` 逐字段核对中英词形并拒绝英文帧任何 CJK；本批 Slint 别名摘要按新字节刷新，空间门 211 帧 0 违规 |
-| 6 | 部分 | L | `i18n-guard --self-test` / `--mode enforce` `total=0`，质量脚本 Python **374/374**、parity **69/69**、freshness **8/8**、dock-material **9/9**、identity 仅外部 Bevy 1 红、空间 Slint 211 帧 0 违规；定向 nextest **1092/1092**，整门 **194 腿 / 1 红 / findings=0**。`resolve_surface_evidence.py` 的 180 个 ready cells 仍留统一验证批次 |
-| 7 | 完整 | L | contract typed quality key → presentation 纯数值/观测枚举 → shared PO 文案 owner → Slint/Bevy 边界翻译 → `DashboardFacts` 窗口发布 → capture marker 读回 → i18n/freshness/space/identity 判据，分层清楚；旧 `quality_tag` / `status_label` / `*_state_text` / `app_formatted` / `core_formatted` 全仓零生产消费，无跨 UI 私有业务真源 |
-| 8 | 部分 | L | 一次构建后整批 211 帧集中复采，旧诊断批不作为发布证据；9 个新 PO 条目由全量目录判据一次验完，新增 `CAPTURE_LOCALE` planted 负例覆盖英文仪表盘夹带中文；全仓 `--workspace` nextest/clippy 与 `resolve_surface_evidence.py` 仍留统一批次一次跑完 |
+| 1 | 部分 | L | b224 只新增 contract/presentation 纯 Rust 与相邻测试，零平台 API、零 wire identity 变更；`cargo fmt --all -- --check`、import/typed-state/implicit-state 与两包 lib nextest **995/995** 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1） |
+| 2 | 部分 | L | Linux 本机完成定向 Rust 与静态门验证；本批零 UI/像素变化，未触发 capture；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）；未取受控 CI run ID |
+| 3 | 部分 | L | 零 Android/iOS 代码与资源改动；新 contract 类型按构造对两个平台中立，但未编译 Android flavor、无 APK/三 flavor 实机回执、iOS 无新证据 |
+| 4 | 部分 | L | Iced 只获得底层 typed Connections view/column owner，尚未接入 `view/runtime/connections.rs`、state、CommandIntent 或截图；Slint/Bevy/Android 本批不改消费端。当前证据只证明 Core-first 模型，不证明 UI 功能 |
+| 5 | 完整 | L | pinned ClashParty `72af7d82` 的 `connectionViewMode` / `connectionTableColumns` 只保留行为语义：contract 一处发布 `ConnectionViewMode::{List,Table}`、22 列闭集、12 个默认可见列、失败关闭的 wire 解析和三个 typed intent；presentation 只做 registry 校验与稳定 semantic ID 投影，不复制文案或列词汇 |
+| 5a | 完整 | L | 本批零可见 UI 身份变化、零 wire/snapshot 变更、零设计资源/截图变化；按标准无须双视口重采，`Slint 211/211` / `Iced 184/184` 发布回执保持有效。`space_utilization --check-export` 与现有空间门不因纯底层模型变化失效 |
+| 6 | 部分 | L | two-package lib nextest **995/995**、`cargo fmt --all -- --check`、`import-guard violations=0`、`typed-state findings=0`、`implicit-state 23/0/0`、`doc-governance OK`、`closure 8/8` 为 `L`；`resolve_surface_evidence.py` 的 180 个 ready cells 与 UI 接入仍留统一批次 |
+| 7 | 完整 | L | contract owner（mode / column set / preference / intent / error）→ presentation projection（registry 校验 + semantic ID）两层分离；presentation 不执行命令、不持有用户偏好、不生成 label；旧 UI 侧 view-mode/column 状态仍未引入，因此没有第二业务真源 |
+| 8 | 部分 | L | 单次构建后一次跑完两包 lib nextest 与受影响静态门，未边改边跑全仓；未触发 211/184 帧重采。全仓 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py` 仍留统一批次一次跑完 |
+
+## 最近一批问答（2026-11-13 第二百二十四批次：ClashParty 连接视图的 typed 底层 owner）
+
+1. x86_64/aarch64：本批只新增 contract/presentation 纯 Rust 与相邻测试，零平台 API、零 wire identity 变更；`cargo fmt --all -- --check`、两包 lib nextest **995/995** 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
+2. Windows/Linux/macOS：Linux 本机完成定向 Rust、fmt、import、typed-state、implicit-state 与文档门；本批零 UI/像素变化，未触发 capture；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID → 部分（L）。
+3. Android/iOS：零 Android/iOS 代码与资源改动；新 contract 类型按构造对两个平台中立，但未编译 Android flavor、无 APK/三 flavor 实机交互回执，iOS 无新证据 → 部分（L）。
+4. 各 UI：Iced 只拿到 typed Connections view/column owner，尚未接入任何 Iced 视图、state、CommandIntent 或截图；Slint/Bevy/Android 本批不改消费端。本批只证明 Core-first 模型，不声称界面已支持 list/table → 部分（L）。
+5. 复用：pinned ClashParty `72af7d82` 的 `connectionViewMode` 持久化 `list|table`，`connectionTableColumns` 持久化有序列数组，默认 12 列为 `status, establishTime, type, host, process, rule, proxyChain, remoteDestination, uploadSpeed, downloadSpeed, upload, download`；本仓不照抄 Electron state，而在 contract 一处定义模式、22 列完整闭集、列集 fail-closed 解析与 `SetViewMode`/`ToggleColumn`/`ResetColumns` 三个 typed transitions。presentation 只按 registry 校验、保留持久化用户列序并发布 22 个稳定 `connection.column.*` semantic ID，不引入 label 或第二份列词表 → 完整（L）。
+5a. 设计资源：本批零可见 UI 身份变化、零 wire/snapshot 变更、零设计资源/截图变化；按标准无须双视口重采。Slint `211/211` 与 Iced `184/184` 已发布回执保持有效，空间导出表与空间门不受纯底层模型影响 → 完整（L）。
+6. 各处界面的功能接入：两包 lib nextest **995/995**（含新增 13 项 contract/presentation 测试）、`cargo fmt --all -- --check`、`import-guard violations=0`、`typed-state findings=0`、`implicit-state 23/0/0`、`doc-governance OK`、`closure 8/8` 为 `L`。UI 控件、持久化到 `SurfaceSnapshot`、CommandIntent 与 `resolve_surface_evidence.py` 的 180 个 ready cells 仍留后续统一批次 → 部分（L）。
+7. 模块化：contract owner 单独持有 mode / `ConnectionColumn::ALL` / `ConnectionColumnSet` / `ConnectionViewPreference` / `ConnectionViewIntent` / typed error；presentation 只持有 `project_connection_view` 与 semantic ID 映射。模型不执行命令、不访问 I/O、不依赖 UI toolkit，旧 UI 侧尚未接入因此没有第二业务真源 → 完整（L）。
+8. CI 与批次效率：单次构建后一次跑完两包 lib nextest、fmt 与受影响静态门；未触发 211/184 帧重采，不制造诊断批次。全仓 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py` 仍留统一批次一次跑完 → 部分（L）。
 
 ## 最近一批问答（2026-11-12 第二百二十三批次：仪表盘文案从数据字段回到共享词表）
 

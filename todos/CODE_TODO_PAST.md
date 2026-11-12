@@ -381,6 +381,16 @@ owner 分别是另一会话的 Bevy 像素与 `I18NNAV-001`，任一转绿须同
 `I18NCAT-001` 办结前不声称 Slint 全量 `@tr` 已本地化；Bevy 的 192 帧像素仍由另一会话持有，
 本批不重采、不碰。
 
+## 12.89 ClashParty 连接视图 typed 底层 owner（本批证据切片，不新增待验证条目）
+
+| 项目 | 证据 |
+| --- | --- |
+| 根因 | `CPPARITY-006` 缺少跨层可消费的 view/column/preference 真源；UI 直接补 list/table 控件会造第二份状态 |
+| 上游真源 | pinned ClashParty `72af7d82` 的 `connectionViewMode` / `connectionTableColumns` 与 `.evidence/wip/b188-clashparty-parity-recon.md` |
+| owner 链 | `infiltrator-contract::connection_view_preference` → `infiltrator-presentation::connection_view_projection` → 后续 UI/持久化/CommandIntent 切片 |
+| 本地证据 | `cargo fmt --all -- --check`、两包 lib nextest **995/995**、import 0、typed-state 0、implicit-state 23/0/0、doc-governance OK、closure 8/8 |
+| 诚实边界 | 零 UI/像素/wire/snapshot 变化；Iced 尚未消费模型；不触发 capture；全仓统一验证与 UI 截图认证仍未收口 |
+
 ## 12.88 仪表盘文案从数据字段回到共享词表（本批证据切片，不新增待验证条目）
 
 | 项目 | 证据 |

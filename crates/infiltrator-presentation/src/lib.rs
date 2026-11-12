@@ -22,6 +22,7 @@ pub mod connection_grouping;
 pub mod connection_page_model;
 pub mod connection_search;
 pub mod connection_table_projection;
+pub mod connection_view_projection;
 pub mod core_control_projection;
 pub mod dashboard_hero_projection;
 pub mod diff;

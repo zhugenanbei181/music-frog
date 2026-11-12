@@ -43,6 +43,7 @@ pub mod command;
 pub mod command_catalogue;
 pub mod command_output;
 pub mod connection;
+pub mod connection_view_preference;
 pub mod controller;
 pub mod core_capabilities;
 pub mod core_control;
