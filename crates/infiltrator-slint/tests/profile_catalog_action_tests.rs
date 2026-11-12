@@ -72,6 +72,10 @@ impl CatalogTestHost {
 }
 
 impl SlintProductHost for CatalogTestHost {
+    fn surface_kind(&self) -> SurfaceKind {
+        SurfaceKind::SlintDesktop
+    }
+
     fn read_snapshot(&self) -> Result<SurfaceSnapshot, Failure> {
         Ok(self.make_snapshot(Vec::new()))
     }

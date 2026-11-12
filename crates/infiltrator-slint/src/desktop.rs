@@ -36,6 +36,10 @@ struct DesktopProductHost {
 }
 
 impl SlintProductHost for DesktopProductHost {
+    fn surface_kind(&self) -> SurfaceKind {
+        SurfaceKind::SlintDesktop
+    }
+
     fn read_snapshot(&self) -> Result<SurfaceSnapshot, Failure> {
         Ok(self.pump.current())
     }

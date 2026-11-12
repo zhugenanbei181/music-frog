@@ -61,6 +61,10 @@ impl TrafficTestHost {
 }
 
 impl SlintProductHost for TrafficTestHost {
+    fn surface_kind(&self) -> SurfaceKind {
+        SurfaceKind::SlintDesktop
+    }
+
     fn read_snapshot(&self) -> Result<SurfaceSnapshot, Failure> {
         Ok(self.make_snapshot())
     }

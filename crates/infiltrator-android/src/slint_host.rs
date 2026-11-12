@@ -6,6 +6,7 @@ use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::profile_age_credential::{
     ProfileAgeCredentialOwnerReadback, ProfileAgeCredentialOwnerRequest,
 };
+use infiltrator_contract::surface::SurfaceKind;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_slint::age_action::execute_slint_age_action;
 use infiltrator_slint::{SlintAction, SlintProductHost};
@@ -15,6 +16,10 @@ use lurker_core_contract::identity::CoreScope;
 pub(super) struct AndroidSlintHost;
 
 impl SlintProductHost for AndroidSlintHost {
+    fn surface_kind(&self) -> SurfaceKind {
+        SurfaceKind::SlintAndroid
+    }
+
     fn read_snapshot(&self) -> Result<SurfaceSnapshot, Failure> {
         let result = get_runtime().block_on(crate::android_surface_snapshot_json());
         if result.status.code != crate::FfiErrorCode::Ok {

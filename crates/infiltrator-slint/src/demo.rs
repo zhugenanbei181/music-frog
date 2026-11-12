@@ -226,6 +226,10 @@ impl DemoProductHost {
 }
 
 impl SlintProductHost for DemoProductHost {
+    fn surface_kind(&self) -> SurfaceKind {
+        SurfaceKind::SlintDesktop
+    }
+
     fn read_snapshot(&self) -> Result<SurfaceSnapshot, Failure> {
         let mut guard = self
             .snapshot

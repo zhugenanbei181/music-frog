@@ -24,19 +24,19 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-13 第二百三十一批次；b111–b230 见下方批次八问摘要）
+## 当前状态（2026-11-13 第二百三十二批次；b111–b231 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b231 为唯一判定器 Python、L2 标准与收口文档；`space_utilization --self-test` **67/67**、`--check-export` current、双表面真实像素 `--enforce` **211/192 帧 0 违规**、FlClash 守卫 **10/10** + enforce 0 为 `L`。b230 历史记录如实修正为首次定向 nextest **1441/1442** + 修复后聚焦复跑 **5/5 / 8/8**；交叉架构与 aarch64 目标产物未复跑（GAP-1.1） |
-| 2 | 部分 | L | Linux 本机完成 Python 判定器、双表面发布回执复判、参照图/回执新鲜度/身份门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID |
-| 3 | 部分 | L | 零 Android/iOS 代码与资源改动；侧栏 `void` 判据由每帧回执与共享 chrome 带派生，按构造对移动平台中立，但三 flavor 实机交互与 iOS 产物仍按既有条目留在外部环境看板，不拿桌面像素冒充移动端证据 |
-| 4 | 部分 | L | 判定器同时量 Slint **211/211** 与 Iced **192/192** 发布帧；本批零可见 UI 改动，Bevy 192 帧像素与 `FLPROFILES-002` 仍归另一会话。截图身份唯一红腿是已登记的并行 Bevy 截图别名，`resolve_surface_evidence.py` ready cells 留统一批次 |
-| 5 | 完整 | L | 导航栈区间由共享 `CHROME_DRAG_STRIP_HEIGHT_PX` 与每帧 `nav_stack_bottom_px` 唯一发布；判定器不新增第二份标题栏高度、不保存私有上限、不新增欠账键，三项侧栏上限继续只读 v18 `navigation_limits` |
+| 1 | 部分 | L | b232 改 Contract 消费端、Slint/Android host typed surface、投影、词法守卫与 L3 参照文档；`cargo fmt --all -- --check`、Slint/Android `--all-targets` check、定向 nextest **1222/1222**、新 owner 守卫 **4/4** + enforce 0 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1） |
+| 2 | 部分 | L | Linux 本机完成三包 check/nextest、静态门、双表面空间复判、回执新鲜度与身份门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID |
+| 3 | 部分 | L | Android `AndroidSlintHost` 补上 typed `SurfaceKind::SlintAndroid`，使首帧不会借用桌面 destination owner；零 Android 资源 / iOS 代码改动，三 flavor 实机交互与 iOS 产物仍按既有条目留在外部环境看板，不拿桌面编译冒充移动端证据 |
+| 4 | 部分 | L | Slint 桌面侧栏继续 8 行且零可见像素变化，已发布 **211/211** 与 Iced **192/192** 双表面空间复判 0 违规；Bevy 192 帧像素与 `FLPROFILES-002` 仍归另一会话。截图身份唯一红腿是已登记的并行 Bevy 截图别名，`resolve_surface_evidence.py` ready cells 留统一批次 |
+| 5 | 完整 | L | `shell_navigation::desktop_items(surface)` 是桌面行集唯一 owner；`SlintProductHost::surface_kind()` 发布首帧表面，`SurfaceSnapshot.surface` 发布后续每帧表面，`project_navigation()` 只消费 owner，不再读 raw `NavigationSurface::Desktop`。FlClash `modes` 动态能力门控明确登记为未等价的 Core-first 缺口，不再文档冒充已对齐 |
 | 5a | 完整 | L | 零字体/字重/图标/旗资产/文案/可见像素变化；沿用已发布 Slint 211 / Iced 192 真像素回执复判，无双视口重采需求。圆形旗帜容器仍由 4:3 直角资产与 flag guard 钉住 |
-| 6 | 部分 | L | 两项 planted 负例证明跨列标题栏不制造 `void`、栈内 overlay 不遮蔽栈后状态卡；`--check-export`、双表面 enforce、FlClash 双场景逐像素守卫与回执新鲜度为 `L`。全仓 `--workspace` nextest/clippy、结构门动态全腿、`resolve_surface_evidence.py` ready cells 与并行 Bevy 身份红腿仍留统一批次 |
-| 7 | 完整 | L | contract chrome 带 → 每帧 shell receipt → `rail_of()` typed destination interval → `rail_findings()` → L2 标准 / L4 台账，一条链；判定器不再按墨迹带猜导航行，也不按颜色删真实 destination。零跨 UI 私有业务真源 |
-| 8 | 部分 | L | 同主题判定器、标准与文档一次落地后集中跑 self-test / export / 双表面像素复判 / 参照守卫 / 回执与身份门；判据改动不触发截图重采。全仓 `--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` 留统一批次一次跑完 |
+| 6 | 部分 | L | Slint owner 守卫 4 项 planted 负例证明 raw registry、硬编码快照 surface、首帧绕过 host surface 与结构门漏腿都会咬；`doc-governance`、import/line/typed-state/implicit-state、静态结构收集器、双表面 enforce 与回执新鲜度为 `L`。全仓 `--workspace` nextest/clippy、结构门动态全腿、`resolve_surface_evidence.py` ready cells 与并行 Bevy 身份红腿仍留统一批次 |
+| 7 | 完整 | L | contract `desktop_items(surface)` → host typed `surface_kind()` / snapshot typed `surface` → `project_navigation()` → `NavigationSlot` → `sidebar.slint` 纯消费；`slint-navigation-owner-guard.py` 挂入结构门，Android / demo / 四个测试 host 同批补齐，无跨 UI 私有业务真源 |
+| 8 | 部分 | L | 同主题源码、守卫、结构门与文档一次落地后集中跑 fmt / 两包 check / 三包 nextest / 静态守卫 / 双表面真像素复判；零像素变化不触发 211 帧重采，也不逐文件反复全量验证。全仓 `--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` 留统一批次一次跑完 |
 
 ## 历史状态（2026-11-13 第二百二十七批次；b111–b226 见下方批次八问摘要）
 
@@ -95,7 +95,19 @@
 | 7 | 完整 | L | 契约常量 → 导出器 → v18 JSON → Python 版本 pin → 判定器夹具/读回 → 双场景参照守卫 → L2 标准 / L3 上游对照 / L4 台账分层收口；`doc-governance OK`、`closure 8/8`、结构收集器 **198 腿静态形状 0 findings**，无跨 UI 私有业务真源 |
 | 8 | 部分 | L | 同主题导出物、守卫、判据夹具、标准与台账一次落地后集中跑契约构建、空间/参照 Python 门和双表面报告；判据身份变化不触发截图重采。全仓 `--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` 留统一批次一次跑完 |
 
-## 最近一批问答（2026-11-13 第二百三十一批次：跨列窗口覆盖层不制造侧栏 void）
+## 最近一批问答（2026-11-13 第二百三十二批次：Slint 导航行集回到共享 owner）
+
+1. x86_64/aarch64：本批改 Contract 消费端、Slint/Android host typed surface、投影、词法守卫与 L3 参照文档；`cargo fmt --all -- --check`、Slint/Android `--all-targets` check、定向 nextest **1222/1222**、新 owner 守卫 **4/4** + enforce 0 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
+2. Windows/Linux/macOS：Linux 本机完成三包 check/nextest、静态门、双表面发布回执复判、回执新鲜度与截图身份门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID → 部分（L）。
+3. Android/iOS：Android `AndroidSlintHost` 补上 typed `SurfaceKind::SlintAndroid`，使首帧不会借用桌面 destination owner；零 Android 资源 / iOS 代码改动，三 flavor 实机交互与 iOS 产物仍按既有条目留在外部环境看板，不拿桌面编译冒充移动端证据 → 部分（L）。
+4. 各 UI：Slint 桌面侧栏继续 8 行且零可见像素变化，已发布 Slint **211/211** 与 Iced **192/192** 双表面空间复判 0 违规；Bevy 192 帧像素与 `FLPROFILES-002` 仍归另一会话。截图身份唯一红腿是已登记的并行 Bevy 截图别名，`resolve_surface_evidence.py` ready cells 留统一批次 → 部分（L）。
+5. 复用：`shell_navigation::desktop_items(surface)` 是桌面行集唯一 owner；`SlintProductHost::surface_kind()` 发布首帧表面，`SurfaceSnapshot.surface` 发布后续每帧表面，`project_navigation()` 只消费 owner，不再读 raw `NavigationSurface::Desktop`。FlClash `modes` 动态能力门控明确登记为未等价的 Core-first 缺口，不再文档冒充已对齐 → 完整（L）。
+5a. 设计资源：零字体/字重/图标/旗资产/文案/可见像素变化；沿用已发布 Slint 211 / Iced 192 真像素回执复判，无双视口重采需求，圆形旗帜容器仍由 4:3 直角资产与 flag guard 钉住 → 完整（L）。
+6. 各处界面的功能接入：Slint owner 守卫 4 项 planted 负例证明 raw registry、硬编码快照 surface、首帧绕过 host surface 与结构门漏腿都会咬；`doc-governance`、import/line/typed-state/implicit-state、静态结构收集器、双表面 enforce 与回执新鲜度为 `L`。全仓 `--workspace` nextest/clippy、结构门动态全腿、`resolve_surface_evidence.py` ready cells 与并行 Bevy 身份红腿仍留统一批次 → 部分（L）。
+7. 模块化：contract `desktop_items(surface)` → host typed `surface_kind()` / snapshot typed `surface` → `project_navigation()` → `NavigationSlot` → `sidebar.slint` 纯消费；`slint-navigation-owner-guard.py` 挂入结构门，Android / demo / 四个测试 host 同批补齐，无跨 UI 私有业务真源 → 完整（L）。
+8. CI 与批次效率：同主题源码、守卫、结构门与文档一次落地后集中跑 fmt / 两包 check / 三包 nextest / 静态守卫 / 双表面真像素复判；零像素变化不触发 211 帧重采，也不逐文件反复全量验证。全仓 `--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` 留统一批次一次跑完 → 部分（L）。
+
+## 历史问答（2026-11-13 第二百三十一批次：跨列窗口覆盖层不制造侧栏 void）
 
 1. x86_64/aarch64：本批只改唯一判定器 Python、L2 标准与收口文档，零平台 API；`space_utilization --self-test` **67/67**、`--check-export` current、Slint/Iced 双表面 **211/192 帧 enforce 0 违规**、FlClash 守卫 **10/10** + enforce 0 为 `L`。b230 历史记录同步修正为首次定向 nextest **1441/1442** + 修复后聚焦复跑 **5/5 / 8/8**，不把未执行的全量复跑写成证据。交叉架构与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：Linux 本机完成判定器定向门、两张 tracked FlClash PNG 逐像素复量、双表面发布回执复判、回执新鲜度与截图身份门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID → 部分（L）。

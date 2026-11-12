@@ -101,6 +101,10 @@ impl MockSlintHost {
 }
 
 impl SlintProductHost for MockSlintHost {
+    fn surface_kind(&self) -> SurfaceKind {
+        SurfaceKind::SlintDesktop
+    }
+
     fn read_snapshot(&self) -> Result<SurfaceSnapshot, Failure> {
         Ok(self.make_snapshot())
     }

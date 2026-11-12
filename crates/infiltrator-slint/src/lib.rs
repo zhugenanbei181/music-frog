@@ -44,6 +44,7 @@ use infiltrator_contract::shell_navigation::destination_for_route;
 use infiltrator_contract::subscription_import::{
     SubscriptionImportChannel, SubscriptionScheduleDraft,
 };
+use infiltrator_contract::surface::SurfaceKind;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_contract::system_proxy::SystemProxyStatus;
 use infiltrator_contract::tray_menu::{TrayMenuCapabilities, TraySpec};
@@ -205,6 +206,8 @@ pub enum SlintAction {
 
 /// The only seam between this frontend and the shared application owner.
 pub trait SlintProductHost: Send + Sync + 'static {
+    /// Which product surface this host is mounting.
+    fn surface_kind(&self) -> SurfaceKind;
     fn read_snapshot(&self) -> Result<SurfaceSnapshot, Failure>;
     fn execute(
         &self,
@@ -390,7 +393,12 @@ fn run_with_host_prepared_impl(
         .map(|value| resolve_language_code(&value))
         .unwrap_or_else(|_| resolve_language_code("system"));
     select_translation(&window, &initial_language);
-    lumen_projection::project_initial(&window, &initial_language, host.autostart_enabled());
+    lumen_projection::project_initial(
+        &window,
+        &initial_language,
+        host.autostart_enabled(),
+        host.surface_kind(),
+    );
     mobile_dock_driver::install(&window);
 
     let (request_tx, request_rx) = channel::<WorkerRequest>();

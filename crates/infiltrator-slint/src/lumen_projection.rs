@@ -25,9 +25,10 @@ use infiltrator_contract::overview_layout::{OverviewCardKind, OverviewLayoutSnap
 use infiltrator_contract::profile_editor_read::ProfileReadStatus;
 use infiltrator_contract::public_ip::PublicIpProbeStatus;
 use infiltrator_contract::shell_navigation::{
-    NavigationGroup, NavigationItem, NavigationSurface, NavigationTarget,
+    NavigationGroup, NavigationItem, NavigationTarget, desktop_items,
 };
 use infiltrator_contract::sidebar_label::SidebarLabelGeometry;
+use infiltrator_contract::surface::SurfaceKind;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_contract::system_proxy::SystemProxyRecoveryStatus;
 use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
@@ -50,7 +51,12 @@ use std::env;
 
 pub(super) const THIRD_PARTY_NOTICES: &str = include_str!("../../../THIRD-PARTY-NOTICES.md");
 
-pub(super) fn project_initial(window: &AppWindow, language: &str, autostart: Option<bool>) {
+pub(super) fn project_initial(
+    window: &AppWindow,
+    language: &str,
+    autostart: Option<bool>,
+    surface: SurfaceKind,
+) {
     let lang = Lang(language);
     window.set_product_version(infiltrator_contract::ProductVersion::SEMVER.into());
     window.set_application_language("system".into());
@@ -67,7 +73,7 @@ pub(super) fn project_initial(window: &AppWindow, language: &str, autostart: Opt
     window.set_license_rows(slint_model(collections::license_rows("", language)));
     window.set_title_bar_upload("0 B/s".into());
     window.set_title_bar_download("0 B/s".into());
-    project_navigation(window, &lang);
+    project_navigation(window, &lang, surface);
 }
 
 /// Publish the desktop sidebar destinations from the shared typed registry.
@@ -77,12 +83,12 @@ pub(super) fn project_initial(window: &AppWindow, language: &str, autostart: Opt
 /// presentation, not a second truth source - the copy key is
 /// `ShellPage::sidebar_key`. The one surface-local page has no shared copy key
 /// and is localized through the same shared catalog by its own key.
-fn project_navigation(window: &AppWindow, lang: &Lang<'_>) {
+fn project_navigation(window: &AppWindow, lang: &Lang<'_>, surface: SurfaceKind) {
     let geometry = SidebarLabelGeometry {
         scale_percent: window.get_page_scale_percent().clamp(1, 400) as u16,
         ..SidebarLabelGeometry::DESKTOP
     };
-    let rows = NavigationItem::items(NavigationSurface::Desktop)
+    let rows = desktop_items(surface)
         .iter()
         .map(|item| {
             let label = navigation_label(*item, lang);
@@ -201,7 +207,7 @@ pub(super) fn project_snapshot(
 ) {
     let language = snapshot_language(snapshot);
     let lang = Lang(&language);
-    project_navigation(window, &lang);
+    project_navigation(window, &lang, snapshot.surface);
     // The theme fact is projected first: `theme-mode` and
     // `application-dark-mode` are the two window facts every theme-dependent
     // binding in the tree reads, including the rail's surface tier. Getting
@@ -792,7 +798,7 @@ mod sidebar_label_tests {
     use infiltrator_contract::command_catalogue::ShellPage;
 
     fn desktop_item(page: ShellPage) -> NavigationItem {
-        NavigationItem::items(NavigationSurface::Desktop)
+        desktop_items(SurfaceKind::SlintDesktop)
             .iter()
             .copied()
             .find(|item| item.target == NavigationTarget::Shared(page))
