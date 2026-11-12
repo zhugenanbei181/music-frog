@@ -367,6 +367,14 @@ impl SurfaceReader for ProductSurfaceReader {
             ))),
             (None, _) => None,
         };
+        let closed_connections = self.core.closed_connections_application();
+        if let Some(observed) = runtime_connections
+            .as_ref()
+            .and_then(|result| result.as_ref().ok())
+        {
+            closed_connections.observe(observed);
+        }
+        let closed_connections = closed_connections.readback();
         let traffic_topology = self.traffic_topology.project(
             &core,
             runtime_config.as_ref(),
@@ -751,7 +759,7 @@ impl SurfaceReader for ProductSurfaceReader {
             traffic_waveform,
             traffic_scale,
             traffic_topology,
-            closed_connections: Default::default(),
+            closed_connections,
             traffic_history: Default::default(),
             active_exit: active_exit_snapshot,
             outbound_inventory,
@@ -813,6 +821,10 @@ use self::test_support::{install_lifecycle_capabilities, test_execute_result_at_
 #[cfg(test)]
 #[path = "surface_reader_test.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "surface_reader_closed_history_tests.rs"]
+mod closed_history_tests;
 
 #[cfg(test)]
 #[path = "surface_reader_script_tests.rs"]

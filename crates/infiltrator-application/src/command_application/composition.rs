@@ -14,6 +14,7 @@ use super::{
     SubscriptionImportPort, SubscriptionNotificationPort, SubscriptionSource, SyncApplication,
     SystemProxyApplication, UwpLoopbackApplication, VersionApplication, VpnServiceApplication,
 };
+use crate::closed_connections_application::ClosedConnectionsApplication;
 use crate::palette_preference_application::PalettePreferenceApplication;
 use crate::traffic_waveform_application::TrafficWaveformApplication;
 use infiltrator_ports::runtime_configuration::RuntimeConfigurationPorts;
@@ -224,6 +225,13 @@ impl CommandApplication {
     /// `ProductSurfaceReader` records into), so a reset is never a no-op.
     pub fn with_traffic_waveform(mut self, application: TrafficWaveformApplication) -> Self {
         self.traffic_waveform = Some(application);
+        self
+    }
+
+    /// Share the closed-connection owner (clone of the same instance the
+    /// surface reader records into), so a clear is never a no-op.
+    pub fn with_closed_connections(mut self, application: ClosedConnectionsApplication) -> Self {
+        self.closed_connections = Some(application);
         self
     }
 

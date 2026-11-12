@@ -6,6 +6,7 @@
 
 use super::vpn_start_result::confirmed;
 use super::*;
+use crate::command_application::observed_values::reported_port;
 use crate::profile_aggregation_application::ProfileAggregationApplication;
 use crate::profile_application::ProfileRuntimeAccess;
 use crate::protocol_codec_application::ProtocolCodecApplication;
@@ -27,7 +28,6 @@ use infiltrator_contract::rule_edit::RuleDraft;
 use infiltrator_contract::system_proxy::SystemProxyRecoveryStatus;
 use infiltrator_ports::active_profile_reference_applier::ActiveProfileReferenceApplier;
 use infiltrator_ports::runtime_configuration::LanAuthenticationUpdate;
-use infiltrator_ports::runtime_configuration::ObservedValue;
 use lurker_core_contract::active_profile_reference::ActiveProfileReferenceWriteAuthorization;
 use lurker_core_contract::error::ErrorCode;
 use lurker_core_contract::identity::CoreScope;
@@ -431,7 +431,7 @@ impl CommandApplication {
                 })?;
                 self.connections()?.close_all_for_scope(scope).await
             }
-            CommandIntent::ClearClosedConnections => Ok(()),
+            CommandIntent::ClearClosedConnections => self.clear_closed_connections(),
             CommandIntent::ClearTrafficHistory => self.clear_traffic_history(),
             CommandIntent::ApplyDnsSettings { patch } => self
                 .configuration()?
@@ -817,12 +817,5 @@ impl CommandApplication {
                 unreachable!("typed sync conflict output is handled before unit dispatch")
             }
         }
-    }
-}
-
-fn reported_port(value: &ObservedValue<u16>) -> u16 {
-    match value {
-        ObservedValue::Unreported => 0,
-        ObservedValue::Reported(port) => *port,
     }
 }

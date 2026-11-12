@@ -25,9 +25,9 @@ use crate::subscription_notification_port::DesktopSubscriptionNotificationPort;
 use crate::surface::SurfaceEngines;
 use crate::system_proxy::DesktopSystemProxy;
 use crate::uwp_loopback_port::DesktopUwpLoopbackPort;
+use infiltrator_application::closed_connections_application::ClosedConnectionsApplication;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::configuration_application::ConfigurationApplication;
-use infiltrator_application::connection_application::ConnectionApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::core_capability_application::CoreCapabilityApplication;
 use infiltrator_application::geo_database_application::GeoDatabaseApplication;
@@ -88,7 +88,6 @@ use lurker_core_ports::engine_backend::{
 };
 use lurker_core_ports::error::PortError;
 use lurker_engine_runtime::registry::EngineBackendProviderRegistry;
-use mihomo_api::connection_port::MihomoConnectionPort;
 use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;
 use mihomo_api::core_log_level_port::MihomoCoreLogLevelAdapter;
 use mihomo_api::overview::ControllerOverviewReader;
@@ -541,10 +540,10 @@ pub(crate) async fn core_application(
         )?);
         transaction_binding.bind(transaction)?;
         let scope_source: Arc<dyn CoreScopeSource> = Arc::new(application.clone());
-        let scope_resolver = scope_resolver_from_owner(scope_source);
+        let scope_resolver = scope_resolver_from_owner(scope_source.clone());
         let runtime_stream_port = Arc::new(MihomoRuntimeStreamPort::new(
             client.clone(),
-            Some(scope_resolver),
+            Some(scope_resolver.clone()),
         ));
         application
             .install_log_stream_port(runtime_stream_port)
@@ -576,6 +575,7 @@ pub(crate) async fn core_application(
             subscription_source,
             core_scope_source: Arc::new(application.clone()),
             traffic_waveform: application.traffic_waveform_application(),
+            closed_connections: application.closed_connections_application(),
         })?;
         application
             .install_core_capability_application(commands.core_capability_application())
@@ -621,6 +621,8 @@ pub struct DesktopCommandServices {
     /// The Core owner's live traffic history. The surface reader records
     /// into the same instance, so `ClearTrafficHistory` clears real data.
     pub traffic_waveform: TrafficWaveformApplication,
+    /// The Core owner's shared closed-connection history.
+    pub closed_connections: ClosedConnectionsApplication,
 }
 
 /// Typed declaration of log-stream ownership at the command composition
@@ -645,6 +647,7 @@ pub fn desktop_command_application(
         subscription_source,
         core_scope_source,
         traffic_waveform,
+        closed_connections,
     } = services;
     let SurfaceEngines {
         profiles,
@@ -703,13 +706,6 @@ pub fn desktop_command_application(
     );
     let core_log_level_port: Arc<dyn CoreLogLevelPort> =
         Arc::new(MihomoCoreLogLevelAdapter::new(client.clone()));
-    let connections = ConnectionApplication::new(
-        core_scope_source.clone(),
-        Arc::new(MihomoConnectionPort::new(
-            client.clone(),
-            Some(scope_resolver.clone()),
-        )),
-    );
     let runtime_queries = RuntimeQueryApplication::new(
         core_scope_source,
         Arc::new(MihomoRuntimeStreamPort::new(
@@ -724,7 +720,7 @@ pub fn desktop_command_application(
         .with_rule_provider_runtime(rule_provider_runtime)
         .with_geo_database(geo_database)
         .with_routing_intent_port(backend_ports.core_operations().routing_intent()?)
-        .with_connections(connections)
+        .with_closed_connections(closed_connections)
         .with_runtime_queries(runtime_queries)
         .with_host_capabilities(Arc::new(DesktopHostCapabilities))
         .with_scripts(scripts, script_exports)

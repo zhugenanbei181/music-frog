@@ -549,6 +549,7 @@ fn core_application_from_backend<S: SecureStore + 'static>(
                     .with_core_log_level_port(core_log_level_port);
             handler = handler
                 .with_connections(connections)
+                .with_closed_connections(application.closed_connections_application())
                 .with_runtime_queries(runtime_queries)
                 .with_routing_intent_port(core_operations.routing_intent()?);
             let outbound_port = core_operations.outbound()?;

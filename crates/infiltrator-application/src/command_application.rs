@@ -8,6 +8,7 @@ use self::handler::{
     CommandFuture, CommandHandler, CommandOutputFuture, CoreLifecycleChildPermit,
     ValidatedCoreCommandScope,
 };
+use crate::closed_connections_application::ClosedConnectionsApplication;
 use crate::configuration_application::ConfigurationApplication;
 use crate::connection_application::ConnectionApplication;
 use crate::core_capability_application::CoreCapabilityApplication;
@@ -83,9 +84,11 @@ use lurker_core_contract::identity::{CoreScope, EngineId};
 use lurker_core_ports::routing_intent::RoutingIntentPort;
 use std::sync::Arc;
 
+mod closed_connections;
 mod composition;
 mod dispatch;
 pub mod handler;
+mod observed_values;
 mod output;
 #[cfg(test)]
 #[path = "command_routing_intent_tests.rs"]
@@ -140,6 +143,9 @@ pub struct CommandApplication {
     /// Shared live traffic history owner (same instance as the surface
     /// reader), so `ClearTrafficHistory` resets the real curve.
     traffic_waveform: Option<TrafficWaveformApplication>,
+    /// Shared closed-connection history owner (same instance the surface
+    /// reader records into), so `ClearClosedConnections` resets real rows.
+    closed_connections: Option<ClosedConnectionsApplication>,
     outbound: Option<OutboundApplication>,
     outbound_ui_preferences: Option<OutboundUiPreferencesApplication>,
     rule_tracer: Option<RuleTracerApplication>,
@@ -764,3 +770,7 @@ mod overview_sync_tests;
 #[cfg(test)]
 #[path = "command_application_traffic_history_tests.rs"]
 mod traffic_history_tests;
+
+#[cfg(test)]
+#[path = "command_application_closed_history_tests.rs"]
+mod closed_history_tests;

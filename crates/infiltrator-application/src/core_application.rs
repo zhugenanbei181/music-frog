@@ -1,4 +1,5 @@
 use self::execution::closed_failure;
+use crate::closed_connections_application::ClosedConnectionsApplication;
 use crate::command_application::handler::CommandHandler;
 use crate::command_capability::validate_terminal_scope;
 use crate::core_capability_application::CoreCapabilityApplication;
@@ -124,6 +125,9 @@ struct Inner {
     /// explicit owner command) derive their owner from this single instance;
     /// `Clone` shares the same `Arc<Mutex<_>>`, so a reset is never fake.
     traffic_waveform: TrafficWaveformApplication,
+    /// The one closed-connection history shared by scoped observations,
+    /// command clear, and the surface reader's authoritative readback.
+    closed_connections: ClosedConnectionsApplication,
     speedtest: RwLock<Option<SpeedtestApplication>>,
     core_capabilities: RwLock<CoreCapabilityApplication>,
     dispatch_tx: SyncSender<DispatchedMessage>,
@@ -351,6 +355,7 @@ impl CoreApplication {
             geo_database_port: RwLock::new(None),
             outbound_ui_preferences: OutboundUiPreferencesApplication::default(),
             traffic_waveform: TrafficWaveformApplication::new(),
+            closed_connections: ClosedConnectionsApplication::default(),
             speedtest: RwLock::new(None),
             core_capabilities: RwLock::new(CoreCapabilityApplication::without_provider()),
             dispatch_tx,
@@ -547,6 +552,13 @@ impl CoreApplication {
     /// surface reader must both be composed from this one instance.
     pub fn traffic_waveform_application(&self) -> TrafficWaveformApplication {
         self.inner.traffic_waveform.clone()
+    }
+
+    /// The one closed-connection history owner. The surface reader records
+    /// into it and publishes its readback; `ClearClosedConnections` resets
+    /// this same instance, so no host or surface keeps a second list.
+    pub fn closed_connections_application(&self) -> ClosedConnectionsApplication {
+        self.inner.closed_connections.clone()
     }
 
     pub fn log_application(&self) -> LogApplication {

@@ -420,6 +420,7 @@ where
         client.clone(),
         Some(scope_resolver.clone()),
     ));
+    let connections = ConnectionApplication::new(scope_source.clone(), connection_port);
     let runtime_stream_port = Arc::new(MihomoRuntimeStreamPort::new(
         client.clone(),
         Some(scope_resolver.clone()),
@@ -479,10 +480,8 @@ where
             .with_host_capabilities(host.clone())
             .with_logs(application.log_application())
             .with_routing_intent_port(Arc::new(MihomoRoutingIntentAdapter::new(client.clone())))
-            .with_connections(ConnectionApplication::new(
-                scope_source.clone(),
-                connection_port,
-            ))
+            .with_connections(connections)
+            .with_closed_connections(application.closed_connections_application())
             .with_runtime_queries(
                 RuntimeQueryApplication::new(scope_source, runtime_stream_port)
                     .with_core_log_level_port(Arc::new(MihomoCoreLogLevelAdapter::new(

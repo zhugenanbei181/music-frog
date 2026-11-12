@@ -45,6 +45,7 @@ impl MihomoRuntime {
             subscription_source: Arc::new(subscription_source()),
             core_scope_source: self.core_scope_source(),
             traffic_waveform: self.application.traffic_waveform_application(),
+            closed_connections: self.application.closed_connections_application(),
         })?
         .with_logs(self.application.log_application())
         .with_log_export(exports)

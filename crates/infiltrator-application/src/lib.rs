@@ -24,6 +24,7 @@ pub mod android_core_owner_recovery_application;
 pub mod backup_restore_application;
 pub mod cache_application;
 pub mod certificate_authority_application;
+pub mod closed_connections_application;
 pub mod command_application;
 pub mod command_capability;
 pub mod configuration_application;

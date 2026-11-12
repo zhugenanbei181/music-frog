@@ -24,19 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-12 第二百一十三批次；b111–b212 见下方批次八问摘要）
+## 当前状态（2026-11-12 第二百一十四批次；b111–b213 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b213 是共享页身宽 + v15 导出 + Iced/Slint 双网格与两台架回执修复，零平台 API / 零 wire；`--locked` contract+Slint+Iced nextest **1626/1626**、三包 Clippy `--all-targets -D warnings`、`cargo fmt --all --check` 为 `L`。交叉架构与 aarch64 目标产物未复跑，仍由 CI / 设备矩阵补证（GAP-1.1） |
-| 2 | 部分 | L | 本机 Linux 完成三包定向测试 / Clippy / fmt、Iced 192 + Slint 199 帧整批重采、双表面空间门与回执新鲜度；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）。FlClash 桌面条带差异仍归 `FLPARITY-050` |
-| 3 | 部分 | L | 未改 Android/iOS 代码、资源或 wire；两个 typed `Stacked` 形态保持底栏/轨档单列，已由 720×480 与 400×800 诊断帧复核，但没有实机回执 |
-| 4 | 部分 | L | Iced 的 Profiles / 代理节点网格与 Slint 双网格都消费 v15 页宽规则；Bevy 仍消费 tier 查表且文件由另一会话持有，本批按所有权纪律未接入 |
-| 5 | 完整 | L | 页身宽由 `ViewportTier::page_body_width_px` 一处发布，250/300dp 两个宽度规则与 typed `Stacked/Desktop` 词表都经 v15 导出、生成器与 `page_structure_version.py` 一个版本 pin；无人消费的旧 tier 查表已退役，`slint-viewport-tier-guard` **45/45** + enforce 0 |
-| 5a | 部分 | L | 本批无字体 / 字重 / 图标族 / 视觉资产身份变化；Iced 新增 2 张 `profiles-grid-*` 双视口真实像素回执，Iced **192/192** / Slint **199/199** 整批重采，双表面空间门 0 违规、回执新鲜度 0；Bevy 浅色像素回执仍缺席且另一会话的 `runtime-dark` / `overview-dark` 别名仍是全仓身份门唯一红腿，故按全局证据记「部分」 |
-| 6 | 部分 | L | 本批补齐 Iced Profiles 网格的 contract anchor、scenario anchor 与双视口像素；`resolve_surface_evidence.py` 未复跑，180 个 ready surface cells 仍缺 product-build receipts；Bevy 双网格接线未变 |
-| 7 | 完整 | L | 契约页身宽 + typed forms → v15 导出 → 生成函数 → Iced/Slint 页面一条链完成；守卫对无人消费生成函数、私写 250/32、重命名词表、诊断批覆盖正式语料可咬；`line` / `import` / `typed-state` / `implicit-state` / `doc-governance` / `closure-questions` 全 0 |
-| 8 | 部分 | L | 开发期只跑受影响三包测试与专属守卫；产出期一次 Iced 192 帧重采（304s）+ 一次 Slint 199 帧重采（457s）+ 双表面空间门与全组 planted 自测；全仓 `--workspace` nextest / clippy、结构门全腿与 `resolve_surface_evidence.py` 仍留统一验证批次一次跑完 |
+| 1 | 部分 | L | b214 仅改中性 Rust owner / 命令 / 组合层，零平台 API、零 wire；domain+application+composition nextest **1385/1385**、六包 Clippy `--all-targets -D warnings`、`cargo fmt --all --check` 为 `L`。交叉架构与 aarch64 目标产物未复跑，仍由 CI / 设备矩阵补证（GAP-1.1） |
+| 2 | 部分 | L | Linux 本机完成六包 Clippy / fmt 与三包 nextest；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）。FlClash 桌面条带差异仍归 `FLPARITY-050` |
+| 3 | 部分 | L | Android 命令组合与 iOS 组合都改为消费 `CoreApplication` 单例 history，未动 Kotlin/JNI/VPNService/资源；宿主静态 Rust 编译通过，无 APK 或真机回执 |
+| 4 | 部分 | L | 本批按 Core-first 只做 SurfaceSnapshot / 命令 / 宿主接线；Iced 页签仍用字符串前缀，typed `ConnectionTab`、演示数据、双视口像素回执由 `CPPARITY-CLOSED-UI` 留在现在佛；Bevy 文件由另一会话持有 |
+| 5 | 完整 | L | `ClosedConnectionsApplication` 由 `CoreApplication` 单例持有，与 `TrafficWaveformApplication` 同构；SurfaceReader 是唯一观察入口，桌面 / Android / iOS 命令和读回都取同一 clone；无 `ConnectionApplication` 影子历史，无 UI 私有数组 |
+| 5a | 部分 | L | 本批无字体 / 字重 / 图标族 / 视觉资产身份变化，未重采像素；既有 Bevy 浅色像素回执与另一会话的 `runtime-dark` / `overview-dark` 别名仍是全局身份门缺口，按全局证据记「部分」 |
+| 6 | 部分 | L | Core 已发布并复位 `closed_connections`，但 Iced 消费端 contract anchor、scenario anchor 与 standard/compact 像素回执尚未补；`resolve_surface_evidence.py` 未复跑，180 个 ready surface cells 仍缺 product-build receipts |
+| 7 | 完整 | L | typed `NoBaseline/Tracking{scope,revision}` → domain 差集 owner → application 单例 → SurfaceReader/命令 → 宿主组合一条链；两个超 800 行文件按业务缝拆出 `observed_values.rs` 与 `surface_reader_closed_history_tests.rs`；`line` / `import` / `typed-state` / `implicit-state` / `doc-governance` / `closure-questions` 全 0 |
+| 8 | 部分 | L | 开发期只跑受影响三包 nextest 与静态门；Cargo lane 被其它工作区占用时中断一次重复全仓门，改由收口方集中跑一次六包 Clippy + 三包 nextest；全仓 `--workspace` nextest / 结构门全腿与 `resolve_surface_evidence.py` 仍留统一验证批次一次跑完 |
+
+## 最近一批问答（2026-11-12 第二百一十四批次：已关闭连接 Core 单一 owner）
+
+1. x86_64/aarch64：本批是中性 Rust 的 domain/application/composition 与宿主接线，零平台 API / 零 wire；`--locked` 三包 nextest **1385/1385**、六包 Clippy `--all-targets -D warnings`、`cargo fmt --all --check` 为 `L`。交叉构建与 aarch64 目标机产物未复跑 → 部分（L）。
+2. Windows/Linux/macOS：本机 Linux 完成三包测试、六包 Clippy / fmt；桌面宿主组合静态编译通过但没有构建腿、安装包或重采帧；Windows/macOS 未复跑，macOS 沿用 `Unsupported` → 部分（L）。
+3. Android/iOS：Android 命令组合与 iOS 组合都改为消费同一个 `CoreApplication.closed_connections_application()`，未动 Kotlin/JNI/VPNService 与资源；Android host Rust 静态编译通过，但没有 APK、模拟器或真机回执 → 部分（L）。
+4. 各 UI：按 Core-first 硬门只把权威读回接到 `SurfaceSnapshot`，不改任何布局；Iced 的字符串前缀页签由 `CPPARITY-CLOSED-UI` 留在本机可推任务中，Bevy 文件由另一会话持有且未接入 → 部分（L）。
+5. 复用：历史 owner 不再挂在反复构造的 `ConnectionApplication` 上；`CoreApplication` 单例持有与 waveform 同构的 `ClosedConnectionsApplication`，SurfaceReader 是唯一观察入口，桌面/Android/iOS 命令与读回都取同一 clone，清空命令以读回确认 → 完整（L）。
+5a. 设计资源：本批无字体 / 字重 / 图标族 / 视觉资产身份变化，也没有像素变化，故不重采；Bevy 浅色回执与另一会话 `runtime-dark` / `overview-dark` 别名仍是全局身份门缺口 → 部分（L）。
+6. 功能接入：Core 侧观测差集、scope/revision 围栏、清空读回与 `SurfaceSnapshot` 发布均有 nextest 覆盖；Iced 的 contract/scenario 锚点、standard/compact 像素回执未补，`resolve_surface_evidence.py` 未复跑 → 部分（L）。
+7. 模块化：domain typed 两态与 revision 围栏、application 单例、SurfaceReader 唯一观察入口、命令子模块各守一层；`dispatch.rs` 纯 helper 与组合测试按 800 行预算拆出两个文件，门禁 line/import/typed-state/implicit-state/doc-governance/closure 全 0 → 完整（L）。
+8. CI 与批次效率：开发期只跑受影响包；收口时一次三包 nextest + 一次六包 Clippy + 一次静态门；全仓 `--workspace` nextest / 结构门全腿与 `resolve_surface_evidence.py` 留统一验证批次一次跑完，避免与另一工作区争抢唯一 Cargo lane → 部分（L）。
 
 ## 最近一批问答（2026-11-12 第二百一十三批次：Iced 双网格消费共享页身宽）
 

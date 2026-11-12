@@ -1,4 +1,4 @@
-# MusicFrog 工程 TODO · 过去佛（10条待验证；归档见 [TODO.md](../TODO.md) 第一百零八批次）
+# MusicFrog 工程 TODO · 过去佛（11条待验证；归档见 [TODO.md](../TODO.md) 第一百零八批次）
 
 > 层级：L4
 
@@ -239,3 +239,17 @@
 ③ **证据（L）**：契约+Slint+Iced nextest **1626/1626**、三包 Clippy `--all-targets -D warnings`、fmt；Iced **192/192**、Slint **199/199** 整批重采，`space_utilization --surface iced|slint --enforce` 均 0 违规、`receipt-freshness 0`、`--check-export` current、生成器 `--check` fresh、统一矩阵双表面一致；`slint-viewport-tier-guard` **45/45**、`iced-observation-routes-guard` **14/14**、`sidebar-expansion-owner-guard` **10/10**，doc/line/import/typed-state/implicit-state 全 0。
 ④ **待验证范围**：统一批次复跑 `cargo nextest run --workspace`、全仓结构门与 `resolve_surface_evidence.py`；另一会话未提交的 Bevy `runtime-dark` / `overview-dark` 像素别名仍是全仓身份门唯一红腿。Bevy 的 Profiles / 代理网格仍消费 tier 查表，由 `FLPROFILES-002` 在其文件所有权落地后收口。
 ⑤ **证据身份**：Iced 192/192 发布 run `20261111T220532Z_923ba4af7b2f_dirty_2656390`、Slint 199/199 发布 run `20261111T221050Z_923ba4af7b2f_dirty_2705566`、三包 nextest **1626/1626**、两个网格诊断批 `20261111T220101Z_923ba4af7b2f_dirty_2639332` / `20261111T220246Z_923ba4af7b2f_dirty_2649539`。
+
+## 12.81 已关闭连接的 Core 单一 owner 与权威读回（1条待验证）
+
+| ID | 状态 / 优先级 | points | owner | 依赖 |
+| --- | --- | --- | --- | --- |
+| `CPPARITY-CLOSED-CORE` | `Integrated` / P1（b214 实测立项并交付，待统一批次办结） | 3 | infiltrator-domain（typed 观察流）+ infiltrator-application（单例 owner、命令读回、Core 装配）+ infiltrator-composition（SurfaceReader 唯一观察入口与 snapshot 发布）+ 桌面/Android/iOS 命令组合 | `TRAFFICAUDIT-001`（typed 读回先例） |
+
+**`CPPARITY-CLOSED-CORE` 已关闭连接不再是空 owner（b214 交付，3 pt / P1 / `Integrated`）**：
+
+① **架构缺口**：契约已有 `ClosedConnectionsSnapshot`，但 `surface_reader.rs` 固定发布空值，clear dispatch 固定返回 `Ok(())`；若把历史挂在每次构造的 `ConnectionApplication` 上，admin、monitoring 与 surface reader 会各持一份影子历史。
+② **自底向上收口**：domain 新增 `ClosedConnectionHistory`，以 `NoBaseline / Tracking { scope, revision }` typed 两态表达观察流，首帧只建基线、同一 scope 的后续成员差集留存最后事实、旧 revision 拒绝回滚、换 scope 重置、容量淘汰保留 lifetime total；`ClosedConnectionsApplication` 与 `TrafficWaveformApplication` 同构，由 `CoreApplication` 单例持有，桌面 / Android / iOS 只拿 clone；SurfaceReader 是唯一观察入口，成功观测后喂 owner 并发布同一份 `closed_connections` 读回；`ClearClosedConnections` 走 `LocalOnly` 并校验清空后的权威读回。
+③ **定向证据（L）**：`cargo nextest run --locked -p infiltrator-domain -p infiltrator-application -p infiltrator-composition` **1385/1385**；六包 `cargo clippy --all-targets -- -D warnings`、`cargo fmt --all --check`；`line` / `import` / `typed-state` / `implicit-state` / `closure-questions` 全 0；组合回归以 fake port 给出两个 scoped 观测，证明第一次读为空、第二次读发布 `total_closed=1` 与 `c-1`，clear 后下一帧为空。
+④ **待验证范围**：统一批次复跑 `cargo nextest run --locked --workspace`、全仓结构门与 `resolve_surface_evidence.py`；`CPPARITY-CLOSED-UI`（typed 页签、演示数据、双视口真实像素回执和截图认证）仍在现在佛，本条不声称 UI 已接入；另一会话的 Bevy 文件按所有权纪律未触碰。
+⑤ **证据身份**：三包 nextest **1385/1385**、六包 Clippy 0 warning、`line budget 2968 files / 0`、import `2968 / 0`、`typed-state 0`、`implicit-state 23/0/0`、`closure-questions 8/8`。

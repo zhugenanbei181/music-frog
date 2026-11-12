@@ -349,18 +349,17 @@ pub fn classify_command(intent: &CommandIntent) -> CommandCapabilityRoute {
             Geo(GeoOperation::UpdateDatabases),
             Write,
         )),
-        CommandIntent::CloseConnection { .. }
-        | CommandIntent::CloseAllConnections
-        | CommandIntent::ClearClosedConnections => CoreBackend(CoreCapabilityRequirement::new(
-            Connection(ConnectionOperation::Close),
-            Write,
-        )),
+        CommandIntent::CloseConnection { .. } | CommandIntent::CloseAllConnections => CoreBackend(
+            CoreCapabilityRequirement::new(Connection(ConnectionOperation::Close), Write),
+        ),
         // The traffic waveform is an application-owned sample history, not an
         // engine statistic: Mihomo's HTTP API has no traffic-reset endpoint
         // (upstream's `traffic.reset` calls the embedded Go core in-process).
         // Requiring `connection.close` here was a category error - clearing a
         // local curve is neither a socket teardown nor a backend operation.
-        CommandIntent::ClearTrafficHistory => LocalOnly,
+        // Retained closed-connection rows are the same kind of local history:
+        // clearing them never asks the engine to close a socket.
+        CommandIntent::ClearTrafficHistory | CommandIntent::ClearClosedConnections => LocalOnly,
         CommandIntent::ClearDnsCache { .. } => CoreBackend(CoreCapabilityRequirement::new(
             FakeIpCache(FakeIpCacheOperation::Flush),
             Write,

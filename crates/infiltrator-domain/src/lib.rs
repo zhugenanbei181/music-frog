@@ -9,6 +9,7 @@ pub mod app_routing;
 pub mod apply;
 pub mod backoff_strategy;
 pub mod backup;
+pub mod closed_connection_history;
 pub mod config;
 pub mod connection_activity;
 pub mod connection_rate;
