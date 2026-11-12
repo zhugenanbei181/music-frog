@@ -1,4 +1,4 @@
-# MusicFrog 工程 TODO · 过去佛（17条待验证；归档见 [TODO.md](../TODO.md) 第一百零八批次）
+# MusicFrog 工程 TODO · 过去佛（18条待验证；归档见 [TODO.md](../TODO.md) 第一百零八批次）
 
 > 层级：L4
 
@@ -380,3 +380,45 @@ owner 分别是另一会话的 Bevy 像素与 `I18NNAV-001`，任一转绿须同
 ⑦ **待验证范围**：统一批次复跑 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py`；
 `I18NCAT-001` 办结前不声称 Slint 全量 `@tr` 已本地化；Bevy 的 192 帧像素仍由另一会话持有，
 本批不重采、不碰。
+
+## 12.87 Slint 编译器驱动文案全部回到共享 PO（1条待验证）
+
+| ID | 状态 / 优先级 | points | owner | 依赖 |
+| --- | --- | --- | --- | --- |
+| `I18NCAT-001` | `Integrated` / P1（b221 实测立项，b222 交付，待统一批次办结） | 3 | `infiltrator-shared` 双产品 PO（98 条）+ `i18n-guard.py` / `slint_tr_catalog_debt.json`（全覆盖判据）+ `infiltrator-slint`（`AppWindow` 标题读回 / `CAPTURE_LOCALE` / 211 帧矩阵）+ `receipt-freshness-guard.py` / `sidebar-expansion-owner-guard.py` / `slint-dock-material-guard.py` | `I18NNAV-001`（过去佛 §12.86）、`FLPARITY-048`（标签截断事实） |
+
+**`I18NCAT-001` 全部 `@tr` 文案由共享产品目录发布（b222 交付，3 pt / P1 / `Integrated`）**：
+
+① **真正找到的问题**：b221 的真实 `sidebar-locale-en-standard` 像素同时出现英文 rail 与中文
+卡片文字（`峰值/累计/内网 IP/服务状态/内存信息` 等）。扫描 60 份 `.slint` 得 411 个唯一
+`@tr` msgid，其中 98 条（96 条 CJK、2 条通用词）不在 `en-US` / `zh-CN` 两份产品 PO；
+Slint 编译器在英文 locale 只能回退中文 msgid。这是「编译器驱动文案没有共享目录身份」，
+不是导航投影的局部漏词。
+② **上游求同、存异实现**：pinned FlClash v0.9.3 `messages_en.dart` 用 typed l10n key 发布
+`Dashboard/Tools/Resources/Status/Recent requests/DNS queries` 等词；本仓不复制 Flutter
+资源表，而在 `infiltrator-shared/locales/product` 的同一份 PO 裁决 98 条词形。两份目录各
+555 → 653 条、零重复；中文 `msgstr` 保留 `msgid`，英文译文通过 `check_product_catalogs()`
+与新增 `@tr` 判据证明零 CJK。Rust `Lang` 与 Slint bundled translations 同时消费该目录，
+没有 UI 侧硬编英文或第二套 locale key。
+③ **门禁**：`i18n-guard` 删除只覆盖四个 top-title 的旧入口，把 `check_slint_tr_catalog()`
+升级为全量 411 个 msgid 必须在双 PO 且英文译文无 CJK；`check_slint_tr_debt()` 只允许空清单；
+`slint_tr_catalog_debt.json` 从 98 条清零。`test_i18n_guard.py` 14/14，含缺词、英文回退中文、
+新增漏词与台账复辟 planted；`--self-test` / `--mode enforce` 均 0。
+④ **回放真实页面文字**：`AppWindow` 把 `PageTitles` 解析出的桌面标题、手机标题与 typed
+网络模式发布为只读回执属性；capture marker 新增 `CAPTURE_LOCALE`，从同一窗口读回并 hex
+UTF-8 编码，不复制文案。矩阵新增 overview/settings × 双语言 × standard/compact 共 8 帧，
+203 → **211** 帧；`receipt-freshness-guard` 在所有 12 张 locale 帧核对 `CAPTURE_NAV`，
+再对 8 张页面帧核对 `CAPTURE_LOCALE`，planted「英文 rail + 中文手机标题」实测会咬；
+`sidebar-expansion-owner-guard` 与 `slint-dock-material-guard` 同步 211 帧口径。
+⑤ **像素与证据（L）**：`i18n-guard --self-test` / `--mode enforce` `total=0`、定向 Python
+14/14、freshness 7/7、sidebar-owner 11/11、dock-material 9/9、`cargo check -p infiltrator-slint
+--features gpu-skia,capture-tools --bin infiltrator-slint`、fmt、定向 nextest **1068/1068**；
+最终发布批 `20261112T141930Z_e4a19d53e5d5_dirty_3729570`（**211/211**，471s，binary sha256
+`3bea0eed…`，source fingerprint `cf0fbdcd…`），`space_utilization --surface slint --enforce`
+211 帧 violations=0、`receipt-freshness 0`、`screenshot-identity` 仅另一会话 Bevy 别名红、
+Slint 别名 22 条新鲜；整门 **194 腿 / 1 红 / findings=0**，见 [TODO.md](../TODO.md) b222 与八问。
+⑥ **待验证范围**：统一批次复跑 `--workspace` nextest/clippy、结构门全腿与
+`resolve_surface_evidence.py`；Iced/Bevy/Android 的本批业务模型无变化，Bevy 像素与测试
+fixture 仍由另一会话持有，本批不重采、不碰。新英文页面帧另量到 `峰值/累计/普通线路`
+等中文由共享 presentation 把标签拼进数值字段造成，不是 `@tr` 缺词；该跨表面数据文案
+owner 缺陷留独立切片自底向上收口，本批不声称其已本地化。

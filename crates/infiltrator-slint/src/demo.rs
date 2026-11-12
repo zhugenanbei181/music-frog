@@ -13,7 +13,7 @@ mod pages;
 
 use super::*;
 use crate::capture_scenario::{self, CaptureBounds};
-pub use crate::demo::capture_marker::write_capture_marker;
+use crate::demo::capture_marker::write_capture_marker;
 use crate::mascot_driver::publish_receipt_frame;
 use infiltrator_contract::language::LanguagePreference;
 use infiltrator_contract::shell_sidebar_preference::SidebarExpansionPreference;

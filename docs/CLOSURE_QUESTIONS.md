@@ -24,31 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-12 第二百二十一批次；b111–b220 见下方批次八问摘要）
+## 当前状态（2026-11-12 第二百二十二批次；b111–b221 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b221 改 shared PO / Slint 投影与 demo 取证 / 判据，均为架构中性 pure Rust、`.slint` 与 Python；`cargo check -p infiltrator-slint --features gpu-skia,capture-tools --bin infiltrator-slint`、fmt 与 Slint 203/203 发布批为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1） |
-| 2 | 部分 | L | Linux 本机完成 203 帧 KWin + 嵌套 niri 真像素批与定向门禁；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）；`main-gate.yml` 复用同一结构门但未取受控 CI run ID |
-| 3 | 部分 | L | Slint Android flavor 与桌面共用 `.slint`，top-title 与 rail 文案真源按构造同时受益；未跑 `scripts/android-slint-build.sh`，无三 flavor 实机交互回执，iOS 无新证据 |
-| 4 | 部分 | L | Slint 双 locale standard/compact 四帧由 203/203 发布批与 `CAPTURE_NAV` 逐字回执证明；Iced 沿用共享 `ShellPage::sidebar_key` 而未在本批重采；Bevy 的 192 帧仍由另一会话持有（`FLPROFILES-002`）；Android 无本批实机回执 |
-| 5 | 完整 | L | 桌面 rail 文字、tooltip 与截断读回统一消费投影发布的 `item.label`；启动语言、owner `language_settings.preference`、settings 页与捕获矩阵 locale 列都来自 typed `LanguagePreference`；四条 top-title 由双 PO 一处发布，`i18n-guard` 自检、正式 enforce 与只减欠账共用同一目录真源 |
-| 5a | 部分 | L | 语言文案身份变化（中/英导航与 top-title）触发 Slint **203/203** 整批重采；四张 locale 帧发布 standard/compact 双视口像素与 `CAPTURE_NAV`，`receipt-freshness` 核对双目录。`I18NCAT-001` 的 98 条 `@tr` 欠账尚未清零，仍登记在只减台账 |
-| 6 | 部分 | L | `i18n-guard --mode enforce` 由 `literal_errors=4` 转 `total=0`；`slint-viewport-tier-guard` 55/55、owner 守卫 12/12、freshness 6/6、gate 守卫 11/11、生成器 `--check` current、定向 nextest **1068/1068**、整门 **194 腿 / 1 红 / findings=0**；`resolve_surface_evidence.py` 的 180 个 ready cells 仍留统一验证批次 |
-| 7 | 完整 | L | 文案 owner（共享 locale/PO）→ 投影（`NavigationSlot`）→ 组件（rail / app bar）→ 取证（`CAPTURE_NAV` + manifest locale）→ 守卫（i18n / freshness / tier / gate）分层清楚；`primary-name` 与 PageTitles 的第二套 rail 词汇退役，无跨 UI 私有业务真源 |
-| 8 | 部分 | L | 一次构建后整批 203 帧（199 + 4 双 locale）集中复采，未边改边截；矩阵与 manifest 的 locale 列让双语言回执可机器核对，红腿声明随 i18n 转绿同批删除；全仓 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py` 仍留统一批次一次跑完 |
+| 1 | 部分 | L | b222 改 shared PO / Slint 窗口读回与 Python 判据，均为架构中性资源、`.slint` 与脚本；`cargo check -p infiltrator-slint --features gpu-skia,capture-tools --bin infiltrator-slint` 与 Slint 211/211 发布批为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1） |
+| 2 | 部分 | L | Linux 本机完成 211 帧 KWin + 嵌套 niri 真像素批与定向门禁；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）；`main-gate.yml` 复用同一结构门但未取受控 CI run ID |
+| 3 | 部分 | L | Slint Android flavor 与桌面共用 `.slint`，共享 PO 按构造同时受益；未跑 `scripts/android-slint-build.sh`，无三 flavor 实机交互回执，iOS 无新证据 |
+| 4 | 部分 | L | Slint 12 张 locale 帧由 211/211 发布批与 `CAPTURE_NAV` / `CAPTURE_LOCALE` 双回执证明；Iced 沿用共享 `ShellPage::sidebar_key` 而未在本批重采；Bevy 的 192 帧仍由另一会话持有（`FLPROFILES-002`）；Android 无本批实机回执 |
+| 5 | 完整 | L | 411 个 Slint `@tr` msgid 全部由双产品 PO 一处发布，Rust `Lang` 与 Slint bundled translations 共用同一目录；`CAPTURE_LOCALE` 从 `AppWindow` 的 `PageTitles` 绑定读回，不复制文案；`i18n-guard` 自检、正式 enforce 与清空的欠账清单共用同一真源 |
+| 5a | 部分 | L | 文案身份变化触发 Slint **211/211** 整批重采；8 张新增页面帧与 4 张既有侧栏帧发布双语言 standard/compact 真像素，`CAPTURE_NAV` / `CAPTURE_LOCALE` / manifest locale 逐帧可机器核对，98 条 `@tr` 欠账清零；新像素另暴露 `峰值/累计/普通线路` 由共享 presentation 数据字段带中文，留独立切片收口 |
+| 6 | 部分 | L | `i18n-guard --mode enforce` `total=0`；Python 回归 14/14、freshness 7/7、sidebar-owner 11/11、dock-material 9/9、生成器 `--check`、空间门与定向 nextest / 整门结果见 b222 台账；结构门 **194 腿 / 1 红 / findings=0**、空间门 211 帧 0 违规；`resolve_surface_evidence.py` 的 180 个 ready cells 仍留统一验证批次 |
+| 7 | 完整 | L | 文案 owner（shared PO）→ 编译期 bundled translations（`build.rs`）→ 组件（`@tr`）→ 窗口发布（标题属性）→ 取证（`CAPTURE_NAV` / `CAPTURE_LOCALE`）→ 守卫（i18n / freshness / matrix）分层清楚，无跨 UI 私有业务真源 |
+| 8 | 部分 | L | 一次构建后整批 211 帧（203 + 8 张双语言页面帧）集中复采，未边改边截；矩阵与 manifest locale 列、全量目录判据和 planted 负例让双语言回执可机器核对；全仓 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py` 仍留统一批次一次跑完 |
 
-## 最近一批问答（2026-11-12 第二百二十一批次：英文侧栏回到共享文案真源）
+## 最近一批问答（2026-11-12 第二百二十二批次：Slint 编译器驱动文案全部回到共享 PO）
 
-1. x86_64/aarch64：本批改动为 shared 产品 PO、Slint 投影/demo 取证、Slint rail 与 Python/JSON 判据，均为架构中性 pure Rust、`.slint` 与脚本，零平台 API、零 wire；`cargo check -p infiltrator-slint --features gpu-skia,capture-tools --bin infiltrator-slint`、`cargo fmt --all -- --check` 与 Slint 203/203 发布批为 `L`；交叉架构与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
-2. Windows/Linux/macOS：Linux 本机完成 KWin + 嵌套 niri 的 203 帧整批采集、双 locale `CAPTURE_NAV` 回执与定向门禁；Windows/macOS 构建腿和安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）。`main-gate.yml` 仍复用同一结构门，但本批未取受控 CI run ID → 部分（L）。
-3. Android/iOS：Slint Android flavor 与桌面共用 `.slint`，top-title 与 rail 文案真源按构造同样受益；未跑 `scripts/android-slint-build.sh`，无三 flavor 实机交互截图，iOS 无新回执 → 部分（L）。
-4. 各 UI：Slint 桌面 rail 在 `en-US` 实测发布 `Overview/Proxies/Profiles/Settings`，`zh-CN` 为共享中文词；新增四帧覆盖双 locale × standard/compact，且 `CAPTURE_NAV` 从真实 navigation model 读回。Iced 本来消费同一 `ShellPage::sidebar_key`，本批未重采；Bevy 的 192 帧由另一会话持有（`FLPROFILES-002`），本批不碰 → 部分（L）。
-5. 复用：投影只发布 `ShellPage::sidebar_key()` / `nav_traffic` 解析后的一份 label，rail 文字、tooltip 与截断读回都消费 `item.label`；退役 `primary-name` / `PageTitles.page-name` 第二套 rail 词汇。启动语言、owner `language_settings.preference`、settings 页字段和捕获矩阵 locale 列来自 typed `LanguagePreference`；四条 top-title 由双 PO 一处发布，`i18n-guard` 的 self-test、enforce 与只减欠账读同一份目录 → 完整（L）。
-5a. 设计资源：文案身份变化触发 Slint **203/203** 整批重采；四张 locale 帧发布 standard/compact 双视口真实像素，`receipt-freshness` 核对 manifest locale 与 `CAPTURE_NAV` 四项标签。全量扫描另发现 411 个 `@tr` msgid 中 98 条（96 条 CJK）双目录缺失，已登记 `I18NCAT-001` 只减欠账并按 P1 留在现在佛，不把系统性问题写成已验收 → 部分（L）。
-6. 各处界面的功能接入：`i18n-guard --mode enforce` 由四条硬编中文 `literal_errors=4` 转为 `total=0`；`slint-viewport-tier-guard --self-test` **55/55**、`sidebar-expansion-owner-guard` 12/12、`receipt-freshness-guard` 6/6、`structure-gate-guard` 11/11、生成器 `--check` current；结构门红腿声明随 i18n 转绿删除。`resolve_surface_evidence.py` 的 180 个 ready cells 仍缺 product-build receipts，留统一批次 → 部分（L）。
-7. 模块化：文案 owner（shared locale/PO）→ 投影（`NavigationSlot`）→ 组件（rail / app bar）→ 取证（`CAPTURE_NAV` + manifest locale）→ 守卫（i18n / freshness / tier / gate）职责分离；矩阵第 10 列、demo typed locale、只减 `@tr` 欠账各自只有一个写入者，无跨 UI 私有业务真源 → 完整（L）。
-8. CI 与批次效率：一次构建后整批 203 帧（既有 199 + 四张双 locale）集中复采，未边改边截；矩阵与 manifest 的 locale 列让双语言回执可机器核对，新增 planted 负例覆盖错 locale、错导航词、第二套 rail 词汇和新增漏词。结构门全腿已在本批实测 194 腿执行、1 条声明红腿、对账 findings=0；全仓 `--workspace` nextest/clippy 与 `resolve_surface_evidence.py` 仍留统一批次一次跑完；无新增 `--locked` 腿 → 部分（L）。
+1. x86_64/aarch64：本批改动为 shared 产品 PO、Slint `AppWindow` 读回属性 / capture marker / 矩阵与 Python/JSON 判据，均为架构中性资源、`.slint` 与脚本，零平台 API、零 wire；`cargo check -p infiltrator-slint --features gpu-skia,capture-tools --bin infiltrator-slint`、`cargo fmt --all -- --check` 与 Slint 211/211 发布批为 `L`；交叉架构与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
+2. Windows/Linux/macOS：Linux 本机完成 KWin + 嵌套 niri 的 211 帧整批采集、双语言页面回执与定向门禁；Windows/macOS 构建腿和安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）。`main-gate.yml` 仍复用同一结构门，但本批未取受控 CI run ID → 部分（L）。
+3. Android/iOS：Slint Android flavor 与桌面共用 `.slint` 与 shared PO，全量 `@tr` 目录按构造同样受益；未跑 `scripts/android-slint-build.sh`，无三 flavor 实机交互截图，iOS 无新回执 → 部分（L）。
+4. 各 UI：Slint 新增 overview/settings × 双语言 × standard/compact 8 帧，并有 4 张既有侧栏 locale 帧；`CAPTURE_NAV` 从真实 navigation model 读回，`CAPTURE_LOCALE` 从 `AppWindow` 的 `PageTitles` 绑定读回。Iced 本来消费同一 `ShellPage::sidebar_key`，本批未重采；Bevy 的 192 帧由另一会话持有（`FLPROFILES-002`），本批不碰 → 部分（L）。
+5. 复用：pinned FlClash v0.9.3 的 typed l10n 词形经对照后裁决进双产品 PO 一处，Rust `Lang` 与 Slint bundled translations 共用同一目录；411 个 `@tr` msgid 全覆盖、英文译文零 CJK，98 条欠账清单清空且门禁禁止复辟，窗口回执只读 `PageTitles` 绑定而不复制词表 → 完整（L）。
+5a. 设计资源：文案身份变化触发 Slint **211/211** 整批重采；8 张新增页面帧与 4 张既有侧栏帧发布双语言 standard/compact 真像素，`receipt-freshness` 核对 manifest locale、`CAPTURE_NAV` 与 `CAPTURE_LOCALE`，planted「英文 rail + 中文手机标题」实测会咬；98 条 `@tr` 欠账清零。新 `page-locale-en-standard` 像素复核另暴露 `峰值/累计/普通线路` 等中文来自共享 presentation 把标签拼进数据字段，而非编译器 `@tr`，按跨表面身份改动纪律留独立切片 → 部分（L）。
+6. 各处界面的功能接入：`i18n-guard --self-test` / `--mode enforce` `total=0`，Python 回归 14/14、freshness 7/7、sidebar-owner 11/11、dock-material 9/9；最终发布批 `20261112T141930Z_e4a19d53e5d5_dirty_3729570`（211/211，471s）令 `receipt-freshness 0`、空间门 211 帧 0 违规、身份门仅另一会话 Bevy 红、定向 nextest **1068/1068**；整门 **194 腿 / 1 红 / findings=0**。`resolve_surface_evidence.py` 的 180 个 ready cells 仍缺 product-build receipts，留统一批次 → 部分（L）。
+7. 模块化：文案 owner（shared PO）→ `build.rs` bundled translations → Slint `@tr` 组件 → `AppWindow` 发布标题属性 → `CAPTURE_NAV` / `CAPTURE_LOCALE` 取证 → i18n / freshness / matrix 守卫，每层只读上游事实；页面帧是矩阵声明、locale 是 manifest 列、欠账是空清单，三者没有第二份写入者 → 完整（L）。
+8. CI 与批次效率：最终一次构建后整批 211 帧（既有 203 + 8 张双语言页面帧）集中复采，旧诊断批不作为发布证据；新增 98 条 PO 由全量目录判据一次验完，新增 `CAPTURE_LOCALE` planted 负例覆盖中英混排退化；全仓 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py` 仍留统一批次一次跑完 → 部分（L）。
 
 ## 最近一批问答（2026-11-12 第二百二十批次：结构门真正跑完每一条腿）
 

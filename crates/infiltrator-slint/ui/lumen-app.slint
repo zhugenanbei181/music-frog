@@ -113,7 +113,9 @@ export component AppWindow inherits MaterialWindow {
         // The one copy source for the takeover mode: the sidebar and the settings
         // page read this, and it now derives from the typed enum through the same
         // pure function the rest of the surface uses.
-        property <string> network-mode-label: PageTitles.network-mode-title(root.network-mode);
+        in-out property <string> network-mode-label: PageTitles.network-mode-title(root.network-mode);
+        in-out property <string> capture-page-title: root.primary-page ? PageTitles.page-name(root.page) : PageTitles.title(root.page, root.content-preview-profile, root.license-detail-name);
+        in-out property <string> capture-phone-title: PageTitles.phone-title(root.page);
         property <string> runtime-status-label: root.runtime-status == RuntimeStatus.running ? @tr("运行中") : root.runtime-status == RuntimeStatus.starting ? @tr("正在启动") : root.runtime-status == RuntimeStatus.stopping ? @tr("正在停止") : root.runtime-status == RuntimeStatus.failed ? @tr("启动失败") : @tr("已停止");
         in-out property <string> network-mode-status: @tr("Runtime 未运行"); in-out property <bool> network-mode-status-warning: false; in-out property <bool> tun-capable: false;
         in-out property <string> tun-capability-detail: @tr("TUN 平台适配未验证"); in-out property <string> lan-sharing-heading: ""; in-out property <string> lan-sharing-detail: "";

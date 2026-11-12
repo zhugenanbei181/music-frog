@@ -1675,3 +1675,297 @@ msgstr "Profiles"
 
 msgid "系统设置"
 msgstr "Settings"
+
+msgid " 个节点"
+msgstr " nodes"
+
+msgid " 个规则提供者"
+msgstr " rule providers"
+
+msgid " 处端口冲突"
+msgstr " port conflicts"
+
+msgid " 已停用"
+msgstr " disabled"
+
+msgid " 已启用"
+msgstr " enabled"
+
+msgid " 条测速历史"
+msgstr " speed-test records"
+
+msgid " 项快捷命令"
+msgstr " quick commands"
+
+msgid "+ 添加配置"
+msgstr "+ Add profile"
+
+msgid "A-Z 主机"
+msgstr "A-Z Host"
+
+msgid "CPU"
+msgstr "CPU"
+
+msgid "DNS、编辑器、过滤与聚合"
+msgstr "DNS, editor, filters, and aggregation"
+
+msgid "DNS查询"
+msgstr "DNS queries"
+
+msgid "VPN (TUN)"
+msgstr "VPN (TUN)"
+
+msgid "↑ 上传"
+msgstr "↑ Upload"
+
+msgid "↓ 下载"
+msgstr "↓ Download"
+
+msgid "↓ 时间"
+msgstr "↓ Time"
+
+msgid "上传/下载"
+msgstr "Upload/Download"
+
+msgid "仅核心转发"
+msgstr "Core forwarding only"
+
+msgid "代理链"
+msgstr "Proxy chain"
+
+msgid "仪表盘"
+msgstr "Dashboard"
+
+msgid "信息"
+msgstr "Info"
+
+msgid "全部测速"
+msgstr "Test all"
+
+msgid "共 "
+msgstr "Total "
+
+msgid "关于软件"
+msgstr "About"
+
+msgid "其他"
+msgstr "Other"
+
+msgid "内存信息"
+msgstr "Memory"
+
+msgid "内网 IP"
+msgstr "Intranet IP"
+
+msgid "出站模式"
+msgstr "Outbound mode"
+
+msgid "分流规则"
+msgstr "Routing rules"
+
+msgid "刷新当前配置"
+msgstr "Refresh current profile"
+
+msgid "启动"
+msgstr "Start"
+
+msgid "命中规则"
+msgstr "Matched rule"
+
+msgid "域名解析"
+msgstr "DNS"
+
+msgid "实时运行与内核输出"
+msgstr "Live runtime and core output"
+
+msgid "实时连接"
+msgstr "Live connections"
+
+msgid "局域网代理"
+msgstr "LAN proxy"
+
+msgid "局域网代理 已关闭"
+msgstr "LAN proxy disabled"
+
+msgid "局域网代理 已开启"
+msgstr "LAN proxy enabled"
+
+msgid "局域网共享 已关闭"
+msgstr "LAN sharing disabled"
+
+msgid "局域网共享 已开启"
+msgstr "LAN sharing enabled"
+
+msgid "工具"
+msgstr "Tools"
+
+msgid "已保存 "
+msgstr "Saved "
+
+msgid "已同步"
+msgstr "Synced"
+
+msgid "已开启"
+msgstr "Enabled"
+
+msgid "已收录 "
+msgstr "Indexed "
+
+msgid "已用"
+msgstr "Used"
+
+msgid "应用分流"
+msgstr "App routing"
+
+msgid "开始时间"
+msgstr "Started"
+
+msgid "持续时间"
+msgstr "Duration"
+
+msgid "探测目标："
+msgstr "Probe targets: "
+
+msgid "搜索节点"
+msgstr "Search nodes"
+
+msgid "搜索节点名称或协议"
+msgstr "Search node names or protocols"
+
+msgid "数据同步"
+msgstr "Sync"
+
+msgid "暂停"
+msgstr "Pause"
+
+msgid "暂无历史探测记录"
+msgstr "No speed-test history"
+
+msgid "最近请求"
+msgstr "Recent requests"
+
+msgid "服务状态"
+msgstr "Service status"
+
+msgid "未获取模式"
+msgstr "Mode unavailable"
+
+msgid "未设定"
+msgstr "Not set"
+
+msgid "本地"
+msgstr "Local"
+
+msgid "机房"
+msgstr "Data center"
+
+msgid "查看详情："
+msgstr "View details: "
+
+msgid "检测到 "
+msgstr "Detected "
+
+msgid "没有匹配到依赖："
+msgstr "No dependencies match: "
+
+msgid "没有匹配到已关闭连接："
+msgstr "No closed connections match: "
+
+msgid "没有匹配到活动连接："
+msgstr "No active connections match: "
+
+msgid "没有匹配到规则："
+msgstr "No rules match: "
+
+msgid "添加"
+msgstr "Add"
+
+msgid "源地址"
+msgstr "Source"
+
+msgid "版本"
+msgstr "Version"
+
+msgid "状态"
+msgstr "Status"
+
+msgid "生命周期、备份与恢复"
+msgstr "Lifecycle, backup, and restore"
+
+msgid "由系统 VPN 托管"
+msgstr "Managed by system VPN"
+
+msgid "目标地址"
+msgstr "Destination"
+
+msgid "第三方声明与协议"
+msgstr "Third-party notices and licenses"
+
+msgid "策略 · "
+msgstr " groups · "
+
+msgid "系统 VPN"
+msgstr "System VPN"
+
+msgid "组织"
+msgstr "Organization"
+
+msgid "编辑概览卡片顺序"
+msgstr "Reorder overview cards"
+
+msgid "网络速度"
+msgstr "Network speed"
+
+msgid "自愈诊断"
+msgstr "Diagnostics"
+
+msgid "节点 · "
+msgstr " nodes · "
+
+msgid "虚拟网卡"
+msgstr "TUN"
+
+msgid "警告"
+msgstr "Warning"
+
+msgid "许可证标识"
+msgstr "License ID"
+
+msgid "诊断与同步"
+msgstr "Diagnostics and sync"
+
+msgid "调试"
+msgstr "Debug"
+
+msgid "资源"
+msgstr "Resources"
+
+msgid "资源提供者"
+msgstr "Providers"
+
+msgid "软限 "
+msgstr "Soft limit "
+
+msgid "运行日志"
+msgstr "Logs"
+
+msgid "运行时长"
+msgstr "Uptime"
+
+msgid "返回上一页"
+msgstr "Back"
+
+msgid "进程"
+msgstr "Process"
+
+msgid "进阶配置"
+msgstr "Advanced"
+
+msgid "连接、规则和流量统计"
+msgstr "Connections, rules, and traffic statistics"
+
+msgid "连接审计"
+msgstr "Connections"
+
+msgid "错误"
+msgstr "Error"

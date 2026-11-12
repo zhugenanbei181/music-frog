@@ -101,6 +101,7 @@ pub fn write_capture_marker(
     }
     line.push_str(&chrome_line(window));
     line.push_str(&navigation_line(window));
+    line.push_str(&localized_copy_line(window));
     if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path) {
         if file.write_all(line.as_bytes()).is_ok() {
             CAPTURE_MARKER_WRITTEN.store(true, Ordering::SeqCst);
@@ -142,4 +143,31 @@ fn navigation_line(window: &AppWindow) -> String {
         })
         .collect::<String>();
     format!("CAPTURE_NAV labels={labels}\n")
+}
+
+/// The localized non-navigation words the live window published.
+///
+/// `CAPTURE_NAV` proves the navigation model. This line reads three more
+/// compiler-driven strings from the same window: the desktop/app-bar page
+/// title owner, the mobile vocabulary and the typed takeover-mode label.
+/// All are bound directly to `PageTitles`, so the receipt follows the shared
+/// PO catalog instead of inventing a second vocabulary in the capture host.
+fn localized_copy_line(window: &AppWindow) -> String {
+    let copy = [
+        ("desktop-title", window.get_capture_page_title()),
+        ("mobile-title", window.get_capture_phone_title()),
+        ("network-mode", window.get_network_mode_label()),
+    ];
+    let encoded = copy
+        .iter()
+        .map(|(key, value)| {
+            let bytes = value
+                .as_str()
+                .bytes()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>();
+            format!("{key}={bytes};")
+        })
+        .collect::<String>();
+    format!("CAPTURE_LOCALE copy={encoded}\n")
 }

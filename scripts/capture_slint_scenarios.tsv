@@ -202,3 +202,11 @@ sidebar-locale-zh-standard	overview	dark	1180x780				expanded		zh-CN
 sidebar-locale-zh-compact	overview	dark	720x480				expanded		zh-CN
 sidebar-locale-en-standard	overview	dark	1180x780				expanded		en-US
 sidebar-locale-en-compact	overview	dark	720x480				expanded		en-US
+page-locale-zh-standard	overview	dark	1180x780				expanded		zh-CN
+page-locale-zh-compact	overview	dark	720x480				expanded		zh-CN
+page-locale-en-standard	overview	dark	1180x780				expanded		en-US
+page-locale-en-compact	overview	dark	720x480				expanded		en-US
+page-locale-settings-zh-standard	settings	dark	1180x780				expanded		zh-CN
+page-locale-settings-zh-compact	settings	dark	720x480				expanded		zh-CN
+page-locale-settings-en-standard	settings	dark	1180x780				expanded		en-US
+page-locale-settings-en-compact	settings	dark	720x480				expanded		en-US

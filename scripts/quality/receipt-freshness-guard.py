@@ -2,7 +2,7 @@
 """Guard the freshness of published Slint screenshot receipts.
 
 The published tree must describe exactly one **full** capture run: the most
-recent one that published all 203 scenarios. A name-filtered diagnostic run
+recent one that published all 211 scenarios. A name-filtered diagnostic run
 produces fresh pixels in `.evidence/captures/` for a handful of scenarios but
 explicitly never touches the published corpus, so treating it as the latest
 published batch would report 197 perfectly fresh receipts as stale and force
@@ -31,18 +31,49 @@ EVIDENCE_ROOT = pathlib.Path(".evidence/captures/slint")
 FIELDS = ("scenario", "page", "skin", "requested_window", "app_pid", "window_id",
           "width", "height", "bytes", "sha256", "status", "locale")
 LEGACY_FIELDS = FIELDS[:-1]
-FULL_MATRIX_SIZE = 203
-LEGACY_MATRIX_SIZE = 199
+FULL_MATRIX_SIZE = 211
+LEGACY_MATRIX_SIZE = 203
 LOCALE_MATRIX = ROOT / "scripts/capture_slint_scenarios.tsv"
 LOCALE_ROWS = (
     "sidebar-locale-zh-standard",
     "sidebar-locale-zh-compact",
     "sidebar-locale-en-standard",
     "sidebar-locale-en-compact",
+    "page-locale-zh-standard",
+    "page-locale-zh-compact",
+    "page-locale-en-standard",
+    "page-locale-en-compact",
+    "page-locale-settings-zh-standard",
+    "page-locale-settings-zh-compact",
+    "page-locale-settings-en-standard",
+    "page-locale-settings-en-compact",
 )
 EXPECTED_NAV_LABELS = {
     "zh-CN": {"overview": "核心概览", "proxies": "代理节点", "profiles": "配置管理", "settings": "系统设置"},
     "en-US": {"overview": "Overview", "proxies": "Proxies", "profiles": "Profiles", "settings": "Settings"},
+}
+EXPECTED_LOCALE_COPY = {
+    "zh-CN": {
+        "overview": {"desktop-title": "核心概览", "mobile-title": "仪表盘"},
+        "settings": {"desktop-title": "系统设置", "mobile-title": "工具"},
+    },
+    "en-US": {
+        "overview": {"desktop-title": "Overview", "mobile-title": "Dashboard"},
+        "settings": {"desktop-title": "Settings", "mobile-title": "Tools"},
+    },
+}
+PAGE_LOCALE_ROWS = {
+    name: page
+    for name, page in (
+        ("page-locale-zh-standard", "overview"),
+        ("page-locale-zh-compact", "overview"),
+        ("page-locale-en-standard", "overview"),
+        ("page-locale-en-compact", "overview"),
+        ("page-locale-settings-zh-standard", "settings"),
+        ("page-locale-settings-zh-compact", "settings"),
+        ("page-locale-settings-en-standard", "settings"),
+        ("page-locale-settings-en-compact", "settings"),
+    )
 }
 
 
@@ -174,6 +205,28 @@ def locale_receipt_findings(
                     f"{marker}: {locale} navigation row {page} reads "
                     f"{published_labels.get(page)!r}, expected {word!r}"
                 )
+        if name in PAGE_LOCALE_ROWS:
+            copy_lines = [line for line in text.splitlines()
+                          if line.startswith("CAPTURE_LOCALE copy=")]
+            if len(copy_lines) != 1:
+                findings.append(f"{marker}: expected exactly one CAPTURE_LOCALE line")
+                continue
+            prefix = "CAPTURE_LOCALE copy="
+            published_copy = {}
+            try:
+                for entry in filter(None, copy_lines[0][len(prefix):].split(";")):
+                    key, digest = entry.split("=", 1)
+                    published_copy[key] = bytes.fromhex(digest).decode("utf-8")
+            except (ValueError, UnicodeDecodeError) as error:
+                findings.append(f"{marker}: CAPTURE_LOCALE copy is not hex UTF-8: {error}")
+                continue
+            expected_copy = EXPECTED_LOCALE_COPY[locale][PAGE_LOCALE_ROWS[name]]
+            for key, word in expected_copy.items():
+                if published_copy.get(key) != word:
+                    findings.append(
+                        f"{marker}: {locale} page copy {key} reads "
+                        f"{published_copy.get(key)!r}, expected {word!r}"
+                    )
     return findings
 
 
@@ -198,7 +251,8 @@ class GuardTests(unittest.TestCase):
             (legacy / "capture-manifest.tsv").write_text(legacy_rows)
             (current / "capture-manifest.tsv").write_text(current_rows)
             (legacy / "capture-metadata.txt").write_text("scenario_count=199\n")
-            (current / "capture-metadata.txt").write_text("scenario_count=203\n")
+            (current / "capture-metadata.txt").write_text(
+                f"scenario_count={FULL_MATRIX_SIZE}\n")
             import os
             later_ns = (current / "capture-manifest.tsv").stat().st_mtime_ns + 1000
             os.utime(legacy / "capture-manifest.tsv", ns=(later_ns, later_ns))
@@ -279,6 +333,40 @@ class GuardTests(unittest.TestCase):
                 },
             )
             self.assertTrue(any("en-US navigation row proxies" in item for item in findings), findings)
+
+    def test_an_english_page_receipt_with_chinese_content_copy_is_caught(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            labels = ";".join(
+                f"{page}={word.encode('utf-8').hex()}"
+                for page, word in EXPECTED_NAV_LABELS["en-US"].items()
+            ) + ";"
+            copy = ";".join(
+                f"{key}={word.encode('utf-8').hex()}"
+                for key, word in (("desktop-title", "Overview"),
+                                  ("mobile-title", "仪表盘"),
+                                  ("network-mode", "TUN"))
+            ) + ";"
+            matrix = (
+                "\t".join(("name", "page", "skin", "window_size", "locale")) + "\n"
+                + "page-locale-en-standard\toverview\tdark\t1180x780\ten-US\n"
+            )
+            findings = locale_receipt_findings(
+                root,
+                pathlib.Path("/unused-run"),
+                matrix=matrix,
+                published_locale="en-US",
+                markers={
+                    "page-locale-en-standard": (
+                        "CAPTURE_NAV labels=" + labels + "\n"
+                        + "CAPTURE_LOCALE copy=" + copy + "\n"
+                    )
+                },
+            )
+            self.assertTrue(
+                any("en-US page copy mobile-title" in item for item in findings),
+                findings,
+            )
 
 
 def main() -> int:

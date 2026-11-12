@@ -55,12 +55,20 @@ MATRIX_HEADER = (
     "name", "page", "skin", "window_size", "scroll", "mascot_frame",
     "mascot_millis", "sidebar_expansion", "interaction", "locale",
 )
-MATRIX_ROW_COUNT = 203
+MATRIX_ROW_COUNT = 211
 LOCALE_ROWS = {
     "sidebar-locale-zh-standard": "zh-CN",
     "sidebar-locale-zh-compact": "zh-CN",
     "sidebar-locale-en-standard": "en-US",
     "sidebar-locale-en-compact": "en-US",
+    "page-locale-zh-standard": "zh-CN",
+    "page-locale-zh-compact": "zh-CN",
+    "page-locale-en-standard": "en-US",
+    "page-locale-en-compact": "en-US",
+    "page-locale-settings-zh-standard": "zh-CN",
+    "page-locale-settings-zh-compact": "zh-CN",
+    "page-locale-settings-en-standard": "en-US",
+    "page-locale-settings-en-compact": "en-US",
 }
 
 REQUIRED = {

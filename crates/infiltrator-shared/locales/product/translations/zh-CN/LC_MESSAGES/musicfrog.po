@@ -1674,3 +1674,297 @@ msgstr "配置订阅"
 
 msgid "系统设置"
 msgstr "系统设置"
+
+msgid " 个节点"
+msgstr " 个节点"
+
+msgid " 个规则提供者"
+msgstr " 个规则提供者"
+
+msgid " 处端口冲突"
+msgstr " 处端口冲突"
+
+msgid " 已停用"
+msgstr " 已停用"
+
+msgid " 已启用"
+msgstr " 已启用"
+
+msgid " 条测速历史"
+msgstr " 条测速历史"
+
+msgid " 项快捷命令"
+msgstr " 项快捷命令"
+
+msgid "+ 添加配置"
+msgstr "+ 添加配置"
+
+msgid "A-Z 主机"
+msgstr "A-Z 主机"
+
+msgid "CPU"
+msgstr "CPU"
+
+msgid "DNS、编辑器、过滤与聚合"
+msgstr "DNS、编辑器、过滤与聚合"
+
+msgid "DNS查询"
+msgstr "DNS查询"
+
+msgid "VPN (TUN)"
+msgstr "VPN (TUN)"
+
+msgid "↑ 上传"
+msgstr "↑ 上传"
+
+msgid "↓ 下载"
+msgstr "↓ 下载"
+
+msgid "↓ 时间"
+msgstr "↓ 时间"
+
+msgid "上传/下载"
+msgstr "上传/下载"
+
+msgid "仅核心转发"
+msgstr "仅核心转发"
+
+msgid "代理链"
+msgstr "代理链"
+
+msgid "仪表盘"
+msgstr "仪表盘"
+
+msgid "信息"
+msgstr "信息"
+
+msgid "全部测速"
+msgstr "全部测速"
+
+msgid "共 "
+msgstr "共 "
+
+msgid "关于软件"
+msgstr "关于软件"
+
+msgid "其他"
+msgstr "其他"
+
+msgid "内存信息"
+msgstr "内存信息"
+
+msgid "内网 IP"
+msgstr "内网 IP"
+
+msgid "出站模式"
+msgstr "出站模式"
+
+msgid "分流规则"
+msgstr "分流规则"
+
+msgid "刷新当前配置"
+msgstr "刷新当前配置"
+
+msgid "启动"
+msgstr "启动"
+
+msgid "命中规则"
+msgstr "命中规则"
+
+msgid "域名解析"
+msgstr "域名解析"
+
+msgid "实时运行与内核输出"
+msgstr "实时运行与内核输出"
+
+msgid "实时连接"
+msgstr "实时连接"
+
+msgid "局域网代理"
+msgstr "局域网代理"
+
+msgid "局域网代理 已关闭"
+msgstr "局域网代理 已关闭"
+
+msgid "局域网代理 已开启"
+msgstr "局域网代理 已开启"
+
+msgid "局域网共享 已关闭"
+msgstr "局域网共享 已关闭"
+
+msgid "局域网共享 已开启"
+msgstr "局域网共享 已开启"
+
+msgid "工具"
+msgstr "工具"
+
+msgid "已保存 "
+msgstr "已保存 "
+
+msgid "已同步"
+msgstr "已同步"
+
+msgid "已开启"
+msgstr "已开启"
+
+msgid "已收录 "
+msgstr "已收录 "
+
+msgid "已用"
+msgstr "已用"
+
+msgid "应用分流"
+msgstr "应用分流"
+
+msgid "开始时间"
+msgstr "开始时间"
+
+msgid "持续时间"
+msgstr "持续时间"
+
+msgid "探测目标："
+msgstr "探测目标："
+
+msgid "搜索节点"
+msgstr "搜索节点"
+
+msgid "搜索节点名称或协议"
+msgstr "搜索节点名称或协议"
+
+msgid "数据同步"
+msgstr "数据同步"
+
+msgid "暂停"
+msgstr "暂停"
+
+msgid "暂无历史探测记录"
+msgstr "暂无历史探测记录"
+
+msgid "最近请求"
+msgstr "最近请求"
+
+msgid "服务状态"
+msgstr "服务状态"
+
+msgid "未获取模式"
+msgstr "未获取模式"
+
+msgid "未设定"
+msgstr "未设定"
+
+msgid "本地"
+msgstr "本地"
+
+msgid "机房"
+msgstr "机房"
+
+msgid "查看详情："
+msgstr "查看详情："
+
+msgid "检测到 "
+msgstr "检测到 "
+
+msgid "没有匹配到依赖："
+msgstr "没有匹配到依赖："
+
+msgid "没有匹配到已关闭连接："
+msgstr "没有匹配到已关闭连接："
+
+msgid "没有匹配到活动连接："
+msgstr "没有匹配到活动连接："
+
+msgid "没有匹配到规则："
+msgstr "没有匹配到规则："
+
+msgid "添加"
+msgstr "添加"
+
+msgid "源地址"
+msgstr "源地址"
+
+msgid "版本"
+msgstr "版本"
+
+msgid "状态"
+msgstr "状态"
+
+msgid "生命周期、备份与恢复"
+msgstr "生命周期、备份与恢复"
+
+msgid "由系统 VPN 托管"
+msgstr "由系统 VPN 托管"
+
+msgid "目标地址"
+msgstr "目标地址"
+
+msgid "第三方声明与协议"
+msgstr "第三方声明与协议"
+
+msgid "策略 · "
+msgstr "策略 · "
+
+msgid "系统 VPN"
+msgstr "系统 VPN"
+
+msgid "组织"
+msgstr "组织"
+
+msgid "编辑概览卡片顺序"
+msgstr "编辑概览卡片顺序"
+
+msgid "网络速度"
+msgstr "网络速度"
+
+msgid "自愈诊断"
+msgstr "自愈诊断"
+
+msgid "节点 · "
+msgstr "节点 · "
+
+msgid "虚拟网卡"
+msgstr "虚拟网卡"
+
+msgid "警告"
+msgstr "警告"
+
+msgid "许可证标识"
+msgstr "许可证标识"
+
+msgid "诊断与同步"
+msgstr "诊断与同步"
+
+msgid "调试"
+msgstr "调试"
+
+msgid "资源"
+msgstr "资源"
+
+msgid "资源提供者"
+msgstr "资源提供者"
+
+msgid "软限 "
+msgstr "软限 "
+
+msgid "运行日志"
+msgstr "运行日志"
+
+msgid "运行时长"
+msgstr "运行时长"
+
+msgid "返回上一页"
+msgstr "返回上一页"
+
+msgid "进程"
+msgstr "进程"
+
+msgid "进阶配置"
+msgstr "进阶配置"
+
+msgid "连接、规则和流量统计"
+msgstr "连接、规则和流量统计"
+
+msgid "连接审计"
+msgstr "连接审计"
+
+msgid "错误"
+msgstr "错误"

@@ -293,42 +293,29 @@ def check_view_references(all_keys: set[str]) -> list[str]:
     return violations
 
 
-PAGE_TITLES = ROOT / "crates/infiltrator-slint/ui/components/page_titles.slint"
 SLINT_UI = ROOT / "crates/infiltrator-slint/ui"
 SLINT_TR_PATTERN = re.compile(r'@tr\(\s*"((?:[^"\\]|\\.)*)"')
 SLINT_TR_DEBT = ROOT / "scripts/quality/slint_tr_catalog_debt.json"
 
 
 def check_slint_tr_catalog() -> list[str]:
-    """I18NNAV-001: a Slint @tr msgid must exist in both product catalogs.
-
-    The desktop rail used to print `@tr("核心概览")` while the PO catalog had
-    no such msgid, so Slint fell back to the Chinese msgid in every locale.
-    This rule covers the four `top-title` msgids, which the desktop rail and
-    the app bar both paint in every locale. The rest of the file's `@tr` sites
-    have a separate pre-existing catalog gap (registered as `I18NCAT-001`);
-    this rule deliberately does not claim to cover them.
-    """
-    catalogs = {locale: set(extract_po_catalog(path)) for locale, path in PRODUCT_CATALOGS.items()}
+    """I18NCAT-001: every Slint @tr msgid must exist in both catalogs."""
+    catalogs = {
+        locale: extract_po_catalog(path)
+        for locale, path in PRODUCT_CATALOGS.items()
+    }
     violations: list[str] = []
-    for msgid in top_title_msgids(PAGE_TITLES.read_text(encoding="utf-8")):
-        for locale, keys in catalogs.items():
-            if msgid not in keys:
+    for msgid in sorted(slint_tr_msgids()):
+        for locale, catalog in catalogs.items():
+            if msgid not in catalog:
                 violations.append(
-                    f"product {locale} catalog missing top-title @tr msgid '{msgid}'"
+                    f"product {locale} catalog missing Slint @tr msgid '{msgid}'"
+                )
+            elif locale == "en-US" and CJK_PATTERN.search(catalog[msgid]):
+                violations.append(
+                    f"product {locale} catalog has CJK @tr translation for '{msgid}'"
                 )
     return violations
-
-
-def top_title_msgids(source: str) -> set[str]:
-    """The four CJK msgids whose desktop top bar is painted in both locales."""
-    start = source.index("public pure function top-title")
-    end = source.index("\n    }", start)
-    return {
-        json.loads(f'"{msgid}"')
-        for msgid in SLINT_TR_PATTERN.findall(source[start:end])
-        if CJK_PATTERN.search(msgid)
-    }
 
 
 def slint_tr_msgids() -> set[str]:
@@ -341,25 +328,15 @@ def slint_tr_msgids() -> set[str]:
 
 
 def check_slint_tr_debt() -> list[str]:
-    """I18NCAT-001: the known catalog gap can only shrink, never grow."""
+    """The retired debt inventory must stay empty after full coverage."""
     if not SLINT_TR_DEBT.is_file():
         return [f"{SLINT_TR_DEBT.relative_to(ROOT)}: missing Slint @tr debt inventory"]
     document = json.loads(SLINT_TR_DEBT.read_text(encoding="utf-8"))
     recorded = set(document.get("missing_msgids", []))
-    catalogs = [set(extract_po_catalog(path)) for path in PRODUCT_CATALOGS.values()]
-    current = {
-        msgid for msgid in slint_tr_msgids()
-        if any(msgid not in catalog for catalog in catalogs)
-    }
-    violations = [
-        f"new Slint @tr msgid missing from product catalogs: '{msgid}'"
-        for msgid in sorted(current - recorded)
+    return [
+        f"Slint @tr catalog debt is no longer allowed: '{msgid}'"
+        for msgid in sorted(recorded)
     ]
-    violations.extend(
-        f"stale Slint @tr catalog debt entry: '{msgid}'"
-        for msgid in sorted(recorded - current)
-    )
-    return violations
 
 
 def run_self_test() -> None:
