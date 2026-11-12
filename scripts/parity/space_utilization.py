@@ -23,9 +23,11 @@ How a frame is measured
 * The desktop rail is judged on its own axis against the FlClash desktop
   reference: the sidebar is navigation only. `chrome_band` is the share of
   rail height spent on non-navigation blocks (status card, brand, version),
-  and `void` is the largest ground run inside the nav stack. A full-width
-  selected row is legitimate breathing room, NOT dead width: measuring a
-  "pill tail" was a category error and has been retired.
+  `void` is the largest ground run inside the nav stack, and `nav_tail_pct` is
+  the ground below its last destination band. The reference itself keeps a
+  trailing breathing room; that ground is legal only within the exported cap.
+  A full-width selected row is legitimate breathing room, NOT dead width:
+  measuring a "pill tail" was a category error and has been retired.
 
 Modes
 -----
@@ -527,7 +529,7 @@ def navigation_limits() -> dict[str, float]:
     limits = document.get("navigation_limits")
     if not isinstance(limits, dict):
         return {}
-    keys = ("chrome_band_limit_pct", "void_limit_pct")
+    keys = ("chrome_band_limit_pct", "void_limit_pct", "nav_tail_ground_limit_pct")
     if any(key not in limits for key in keys):
         return {}
     return {key: float(limits[key]) for key in keys}
@@ -654,6 +656,11 @@ def rail_of(image: np.ndarray, chrome: dict) -> dict | None:
     if not bands:
         return None
     voids = [bands[i + 1][0] - bands[i][1] - 1 for i in range(len(bands) - 1)]
+    navigation = [band for band in bands if band[0] < bottom]
+    nav_tail = 0.0
+    if navigation:
+        last = max(band[1] for band in navigation)
+        nav_tail = round(max(0, height - 1 - last) / height * 100, 1)
     # Navigation is every band above the measured stack end; below it, only a
     # band that stays inside the column is the rail's own chrome.
     chrome_band = 0.0
@@ -664,7 +671,8 @@ def rail_of(image: np.ndarray, chrome: dict) -> dict | None:
             (max(band[1] for band in below) - min(band[0] for band in below) + 1)
             / height * 100, 1)
     return dict(void_pct=round(max(voids, default=0) / height * 100, 1),
-                chrome_band_pct=chrome_band)
+                chrome_band_pct=chrome_band,
+                nav_tail_pct=nav_tail)
 
 
 def measure(run: pathlib.Path) -> list[dict]:
@@ -780,10 +788,12 @@ def rail_debt_from_results(results: list[dict], limits: dict[str, float]) -> dic
     observed = {
         "chrome_band_pct": max(entry.get("chrome_band_pct", 0.0) for entry in columned),
         "void_pct": max(entry.get("void_pct", 0.0) for entry in columned),
+        "nav_tail_pct": max(entry.get("nav_tail_pct", 0.0) for entry in columned),
     }
     cap_for = {
         "chrome_band_pct": "chrome_band_limit_pct",
         "void_pct": "void_limit_pct",
+        "nav_tail_pct": "nav_tail_ground_limit_pct",
     }
     return {
         key: value
@@ -974,10 +984,13 @@ def rail_findings(results: list[dict], debt: dict) -> list[str]:
                 "rerun export_page_structure"]
     chrome_limit = limits["chrome_band_limit_pct"]
     void_limit = limits["void_limit_pct"]
+    nav_tail_limit = limits["nav_tail_ground_limit_pct"]
     worst_chrome = max((entry.get("chrome_band_pct", 0.0) for entry in columned))
     worst_void = max((entry.get("void_pct", 0.0) for entry in columned))
+    worst_nav_tail = max((entry.get("nav_tail_pct", 0.0) for entry in columned))
     allowed_chrome = float(registered.get("chrome_band_pct", 0.0))
     allowed_void = float(registered.get("void_pct", 0.0))
+    allowed_nav_tail = float(registered.get("nav_tail_pct", 0.0))
     if worst_chrome > chrome_limit:
         if worst_chrome > allowed_chrome:
             found.append(
@@ -991,6 +1004,13 @@ def rail_findings(results: list[dict], debt: dict) -> list[str]:
                 f"rail: the nav stack keeps a {worst_void}% void, over the "
                 f"{void_limit}% limit"
                 + (f" and over its registered debt {allowed_void}%" if allowed_void else "")
+            )
+    if worst_nav_tail > nav_tail_limit:
+        if worst_nav_tail > allowed_nav_tail:
+            found.append(
+                f"rail: {worst_nav_tail}% of the window is ground below the last "
+                f"navigation band, over the {nav_tail_limit}% limit"
+                + (f" and over its registered debt {allowed_nav_tail}%" if allowed_nav_tail else "")
             )
     return found
 
@@ -1023,11 +1043,14 @@ def report(results: list[dict], surface: str = SURFACE_SLINT) -> None:
     if columned:
         chrome = max(entry.get("chrome_band_pct", 0.0) for entry in columned)
         void = max(entry.get("void_pct", 0.0) for entry in columned)
+        nav_tail = max(entry.get("nav_tail_pct", 0.0) for entry in columned)
         limits = navigation_limits()
         print(f"\n=== rail: worst non-nav chrome {chrome}% "
               f"(limit {limits.get('chrome_band_limit_pct', 'missing')}%), "
               f"worst nav void {void}% "
-              f"(limit {limits.get('void_limit_pct', 'missing')}%) ===")
+              f"(limit {limits.get('void_limit_pct', 'missing')}%), "
+              f"worst nav tail {nav_tail}% "
+              f"(limit {limits.get('nav_tail_ground_limit_pct', 'missing')}%) ===")
     described = [entry for entry in results if entry.get("chrome")]
     print(f"\n=== chrome: {len(described)}/{len(results)} frames published their own "
           f"geometry; column "
@@ -1323,7 +1346,8 @@ class SelfTest(unittest.TestCase):
             dict(chrome_band_pct=0.0, void_pct=6.2),
             dict(chrome_band_pct=0.0, void_pct=4.0),
         ]
-        limits = {"chrome_band_limit_pct": 0.0, "void_limit_pct": 8.0}
+        limits = {"chrome_band_limit_pct": 0.0, "void_limit_pct": 8.0,
+                  "nav_tail_ground_limit_pct": 68.0}
         self.assertEqual(rail_debt_from_results(results, limits), {})
         previous = {"frames": {}, "rail": {"chrome_band_pct": 0.0, "void_pct": 4.4}}
         self.assertEqual(debt_growth_findings({}, {}, previous), [])
@@ -1332,6 +1356,11 @@ class SelfTest(unittest.TestCase):
             any("rail void_pct debt grew" in item
                 for item in debt_growth_findings({}, grown, previous)),
             "a measured value below its cap must not become new debt")
+        over_tail = [dict(chrome_band_pct=0.0, void_pct=4.0,
+                          nav_tail_pct=limits["nav_tail_ground_limit_pct"] + 1.0)]
+        self.assertEqual(
+            rail_debt_from_results(over_tail, limits),
+            {"nav_tail_pct": limits["nav_tail_ground_limit_pct"] + 1.0})
 
     def test_debt_for_a_missing_scenario_is_a_violation(self) -> None:
         debt = {"frames": {"gone": 40.0}, "rail": {}}
@@ -1363,6 +1392,24 @@ class SelfTest(unittest.TestCase):
         self.assertEqual(entry["chrome_band_pct"], 0.0, entry)
         self.assertEqual(rail_findings([entry], {"frames": {}, "rail": {}}), [])
 
+    def test_the_navigation_column_may_not_abandon_its_lower_two_thirds(self) -> None:
+        image = _desktop_body()
+        self._nav_only_rail(image)
+        honest = self.measure_one(image)
+        self.assertLessEqual(
+            honest["nav_tail_pct"],
+            navigation_limits()["nav_tail_ground_limit_pct"], honest)
+        sparse = _desktop_body()
+        _fill(sparse, 100, 140, 0, 200, (220, 238, 226))
+        _fill(sparse, 112, 128, 34, 140, INK)
+        sparse_entry = self.measure_one(sparse)
+        self.assertLess(honest["nav_tail_pct"], sparse_entry["nav_tail_pct"])
+        self.assertGreater(
+            sparse_entry["nav_tail_pct"],
+            navigation_limits()["nav_tail_ground_limit_pct"], sparse_entry)
+        self.assertNotEqual(
+            rail_findings([sparse_entry], {"frames": {}, "rail": {}}), [])
+
     def test_a_dark_status_card_is_caught_too(self) -> None:
         image = _desktop_body_dark()
         for y in (100, 180, 260, 340, 420):
@@ -1379,7 +1426,8 @@ class SelfTest(unittest.TestCase):
         # selected band is the reference's navigation geometry. Only the
         # presence of a non-navigation block below the nav stack is waste.
         image = _desktop_body()
-        _fill(image, 140, 180, 0, 200, (220, 238, 226))
+        self._nav_only_rail(image)
+        _fill(image, 140, 180, 0, 240, (220, 238, 226))
         _fill(image, 152, 168, 34, 140, INK)
         entry = self.measure_one(image, chrome=_chrome(1180, 780))
         self.assertEqual(entry["chrome_band_pct"], 0.0, entry)
@@ -1714,7 +1762,8 @@ class SelfTest(unittest.TestCase):
             "version": 4, "pages": [], "slugs": [],
             "chrome_keys": CHROME_KEYS_FOR_TEST,
             "navigation_limits": {"chrome_band_limit_pct": 0.0,
-                                  "void_limit_pct": 8.0},
+                                  "void_limit_pct": 8.0,
+                                  "nav_tail_ground_limit_pct": 68.0},
             "tiers": [
                 {"id": "compact", "min_width_px": 0, "max_width_px": 500,
                  "nav_form": "bottom_nav", "nav_column_px": 0,
@@ -1764,7 +1813,8 @@ class SelfTest(unittest.TestCase):
             "version": 4, "pages": [], "slugs": [],
             "chrome_keys": CHROME_KEYS_FOR_TEST,
             "navigation_limits": {"chrome_band_limit_pct": 0.0,
-                                  "void_limit_pct": 8.0},
+                                  "void_limit_pct": 8.0,
+                                  "nav_tail_ground_limit_pct": 68.0},
             "tiers": [
                 {"id": "compact", "min_width_px": 0, "max_width_px": 500,
                  "nav_form": "bottom_nav", "nav_column_px": 0,

@@ -24,7 +24,7 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-13 第二百二十五批次；b111–b224 见下方批次八问摘要）
+## 历史状态（2026-11-13 第二百二十五批次；b111–b224 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
@@ -37,6 +37,32 @@
 | 6 | 部分 | L | Bevy 网格与 PublicIpProbe Core 两条闭环均有源码/单测证据：Bevy lib **199/199**、Core 三包 lib **1346/1346**、定向 headless **27/27**、两个 owner guard **9/9 + 6/6**、结构收集器 **198 腿静态形状 0 findings**。standard/compact 双视口像素、全仓结构门动态执行、`resolve_surface_evidence.py` 的 ready cells 仍留统一批次 |
 | 7 | 完整 | L | 网格链：contract `ProxyGridForm` / `proxy_node_columns` → Bevy 纯几何 `ProxyGridContainer` → scene / card / reconcile / virtual 四路消费；探针链：contract typed state / stamp → ports → application → `CoreApplication` → `SurfaceReader` readback。两个 owner guard 共 15 项 planted 负例，含 tier 表、compact bool、首帧 31%、缺场景 marker、unsupported dispatch、default readback、硬编码时间；无跨 UI 私有业务真源 |
 | 8 | 部分 | L | 同主题源码一次落地后集中跑五包 Clippy、Bevy/Core lib nextest、一组 Bevy headless、一组静态门和两个 owner guard；没有逐文件反复全仓验证，也未触发 192 帧重采。全仓 `--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` 仍留统一批次一次跑完 |
+
+## 当前状态（2026-11-13 第二百二十六批次；b111–b225 见下方批次八问摘要）
+
+| # | 结论 | 等级 | 缺口 / owner |
+| --- | --- | --- | --- |
+| 1 | 部分 | L | b226 改共享契约导出、空间判定器、FlClash 参照守卫与 L2/L3 文档；`cargo build -p infiltrator-contract --bin export_page_structure`、判定器 `65/65`、参照守卫 `9/9`、`--check-export` current、双表面 211/192 帧报告为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1） |
+| 2 | 部分 | L | Linux 本机完成契约导出器构建、两表面像素复判和定向 Python 门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID |
+| 3 | 部分 | L | 零 Android/iOS 代码与资源改动；侧栏上限按构造对两个平台中立，但三 flavor 实机交互与 iOS 产物仍按既有条目留在外部环境看板，不用桌面编译冒充移动端证据 |
+| 4 | 部分 | L | 判定器同时量 Slint 211 帧与 Iced 192 帧的 `chrome_band` / `void` / `nav_tail_pct`，两表面最差尾空 **47.0% / 40.1%**，均在导出 68% 上限内；本批零可见 UI 改动，Bevy 192 帧像素与 `FLPROFILES-002` 仍归另一会话 |
+| 5 | 完整 | L | `NAV_TAIL_GROUND_LIMIT_PCT` → v17 `navigation_limits.nav_tail_ground_limit_pct` → 判定器 `rail_findings()` / `rail_debt_from_results()` → `flclash-sidebar-void-guard.py` 逐像素复量，是一条链；判定器不保存第二份 68，缺导出键即拒判 |
+| 5a | 完整 | L | 本批不改字体、图标、文案、旗资产或任何可见像素；身份未变化，沿用 Slint 211/Iced 192 发布回执，无双视口重采需求。圆形旗帜容器仍由 4:3 直角资产与 flag guard 钉住 |
+| 6 | 部分 | L | 真实发布批逐帧复判 0 违规；`nav_tail_pct` 的 planted 负例证明确实会咬「只画一行导航」的退化。全仓 `--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` 的 180 个 ready cells 仍留统一批次 |
+| 7 | 完整 | L | 契约常量、v17 导出、生成参照守卫、判定器测量/判罚/欠账、L2 标准与 L3 上游对照分层收口；`doc-governance OK`、`closure 8/8`、结构收集器 **198 腿静态形状 0 findings**，无跨 UI 私有业务真源 |
+| 8 | 部分 | L | 同主题源码与文档一次落地后集中跑定向 Python 门、契约导出器构建、双表面报告与静态结构门；判据改动不触发任何截图重采。全仓 `--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` 仍留统一批次一次跑完 |
+
+## 最近一批问答（2026-11-13 第二百二十六批次：侧栏栈尾空气也有比例上限）
+
+1. x86_64/aarch64：本批为共享契约纯 Rust、Python 判定器/守卫、v17 JSON 导出与 L2/L3 文档，零平台 API、零 wire；`cargo build -p infiltrator-contract --bin export_page_structure` exit 0、`space_utilization --self-test` **65/65**、`flclash-sidebar-void-guard --self-test` **9/9**、`--check-export` current 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
+2. Windows/Linux/macOS：Linux 本机完成导出器构建、空间判据、参照图复量与文档门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID → 部分（L）。
+3. Android/iOS：零 Android/iOS 代码与资源改动；侧栏导航比例按构造跨平台中立，但三 flavor 实机交互与 iOS 产物仍按既有条目留在外部环境看板，不拿桌面编译冒充移动端证据 → 部分（L）。
+4. 各 UI：本批没有改任何 UI 表面源码，而是让唯一判定器同时量现有发布像素：Slint **211/211** 帧最差尾空 **47.0%**、Iced **192/192** 帧最差 **40.1%**，`chrome_band 0.0%` / `void 6.2%` 与新增 `nav_tail_pct` 均在导出上限内；Bevy 192 帧像素仍由另一会话与 `FLPROFILES-002` 持有 → 部分（L）。
+5. 复用：FlClash tracked 桌面图实测「导航行间最大缝 3.06%、栈尾合法呼吸位 65.17%、栈后非导航墨迹 0%」；本仓不在 UI 层塞状态卡填满空隙，而把 68% 上限收进契约一处，经 v17 导出供判定器逐帧读取，并由 `flclash-sidebar-void-guard.py` 拒绝参照图漂移、导出放宽、常量失配 → 完整（L）。
+5a. 设计资源：零字体/字重/图标/旗资产/文案/可见像素变化；仍沿用 4:3 直角旗资产与零圆角容器判据，按标准无身份变化不重采 211/192 帧 → 完整（L）。
+6. 各处界面的功能接入：新增 `nav_tail_pct` 测量、上限判罚和只减欠账；planted「只画一行导航、下半列留空」实测被咬，planted「导出上限放宽到 80%」实测被咬；双表面 `--report` 0 违规，`doc-governance OK`、`closure 8/8`、结构收集器 **198 腿静态形状 0 findings** 为 `L`。全仓结构门动态执行与 180 个 ready cells 仍留统一批次 → 部分（L）。
+7. 模块化：契约 `NAV_TAIL_GROUND_LIMIT_PCT` → v17 `navigation_limits` → 判定器 `navigation_limits()` / `rail_of()` / `rail_findings()` / `rail_debt_from_results()` → 参照守卫 `measured_nav_tail_pct()` → L2 标准与 L3 上游对照，一条事实一条链；旧「侧栏两项」口径同步改为三项，不留 Python 私有阈值 → 完整（L）。
+8. CI 与批次效率：源码、导出物、守卫、标准和八问按一个 cohesive slice 落地后只跑定向门与两表面像素报告；判据身份变化不触发截图重采，避免 211/192 帧无意义采集。全仓 `--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` 仍留统一批次一次跑完 → 部分（L）。
 
 ## 最近一批问答（2026-11-13 第二百二十五批次：Bevy 代理节点网格回到 FlClash 页宽 owner）
 

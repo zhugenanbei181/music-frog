@@ -66,7 +66,7 @@ impl PageShapeOwner {
 
 /// The exported document's identity. Consumers pin this version so a shape
 /// added to the registry cannot be mistaken for an older export's vocabulary.
-pub const PAGE_STRUCTURE_EXPORT_VERSION: u16 = 16;
+pub const PAGE_STRUCTURE_EXPORT_VERSION: u16 = 17;
 
 /// Resolve a capture page slug onto the page and the shape it renders.
 pub fn shape_for_slug(slug: &str) -> Option<PageShape> {
@@ -225,8 +225,8 @@ fn page_padding_json() -> String {
 
 fn navigation_limits_json() -> String {
     format!(
-        "{{\"chrome_band_limit_pct\":{},\"void_limit_pct\":{}}}",
-        NAV_CHROME_BAND_LIMIT_PCT, NAV_VOID_LIMIT_PCT
+        "{{\"chrome_band_limit_pct\":{},\"void_limit_pct\":{},\"nav_tail_ground_limit_pct\":{}}}",
+        NAV_CHROME_BAND_LIMIT_PCT, NAV_VOID_LIMIT_PCT, NAV_TAIL_GROUND_LIMIT_PCT
     )
 }
 
@@ -438,6 +438,16 @@ pub const NAV_CHROME_BAND_LIMIT_PCT: f64 = 0.0;
 /// 8% is a bounded 2.6x scale headroom over the reference, not a flat copy.
 /// `flclash-sidebar-void-guard.py` measures the reference and pins this ratio.
 pub const NAV_VOID_LIMIT_PCT: f64 = 8.0;
+
+/// The largest share of the window that may remain empty below the last
+/// destination row in a navigation column, measured against the FlClash
+/// desktop reference. Its sidebar ends at y579 of 1665px: 65.17% of the
+/// window is legitimate trailing breathing room. A cap of 68% allows under
+/// three points of bounded headroom, keeps the reference legal, and exposes a
+/// column that abandons its lower two thirds while still painting the same
+/// handful of rows. `flclash-sidebar-void-guard.py` measures the reference and
+/// pins both the ratio and this exported cap.
+pub const NAV_TAIL_GROUND_LIMIT_PCT: f64 = 68.0;
 
 /// The ground limit for one page shape.
 pub const fn ground_limit(structure: PageStructure) -> f64 {

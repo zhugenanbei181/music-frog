@@ -13,6 +13,8 @@ column. It publishes two facts from the pixels:
 
 * the largest ground run between destination rows, as a share of window
   height (the reference's own `void`);
+* the ground below the final destination band, which bounds our exported
+  `nav_tail_ground_limit_pct` without outlawing the reference's own air;
 * that no ink band lives below the destination stack (the reference's own
   `chrome_band`).
 
@@ -55,6 +57,8 @@ SUBSTANTIAL_RUN_PX = 3
 ROW_INK_FRACTION = 0.01
 GROUND_DELTA = 14
 MEASURED_VOID_PCT = 3.06
+MEASURED_TAIL_PCT = 65.17
+MAX_TAIL_HEADROOM_PCT = 3.0
 
 # The shortest published tier is 480px tall with eight destinations; the
 # reference is 1665px with five. A fixed share copied from the reference
@@ -96,6 +100,14 @@ def measured_void_pct(image: np.ndarray) -> float:
     return round(100.0 * max(voids) / height, 2)
 
 
+def measured_nav_tail_pct(image: np.ndarray) -> float:
+    """Ground below the last substantial row of the reference's nav stack."""
+    bands, height = sidebar_bands(image)
+    if not bands or bands[-1][0] > SIDEBAR_STACK_BOTTOM_PX:
+        return 100.0
+    return round(100.0 * max(0, height - 1 - bands[-1][1]) / height, 2)
+
+
 def measured_chrome_band_pct(image: np.ndarray) -> float:
     """The share of the sidebar below the final navigation band that has ink."""
     bands, height = sidebar_bands(image)
@@ -109,7 +121,7 @@ def exported_limits() -> dict[str, float]:
     limits = document.get("navigation_limits")
     if not isinstance(limits, dict):
         return {}
-    keys = ("chrome_band_limit_pct", "void_limit_pct")
+    keys = ("chrome_band_limit_pct", "void_limit_pct", "nav_tail_ground_limit_pct")
     if any(key not in limits for key in keys):
         return {}
     return {key: float(limits[key]) for key in keys}
@@ -131,6 +143,12 @@ def findings() -> list[str]:
             f"the reference sidebar measures {void}% void, not the documented "
             f"{MEASURED_VOID_PCT}%"
         )
+    nav_tail = measured_nav_tail_pct(image)
+    if abs(nav_tail - MEASURED_TAIL_PCT) > 0.05:
+        found.append(
+            f"the reference sidebar measures {nav_tail}% trailing ground, not the "
+            f"documented {MEASURED_TAIL_PCT}%"
+        )
     chrome_band = measured_chrome_band_pct(image)
 
     limits = exported_limits()
@@ -148,15 +166,27 @@ def findings() -> list[str]:
             f"reference void; the documented scale headroom is "
             f"[{MIN_SCALE_MULTIPLE}, {MAX_SCALE_MULTIPLE}]x"
         )
+    headroom = limits["nav_tail_ground_limit_pct"] - nav_tail
+    if not 0.0 <= headroom <= MAX_TAIL_HEADROOM_PCT:
+        found.append(
+            f"the exported nav-tail cap {limits['nav_tail_ground_limit_pct']}% gives "
+            f"{headroom:.2f}pp over the reference's {nav_tail}%; legal headroom is "
+            f"[0, {MAX_TAIL_HEADROOM_PCT}]pp"
+        )
 
     source = CONTRACT.read_text(encoding="utf-8")
     declared = re.search(r"pub const NAV_VOID_LIMIT_PCT:\s*f64\s*=\s*([0-9.]+)\s*;", source)
     if declared is None or float(declared.group(1)) != limits["void_limit_pct"]:
         found.append("the contract's NAV_VOID_LIMIT_PCT and the export disagree")
+    declared_tail = re.search(
+        r"pub const NAV_TAIL_GROUND_LIMIT_PCT:\s*f64\s*=\s*([0-9.]+)\s*;", source)
+    if (declared_tail is None
+            or float(declared_tail.group(1)) != limits["nav_tail_ground_limit_pct"]):
+        found.append("the contract's NAV_TAIL_GROUND_LIMIT_PCT and the export disagree")
 
     standard = STANDARD.read_text(encoding="utf-8")
-    if "3.06" not in standard or "8%" not in standard:
-        found.append("the standard no longer publishes the measured sidebar void and its derived cap")
+    if "3.06" not in standard or "8%" not in standard or "65.17" not in standard:
+        found.append("the standard no longer publishes both measured sidebar gaps and their caps")
     for leg in ("flclash-sidebar-void-guard.py --self-test",
                 "flclash-sidebar-void-guard.py --mode enforce"):
         if leg not in GATE.read_text(encoding="utf-8"):
@@ -174,6 +204,23 @@ class GuardSelfTest(unittest.TestCase):
 
     def test_the_reference_void_is_three_point_oh_six_percent(self) -> None:
         self.assertEqual(measured_void_pct(self.image), MEASURED_VOID_PCT)
+
+    def test_the_reference_keeps_bounded_trailing_breathing_room(self) -> None:
+        self.assertEqual(measured_nav_tail_pct(self.image), MEASURED_TAIL_PCT)
+
+    def test_a_widened_nav_tail_cap_is_rejected(self) -> None:
+        global EXPORT
+        original_export = EXPORT
+        with tempfile.TemporaryDirectory() as directory:
+            planted = pathlib.Path(directory) / "page-structure.json"
+            document = json.loads(original_export.read_text(encoding="utf-8"))
+            document["navigation_limits"]["nav_tail_ground_limit_pct"] = 80.0
+            planted.write_text(json.dumps(document), encoding="utf-8")
+            EXPORT = planted
+            try:
+                self.assertTrue(any("nav-tail cap" in item for item in findings()))
+            finally:
+                EXPORT = original_export
 
     def test_a_reference_with_a_status_card_below_the_stack_is_not_zero_chrome(self) -> None:
         planted = self.image.copy()
