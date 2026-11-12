@@ -1,4 +1,8 @@
-use super::project_connection_view;
+use super::{
+    CONNECTION_VIEW_MODE_LIST_KEY, CONNECTION_VIEW_MODE_TABLE_KEY,
+    CONNECTION_VIEW_RESET_COLUMNS_KEY, CONNECTION_VIEW_TITLE_KEY, connection_view_mode_label_key,
+    project_connection_column_choices, project_connection_view,
+};
 use infiltrator_contract::connection_view_preference::{
     ConnectionColumn, ConnectionColumnSet, ConnectionViewMode, ConnectionViewPreference,
 };
@@ -135,4 +139,55 @@ fn unknown_preference_columns_are_absent_without_fallback() {
 #[test]
 fn duplicate_preference_ids_cannot_reach_projection() {
     assert!(ConnectionColumnSet::from_wire_ids(["host", "host"]).is_err());
+}
+
+#[test]
+fn column_choices_publish_the_complete_registry_and_shared_copy_keys() {
+    let choices = project_connection_column_choices();
+    assert_eq!(choices.len(), ConnectionColumn::ALL.len());
+    assert_eq!(
+        choices
+            .iter()
+            .map(|choice| choice.column)
+            .collect::<Vec<_>>(),
+        ConnectionColumn::ALL.to_vec()
+    );
+
+    let mut keys = BTreeSet::new();
+    for choice in &choices {
+        let preference = ConnectionViewPreference {
+            mode: ConnectionViewMode::List,
+            visible_columns: ConnectionColumnSet::new(vec![choice.column]).unwrap(),
+        };
+        let projection = project_connection_view(&ConnectionColumnSet::all(), &preference);
+        assert_eq!(projection.columns.len(), 1);
+        assert_eq!(choice.semantic_id, projection.columns[0].semantic_id);
+        assert_eq!(choice.label_key, choice.semantic_id);
+        assert!(choice.semantic_id.starts_with("connection."));
+        assert!(keys.insert(choice.label_key));
+    }
+}
+
+#[test]
+fn connection_view_control_keys_are_distinct_non_empty_shared_copy_keys() {
+    let controls = [
+        CONNECTION_VIEW_MODE_LIST_KEY,
+        CONNECTION_VIEW_MODE_TABLE_KEY,
+        CONNECTION_VIEW_RESET_COLUMNS_KEY,
+        CONNECTION_VIEW_TITLE_KEY,
+    ];
+    let unique: BTreeSet<_> = controls.iter().copied().collect();
+    assert_eq!(unique.len(), controls.len());
+    for key in controls {
+        assert!(!key.is_empty());
+        assert!(key.starts_with("connection."));
+    }
+    assert_eq!(
+        connection_view_mode_label_key(ConnectionViewMode::List),
+        CONNECTION_VIEW_MODE_LIST_KEY
+    );
+    assert_eq!(
+        connection_view_mode_label_key(ConnectionViewMode::Table),
+        CONNECTION_VIEW_MODE_TABLE_KEY
+    );
 }

@@ -6,10 +6,18 @@ use std::borrow::Cow;
 #[path = "locales_table_en_legacy.rs"]
 mod legacy;
 
+#[path = "locales_table_connection_view_en.rs"]
+mod connection_view_en;
+
 pub(super) fn translate_en(key: &str) -> Cow<'static, str> {
     let primary = translate_en_primary(key);
     if primary.as_ref() == key {
-        legacy::translate_en_legacy(key)
+        let connection_view = connection_view_en::translate_connection_view_en(key);
+        if connection_view.as_ref() != key {
+            connection_view
+        } else {
+            legacy::translate_en_legacy(key)
+        }
     } else {
         primary
     }

@@ -78,8 +78,7 @@ export component ProxyGroupPill inherits Rectangle {
         }
         if root.group.current-flag-index < 0: Rectangle {
             width: ProxyPillMetrics.pill-identity-size;
-            height: ProxyPillMetrics.pill-identity-size;
-            border-radius: ProxyPillMetrics.pill-identity-size / 2;
+            height: ProxyPillMetrics.pill-identity-size * 3 / 4;
             background: root.selected
                 ? LumenTheme.accent-foreground.with_alpha(24%)
                 : LumenTheme.zinc-4;

@@ -1,7 +1,9 @@
 use super::proxy_probe;
 use super::*;
+use infiltrator_contract::connection_view_preference::ConnectionColumnSet;
 use infiltrator_contract::resources::CoreResourceSnapshot;
 use infiltrator_contract::system_proxy::SystemProxyStatus;
+use infiltrator_presentation::connection_view_projection::project_connection_view;
 use infiltrator_presentation::dns_page_model::DnsOperation;
 use infiltrator_presentation::log_page_model::LogLevelFilter;
 use infiltrator_presentation::overview_page_model::OverviewHost;
@@ -301,6 +303,8 @@ impl AppState {
         // of its own, which is what `SPACEUTIL-011` needed to retire.
         if let Some(settings) = snapshot.pages.settings.data.as_ref() {
             self.shell.sidebar_expansion = settings.sidebar_expansion;
+            self.diag.connection_view =
+                project_connection_view(&ConnectionColumnSet::all(), &settings.connection_view);
         }
         if let Some(settings) = snapshot.pages.settings.data.as_ref()
             && snapshot.runtime_control.status == RuntimeControlStatus::Ready

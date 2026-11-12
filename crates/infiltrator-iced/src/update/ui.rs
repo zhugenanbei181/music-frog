@@ -198,6 +198,19 @@ impl AppState {
                     |_| Message::Noop,
                 )
             }
+            Message::ApplyConnectionViewPreference { intent } => {
+                let Some(ingress) = self.command_ingress() else {
+                    return Task::none();
+                };
+                Task::perform(
+                    async move {
+                        ingress
+                            .execute(CommandIntent::ApplyConnectionViewPreference { intent })
+                            .await;
+                    },
+                    |_| Message::Noop,
+                )
+            }
             Message::CaptureFrameRendered {
                 revision,
                 bounds,

@@ -569,10 +569,9 @@ component HomePolicyGroupTile inherits Rectangle {
         width: max(0 * LumenUiScale.unit, parent.width - 2 * LumenTheme.policy-tile-inset);
         spacing: LumenTheme.policy-tile-gap;
         Rectangle {
-            width: LumenTheme.policy-tile-avatar-size; height: LumenTheme.policy-tile-avatar-size;
-            border-radius: LumenTheme.policy-tile-avatar-size / 2;
+            width: LumenTheme.policy-tile-avatar-size;
+            height: LumenTheme.policy-tile-avatar-size * 3 / 4;
             background: LumenTheme.zinc-3;
-            y: (parent.height - self.height) / 2;
             Text {
                 text: root.group.icon-emoji != "" ? root.group.icon-emoji : root.group.name;
                 font-size: DesignType.micro-size;

@@ -401,6 +401,10 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         Message::ClearConfigurationSaveState => write!(f, "ClearConfigurationSaveState"),
         Message::TogglePerfPanel => write!(f, "TogglePerfPanel"),
         Message::ToggleSidebarExpansion => write!(f, "ToggleSidebarExpansion"),
+        Message::ApplyConnectionViewPreference { intent } => f
+            .debug_struct("ApplyConnectionViewPreference")
+            .field("intent", intent)
+            .finish(),
         Message::ToggleTheme => write!(f, "ToggleTheme"),
         Message::SetTheme(t) => write!(f, "SetTheme({t})"),
         Message::SystemThemeChanged(appearance) => write!(f, "SystemThemeChanged({appearance:?})"),

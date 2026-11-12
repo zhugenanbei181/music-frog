@@ -246,6 +246,8 @@ gate python3 scripts/quality/platform-evidence-guard.py --mode enforce
 gate python3 scripts/platform/build-evidence-matrix.py --check
 gate python3 scripts/quality/implicit-state-audit.py --self-test
 gate python3 scripts/quality/implicit-state-audit.py --mode enforce
+gate python3 scripts/quality/iced-connection-view-guard.py --self-test
+gate python3 scripts/quality/iced-connection-view-guard.py --mode enforce
 gate python3 -m unittest discover -s scripts/parity -p 'test_*.py'
 gate python3 scripts/parity/resolve_surface_evidence.py --structure-only --report-json target/parity/structure.json
 

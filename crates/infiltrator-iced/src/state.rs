@@ -74,6 +74,10 @@ pub mod shell;
 mod surface_snapshot;
 mod traffic;
 
+#[cfg(test)]
+#[path = "../tests/gui/connection_view_state_tests.rs"]
+mod connection_view_state_tests;
+
 pub struct AppState {
     pub runtime: RuntimeState,
     pub profile: ProfileState,

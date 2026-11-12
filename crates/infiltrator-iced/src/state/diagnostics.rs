@@ -1,6 +1,12 @@
 //! Diagnostics owner.
 
 use infiltrator_application::dns_leak_application::DnsLeakApplication;
+use infiltrator_contract::connection_view_preference::{
+    ConnectionColumnSet, ConnectionViewPreference,
+};
+use infiltrator_presentation::connection_view_projection::{
+    ConnectionViewProjection, project_connection_view,
+};
 use infiltrator_presentation::dns_cache_actions::DnsCacheActions;
 use infiltrator_presentation::dns_query_actions::DnsQueryActions;
 use infiltrator_presentation::log_export_actions::LogExportActions;
@@ -96,6 +102,10 @@ pub struct DiagnosticsState {
     /// dimension, the query and the row order are derived once, in the shared
     /// owner.
     pub connections_model: ConnectionsPageModel<Connection>,
+    /// Read-only projection of the settings owner's persisted Connections view
+    /// preference. Cold start uses the contract product default; the surface
+    /// only replaces it when the next accepted snapshot publishes a readback.
+    pub connection_view: ConnectionViewProjection,
     /// The closed destination of the same page, reduced by the shared page
     /// model from the authoritative SurfaceSnapshot history.
     pub closed_connections_model: ConnectionsPageModel<ClosedConnectionSnapshot>,
@@ -114,6 +124,13 @@ pub struct DiagnosticsState {
     pub connection_idle_timeout_secs: u64,
     /// Idle connections identified by the last sweep, if one has run.
     pub last_idle_sweep: Option<usize>,
+}
+
+pub fn default_connection_view_projection() -> ConnectionViewProjection {
+    project_connection_view(
+        &ConnectionColumnSet::all(),
+        &ConnectionViewPreference::default(),
+    )
 }
 
 impl DiagnosticsState {

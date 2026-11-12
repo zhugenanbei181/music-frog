@@ -24,19 +24,19 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-13 第二百二十九批次；b111–b228 见下方批次八问摘要）
+## 当前状态（2026-11-13 第二百三十批次；b111–b229 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b229 改 contract/domain/application/composition/Slint demo/Iced+Bevy 测试 literal；`cargo fmt --all -- --check`、七包 `--all-targets` check、七包 Clippy `-D warnings`、Slint `capture-tools` Clippy、定向 lib nextest **2767/2767** 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1） |
-| 2 | 部分 | L | Linux 本机完成七包编译/Clippy、Core/Slint/Iced/Bevy 定向 nextest、空间/旗面/双场景守卫与文档门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID |
-| 3 | 部分 | L | 零 Android/iOS 代码与资源改动；设置偏好和探针状态机按构造对移动平台中立，但三 flavor 实机交互与 iOS 产物仍按既有条目留在外部环境看板，不拿桌面编译冒充移动端证据 |
-| 4 | 部分 | L | Slint demo 宿主接入 typed 公网 IP 探针读回，Iced/Bevy/Slint 的 settings literal 全部编译；本批不改任何 UI 页面控件与可见身份，含新偏好/探针状态的 standard/compact 双视口真实像素回执仍待统一批次，Bevy 192 帧像素归另一会话 |
-| 5 | 完整 | L | `ConnectionViewPreference` 经 AppSettings → CommandIntent → SettingsStore → SettingsPageSnapshot 形成唯一 typed 读回；`PublicIpProbeState/Answer/Stamp` 经 Slint demo owner → `SurfaceSnapshot.public_ip` 形成唯一 typed 读回，旧 `demo_fixture()` 直接覆盖、固定失败文案与 UI 私有 loading bool 均退役 |
-| 5a | 完整 | L | 零字体/字重/图标/旗资产/文案身份变化；失败文本改读既有 `public_ip_failed` 共享词表，4:3 直角旗资产与零圆角容器不变，未新增圆形旗帜图案容器，按标准无可见身份变化不重采 211/192 帧 |
-| 6 | 部分 | L | 连接偏好三种 intent、非法 intent 不改 store、TOML 兼容与 composition 投影均有 nextest；公网 IP 探针 `Probing → Failed/Succeeded`、stale fence、共享词表与按钮 typed command 均有 `capture-tools` 集成测试。Iced 页面 list/table 控件、`CPPARITY-006` 双视口像素、全仓结构门动态执行与 `resolve_surface_evidence.py` ready cells 仍留统一批次 |
-| 7 | 完整 | L | 两条并行链按文件所有权隔离：连接偏好 contract/domain/application/composition 分层；Slint 探针 `public_ip_probe.rs` 独立状态 owner、`DemoProductHost` 只装配、baseline 只投影、回调只发 typed intent。line/import/typed-state/implicit-state/doc/closure 全 0，无跨 UI 私有业务真源 |
-| 8 | 部分 | L | 两条源码切片并行落地后由主任务一次统一 fmt、check、nextest、Clippy、capture-tools 集成测试与定向守卫；不触发 211/192 帧无意义重采。全仓 `--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` 留统一批次一次跑完 |
+| 1 | 部分 | L | b230 为 Iced/presentation/shared 纯 Rust、Slint `.slint`/demo 测试与 Python 守卫；`cargo fmt --all -- --check`、四包 `--all-targets` check、四包 Clippy `-D warnings`、定向 nextest **1442/1442**（修复后聚焦复跑 5/5 探针与 8/8 连接视图）为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1） |
+| 2 | 部分 | L | Linux 本机完成定向编译/测试、Slint 211 帧整批真实像素发布、空间/旗形/回执新鲜度/身份门与结构门 **200 腿 / 1 已登记红腿**；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID |
+| 3 | 部分 | L | 零 Android/iOS 代码与资源改动；连接视图偏好与旗位几何按构造对移动平台中立，但三 flavor 实机交互与 iOS 产物仍按既有条目留在外部环境看板，不拿桌面像素冒充移动端证据 |
+| 4 | 部分 | L | Iced Connections 控制条只消费 Core 投影并发 typed intent，Slint 两处旗位 fallback 由圆形改 4:3 直角；Slint 发布批 **211/211** 覆盖 standard/compact 双视口。Iced 连接视图的双视口像素与 `resolve_surface_evidence.py` ready cells、Bevy 192 帧仍归统一批次；结构门唯一红腿是已登记的并行 Bevy 截图别名 |
+| 5 | 完整 | L | `ConnectionViewPreference` 的 mode / 22 列 / typed intent 只由 contract 与 presentation 发布，Iced 不保存第二份偏好；旗位共享 `FlagIcon` / `CountryChip` 仍是唯一旗面组件，圆形 fallback 退役且无私有词表或列清单 |
+| 5a | 完整 | L | 可见身份变化只落在两处旗位 fallback 的 4:3 直角几何；Slint 整批 **211/211** 发布 `20261112T213727Z_1ff41e54d1b1_dirty_2083100`（438s，binary sha256 `57a4a010…`，source fingerprint `196f820b…`），`space_utilization --surface slint --enforce` 211 帧 0 违规、`receipt-freshness 0`、三条 Slint 别名按新字节刷新，字体/字重/图标族不变 |
+| 6 | 部分 | L | Iced 连接视图守卫 **10/10** + enforce 0、Slint 旗形守卫 **25/25** + enforce 0，冷启动/读回/unavailable/命令分发与 26 个双语言 key 有 nextest；`CPPARITY-006` 的 Iced 双视口像素、全仓 `--workspace` nextest/clippy、`resolve_surface_evidence.py` ready cells 与并行 Bevy 身份红腿仍留统一批次 |
+| 7 | 完整 | L | contract/presentation 发布投影与 semantic ID → shared 双语言词表 → Iced 被动控件与 typed command；Slint `CountryChip`/`FlagIcon`/fallback 几何 → 共享旗形守卫 → 211 帧回执。控件测试迁回 `tests/gui`、退役内联长路径、修正探针阶段断言，删除多余转发 seam 与未用交互枚举，无跨 UI 私有业务真源 |
+| 8 | 部分 | L | 同主题源码、守卫、别名、像素与台账一次落地后集中跑 fmt/定向 check/Clippy/nextest、一次 Slint 211 帧发布批、像素/空间/身份门与 **200 腿结构门**；不逐文件反复全量验证。全仓 `--workspace` nextest/clippy、`resolve_surface_evidence.py` 与并行 Bevy 红腿留统一批次一次跑完 |
 
 ## 历史状态（2026-11-13 第二百二十七批次；b111–b226 见下方批次八问摘要）
 
@@ -95,7 +95,19 @@
 | 7 | 完整 | L | 契约常量 → 导出器 → v18 JSON → Python 版本 pin → 判定器夹具/读回 → 双场景参照守卫 → L2 标准 / L3 上游对照 / L4 台账分层收口；`doc-governance OK`、`closure 8/8`、结构收集器 **198 腿静态形状 0 findings**，无跨 UI 私有业务真源 |
 | 8 | 部分 | L | 同主题导出物、守卫、判据夹具、标准与台账一次落地后集中跑契约构建、空间/参照 Python 门和双表面报告；判据身份变化不触发截图重采。全仓 `--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` 留统一批次一次跑完 |
 
-## 最近一批问答（2026-11-13 第二百二十九批次：Core 偏好读回与 Slint typed 探针并行收口）
+## 最近一批问答（2026-11-13 第二百三十批次：连接偏好消费端与旗位 fallback 方化）
+
+1. x86_64/aarch64：本批为 Iced/presentation/shared 纯 Rust、Slint `.slint`/demo 测试、Python 守卫与真实像素回执，零平台 API；`cargo fmt --all -- --check`、四包 `--all-targets` check、四包 Clippy `-D warnings`、定向 nextest **1442/1442**（修复后聚焦复跑探针 5/5、连接视图 8/8）为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
+2. Windows/Linux/macOS：Linux 本机完成定向编译/测试、KWin + 嵌套 niri 下 Slint **211/211** 发布批（438s）、空间/旗形/回执新鲜度/身份门与结构门 **200 腿 / 1 已登记红腿**；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID → 部分（L）。
+3. Android/iOS：零 Android/iOS 代码与资源改动；连接视图偏好与旗位几何按构造对移动平台中立，但三 flavor 实机交互与 iOS 产物仍按既有条目留在外部环境看板，不拿桌面像素冒充移动端证据 → 部分（L）。
+4. 各 UI：Iced Connections 控制条只消费 Core 投影并发 typed intent；Slint 两处旗位 fallback 由圆形改 4:3 直角且有 211 帧双视口真像素。Iced 连接视图双视口像素、Bevy 192 帧与 `FLPROFILES-002` 仍归统一批次；结构门唯一红腿是已登记的并行 Bevy 截图别名 → 部分（L）。
+5. 复用：mode / 22 列 / typed intent 与 semantic ID 只有 contract + presentation 一条链，Iced 控件无本地偏好状态、无第二份列清单；共享词表覆盖 26 个双语言 key。旗面仍由 `FlagIcon` / `CountryChip` 单一组件发布，圆形 fallback 与多余 seam 同批退役 → 完整（L）。
+5a. 设计资源：可见身份变化只落在旗位 fallback 的 4:3 直角几何；发布批 `20261112T213727Z_1ff41e54d1b1_dirty_2083100` 的 **211/211** 真像素、standard/compact 双视口、空间 211 帧 0 违规、回执新鲜度 0 与三条 Slint 别名刷新为 `L`；字体/字重/图标族不变 → 完整（L）。
+6. 各处界面的功能接入：Iced guard **10/10** + enforce 0、Slint flag guard **25/25** + enforce 0、冷启动/权威读回/unavailable/命令分发与 26 个双语言 key 均有 nextest；Iced 双视口像素、全仓 `--workspace` nextest/clippy、`resolve_surface_evidence.py` ready cells 与并行 Bevy 身份红腿仍留统一批次 → 部分（L）。
+7. 模块化：contract/presentation 发布投影 → shared 词表 → Iced 被动控件与 typed command；`CountryChip` / `FlagIcon` / fallback 几何 → 旗形守卫 → 211 帧回执。控件测试迁回 `tests/gui`、退役内联长路径、修正探针阶段断言，删除未用 `ConnectionViewColumnToggle` 与 `connections_controls` 转发 seam；`git diff --check`、守卫 planted 负例和定向 nextest 均无跨 UI 私有真源 → 完整（L）。
+8. CI 与批次效率：同主题源码、守卫、别名、像素与台账一次落地后集中跑 fmt/定向 check/Clippy/nextest、一次 211 帧发布批、像素/空间/身份门与 **200 腿结构门**；没有逐文件反复全仓验证，也不把 Bevy 外部 WIP 夹带进本批。全仓 `--workspace` nextest/clippy、`resolve_surface_evidence.py` 与并行 Bevy 红腿留统一批次一次跑完 → 部分（L）。
+
+## 历史问答（2026-11-13 第二百二十九批次：Core 偏好读回与 Slint typed 探针并行收口）
 
 1. x86_64/aarch64：本批为 contract/domain/application/composition/Slint demo/Iced+Bevy 测试 literal 的纯 Rust 与测试，零平台 API；`cargo fmt --all -- --check`、七包 `--all-targets` check、七包 Clippy `-D warnings`、Slint `capture-tools` Clippy、定向 lib nextest **2767/2767** 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：Linux 本机完成七包编译/Clippy、Core/Slint/Iced/Bevy 定向 nextest、`capture-tools` 集成测试、flag/void/space 与文档门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID → 部分（L）。

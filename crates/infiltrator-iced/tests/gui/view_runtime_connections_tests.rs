@@ -1,5 +1,8 @@
 use super::*;
 use infiltrator_contract::connection::ConnectionRateObservation;
+use infiltrator_contract::connection_view_preference::{
+    ConnectionColumn, ConnectionViewIntent, ConnectionViewMode,
+};
 use infiltrator_domain::connection_rate::{
     ConnectionRate, ConnectionRates, HIGH_THROUGHPUT_THRESHOLD_BPS, PULSE_MAX_INTENSITY,
     PULSE_MIN_INTENSITY,
@@ -8,6 +11,12 @@ use infiltrator_domain::connection_view::matches_search;
 use infiltrator_domain::connection_view::{ConnectionSortKey, aggregate_connections, route_chain};
 use infiltrator_domain::runtime::{Connection, ConnectionMetadata};
 use infiltrator_presentation::connection_page_model::ConnectionsPageModel;
+use infiltrator_presentation::connection_view_projection::{
+    CONNECTION_VIEW_MODE_LIST_KEY, CONNECTION_VIEW_MODE_TABLE_KEY,
+    CONNECTION_VIEW_RESET_COLUMNS_KEY, CONNECTION_VIEW_TITLE_KEY,
+    project_connection_column_choices,
+};
+use infiltrator_shared::locales::{Lang, Localizer};
 
 /// The row order the shared connections page model publishes for one sort key.
 fn ordered_ids(
@@ -266,4 +275,73 @@ fn test_route_chain_hops_parse_through_shared_model() {
     assert_eq!(chain.hops(), ["DMIT", "PROXY"]);
     assert_eq!(chain.first(), Some("DMIT"));
     assert_eq!(chain.display(" → "), "DMIT → PROXY");
+}
+
+#[test]
+fn view_controls_read_all_copy_from_the_shared_catalog() {
+    let column_choices = project_connection_column_choices();
+    assert_eq!(column_choices.len(), ConnectionColumn::ALL.len());
+    for key in [
+        CONNECTION_VIEW_MODE_LIST_KEY,
+        CONNECTION_VIEW_MODE_TABLE_KEY,
+        CONNECTION_VIEW_RESET_COLUMNS_KEY,
+        CONNECTION_VIEW_TITLE_KEY,
+    ]
+    .into_iter()
+    .chain(column_choices.iter().map(|choice| choice.label_key))
+    {
+        for language in ["zh-CN", "en-US"] {
+            assert_ne!(Lang(language).tr(key).as_ref(), key);
+        }
+    }
+}
+
+#[test]
+fn view_mode_controls_publish_only_typed_preference_intents() {
+    let modes = [
+        ConnectionViewIntent::SetViewMode {
+            mode: ConnectionViewMode::List,
+        },
+        ConnectionViewIntent::SetViewMode {
+            mode: ConnectionViewMode::Table,
+        },
+        ConnectionViewIntent::ToggleColumn {
+            column: ConnectionColumn::Host,
+        },
+        ConnectionViewIntent::ResetColumns,
+    ];
+    for intent in modes {
+        assert!(matches!(
+            Message::ApplyConnectionViewPreference { intent },
+            Message::ApplyConnectionViewPreference { .. }
+        ));
+    }
+}
+
+#[test]
+fn visible_columns_come_from_the_projection_readback() {
+    let (state, _) = AppState::new();
+    let visible: Vec<_> = state
+        .diag
+        .connection_view
+        .columns
+        .iter()
+        .map(|column| column.column)
+        .collect();
+    assert_eq!(visible, ConnectionColumn::DEFAULT_VISIBLE.to_vec());
+    let choices = connection_view_controls::column_choices(&state.diag.connection_view);
+    assert_eq!(choices.len(), ConnectionColumn::ALL.len());
+    for choice in choices {
+        let expected = project_connection_column_choices()
+            .into_iter()
+            .find(|candidate| candidate.semantic_id == choice.semantic_id)
+            .expect("shared column choice");
+        assert_eq!(choice.visible, visible.contains(&expected.column));
+        assert_eq!(
+            choice.intent,
+            ConnectionViewIntent::ToggleColumn {
+                column: expected.column,
+            }
+        );
+    }
 }

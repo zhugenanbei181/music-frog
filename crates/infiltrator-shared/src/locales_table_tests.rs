@@ -1,4 +1,11 @@
+use super::connection_view::{CONNECTION_VIEW_COPY_KEYS, connection_view_copy_alias};
 use crate::locales::*;
+
+fn contains_cjk(value: &str) -> bool {
+    value
+        .chars()
+        .any(|ch| ('\u{4e00}'..='\u{9fff}').contains(&ch))
+}
 
 #[test]
 fn test_resolve_language_code() {
@@ -78,5 +85,24 @@ fn test_locales_table_key_parity() {
     for key in keys {
         assert_ne!(zh.tr(key), key, "zh key {key} must have translation");
         assert_ne!(en.tr(key), key, "en key {key} must have translation");
+    }
+}
+
+#[test]
+fn test_connection_view_copy_keys_resolve_in_both_locales() {
+    let zh = Lang("zh-CN");
+    let en = Lang("en-US");
+    for key in CONNECTION_VIEW_COPY_KEYS {
+        let alias = connection_view_copy_alias(key)
+            .expect("canonical connection view key must have a flat-key alias");
+        assert_ne!(zh.tr(key), key, "zh-CN key {key} fell back to its key");
+        assert_ne!(en.tr(key), key, "en-US key {key} fell back to its key");
+        assert_eq!(zh.tr(alias), zh.tr(key), "zh-CN alias {alias} diverged");
+        assert_eq!(en.tr(alias), en.tr(key), "en-US alias {alias} diverged");
+        assert!(
+            !contains_cjk(&en.tr(key)),
+            "en-US key {key} contains CJK: {}",
+            en.tr(key)
+        );
     }
 }

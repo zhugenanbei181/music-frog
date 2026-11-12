@@ -9,7 +9,7 @@ use crate::state::runtime::ConnectionTab;
 use crate::types::app::ConfirmAction;
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStreamState;
-use crate::view::runtime::{connection_search, connections_controls};
+use crate::view::runtime::{connection_search, connection_view_controls, connections_controls};
 use crate::view_root::interaction_regions::InteractionRegion;
 use infiltrator_shared::byte_units::format_bytes;
 
@@ -191,6 +191,7 @@ fn connections_section_with_scroll_owner<'a>(
 
     let group_control = connections_controls::grouping(state);
     let search_control = connections_controls::search(state);
+    let connection_view_control = connection_view_controls::view_mode_controls(state);
 
     let close_filtered_btn = button(
         row![
@@ -211,16 +212,23 @@ fn connections_section_with_scroll_owner<'a>(
                 .align_y(Alignment::Center),
             group_control,
             search_control,
+            connection_view_control,
         ]
         .spacing(theme::SP_SM)
         .width(Length::Fill)
         .into()
     } else {
-        row![sub_tabs, group_control, search_control, close_filtered_btn]
-            .spacing(theme::SP_SM)
-            .align_y(Alignment::Center)
-            .width(Length::Fill)
-            .into()
+        row![
+            sub_tabs,
+            group_control,
+            search_control,
+            connection_view_control,
+            close_filtered_btn
+        ]
+        .spacing(theme::SP_SM)
+        .align_y(Alignment::Center)
+        .width(Length::Fill)
+        .into()
     };
 
     // DUAL-13-11: idle-timeout control + manual sweep with honest last-sweep

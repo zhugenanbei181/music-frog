@@ -20,13 +20,13 @@ use crate::types::{
     script::ScriptAction,
     snapshot_restore::RestoreAction,
 };
-use iced::Rectangle;
-use iced::widget::text_editor;
 use iced::window::{self, Screenshot};
+use iced::{Rectangle, widget::text_editor};
 use infiltrator_application::profile_application::ProfileActivationOutcome;
 use infiltrator_application::rule_provider_application::ProviderUnpackPlan;
 use infiltrator_application::runtime_configuration_application::RuntimeConfigurationReadout;
 use infiltrator_contract::command::CoreLogLevel;
+use infiltrator_contract::connection_view_preference::ConnectionViewIntent;
 use infiltrator_contract::dns_cache::DnsCacheOperationId;
 use infiltrator_contract::logs::LogLevel;
 use infiltrator_contract::profile_mixin_studio::ProfileMixinToggleId;
@@ -601,6 +601,12 @@ pub enum Message {
     /// no expansion boolean: it sends the contract's one typed intent to the
     /// settings owner and paints whatever the readback publishes next.
     ToggleSidebarExpansion,
+    /// A Connections view affordance was pressed. The surface forwards the
+    /// contract's typed intent to the settings owner and paints only the
+    /// projection from the next authoritative snapshot readback.
+    ApplyConnectionViewPreference {
+        intent: ConnectionViewIntent,
+    },
     ToggleTheme,
     SetTheme(String),
     /// The OS appearance changed.

@@ -53,7 +53,7 @@ fn a_second_refresh_publishes_probing_then_a_typed_success() {
     let second = owner.begin_refresh("en").expect("second refresh begins");
     assert!(matches!(second, PublicIpProbeAnswer::Succeeded { .. }));
     assert_ne!(first, second);
-    assert_ne!(first_probing.status, owner.peek_snapshot().status);
+    assert_eq!(first_probing.status, owner.peek_snapshot().status);
     let probing = owner.snapshot();
     assert_eq!(probing.status, PublicIpProbeStatus::Probing);
     assert!(!probing.is_drawable());

@@ -480,6 +480,7 @@ impl AppState {
             | Message::CaptureSidebarMeasured(_)
             | Message::CaptureFrameRendered { .. }
             | Message::ToggleSidebarExpansion
+            | Message::ApplyConnectionViewPreference { .. }
             | Message::WindowClosed(_)
             | Message::HideWindow
             | Message::ShowWindow

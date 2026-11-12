@@ -9,6 +9,7 @@ use infiltrator_presentation::routing_intent_projection::{
 use lurker_core_contract::routing_intent::{RoutingIntent, RoutingIntentStatus};
 use std::fmt::{self, Display, Formatter};
 pub(crate) mod connection_search;
+pub(crate) mod connection_view_controls;
 pub(crate) mod connections;
 pub(crate) mod connections_controls;
 mod delay;

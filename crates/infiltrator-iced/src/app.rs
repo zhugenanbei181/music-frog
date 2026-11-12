@@ -8,6 +8,7 @@ use crate::settings_store::load_hydrated;
 use crate::sidebar_chrome::SidebarChromeReceipt;
 use crate::state::AppState;
 use crate::state::diagnostics::DiagnosticsState;
+use crate::state::diagnostics::default_connection_view_projection;
 use crate::state::editor::ConfigEditorState;
 use crate::state::profiles::ProfileState;
 use crate::state::proxy_probe;
@@ -458,6 +459,7 @@ impl AppState {
                 overview_card_order: OverviewCardKind::DEFAULT_ORDER.to_vec(),
                 crash_watchdog: Default::default(),
                 connections_model: Default::default(),
+                connection_view: default_connection_view_projection(),
                 closed_connections_model: Default::default(),
                 connection_activity: ConnectionActivityTracker::new(),
                 connection_rates: ConnectionRateApplication::new(),

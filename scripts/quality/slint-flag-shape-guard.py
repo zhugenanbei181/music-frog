@@ -87,6 +87,7 @@ COMPONENT_RE = re.compile(r"export component FlagIcon inherits Rectangle \{")
 CHIP_COMPONENT_RE = re.compile(r"export component CountryChip inherits Rectangle \{")
 RETIRED_SIZE_ENTRY = re.compile(r"\bdiameter\s*:")
 FLAG_CHILD_RE = re.compile(r"(?:^|:)\s*FlagIcon$")
+FLAG_SLOT_RE = re.compile(r"\b(?:flag-index|current-flag-index)\b")
 CORNER_DECL_RE = re.compile(r"\bborder-radius\s*:\s*([^;]+);")
 FLAG_VIEWBOX = "0 0 640 480"
 ROUNDED_PLATE_MARKER = "2.209-1.791 4-4 4"
@@ -258,20 +259,31 @@ def plate_container_findings(files: dict[pathlib.Path, str], chip: pathlib.Path)
         code = mask_strings(mask_comments(raw))
         relative = path.relative_to(ROOT)
         for block in all_blocks(code):
-            if not any(FLAG_CHILD_RE.search(child["header"]) for child in block["children"]):
+            children = " ".join(child["header"] for child in block["children"])
+            header = block["header"]
+            owns_flag_icon = any(
+                FLAG_CHILD_RE.search(child["header"]) for child in block["children"]
+            )
+            owns_flag_slot = bool(FLAG_SLOT_RE.search(header) or FLAG_SLOT_RE.search(children))
+            if not owns_flag_icon and not owns_flag_slot:
                 continue
             own = own_declarations(block, code)
-            if re.search(r"\bbackground\s*:", own):
+            if owns_flag_icon and re.search(r"\bbackground\s*:", own):
                 found.append(
                     f"{relative}: a hand-written container paints behind a flag plate; "
                     "`CountryChip` is the one owner of a plate's container"
                 )
             corner = container_corner(own)
-            if corner is not None:
+            if owns_flag_icon and corner is not None:
                 found.append(
                     f"{relative}: a plate's container declares `border-radius: {corner}`; a "
                     "flag is a rectangle, and any rounded container around it reads as a "
                     "medallion"
+                )
+            if owns_flag_slot and not owns_flag_icon and corner is not None:
+                found.append(
+                    f"{relative}: a flag-slot fallback declares `border-radius: {corner}`; "
+                    "country identity is a rectangle, not a medallion"
                 )
     return found
 
@@ -603,6 +615,21 @@ class GuardSelfTest(unittest.TestCase):
         }
         found = self.findings(call_sites=planted)
         self.assertTrue(any("reads as a medallion" in item for item in found), found)
+
+    def test_a_circular_flag_slot_fallback_is_caught(self) -> None:
+        planted = {
+            ROOT / "planted.slint": (
+                "HorizontalLayout {\n"
+                "    if root.current-flag-index < 0: Rectangle {\n"
+                "        width: 20 * LumenUiScale.unit;\n"
+                "        height: 20 * LumenUiScale.unit;\n"
+                "        border-radius: 20 * LumenUiScale.unit / 2;\n"
+                "    }\n"
+                "}\n"
+            )
+        }
+        found = self.findings(call_sites=planted)
+        self.assertTrue(any("flag-slot fallback" in item for item in found), found)
 
     def test_the_reference_tile_corner_is_caught(self) -> None:
         """The reference's 31% tile is the medallion the receipt showed."""

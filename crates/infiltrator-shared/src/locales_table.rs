@@ -9,10 +9,18 @@ use std::borrow::Cow;
 #[path = "locales_table_legacy.rs"]
 mod legacy;
 
+#[path = "locales_table_connection_view_zh.rs"]
+pub(crate) mod connection_view;
+
 pub(super) fn translate_zh_cn(key: &str) -> Cow<'static, str> {
     let primary = translate_zh_cn_primary(key);
     if primary.as_ref() == key {
-        legacy::translate_zh_cn_legacy(key)
+        let connection_view = connection_view::translate_connection_view_zh(key);
+        if connection_view.as_ref() != key {
+            connection_view
+        } else {
+            legacy::translate_zh_cn_legacy(key)
+        }
     } else {
         primary
     }
