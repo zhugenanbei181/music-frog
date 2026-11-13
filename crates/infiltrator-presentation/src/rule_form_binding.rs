@@ -1,4 +1,6 @@
 //! An unsent form remains owned by the source observed when editing began.
+use std::collections::HashSet;
+
 use crate::rule_list_editor::RuleListEditor;
 use infiltrator_contract::rule_source::RuleSourceIdentity;
 use infiltrator_domain::rules::edit::DEFAULT_RULE_TARGET;
@@ -39,7 +41,7 @@ pub fn form_targets(editor: &RuleListEditor) -> Vec<String> {
     let Some(base) = editor.base.as_ref() else {
         return Vec::new();
     };
-    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut seen: HashSet<String> = HashSet::new();
     base.targets
         .iter()
         .filter(|target| !target.trim().is_empty() && seen.insert((*target).clone()))
