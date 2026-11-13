@@ -235,6 +235,8 @@ gate python3 scripts/quality/flclash-content-ground-guard.py --self-test
 gate python3 scripts/quality/flclash-content-ground-guard.py --mode enforce
 gate python3 scripts/quality/flclash-sidebar-void-guard.py --self-test
 gate python3 scripts/quality/flclash-sidebar-void-guard.py --mode enforce
+gate python3 scripts/quality/flclash-shell-reserve-guard.py --self-test
+gate python3 scripts/quality/flclash-shell-reserve-guard.py --mode enforce
 gate python3 scripts/quality/sidebar-expansion-owner-guard.py --self-test
 gate python3 scripts/quality/sidebar-expansion-owner-guard.py --mode enforce
 gate python3 scripts/quality/slint-relative-time-guard.py --self-test

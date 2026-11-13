@@ -5,4 +5,4 @@ consumer-side pin of its identity, so a version bump cannot leave a reader
 silently interpreting a newer export with an older vocabulary rule.
 """
 
-PAGE_STRUCTURE_EXPORT_VERSION = 19
+PAGE_STRUCTURE_EXPORT_VERSION = 20

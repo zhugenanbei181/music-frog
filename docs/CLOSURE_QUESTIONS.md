@@ -24,7 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-13 第二百四十三批次；b111–b242 见下方批次八问摘要）
+## 当前状态（2026-11-13 第二百四十四批次；b111–b243 见下方批次八问摘要）
+
+| # | 结论 | 等级 | 缺口 / owner |
+| --- | --- | --- | --- |
+| 1 | 部分 | L | b244 只改契约常量与导出物、Python 参照守卫、L2/L4 文档，零平台 API；`cargo clean` 后重建导出器 34.5s、`cargo nextest -p infiltrator-contract` **626/626**、`py_compile` 通过为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1） |
+| 2 | 部分 | L | Linux 本机完成 contract 编译/nextest 与全部 Python 门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID |
+| 3 | 部分 | L | 零 Android/iOS 代码与资源改动；本批裁决的是桌面外壳纵向保留带，移动端 `compact-layout` 保留带恒 0（b150 已收口），三 flavor 实机与 iOS 产物仍留在外部环境看板 |
+| 4 | 部分 | L | **本批零可见像素变化**：不改任何 `.slint`、不改 `app_body.slint` padding、不重采语料；沿用 Slint 发布批 `20261112T213727Z_1ff41e54d1b1_dirty_2083100`（211 帧 `--enforce` violations=0）与 Iced `20261113T061503Z_ce869d71975c_dirty_1358480`（194 帧 0 违规）。判定器净 diff 为 **0 行**（曾加入的辅助函数已完全撤回），因此两表面读数逐字不变。Bevy 语料仍归并行会话 |
+| 5 | 完整 | L | 一条链只发一份数：参照物 20dp、余量 8px、上限 28px 只在 `infiltrator-contract::page_structure` 一处声明，经导出 v20 的 `shell_air` 三键送达 `flclash-shell-reserve-guard.py` 与 L2 §3.6；守卫要求「导出值 = 实测值 + 有界余量」且逐条比对契约源码常量，判定器不记任何保留带数字 |
+| 6 | 部分 | L | 未新增业务能力，只新增一条判据：新守卫 `--self-test` **10/10** + `--mode enforce` findings=0（含「参照摘要漂移」「余量越界」「导出与契约不一致」「标准丢失实测数字」「标准丢失 §3.6」「结构门缺腿」六类 planted 负例）；判定器 `--self-test` **73/73**、`--check-export` current、`--enforce` 211 帧 0 违规、`generate_viewport_ladder.py --check` fresh、`doc-governance OK`、`import 3006/0`、`typed-state 0`、契约 nextest **626/626**。`--workspace` nextest/clippy 未跑（见本批⑦），结构门动态全腿留统一批次 |
+| 7 | 完整 | L | 判据链一条：tracked 像素 → 契约常量 → 导出 `shell_air` → 参照守卫 → L2 §3.6 → L4 `SPACEUTIL-020`；本批**没有**在判定器或 UI 层留下第二份数字或影子实现（撤回的辅助函数净 diff 0），`SPACEUTIL-020` 的剩余一半（外壳 padding 消费导出值 + 判定器逐帧拒判）按所有权与重采代价显式留在看板而非就地半改 |
+| 8 | 部分 | L | 按「开发期只跑受影响包」执行：本批只编译 contract 与导出器，未触发全仓重编；应要求先 `cargo clean` 一次（释放 **231.3 GiB**，卷用量 100% → 49%），再重建导出器并复跑全部证据腿。全仓 `--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` ready cells 仍留统一批次；`infiltrator-presentation` 在并行会话 WIP 上实测 3 个 `E0425`，按所有权不代改 |
+
+## 最近一批问答（2026-11-13 第二百四十四批次：外壳底部保留带第一次有了参照物上限）
+
+1. x86_64/aarch64：b244 只改契约常量与导出物、Python 参照守卫与 L2/L4 文档，零平台 API；`cargo clean` 后重建导出器 34.5s、`cargo nextest -p infiltrator-contract` **626/626**、`py_compile` 全绿为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
+2. Windows/Linux/macOS：Linux 本机完成 contract 编译与 nextest、全部 Python 门；本批不动打包腿，Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID → 部分（L）。
+3. Android/iOS：零 Android/iOS 代码与资源改动；本批裁决桌面外壳纵向保留，移动端 `page-content-padding-bottom` 恒 0（b150 实测收口），三 flavor 实机交互与 iOS 产物仍留在外部环境看板 → 部分（L）。
+4. 各 UI：本批零可见像素变化——不改 `.slint`、不改 `app_body.slint`、不重采，判定器净 diff 0 行，因此沿用 Slint 211 帧与 Iced 194 帧发布回执（两表面 `--enforce` 各 0 违规）；Bevy 语料与 192 帧仍归并行会话，按所有权不代改、不冒充 → 部分（L）。
+5. 复用：参照物 20dp、余量 8px、上限 28px 只在契约 `page_structure` 一处发布，导出 `shell_air` 三键是唯一送达通道，守卫同时比对参照像素、契约源码常量、导出值与 L2 文案；判定器不记保留带数字，本批曾加入的判定器辅助函数因无消费者已完全撤回（净 diff 0）→ 完整（L）。
+6. 各处界面的功能接入：未新增业务能力，新增一条判据——新守卫 planted 自测 **10/10** 且 `--mode enforce` findings=0，判定器 `--self-test` **73/73**、`--check-export` current、`--enforce` 211 帧 violations=0、生成器 `--check` fresh、`doc-governance OK`、`import 3006/0`、`typed-state 0`、contract nextest **626/626**；全仓 `--workspace` 与 `resolve_surface_evidence.py` ready cells 留统一批次 → 部分（L）。
+7. 模块化：判据链一条（tracked 像素 → 契约常量 → 导出 → 参照守卫 → L2 §3.6 → L4 台账），无跨 UI 私有真源、无第二份阈值；剩余一半（Slint 消费导出值 + 判定器逐帧拒判 + 整批重采）登记为 `SPACEUTIL-020` 而非就地半改，避免留下「上限已裁决、消费者仍写死 72u」的双轨 → 完整（L）。
+8. CI 与批次效率：本批按「开发期只跑受影响包」只编译 contract 与导出器，未触发全仓重编；应要求先 `cargo clean` 一次释放 **231.3 GiB**（该卷从 100% 满回到 49%，此前一次 presentation 编译因 `No space left on device` 失败），随后重建导出器并复跑全部证据腿；全仓 `--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` 留统一批次一次跑完 → 部分（L）。
+
+## 历史状态（2026-11-13 第二百四十三批次；b111–b242 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
@@ -52,7 +76,7 @@
 | 7 | 完整 | L | 阶梯链：contract `ViewportTier` → presentation `connection_page_chrome` → Iced 视图，一条链；挂载规则链：presentation owner → 视图，不再有 Iced 私有副本；判定链：owner 消费判据 → 守卫 planted 负例 → L2/L3 标准 → L4 台账，另一条链；无跨 UI 私有业务真源、无视图层自排控件栈 |
 | 8 | 部分 | L | 同主题 presentation / iced / 门禁一次落地后集中跑两包 nextest 与 Clippy，再跑一次整批重采与像素门；只跑受影响包，不逐文件反复全量验证，也不格式化并行 WIP。全仓 `--workspace` nextest、结构门动态全腿与 `resolve_surface_evidence.py` 留统一批次一次跑完 |
 
-## 最近一批问答（2026-11-13 第二百四十三批次：统一验证批次收口本线门禁回归）
+## 历史问答（2026-11-13 第二百四十三批次：统一验证批次收口本线门禁回归）
 
 1. x86_64/aarch64：本批只改已提交文件的 rustfmt 输出、测试模块挂载位置与导入合并，零平台 API；`cargo +1.99.1 fmt --all -- --check` **0 处差异**、四包定向 nextest **2430/2430**、Iced capture-tools **663/663**、四包 `cargo check --all-targets` exit 0 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：Linux 本机完成四包编译、定向 nextest 与 fmt 判定；本批修的正是 CI 的 `cargo fmt --all --check` 腿，但该腿只在受控 runner 执行，未取 run ID；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）→ 部分（L）。

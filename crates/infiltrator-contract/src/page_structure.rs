@@ -66,7 +66,7 @@ impl PageShapeOwner {
 
 /// The exported document's identity. Consumers pin this version so a shape
 /// added to the registry cannot be mistaken for an older export's vocabulary.
-pub const PAGE_STRUCTURE_EXPORT_VERSION: u16 = 19;
+pub const PAGE_STRUCTURE_EXPORT_VERSION: u16 = 20;
 
 /// Resolve a capture page slug onto the page and the shape it renders.
 pub fn shape_for_slug(slug: &str) -> Option<PageShape> {
@@ -185,12 +185,13 @@ pub fn page_structure_json() -> String {
     })
     .collect();
     format!(
-        "{{\"version\":{},\"dashboard_columns\":{},\"dashboard_density\":{},\"navigation_limits\":{},\"page_padding\":{},\"profile_grid\":{},\"proxy_grid\":{},\"pages\":[{}],\"slugs\":[{}],\"tiers\":{},\"sidebar_variants\":{},\"navigation_separators\":{},\"chrome_keys\":{}}}\n",
+        "{{\"version\":{},\"dashboard_columns\":{},\"dashboard_density\":{},\"navigation_limits\":{},\"page_padding\":{},\"shell_air\":{},\"profile_grid\":{},\"proxy_grid\":{},\"pages\":[{}],\"slugs\":[{}],\"tiers\":{},\"sidebar_variants\":{},\"navigation_separators\":{},\"chrome_keys\":{}}}\n",
         PAGE_STRUCTURE_EXPORT_VERSION,
         dashboard_columns_json(),
         dashboard_density_json(),
         navigation_limits_json(),
         page_padding_json(),
+        shell_air_json(),
         profile_grid_json(),
         proxy_grid_json(),
         pages.join(","),
@@ -228,6 +229,18 @@ fn chrome_keys_json() -> String {
 /// the gutter its own tier was told to keep.
 fn page_padding_json() -> String {
     format!("{{\"px\":{}}}", PAGE_PADDING_PX)
+}
+
+/// The shell's own bottom reserve, exported as the measured reference length,
+/// the bounded headroom and the cap they add up to. The judge enforces the
+/// cap; the reference guard re-measures the first number from tracked pixels,
+/// so a widened cap without a new measurement is a failing gate rather than an
+/// edit away.
+fn shell_air_json() -> String {
+    format!(
+        "{{\"bottom_reference_px\":{},\"bottom_headroom_px\":{},\"bottom_limit_px\":{}}}",
+        SHELL_BOTTOM_AIR_REFERENCE_PX, SHELL_BOTTOM_AIR_HEADROOM_PX, SHELL_BOTTOM_AIR_LIMIT_PX
+    )
 }
 
 fn navigation_limits_json() -> String {
@@ -454,6 +467,33 @@ pub const FRAMED_PAGE_GROUND_LIMIT_PCT: f64 = 4.0;
 
 /// A dense page is a card grid; only a card's own trailing air counts.
 pub const DENSE_PAGE_GROUND_LIMIT_PCT: f64 = 12.0;
+
+/// The bottom reserve the reference keeps under its last page-body block,
+/// measured on the tracked FlClash desktop scene.
+///
+/// `flclash-shell-reserve-guard.py` re-measures it: the 2265x1665 dashboard
+/// frame paints its last card row at y1625, so the page body ends 39px above
+/// the window bottom, and 39 / 1.95 px-per-dp = **20.0dp**. That is the
+/// reference's own breathing room, not a number this contract invented.
+pub const SHELL_BOTTOM_AIR_REFERENCE_PX: u16 = 20;
+
+/// Bounded headroom over the measured reference reserve, in the same
+/// device-independent units. It exists so a surface may round its padding to
+/// its own grid without exceeding the reference's reserve by an unbounded
+/// amount; it is not a licence to widen the cap per page or per surface.
+pub const SHELL_BOTTOM_AIR_HEADROOM_PX: u16 = 8;
+
+/// The most bottom air a desktop shell may reserve for itself.
+///
+/// §2 of the standard puts the shell's own air *outside* the measured page
+/// body, which is right for the page's account and wrong for the window's:
+/// nobody ever measured that band, so a reserve grew to 72u while the
+/// reference kept 20dp. A reserve is a length, not a fraction - the reference
+/// pays it once as a padding constant at every window height - so the cap is
+/// a length too. `space_utilization.py` reads this exported number and refuses
+/// a frame that reserves more than it without registered debt.
+pub const SHELL_BOTTOM_AIR_LIMIT_PX: u16 =
+    SHELL_BOTTOM_AIR_REFERENCE_PX + SHELL_BOTTOM_AIR_HEADROOM_PX;
 
 /// The navigation column is navigation only: no status card, brand tile or
 /// version line may live below the destination stack. The FlClash desktop
@@ -744,6 +784,24 @@ mod tests {
     }
 
     #[test]
+    fn the_shell_bottom_reserve_is_a_bounded_length_not_a_fraction() {
+        // The reference pays its bottom reserve as one padding constant at
+        // every window height, so the cap is a length: a percentage would let
+        // a tall window reserve a tall band and still "comply".
+        assert_eq!(
+            SHELL_BOTTOM_AIR_LIMIT_PX,
+            SHELL_BOTTOM_AIR_REFERENCE_PX + SHELL_BOTTOM_AIR_HEADROOM_PX
+        );
+        // The headroom exists so a surface may round to its own grid, not so a
+        // reserve may double. It stays under half the measured reference.
+        assert!(SHELL_BOTTOM_AIR_HEADROOM_PX * 2 < SHELL_BOTTOM_AIR_REFERENCE_PX);
+        // The reserve the desktop shell kept before this cap existed is now
+        // outside the law, and this is the assertion that says so. If the cap
+        // ever regrows to swallow it, this test has to be defended on record.
+        assert!(SHELL_BOTTOM_AIR_LIMIT_PX < 72);
+    }
+
+    #[test]
     fn the_ladder_tiles_the_width_axis_without_gaps() {
         let facts = tier_facts();
         assert_eq!(facts[0].min_width_px, 0);
@@ -886,6 +944,28 @@ mod tests {
         // One gutter, not a per-tier table: a surface that could ask for "the
         // padding of my tier" is a surface that will drift.
         assert_eq!(document["page_padding"]["px"], PAGE_PADDING_PX);
+        // The shell's own bottom reserve travels as three visible numbers: the
+        // length the tracked reference pixels measure, the bounded headroom,
+        // and the cap the judge enforces. Exporting only the cap would let the
+        // cap drift away from the measurement it came from.
+        let shell_air = &document["shell_air"];
+        assert_eq!(
+            shell_air["bottom_reference_px"],
+            SHELL_BOTTOM_AIR_REFERENCE_PX
+        );
+        assert_eq!(
+            shell_air["bottom_headroom_px"],
+            SHELL_BOTTOM_AIR_HEADROOM_PX
+        );
+        assert_eq!(shell_air["bottom_limit_px"], SHELL_BOTTOM_AIR_LIMIT_PX);
+        assert!(
+            document["tiers"]
+                .as_array()
+                .expect("the exported ladder")
+                .iter()
+                .all(|tier| tier.get("shell_bottom_air_px").is_none()),
+            "the bottom reserve is one chrome fact, not a per-tier table"
+        );
         assert!(
             document["tiers"]
                 .as_array()
