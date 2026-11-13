@@ -59,6 +59,9 @@ import numpy as np
 from PIL import Image
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts" / "parity"))
+from matrix_size import matrix_scenario_count
+
 CAPTURES = ROOT / ".evidence/captures/slint"
 METADATA = "capture-metadata.txt"
 DEBT_FILE = ROOT / "scripts/quality/space_utilization_debt.json"
@@ -822,40 +825,63 @@ def measure(run: pathlib.Path) -> list[dict]:
     return out
 
 
-def published_run(captures: pathlib.Path = CAPTURES) -> pathlib.Path | None:
-    """The newest full-matrix publication; diagnostic runs never judge."""
-    if not captures.is_dir():
-        return None
-    size = scenario_count(captures)
+def published_run(captures: pathlib.Path = CAPTURES, surface: str | None = None,
+                  required: int | None = None,
+                  root: pathlib.Path | None = None) -> pathlib.Path | None:
+    """The newest run that published every scenario the matrix declares.
+
+    Two earlier versions of this rule were both wrong in ways that were live:
+
+      * it compared the run's **declared** `scenario_count`, which the capture
+        script writes before the first frame. Measured in `.evidence/captures/
+        slint/`: four interrupted runs still declare their full matrix while
+        their manifests finished 23, 72, 197 and 0 rows. A reproduction with an
+        intact 211-row publication plus a newer run that declared 211 and
+        finished 1 made this function choose the 1-row run.
+      * it derived the requirement as the **largest count ever published** by
+        any run directory, so the evidence of one dead batch redefined what a
+        full matrix is for every later batch, and growing the matrix silently
+        invalidated all of it.
+
+    The canonical matrix is the only thing that knows how many scenarios a full
+    batch owes, and a run's own manifest is the only thing that says what it
+    delivered. Both are read here; the declared count is no longer trusted.
+    """
+    if required is None:
+        if surface is None:
+            surface = _surface_of_captures(captures)
+            if surface is None:
+                return None
+        required = matrix_scenario_count(surface, root or ROOT)
     candidates = []
-    for run in captures.iterdir():
-        metadata = run / METADATA
-        if not run.is_dir() or not metadata.is_file():
+    for run in captures.iterdir() if captures.is_dir() else []:
+        if not run.is_dir():
             continue
-        facts = dict(line.split("=", 1) for line in metadata.read_text(encoding="utf-8").splitlines()
-                     if "=" in line)
-        if size is None or facts.get("scenario_count") != str(size):
+        if published_scenario_count(run) < required:
             continue
         candidates.append((run.name, run))
     return max(candidates)[1] if candidates else None
 
 
-def scenario_count(captures: pathlib.Path = CAPTURES) -> int | None:
-    """The size of a full matrix: the largest scenario count ever published.
+def _surface_of_captures(captures: pathlib.Path) -> str | None:
+    """Which surface a capture root belongs to, or None when nothing owns it."""
+    for name, root in CAPTURES_ROOT.items():
+        if pathlib.Path(root) == pathlib.Path(captures):
+            return name
+    return None
 
-    This is a count, not the count of the newest run: a diagnostic run that
-    happens to sort last must not redefine what a full matrix is.
-    """
-    counts = []
-    for run in captures.iterdir() if captures.is_dir() else []:
-        metadata = run / METADATA
-        if not metadata.is_file():
-            continue
-        facts = dict(line.split("=", 1) for line in metadata.read_text(encoding="utf-8").splitlines()
-                     if "=" in line)
-        if "scenario_count" in facts:
-            counts.append(int(facts["scenario_count"]))
-    return max(counts) if counts else None
+
+def published_scenario_count(run: pathlib.Path) -> int:
+    """Rows this run actually published as `ok`; a missing manifest is zero."""
+    manifest = run / "capture-manifest.tsv"
+    if not manifest.is_file():
+        return 0
+    try:
+        rows = csv.DictReader(manifest.read_text(encoding="utf-8").splitlines(),
+                              delimiter="\t")
+    except OSError:
+        return 0
+    return sum(1 for row in rows if row.get("status") == "ok")
 
 
 def read_debt(path: pathlib.Path = DEBT_FILE) -> dict:
@@ -1291,9 +1317,15 @@ def _chrome_line(chrome: dict) -> str:
 
 def _write_run(root: pathlib.Path, frames: dict[str, np.ndarray],
                pages: dict[str, str] | None = None,
-               chrome: dict | bool | None = None) -> pathlib.Path:
-    """One published batch: pixels, and the chrome line the shell wrote beside them."""
-    run = root / "batch"
+               chrome: dict | bool | None = None,
+               name: str = "batch") -> pathlib.Path:
+    """One published batch: pixels, and the chrome line the shell wrote beside them.
+
+    `name` keeps the fixed `batch` directory the single-run tests already read.
+    A test that stages several runs side by side names them, the way a real
+    capture run is named after the batch that produced it.
+    """
+    run = root / name
     run.mkdir(parents=True, exist_ok=True)
     (run / METADATA).write_text(f"scenario_count={len(frames)}\n", encoding="utf-8")
     for name, image in frames.items():
@@ -1322,6 +1354,15 @@ def _write_run(root: pathlib.Path, frames: dict[str, np.ndarray],
             rows.append(f"{name}\t{slug}\tdark\t1180x780\t0\t0\t1180\t780\t0\t0\tok")
         (run / "capture-manifest.tsv").write_text("\n".join(rows) + "\n", encoding="utf-8")
     return run
+
+
+def _published_rows(names: dict[str, str]) -> str:
+    """A run manifest in the shape a capture batch publishes."""
+    rows = ["scenario\tpage\tskin\trequested_window\tapp_pid\twindow_id\twidth"
+            "\theight\tbytes\tsha256\tstatus"]
+    for name, slug in names.items():
+        rows.append(f"{name}\t{slug}\tdark\t1180x780\t0\t0\t1180\t780\t0\t0\tok")
+    return "\n".join(rows) + "\n"
 
 
 class SelfTest(unittest.TestCase):
@@ -1838,18 +1879,70 @@ class SelfTest(unittest.TestCase):
     def test_a_published_batch_is_required_to_judge(self) -> None:
         empty = self.root / "nothing"
         empty.mkdir()
-        self.assertIsNone(published_run(empty))
+        self.assertIsNone(published_run(empty, required=1))
 
     def test_diagnostic_runs_never_judge(self) -> None:
         captures = self.root / "captures"
-        full = captures / "full"
-        _write_run(full, {"a": _desktop_body()})
+        full = _write_run(captures, {"a": _desktop_body()}, pages={"a": "overview"},
+                          name="a-full")
         (full / METADATA).write_text("scenario_count=199\n", encoding="utf-8")
-        partial = captures / "partial"
-        _write_run(partial, {"a": _desktop_body()})
+        partial = _write_run(captures, {"a": _desktop_body()}, name="b-partial")
+        (partial / "capture-manifest.tsv").write_text(_published_rows({}), encoding="utf-8")
         (partial / METADATA).write_text("scenario_count=6\n", encoding="utf-8")
-        chosen = published_run(captures)
-        self.assertEqual(chosen, full)
+        self.assertEqual(published_run(captures, required=1), full)
+        # What a full batch owes comes from the matrix, not from the largest
+        # number any run has ever claimed to publish.
+        self.assertIsNone(published_run(captures, required=2))
+
+    def test_a_declared_count_does_not_make_a_run_a_publication(self) -> None:
+        """The bug this rule used to have, kept as a regression.
+
+        `scenario_count` is written before the first frame, so an interrupted
+        batch declares the whole matrix while its manifest holds a row or two.
+        Choosing it would judge one frame and call it the corpus.
+        """
+        captures = self.root / "interrupted"
+        frames = {"a": _desktop_body(), "b": _desktop_body()}
+        intact = _write_run(captures, frames, pages={"a": "overview", "b": "logs"},
+                            name="a-intact")
+        dead = _write_run(captures, frames, name="z-dead")
+        # Both declared the same full matrix at start-up and the dead one sorts
+        # last, so a rule that trusted the declaration would judge it.
+        (intact / METADATA).write_text("scenario_count=2\n", encoding="utf-8")
+        (dead / METADATA).write_text("scenario_count=2\n", encoding="utf-8")
+        (dead / "capture-manifest.tsv").write_text(
+            _published_rows({"a": "overview"}), encoding="utf-8")
+        self.assertEqual(published_run(captures, required=2), intact)
+
+    def test_the_matrix_defines_what_a_full_batch_owes(self) -> None:
+        """Growing the matrix moves the bar; it does not disqualify the corpus.
+
+        Measured against a synthetic matrix rather than the repository's own
+        capture evidence: `.evidence/` is git-ignored, so a test that needed a
+        published run passes on an operator's machine and fails in CI - the
+        reachability trap `GATERUN-003` is about, reproduced in my own change.
+        """
+        matrix = self.root / "scripts" / "capture_slint_scenarios.tsv"
+        matrix.parent.mkdir(parents=True, exist_ok=True)
+        captures = self.root / "captures"
+        for size in (3, 5):
+            matrix.write_text("name\tpage\n"
+                              + "".join(f"s{i}\tpage\n" for i in range(size)),
+                              encoding="utf-8")
+            self.assertEqual(matrix_scenario_count(SURFACE_SLINT, self.root), size,
+                             "the bar must track the matrix")
+            full = _write_run(captures, {f"s{i}": _desktop_body() for i in range(size)},
+                              pages={f"s{i}": "overview" for i in range(size)},
+                              name=f"full-{size}")
+            self.assertEqual(published_scenario_count(full), size)
+            # One row short of the same matrix must never outrank the full run.
+            short = _write_run(captures, {f"s{i}": _desktop_body() for i in range(size - 1)},
+                               pages={f"s{i}": "overview" for i in range(size - 1)},
+                               name=f"zshort-{size}")
+            self.assertEqual(published_scenario_count(short), size - 1)
+            chosen = published_run(captures, root=self.root, surface=SURFACE_SLINT)
+            self.assertEqual(chosen, full,
+                             f"a {size}-row matrix must accept the {size}-row run only")
 
     # --- the surface selector -------------------------------------------
     #
@@ -1903,7 +1996,8 @@ class SelfTest(unittest.TestCase):
             with contextlib.redirect_stdout(io.StringIO()):
                 errors = io.StringIO()
                 with contextlib.redirect_stderr(errors):
-                    code = main(["--surface", "iced", "--enforce"])
+                    code = main(["--surface", "iced", "--enforce",
+                                 "--run", str(iced_root / "batch")])
             self.assertEqual(code, 1, errors.getvalue())
             self.assertIn("not registered debt", errors.getvalue())
             # Registered in the ICED inventory, the same frame passes.
@@ -1911,7 +2005,8 @@ class SelfTest(unittest.TestCase):
             with contextlib.redirect_stdout(io.StringIO()):
                 errors = io.StringIO()
                 with contextlib.redirect_stderr(errors):
-                    code = main(["--surface", "iced", "--enforce"])
+                    code = main(["--surface", "iced", "--enforce",
+                                 "--run", str(iced_root / "batch")])
             self.assertEqual(code, 0, errors.getvalue())
         finally:
             CAPTURES_ROOT = kept_root
@@ -2364,7 +2459,7 @@ def main(argv: list[str] | None = None) -> int:
         print("space-utilization: the exported page-shape table is current")
         return 0
     surface = args.surface
-    run = args.run or published_run(surface_captures(surface))
+    run = args.run or published_run(surface_captures(surface), surface)
     if run is None or not run.is_dir():
         print("space-utilization: no published full-matrix batch; the pixel leg "
               "cannot judge until a capture batch exists", file=sys.stderr)

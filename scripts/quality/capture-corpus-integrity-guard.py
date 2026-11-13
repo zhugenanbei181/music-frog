@@ -32,6 +32,8 @@ import csv
 import hashlib
 import json
 import pathlib
+import re
+import shutil
 import struct
 import sys
 import tempfile
@@ -68,6 +70,16 @@ CAPTURE_MATRICES = (
     pathlib.Path("scripts/capture-iced-matrix.sh"),
     pathlib.Path("scripts/capture-bevy-matrix.sh"),
 )
+# Readers that must agree on how many scenarios a full batch owes. Each of them
+# used to keep its own copy of the number - two typed `= 211` literals and one
+# inference from "the largest count ever published" - so growing the matrix
+# would have made every one of them wrong in a different direction.
+MATRIX_SIZE_CONSUMERS = (
+    pathlib.Path("scripts/parity/space_utilization.py"),
+    pathlib.Path("scripts/quality/receipt-freshness-guard.py"),
+    pathlib.Path("scripts/quality/slint-dock-material-guard.py"),
+)
+TYPED_MATRIX_SIZE = re.compile(r"^(FULL_MATRIX_SIZE|LEGACY_MATRIX_SIZE)\s*=\s*\d+", re.M)
 
 
 def sha256(path: pathlib.Path) -> str:
@@ -222,9 +234,38 @@ def harness_findings(root: pathlib.Path) -> list[str]:
     return problems
 
 
+def matrix_size_findings(root: pathlib.Path) -> list[str]:
+    """What a full batch owes has one source: the canonical matrix itself."""
+    problems: list[str] = []
+    shared = root / "scripts" / "parity" / "matrix_size.py"
+    if not shared.is_file():
+        return ["scripts/parity/matrix_size.py: the shared matrix count is missing"]
+    if str(shared.parent) not in sys.path:
+        sys.path.insert(0, str(shared.parent))
+    import matrix_size
+
+    declared = dict(matrix_size.CANONICAL_MATRIX)
+    for surface in SURFACES:
+        if declared.get(surface.name) != surface.matrix.as_posix():
+            problems.append(
+                f"matrix_size.py: surface {surface.name} must resolve to "
+                f"{surface.matrix.as_posix()}, found {declared.get(surface.name)!r}")
+    for script in MATRIX_SIZE_CONSUMERS:
+        text = (root / script).read_text(encoding="utf-8")
+        label = script.name
+        typed = TYPED_MATRIX_SIZE.findall(text)
+        if typed:
+            problems.append(
+                f"{label}: pins a matrix size ({', '.join(sorted(set(typed)))}) instead of "
+                f"deriving it from the canonical matrix")
+        if "matrix_scenario_count" not in text:
+            problems.append(f"{label}: does not read the shared matrix size")
+    return problems
+
+
 def violations(root: pathlib.Path) -> list[str]:
     debt = load_debt(root)
-    problems = harness_findings(root)
+    problems = harness_findings(root) + matrix_size_findings(root)
     for surface in SURFACES:
         problems.extend(corpus_findings(surface, root, debt))
     return problems
@@ -422,6 +463,36 @@ class Harness(unittest.TestCase):
         problems = corpus_findings(self.surface, self.root, {})
         self.assertTrue(any("matrix scenario beta has no published receipt" in problem
                             for problem in problems), problems)
+
+    def test_a_reader_that_re_types_the_matrix_size_is_rejected(self) -> None:
+        """One source for what a full batch owes.
+
+        Three readers kept their own copy of 211 (two literals and one
+        inference from the largest count ever published), so growing the matrix
+        made each wrong in a different direction: two silently refused to
+        recognise the new publication, one let a single interrupted run
+        redefine "full" forever.
+        """
+        real = pathlib.Path(__file__).resolve().parents[2]
+        for relative in [pathlib.Path("scripts/parity/matrix_size.py"),
+                         *MATRIX_SIZE_CONSUMERS]:
+            target = self.root / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(real / relative, target)
+        culprit = self.root / MATRIX_SIZE_CONSUMERS[1]
+        culprit.write_text('FULL_MATRIX_SIZE = 211\n', encoding="utf-8")
+        problems = matrix_size_findings(self.root)
+        self.assertTrue(any("pins a matrix size" in problem for problem in problems),
+                        problems)
+        # A reader that stopped consulting the shared source is caught even when
+        # it no longer types a number of its own.
+        culprit.write_text('REQUIRED = len(open("x").readlines())\n', encoding="utf-8")
+        problems = matrix_size_findings(self.root)
+        self.assertTrue(any("does not read the shared matrix size" in problem
+                            for problem in problems), problems)
+        culprit.write_text('FULL_MATRIX_SIZE = matrix_scenario_count("slint", ROOT)\n'
+                           'matrix_scenario_count\n', encoding="utf-8")
+        self.assertEqual(matrix_size_findings(self.root), [])
 
     def test_a_malformed_index_header_is_rejected(self) -> None:
         (self.root / "out" / "manifest.tsv").write_text("scenario\tpage\n", encoding="utf-8")

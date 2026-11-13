@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
+import csv
 import pathlib
 import re
 import sys
@@ -46,7 +47,15 @@ THEME = UI / "components/theme.slint"
 CHROME = UI / "components/app_chrome.slint"
 CONTRACT = ROOT / "crates/infiltrator-contract/src/mobile_chrome.rs"
 CAPTURES = ROOT / ".evidence/captures/slint"
-FULL_MATRIX_SIZE = 211
+sys.path.insert(0, str(ROOT / "scripts" / "parity"))
+from matrix_size import matrix_scenario_count
+
+# Derived from the canonical matrix rather than typed. A run also qualifies on
+# what its manifest finished, not on the count it declared before capturing
+# anything: an interrupted batch declares the whole matrix while finishing a
+# fraction of it, and this guard would then read one frame's pixels as though
+# they were the corpus.
+FULL_MATRIX_SIZE = matrix_scenario_count("slint", ROOT)
 
 SKINS = ("amoled", "forest", "dark", "light")
 
@@ -314,6 +323,16 @@ def check_app_bottom_bar(chrome_path: pathlib.Path) -> list[str]:
 
     return found
 
+def read_manifest_rows(manifest: pathlib.Path) -> int | None:
+    """Rows this run published as `ok`; None when it has no readable manifest."""
+    try:
+        with manifest.open(encoding="utf-8", newline="") as handle:
+            return sum(1 for row in csv.DictReader(handle, delimiter="\t")
+                       if row.get("status") == "ok")
+    except OSError:
+        return None
+
+
 def find_latest_published_run(captures_root: pathlib.Path) -> pathlib.Path | None:
     if not captures_root.is_dir():
         return None
@@ -329,12 +348,8 @@ def find_latest_published_run(captures_root: pathlib.Path) -> pathlib.Path | Non
         manifest = run / "capture-manifest.tsv"
         if not manifest.is_file():
             continue
-        facts = dict(
-            line.split("=", 1)
-            for line in meta.read_text(encoding="utf-8").splitlines()
-            if "=" in line
-        )
-        if facts.get("scenario_count") != str(FULL_MATRIX_SIZE):
+        rows = read_manifest_rows(manifest)
+        if rows is None or rows < FULL_MATRIX_SIZE:
             continue
         candidates.append((manifest.stat().st_mtime_ns, run))
     if candidates:

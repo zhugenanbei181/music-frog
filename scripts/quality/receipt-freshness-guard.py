@@ -2,7 +2,8 @@
 """Guard the freshness of published Slint screenshot receipts.
 
 The published tree must describe exactly one **full** capture run: the most
-recent one that published all 211 scenarios. A name-filtered diagnostic run
+recent one that published every scenario the canonical matrix declares. A
+name-filtered diagnostic run
 produces fresh pixels in `.evidence/captures/` for a handful of scenarios but
 explicitly never touches the published corpus, so treating it as the latest
 published batch would report 197 perfectly fresh receipts as stale and force
@@ -26,13 +27,20 @@ import tempfile
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts" / "parity"))
+from matrix_size import matrix_scenario_count
+
 OUT_DIR = pathlib.Path("crates/infiltrator-slint/docs/screenshots")
 EVIDENCE_ROOT = pathlib.Path(".evidence/captures/slint")
 FIELDS = ("scenario", "page", "skin", "requested_window", "app_pid", "window_id",
           "width", "height", "bytes", "sha256", "status", "locale")
 LEGACY_FIELDS = FIELDS[:-1]
-FULL_MATRIX_SIZE = 211
-LEGACY_MATRIX_SIZE = 203
+# The size of a full batch is whatever the canonical matrix declares, read from
+# the file. It used to be typed as 211 beside a second literal 203 kept for the
+# previous matrix, which meant a grown matrix disqualified every new full
+# publication at once: latest_run() returned None and the pixel leg reported
+# "no capture run has published a manifest" about a corpus that was fine.
+FULL_MATRIX_SIZE = matrix_scenario_count("slint", ROOT)
 LOCALE_MATRIX = ROOT / "scripts/capture_slint_scenarios.tsv"
 LOCALE_ROWS = (
     "sidebar-locale-zh-standard",
@@ -126,9 +134,7 @@ def latest_run(root: pathlib.Path) -> pathlib.Path | None:
         # publication and marks the intact corpus stale.
         rows = read_manifest(manifest)
         published = sum(1 for row in rows.values() if row["status"] == "ok")
-        if published not in (FULL_MATRIX_SIZE, LEGACY_MATRIX_SIZE):
-            continue
-        if published == LEGACY_MATRIX_SIZE:
+        if published < FULL_MATRIX_SIZE:
             continue
         candidates.append((manifest.stat().st_mtime_ns, run))
     return max(candidates, default=(0, None))[1]
@@ -260,6 +266,9 @@ class GuardTests(unittest.TestCase):
         self.assertEqual(FIELDS[-1], "locale")
 
     def test_a_legacy_full_batch_is_not_the_latest_publication(self) -> None:
+        # A batch that finished fewer rows than the matrix now declares is not a
+        # publication, however fresh its files look: it predates the growth.
+        AN_OLD_MATRIX_SIZE = FULL_MATRIX_SIZE - 8
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp)
             legacy = root / EVIDENCE_ROOT / "legacy"
@@ -268,7 +277,7 @@ class GuardTests(unittest.TestCase):
             current.mkdir(parents=True)
             legacy_rows = "\t".join(LEGACY_FIELDS) + "\n" + "".join(
                 f"s{i}\tpage\tskin\t1180x780\t1\t2\t1180\t780\t1\tabc\tok\n"
-                for i in range(LEGACY_MATRIX_SIZE))
+                for i in range(AN_OLD_MATRIX_SIZE))
             current_rows = "\t".join(FIELDS) + "\n" + "".join(
                 f"s{i}\tpage\tskin\t1180x780\t1\t2\t1180\t780\t1\tabc\tok\tzh-CN\n"
                 for i in range(FULL_MATRIX_SIZE))

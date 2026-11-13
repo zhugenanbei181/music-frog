@@ -593,3 +593,47 @@ presentation nextest **429/429**、Iced **663/663**（合计 **1092/1092**）、
 据实登记为 `CPPARITY-009-UI`（3 pt）；判定器看不见折叠线以下这一类缺陷据实登记为 `SPACEUTIL-019`
 （2 pt）；全仓 `--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` ready
 cells 留统一批次；`screenshot-identity` 唯一红腿仍是并行会话未提交的 Bevy 别名。
+
+## 12.94 一次整批该交多少帧收归 canonical 矩阵一处（1条待验证）
+
+| ID | 状态 / 优先级 | points | owner | 依赖 |
+| --- | --- | --- | --- | --- |
+| `SPACEUTIL-023` | `Integrated` / P1（b245 续实测立项并交付，待统一批次办结） | 2 | `scripts/parity/matrix_size.py`（新唯一真源）+ `scripts/parity/space_utilization.py`（`published_run()` / `published_scenario_count()`）+ `scripts/quality/receipt-freshness-guard.py` + `scripts/quality/slint-dock-material-guard.py` + `scripts/quality/capture-corpus-integrity-guard.py::matrix_size_findings()` | `SPACEUTIL-021`（本条做掉它 a) 的常量半）、`GAP-7.7`（同一台架的发布完整性） |
+
+**`SPACEUTIL-023` 三处各自记「满额是 211」：两处会静默失认新整批，一处只信批次开跑前的自我声明（b245 实测立项并交付，2 pt / `Integrated`）**：
+① **真正找到的问题**：判定「哪个运行目录算一次整批发布」这件事被三个消费者各自实现了一遍，三份都不对。
+(a) `FULL_MATRIX_SIZE = 211` **手打在两个文件里**（`receipt-freshness-guard.py`、`slint-dock-material-guard.py`），
+第三个 `space_utilization.py::scenario_count()` 不用常量，而是取**所有历史批次里声明过的最大数**反推。
+矩阵一旦按 `SPACEUTIL-021` 的要求加长，前两处会立刻把**新整批判成「不是发布」**：`latest_run()` 返回 None，
+判定器打印「no published full-matrix batch」之后**返回 0（绿）**——一条像素腿在无人察觉时不再跑；
+第三处更糟：一次开跑即被杀掉的批次会把它声明的数字永久留在历史里，此后**任何**批次都再也凑不满那个数。
+(b) 同一把尺子的第二个洞：`space_utilization.published_run()` **只比对 `capture-metadata.txt` 里的
+`scenario_count`**，而该值是采集脚本在**第一帧之前**写的。在 `.evidence/captures/slint/` 实扫到
+**4 个**这种成对残批：声明 199 / 实际完成 23、声明 199 / 完成 72、声明 199 / 完成 197、声明 1 / 完成 0。
+最小复现（完好 211 行整批 + 一个声明 211 却只完成 1 行的较新残批）实测：旧实现**挑中那个 1 行的残批**，
+即判定器拿一帧像素去判 211 帧的账。`receipt-freshness-guard` 早在 b183 就因同类事故改成读实际完成行数，
+这条经验没有回流到判定器。
+② **收口（先唯一真源，再迁全部消费者，不留双轨）**：新增 `scripts/parity/matrix_size.py::matrix_scenario_count(surface)`，
+从 canonical 矩阵文件读非空场景行；空矩阵或缺表头**报错而不是返回 0**（返回 0 会让所有消费者认为「零帧也算满额」）。
+三处消费者同批改读它，`space_utilization.published_run()` 另加 `required` 形参供合成测试使用；
+同批删掉 `LEGACY_MATRIX_SIZE = 203`——它先被 `not in (FULL, LEGACY)` 放进、再被
+`if published == LEGACY: continue` 挡掉，是**永不能为真的死分支**，却会让读者以为 203 行也算一次发布；
+`slint-dock-material-guard` 同批补上「读该批 manifest 实际 ok 行数」，与另两个消费者同一口径，
+并删掉因此不再使用的 `facts` 读取。
+③ **门禁**：`capture-corpus-integrity-guard.py` 新增 `matrix_size_findings()`——三个消费者任一**再手打**
+`FULL_MATRIX_SIZE = <数字>` 即违规，任一**不再引用**共享源即违规，共享源的 surface→矩阵映射与本守卫自己的
+`SURFACES` 不一致也违规。planted 自测 **9 → 10/10**，`matrix_size.py` 自身 **4/4**，共享源自测腿入结构门
+（**提交态 208 → 209 腿 findings=0**；本机工作树报 211，多出的 2 条是并行会话未提交的
+`navigation-capability-owner-guard`，不计入本线交付）。
+④ **等价性与反证（L）**：改动前后判定读数**逐字不变**——Slint **211 帧** violations=0
+（批 `20261112T213727Z_1ff41e54d1b1_dirty_2083100`）、Iced **194 帧** violations=0
+（批 `20261113T061503Z_ce869d71975c_dirty_1358480`）、`receipt-freshness` 0、`slint-dock-material` 0、
+`--check-export` current，且三个消费者解析到的发布批与改动前是**同一个目录**；本批零像素改动，
+沿用发布回执，不伪造「身份变化」重采。反证两条实测会咬：把 `FULL_MATRIX_SIZE` 改回手打 211，
+`matrix_size_findings` 立刻报；同一情形已固化为 planted 负例，不靠手工变异。
+⑤ **诚实边界**：本条只交付「整批尺子」这一半。`SPACEUTIL-021` 剩下的**加长矩阵 + 整批重采 + 档位覆盖腿**
+仍未做——需要能构建的 capture 二进制，而并行会话未提交的 `infiltrator-presentation` 实测仍 3 个 `E0425`
+（`ConnectionColumn` / `CONNECTION_SORT_OPTIONS` / `connection_column_sort`），Bevy 经 `infiltrator-desktop`
+传递依赖同挂；`--surface` 仍无 bevy（`SPACEUTIL-022`）；`screenshot-identity` 那条红腿属并行会话未提交的
+Bevy `overview-dark` 像素（139704 → 111584 B，非本批文件，实测 HEAD 与工作树字节不同）；
+全仓 `--workspace` nextest/clippy 与结构门动态全腿留统一批次。

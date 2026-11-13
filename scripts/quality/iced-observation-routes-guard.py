@@ -119,7 +119,8 @@ def findings(
     if (
         "PUBLISH_CORPUS=0" not in capture
         or 'if [ "$MATRIX" != "$MATRIX_SRC" ]; then' not in capture
-        or 'if [ "$PUBLISH_CORPUS" -eq 1 ]; then' not in capture
+        or 'if [ "$PUBLISH_CORPUS" -eq 0 ]; then' not in capture
+        or 'sweep_unindexed_pixels "$OUT_DIR" "$MANIFEST"' not in capture
     ):
         found.append(
             "capture-iced-matrix.sh: a filtered capture can overwrite the published corpus"

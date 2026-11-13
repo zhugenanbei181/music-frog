@@ -34,6 +34,7 @@
 - `python3 scripts/quality/android-interaction-receipt-guard.py --mode enforce`：Android 三 flavor 模拟器交互回执验签门禁，校验每一步骤绑定 APK 摘要、业务 ID、证明发生过的 logcat 片段与相对噪声地板的像素差。
 - `python3 scripts/quality/capture-corpus-integrity-guard.py --mode enforce`：三表面已发布截图语料与其索引必须是同一批次——索引每一行的像素必须存在且摘要、字节数、窗口尺寸逐项相符；矩阵每一行必须有回执。语料与索引分叉时两边都会咬：多余像素只能由 `scripts/quality/capture_corpus_debt.json` 的**计数上界**兜住，且只允许收紧（`--tighten-debt`），因此收口一条分叉只能靠真正重采，不能靠改台账。发布规矩只写在 `scripts/parity/capture_attempt.sh::sweep_unindexed_pixels()` 一处，三个采集脚本共用，守卫同时核对三处都消费它。
 - `python3 scripts/quality/todo-status-freshness-guard.py --mode enforce`：任务看板的状态不得落后于它自己写入的归档台账。已归档的 ID 不得再占四板的状态表行；现在佛正文里以该 ID 开头的详情条目必须写明它是怎么结束的。批次历史行（`POINT_LEDGER`）豁免——那是叙述已经发生的事。立项动因是实测到的两条**过期待办**：`FLCLASH-001` 已归档，条目却仍写「待独立 Core 批次收口」并规定要新增 `ConnectionOperation::ResetStatistics` + 铺 adapter 矩阵，而 L3 参照基准明确记载该方案经复核被**否决**（Mihomo HTTP API 无 traffic-reset endpoint，凭空新增会把不存在的引擎能力写成第二真源）——照旧条目施工会推翻一条已裁决的架构结论；`SPACEUTIL-001` 同样已归档，条目验收却仍要求「`pill_tail` 腿通过」，而该判据 b146 已作废。
+- `python3 scripts/parity/matrix_size.py`：一次「整批」该交多少帧只有一个真源——canonical 矩阵里非空场景行的条数，由 `matrix_scenario_count(surface)` 读出，`receipt-freshness-guard.py` 与 `slint-dock-material-guard.py` 都必须调用它，不得再手打常量；判定器也不得再用「历史批次声明过的最大数」反推门槛（一次残缺批次会永久抬高门槛）。空矩阵或缺表头是**报错**而不是返回 0——返回 0 会让所有批次「刚好达标」。新增消费者必须走同一入口，`capture-corpus-integrity-guard.py::matrix_size_findings()` 逐帧核对：脚本里出现硬编码矩阵规模、绕过共享源自行数行、或 surface→矩阵文件的映射与 `SURFACES` 不一致，都会咬。
 
 每个守卫都支持 `--self-test` 自检，单元回归在 `scripts/quality/tests/` 下随结构门一起运行。
 
