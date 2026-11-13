@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "note": "The structure gate executes every leg and reports the batch once. Each entry below is a leg that is red right now, with the owner who must fix it and the written reason it is allowed to be red while the rest of the standards keep running. Adding a red leg without a declaration fails the gate; so does keeping a declaration for a leg that has turned green.",
+  "note": "The structure gate executes every leg and reports three outcomes: executed, failed, and explicitly skipped. Tree-owned legs are classified once by structure_gate_ownership.py and are never declared here. Each entry below is a leg that is red right now in a tree where it has facts to judge, with the owner who must fix it and the written reason it is allowed to be red while the rest of the standards keep running. Adding a red leg without a declaration fails the gate; so does keeping a declaration for a leg that has turned green.",
   "declared_red_legs": [
     {
       "command": "python3 scripts/quality/screenshot-identity-guard.py --mode enforce",

@@ -30,6 +30,14 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts" / "parity"))
 from matrix_size import matrix_scenario_count
 
+sys.path.insert(0, str(ROOT / "scripts" / "quality"))
+from structure_gate_ownership import SKIP_EXIT_CODE
+
+
+class NoPublishedRun(Exception):
+    """This checkout has no capture run to compare the published corpus to."""
+
+
 OUT_DIR = pathlib.Path("crates/infiltrator-slint/docs/screenshots")
 EVIDENCE_ROOT = pathlib.Path(".evidence/captures/slint")
 FIELDS = ("scenario", "page", "skin", "requested_window", "app_pid", "window_id",
@@ -145,7 +153,11 @@ def violations(root: pathlib.Path) -> list[str]:
     published = read_manifest(out / "manifest.tsv")
     run = latest_run(root)
     if run is None:
-        return [f"{OUT_DIR}: no capture run has published a manifest"]
+        # "No published run" is not a stale corpus: this tree has no capture
+        # runs to compare against, so there is no verdict to give at all.
+        raise NoPublishedRun(
+            f"{OUT_DIR}: no capture run has published a manifest in this tree"
+        )
     expected = read_manifest(run / "capture-manifest.tsv")
     expected = {name: row for name, row in expected.items() if row.get("status") == "ok"}
     problems = []
@@ -446,7 +458,12 @@ def main() -> int:
         suite = unittest.defaultTestLoader.loadTestsFromTestCase(GuardTests)
         result = unittest.TextTestRunner(verbosity=0).run(suite)
         return 0 if result.wasSuccessful() else 1
-    problems = violations(ROOT)
+    try:
+        problems = violations(ROOT)
+    except NoPublishedRun as unjudgeable:
+        print(f"receipt freshness guard: skipped; {unjudgeable}", file=sys.stderr)
+        # Neither a pass nor a failure: the corpus was never compared to a run.
+        return SKIP_EXIT_CODE if args.mode == "enforce" else 0
     for problem in problems:
         print(problem)
     print(f"receipt freshness guard: violations={len(problems)}")

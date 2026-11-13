@@ -62,6 +62,9 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts" / "parity"))
 from matrix_size import matrix_scenario_count
 
+sys.path.insert(0, str(ROOT / "scripts" / "quality"))
+import structure_gate_ownership
+
 CAPTURES = ROOT / ".evidence/captures/slint"
 METADATA = "capture-metadata.txt"
 DEBT_FILE = ROOT / "scripts/quality/space_utilization_debt.json"
@@ -106,6 +109,22 @@ PAGE_STRUCTURE_FILE = ROOT / "crates/infiltrator-contract/assets/page-structure.
 # assert the judge read the exported table rather than a local number.
 FRAMED_LIMIT = 4.0
 CONTENT_LIMIT = 82.0
+
+# An unjudged pixel leg is not a passed pixel leg. `0` stays reserved for a
+# verdict that actually measured a published full-matrix batch. The number the
+# gate reads as "skipped" belongs to the gate protocol, so it is imported from
+# its single owner instead of being re-typed here.
+SKIP_EXIT_CODE = structure_gate_ownership.SKIP_EXIT_CODE
+
+
+def export_is_built() -> bool:
+    """Whether the exporter that owns the ladder exists in this checkout.
+
+    Its absence is not staleness: a workflow that runs the guards without ever
+    compiling cannot have built it, and calling that a failure would keep the
+    gate permanently red while hiding the drift the check is for.
+    """
+    return (ROOT / "target/debug/export_page_structure").is_file()
 
 # The chrome line one frame carries, and where the shell writes it.
 #
@@ -2012,6 +2031,22 @@ class SelfTest(unittest.TestCase):
             CAPTURES_ROOT = kept_root
             DEBT_FILE_BY_SURFACE = kept_debt
 
+    def test_an_unjudged_pixel_leg_is_skipped_not_passed(self) -> None:
+        empty = self.root / "empty-captures"
+        empty.mkdir()
+        global CAPTURES_ROOT
+        kept_root = CAPTURES_ROOT
+        CAPTURES_ROOT = {SURFACE_SLINT: empty, SURFACE_ICED: empty}
+        try:
+            errors = io.StringIO()
+            with contextlib.redirect_stderr(errors), contextlib.redirect_stdout(io.StringIO()):
+                code = main(["--surface", SURFACE_SLINT, "--enforce"])
+            self.assertEqual(code, SKIP_EXIT_CODE, errors.getvalue())
+            self.assertNotEqual(code, 0)
+            self.assertIn("skipped", errors.getvalue())
+        finally:
+            CAPTURES_ROOT = kept_root
+
     # --- page-shape honesty ---------------------------------------------
 
     def test_a_manifest_page_the_contract_does_not_own_is_reported(self) -> None:
@@ -2451,6 +2486,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.self_test:
         return self_test()
     if args.check_export:
+        if not export_is_built():
+            # Nothing to compare the committed export against. Say so instead of
+            # reporting either a pass (no check ran) or a failure (a workflow
+            # that is not allowed to compile cannot have built it).
+            print("space-utilization: skipped; the page structure exporter is "
+                  "not built, so the committed export could not be re-derived",
+                  file=sys.stderr)
+            return SKIP_EXIT_CODE
         problems = export_is_fresh()
         for problem in problems:
             print(f"space-utilization: {problem}", file=sys.stderr)
@@ -2461,9 +2504,10 @@ def main(argv: list[str] | None = None) -> int:
     surface = args.surface
     run = args.run or published_run(surface_captures(surface), surface)
     if run is None or not run.is_dir():
-        print("space-utilization: no published full-matrix batch; the pixel leg "
-              "cannot judge until a capture batch exists", file=sys.stderr)
-        return 0
+        print("space-utilization: skipped; no published full-matrix batch; "
+              "the pixel leg cannot judge until a capture batch exists",
+              file=sys.stderr)
+        return SKIP_EXIT_CODE
     # No ladder, no verdict: the judge keeps no boundaries of its own, so a
     # missing or gapped export must stop the pixel leg instead of silently
     # falling back to remembered numbers.

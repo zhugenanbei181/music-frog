@@ -50,6 +50,9 @@ CAPTURES = ROOT / ".evidence/captures/slint"
 sys.path.insert(0, str(ROOT / "scripts" / "parity"))
 from matrix_size import matrix_scenario_count
 
+sys.path.insert(0, str(ROOT / "scripts" / "quality"))
+from structure_gate_ownership import SKIP_EXIT_CODE
+
 # Derived from the canonical matrix rather than typed. A run also qualifies on
 # what its manifest finished, not on the count it declared before capturing
 # anything: an interrupted batch declares the whole matrix while finishing a
@@ -357,21 +360,27 @@ def find_latest_published_run(captures_root: pathlib.Path) -> pathlib.Path | Non
     return None
 
 
-def check_capture_pixels(captures_root: pathlib.Path | None = None) -> list[str]:
+def check_capture_pixels(captures_root: pathlib.Path | None = None) -> tuple[list[str], bool]:
+    """Pixel findings, plus whether this tree had a published run to judge.
+
+    The boolean is the leg's own verdict about its facts. Returning "no
+    findings" because there were no pixels would turn an unjudged standard into
+    a green one, so the caller must surface that as a skip instead.
+    """
     findings: list[str] = []
     root = captures_root or CAPTURES
     if not root.is_dir():
-        return findings
+        return findings, False
 
     try:
         from PIL import Image
     except ImportError:
-        return findings
+        return findings, False
 
     latest_dir = find_latest_published_run(root)
 
     if not latest_dir:
-        return findings
+        return findings, False
 
     expected = {
         "dark": {
@@ -421,7 +430,7 @@ def check_capture_pixels(captures_root: pathlib.Path | None = None) -> list[str]
                 f"pixel receipt: {skin} 胶囊采样像素灰阶 ({measured_gray:.1f}) 与不透明填充色 ({opaque_gray:.1f}) 灰阶差小于 6 阶 (当前相差 {delta_opaque:.1f})"
             )
 
-    return findings
+    return findings, True
 
 
 def violations(
@@ -430,6 +439,7 @@ def violations(
     captures_root: pathlib.Path | None = None,
     check_pixels: bool = True,
 ) -> list[str]:
+    """Findings of the whole standard; the pixel half runs when it has facts."""
     found: list[str] = []
     contract_alpha, contract_findings = check_contract(contract_path)
     found.extend(contract_findings)
@@ -441,9 +451,23 @@ def violations(
     found.extend(check_app_bottom_bar(chrome_path))
 
     if check_pixels:
-        found.extend(check_capture_pixels(captures_root))
+        pixel_findings, _had_pixels = check_capture_pixels(captures_root)
+        found.extend(pixel_findings)
 
     return found
+
+
+def source_violations(
+    ui_root: pathlib.Path = UI,
+    contract_path: pathlib.Path = CONTRACT,
+) -> list[str]:
+    """The half of this standard whose facts exist in every checkout.
+
+    Theme, contract alpha and the dock subtree are source: a CI checkout that
+    carries no `.evidence/` can still judge them, so they must not be skipped
+    along with the pixel receipt.
+    """
+    return violations(ui_root, contract_path, check_pixels=False)
 
 
 ORIGINAL_READ_TEXT = pathlib.Path.read_text
@@ -636,10 +660,23 @@ def main() -> int:
         return 0 if result.wasSuccessful() else 1
 
     found = violations(args.ui_root, args.contract, args.captures_dir)
+    # The two halves are judged apart so neither can hide the other: source has
+    # facts in every checkout, while the pixel receipt only has facts where a
+    # capture run was published. Absent pixels is a skip, never a pass.
+    source = source_violations(args.ui_root, args.contract)
+    pixel_findings, had_pixels = check_capture_pixels(args.captures_dir)
+    found = source + pixel_findings
     for item in found:
         print(f"SLINT-DOCK-MATERIAL [{args.mode}]: {item}")
     print(f"slint dock material guard: findings={len(found)}")
-    return 1 if found and args.mode == "enforce" else 0
+    if found:
+        return 1 if args.mode == "enforce" else 0
+    if not had_pixels:
+        print("slint dock material guard: skipped; this tree has no published "
+              "full-matrix capture run, so the pixel receipt judged nothing",
+              file=sys.stderr)
+        return SKIP_EXIT_CODE
+    return 0
 
 
 if __name__ == "__main__":

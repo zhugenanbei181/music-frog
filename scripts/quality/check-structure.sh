@@ -28,12 +28,25 @@ trap 'rm -rf "$GATE_LOG_DIR"' EXIT
 GATE_INDEX=0
 FAILED_LEGS=0
 
-# gate <command...> - run one leg, stream its output, and record the outcome.
+GATE_SKIPS="$GATE_LOG_DIR/skips.tsv"
+: > "$GATE_SKIPS"
+SKIPPED_LEGS=0
 GATE_FAILURES="$GATE_LOG_DIR/failures.tsv"
 : > "$GATE_FAILURES"
 
+# A leg whose facts live in a tree-dependent place (a git-ignored capture run, or
+# a build artefact a no-compilation workflow never produces) has nothing to judge
+# in one of the two trees. Skipping is a third outcome - neither a pass nor a
+# failure - and only the leg itself may call it, because only the leg knows which
+# half of its own standard still had facts: the dock guard, say, judges theme and
+# contract source everywhere and only its pixel receipt may go unjudged. The
+# collector records the verdict the leg states, using the leg's own sentence as
+# the reason; structure_gate_ownership.py owns the code and the list of legs
+# entitled to use it, and the reconciler checks the two agree.
+GATE_SKIP_CODE="$(python3 scripts/quality/structure_gate_ownership.py --skip-code)"
+
 gate() {
-  local name log rc signature
+  local name log rc signature reason
   name="$(printf '%q ' "$@")"
   name="${name% }"
   GATE_INDEX=$((GATE_INDEX + 1))
@@ -42,7 +55,14 @@ gate() {
   # appended so the exit status survives the pipeline.
   { "$@" 2>&1; echo "__gate_rc__$?"; } | tee "$log" | { grep -v '^__gate_rc__[0-9]*$' || true; }
   rc="$(sed -n 's/^__gate_rc__\([0-9]*\)$/\1/p' "$log" | tail -n 1)"
-  if [ "${rc:-missing}" != "0" ]; then
+  if [ "${rc:-missing}" = "$GATE_SKIP_CODE" ]; then
+    # The leg read its own tree and found no facts. Honour that as a skip: it is
+    # honest, it is never a pass, and the reason is the leg's own words.
+    SKIPPED_LEGS=$((SKIPPED_LEGS + 1))
+    reason="$(grep -m 1 -i 'skipped' "$log" || true)"
+    printf 'c%s\t%s\t%s\n' "$GATE_INDEX" "$name" "${reason:0:200}" >> "$GATE_SKIPS"
+    printf 'structure gate: skipped %s (%s)\n' "$name" "${reason:0:200}" >&2
+  elif [ "${rc:-missing}" != "0" ]; then
     FAILED_LEGS=$((FAILED_LEGS + 1))
     signature="$(grep -m 1 -Ei 'violation|failed|error|missing|stale|not pruned|panic' "$log" || true)"
     printf 'c%s\t%s\t%s\n' "$GATE_INDEX" "$name" "${signature:0:200}" >> "$GATE_FAILURES"
@@ -190,6 +210,7 @@ gate python3 scripts/quality/slint-viewport-tier-guard.py --mode enforce
 gate python3 scripts/quality/slint-viewport-tier-guard.py --self-test
 gate python3 scripts/quality/slint-list-page-guard.py --mode enforce
 gate python3 scripts/quality/slint-list-page-guard.py --self-test
+gate python3 scripts/quality/structure_gate_ownership.py --self-test
 gate python3 scripts/parity/matrix_size.py
 gate python3 scripts/parity/space_utilization.py --self-test
 gate python3 scripts/parity/space_utilization.py --check-export
@@ -304,10 +325,16 @@ gate python3 scripts/quality/feature-matrix-guard.py --mode enforce
 # Summary: the whole batch reports once, and the ledger decides whether the
 # failing set is the declared one.
 # ---------------------------------------------------------------------------
-printf 'structure gate: %d leg(s) executed, %d failed\n' "$GATE_INDEX" "$FAILED_LEGS" >&2
+# `executed` counts legs that really ran. A skipped leg is reported apart so it
+# can never be mistaken for a standard this tree judged.
+printf 'structure gate: %d leg(s) executed, %d failed, %d skipped\n' \
+  "$((GATE_INDEX - SKIPPED_LEGS))" "$FAILED_LEGS" "$SKIPPED_LEGS" >&2
 if [ "$FAILED_LEGS" -ne 0 ]; then
   cat "$GATE_FAILURES" >&2
 fi
-python3 scripts/quality/structure-gate-guard.py --mode enforce --failures "$GATE_FAILURES" \
+if [ "$SKIPPED_LEGS" -ne 0 ]; then
+  cat "$GATE_SKIPS" >&2
+fi
+python3 scripts/quality/structure-gate-guard.py --mode enforce --failures "$GATE_FAILURES" --skips "$GATE_SKIPS" \
   || FAILED_LEGS=$((FAILED_LEGS + 1))
 exit "$((FAILED_LEGS > 0 ? 1 : 0))"
