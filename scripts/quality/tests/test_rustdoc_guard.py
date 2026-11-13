@@ -4,12 +4,18 @@ The guard owns three contracts: every neutral crate declares the docs.rs
 build configuration, every neutral crate publishes at least one doctest, and
 the docs.rs-equivalent `cargo doc --all-features --no-deps` run is free of
 rustdoc warnings. The negative tests prove that a missing metadata section, a
-crate without a doctest and a rustdoc warning are all rejected.
+crate without a doctest and a rustdoc warning are all rejected. The two-tree
+tests prove that a no-compilation gate judges the offline audit without
+invoking cargo, while a compile-capable tree still builds and rejects warnings.
 """
 
 from __future__ import annotations
 
 import importlib.util
+import io
+import contextlib
+import os
+import unittest.mock
 from pathlib import Path
 import tempfile
 import unittest
@@ -21,6 +27,13 @@ SPEC = importlib.util.spec_from_file_location("rustdoc_guard", SCRIPT)
 assert SPEC is not None and SPEC.loader is not None
 GUARD = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(GUARD)
+OWNERSHIP_SPEC = importlib.util.spec_from_file_location(
+    "structure_gate_ownership_for_rustdoc_test",
+    ROOT / "scripts/quality/structure_gate_ownership.py",
+)
+assert OWNERSHIP_SPEC is not None and OWNERSHIP_SPEC.loader is not None
+OWNERSHIP = importlib.util.module_from_spec(OWNERSHIP_SPEC)
+OWNERSHIP_SPEC.loader.exec_module(OWNERSHIP)
 
 # A cargo output that carries exactly one rustdoc warning.
 WARNING_OUTPUT = (
@@ -208,6 +221,120 @@ class RustdocWarningTests(unittest.TestCase):
 class RustdocSelfTestTests(unittest.TestCase):
     def test_guard_self_test_passes(self) -> None:
         self.assertEqual(GUARD.self_test(), 0)
+
+
+class RustdocNoCompileGateTests(unittest.TestCase):
+    """A leg that needs a build is typed skipped in the compiled-free tree."""
+
+    @staticmethod
+    def recording_runner(calls: list[str], output: str = CLEAN_OUTPUT):
+        def fake_runner(_root, crate, _timeout):
+            calls.append(crate)
+            return 0, output
+        return fake_runner
+
+    def test_no_compile_tree_judges_offline_and_never_invokes_cargo(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = write_neutral_tree(Path(directory))
+            calls: list[str] = []
+            printed = io.StringIO()
+            with contextlib.redirect_stderr(printed):
+                code = GUARD.docs_run(
+                    root,
+                    runner=self.recording_runner(calls),
+                    environment={OWNERSHIP.NO_COMPILE_GATE_ENV: "1"},
+                )
+            self.assertEqual(code, OWNERSHIP.SKIP_EXIT_CODE)
+            self.assertEqual(calls, [])
+            self.assertIn("skipped;", printed.getvalue())
+            self.assertIn(OWNERSHIP.NO_COMPILE_GATE_ENV, printed.getvalue())
+            self.assertIn("main-gate.yml", printed.getvalue())
+
+    def test_truthy_true_value_also_declares_the_no_compile_tree(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = write_neutral_tree(Path(directory))
+            calls: list[str] = []
+            with contextlib.redirect_stderr(io.StringIO()):
+                code = GUARD.docs_run(
+                    root,
+                    runner=self.recording_runner(calls),
+                    environment={OWNERSHIP.NO_COMPILE_GATE_ENV: "true"},
+                )
+            self.assertEqual(code, OWNERSHIP.SKIP_EXIT_CODE)
+            self.assertEqual(calls, [])
+
+    def test_compile_capable_tree_invokes_cargo_for_every_neutral_crate(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = write_neutral_tree(Path(directory))
+            calls: list[str] = []
+            with contextlib.redirect_stdout(io.StringIO()):
+                code = GUARD.docs_run(
+                    root,
+                    runner=self.recording_runner(calls),
+                    environment={},
+                )
+            self.assertEqual(code, 0)
+            self.assertEqual(calls, list(GUARD.NEUTRAL_CRATES))
+
+    def test_process_env_is_the_default_for_both_trees(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = write_neutral_tree(Path(directory))
+            calls: list[str] = []
+            with unittest.mock.patch.dict(os.environ, clear=False):
+                os.environ.pop(OWNERSHIP.NO_COMPILE_GATE_ENV, None)
+                with contextlib.redirect_stdout(io.StringIO()):
+                    code = GUARD.docs_run(root, runner=self.recording_runner(calls))
+            self.assertEqual(code, 0)
+            self.assertEqual(calls, list(GUARD.NEUTRAL_CRATES))
+
+            calls.clear()
+            with unittest.mock.patch.dict(
+                os.environ, {OWNERSHIP.NO_COMPILE_GATE_ENV: "1"}, clear=False
+            ):
+                with contextlib.redirect_stderr(io.StringIO()):
+                    code = GUARD.docs_run(root, runner=self.recording_runner(calls))
+            self.assertEqual(code, OWNERSHIP.SKIP_EXIT_CODE)
+            self.assertEqual(calls, [])
+
+    def test_rustdoc_warning_still_fails_in_the_compile_capable_tree(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = write_neutral_tree(Path(directory))
+            calls: list[str] = []
+            printed = io.StringIO()
+            with contextlib.redirect_stderr(printed):
+                code = GUARD.docs_run(
+                    root,
+                    runner=self.recording_runner(calls, WARNING_OUTPUT),
+                    environment={},
+                )
+            self.assertEqual(code, 1)
+            self.assertIn("rustdoc reported 1 warning(s)", printed.getvalue())
+            self.assertEqual(calls, list(GUARD.NEUTRAL_CRATES))
+
+    def test_missing_docs_rs_metadata_still_fails_in_no_compile_tree(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = write_neutral_tree(Path(directory), metadata=False)
+            calls: list[str] = []
+            printed = io.StringIO()
+            with contextlib.redirect_stderr(printed):
+                code = GUARD.docs_run(
+                    root,
+                    runner=self.recording_runner(calls),
+                    environment={OWNERSHIP.NO_COMPILE_GATE_ENV: "1"},
+                )
+            self.assertEqual(code, 1)
+            self.assertIn("missing `[package.metadata.docs.rs]`", printed.getvalue())
+            self.assertEqual(calls, [])
+
+    def test_the_docs_leg_is_registered_with_the_same_constants(self) -> None:
+        self.assertTrue(OWNERSHIP.may_skip(OWNERSHIP.RUSTDOC_DOCS))
+        self.assertEqual(OWNERSHIP.SKIP_EXIT_CODE, 3)
+        self.assertEqual(GUARD.SKIP_EXIT_CODE, OWNERSHIP.SKIP_EXIT_CODE)
+        self.assertEqual(GUARD.NO_COMPILE_GATE_ENV, OWNERSHIP.NO_COMPILE_GATE_ENV)
+        self.assertEqual(
+            OWNERSHIP.skip_reason(OWNERSHIP.RUSTDOC_DOCS),
+            OWNERSHIP.SELF_SKIPPING_LEGS[OWNERSHIP.RUSTDOC_DOCS],
+        )
 
 
 if __name__ == "__main__":

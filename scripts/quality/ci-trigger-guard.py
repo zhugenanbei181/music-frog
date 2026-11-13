@@ -8,6 +8,13 @@ import re
 import sys
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts" / "quality"))
+from structure_gate_ownership import (  # noqa: E402  (path bootstrap above)
+    NO_COMPILE_GATE_ENV,
+    NO_COMPILE_GATE_TRUTHY,
+    RUSTDOC_DOCS,
+    SKIP_EXIT_CODE,
+)
 EXPECTED_EVENTS = {
     "android-device.yml": {"workflow_dispatch"},
     "android.yml": {"workflow_dispatch"},
@@ -36,6 +43,62 @@ NEUTRAL_RELEASE_PUBLISH_CONDITION = (
     "    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v') "
     "&& github.event_name == 'push'"
 )
+
+# The original no-compile regex stays byte-for-byte and still scans the whole
+# workflow text. `doc` is added separately: the phrase `cargo doc` in a comment
+# describes the guard's skipped build half, so only non-comment lines can
+# commit the workflow to actually building docs.
+NO_COMPILE_FORBIDDEN_CARGO = re.compile(
+    r"cargo\s+(?:build|check|clippy|nextest|test|run|zigbuild)\b"
+)
+NO_COMPILE_FORBIDDEN_CARGO_DOC = re.compile(r"cargo\s+doc\b")
+NO_COMPILE_ENV_DECLARATION = re.compile(
+    rf'(?m)^\s*{re.escape(NO_COMPILE_GATE_ENV)}:\s*[\'"]?(?P<value>[^\s\'#"]+)[\'"]?\s*(?:#.*)?$'
+)
+STRUCTURE_GATE_SCRIPT = ROOT / "scripts/quality/check-structure.sh"
+
+
+def no_compilation_gate_problems(text: str, gate_text: str | None = None) -> list[str]:
+    """The typed contract between the no-compilation workflow and its docs leg.
+
+    The workflow declares exactly one truthful env value; the leg stays
+    registered in the structure gate so a compile-capable tree still builds.
+    `gate_text` is injectable so planted defects can be tested without editing
+    the real gate script.
+    """
+    prefix = ".github/workflows/main-gate.yml"
+    problems: list[str] = []
+    if NO_COMPILE_FORBIDDEN_CARGO.search(text):
+        problems.append(f"{prefix} must not compile or run tests")
+    commands = [line for line in text.splitlines()
+                if line.strip() and not line.strip().startswith("#")]
+    if any(NO_COMPILE_FORBIDDEN_CARGO_DOC.search(line) for line in commands):
+        problems.append(f"{prefix} must not compile or run tests")
+    declarations = NO_COMPILE_ENV_DECLARATION.findall(text)
+    if len(declarations) != 1:
+        problems.append(
+            f"{prefix} must declare {NO_COMPILE_GATE_ENV} exactly once (its "
+            "rustdoc --mode docs leg needs to know this tree cannot compile)"
+        )
+    elif declarations[0] not in NO_COMPILE_GATE_TRUTHY:
+        problems.append(
+            f"{prefix} must set {NO_COMPILE_GATE_ENV} to a truthful value "
+            f"(one of {sorted(NO_COMPILE_GATE_TRUTHY)})"
+        )
+    if gate_text is None:
+        if not STRUCTURE_GATE_SCRIPT.is_file():
+            problems.append(
+                f"{prefix}: the structure gate script is missing, so the "
+                "rustdoc --mode docs leg cannot run anywhere"
+            )
+            return problems
+        gate_text = STRUCTURE_GATE_SCRIPT.read_text(encoding="utf-8")
+    if RUSTDOC_DOCS not in gate_text:
+        problems.append(
+            f"{prefix}: the rustdoc --mode docs leg must remain registered in "
+            "check-structure.sh so the build really runs in a compile-capable tree"
+        )
+    return problems
 
 
 def top_level_events(text: str) -> set[str]:
@@ -177,10 +240,10 @@ def source_problems(root: Path = ROOT) -> list[str]:
                 problems.append(
                     ".github/workflows/main-gate.yml must trigger on push to main only"
                 )
-            if re.search(r"cargo\s+(?:build|check|clippy|nextest|test|run|zigbuild)\b", text):
-                problems.append(
-                    ".github/workflows/main-gate.yml must not compile or run tests"
-                )
+            gate_script = root / "scripts/quality/check-structure.sh"
+            gate_text = (gate_script.read_text(encoding="utf-8")
+                         if gate_script.is_file() else "")
+            problems.extend(no_compilation_gate_problems(text, gate_text))
             continue
         if filename == NEUTRAL_RELEASE_WORKFLOW:
             problems.extend(neutral_release_problems(text))

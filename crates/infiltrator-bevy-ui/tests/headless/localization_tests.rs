@@ -214,10 +214,11 @@ fn locale_changes_replay_text_and_accessibility_without_replacing_focused_contro
 
 #[test]
 fn native_navigation_labels_and_title_follow_locale_without_remounting() {
-    use crate::support::headless_plugins;
-    use infiltrator_bevy_ui::app::{ContentTitleLabel, ShellPlugin, SidebarNavItem};
-    use infiltrator_bevy_ui::route::ActiveRoute;
-    use infiltrator_bevy_ui::route::Route;
+    use crate::support::{headless_plugins, subtree_in_tree_order};
+    use infiltrator_bevy_ui::app::{ContentTitleLabel, ShellPlugin, SidebarNavItem, SidebarPanel};
+    use infiltrator_bevy_ui::route::{ActiveRoute, Route};
+    use infiltrator_contract::shell_navigation::{NavigationTarget, desktop_items};
+    use infiltrator_contract::surface::SurfaceKind;
     let mut app = App::new();
     headless_plugins(&mut app);
     app.add_plugins(ShellPlugin::default());
@@ -230,12 +231,12 @@ fn native_navigation_labels_and_title_follow_locale_without_remounting() {
     let rail = {
         let world = app.world_mut();
         world
-            .query::<(Entity, &infiltrator_bevy_ui::app::SidebarPanel)>()
+            .query::<(Entity, &SidebarPanel)>()
             .single(world)
             .expect("one sidebar rail")
             .0
     };
-    let nav: Vec<(Entity, Route)> = crate::support::subtree_in_tree_order(app.world(), rail)
+    let nav: Vec<(Entity, Route)> = subtree_in_tree_order(app.world(), rail)
         .into_iter()
         .filter_map(|entity| {
             app.world()
@@ -243,19 +244,15 @@ fn native_navigation_labels_and_title_follow_locale_without_remounting() {
                 .map(|item| (entity, item.0))
         })
         .collect();
-    let expected: Vec<Route> = infiltrator_contract::shell_navigation::desktop_items(
-        infiltrator_contract::surface::SurfaceKind::BevyDesktop,
-    )
-    .iter()
-    .map(|item| match item.target {
-        infiltrator_contract::shell_navigation::NavigationTarget::Shared(page) => {
-            Route::from_shell_page(page)
-        }
-        infiltrator_contract::shell_navigation::NavigationTarget::SurfaceLocal(id) => {
-            panic!("the registry handed {id} to a surface that does not own it")
-        }
-    })
-    .collect();
+    let expected: Vec<Route> = desktop_items(SurfaceKind::BevyDesktop)
+        .iter()
+        .map(|item| match item.target {
+            NavigationTarget::Shared(page) => Route::from_shell_page(page),
+            NavigationTarget::SurfaceLocal(id) => {
+                panic!("the registry handed {id} to a surface that does not own it")
+            }
+        })
+        .collect();
     assert_eq!(
         nav.iter().map(|(_, route)| *route).collect::<Vec<_>>(),
         expected,

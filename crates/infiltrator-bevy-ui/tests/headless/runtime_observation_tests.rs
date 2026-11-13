@@ -28,6 +28,7 @@ use infiltrator_bevy_ui::surface::{
 use infiltrator_bevy_widgets::button::{ButtonDisabled, ControlVisual};
 use infiltrator_bevy_widgets::feathers_theme::Token;
 use infiltrator_contract::runtime_control::RuntimeControlStatus;
+use infiltrator_contract::system_toggle::SystemToggle;
 use infiltrator_ports::runtime_configuration::{
     ConfigurationObservation, ConfigurationRevision, DnsRuntimeConfiguration, Ipv6Configuration,
     LanAuthenticationState, LanSecurityConfiguration, LanSharingConfiguration, ObservedValue,
@@ -148,7 +149,7 @@ fn native_routing_and_tun_controls_remain_unknown_until_observed_and_failed_read
         .world_mut()
         .query::<(Entity, &OverviewMasterSwitchButton)>()
         .iter(app.world())
-        .find(|(_, button)| button.toggle == infiltrator_contract::system_toggle::SystemToggle::Tun)
+        .find(|(_, button)| button.toggle == SystemToggle::Tun)
         .expect("the dashboard mounts the TUN master switch")
         .0;
     let mut snapshot = DemoSurfaceSource::running().surface_snapshot();

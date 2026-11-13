@@ -35,4 +35,9 @@ jobs:
       - name: Formatting
         run: cargo fmt --all --check
       - name: Structure guards
+        # `rustdoc-guard.py --mode docs` skips its cargo doc build half here and
+        # still judges the offline docs.rs metadata/doctest audit; the real
+        # cargo doc runs only in a compile-capable tree with this env unset.
+        env:
+          MUSICFROG_NO_COMPILE_GATE: "1"
         run: bash scripts/quality/check-structure.sh

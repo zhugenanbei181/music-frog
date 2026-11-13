@@ -24,7 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-14 第二百四十六批次：结构门有了 typed `skipped` 第三态；b111–b245 见下方批次八问摘要）
+## 当前状态（2026-11-14 第二百五十二批次：`main-gate` 的 rustdoc 构建半按 typed `skipped` 收口，并修掉干净树 14 处导入违规；b111–b251 见下方批次八问摘要）
+
+| # | 结论 | 等级 | 缺口 / owner |
+| --- | --- | --- | --- |
+| 1 | 部分 | L | 本批改 5 个 Python 守卫/测试、1 个 no-compile workflow 片段与 5 个 Bevy headless 测试，零平台 API；`cargo build --offline -p infiltrator-contract --bin export_page_structure` exit 0、`py_compile`、定向自测合计 **57/57**（ownership 8、rustdoc 20、ci-trigger 29）为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1） |
+| 2 | 部分 | L | Linux 本机两树验证：`MUSICFROG_NO_COMPILE_GATE=1` 时 docs 腿 rc=3 且 fake cargo 证明零调用；env 未设时真实 `cargo doc` 对 7 个 neutral crate 全部被调用（1.100.0 工具链下被 `unused workspace dependency uniffi_bindgen` 警告挡住，已如实记录为并行 toolchain 归属，不是本批引入）。Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
+| 3 | 部分 | L | 零 Android/iOS 代码、资源或脚本改动；`uniffi-bindgen` bin 仍走 `uniffi::uniffi_bindgen_main()`，workspace 声明未碰。三 flavor 实机与 iOS 产物仍留外部环境看板 |
+| 4 | 部分 | L | **本批零可见像素变化**：不改 `.slint`、不重采、不改契约导出；沿用 Slint **211** / Iced **194** 发布回执。Bevy capture 二进制仍被并行会话未提交文件挡住，本批不代改、不冒充截图证据 |
+| 5 | 完整 | L | 跳过协议只有一个 owner：`structure_gate_ownership.py` 发布 env 名、`{1,true}` 真值、`RUSTDOC_DOCS` 腿与 typed rc=3；rustdoc/ci-trigger/结构门三处消费者都 import 它，workflow 只声明一次值。`ci-trigger-guard` 同时钉住 env 恰一处、docs 腿仍注册、非注释行不得出现 `cargo doc` |
+| 6 | 部分 | L | 未新增业务能力；新增门禁判据 2 类（no-compile 树的 docs 构建半 typed skipped、编译树仍跑全部 7 个 `cargo doc`），并把干净 HEAD 树 `import-guard` 的 **14 → 0** 处违规一次收口：5 个 Bevy headless 测试改成文件头 `use`，符号与断言逐字不变。真机/模拟器与双视口新像素证据未推进 → 部分（L） |
+| 7 | 完整 | L | 归属链一条：`structure_gate_ownership.py`（typed 协议 + 名单）→ `rustdoc-guard.py --mode docs` 先判离线半再按 env 跳过构建半 → `check-structure.sh` 单列 `skipped` → `structure-gate-guard.py` 核对名单/理由/互斥 → `ci-trigger-guard.py` 反查 workflow。未给判定器或 UI 留第二份 env 字面量或布尔开关 |
+| 8 | 部分 | L | 零全仓编译；`ci-dependencies`、`structure-gate-guard` 216 腿 findings=0、`ci-trigger-guard` 0，干净暂存树 `import-guard` **scanned=3002 violations=0**（修前 14）。`GATERUN-003` 下半仍未办结：`screenshot-identity` 的旧红腿声明在 CI 树已转绿需移除；并行会话的 2 条 `navigation-capability-owner-guard` 腿与未提交像素按所有权不夹带；真实 compile-capable CI run 待本批 push 后复验 |
+
+## 最近一批问答（2026-11-14 第二百五十二批次：no-compilation 树的 rustdoc 构建半收口）
+
+1. x86_64/aarch64：改动面是 5 个 Python 文件、`main-gate.yml` 的 5 行 env 片段与 5 个 Bevy headless 测试；`cargo build --offline -p infiltrator-contract --bin export_page_structure`、`py_compile`、ownership **8/8**、rustdoc 外部 **20/20**、ci-trigger 外部 **29/29** 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
+2. Windows/Linux/macOS：Linux 本机用真实环境变量做两树验证——no-compile 树 `MUSICFROG_NO_COMPILE_GATE=1` 实测 `SKIP_RC=3` 且 fake cargo 陷阱零调用；普通树真实 `cargo doc` 调用 7 次，1.100.0 下如实暴露 `uniffi_bindgen` workspace 警告（并行 toolchain 归属，不改 Cargo.toml）。CI 的 `1.99.1` 树则实测 `cargo doc` exit 101（run `43505074516`），正是本批要让它 typed skipped 的那一半。Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）→ 部分（L）。
+3. Android/iOS：零 Android/iOS 代码、资源或脚本改动；`uniffi-bindgen` bin 仍走 `uniffi::uniffi_bindgen_main()`，workspace 依赖声明不碰。三 flavor 实机与 iOS 产物仍留在外部环境看板 → 部分（L）。
+4. 各 UI：本批零像素变化，沿用 Slint **211** / Iced **194** 发布回执；5 个 Bevy headless 测试只改导入风格，不新增可见功能、不重采。capture 二进制仍被并行会话未提交文件挡住 → 部分（L）。
+5. 复用：env 名、truthy 值、`RUSTDOC_DOCS` 腿、跳过码 `3` 只在 `structure_gate_ownership.py` 一处发布；`rustdoc-guard.py`、`ci-trigger-guard.py`、`structure-gate-guard.py` 全部 import 它，workflow 只写值。没有第二份「哪棵树不能编译」谓词 → 完整（L）。
+6. 各处界面的功能接入：未新增业务能力，新增 2 类门禁判据并清掉干净树导入红腿；planted 覆盖 env 删除/重复/改名/假值、docs 腿消失、真实 `cargo doc`、no-compile 树离线元数据失败；干净暂存树 `import-guard` **14 → 0** 且 staged diff 逐行只把长路径改为文件头 `use`。真机/模拟器与双视口新像素证据未推进 → 部分（L）。
+7. 模块化：协议 owner → leg 自读事实 → collector 三态 → reconciler 名单核对 → workflow trigger guard 反查，五段各司其职；`rustdoc --mode docs` 的离线半在两棵树都实判，只有编译半在 no-compile 树跳过，不为省事整条跳过 → 完整（L）。
+8. CI 与批次效率：零全仓编译，证据都在秒级（除一次导出器重建 2m13s）；提交态结构门从 214 腿起只新增 ci-trigger 自测 1 腿，`structure-gate-guard` 216 腿 findings=0。**诚实边界**：`structure_gate_ledger.json` 的 `screenshot-identity` 声明在 CI 干净树已转绿、需下一批移除；并行 toolchain bump、2 条 `navigation-capability-owner-guard` 腿、未提交 Bevy 像素与 Iced WIP 均按文件所有权不夹带；真实 compile-capable 树的 7 次 `cargo doc` 在本机因 1.100.0 的 workspace lint 仍红，不写成「编译树已绿」→ 部分（L）。
+
+## 历史状态（2026-11-14 第二百四十六批次；b111–b245 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
@@ -37,7 +61,7 @@
 | 7 | 完整 | L | 归属链一条：`structure_gate_ownership.py`（协议 + 名单）→ 各腿读自己的事实并以 typed 码退出 → `check-structure.sh` 单列 `skipped` 汇总 → `structure-gate-guard.py` 核对名单/理由/与红腿声明互斥 → L2 §6 与 测试命令入口 记录。混合腿 dock 的源码半与像素半分开，不为省事整条跳过 |
 | 8 | 部分 | L | 零 cargo 编译，证据都在秒级；结构门提交态 **210 腿**（本线只新增 ownership 自测 1 腿），`structure-gate-guard` 静态 findings=0。**`GATERUN-003` 下半仍未完**：五个 workflow 的 `numpy` 依赖真源、`structure_gate_ledger.json` 红腿归属、并行会话未提交文件造成的 `import-guard` / `screenshot-identity` / 2 条 `navigation-capability-owner-guard` 红腿都不属本批；CI 等价树 7 腿 harness 因 ledger 那条旧声明仍报「声明已转绿」，如实留到下半收口 |
 
-## 最近一批问答（2026-11-14 第二百四十六批次：`GATERUN-003` 第一半的底层裁决）
+## 历史问答（2026-11-14 第二百四十六批次：`GATERUN-003` 第一半的底层裁决）
 
 1. x86_64/aarch64：改动面只有 `check-structure.sh`、新增 `structure_gate_ownership.py`、四个 Python 判定器/守卫与 测试命令入口 / L2 §6 / L4 台账；`bash -n` OK、`py_compile` 全通过、五个自检合计 **117/117**（6 + 18 + 76 + 8 + 9）为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：Linux 本机造出两棵真实树——开发者树（211/194 帧 + 导出器）与 `git checkout-index` 的 CI 等价树（无 `.evidence`、无 `export_page_structure`），用**真实 `gate()` prologue**逐腿跑：前者 7 腿全实判 0 红 0 跳过，后者 2 腿实判 0 红 **5 腿显式 skipped**，每条打印自身原因。Windows/macOS 构建腿未复跑，macOS 仍 `Unsupported`（GAP-2.2）→ 部分（L）。

@@ -6,6 +6,7 @@
 //! token-filled sidebar surface (rail, nav items, routing intent pills)
 //! without changing a single entity id.
 
+use crate::support::{subtree_in_tree_order, subtree_with};
 use bevy::MinimalPlugins;
 use bevy::a11y::AccessibilityNode;
 use bevy::app::App;
@@ -67,7 +68,7 @@ fn rail_entity(world: &mut World) -> Entity {
 
 /// Whether `T` appears anywhere under `root`.
 fn subtree_contains<T: Component>(world: &World, root: Entity) -> bool {
-    !crate::support::subtree_with::<T>(world, root).is_empty()
+    !subtree_with::<T>(world, root).is_empty()
 }
 
 #[path = "shell_tests/bidi_direction_tests.rs"]

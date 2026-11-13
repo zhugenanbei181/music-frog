@@ -2,6 +2,7 @@
 //! test-intent: behavior
 
 use super::*;
+use crate::support::subtree_in_tree_order;
 use infiltrator_contract::a11y::ShellA11yNode;
 use infiltrator_contract::shell_navigation::{NavigationTarget, desktop_items};
 use infiltrator_contract::surface::SurfaceKind;
@@ -25,7 +26,7 @@ struct Named {
 /// seven rows over in a different sequence. Comparing that against the
 /// registry's order measures storage, not the column the user reads.
 fn named_in_painted_order<C: Component>(world: &World, root: Entity) -> Vec<Named> {
-    crate::support::subtree_in_tree_order(world, root)
+    subtree_in_tree_order(world, root)
         .into_iter()
         .filter(|entity| world.get::<C>(*entity).is_some())
         .map(|entity| {
@@ -72,7 +73,7 @@ fn nav_entries_mode_pills_and_content_region_carry_semantics() {
     // The routing choices belong to the Overview page, not the shell: the
     // sidebar mounts navigation alone, so the rail carries no selector.
     let rail = rail_entity(world);
-    let rail_rows = crate::support::subtree_in_tree_order(world, rail);
+    let rail_rows = subtree_in_tree_order(world, rail);
     let selectors = rail_rows
         .iter()
         .filter(|entity| {
@@ -97,7 +98,7 @@ fn nav_entries_mode_pills_and_content_region_carry_semantics() {
 fn the_dashboard_segment_publishes_every_routing_choice_with_its_shared_label() {
     use crate::support::headless_plugins;
     use bevy::ecs::query::With;
-    use infiltrator_bevy_ui::route::{PagesPlugin, RouteChanged};
+    use infiltrator_bevy_ui::route::{PageRoot, PagesPlugin, RouteChanged};
 
     let mut app = App::new();
     headless_plugins(&mut app);
@@ -109,7 +110,7 @@ fn the_dashboard_segment_publishes_every_routing_choice_with_its_shared_label() 
 
     let world = app.world_mut();
     let root = world
-        .query_filtered::<Entity, With<infiltrator_bevy_ui::route::PageRoot>>()
+        .query_filtered::<Entity, With<PageRoot>>()
         .single(world)
         .expect("the overview page is mounted");
     let published = named_in_painted_order::<OverviewRoutingIntentSegmentPill>(world, root);

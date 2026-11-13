@@ -24,7 +24,11 @@ docs
     The docs.rs-equivalent check. It runs `cargo doc --all-features
     --no-deps` for every neutral crate with `-D warnings`, so *any* rustdoc
     warning fails the gate. The offline `structure` audit runs first and is
-    reported separately.
+    reported separately. In a tree that declares the no-compilation gate env
+    var named by `NO_COMPILE_GATE_ENV` (the `main-gate.yml` workflow) only the
+    offline audit can be judged: the leg prints its standing skip reason and
+    returns `SKIP_EXIT_CODE` instead of invoking cargo. A compile-capable tree
+    leaves the variable unset and still runs `cargo doc`.
 
 doctest
     Proves that the published examples are executable: `cargo test --doc` runs
@@ -51,6 +55,14 @@ import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts" / "quality"))
+from structure_gate_ownership import (  # noqa: E402  (path bootstrap above)
+    NO_COMPILE_GATE_ENV,
+    RUSTDOC_DOCS,
+    SKIP_EXIT_CODE,
+    no_compile_gate,
+    skip_reason,
+)
 
 # The neutral crates that are published to crates.io and previewed on docs.rs.
 NEUTRAL_CRATES = (
@@ -364,6 +376,45 @@ def doctest_run_problems(root: Path, timeout: int = 1800) -> list[str]:
     return problems
 
 
+def docs_run(
+    root: Path,
+    timeout: int = 1800,
+    runner=None,
+    environment=None,
+) -> int:
+    """Judge the `docs` leg in this tree and return its typed exit code.
+
+    Three typed outcomes: the offline audit can fail (1), the build half can be
+    unjudgeable in a no-compilation tree (SKIP_EXIT_CODE), or the whole leg can
+    pass (0). The offline audit is judged first in every outcome, so removing
+    docs.rs metadata is still red even where no Rust may be compiled. `runner`
+    replaces the cargo invocation so tests can prove which tree builds.
+    """
+    offline = structure_problems(root)
+    if offline:
+        print("\n".join(offline), file=sys.stderr)
+        print(
+            f"rustdoc guard: FAILED ({len(offline)} problem(s), offline structure audit)",
+            file=sys.stderr,
+        )
+        return 1
+    if no_compile_gate(environment):
+        reason = skip_reason(RUSTDOC_DOCS)
+        assert reason is not None
+        print(f"rustdoc guard: skipped; {reason}", file=sys.stderr)
+        return SKIP_EXIT_CODE
+    problems = docs_problems(root, timeout=timeout, runner=runner)
+    if problems:
+        print("\n".join(problems), file=sys.stderr)
+        print(f"rustdoc guard: FAILED ({len(problems)} problem(s))", file=sys.stderr)
+        return 1
+    print(
+        "rustdoc guard: OK (cargo doc --all-features --no-deps without warnings for "
+        f"{len(NEUTRAL_CRATES)} neutral crates)"
+    )
+    return 0
+
+
 def self_test() -> int:
     """Exercise the checks on synthetic manifests and synthetic cargo output."""
     import tempfile
@@ -435,6 +486,53 @@ def self_test() -> int:
         problems = doctest_problems(root)
         assert any("publishes no doctest" in problem for problem in problems), problems
 
+        target.write_text(manifests["lurker-core-contract"], encoding="utf-8")
+        (root / "crates" / "lurker-core-contract" / "src" / "lib.rs").write_text(
+            "//! Demo crate.\n//!\n//! ```\n//! let x = 1;\n//! ```\n", encoding="utf-8"
+        )
+        assert structure_problems(root) == [], structure_problems(root)
+
+        # Two-tree proof: a fake runner records every cargo invocation. The
+        # no-compilation tree never calls it, the compile-capable tree does.
+        calls: list[str] = []
+
+        def clean_runner(_root, crate, _timeout):
+            calls.append(crate)
+            return 0, "    Finished `dev` profile [unoptimized + debuginfo] target(s)\n"
+
+        code = docs_run(
+            root, runner=clean_runner, environment={NO_COMPILE_GATE_ENV: "1"}
+        )
+        assert code == SKIP_EXIT_CODE and calls == [], (code, calls)
+
+        code = docs_run(root, runner=clean_runner, environment={})
+        assert code == 0 and calls == list(NEUTRAL_CRATES), (code, calls)
+
+        calls.clear()
+
+        def warning_runner(_root, crate, _timeout):
+            calls.append(crate)
+            return 0, (
+                "warning: missing documentation for a struct\n"
+                f"  --> crates/{crate}/src/lib.rs:3:1\n"
+            )
+
+        code = docs_run(root, runner=warning_runner, environment={})
+        assert code == 1, code
+        assert calls == list(NEUTRAL_CRATES), calls
+
+        # The offline audit still bites in the no-compilation tree: a missing
+        # docs.rs metadata section must fail, not be excused as a skip.
+        target.write_text(
+            '[package]\nname = "lurker-core-contract"\nversion = "0.50.0"\n',
+            encoding="utf-8",
+        )
+        calls.clear()
+        code = docs_run(
+            root, runner=clean_runner, environment={NO_COMPILE_GATE_ENV: "1"}
+        )
+        assert code == 1 and calls == [], (code, calls)
+
     print("rustdoc guard self-test: PASS")
     return 0
 
@@ -480,6 +578,9 @@ def main() -> int:
         )
         return 0
 
+    if args.mode == "docs":
+        return docs_run(root, timeout=args.timeout)
+
     offline = structure_problems(root)
     if offline:
         print("\n".join(offline), file=sys.stderr)
@@ -488,18 +589,6 @@ def main() -> int:
             file=sys.stderr,
         )
         return 1
-
-    if args.mode == "docs":
-        problems = docs_problems(root, timeout=args.timeout)
-        if problems:
-            print("\n".join(problems), file=sys.stderr)
-            print(f"rustdoc guard: FAILED ({len(problems)} problem(s))", file=sys.stderr)
-            return 1
-        print(
-            "rustdoc guard: OK (cargo doc --all-features --no-deps without warnings for "
-            f"{len(NEUTRAL_CRATES)} neutral crates)"
-        )
-        return 0
 
     problems = doctest_run_problems(root, timeout=args.timeout)
     if problems:

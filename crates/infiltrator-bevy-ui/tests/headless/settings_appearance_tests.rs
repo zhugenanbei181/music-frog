@@ -16,7 +16,7 @@ use bevy::ecs::hierarchy::Children;
 use bevy::ecs::query::With;
 use bevy::ecs::world::World;
 use bevy::ui_widgets::{Activate, SelectedTab, ValueChange};
-use infiltrator_bevy_ui::app::{ShellPlugin, SidebarPanel};
+use infiltrator_bevy_ui::app::{ShellPlugin, SidebarNavItem, SidebarPanel};
 use infiltrator_bevy_ui::appearance::ThemeMode;
 use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommand};
 use infiltrator_bevy_ui::pages::settings::settings_appearance::{
@@ -25,7 +25,9 @@ use infiltrator_bevy_ui::pages::settings::settings_appearance::{
 use infiltrator_bevy_ui::pages::settings::settings_index::SettingsIndexButton;
 use infiltrator_bevy_ui::route::{ActiveRoute, PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_widgets::localization::LocalizedLabel;
+use infiltrator_bevy_widgets::nav::NavActive;
 use infiltrator_bevy_widgets::responsive::{Density, ResponsiveContext};
+use infiltrator_contract::command_catalogue::ShellPage;
 use infiltrator_contract::shell_navigation::pages_folded_under;
 use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
 use std::sync::Arc;
@@ -271,7 +273,7 @@ fn choosing_a_density_writes_the_responsive_owner_only() {
 fn the_settings_index_reaches_every_folded_page() {
     let mut app = mounted_settings(Arc::new(DemoCommandSink::accepting()));
     let world = app.world_mut();
-    let folded = pages_folded_under(infiltrator_contract::command_catalogue::ShellPage::Settings);
+    let folded = pages_folded_under(ShellPage::Settings);
     let mut chips = world.query::<&SettingsIndexButton>();
     let offered: Vec<Route> = chips.iter(world).map(|chip| chip.0).collect();
     assert_eq!(offered.len(), folded.len(), "one chip per folded page");
@@ -300,10 +302,7 @@ fn an_index_chip_navigates_and_the_rail_keeps_settings_current() {
     assert_eq!(app.world().resource::<ActiveRoute>().0, Some(Route::Dns));
     // Folding is the contract's answer, so the rail lights Settings rather
     // than going silent on a page that has no row of its own.
-    let mut rows = app.world_mut().query::<(
-        &infiltrator_bevy_ui::app::SidebarNavItem,
-        &infiltrator_bevy_widgets::nav::NavActive,
-    )>();
+    let mut rows = app.world_mut().query::<(&SidebarNavItem, &NavActive)>();
     let lit: Vec<Route> = rows
         .iter(app.world())
         .filter(|(_, active)| active.0)
