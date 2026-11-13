@@ -211,6 +211,8 @@ gate python3 scripts/quality/slint-viewport-tier-guard.py --self-test
 gate python3 scripts/quality/slint-list-page-guard.py --mode enforce
 gate python3 scripts/quality/slint-list-page-guard.py --self-test
 gate python3 scripts/quality/structure_gate_ownership.py --self-test
+gate python3 scripts/quality/ci-dependencies-guard.py --self-test
+gate python3 scripts/quality/ci-dependencies-guard.py --mode enforce
 gate python3 scripts/parity/matrix_size.py
 gate python3 scripts/parity/space_utilization.py --self-test
 gate python3 scripts/parity/space_utilization.py --check-export

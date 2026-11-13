@@ -52,7 +52,7 @@ jobs:
 
       - name: Install Python dependencies for parity guards
         shell: bash
-        run: python3 -m pip install Pillow
+        run: python3 -m pip install -r scripts/ci-python-requirements.txt
 
       - name: Enforce quality guards (fail fast)
         shell: bash

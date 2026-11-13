@@ -37,6 +37,8 @@
 - `python3 scripts/parity/matrix_size.py`：一次「整批」该交多少帧只有一个真源——canonical 矩阵里非空场景行的条数，由 `matrix_scenario_count(surface)` 读出，`receipt-freshness-guard.py` 与 `slint-dock-material-guard.py` 都必须调用它，不得再手打常量；判定器也不得再用「历史批次声明过的最大数」反推门槛（一次残缺批次会永久抬高门槛）。空矩阵或缺表头是**报错**而不是返回 0——返回 0 会让所有批次「刚好达标」。新增消费者必须走同一入口，`capture-corpus-integrity-guard.py::matrix_size_findings()` 逐帧核对：脚本里出现硬编码矩阵规模、绕过共享源自行数行、或 surface→矩阵文件的映射与 `SURFACES` 不一致，都会咬。
 - `python3 scripts/quality/structure_gate_ownership.py`：结构门只有三种结果——通过、红、跳过。跳过码 `3` 与「哪五条腿有权自称无事实可判」只在这一个模块定义；`check-structure.sh` 用 `--skip-code` 读协议，`structure-gate-guard.py` 用它核对跳过名单、必须写原因、且同一腿不能既跳过又被判红或登记为已知红腿。开发者树有 `.evidence/` 与编译产物，五条腿全部实判；无编译产物的 CI 树里它们逐条打印「skipped」原因并由采集器单列计数，绝不把量 0 帧的像素腿写成绿。`space_utilization.py --enforce` / `--check-export`、`receipt-freshness-guard.py --mode enforce`、`slint-dock-material-guard.py --mode enforce` 都从该模块取退出码，不留第二份数字；dock 守卫仍逐字检查 theme/contract/app_chrome 源码，只跳过其像素半。
 
+- `python3 scripts/quality/ci-dependencies-guard.py --mode enforce`：`scripts/ci-python-requirements.txt` 是 CI Python 依赖的唯一真源。守卫从结构门所有 `gate` 腿出发，沿脚本之间的 import 闭包逐层扫描第三方模块（包括函数内懒加载与 `try/except ImportError` 包裹的 import），未登记的包会让该腿在 CI 里崩于 `ModuleNotFoundError` 之前，phantom 依赖也会被咬；凡是运行结构门的 workflow 必须用 `-r scripts/ci-python-requirements.txt` 安装，不得再手打包名。`--self-test` 10 项 planted 覆盖「漏登记 / 幻影依赖 / 漏写 import 名 / workflow 手打包名 / workflow 不装依赖 / 懒加载 / 守卫内 import / 仓库内模块传递依赖」。
+
 每个守卫都支持 `--self-test` 自检，单元回归在 `scripts/quality/tests/` 下随结构门一起运行。
 
 ### 可选审计工具（非门禁）

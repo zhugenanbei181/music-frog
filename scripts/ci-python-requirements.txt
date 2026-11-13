@@ -1,0 +1,15 @@
+# The Python packages every CI tree that runs the structure gate must install.
+#
+# One file owns this list. `scripts/quality/ci-dependencies-guard.py` derives
+# the transitive third-party imports of every `gate` leg in
+# `scripts/quality/check-structure.sh` and compares them against the
+# `# imports:` names below, so a leg cannot be added that dies in CI on a
+# missing module while passing on a developer machine - the failure mode
+# GATERUN-003 measured as 11 silently red pixel legs, three days running.
+#
+# Format: one requirement per line, optionally followed by `# imports: a, b`,
+# naming the module import sites actually write. A line whose modules nobody
+# imports is stale and the guard reports it; a needed module with no line here
+# is a hole and the guard reports that too.
+numpy    # imports: numpy
+Pillow   # imports: PIL

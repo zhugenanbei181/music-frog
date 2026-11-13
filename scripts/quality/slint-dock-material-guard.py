@@ -659,10 +659,9 @@ def main() -> int:
         result = unittest.TextTestRunner(verbosity=2).run(suite)
         return 0 if result.wasSuccessful() else 1
 
-    found = violations(args.ui_root, args.contract, args.captures_dir)
-    # The two halves are judged apart so neither can hide the other: source has
-    # facts in every checkout, while the pixel receipt only has facts where a
-    # capture run was published. Absent pixels is a skip, never a pass.
+    # The two halves are judged apart so neither can hide the other: the source
+    # facts exist in every checkout, while the pixel receipt only has facts
+    # where a capture run was published. Absent pixels is a skip, never a pass.
     source = source_violations(args.ui_root, args.contract)
     pixel_findings, had_pixels = check_capture_pixels(args.captures_dir)
     found = source + pixel_findings
