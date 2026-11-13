@@ -581,19 +581,41 @@ def nav_tail_band_problems() -> list[str]:
         return ["page-structure.json carries no nav_tail_limits height bands; "
                 "rerun export_page_structure"]
     problems: list[str] = []
-    if bands[0]["min_height_px"] != 0:
+    keys = ("id", "min_height_px", "max_height_px", "limit_pct")
+    for index, band in enumerate(bands):
+        if not isinstance(band, dict) or any(key not in band for key in keys):
+            problems.append(f"the exported nav-tail band {index} is malformed")
+            continue
+        minimum = band["min_height_px"]
+        maximum = band["max_height_px"]
+        limit = band["limit_pct"]
+        if (not isinstance(minimum, int) or isinstance(minimum, bool)
+                or minimum < 0
+                or (maximum is not None
+                    and (not isinstance(maximum, int)
+                         or isinstance(maximum, bool)
+                         or maximum <= minimum))
+                or not isinstance(limit, (int, float))
+                or isinstance(limit, bool)
+                or not 0 <= limit <= 100):
+            problems.append(
+                f"the exported nav-tail band {band['id']} has an invalid "
+                "height interval or limit")
+            continue
+        if index and bands[index - 1].get("max_height_px") != minimum:
+            problems.append(
+                "the exported nav-tail bands leave heights between "
+                f"{bands[index - 1].get('max_height_px')} and {minimum} in no band")
+        if index and float(bands[index - 1].get("limit_pct", 0)) > float(limit):
+            problems.append(
+                f"the exported nav-tail band {band['id']} is tighter than "
+                "the shorter window band; taller windows may not lower the cap")
+    if isinstance(bands[0], dict) and bands[0].get("min_height_px") != 0:
         problems.append("the exported nav-tail height ladder does not start at 0")
-    if bands[-1]["max_height_px"] is not None:
+    if (isinstance(bands[-1], dict)
+            and bands[-1].get("max_height_px") is not None):
         problems.append("the exported nav-tail height ladder's tallest band "
                         "carries an upper bound")
-    for index, band in enumerate(bands):
-        if band["min_height_px"] >= (band["max_height_px"] or float("inf")):
-            problems.append(f"the exported nav-tail band {band['id']} is empty")
-        if index and bands[index - 1]["max_height_px"] != band["min_height_px"]:
-            problems.append(
-                f"the exported nav-tail bands leave heights between "
-                f"{bands[index - 1]['max_height_px']} and {band['min_height_px']} "
-                "in no band")
     return problems
 
 
@@ -1482,6 +1504,20 @@ class SelfTest(unittest.TestCase):
         PAGE_STRUCTURE_FILE = planted
         try:
             self.assertTrue(any("nav_tail_limits height bands" in item
+                                for item in ladder_problems()))
+        finally:
+            PAGE_STRUCTURE_FILE = original
+
+    def test_a_malformed_height_band_is_refused_before_judging(self) -> None:
+        global PAGE_STRUCTURE_FILE
+        original = PAGE_STRUCTURE_FILE
+        document = json.loads(original.read_text(encoding="utf-8"))
+        document["navigation_limits"]["nav_tail_limits"]["bands"][1][
+            "max_height_px"] = 700
+        planted = self._with_export(document)
+        PAGE_STRUCTURE_FILE = planted
+        try:
+            self.assertTrue(any("in no band" in item
                                 for item in ladder_problems()))
         finally:
             PAGE_STRUCTURE_FILE = original

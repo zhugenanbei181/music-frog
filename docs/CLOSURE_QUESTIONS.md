@@ -24,19 +24,19 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-13 第二百三十三批次；b111–b232 见下方批次八问摘要）
+## 当前状态（2026-11-13 第二百三十四批次；b111–b233 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b233 改 v19 契约导出、判定器、参照守卫、L0/L2/L3 标准与版本 pin；契约 nextest **618/618**、`--check-export` current、空间判定器 **69/69**、双表面 **211/192 帧 0 违规**、FlClash 双场景守卫 **11/11** + enforce 0 为 `L`。全仓 `cargo fmt --all -- --check` 仍报并行会话 `navigation_capability`/Dock WIP 的格式差异，本批只单独 rustfmt 自己的 `page_structure.rs`；交叉架构与 aarch64 目标产物未复跑（GAP-1.1） |
-| 2 | 部分 | L | Linux 本机完成契约构建/nextest、导出新鲜度、生成器与版本守卫、双表面真像素复判、参照图逐像素门与回执新鲜度；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID |
-| 3 | 部分 | L | 零 Android/iOS 代码与资源改动；v19 高度带按窗口真实高度裁决，按构造对移动平台中立，但三 flavor 实机交互与 iOS 产物仍按既有条目留在外部环境看板，不拿桌面像素冒充移动端证据 |
-| 4 | 部分 | L | 判定器同时量 Slint **211/211** 与 Iced **192/192** 发布帧；本批零可见 UI 改动，Bevy 192 帧像素与 `FLPROFILES-002` 仍归另一会话。并行会话正在补 FlClash `modes` 能力门控与 Dock 组件化，按文件所有权不夹带进本批；`resolve_surface_evidence.py` ready cells 留统一批次 |
-| 5 | 完整 | L | v19 `navigation_limits.nav_tail_limits` 是高度档唯一真源；`page_structure.rs` typed `NavTailGroundBand` → JSON → Python pin → 判定器 `nav_tail_limit(height_px)` → 参照守卫一条链，判定器不保存私有数字，短窗口按真实帧高选档 |
-| 5a | 完整 | L | 零字体/字重/图标/旗资产/文案/可见像素变化；沿用已发布 Slint 211 / Iced 192 真像素回执复判，无双视口重采需求。圆形旗帜容器仍由 4:3 直角资产与 flag guard 钉住 |
-| 6 | 部分 | L | 两项新 planted 证明短窗口 20% 尾空按 18% 档被拒、1949px 高窗口 70.24% 仍合法，缺高度表/放宽短档/区间裂缝会被守卫咬；生成器和版本守卫 55/23/11、静态结构收集器 11/11、双表面 enforce 与回执新鲜度为 `L`。全仓 `--workspace` nextest/clippy、结构门动态全腿、`resolve_surface_evidence.py` ready cells 与并行 Bevy 身份红腿仍留统一批次 |
-| 7 | 完整 | L | contract typed band 表 → v19 导出 → Python 版本 pin → `space_utilization.py` 逐帧选择/欠账/报告 → `flclash-sidebar-void-guard.py` → L0/L2/L3 标准与 L4 台账，一条链；旧全局 73% 口径只在 >1200px 参照档保留，无跨 UI 私有业务真源 |
-| 8 | 部分 | L | 同主题契约、导出、判定器、参照守卫、标准与台账一次落地后集中跑契约 nextest / 导出新鲜度 / 版本守卫 / 双表面真像素复判；零像素变化不触发截图重采，不逐文件反复全量验证，也不格式化并行 WIP。全仓 `--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` 留统一批次一次跑完 |
+| 1 | 部分 | L | b234 改 Contract/Domain/Application/Composition/守卫与 L3 对照文档；`cargo fmt --all -- --check`、七包 `--all-targets cargo check`、四包定向 nextest **2017/2017**、owner 守卫 **4/4** + enforce 0 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1） |
+| 2 | 部分 | L | Linux 本机完成四包源码编译、定向单测、结构守卫、格式化与旧 wire 兼容测试；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID |
+| 3 | 部分 | L | 零 Android/iOS 代码与资源改动；`SurfaceSnapshot.navigation_capability` 用 `#[serde(default)]` 让旧 Android/JSON wire 得到显式 `PageData::unavailable`，不伪装能力，三 flavor 实机交互与 iOS 产物仍留在外部环境看板 |
+| 4 | 部分 | L | 本批只交付 Core/Contract/Composition 读回，不改任何 UI 可见行、布局或像素；Slint/Iced/Bevy 仍以既有发布回执 211/192/192 帧复判，Dock 组件化与能力消费属于另一并行会话，按文件所有权不夹带；`resolve_surface_evidence.py` ready cells 留统一批次 |
+| 5 | 完整 | L | `navigation_capability.rs` 是 `NavigationMode` / `NavigationFeatureState` / 可见行 / Tools 索引 / 活动页回退唯一 owner；`AppSettings.open_logs` 与 `UpdateSetting` 是日志能力持久化入口；Composition 只从 settings / profiles / outbound inventory 派生 `has_proxies`，`SurfaceSnapshot` 只发布 `PageData` 读回 |
+| 5a | 完整 | L | 零字体/字重/图标/旗资产/文案/可见像素变化；沿用已发布 Slint 211 / Iced 192 真像素回执，无双视口重采需求。圆形旗帜容器仍由 4:3 直角资产与 flag guard 钉住 |
+| 6 | 部分 | L | Contract 5 项模式/回退测试、Application 设置写入测试、Composition 能力投影测试与快照 serde 往返为 `L`；owner 守卫 4 项 planted 证明 typed modes、ready Core 发布、结构门双腿缺失都会咬。UI 纯消费端、全仓 `--workspace` nextest/clippy、结构门动态全腿、`resolve_surface_evidence.py` ready cells 仍留统一批次 |
+| 7 | 完整 | L | upstream `modes` → Contract typed `NavigationMode` → Application persisted fact → Composition `project_navigation_capability()` → `SurfaceSnapshot` `PageData` → 守卫 / L3 文档 / L4 台账一条链；旧 wire 缺字段读成 unavailable，无 UI 私有 bool 推导或影子副本 |
+| 8 | 部分 | L | 同主题底层源码、测试、守卫、结构与文档一次落地后集中跑 fmt / 七包 all-targets check / 四包 nextest / Python 守卫；零像素变化不触发截图重采，不逐文件反复全量验证。全仓 `--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` 留统一批次一次跑完 |
 
 ## 历史状态（2026-11-13 第二百二十七批次；b111–b226 见下方批次八问摘要）
 
@@ -97,7 +97,7 @@
 
 ## 最近一批问答（2026-11-13 第二百三十三批次：侧栏尾空上限按窗口高度分档）
 
-1. x86_64/aarch64：本批改 v19 契约导出、唯一判定器 Python、参照守卫、L0/L2/L3 标准与版本 pin；契约 nextest **618/618**、`--check-export` current、空间判定器 **69/69**、双表面 **211/192 帧 0 违规**、FlClash 双场景守卫 **11/11** + enforce 0 为 `L`。全仓 `cargo fmt --all -- --check` 的红项来自并行会话 `navigation_capability`/Dock WIP 的格式差异，本批只 rustfmt 自己的 `page_structure.rs`；交叉架构与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
+1. x86_64/aarch64：本批改 v19 契约导出、唯一判定器 Python、参照守卫、L0/L2/L3 标准与版本 pin；契约 nextest **618/618**、`--check-export` current、空间判定器 **70/70**、双表面 **211/192 帧 0 违规**、FlClash 双场景守卫 **11/11** + enforce 0 为 `L`。全仓 `cargo fmt --all -- --check` 的红项来自并行会话 `navigation_capability`/Dock WIP 的格式差异，本批只 rustfmt 自己的 `page_structure.rs`；交叉架构与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：Linux 本机完成契约构建/nextest、导出新鲜度、生成器与版本守卫、双表面发布回执复判、参照图逐像素门与回执新鲜度；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID → 部分（L）。
 3. Android/iOS：零 Android/iOS 代码与资源改动；v19 高度带按窗口真实高度裁决，按构造对移动平台中立，但三 flavor 实机交互与 iOS 产物仍按既有条目留在外部环境看板，不拿桌面像素冒充移动端证据 → 部分（L）。
 4. 各 UI：判定器对 Slint **211/211** 与 Iced **192/192** 发布帧复判，两表面 `chrome_band` 0.0%、`void` 最差 6.2%、尾空预算使用率最差 **94.0% / 80.2%**；本批零可见 UI 改动，Bevy 192 帧像素与 `FLPROFILES-002` 仍归另一会话。并行会话的 FlClash `modes` 能力门控与 Dock 组件化按文件所有权不夹带进本批，`resolve_surface_evidence.py` ready cells 留统一批次 → 部分（L）。
