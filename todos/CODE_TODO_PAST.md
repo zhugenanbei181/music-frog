@@ -1,4 +1,4 @@
-# MusicFrog 工程 TODO · 过去佛（19条待验证；归档见 [TODO.md](../TODO.md) 第一百零八批次）
+# MusicFrog 工程 TODO · 过去佛（20条待验证；归档见 [TODO.md](../TODO.md) 第一百零八批次）
 
 > 层级：L4
 
@@ -485,3 +485,38 @@ Slint 别名 22 条新鲜；整门 **194 腿 / 1 红 / findings=0**，见 [TODO.
 fixture 仍由另一会话持有，本批不重采、不碰。新英文页面帧另量到 `峰值/累计/普通线路`
 等中文由共享 presentation 把标签拼进数值字段造成，不是 `@tr` 缺词；该跨表面数据文案
 owner 缺陷留独立切片自底向上收口，本批不声称其已本地化。
+
+## 12.92 ClashParty 连接表格形态第一次真的落到像素（1条待验证）
+
+| ID | 状态 / 优先级 | points | owner | 依赖 |
+| --- | --- | --- | --- | --- |
+| `CPPARITY-006-UI` | `Integrated` / P1（b238 实测立项并交付 UI 消费片，待统一批次办结） | 3 | `infiltrator-domain::connection_view`（`RatedConnection` 转发补齐）→ `infiltrator-presentation::connection_view_table_projection`（表头 / 单元格 / 表投影 + em 宽裁剪）→ `infiltrator-iced`（`connections_table.rs` + 页面按读回分支 + 两个控件按形态挂载）→ `scripts/quality/iced-connection-view-guard.py` 读回消费判据 + contract/scenario 锚点与 standard/compact 双视口真实像素回执 | `CPPARITY-006`（过去佛 §12.89）、`CPPARITY-CLOSED-UI`（现在佛 §10.13.1） |
+
+**`CPPARITY-006-UI` 连接页的形态读回第一次真的被页面正文消费（3 pt / `Integrated`）**：
+
+① **真正找到的问题**：b224–b230 铺好了 typed 底座（契约 `ConnectionViewPreference` + 22 列闭集 +
+`ConnectionViewIntent`、Core 持久化与权威读回、presentation 22 列 semantic ID、Iced 只读控件与 typed
+意图通道），但**页面正文从不读形态**：点「表格」按钮与 22 个列复选框都会把意图送到 Core、落盘并读回
+`state.diag.connection_view`，而页面只画卡片列表——两种形态像素逐字相同，22 列一个都不显示。既有门禁
+`iced-connection-view-guard.py` 只查控件是否发出 typed 意图，`iced-dead-input-guard.py` 只咬
+`Message::Noop`，**「读回不被消费」这一整类缺陷穿过全部门禁**；pinned ClashParty `72af7d82` 的
+`connection-table.tsx:202-220, 254-289, 325` 有 12 列默认集、列宽拖拽、点击排序与 sticky 表头，
+本仓此前一个也没有。② **自底向上收口**：**domain** `RatedConnection` 只转发 9 个访问器（network /
+source ip / source port / dns mode / rule payload 全部落回 trait 默认空值，经 rated 包装读到的消费者拿到
+的是空事实而不是事实）→ 补齐 6 个转发 + 一条「rated 行保留其行的每一个事实」回归；**presentation**
+新增 `connection_view_table_projection`（typed 表头：列身份 + semantic ID + 宽度档 + 语气档 + 契约
+`support()`；typed 单元格：Text / Live / Status / Unavailable；列宽与语气一处发布，视图只映射三个宽度类
+与四个语气档；内核不发布的 4 列一律 `Unavailable` 且永不猜测；`ellipsize()` 按共享 `text_width_em` 的
+em 宽裁剪并留省略号，全角字符计两倍）；**Iced** 新增 `connections_table.rs` 按投影画表（表头与表体共用
+一条横向滚动、纵向滚动在表体内），页面按读回 `mode` 分支（Table 画表 / List 画卡片），列选择器只在表格
+形态挂载、分组控件只在列表形态挂载（两个控件都不再是点不动的死控件），已关闭页签对「建立时刻」给诚实
+未知（关闭记录只发布关闭时刻，不发布建立时刻）。
+③ **门禁与证据（L）**：`iced-connection-view-guard.py` 新增 5 条读回消费判据（页面必须读形态读回 / 必须
+渲染共享表投影 / 列选择器与分组控件必须由共享形态规则挂载 / 表模块不得重建列注册表 / 表模块不得自己读
+偏好读回）+ 5 项 planted 负例，自测 **10 → 15/15** + enforce 0；domain **643/643**、presentation
+**1057/1057**、Iced **568/568**；三包 Clippy `--all-targets -D warnings` exit 0（`unused_imports` 单项放宽：
+并行 b234 会话 `navigation_capability.rs` WIP 的 2 个未用导入，非本批文件）。
+④ **待验证范围**：本批**有可见像素变化**（列表形态下 22 个列复选框不再挂载、已关闭页签状态点由红改灰），
+Iced 192 帧发布回执 `20261112T092915Z_4429d9259479_dirty_2279303` 因此过期，standard/compact 双视口
+真实像素回执与表格形态帧**待重采**；contract/scenario 锚点与 `resolve_surface_evidence.py` ready cells 留
+统一批次；Bevy / Slint / Android 尚未消费该形态，不声称任何跨表面结论。本条保持 `Integrated`，不办结。

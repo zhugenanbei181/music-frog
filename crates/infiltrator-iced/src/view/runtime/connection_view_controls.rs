@@ -54,6 +54,15 @@ const fn mode_label_key(mode: ConnectionViewMode) -> &'static str {
     }
 }
 
+/// Whether the column chooser is mounted for the given readback.
+///
+/// The column vocabulary configures the table. In the list morphology no
+/// column is rendered, so a chooser there would be a control that cannot
+/// change what the user sees.
+pub(crate) const fn column_chooser_mounted(mode: ConnectionViewMode) -> bool {
+    matches!(mode, ConnectionViewMode::Table)
+}
+
 pub(crate) fn view_mode_controls(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
     let projection = &state.diag.connection_view;
@@ -111,11 +120,17 @@ pub(crate) fn view_mode_controls(state: &AppState) -> Element<'_, Message> {
     let mode_row = row(mode_buttons)
         .spacing(theme::SP_XS)
         .align_y(iced::Alignment::Center);
-    let column_grid = row(columns)
-        .spacing(theme::SP_SM)
-        .align_y(iced::Alignment::Center)
-        .width(Length::Fill)
-        .wrap();
+
+    // The column vocabulary configures the table. In the list morphology no
+    // column is rendered, so the chooser and its reset are not mounted: a
+    // control that cannot change what the user sees never appears.
+    if !column_chooser_mounted(projection.mode) {
+        return container(column![mode_row].spacing(theme::SP_XS).width(Length::Fill))
+            .id(InteractionRegion::ConnectionViewControls.id())
+            .width(Length::Fill)
+            .into();
+    }
+
     let actions: Element<'_, Message> = if state.shell.viewport.tier.is_narrow() {
         Column::from_iter([Element::from(mode_row), Element::from(reset)])
             .spacing(theme::SP_XS)
@@ -128,6 +143,12 @@ pub(crate) fn view_mode_controls(state: &AppState) -> Element<'_, Message> {
             .width(Length::Fill)
             .into()
     };
+
+    let column_grid = row(columns)
+        .spacing(theme::SP_SM)
+        .align_y(iced::Alignment::Center)
+        .width(Length::Fill)
+        .wrap();
 
     container(
         column![title, actions, column_grid]

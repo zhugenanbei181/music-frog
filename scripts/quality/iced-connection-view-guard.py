@@ -14,6 +14,12 @@ lexically and proves that:
 * all user-visible copy goes through ``Lang(...).tr(...)``;
 * the slice carries no hard-coded Chinese copy or ``connection.column.``
   string table;
+* the page body *consumes* the persisted morphology - the readback decides
+  whether the page renders the list of cards or the table of columns, and the
+  table's cells come from the shared projection rather than from a second
+  column vocabulary in the view;
+* the column chooser and the grouping control are mounted by the shared
+  morphology rule, so neither can appear as a control that changes nothing;
 * ``check-structure.sh`` executes both the self-test and enforce legs.
 
 Usage:
@@ -38,6 +44,8 @@ from rust_syntax import mask_comments, mask_noncode, mask_test_items  # noqa: E4
 CONTROLS = ROOT / "crates/infiltrator-iced/src/view/runtime/connection_view_controls.rs"
 CONTROLS_TESTS = ROOT / "crates/infiltrator-iced/tests/gui/connection_view_controls_tests.rs"
 CONNECTIONS = ROOT / "crates/infiltrator-iced/src/view/runtime/connections.rs"
+TABLE_VIEW = ROOT / "crates/infiltrator-iced/src/view/runtime/connections_table.rs"
+TABLE_TESTS = ROOT / "crates/infiltrator-iced/tests/gui/connections_table_tests.rs"
 CONTROLS_SEAM = ROOT / "crates/infiltrator-iced/src/view/runtime/connections_controls.rs"
 REGIONS = ROOT / "crates/infiltrator-iced/src/view_root/interaction_regions.rs"
 INTEGRATION_TESTS = ROOT / "crates/infiltrator-iced/tests/gui/view_runtime_connections_tests.rs"
@@ -48,6 +56,8 @@ SLICE_FILES = (
     CONTROLS,
     CONTROLS_TESTS,
     CONNECTIONS,
+    TABLE_VIEW,
+    TABLE_TESTS,
     CONTROLS_SEAM,
     REGIONS,
     INTEGRATION_TESTS,
@@ -66,6 +76,11 @@ NOOP = re.compile(r"Message::Noop")
 CHOICES = re.compile(r"project_connection_column_choices\s*\(")
 LANG_TR = re.compile(r"\bLang\s*\([^)]*\)\s*|\b\w+\s*\.\s*tr\s*\(")
 CONTROL_MOUNT = re.compile(r"view_mode_controls\s*\(")
+MODE_READBACK = re.compile(r"connection_view\.mode")
+TABLE_PROJECTION = re.compile(r"project_connection_view_table\s*\(")
+CHOOSER_MOUNT = re.compile(r"column_chooser_mounted\s*\(")
+GROUPING_MOUNT = re.compile(r"grouping_control_mounted\s*\(")
+TABLE_READBACK = re.compile(r"diag\.connection_view")
 
 
 def read(path: pathlib.Path) -> str:
@@ -85,6 +100,7 @@ def findings(
     controls_text: str | None = None,
     controls_tests_text: str | None = None,
     connections_text: str | None = None,
+    table_text: str | None = None,
     seam_text: str | None = None,
     regions_text: str | None = None,
     gate_text: str | None = None,
@@ -98,6 +114,7 @@ def findings(
     connections = production(
         read(CONNECTIONS) if connections_text is None else connections_text
     )
+    table = production(read(TABLE_VIEW) if table_text is None else table_text)
     seam = production(read(CONTROLS_SEAM) if seam_text is None else seam_text)
     regions = production(read(REGIONS) if regions_text is None else regions_text)
     gate = read(GATE) if gate_text is None else gate_text
@@ -127,6 +144,7 @@ def findings(
         (CONTROLS, controls),
         (CONTROLS_TESTS, controls_tests),
         (CONNECTIONS, connections),
+        (TABLE_VIEW, table),
         (CONTROLS_SEAM, seam),
         (REGIONS, regions),
     ):
@@ -137,6 +155,28 @@ def findings(
 
     if not CONTROL_MOUNT.search(connections) and not CONTROL_MOUNT.search(seam):
         problems.append("the Connections page no longer mounts the view preference controls")
+    if not MODE_READBACK.search(connections):
+        problems.append(
+            "the Connections page does not read the persisted morphology readback"
+        )
+    if not TABLE_PROJECTION.search(connections):
+        problems.append(
+            "the Connections page does not render the shared table projection"
+        )
+    if not CHOOSER_MOUNT.search(controls):
+        problems.append(
+            "the column chooser is not mounted by the shared morphology rule"
+        )
+    if not GROUPING_MOUNT.search(connections):
+        problems.append(
+            "the grouping control is not mounted by the shared morphology rule"
+        )
+    if VIEW_ARRAY.search(table):
+        problems.append("the table module has rebuilt a second column registry")
+    if TABLE_READBACK.search(table):
+        problems.append(
+            "the table module reads the preference readback instead of the projection"
+        )
     for region in (
         "ConnectionViewControls",
         "ConnectionViewModeList",
@@ -157,6 +197,7 @@ class GuardSelfTest(unittest.TestCase):
             "controls_text": read(CONTROLS),
             "controls_tests_text": read(CONTROLS_TESTS),
             "connections_text": read(CONNECTIONS),
+            "table_text": read(TABLE_VIEW),
             "seam_text": read(CONTROLS_SEAM),
             "regions_text": read(REGIONS),
             "gate_text": read(GATE),
@@ -244,6 +285,60 @@ class GuardSelfTest(unittest.TestCase):
             "project_connection_view(&ConnectionColumnSet::all(), &ConnectionViewPreference::default())",
         )
         self.assertEqual(self.planted(controls_tests_text=planted), [])
+
+    def test_a_page_that_ignores_the_morphology_readback_is_rejected(self) -> None:
+        planted = self.live["connections_text"].replace(
+            "state.diag.connection_view.mode",
+            "ConnectionViewMode::List",
+        )
+        self.assertTrue(
+            any(
+                "does not read the persisted morphology readback" in item
+                for item in self.planted(connections_text=planted)
+            )
+        )
+
+    def test_a_page_that_drops_the_table_projection_is_rejected(self) -> None:
+        planted = self.live["connections_text"].replace(
+            "project_connection_view_table(",
+            "own_table(",
+        )
+        self.assertTrue(
+            any(
+                "does not render the shared table projection" in item
+                for item in self.planted(connections_text=planted)
+            )
+        )
+
+    def test_a_table_owned_column_registry_is_rejected(self) -> None:
+        planted = self.live["table_text"] + "\nconst SHADOW: [ConnectionColumn; 22] = ConnectionColumn::ALL;\n"
+        self.assertTrue(
+            any(
+                "second column registry" in item
+                for item in self.planted(table_text=planted)
+            )
+        )
+
+    def test_a_table_that_reads_the_preference_readback_is_rejected(self) -> None:
+        planted = self.live["table_text"] + "\nlet _ = state.diag.connection_view.columns;\n"
+        self.assertTrue(
+            any(
+                "reads the preference readback instead of the projection" in item
+                for item in self.planted(table_text=planted)
+            )
+        )
+
+    def test_a_chooser_without_the_shared_morphology_rule_is_rejected(self) -> None:
+        planted = self.live["controls_text"].replace(
+            "if !column_chooser_mounted(projection.mode) {",
+            "if projection.mode != ConnectionViewMode::Table {",
+        ).replace("column_chooser_mounted", "unused_chooser_gate")
+        self.assertTrue(
+            any(
+                "column chooser is not mounted by the shared morphology rule" in item
+                for item in self.planted(controls_text=planted)
+            )
+        )
 
 
 def main() -> int:

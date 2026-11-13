@@ -348,8 +348,7 @@ mod tests {
     #[test]
     fn the_offered_entries_are_exactly_the_live_ones() {
         assert_eq!(
-            TunStack::selectable_choices()
-                .map(|choice| choice.wire_name),
+            TunStack::selectable_choices().map(|choice| choice.wire_name),
             TunStack::SELECTABLE_WIRE_NAMES
         );
         for choice in TunStack::selectable_choices() {

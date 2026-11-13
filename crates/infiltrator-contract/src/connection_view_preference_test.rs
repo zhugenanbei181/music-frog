@@ -302,7 +302,10 @@ fn a_column_the_kernel_never_reports_is_marked_unreported() {
             _ => ConnectionColumnSupport::Reported,
         };
         assert_eq!(column.support(), expected, "{column:?}");
-        assert_eq!(column.is_reported(), expected == ConnectionColumnSupport::Reported);
+        assert_eq!(
+            column.is_reported(),
+            expected == ConnectionColumnSupport::Reported
+        );
     }
 }
 

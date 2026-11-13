@@ -65,6 +65,24 @@ where
         .direction(vertical_direction())
         .style(scrollable_style)
 }
+
+/// A vertical scroll region without the right clearance.
+///
+/// The clearance belongs to a page-level region: a region that lives inside
+/// another scroll (the body of a table that scrolls sideways) must not
+/// reserve room for a rail that is not there.
+pub fn vertical_scrollable<'a, T: 'a>(content: impl Into<Element<'a, T>>) -> Scrollable<'a, T> {
+    scrollable(content)
+        .direction(vertical_direction())
+        .style(scrollable_style)
+}
+
+/// A sideways scroll region for a table that is wider than the page.
+pub fn horizontal_scrollable<'a, T: 'a>(content: impl Into<Element<'a, T>>) -> Scrollable<'a, T> {
+    scrollable(content)
+        .direction(scrollable::Direction::Horizontal(canonical_scrollbar()))
+        .style(scrollable_style)
+}
 /// Scrollbar appearance per the shared contract: each axis rests invisible and
 /// only its own rail responds to pointer hover or drag.
 pub fn scrollable_style(theme: &Theme, status: scrollable::Status) -> scrollable::Style {

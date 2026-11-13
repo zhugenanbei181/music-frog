@@ -345,3 +345,12 @@ fn visible_columns_come_from_the_projection_readback() {
         );
     }
 }
+
+#[test]
+fn the_table_morphology_is_the_only_one_without_the_grouping_control() {
+    // The table shows one row per connection, so the grouping buckets have no
+    // place there: mounting the control in the table would fold rows the
+    // table cannot show.
+    assert!(grouping_control_mounted(ConnectionViewMode::List));
+    assert!(!grouping_control_mounted(ConnectionViewMode::Table));
+}

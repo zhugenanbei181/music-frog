@@ -24,19 +24,19 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-13 第二百三十七批次；b111–b236 见下方批次八问摘要）
+## 当前状态（2026-11-13 第二百三十八批次；b111–b237 见下方批次八问摘要）## 当前状态（2026-11-13 第二百三十八批次；b111–b237 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b237 改契约 TUN 栈 owner、domain `ConnectionView` 访问器、presentation 投影、Iced 三处视图、FlClash 双场景守卫与 L2/L3 标准；契约/domain/presentation nextest **1672/1672**、Iced **562/562**、四包 Clippy `-D warnings` exit 0、空间判定器 **73/73**、FlClash 守卫 **14/14** + enforce 0 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1） |
-| 2 | 部分 | L | Linux 本机完成契约/domain/presentation/Iced 编译与定向测试、唯一判定器、双张 tracked FlClash PNG 逐像素复量、两表面发布帧复判与文档守卫；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID |
-| 3 | 部分 | L | 零 Android/iOS 代码与资源改动；TUN 栈词表与 typed destination interval 按构造对移动平台中立，但三 flavor 实机交互与 iOS 产物仍留在外部环境看板，不拿桌面像素冒充移动端证据 |
-| 4 | 部分 | L | 判定器同时量 Slint **211/211** 与 Iced **192/192** 发布帧；本批零可见 UI 改动（Iced 三处 TUN 控件的可见选项集合未变），Bevy 192 帧像素与 `FLPROFILES-002` 仍归另一会话，`resolve_surface_evidence.py` ready cells 留统一批次 |
-| 5 | 完整 | L | TUN 栈词表回到契约 `TunStack` 一处 owner（typed `TunStackChoice` + `choices()` + `selectable_choices()`），presentation `tun_stack_options` 只发布可选项与 copy key，Iced 三处视图不再持有栈名字面量；FlClash 侧栏几何仍只读共享 chrome 带与每帧 receipt |
-| 5a | 完整 | L | 零字体/字重/图标/旗资产/文案/可见像素变化；沿用已发布 Slint 211 / Iced 192 真像素回执复判，无双视口重采需求。圆形旗帜容器仍由 4:3 直角资产与 flag guard 钉住 |
-| 6 | 部分 | L | 契约 6 项 + presentation 4 项新测试钉住 TUN 栈目录、可选项与索引映射；FlClash 守卫改用「墨迹是否跨标签列」区分折叠钮与目的地行，并钉住 y154 / y191、6.97% / 7.85%、2.72%，自测 **14/14** + enforce 0。全仓 `--workspace` nextest/clippy、结构门动态全腿、`resolve_surface_evidence.py` ready cells 与并行 Bevy 身份红腿仍留统一批次 |
-| 7 | 完整 | L | 契约 `TunStack` typed owner → presentation `tun_stack_options` → Iced `dns.rs` / `settings/tun.rs` / `tun_stack_card.rs` 三处消费，一条链；`ConnectionView` 新访问器也归 domain 一处，视图不再直接读 `metadata`。共享 chrome 带 / 每帧 receipt → typed destination interval → `rail_of()` → 参照守卫 → L2/L3 标准 → L4 台账，另一条链；无跨 UI 私有业务真源 |
-| 8 | 部分 | L | 同主题契约、domain、presentation、Iced 接线、参照守卫、标准与台账一次落地后集中跑四包 nextest / Clippy / 定向 Python 门；零像素变化不触发截图重采，不逐文件反复全量验证。全仓 `--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` 留统一批次一次跑完 |
+| 1 | 部分 | L | b238 改 domain/presentation/iced 纯 Rust 与读回消费门禁；domain **643/643**、presentation **1057/1057**、Iced **568/568**、三包 Clippy `--all-targets -D warnings` exit 0（`unused_imports` 单项放宽给并行 b234 会话 WIP）、新守卫 **15/15** + enforce 0 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1） |
+| 2 | 部分 | L | Linux 本机完成 domain/presentation/Iced 编译、Clippy 与定向 nextest、读回消费守卫自测与页面分支单测；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID |
+| 3 | 部分 | L | 零 Android/iOS 代码与资源改动；表格形态只读桌面已有的 typed 读回与共享词表，对移动平台中立，但三 flavor 实机交互与 iOS 产物仍留在外部环境看板，不拿桌面像素冒充移动端证据 |
+| 4 | 部分 | L | **本批：Iced 连接页第一次真的按读回形态分两种正文**（列表卡片 / 列表格），22 个列复选框与分组控件各自只在自己的形态里挂载；但**有可见像素变化**（列表形态少挂 22 个列复选框、已关闭页签状态点由红改灰），Iced 192 帧发布回执因此过期，standard/compact 双视口真实像素回执**待重采** → 部分。既有 Slint **211/211** 与 Iced **192/192** 发布帧的空间复判仍 0 违规（度量未变）；Bevy 192 帧像素与 `FLPROFILES-002` 仍归另一会话，`resolve_surface_evidence.py` ready cells 留统一批次 |
+| 5 | 完整 | L | 形态真源只有一处：契约 `ConnectionViewPreference` / `ConnectionColumnSet` / `ConnectionColumn::support()` → presentation `connection_view_projection` + `connection_view_table_projection`（表头的宽度档与语气档一处发布）→ Iced `connections_table.rs` 只映射三个宽度类与四个语气档；视图不持有列注册表、不持有第二份列集合，守卫五条判据钉住 |
+| 5a | 部分 | L | 零字体/字重/图标/旗资产/文案改动；**但有可见布局变化**（表格形态新增列宽三档与 em 宽省略号裁剪，列表形态少挂 22 个复选框），Iced 真像素回执待重采 → 部分（L）。圆形旗帜容器仍由 4:3 直角资产与 flag guard 钉住 |
+| 6 | 部分 | L | presentation 9 项 + domain 1 项 + Iced 6 项新测试钉住表头顺序、宽度档与语气档、内核不发布列的诚实未知、速率的 Live/Unavailable 区分、em 宽裁剪与两个控件的挂载规则；守卫 **15/15** + enforce 0。全仓 `--workspace` nextest/clippy、结构门动态全腿、`resolve_surface_evidence.py` ready cells 与并行 Bevy 身份红腿仍留统一批次；像素回执待重采 |
+| 7 | 完整 | L | 形态读回 → 共享投影 → Iced 表格模块一条链：`infiltrator-contract::connection_view_preference` → `infiltrator-presentation::connection_view_table_projection` → `infiltrator-iced::view::runtime::connections_table`；列宽与语气由 presentation 一处发布，视图只映射像素；共享 chrome 带 / 每帧 receipt → typed destination interval → `rail_of()` → 参照守卫 → L2/L3 标准 → L4 台账，另一条链；无跨 UI 私有业务真源 |
+| 8 | 部分 | L | 同主题 domain/presentation/Iced/门禁一次落地后集中跑三包 nextest / Clippy / 定向 Python 门；只跑受影响包，不逐文件反复全量验证，也不格式化并行 WIP。本批有可见像素变化，Iced 整批重采与发布留下一批；全仓 `--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` 留统一批次一次跑完 |
 
 ## 历史状态（2026-11-13 第二百二十七批次；b111–b226 见下方批次八问摘要）
 
@@ -95,7 +95,19 @@
 | 7 | 完整 | L | 契约常量 → 导出器 → v18 JSON → Python 版本 pin → 判定器夹具/读回 → 双场景参照守卫 → L2 标准 / L3 上游对照 / L4 台账分层收口；`doc-governance OK`、`closure 8/8`、结构收集器 **198 腿静态形状 0 findings**，无跨 UI 私有业务真源 |
 | 8 | 部分 | L | 同主题导出物、守卫、判据夹具、标准与台账一次落地后集中跑契约构建、空间/参照 Python 门和双表面报告；判据身份变化不触发截图重采。全仓 `--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` 留统一批次一次跑完 |
 
-## 最近一批问答（2026-11-13 第二百三十七批次：FlClash 首行语义更正 + TUN 栈词表回到契约 owner）
+## 最近一批问答（2026-11-13 第二百三十八批次：ClashParty 连接表格形态第一次真的落到像素）
+
+1. x86_64/aarch64：本批只改 domain/presentation/iced 纯 Rust、Python 门禁与 L4 台账，零平台 API；domain **643/643**、presentation **1057/1057**、Iced **568/568**、三包 Clippy `--all-targets -D warnings` exit 0、守卫 **15/15** + enforce 0 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
+2. Windows/Linux/macOS：Linux 本机完成三包编译、Clippy、定向单测与门禁自测；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID → 部分（L）。
+3. Android/iOS：零 Android/iOS 代码与资源改动；表格形态只读桌面已有的 typed 读回与共享词表，对移动平台中立；三 flavor 实机交互与 iOS 产物仍留在外部环境看板 → 部分（L）。
+4. 各 UI：**本批 Iced 连接页第一次真的按读回形态分两种正文**——Table 画列表格、List 画卡片，22 个列复选框只在表格形态挂载、分组控件只在列表形态挂载，两个控件都不再是点不动的死控件；但**有可见像素变化**（列表形态少挂 22 个复选框、已关闭页签状态点由红改灰），Iced 192 帧发布回执过期，双视口真实像素回执**待重采** → 部分（L）。既有 Slint **211/211** 与 Iced **192/192** 发布帧的空间复判仍 0 违规；Bevy 192 帧像素与 `FLPROFILES-002` 仍归另一会话 → 部分（L）。
+5. 复用：形态、列集合与列支持性只有契约 `connection_view_preference` 一处 owner；表头宽度档与语气档由 presentation `connection_view_table_projection` 一处发布，Iced 表格模块只映射三个宽度类与四个语气档，视图不持有列注册表也不读偏好读回 → 完整（L）。
+5a. 设计资源：零字体/字重/图标/旗资产/文案改动；新增的列宽三档与 em 宽省略号裁剪复用共享 `text_width_em` 宽度表（`effect_assets` 是唯一字体字节与宽度 owner），但**可见布局有变化**，Iced 真像素回执待重采 → 部分（L）。
+6. 各处界面的功能接入：presentation 9 项 + domain 1 项 + Iced 6 项新测试钉住表头顺序、宽度档与语气档、内核不发布列的诚实未知、速率的 Live 与 Unavailable 区分、裁剪宽度与两个控件的挂载规则；`iced-connection-view-guard.py` 新增 5 条读回消费判据 + 5 项 planted 负例，自测 **10 → 15/15** + enforce 0。全仓 `--workspace` nextest/clippy、结构门动态全腿、`resolve_surface_evidence.py` ready cells 与并行 Bevy 身份红腿仍留统一批次 → 部分（L）。
+7. 模块化：形态读回 → 共享投影 → Iced 表格模块一条链（contract → presentation → iced），列宽与语气一处发布、视图只映射像素；共享 chrome 带 / 每帧 receipt → typed destination interval → `rail_of()` → 参照守卫 → L2/L3 标准 → L4 台账，另一条链。两条链上都没有跨 UI 私有业务真源，视图不再自己判断列或形态 → 完整（L）。
+8. CI 与批次效率：同主题 domain/presentation/Iced/门禁一次落地后集中跑三包 nextest / Clippy / 定向 Python 门；只跑受影响包，不逐文件反复全量验证，也不格式化并行会话的 WIP。Iced 整批重采与发布留下一批，全仓 `--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` 留统一批次一次跑完 → 部分（L）。
+
+## 历史问答（2026-11-13 第二百三十七批次：FlClash 首行语义更正 + TUN 栈词表回到契约 owner）
 
 1. x86_64/aarch64：本批只改 Contract/Domain/Presentation/Iced 纯 Rust、FlClash 参照守卫与 L2/L3/L4 文档，零平台 API；契约/domain/presentation nextest **1672/1672**、Iced **562/562**、四包 Clippy `--all-targets -D warnings` exit 0、空间判定器 **73/73**、FlClash 守卫 **14/14** + enforce 0 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：Linux 本机完成四包编译/Clippy、定向单测、双张 tracked FlClash PNG 逐像素复量、两表面发布回执复判与文档守卫；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID → 部分（L）。

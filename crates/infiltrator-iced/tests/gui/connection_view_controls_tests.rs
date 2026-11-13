@@ -1,4 +1,4 @@
-use super::{ColumnChoiceState, column_choices, mode_label_key};
+use super::{ColumnChoiceState, column_choices, column_chooser_mounted, mode_label_key};
 use infiltrator_contract::connection_view_preference::{
     ConnectionColumn, ConnectionColumnSet, ConnectionViewIntent, ConnectionViewMode,
     ConnectionViewPreference,
@@ -115,4 +115,12 @@ fn column_choices_never_invent_a_second_preference_state() {
         intent: first_choices[0].intent.clone(),
     };
     assert_ne!(marker, first_choices[0]);
+}
+
+#[test]
+fn the_column_chooser_only_exists_in_the_table_morphology() {
+    // The list morphology renders no column, so a chooser there would be a
+    // control that cannot change what the user sees.
+    assert!(!column_chooser_mounted(ConnectionViewMode::List));
+    assert!(column_chooser_mounted(ConnectionViewMode::Table));
 }

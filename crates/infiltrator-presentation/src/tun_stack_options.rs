@@ -7,7 +7,6 @@
 //! same stack two ways, and cannot rebuild the vocabulary in its own file.
 
 use infiltrator_contract::tun::{TunStack, TunStackChoice};
-use std::collections::HashSet;
 
 /// The entries a TUN stack selector offers, in the contract's own order.
 pub const TUN_STACK_CHOICES: [TunStackChoice; 4] = TunStack::choices();
@@ -59,6 +58,7 @@ pub fn selectable_tun_stack_wire_name_at(index: usize) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashSet;
 
     #[test]
     fn the_offered_entries_are_exactly_the_live_ones() {
@@ -83,7 +83,10 @@ mod tests {
     fn an_index_and_a_wire_name_name_the_same_entry() {
         for (index, choice) in TUN_STACK_CHOICES.iter().enumerate() {
             assert_eq!(tun_stack_index(choice.wire_name), Some(index));
-            assert_eq!(tun_stack_copy_key_at(index), tun_stack_copy_key(choice.stack));
+            assert_eq!(
+                tun_stack_copy_key_at(index),
+                tun_stack_copy_key(choice.stack)
+            );
         }
         assert_eq!(tun_stack_index("unknown"), None);
     }

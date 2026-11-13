@@ -346,3 +346,43 @@ fn spec_converts_to_override_intent() {
     assert_eq!(intent.target, "PROXY");
     assert_eq!(intent.rule_line(), "DOMAIN-SUFFIX,google.com,PROXY");
 }
+
+#[test]
+fn a_rated_row_keeps_every_fact_its_row_carries() {
+    let row = connection(
+        "rated-1",
+        "api.example.org",
+        "203.0.113.7",
+        "/usr/bin/client",
+        1024,
+        2048,
+    );
+    let rate = ConnectionRate {
+        observation: ConnectionRateObservation::Measured,
+        upload_bps: 512.0,
+        download_bps: 1024.0,
+        upload_delta_bytes: 256,
+        download_delta_bytes: 512,
+    };
+    let rated = RatedConnection::new(&row, rate);
+
+    assert_eq!(rated.view_id(), "rated-1");
+    assert_eq!(rated.view_host(), "api.example.org");
+    assert_eq!(rated.view_process_path(), "/usr/bin/client");
+    assert_eq!(rated.view_source_ip(), "192.168.1.5");
+    assert_eq!(rated.view_source_port(), "50000");
+    assert_eq!(rated.view_destination_ip(), "203.0.113.7");
+    assert_eq!(rated.view_destination_port(), "443");
+    assert_eq!(rated.view_network(), "tcp");
+    assert_eq!(rated.view_dns_mode(), "normal");
+    assert_eq!(rated.view_rule(), "DomainSuffix");
+    assert_eq!(rated.view_rule_payload(), "api.example.org");
+    assert_eq!(rated.view_start(), "2026-09-22T00:00:00Z");
+    assert_eq!(rated.view_chain(), &["PROXY".to_string()]);
+    assert_eq!(rated.view_upload_total(), 1024);
+    assert_eq!(rated.view_download_total(), 2048);
+    assert_eq!(rated.view_upload_rate_bps(), 512.0);
+    assert_eq!(rated.view_download_rate_bps(), 1024.0);
+    assert_eq!(rated.view_process_name(), "client");
+    assert_eq!(rated.view_remote_destination(), "api.example.org");
+}

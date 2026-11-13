@@ -452,12 +452,34 @@ impl<C: ConnectionView> ConnectionView for RatedConnection<'_, C> {
         self.row.view_destination_ip()
     }
 
+    fn view_source_ip(&self) -> &str {
+        self.row.view_source_ip()
+    }
+
     fn view_destination_port(&self) -> &str {
         self.row.view_destination_port()
     }
+
+    fn view_source_port(&self) -> &str {
+        self.row.view_source_port()
+    }
+
+    fn view_network(&self) -> &str {
+        self.row.view_network()
+    }
+
+    fn view_dns_mode(&self) -> &str {
+        self.row.view_dns_mode()
+    }
+
+    fn view_rule_payload(&self) -> &str {
+        self.row.view_rule_payload()
+    }
+
     fn view_rule(&self) -> &str {
         self.row.view_rule()
     }
+
     fn view_start(&self) -> &str {
         self.row.view_start()
     }

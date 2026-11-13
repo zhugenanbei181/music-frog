@@ -9,7 +9,9 @@ use crate::state::runtime::ConnectionTab;
 use crate::types::app::ConfirmAction;
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStreamState;
-use crate::view::runtime::{connection_search, connection_view_controls, connections_controls};
+use crate::view::runtime::{
+    connection_search, connection_view_controls, connections_controls, connections_table,
+};
 use crate::view_root::interaction_regions::InteractionRegion;
 use infiltrator_shared::byte_units::format_bytes;
 
@@ -24,13 +26,17 @@ use crate::view::theme::{SP_MD, tokens};
 use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme};
+use infiltrator_contract::connection_view_preference::ConnectionViewMode;
 use infiltrator_domain::connection_activity::{IDLE_TIMEOUT_CHOICES, idle_timeout_minutes_label};
-use infiltrator_domain::connection_rate::ConnectionRates;
-use infiltrator_domain::connection_view::ConnectionGroupingMode;
+use infiltrator_domain::connection_rate::{ConnectionRate, ConnectionRates};
+use infiltrator_domain::connection_view::{ConnectionGroupingMode, RatedConnection};
 use infiltrator_domain::runtime::Connection;
 use infiltrator_domain::{connection_rate, connection_view};
 use infiltrator_presentation::connection_grouping::sort_label_key;
 use infiltrator_presentation::connection_page_model::{CONNECTION_SORT_OPTIONS, sort_option_at};
+use infiltrator_presentation::connection_view_table_projection::{
+    ConnectionTableStatus, project_connection_view_table,
+};
 use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer};
 
@@ -82,6 +88,15 @@ pub fn outbound_target_info(conn: &Connection) -> (String, BadgeKind) {
     };
 
     (target, kind)
+}
+
+/// Whether the grouping control is mounted for the given readback.
+///
+/// The table shows one row per connection, so the grouping buckets have no
+/// place there: a grouping control in the table morphology would fold rows
+/// the table cannot show.
+pub(crate) const fn grouping_control_mounted(mode: ConnectionViewMode) -> bool {
+    matches!(mode, ConnectionViewMode::List)
 }
 
 /// DUAL-13-10: the breathing glow of one row at the shared pulse phase; zero
@@ -189,7 +204,17 @@ fn connections_section_with_scroll_owner<'a>(
         })
     });
 
-    let group_control = connections_controls::grouping(state);
+    // The user's persisted morphology decides what the page body is: the
+    // list of cards or the table of columns. The readback is the owner's, so
+    // the page never keeps a mode of its own and never renders both.
+    let view_mode = state.diag.connection_view.mode;
+    let table_mode = view_mode == ConnectionViewMode::Table;
+
+    // The grouping control folds the rows into buckets, which the table
+    // cannot show: a table row is one connection. In the table morphology the
+    // control is not mounted at all, so no control is ever inert.
+    let group_control =
+        grouping_control_mounted(view_mode).then(|| connections_controls::grouping(state));
     let search_control = connections_controls::search(state);
     let connection_view_control = connection_view_controls::view_mode_controls(state);
 
@@ -206,29 +231,34 @@ fn connections_section_with_scroll_owner<'a>(
     .on_press_maybe((!user_filter.is_empty()).then_some(Message::CloseFilteredConnections));
 
     let filter_bar: Element<'_, Message> = if state.shell.viewport.tier.is_narrow() {
-        column![
+        let mut items: Vec<Element<'_, Message>> = vec![
             row![sub_tabs, close_filtered_btn]
                 .spacing(theme::SP_SM)
-                .align_y(Alignment::Center),
-            group_control,
-            search_control,
-            connection_view_control,
-        ]
-        .spacing(theme::SP_SM)
-        .width(Length::Fill)
-        .into()
+                .align_y(Alignment::Center)
+                .into(),
+        ];
+        if let Some(group_control) = group_control {
+            items.push(group_control);
+        }
+        items.push(search_control);
+        items.push(connection_view_control);
+        column(items)
+            .spacing(theme::SP_SM)
+            .width(Length::Fill)
+            .into()
     } else {
-        row![
-            sub_tabs,
-            group_control,
-            search_control,
-            connection_view_control,
-            close_filtered_btn
-        ]
-        .spacing(theme::SP_SM)
-        .align_y(Alignment::Center)
-        .width(Length::Fill)
-        .into()
+        let mut items: Vec<Element<'_, Message>> = vec![sub_tabs];
+        if let Some(group_control) = group_control {
+            items.push(group_control);
+        }
+        items.push(search_control);
+        items.push(connection_view_control);
+        items.push(close_filtered_btn.into());
+        row(items)
+            .spacing(theme::SP_SM)
+            .align_y(Alignment::Center)
+            .width(Length::Fill)
+            .into()
     };
 
     // DUAL-13-11: idle-timeout control + manual sweep with honest last-sweep
@@ -324,37 +354,61 @@ fn connections_section_with_scroll_owner<'a>(
                 lang.tr("conn_no_closed_desc").as_ref(),
             ));
         } else {
-            let mut closed_list = column![].spacing(theme::SP_SM);
-            for row in closed_rows {
-                let traffic = format!(
-                    "↑ {} · ↓ {}",
-                    format_bytes(row.upload_bytes),
-                    format_bytes(row.download_bytes)
-                );
-                closed_list = closed_list.push(
-                    container(
-                        row![
-                            status_dot(false),
-                            Space::new().width(theme::SP_SM),
-                            theme::role_body_text(row.destination).width(Length::Fill),
-                            badge(row.outbound, BadgeKind::Neutral),
-                            Space::new().width(theme::SP_SM),
-                            theme::role_body_text(traffic),
-                        ]
-                        .align_y(Alignment::Center),
-                    )
-                    .padding([10, 16])
-                    .style(row_card_surface),
-                );
-            }
             connections_section = connections_section.push(
                 button(theme::role_body_text(lang.tr("common_clear")))
                     .padding([7, 10])
                     .style(style_ghost)
                     .on_press(Message::ClearClosedConnections),
             );
-            connections_section =
-                connections_section.push(modern_scrollable(closed_list).height(Length::Fill));
+            if table_mode {
+                // The closed records carry fewer facts than a live row, so
+                // the table shows the honest unknown where the owner
+                // published nothing.
+                let rated: Vec<RatedConnection<'_, _>> = closed_rows
+                    .iter()
+                    .map(|row| RatedConnection::new(row, ConnectionRate::default()))
+                    .collect();
+                let projection = project_connection_view_table(
+                    &state.diag.connection_view.columns,
+                    &rated,
+                    ConnectionTableStatus::Closed,
+                );
+                connections_section =
+                    connections_section.push(connections_table::connection_table(
+                        state,
+                        &projection,
+                        ConnectionTableStatus::Closed,
+                        |id| state.diag.closed_connections_model.search_row(id),
+                    ));
+            } else {
+                let mut closed_list = column![].spacing(theme::SP_SM);
+                for row in closed_rows {
+                    let traffic = format!(
+                        "↑ {} · ↓ {}",
+                        format_bytes(row.upload_bytes),
+                        format_bytes(row.download_bytes)
+                    );
+                    closed_list = closed_list.push(
+                        container(
+                            row![
+                                connections_table::connection_status_dot(
+                                    ConnectionTableStatus::Closed
+                                ),
+                                Space::new().width(theme::SP_SM),
+                                theme::role_body_text(row.destination).width(Length::Fill),
+                                badge(row.outbound, BadgeKind::Neutral),
+                                Space::new().width(theme::SP_SM),
+                                theme::role_body_text(traffic),
+                            ]
+                            .align_y(Alignment::Center),
+                        )
+                        .padding([10, 16])
+                        .style(row_card_surface),
+                    );
+                }
+                connections_section =
+                    connections_section.push(modern_scrollable(closed_list).height(Length::Fill));
+            }
         }
     } else if state.diag.connections_model.source_current() {
         // The shared page model owns the query fold and the row order; this
@@ -371,6 +425,21 @@ fn connections_section_with_scroll_owner<'a>(
                 Icon::Plug,
                 lang.tr("runtime_no_matching_connections").as_ref(),
                 "",
+            ));
+        } else if table_mode {
+            // The table morphology renders one row per connection with the
+            // user's own columns; the shared projection formats every cell,
+            // so this surface only places the published columns.
+            let projection = project_connection_view_table(
+                &state.diag.connection_view.columns,
+                &rated_rows,
+                ConnectionTableStatus::Active,
+            );
+            connections_section = connections_section.push(connections_table::connection_table(
+                state,
+                &projection,
+                ConnectionTableStatus::Active,
+                |id| state.diag.connections_model.search_row(id),
             ));
         } else if !state.diag.connections_model.mode().is_flat() {
             // DUAL-13-02: both grouped dimensions reduce through the shared

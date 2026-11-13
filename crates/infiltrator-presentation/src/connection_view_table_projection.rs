@@ -1,0 +1,333 @@
+//! The Connections page's table morphology, projected once for every surface.
+//!
+//! The list answers "what is happening right now"; the table answers "which
+//! facts does this user want side by side". The visible columns are the
+//! user's persisted preference, so this projection never invents a column,
+//! never reorders the user's choice and never fills a cell with a guess:
+//!
+//! * a column the kernel does not publish at all renders the honest unknown,
+//!   because the contract's `ConnectionColumn::support()` is the only place
+//!   that knows which facts this engine reports;
+//! * a fact the owner did not report for *this* row renders the same
+//!   unknown, so an empty cell never means "empty" and never means zero;
+//! * an instantaneous rate stays a `Live` cell, so a surface can render it
+//!   apart from a cumulative total without re-deriving which one it holds.
+//!
+//! The projection is pure: it reads the typed preference and the observed
+//! rows and publishes the table. It performs no I/O, keeps no state and
+//! cannot dispatch a command.
+
+use crate::connection_view_projection::ConnectionViewColumnProjection;
+use infiltrator_contract::connection::ConnectionRateObservation;
+use infiltrator_contract::connection_view_preference::{ConnectionColumn, ConnectionColumnSupport};
+use infiltrator_domain::connection_view::{ConnectionView, RatedConnection, route_chain};
+use infiltrator_shared::byte_units::format_bytes;
+use infiltrator_shared::effect_assets::text_width_em;
+
+/// The honest value of a fact nobody published.
+pub const UNAVAILABLE: &str = "—";
+
+/// How much room a column wants, so a surface lays the table out without
+/// re-deriving which column carries what.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ConnectionColumnWidth {
+    /// A status dot, a protocol, a port or a counter.
+    Narrow,
+    /// A host, a process name, a rule or an address.
+    Regular,
+    /// A process path or a route chain.
+    Wide,
+}
+
+/// Whether a row is still live or already closed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ConnectionTableStatus {
+    /// A connection the kernel is still carrying.
+    Active,
+    /// A record of a connection that already ended.
+    Closed,
+}
+
+/// How a surface presents one column's cells.
+///
+/// The tone belongs to the column, not to the surface: the matched rule reads
+/// as the accent everywhere, a route chain reads as a secondary fact
+/// everywhere, and a counter reads as a number everywhere. A surface only
+/// maps the tone onto its own roles, so no surface decides on its own that
+/// one column is special.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ConnectionTableTone {
+    /// An ordinary fact.
+    Plain,
+    /// The matched rule, the page's accent.
+    Accent,
+    /// A secondary fact, such as the route chain or the process path.
+    Muted,
+    /// A number, such as a rate or a counter.
+    Numeric,
+}
+
+/// One table cell, typed by what it carries.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ConnectionTableCell {
+    /// A value the owner reported and that does not change between frames.
+    Text(String),
+    /// An instantaneous value that changes between frames.
+    Live(String),
+    /// The row's status, rendered as a status dot.
+    Status(ConnectionTableStatus),
+    /// Nobody published this fact.
+    Unavailable,
+}
+
+impl ConnectionTableCell {
+    /// The text this cell renders, when it renders text at all.
+    pub fn text(&self) -> Option<&str> {
+        match self {
+            Self::Text(value) | Self::Live(value) => Some(value.as_str()),
+            Self::Status(_) | Self::Unavailable => None,
+        }
+    }
+
+    /// Whether this cell is the honest unknown.
+    pub fn is_unavailable(&self) -> bool {
+        matches!(self, Self::Unavailable)
+    }
+}
+
+/// One header cell of the table.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ConnectionTableHeader {
+    /// The contract's column identity.
+    pub column: ConnectionColumn,
+    /// The stable semantic ID, which doubles as the shared-copy key.
+    pub semantic_id: &'static str,
+    /// How much room the column wants.
+    pub width: ConnectionColumnWidth,
+    /// How the column's cells read.
+    pub tone: ConnectionTableTone,
+    /// Whether the kernel publishes this column's fact at all.
+    pub support: ConnectionColumnSupport,
+}
+
+/// One data row of the table.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ConnectionTableRow {
+    /// The connection identity, so a surface can key the row.
+    pub id: String,
+    /// The cells, in the header's order.
+    pub cells: Vec<ConnectionTableCell>,
+}
+
+/// The whole table: the header first, then the rows in page order.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ConnectionTableProjection {
+    pub headers: Vec<ConnectionTableHeader>,
+    pub rows: Vec<ConnectionTableRow>,
+}
+
+/// Project the user's visible columns and the observed rows into a table.
+///
+/// The rows arrive in the page's own order; the projection keeps that order
+/// and never sorts or filters on its own.
+pub fn project_connection_view_table<C: ConnectionView>(
+    columns: &[ConnectionViewColumnProjection],
+    rows: &[RatedConnection<'_, C>],
+    status: ConnectionTableStatus,
+) -> ConnectionTableProjection {
+    let headers: Vec<ConnectionTableHeader> = columns
+        .iter()
+        .map(|column| ConnectionTableHeader {
+            column: column.column,
+            semantic_id: column.semantic_id,
+            width: connection_column_width(column.column),
+            tone: connection_column_tone(column.column),
+            support: column.column.support(),
+        })
+        .collect();
+    let rows = rows
+        .iter()
+        .map(|row| ConnectionTableRow {
+            id: row.row.view_id().to_owned(),
+            cells: headers
+                .iter()
+                .map(|header| cell_for(header.column, row, status))
+                .collect(),
+        })
+        .collect();
+    ConnectionTableProjection { headers, rows }
+}
+
+/// How one column's cells read.
+pub const fn connection_column_tone(column: ConnectionColumn) -> ConnectionTableTone {
+    match column {
+        ConnectionColumn::Rule => ConnectionTableTone::Accent,
+        ConnectionColumn::ProxyChain | ConnectionColumn::ProcessPath => ConnectionTableTone::Muted,
+        ConnectionColumn::EstablishTime
+        | ConnectionColumn::SourceIp
+        | ConnectionColumn::SourcePort
+        | ConnectionColumn::DestinationIp
+        | ConnectionColumn::DestinationPort
+        | ConnectionColumn::UploadSpeed
+        | ConnectionColumn::DownloadSpeed
+        | ConnectionColumn::Upload
+        | ConnectionColumn::Download => ConnectionTableTone::Numeric,
+        ConnectionColumn::Status
+        | ConnectionColumn::Type
+        | ConnectionColumn::Host
+        | ConnectionColumn::SniffHost
+        | ConnectionColumn::Process
+        | ConnectionColumn::InboundIp
+        | ConnectionColumn::InboundPort
+        | ConnectionColumn::Dscp
+        | ConnectionColumn::RemoteDestination
+        | ConnectionColumn::DnsMode => ConnectionTableTone::Plain,
+    }
+}
+
+/// How much room one column wants.
+pub const fn connection_column_width(column: ConnectionColumn) -> ConnectionColumnWidth {
+    match column {
+        ConnectionColumn::Status
+        | ConnectionColumn::Type
+        | ConnectionColumn::SourcePort
+        | ConnectionColumn::DestinationPort
+        | ConnectionColumn::InboundPort
+        | ConnectionColumn::UploadSpeed
+        | ConnectionColumn::DownloadSpeed
+        | ConnectionColumn::Upload
+        | ConnectionColumn::Download
+        | ConnectionColumn::Dscp
+        | ConnectionColumn::DnsMode => ConnectionColumnWidth::Narrow,
+        ConnectionColumn::EstablishTime
+        | ConnectionColumn::SniffHost
+        | ConnectionColumn::Process
+        | ConnectionColumn::Rule
+        | ConnectionColumn::SourceIp
+        | ConnectionColumn::DestinationIp
+        | ConnectionColumn::InboundIp => ConnectionColumnWidth::Regular,
+        ConnectionColumn::Host
+        | ConnectionColumn::ProcessPath
+        | ConnectionColumn::ProxyChain
+        | ConnectionColumn::RemoteDestination => ConnectionColumnWidth::Wide,
+    }
+}
+
+/// The cell one column publishes for one row.
+fn cell_for<C: ConnectionView>(
+    column: ConnectionColumn,
+    row: &RatedConnection<'_, C>,
+    status: ConnectionTableStatus,
+) -> ConnectionTableCell {
+    let support = column.support();
+    if support == ConnectionColumnSupport::Unreported {
+        return ConnectionTableCell::Unavailable;
+    }
+    match column {
+        ConnectionColumn::Status => ConnectionTableCell::Status(status),
+        ConnectionColumn::EstablishTime => establish_time(row, status),
+        ConnectionColumn::Type => reported(&row.view_network().to_ascii_uppercase()),
+        ConnectionColumn::Host => reported(row.view_host()),
+        ConnectionColumn::Process => reported(&row.view_process_name()),
+        ConnectionColumn::ProcessPath => reported(row.view_process_path()),
+        ConnectionColumn::Rule => reported(row.view_rule()),
+        ConnectionColumn::ProxyChain => reported(&route_chain(row.row).display(" → ")),
+        ConnectionColumn::SourceIp => reported(row.view_source_ip()),
+        ConnectionColumn::SourcePort => reported(row.view_source_port()),
+        ConnectionColumn::DestinationIp => reported(row.view_destination_ip()),
+        ConnectionColumn::DestinationPort => reported(row.view_destination_port()),
+        ConnectionColumn::UploadSpeed => speed(row, true),
+        ConnectionColumn::DownloadSpeed => speed(row, false),
+        ConnectionColumn::Upload => {
+            ConnectionTableCell::Text(format_bytes(row.view_upload_total()))
+        }
+        ConnectionColumn::Download => {
+            ConnectionTableCell::Text(format_bytes(row.view_download_total()))
+        }
+        ConnectionColumn::RemoteDestination => reported(&row.view_remote_destination()),
+        ConnectionColumn::DnsMode => reported(row.view_dns_mode()),
+        // The contract already refused these four; the match stays exhaustive
+        // over the closed registry so a future column cannot slip through.
+        ConnectionColumn::SniffHost
+        | ConnectionColumn::InboundIp
+        | ConnectionColumn::InboundPort
+        | ConnectionColumn::Dscp => {
+            debug_assert_eq!(support, ConnectionColumnSupport::Unreported);
+            ConnectionTableCell::Unavailable
+        }
+    }
+}
+
+/// The reported value, or the honest unknown when nobody reported one.
+fn reported(value: &str) -> ConnectionTableCell {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        ConnectionTableCell::Unavailable
+    } else {
+        ConnectionTableCell::Text(trimmed.to_owned())
+    }
+}
+
+/// The establishment instant of a live connection.
+///
+/// A closed record publishes the instant the connection *ended*, not the one
+/// it started, so the column stays the unknown for a closed row instead of
+/// answering a different question with the same number.
+fn establish_time<C: ConnectionView>(
+    row: &RatedConnection<'_, C>,
+    status: ConnectionTableStatus,
+) -> ConnectionTableCell {
+    if status == ConnectionTableStatus::Closed {
+        return ConnectionTableCell::Unavailable;
+    }
+    reported(row.view_start())
+}
+
+/// One instantaneous rate, or the unknown when no window was measured.
+fn speed<C: ConnectionView>(row: &RatedConnection<'_, C>, upload: bool) -> ConnectionTableCell {
+    if row.rate.observation != ConnectionRateObservation::Measured {
+        return ConnectionTableCell::Unavailable;
+    }
+    let bytes_per_second = if upload {
+        row.rate.upload_bps
+    } else {
+        row.rate.download_bps
+    };
+    if !bytes_per_second.is_finite() || bytes_per_second < 0.0 {
+        return ConnectionTableCell::Unavailable;
+    }
+    ConnectionTableCell::Live(format!("{}/s", format_bytes(bytes_per_second as u64)))
+}
+
+/// Cut a cell's text to the width its column allows.
+///
+/// The width is measured in em, so a full-width character counts twice as
+/// much as a half-width one and a CJK cell is cut at the same visual width
+/// as a latin one. The cut keeps the text honest: it marks the truncation
+/// with an ellipsis instead of ending the word silently.
+pub fn ellipsize(text: &str, max_width_em: f32) -> String {
+    if !max_width_em.is_finite() || max_width_em <= 0.0 {
+        return text.to_owned();
+    }
+    if text_width_em(text) <= max_width_em {
+        return text.to_owned();
+    }
+    let ellipsis = "…";
+    let budget = max_width_em - text_width_em(ellipsis);
+    let mut kept = String::new();
+    let mut width = 0.0_f32;
+    for ch in text.chars() {
+        let char_width = text_width_em(&ch.to_string());
+        if width + char_width > budget {
+            break;
+        }
+        kept.push(ch);
+        width += char_width;
+    }
+    kept.push_str(ellipsis);
+    kept
+}
+
+#[cfg(test)]
+#[path = "connection_view_table_projection_tests.rs"]
+mod tests;

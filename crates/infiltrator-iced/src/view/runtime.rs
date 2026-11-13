@@ -12,6 +12,7 @@ pub(crate) mod connection_search;
 pub(crate) mod connection_view_controls;
 pub(crate) mod connections;
 pub(crate) mod connections_controls;
+pub(crate) mod connections_table;
 mod delay;
 pub(crate) mod logs;
 pub(crate) mod logs_controls;

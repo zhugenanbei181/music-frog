@@ -58,9 +58,7 @@ pub(super) fn tun_card<'a>(
 
     let stack_options: Vec<String> = selectable_tun_stack_choices()
         .into_iter()
-        .map(|choice| {
-            lang.tr(tun_stack_copy_key(choice.stack)).to_string()
-        })
+        .map(|choice| lang.tr(tun_stack_copy_key(choice.stack)).to_string())
         .collect();
     let observed = &state.runtime.runtime_control;
     let available = observed.status == RuntimeControlStatus::Ready
