@@ -1,4 +1,75 @@
 {
-  "sites": [],
-  "version": 1
+  "sites": [
+    {
+      "file": "crates/infiltrator-iced/src/view/proxies.rs",
+      "form": "enabled_handler",
+      "handler": "enabled",
+      "kind": "unwrap_or_noop",
+      "line": 214,
+      "owner": "b246 G1 proxy action availability (separate session)",
+      "reason": "group delay-test icon_button is always on_press; missing typed group id or refused probe produces Message::Noop",
+      "widget": "icon_button"
+    },
+    {
+      "file": "crates/infiltrator-iced/src/view/proxies.rs",
+      "form": "enabled_handler",
+      "handler": "enabled",
+      "kind": "unwrap_or_noop",
+      "line": 244,
+      "owner": "b246 G1 proxy action availability (separate session)",
+      "reason": "move-group-up icon_button is always on_press; missing typed group id produces Message::Noop",
+      "widget": "icon_button"
+    },
+    {
+      "file": "crates/infiltrator-iced/src/view/proxies.rs",
+      "form": "enabled_handler",
+      "handler": "enabled",
+      "kind": "unwrap_or_noop",
+      "line": 253,
+      "owner": "b246 G1 proxy action availability (separate session)",
+      "reason": "move-group-down icon_button is always on_press; missing typed group id produces Message::Noop",
+      "widget": "icon_button"
+    },
+    {
+      "file": "crates/infiltrator-iced/src/view/proxies.rs",
+      "form": "enabled_handler",
+      "handler": "enabled",
+      "kind": "unwrap_or_noop",
+      "line": 263,
+      "owner": "b246 G1 proxy action availability (separate session)",
+      "reason": "expand/collapse icon_button is always on_press; missing typed group id produces Message::Noop",
+      "widget": "icon_button"
+    },
+    {
+      "file": "crates/infiltrator-iced/src/view/proxies/node_cards.rs",
+      "form": "message_helper",
+      "handler": "enabled",
+      "kind": "unwrap_or_noop",
+      "line": 14,
+      "owner": "b246 G1 proxy action availability (separate session)",
+      "reason": "favorite_message builds an always-on icon_button message; missing typed OutboundId produces Message::Noop",
+      "widget": "icon_button"
+    },
+    {
+      "file": "crates/infiltrator-iced/src/view/runtime.rs",
+      "form": "choice_widget",
+      "handler": "enabled",
+      "kind": "unwrap_or_noop",
+      "line": 243,
+      "owner": "b246 G1 proxy action availability (separate session)",
+      "reason": "compact runtime node pick_list stays enabled; refused selection produces Message::Noop",
+      "widget": "pick_list"
+    },
+    {
+      "file": "crates/infiltrator-iced/src/view/runtime.rs",
+      "form": "choice_widget",
+      "handler": "enabled",
+      "kind": "unwrap_or_noop",
+      "line": 286,
+      "owner": "b246 G1 proxy action availability (separate session)",
+      "reason": "standard runtime node pick_list stays enabled; refused selection produces Message::Noop",
+      "widget": "pick_list"
+    }
+  ],
+  "version": 2
 }

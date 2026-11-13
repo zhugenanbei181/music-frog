@@ -39,6 +39,8 @@
 
 - `python3 scripts/quality/ci-dependencies-guard.py --mode enforce`：`scripts/ci-python-requirements.txt` 是 CI Python 依赖的唯一真源。守卫从结构门所有 `gate` 腿出发，沿脚本之间的 import 闭包逐层扫描第三方模块（包括函数内懒加载与 `try/except ImportError` 包裹的 import），未登记的包会让该腿在 CI 里崩于 `ModuleNotFoundError` 之前，phantom 依赖也会被咬；凡是运行结构门的 workflow 必须用 `-r scripts/ci-python-requirements.txt` 安装，不得再手打包名。`--self-test` 10 项 planted 覆盖「漏登记 / 幻影依赖 / 漏写 import 名 / workflow 手打包名 / workflow 不装依赖 / 懒加载 / 守卫内 import / 仓库内模块传递依赖」。
 
+- `python3 scripts/quality/iced-dead-input-guard.py --mode enforce`：Iced 侧「已启用但无法改变状态」的控件是结构门可见的欠账，不是静默绿。守卫在 `crates/infiltrator-iced/src/view/` 上做 site-level enabled-handler 审计，覆盖 `Message::Noop` 的 `unwrap_or` / `unwrap_or_else` / `then_some(...).unwrap_or`、旧 choice 闭包与 `on_select`，并用真禁用控件作负例；`scripts/quality/iced_dead_input_inventory.json` v2 以 `file:line:form` 精确登记 7 条真实欠账，`--update-inventory` 拒绝新增、只允许 stale 删除。业务侧补齐 typed 意图读回后必须同步收紧欠账，否则守卫报 stale。`scripts/quality/tests/test_iced_dead_input_guard.py` 另有 3 项外部回归。
+
 每个守卫都支持 `--self-test` 自检，单元回归在 `scripts/quality/tests/` 下随结构门一起运行。
 
 ### 可选审计工具（非门禁）
