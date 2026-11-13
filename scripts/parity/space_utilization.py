@@ -125,6 +125,21 @@ CHROME_KEYS_FOR_TEST = [
     "sidebar_expansion", "touch_surface", "sidebar_toggle_px",
 ]
 
+NAV_TAIL_LIMITS_FOR_TEST = {
+    "stack_bottom_px": 579,
+    "headroom_pct": 2.76,
+    "bands": [
+        {"id": "short", "min_height_px": 0, "max_height_px": 600,
+         "limit_pct": 18.0},
+        {"id": "medium", "min_height_px": 600, "max_height_px": 900,
+         "limit_pct": 50.0},
+        {"id": "tall", "min_height_px": 900, "max_height_px": 1200,
+         "limit_pct": 60.0},
+        {"id": "reference", "min_height_px": 1200, "max_height_px": None,
+         "limit_pct": 73.0},
+    ],
+}
+
 ROW_INK_FRACTION = 0.04
 MIN_CONTENT_RUN = 3
 GROUND_DELTA = 18
@@ -181,6 +196,7 @@ def ladder_problems() -> list[str]:
         problems.append(
             "page-structure.json carries no navigation_limits; "
             "rerun export_page_structure")
+    problems.extend(nav_tail_band_problems())
     for entry in tiers:
         limit = entry.get("nav_leading_limit_px")
         labelled = bool(entry.get("labelled_sidebar"))
@@ -543,6 +559,53 @@ def navigation_limits() -> dict[str, float]:
     return {key: float(limits[key]) for key in keys}
 
 
+def nav_tail_bands() -> list[dict]:
+    """The exported trailing-ground caps, one half-open height band each."""
+    document = json.loads(PAGE_STRUCTURE_FILE.read_text(encoding="utf-8"))
+    limits = document.get("navigation_limits")
+    if not isinstance(limits, dict):
+        return []
+    table = limits.get("nav_tail_limits")
+    if not isinstance(table, dict):
+        return []
+    bands = table.get("bands")
+    if not isinstance(bands, list) or not bands:
+        return []
+    return bands
+
+
+def nav_tail_band_problems() -> list[str]:
+    """Refuse a height ladder that leaves a window with no typed cap."""
+    bands = nav_tail_bands()
+    if not bands:
+        return ["page-structure.json carries no nav_tail_limits height bands; "
+                "rerun export_page_structure"]
+    problems: list[str] = []
+    if bands[0]["min_height_px"] != 0:
+        problems.append("the exported nav-tail height ladder does not start at 0")
+    if bands[-1]["max_height_px"] is not None:
+        problems.append("the exported nav-tail height ladder's tallest band "
+                        "carries an upper bound")
+    for index, band in enumerate(bands):
+        if band["min_height_px"] >= (band["max_height_px"] or float("inf")):
+            problems.append(f"the exported nav-tail band {band['id']} is empty")
+        if index and bands[index - 1]["max_height_px"] != band["min_height_px"]:
+            problems.append(
+                f"the exported nav-tail bands leave heights between "
+                f"{bands[index - 1]['max_height_px']} and {band['min_height_px']} "
+                "in no band")
+    return problems
+
+
+def nav_tail_limit(height_px: int) -> float:
+    """The contract's cap for one frame's real window height."""
+    for band in nav_tail_bands():
+        upper = band["max_height_px"]
+        if height_px >= band["min_height_px"] and (upper is None or height_px < upper):
+            return float(band["limit_pct"])
+    raise ValueError(f"no exported nav-tail band owns height {height_px}")
+
+
 def scenario_pages(run: pathlib.Path) -> dict[str, str]:
     """The capture page slug of every scenario in a published batch."""
     manifest = run / "capture-manifest.tsv"
@@ -709,6 +772,7 @@ def measure(run: pathlib.Path) -> list[dict]:
                      page=pages.get(scenario.name, ""),
                      tier=tier(image.shape[1]),
                      size=f"{image.shape[1]}x{image.shape[0]}",
+                     height_px=image.shape[0],
                      chrome=chrome)
         if chrome is None:
             # No self-description, no box, no verdict: `chrome_findings`
@@ -806,21 +870,22 @@ def rail_debt_from_results(results: list[dict], limits: dict[str, float]) -> dic
     columned = [entry for entry in results if "chrome_band_pct" in entry]
     if not columned:
         return {}
-    observed = {
-        "chrome_band_pct": max(entry.get("chrome_band_pct", 0.0) for entry in columned),
-        "void_pct": max(entry.get("void_pct", 0.0) for entry in columned),
-        "nav_tail_pct": max(entry.get("nav_tail_pct", 0.0) for entry in columned),
-    }
-    cap_for = {
-        "chrome_band_pct": "chrome_band_limit_pct",
-        "void_pct": "void_limit_pct",
-        "nav_tail_pct": "nav_tail_ground_limit_pct",
-    }
-    return {
-        key: value
-        for key, value in observed.items()
-        if value > limits[cap_for[key]]
-    }
+    debt: dict[str, float] = {}
+    chrome = max(entry.get("chrome_band_pct", 0.0) for entry in columned)
+    void = max(entry.get("void_pct", 0.0) for entry in columned)
+    if chrome > limits["chrome_band_limit_pct"]:
+        debt["chrome_band_pct"] = chrome
+    if void > limits["void_limit_pct"]:
+        debt["void_pct"] = void
+    tail = [
+        (entry.get("nav_tail_pct", 0.0),
+         nav_tail_limit(int(entry.get("height_px", 0))))
+        for entry in columned
+    ]
+    tail = [(value, cap) for value, cap in tail if value > cap]
+    if tail:
+        debt["nav_tail_pct"] = max(value for value, _ in tail)
+    return debt
 
 
 def chrome_findings(results: list[dict]) -> list[str]:
@@ -1005,10 +1070,16 @@ def rail_findings(results: list[dict], debt: dict) -> list[str]:
                 "rerun export_page_structure"]
     chrome_limit = limits["chrome_band_limit_pct"]
     void_limit = limits["void_limit_pct"]
-    nav_tail_limit = limits["nav_tail_ground_limit_pct"]
     worst_chrome = max((entry.get("chrome_band_pct", 0.0) for entry in columned))
     worst_void = max((entry.get("void_pct", 0.0) for entry in columned))
-    worst_nav_tail = max((entry.get("nav_tail_pct", 0.0) for entry in columned))
+    tail_breaches = [
+        (entry["scenario"],
+         entry.get("nav_tail_pct", 0.0),
+         nav_tail_limit(int(entry.get("height_px", 0))))
+        for entry in columned
+        if entry.get("nav_tail_pct", 0.0)
+        > nav_tail_limit(int(entry.get("height_px", 0)))
+    ]
     allowed_chrome = float(registered.get("chrome_band_pct", 0.0))
     allowed_void = float(registered.get("void_pct", 0.0))
     allowed_nav_tail = float(registered.get("nav_tail_pct", 0.0))
@@ -1026,11 +1097,13 @@ def rail_findings(results: list[dict], debt: dict) -> list[str]:
                 f"{void_limit}% limit"
                 + (f" and over its registered debt {allowed_void}%" if allowed_void else "")
             )
-    if worst_nav_tail > nav_tail_limit:
+    if tail_breaches:
+        worst_nav_tail = max(value for _, value, _ in tail_breaches)
         if worst_nav_tail > allowed_nav_tail:
+            scenario, _, cap = max(tail_breaches, key=lambda item: item[1])
             found.append(
                 f"rail: {worst_nav_tail}% of the window is ground below the last "
-                f"navigation band, over the {nav_tail_limit}% limit"
+                f"navigation band ({scenario}), over the {cap}% limit for its height"
                 + (f" and over its registered debt {allowed_nav_tail}%" if allowed_nav_tail else "")
             )
     return found
@@ -1064,14 +1137,18 @@ def report(results: list[dict], surface: str = SURFACE_SLINT) -> None:
     if columned:
         chrome = max(entry.get("chrome_band_pct", 0.0) for entry in columned)
         void = max(entry.get("void_pct", 0.0) for entry in columned)
-        nav_tail = max(entry.get("nav_tail_pct", 0.0) for entry in columned)
+        tail_worst = max(
+            (entry.get("nav_tail_pct", 0.0) / nav_tail_limit(
+                int(entry.get("height_px", 0))) * 100.0
+             for entry in columned),
+            default=0.0)
         limits = navigation_limits()
         print(f"\n=== rail: worst non-nav chrome {chrome}% "
               f"(limit {limits.get('chrome_band_limit_pct', 'missing')}%), "
               f"worst nav void {void}% "
               f"(limit {limits.get('void_limit_pct', 'missing')}%), "
-              f"worst nav tail {nav_tail}% "
-              f"(limit {limits.get('nav_tail_ground_limit_pct', 'missing')}%) ===")
+              f"worst nav tail budget use {tail_worst:.1f}% "
+              "(height-banded limits) ===")
     described = [entry for entry in results if entry.get("chrome")]
     print(f"\n=== chrome: {len(described)}/{len(results)} frames published their own "
           f"geometry; column "
@@ -1382,6 +1459,32 @@ class SelfTest(unittest.TestCase):
         self.assertEqual(
             rail_debt_from_results(over_tail, limits),
             {"nav_tail_pct": limits["nav_tail_ground_limit_pct"] + 1.0})
+
+    def test_the_nav_tail_cap_follows_the_frame_height(self) -> None:
+        short = dict(scenario="short", height_px=480, chrome_band_pct=0.0,
+                     void_pct=0.0, nav_tail_pct=20.0)
+        tall = dict(scenario="tall", height_px=1949, chrome_band_pct=0.0,
+                    void_pct=0.0, nav_tail_pct=70.24)
+        debt = {"frames": {}, "rail": {}}
+        found = rail_findings([short, tall], debt)
+        self.assertTrue(any("short" in item and "18.0% limit" in item
+                            for item in found), found)
+        self.assertFalse(any("tall" in item for item in found), found)
+        self.assertIn("nav_tail_pct", rail_debt_from_results(
+            [short, tall], navigation_limits()))
+
+    def test_an_export_without_height_bands_is_refused(self) -> None:
+        global PAGE_STRUCTURE_FILE
+        original = PAGE_STRUCTURE_FILE
+        document = json.loads(original.read_text(encoding="utf-8"))
+        document["navigation_limits"].pop("nav_tail_limits")
+        planted = self._with_export(document)
+        PAGE_STRUCTURE_FILE = planted
+        try:
+            self.assertTrue(any("nav_tail_limits height bands" in item
+                                for item in ladder_problems()))
+        finally:
+            PAGE_STRUCTURE_FILE = original
 
     def test_debt_for_a_missing_scenario_is_a_violation(self) -> None:
         debt = {"frames": {"gone": 40.0}, "rail": {}}
@@ -1814,7 +1917,8 @@ class SelfTest(unittest.TestCase):
             "chrome_keys": CHROME_KEYS_FOR_TEST,
             "navigation_limits": {"chrome_band_limit_pct": 0.0,
                                   "void_limit_pct": 8.0,
-                                  "nav_tail_ground_limit_pct": 73.0},
+                                  "nav_tail_ground_limit_pct": 73.0,
+                                  "nav_tail_limits": NAV_TAIL_LIMITS_FOR_TEST},
             "tiers": [
                 {"id": "compact", "min_width_px": 0, "max_width_px": 500,
                  "nav_form": "bottom_nav", "nav_column_px": 0,
@@ -1865,7 +1969,8 @@ class SelfTest(unittest.TestCase):
             "chrome_keys": CHROME_KEYS_FOR_TEST,
             "navigation_limits": {"chrome_band_limit_pct": 0.0,
                                   "void_limit_pct": 8.0,
-                                  "nav_tail_ground_limit_pct": 73.0},
+                                  "nav_tail_ground_limit_pct": 73.0,
+                                  "nav_tail_limits": NAV_TAIL_LIMITS_FOR_TEST},
             "tiers": [
                 {"id": "compact", "min_width_px": 0, "max_width_px": 500,
                  "nav_form": "bottom_nav", "nav_column_px": 0,

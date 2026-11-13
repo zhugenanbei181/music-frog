@@ -66,7 +66,7 @@ impl PageShapeOwner {
 
 /// The exported document's identity. Consumers pin this version so a shape
 /// added to the registry cannot be mistaken for an older export's vocabulary.
-pub const PAGE_STRUCTURE_EXPORT_VERSION: u16 = 18;
+pub const PAGE_STRUCTURE_EXPORT_VERSION: u16 = 19;
 
 /// Resolve a capture page slug onto the page and the shape it renders.
 pub fn shape_for_slug(slug: &str) -> Option<PageShape> {
@@ -129,6 +129,9 @@ pub fn shape_for_slug(slug: &str) -> Option<PageShape> {
 /// re-adjudicates that cap against both tracked FlClash desktop scenes: the
 /// 1949px proxies frame leaves 70.24% legal ground, so a 68% cap derived from
 /// only the 1665px dashboard frame would fail the reference product itself.
+/// Version 19 exports the trailing-ground cap by window height: one 73% cap
+/// was legal for the two tall references but barely constrained a 480px or
+/// 780px window, which is the "one size fits all" error this standard forbids.
 pub fn page_structure_json() -> String {
     let pages: Vec<String> = ShellPage::ALL
         .iter()
@@ -228,9 +231,33 @@ fn page_padding_json() -> String {
 }
 
 fn navigation_limits_json() -> String {
+    let bands = NAV_TAIL_GROUND_LIMIT_BANDS
+        .iter()
+        .map(|band| {
+            let max = match band.max_height_px {
+                Some(height) => height.to_string(),
+                None => "null".to_owned(),
+            };
+            format!(
+                "{{\"id\":\"{}\",\"min_height_px\":{},\"max_height_px\":{},\"limit_pct\":{}}}",
+                band.id,
+                band.min_height_px,
+                max,
+                band.limit_pct()
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",");
     format!(
-        "{{\"chrome_band_limit_pct\":{},\"void_limit_pct\":{},\"nav_tail_ground_limit_pct\":{}}}",
-        NAV_CHROME_BAND_LIMIT_PCT, NAV_VOID_LIMIT_PCT, NAV_TAIL_GROUND_LIMIT_PCT
+        "{{\"chrome_band_limit_pct\":{},\"void_limit_pct\":{},\
+         \"nav_tail_ground_limit_pct\":{},\"nav_tail_limits\":{{\
+         \"stack_bottom_px\":{},\"headroom_pct\":{},\"bands\":[{}]}}}}",
+        NAV_CHROME_BAND_LIMIT_PCT,
+        NAV_VOID_LIMIT_PCT,
+        NAV_TAIL_GROUND_LIMIT_PCT,
+        NAV_TAIL_STACK_BOTTOM_PX,
+        NAV_TAIL_HEADROOM_PCT,
+        bands
     )
 }
 
@@ -453,6 +480,70 @@ pub const NAV_VOID_LIMIT_PCT: f64 = 8.0;
 /// column that abandons its lower three quarters. The reference guard
 /// measures both frames and pins both ratios and this exported cap.
 pub const NAV_TAIL_GROUND_LIMIT_PCT: f64 = 73.0;
+
+/// Both tracked FlClash desktop sidebars end their destination stack at y579.
+/// The same stack leaves proportionally more ground in a taller window, so a
+/// trailing-ground cap is only meaningful when the window height owns the
+/// limit. The reference guard re-measures the two real frames; this owner
+/// projects that one stack end over the published viewport heights.
+pub const NAV_TAIL_STACK_BOTTOM_PX: u16 = 579;
+
+/// Bounded headroom over the worst tracked FlClash scene (70.24% at 1949px).
+/// The same 2.76pp is applied to every height band instead of inventing a new
+/// loosening rule per tier.
+pub const NAV_TAIL_HEADROOM_PCT: f64 = 2.76;
+
+/// One navigation-tail limit per window-height band.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+pub struct NavTailGroundBand {
+    pub id: &'static str,
+    pub min_height_px: u16,
+    pub max_height_px: Option<u16>,
+    /// One decimal place avoids a display-only precision argument in Python.
+    pub limit_pct_times_10: u16,
+}
+
+impl NavTailGroundBand {
+    pub const fn limit_pct(self) -> f64 {
+        self.limit_pct_times_10 as f64 / 10.0
+    }
+}
+
+/// Half-open height bands tile every window from 0px upwards.
+///
+/// Each cap is the reference stack's legal ground at the band's upper edge
+/// plus [`NAV_TAIL_HEADROOM_PCT`], then the bounded scale allowance this repo
+/// needs for eight destinations versus the reference's five. Published frames
+/// measure at most 12.7% at 480px, 40.1% at 780px and 47.0% at 800px, so the
+/// bands admit 18%/50%/60%; >1200px keeps the 73% cap required by the 1665px
+/// and 1949px tracked scenes. The height bands, not a page or a surface, are
+/// the only owner of which cap applies.
+pub const NAV_TAIL_GROUND_LIMIT_BANDS: [NavTailGroundBand; 4] = [
+    NavTailGroundBand {
+        id: "short",
+        min_height_px: 0,
+        max_height_px: Some(600),
+        limit_pct_times_10: 180,
+    },
+    NavTailGroundBand {
+        id: "medium",
+        min_height_px: 600,
+        max_height_px: Some(900),
+        limit_pct_times_10: 500,
+    },
+    NavTailGroundBand {
+        id: "tall",
+        min_height_px: 900,
+        max_height_px: Some(1200),
+        limit_pct_times_10: 600,
+    },
+    NavTailGroundBand {
+        id: "reference",
+        min_height_px: 1200,
+        max_height_px: None,
+        limit_pct_times_10: 730,
+    },
+];
 
 /// The ground limit for one page shape.
 pub const fn ground_limit(structure: PageStructure) -> f64 {
@@ -726,6 +817,23 @@ mod tests {
         let json = page_structure_json();
         let document: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
         assert_eq!(document["version"], PAGE_STRUCTURE_EXPORT_VERSION);
+        let tail = &document["navigation_limits"]["nav_tail_limits"];
+        assert_eq!(tail["stack_bottom_px"], NAV_TAIL_STACK_BOTTOM_PX);
+        assert_eq!(tail["headroom_pct"], NAV_TAIL_HEADROOM_PCT);
+        let bands = tail["bands"].as_array().expect("height bands");
+        assert_eq!(bands.len(), NAV_TAIL_GROUND_LIMIT_BANDS.len());
+        assert_eq!(bands[0]["min_height_px"], 0);
+        assert_eq!(bands[0]["max_height_px"], 600);
+        assert_eq!(bands[0]["limit_pct"], 18.0);
+        assert_eq!(bands[1]["min_height_px"], 600);
+        assert_eq!(bands[1]["max_height_px"], 900);
+        assert_eq!(bands[1]["limit_pct"], 50.0);
+        assert_eq!(bands[2]["min_height_px"], 900);
+        assert_eq!(bands[2]["max_height_px"], 1200);
+        assert_eq!(bands[2]["limit_pct"], 60.0);
+        assert_eq!(bands[3]["min_height_px"], 1200);
+        assert!(bands[3]["max_height_px"].is_null());
+        assert_eq!(bands[3]["limit_pct"], NAV_TAIL_GROUND_LIMIT_PCT);
         // The chrome vocabulary travels with the ladder it describes, so a
         // reader that has the document already has the key list.
         assert_eq!(

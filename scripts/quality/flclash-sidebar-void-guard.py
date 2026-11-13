@@ -86,6 +86,12 @@ ROW_INK_FRACTION = 0.01
 GROUND_DELTA = 14
 MAX_TAIL_HEADROOM_PCT = 3.0
 EXPECTED_TAIL_LIMIT_PCT = 73.0
+EXPECTED_TAIL_BANDS = (
+    ("short", 0, 600, 18.0),
+    ("medium", 600, 900, 50.0),
+    ("tall", 900, 1200, 60.0),
+    ("reference", 1200, None, 73.0),
+)
 
 # The shortest published tier is 480px tall with eight destinations; the
 # references are 1665px and 1949px with five. A fixed share copied from one
@@ -159,6 +165,28 @@ def exported_limits() -> dict[str, float]:
     return {key: float(limits[key]) for key in keys}
 
 
+def exported_tail_bands(document: dict) -> tuple[list[dict], list[str]]:
+    table = document.get("navigation_limits", {}).get("nav_tail_limits")
+    if not isinstance(table, dict):
+        return [], ["the exported table carries no nav_tail_limits height ladder"]
+    bands = table.get("bands")
+    if not isinstance(bands, list) or len(bands) != len(EXPECTED_TAIL_BANDS):
+        return [], ["the exported nav-tail height ladder no longer has four bands"]
+    problems: list[str] = []
+    for index, (band, expected) in enumerate(zip(bands, EXPECTED_TAIL_BANDS)):
+        name, minimum, maximum, cap = expected
+        if (band.get("id"), band.get("min_height_px"),
+                band.get("max_height_px"), band.get("limit_pct")) != (
+                    name, minimum, maximum, cap):
+            problems.append(
+                f"the exported nav-tail band {index} no longer adjudicates {expected}")
+        if index and bands[index - 1].get("max_height_px") != band.get("min_height_px"):
+            problems.append("the exported nav-tail height bands no longer tile the axis")
+    if table.get("stack_bottom_px") != SIDEBAR_STACK_BOTTOM_PX:
+        problems.append("the exported nav-tail stack bottom no longer matches both scenes")
+    return bands, problems
+
+
 def findings() -> list[str]:
     found: list[str] = []
     if len(REFERENCES) < 2:
@@ -193,9 +221,12 @@ def findings() -> list[str]:
             found.append(
                 f"{scene.path} paints {values['chrome_band']}% ink below the nav stack"
             )
+    document = json.loads(EXPORT.read_text(encoding="utf-8"))
     limits = exported_limits()
     if not limits:
         return found + ["the exported table carries no navigation_limits"]
+    _, band_problems = exported_tail_bands(document)
+    found.extend(band_problems)
     if measurements:
         worst_chrome = max(item["chrome_band"] for item in measurements)
         worst_void = max(item["void"] for item in measurements)
@@ -234,10 +265,14 @@ def findings() -> list[str]:
     if (declared_tail is None
             or float(declared_tail.group(1)) != limits["nav_tail_ground_limit_pct"]):
         found.append("the contract's NAV_TAIL_GROUND_LIMIT_PCT and the export disagree")
+    declared_bands = re.search(
+        r"pub const NAV_TAIL_GROUND_LIMIT_BANDS: \[NavTailGroundBand; 4\]", source)
+    if declared_bands is None:
+        found.append("the contract's typed nav-tail height bands are missing")
 
     standard = STANDARD.read_text(encoding="utf-8")
     reference_doc = REFERENCE_DOC.read_text(encoding="utf-8")
-    facts = ("3.06", "3.49", "65.17", "70.24", "8%", "73%")
+    facts = ("3.06", "3.49", "65.17", "70.24", "8%", "73%", "18%", "50%", "60%")
     for fact in facts:
         if fact not in standard:
             found.append(f"the standard no longer publishes the measured sidebar fact {fact}")
@@ -293,6 +328,25 @@ class GuardSelfTest(unittest.TestCase):
             EXPORT = planted
             try:
                 self.assertTrue(any("nav-tail cap" in item for item in findings()))
+            finally:
+                EXPORT = original_export
+
+    def test_the_height_banded_tail_table_is_required_and_tight(self) -> None:
+        global EXPORT
+        original_export = EXPORT
+        document = json.loads(original_export.read_text(encoding="utf-8"))
+        table = document["navigation_limits"]["nav_tail_limits"]
+        self.assertEqual(exported_tail_bands(document)[1], [])
+        self.assertLess(table["bands"][0]["limit_pct"],
+                        self.proxies.expected_tail_pct)
+        with tempfile.TemporaryDirectory() as directory:
+            planted = pathlib.Path(directory) / "page-structure.json"
+            document["navigation_limits"]["nav_tail_limits"]["bands"][0]["limit_pct"] = 73.0
+            planted.write_text(json.dumps(document), encoding="utf-8")
+            EXPORT = planted
+            try:
+                self.assertTrue(any("nav-tail band 0" in item
+                                    for item in findings()), findings())
             finally:
                 EXPORT = original_export
 
