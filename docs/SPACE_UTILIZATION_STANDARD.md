@@ -784,7 +784,7 @@ Slint 页面密度只读这一处；侧栏自己继续读偏好感知的 `sideba
 
 本仓此前有四份互不相等的副本：Slint 桌面 `page-margin-desktop: 30u`、
 Slint 紧凑 `page-padding: 16u`、Iced `content_padding_px()` 的
-16/24/40/48 按档 ramp、Bevy `shell_scene.rs` 的 12px。同一个 1180×780
+16/24/40/48 按档 ramp、Bevy `shell_scene.rs` 的内容列副本。同一个 1180×780
 窗口实测 Slint 页身 880px、Iced 860px，参考物在 960px 页宽里只让出 32px；
 并且 `proxy_node_columns()` 在 `page_body_width_px()` 已扣留白之后再扣
 `PROXY_GRID_INSET_PX = 32`，把上游那个「32 = 左右各 16」当成留白之外的
@@ -803,7 +803,7 @@ b218 的收口按自底向上一次做完，不放宽任何阈值：
   `app_body.slint` 的 `page-margin` 不再按 `compact-layout` 分叉；Iced 的
   `view_root` / `sidebar_chrome` / `rules_list` 都读 `PAGE_PADDING_PX`，
   且 `shell_chrome_facts()` 不再接受一个已无用的 `ViewportTier` 参数。
-  Bevy 的 12px 副本按文件所有权留 `FLPROFILES-002` 同一批收口；b225 先把
+  Bevy 的内容列副本按文件所有权留 `FLPROFILES-002` 同一批收口；b225 先把
   Proxies 节点网格接入同一页宽 owner，但仍不声称 192 帧像素已验收。
 - **判定器不记数**：`page_padding_px()` 逐帧从导出物读，
   `chrome_findings()` 要求帧自述的 `page_margin_px` 等于该值；
@@ -823,3 +823,30 @@ Iced **192/192** `20261112T052858Z_79bf9f28e20f_dirty_1173512`。
 与上一批逐字相同，说明页身只是拿回了被多扣的横向地面，没有因此暴露新的
 页尾死带，故未动用 §5 的任何一种收口。网格列数在采集窗口上逐个不变
 （expanded 4 / medium 3 / 手机 1），这是留白归位而非排布改道。
+
+### 13.1 b246 事实勘误与归档范围（当前范围说明）
+
+本节保留上面 `SPACEUTIL-018` 的归档裁决与发布批回执原文，不重写历史，
+只修正一处**已过期的尺寸事实**并钉住归档决定的适用范围。
+
+- **事实勘误（不是新任务）**：b217/b218 文本把 Bevy 内容列留白记成
+  `12px` / `UiRect::horizontal(rem(space::S12))`。当前 HEAD 与工作树
+  `crates/infiltrator-bevy-ui/src/shell_scene.rs:116` 的 `ContentColumn`
+  都是 `padding: UiRect::all(rem(space::S16))`（同一节点 `:117` 的
+  `row_gap` 也是 `S16`）；`git show HEAD:crates/infiltrator-bevy-ui/src/shell_scene.rs`
+  同值，且 `9c7bb6e`（2026-10-12）之前的版本已是
+  `UiRect::all(Val::Px(space::S16))`。文件里剩余的 `S12` 是底栏胶囊
+  （`:246`、`:260`）、路由状态胶囊（`:369`）与侧栏（`:406`），不是内容列。
+  因此真实维度是 **16px（rem 通道）而不是 12px**；这段文字只改数字，
+  `SPACEUTIL-018` 的身份保持归档，不新增 `SPACEUTIL` 任务、不重开验收。
+  §13 判定器自测里的 `30/40/12px` 是 planted 负例值（私自画的尺寸必须被拒），
+  不是对 Bevy 当前维度的陈述，故保留不改；`:704` 的 12px 指 Slint 卡栈缝，
+  同样与内容列无关。
+- **归档范围**：`SPACEUTIL-018` 交付的是「契约一处发布 `PAGE_PADDING_PX = 16`
+  + Slint/Iced 只读导出 + 判定器逐帧核对」，其像素回执只覆盖
+  Slint 199/199 与 Iced 192/192 两表面（§13 发布批）。b218 明确把 Bevy
+  文件与像素留给 `FLPROFILES-002` 的另一会话，并注明唯一红腿仍是
+  Bevy 像素别名；本节不把该红腿改写成已完成，也不声称 Bevy 已消费
+  `PAGE_PADDING_PX` 导出值或已通过空间利用率判定（Bevy 缺席判定见
+  `SPACEUTIL-022`）。逐证据见 `.evidence/wip/b246-flclash-bevy-gap-recon.md`
+  「Top contradictions」第 3 条。
