@@ -519,6 +519,13 @@ standard`，再由 `DashboardDensityScope` 发布给所有卡片。四条可核�
 - **与 §3.3 的分工**：§3.3 管外壳**横向**占掉多宽（列宽比例），本节管外壳**纵向**
   保留多少（底部长度）。两者都是「外壳自己的地」，都必须有上限；此前只有横向那条有。
 
+**这条上限约束的是几何，不是某一帧的滚动位置**：`page-content-padding-bottom` 是
+`ScrollView` 内容里的 padding（`app_body.slint` 的 `VerticalLayout`），因此它只在**滚到底**
+时才显形。实测 130 个桌面帧中 48 帧该带 100% 是地面（`rules/logs/connections/proxies/about`
+等静止在底或内容不足一屏者），63 帧被内容画穿（`overview/settings/dns/editor` 等）——
+后者**不是**假回执，而是同一保留带在不同滚动偏移下的正常表现。判据因此只钉「外壳声明并
+保留多少」，不得被写成「每帧底部必须有 72px 地面」，否则会把滚动页判成缺陷。
+
 **执行位置与 b244 的诚实边界**：本节现在被强制的是**参照物、上限与其算术**——
 `flclash-shell-reserve-guard.py` 钉住 tracked 像素、`page_structure` 常量、导出
 `shell_air` 三键、本节文案与结构门双腿，任一漂移即红。**尚未**被强制的是「某一帧
