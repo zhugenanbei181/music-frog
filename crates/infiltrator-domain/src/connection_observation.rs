@@ -12,8 +12,8 @@
 //! nothing at all, and the honest unknown is a typed variant rather than a
 //! zero that would read like "instantaneous".
 
-use chrono::{DateTime, NaiveDateTime, Utc};
 use crate::runtime::ConnectionSnapshot;
+use chrono::{DateTime, NaiveDateTime, Utc};
 
 /// When the Core observed a connection list.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

@@ -6,8 +6,8 @@
 //! exactly like any external consumer.
 //! test-intent: behavior
 
-use infiltrator_contract::shell_sidebar_preference::SidebarExpansionPreference;
 use infiltrator_contract::connection_view_preference::ConnectionViewMode;
+use infiltrator_contract::shell_sidebar_preference::SidebarExpansionPreference;
 use infiltrator_iced::capture_section::CaptureSection;
 use infiltrator_iced::demo::{DemoEnv, parse_skin};
 use infiltrator_iced::state::AppState;

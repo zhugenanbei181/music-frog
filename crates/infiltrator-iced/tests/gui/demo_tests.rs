@@ -103,7 +103,11 @@ fn demo_fixture_inventory_covers_all_pages() {
     assert_eq!(state.runtime.traffic_topology.links.len(), 4);
     assert!(state.runtime.traffic_topology.is_flowing());
     assert_eq!(
-        state.diag.connections.as_ref().map(|c| c.snapshot().connections.len()),
+        state
+            .diag
+            .connections
+            .as_ref()
+            .map(|c| c.snapshot().connections.len()),
         Some(10)
     );
     assert!(state.diag.logs.len() >= 40);

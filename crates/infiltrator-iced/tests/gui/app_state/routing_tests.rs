@@ -477,11 +477,10 @@ fn connection_instantaneous_rates_derive_from_successive_snapshots() {
         "a first observation has no honest rate"
     );
 
-    let _ = state
-        .apply_connections_snapshot(
-            observed(snapshot_with(3_000, 10_000)),
-            base + Duration::from_secs(2),
-        );
+    let _ = state.apply_connections_snapshot(
+        observed(snapshot_with(3_000, 10_000)),
+        base + Duration::from_secs(2),
+    );
     let rate = state.diag.connection_rate_book.get("c-rate");
     assert_eq!(rate.upload_bps, 1_000.0);
     assert_eq!(rate.download_bps, 4_000.0);
@@ -489,7 +488,10 @@ fn connection_instantaneous_rates_derive_from_successive_snapshots() {
 
     // Crossing the shared 5 MB/s threshold arms the pulse for the next frame.
     let _ = state.apply_connections_snapshot(
-        observed(snapshot_with(3_000, 10_000 + (HIGH_THROUGHPUT_THRESHOLD_BPS * 2.0) as u64)),
+        observed(snapshot_with(
+            3_000,
+            10_000 + (HIGH_THROUGHPUT_THRESHOLD_BPS * 2.0) as u64,
+        )),
         base + Duration::from_secs(4),
     );
     let rate = state.diag.connection_rate_book.get("c-rate");

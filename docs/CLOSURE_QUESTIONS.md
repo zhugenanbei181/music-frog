@@ -14,17 +14,31 @@
 
 | # | 问题 | 合格证据 |
 | --- | --- | --- |
-| 1 | 部分 | L | b242 改 presentation / iced 纯 Rust、capture 台架与 L4 台账，零平台 API；presentation nextest **429/429**、Iced **663/663**（合计 **1092/1092**）、两包 Clippy `--all-targets -D warnings` exit 0（`unused_imports` 单项放宽给并行 b234 会话 WIP 的 2 个未用导入）为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1） |
-| 2 | 部分 | L | Linux 本机完成两包编译 / Clippy / nextest、Iced 整批重采与发布、守卫自测；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID |
-| 3 | 部分 | L | 零 Android/iOS 代码与资源改动；紧凑档折行规则只读桌面已有的共享阶梯 `ViewportTier` 与 presentation owner，对移动平台中立，但三 flavor 实机交互与 iOS 产物仍留在外部环境看板 |
-| 4 | 部分 | L | **本批：Iced 连接页在紧凑视口把表格还给读者**——紧凑档页签 / 形态 / 断开筛选并成一行、流量摘要并进标题栏带、列选择器标题并进横向滚动条带；Iced 整批重采 **194/194**（b242 批次），`space_utilization --surface iced --enforce` **194 帧 violations=0**，紧凑帧从「0 行表格」变为**表头 + 2 行完整数据**。Slint 211 帧与 Bevy 192 帧仍归各自会话 |
-| 5 | 完整 | L | 连接页的控件布局只有一条真源链：presentation `connection_page_chrome`（控件带 / 堆栈 / 页面 chrome 折行规则）→ Iced 视图只映射像素；两条形态挂载规则此前住在 Iced 视图里，本批迁回 owner，视图不再私藏业务规则 |
-| 5a | 部分 | L | 零字体 / 字重 / 图标 / 旗资产 / 文案改动；本批只动布局，控件与既有文案原样复用；Iced 194 帧真像素回执已发布 → 桌面侧完整。圆形旗帜容器仍由 4:3 直角资产与 flag guard 钉住 |
-| 6 | 部分 | L | presentation **10 项**新测试钉住窄档折行、宽档单行、搜索独占一行、形态挂载与每个控件带只挂一次；Iced 既有 **663 项**守住接线；守卫 **25/25** + enforce 0（5 条新判据 + 8 项 planted 负例）；Iced **194/194** 真像素回执已发布，`receipt-freshness 0`。全仓 `--workspace` nextest、结构门动态全腿、`resolve_surface_evidence.py` ready cells 与并行 Bevy 身份红腿仍留统一批次 |
-| 7 | 完整 | L | 阶梯链：contract `ViewportTier` → presentation `connection_page_chrome` → Iced 视图，一条链；挂载规则链：presentation owner → 视图，不再有 Iced 私有副本；判定链：owner 消费判据 → 守卫 planted 负例 → L2/L3 标准 → L4 台账，另一条链；无跨 UI 私有业务真源、无视图层自排控件栈 |
-| 8 | 部分 | L | 同主题 presentation / iced / 门禁一次落地后集中跑两包 nextest 与 Clippy，再跑一次整批重采与像素门；只跑受影响包，不逐文件反复全量验证，也不格式化并行 WIP。全仓 `--workspace` nextest、结构门动态全腿与 `resolve_surface_evidence.py` 留统一批次一次跑完 |
+| 1 | x86_64 与 aarch64 是否都支持？ | 每个架构至少一条可复跑的交叉 `cargo check`（L）或目标产物（C/D） |
+| 2 | Windows / Linux / macOS 是否都支持？ | 每个平台有构建腿（C）或安装包（D）；不支持的必须显式写 `Unsupported` 并登记原因 |
+| 3 | Android / iOS 是否都支持？ | APK/应用包产物（C/D）或显式 `Unsupported` |
+| 4 | 各个 UI 是否都接入了？ | 每个 UI 的编译证据 + 功能验收范围；薄壳必须写「最小接入」 |
+| 5 | 该复用的是否都复用了？ | 共享 owner 清单；已知重复实现必须清零或立项 |
+| 5a | 设计资源是否按强制标准验证？ | [DESIGN_RESOURCE_STANDARD.md](DESIGN_RESOURCE_STANDARD.md) §5 判定项清单（条数随标准增减，以该节为准）的证据；身份变化需双视口像素回执，复用旧回执即不合格 |
+| 6 | 各处界面的功能是否都接入了？ | parity cell 或平台矩阵状态；`Unsupported` 必须显式列出 |
+| 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
+| 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-13 第二百四十二批次；b111–b241 见下方批次八问摘要）
+## 当前状态（2026-11-13 第二百四十三批次；b111–b242 见下方批次八问摘要）
+
+| # | 结论 | 等级 | 缺口 / owner |
+| --- | --- | --- | --- |
+| 1 | 部分 | L | b243 改 13 个已提交文件的格式化与两处门禁接线（`demo.rs` 测试挂载、`message.rs` 导入合并、矩阵测试表头），零平台 API；`cargo +1.99.1 fmt --all -- --check` **0 处差异**、四包定向 nextest **2430/2430**、Iced capture-tools **663/663**、`cargo check --all-targets` 4 包 exit 0 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1） |
+| 2 | 部分 | L | Linux 本机完成四包编译 / 定向 nextest / fmt 判定；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）。本批修的正是 CI 那条 `cargo fmt --all --check` 腿，但该腿只在受控 runner 上跑，未取 run ID |
+| 3 | 部分 | L | 零 Android/iOS 代码与资源改动；`uniffi-bindgen` 的 bin 走 `uniffi::uniffi_bindgen_main()`，与本批无关，`Cargo.toml` 的 `uniffi_bindgen` 声明未动（并行 owner）。三 flavor 实机与 iOS 产物仍留在外部环境看板 |
+| 4 | 部分 | L | **本批零可见像素变化**：全部改动是 rustfmt 机械输出、测试模块挂载位置与导入合并，四包 nextest 与守卫复跑守住行为；沿用 b242 发布的 Iced 194 帧回执（`20261113T061503Z_ce869d71975c_dirty_1358480`），`receipt-freshness 0`、`space_utilization --surface iced --enforce` 194 帧 violations=0。Slint 211 / Bevy 192 帧仍归各自会话 |
+| 5 | 完整 | L | 每条事实只有一个真源：测试位置的判据是 `test-layout-guard.py`（本批把 b241 的内联测试块交还该判据），行预算判据是 `line-guard.py` 的 800 硬上限（本批把 `message.rs` 从 801 收到 795，未上调上限），矩阵表头列集的唯一真源是 `generate_unified_matrix.py` 的导出（本批把测试断言对齐到它，而不是反过来放宽断言） |
+| 5a | 完整 | L | 零字体 / 字重 / 图标 / 旗资产 / 文案 / 可见像素改动；沿用 b242 已发布真像素回执，无双视口重采需求；圆形旗帜容器仍由 4:3 直角资产与 flag guard 钉住 |
+| 6 | 部分 | L | `scripts/parity` 单测 **69/69 OK**（含本批修正的第 10 列 `connection_columns` 表头断言）、`test-layout-guard` **violations=0**、`line-guard` 本线违规 **1 → 0**、`iced-connection-view-guard` **25/25** + enforce 0；四包定向 nextest **2430/2430** 证明机械格式化零行为变化。结构门整门仍 rc=1，5 条红腿逐条取证为并行会话未提交工作（详见本批⑦），本批不代改 |
+| 7 | 完整 | L | 归属链一条：`cargo fmt`（CI 腿）→ 13 个本线文件 → 逐个 `git log -1` 指向 `ce869d7`；所有权链一条：并行 37 个未提交文件先备份再 `cmp` 复量，**0 个被改动**；判据链一条：`line-guard` / `test-layout-guard` / `generate_unified_matrix` 各自仍是唯一判据，本批没有新增第二份阈值 |
+| 8 | 部分 | L | 本批是统一验证批次的第一段：`--workspace --no-fail-fast` nextest **6855/6855** 已实测，结构门 **204 腿** 逐条跑完并按归属修掉本线 4 条（7 → 5 红）。剩余 5 条红腿属并行未提交工作，`resolve_surface_evidence.py` 的 180 个 ready cell 需要受控验收批（跨三表面重采 + 行为锚点），留后续统一批次一次跑完 |
+
+## 历史状态（2026-11-13 第二百四十二批次；b111–b241 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
@@ -38,7 +52,20 @@
 | 7 | 完整 | L | 阶梯链：contract `ViewportTier` → presentation `connection_page_chrome` → Iced 视图，一条链；挂载规则链：presentation owner → 视图，不再有 Iced 私有副本；判定链：owner 消费判据 → 守卫 planted 负例 → L2/L3 标准 → L4 台账，另一条链；无跨 UI 私有业务真源、无视图层自排控件栈 |
 | 8 | 部分 | L | 同主题 presentation / iced / 门禁一次落地后集中跑两包 nextest 与 Clippy，再跑一次整批重采与像素门；只跑受影响包，不逐文件反复全量验证，也不格式化并行 WIP。全仓 `--workspace` nextest、结构门动态全腿与 `resolve_surface_evidence.py` 留统一批次一次跑完 |
 
-## 最近一批问答（2026-11-13 第二百四十二批次：紧凑档连接页把表格还给读者）
+## 最近一批问答（2026-11-13 第二百四十三批次：统一验证批次收口本线门禁回归）
+
+1. x86_64/aarch64：本批只改已提交文件的 rustfmt 输出、测试模块挂载位置与导入合并，零平台 API；`cargo +1.99.1 fmt --all -- --check` **0 处差异**、四包定向 nextest **2430/2430**、Iced capture-tools **663/663**、四包 `cargo check --all-targets` exit 0 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
+2. Windows/Linux/macOS：Linux 本机完成四包编译、定向 nextest 与 fmt 判定；本批修的正是 CI 的 `cargo fmt --all --check` 腿，但该腿只在受控 runner 执行，未取 run ID；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）→ 部分（L）。
+3. Android/iOS：零 Android/iOS 代码与资源改动；`uniffi_bindgen` 的 workspace 声明属并行 owner 的 `Cargo.toml`，本批不碰（实测该 lint 只有 cargo 1.100.0 发，pin 的 1.99.1 不发，故本提交该腿为绿）；三 flavor 实机与 iOS 产物仍留在外部环境看板 → 部分（L）。
+4. 各 UI：**本批零可见像素变化**（rustfmt 机械输出 + 测试位置迁移），沿用 b242 发布的 Iced 194 帧真像素回执，`receipt-freshness 0`、`space_utilization --surface iced --enforce` 194 帧 violations=0；Slint 211 / Bevy 192 帧仍归各自会话，按文件所有权不代改、不重采；`resolve_surface_evidence.py` ready cells 留统一批次 → 部分（L）。
+5. 复用：测试位置判据唯一属 `test-layout-guard.py`，行预算判据唯一属 `line-guard.py` 的 800 硬上限（未上调），矩阵列集唯一真源属 `generate_unified_matrix.py` 的导出（本批把测试断言对齐到导出而不是放宽断言）；无第二份阈值 → 完整（L）。
+5a. 设计资源：零字体 / 字重 / 图标族 / 视觉资产 / 文案 / 可见像素变化；沿用 b242 已发布双视口真像素回执，无重采需求；4:3 直角旗面与 flag guard 不变 → 完整（L）。
+6. 各处界面的功能接入：`scripts/parity` 单测 **69/69 OK**（含修正后的第 10 列表头断言）、`test-layout-guard` **violations=0**、`line-guard` 本线违规 **1 → 0**、`iced-connection-view-guard` **25/25** + enforce 0、四包 nextest **2430/2430** 证明零行为变化；结构门整门仍 rc=1，5 条红腿逐条取证属并行未提交工作 → 部分（L）。
+7. 模块化：归属链（CI fmt 腿 → 13 个本线文件 → `git log -1` 逐个指向 `ce869d7`）、所有权链（并行 37 文件备份后 `cmp` 复量，0 个被改）、判据链（三个守卫各自仍是唯一判据）三条各自一条，都没有第二份真源 → 完整（L）。
+8. CI 与批次效率：本批属统一验证批次第一段——`--workspace` nextest **6855/6855** 与结构门 **204 腿**各跑一次，按归属一次修完本线 4 条红腿（7 → 5），不逐文件反复全量验证；剩余 5 条红腿与 `resolve_surface_evidence.py` 的 180 ready cells 留后续统一批次一次跑完 → 部分（L）。
+
+
+## 历史问答（2026-11-13 第二百四十二批次：紧凑档连接页把表格还给读者）
 
 1. x86_64/aarch64：本批只改 presentation / iced 纯 Rust、capture 台架与 L4 台账，零平台 API；presentation nextest **429/429**、Iced **663/663**（合计 **1092/1092**）、两包 Clippy `--all-targets -D warnings` exit 0（`unused_imports` 单项放宽给并行 b234 会话 WIP 的 2 个未用导入）为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：Linux 本机完成两包编译 / Clippy / nextest、守卫自测、Iced 整批重采与发布；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID → 部分（L）。

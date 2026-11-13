@@ -3,10 +3,10 @@
 
 use super::DemoEnv;
 use super::fixtures::{
-    demo_connections, demo_logs, demo_observation, demo_profiles, demo_rules,
-    demo_traffic_history, demo_traffic_waveform, dns_json_fixture, fake_ip_json_fixture,
-    profile_yaml_fixture, proxy_providers_json_fixture, rule_providers_json_fixture,
-    sniffer_json_fixture, tun_json_fixture,
+    demo_connections, demo_logs, demo_observation, demo_profiles, demo_rules, demo_traffic_history,
+    demo_traffic_waveform, dns_json_fixture, fake_ip_json_fixture, profile_yaml_fixture,
+    proxy_providers_json_fixture, rule_providers_json_fixture, sniffer_json_fixture,
+    tun_json_fixture,
 };
 use super::proxy_fixtures::demo_outbound_surface;
 use crate::admin_server::ADMIN_DEFAULT_PORT;

@@ -3,19 +3,19 @@ use super::{
     project_connection_view_table,
 };
 use crate::connection_view_projection::{ConnectionViewColumnProjection, project_connection_view};
+use chrono::{DateTime, Utc};
 use infiltrator_contract::connection::ConnectionRateObservation;
 use infiltrator_contract::connection_view_preference::{
     ConnectionColumn, ConnectionColumnSet, ConnectionColumnSupport, ConnectionViewMode,
     ConnectionViewPreference,
 };
 use infiltrator_contract::traffic_history::ClosedConnectionSnapshot;
-use infiltrator_domain::connection_rate::ConnectionRate;
 use infiltrator_domain::connection_observation::ConnectionObservationInstant;
+use infiltrator_domain::connection_rate::ConnectionRate;
 use infiltrator_domain::connection_view::RatedConnection;
 use infiltrator_domain::runtime::{Connection, ConnectionMetadata};
 use infiltrator_shared::byte_units::format_bytes;
 use infiltrator_shared::effect_assets::text_width_em;
-use chrono::{DateTime, Utc};
 
 /// The instant the fixture rows were observed at.
 fn observed_instant() -> ConnectionObservationInstant {

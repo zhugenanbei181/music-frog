@@ -11,8 +11,8 @@
 //! local projection row, so neither surface has to copy its list into a
 //! second representation to reuse the reduction.
 
-use crate::connection_rate::ConnectionRate;
 use crate::connection_observation::ConnectionDuration;
+use crate::connection_rate::ConnectionRate;
 use crate::rules::RuleEntry;
 use crate::runtime::Connection;
 use infiltrator_contract::rule_override::CreateRuleOverrideIntent;

@@ -14,8 +14,8 @@ use infiltrator_contract::connection::timing_availability;
 use infiltrator_contract::shortcuts::KeyModifiers;
 use infiltrator_iced::state::AppState;
 use infiltrator_iced::types::app::Route;
-use infiltrator_test_support::connection_grouping_fixtures::observed;
 use infiltrator_iced::types::message::Message;
+use infiltrator_test_support::connection_grouping_fixtures::observed;
 use tokio::runtime::Builder;
 
 #[test]
@@ -72,7 +72,14 @@ fn connection_inspection_close_escape_and_navigation_do_not_execute_commands() {
 #[test]
 fn connection_copy_emits_native_write_and_disconnect_executes_shared_identity() {
     let (mut state, _) = AppState::demo(&demo_env(Route::Runtime));
-    let connection = state.diag.connections.as_ref().unwrap().snapshot().connections[0].clone();
+    let connection = state
+        .diag
+        .connections
+        .as_ref()
+        .unwrap()
+        .snapshot()
+        .connections[0]
+        .clone();
     let facts = project_connection(
         &connection,
         state.diag.connection_rate_book.get(&connection.id),

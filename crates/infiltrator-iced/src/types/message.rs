@@ -25,21 +25,16 @@ use iced::{Rectangle, widget::text_editor};
 use infiltrator_application::profile_application::ProfileActivationOutcome;
 use infiltrator_application::rule_provider_application::ProviderUnpackPlan;
 use infiltrator_application::runtime_configuration_application::RuntimeConfigurationReadout;
-use infiltrator_contract::command::CoreLogLevel;
-use infiltrator_contract::connection_view_preference::ConnectionViewIntent;
-use infiltrator_contract::dns_cache::DnsCacheOperationId;
-use infiltrator_contract::logs::LogLevel;
-use infiltrator_contract::profile_mixin_studio::ProfileMixinToggleId;
-use infiltrator_contract::rule_provider_snapshot::RuleProviderControllerReference;
-use infiltrator_contract::theme::AppearanceMode;
-use infiltrator_contract::tray_status::TrayEvent;
 use infiltrator_contract::{
-    aggregator, command_catalogue, command_output, core_control, dialer_chain, dns, dns_latency,
-    dns_leak, doctor, ime, lan, mini_hud, network_roaming, overview_layout, pac, port_conflict,
-    privileged_network, protocol_fidelity, protocol_form, provider_cache, rule_document,
-    rules_workspace, runtime_settings, service_mode, shortcuts, snapshot, snapshot_history,
-    speedtest, stun_probe, subscription_filter_form, subscription_filter_result,
-    subscription_import, surface_snapshot, system_proxy, uwp, version, vpn, yaml_ast_diff,
+    aggregator, command::CoreLogLevel, command_catalogue, command_output,
+    connection_view_preference::ConnectionViewIntent, core_control, dialer_chain, dns,
+    dns_cache::DnsCacheOperationId, dns_latency, dns_leak, doctor, ime, lan, logs::LogLevel,
+    mini_hud, network_roaming, overview_layout, pac, port_conflict, privileged_network,
+    profile_mixin_studio::ProfileMixinToggleId, protocol_fidelity, protocol_form, provider_cache,
+    rule_document, rule_provider_snapshot::RuleProviderControllerReference, rules_workspace,
+    runtime_settings, service_mode, shortcuts, snapshot, snapshot_history, speedtest, stun_probe,
+    subscription_filter_form, subscription_filter_result, subscription_import, surface_snapshot,
+    system_proxy, theme::AppearanceMode, tray_status::TrayEvent, uwp, version, vpn, yaml_ast_diff,
 };
 use infiltrator_desktop::process_enumerator::{ExtendedProcessInfo, ProcessCategory};
 use infiltrator_domain::{
@@ -58,8 +53,7 @@ use infiltrator_presentation::rule_statistics_workbench::StatisticsAction;
 use lurker_core_contract::error::{Failure, InfiltratorError};
 use lurker_core_contract::identity::{CoreScope, EngineId};
 use lurker_core_contract::outbound::{identity, inventory, preferences, probe};
-use lurker_core_contract::profile_protection;
-use lurker_core_contract::routing_intent;
+use lurker_core_contract::{profile_protection, routing_intent};
 use lurker_ui_presentation::routing_intent_actions::PendingRoutingIntentChange;
 use std::{path::PathBuf, time::Instant};
 pub mod mtu_probe;

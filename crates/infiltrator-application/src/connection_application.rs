@@ -48,7 +48,10 @@ impl AcceptedConnectionObservation {
     /// The instant is an argument so a deterministic test can drive the same
     /// seam the runtime uses; the production path always takes the Core
     /// clock.
-    pub fn accepted_at(observed: ConnectionObservationSnapshot, observed_at: DateTime<Utc>) -> Self {
+    pub fn accepted_at(
+        observed: ConnectionObservationSnapshot,
+        observed_at: DateTime<Utc>,
+    ) -> Self {
         Self {
             observed,
             observed_at,

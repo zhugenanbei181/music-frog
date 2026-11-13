@@ -62,9 +62,7 @@ pub fn stats_grid<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message>
         .diag
         .connections
         .as_ref()
-        .map(|c| {
-            format_bytes(c.snapshot().download_total + c.snapshot().upload_total)
-        })
+        .map(|c| format_bytes(c.snapshot().download_total + c.snapshot().upload_total))
         .unwrap_or_else(|| "—".to_string());
 
     let tiles: Vec<Element<'a, Message>> = vec![
