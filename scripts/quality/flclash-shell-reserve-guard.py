@@ -70,6 +70,14 @@ HEADROOM_LIMIT_DP = 8.0
 # would stay green after the prose lost the number it is supposed to carry.
 STANDARD_MEASUREMENT_MARK = "39px = 20.00dp"
 STANDARD_SECTION_MARK = "### 3.6"
+# §2 is where the desktop reserve is described as the shell's own breathing
+# room. It states the measurement box, not the cap, so it can quietly keep
+# calling an over-bound reserve legitimate. The prose that first justified 72u
+# lived exactly there, so §2 must point at the registration while it still
+# names the number.
+STANDARD_BOX_SECTION = "## 2."
+STANDARD_RESERVE_PX = "72u"
+STANDARD_CROSS_REFERENCE = "SPACEUTIL-020"
 
 
 def digest(path: pathlib.Path) -> str:
@@ -196,6 +204,23 @@ def findings() -> list[str]:
             f"the space-utilization standard lost its {STANDARD_SECTION_MARK} "
             "shell-reserve section"
         )
+    section = re.search(
+        rf"^{re.escape(STANDARD_BOX_SECTION)}.*?(?=^## )",
+        standard_text, re.MULTILINE | re.DOTALL)
+    if section is None:
+        found.append(
+            f"the space-utilization standard no longer has a {STANDARD_BOX_SECTION} "
+            "measurement-box section"
+        )
+    elif STANDARD_RESERVE_PX in section.group(0):
+        # The reserve is still described by its size, so the same section has
+        # to say whether that size is within the bound.
+        if STANDARD_CROSS_REFERENCE not in section.group(0):
+            found.append(
+                f"{STANDARD_BOX_SECTION} still presents {STANDARD_RESERVE_PX} of shell "
+                f"air without naming {STANDARD_CROSS_REFERENCE}; the box rule must not "
+                "read as a clean bill of health for a reserve over the exported bound"
+            )
     for leg in ("flclash-shell-reserve-guard.py --self-test",
                 "flclash-shell-reserve-guard.py --mode enforce"):
         if leg not in GATE.read_text(encoding="utf-8"):
@@ -310,6 +335,30 @@ class GuardSelfTest(unittest.TestCase):
             try:
                 self.assertTrue(any("shell-reserve section" in item
                                     for item in findings()))
+            finally:
+                STANDARD = original_standard
+
+    def test_a_box_section_that_calls_the_reserve_legitimate_is_rejected(self) -> None:
+        """§2 may name 72u only while it also names the registration.
+
+        The prose that let the reserve grow lives in the measurement-box rule,
+        where the shell's air is simply declared breathing room. A reader of
+        that section alone must not conclude the reserve complies, so the
+        section has to point at the open registration while it names the size.
+        """
+        global STANDARD
+        original_standard = STANDARD
+        with tempfile.TemporaryDirectory() as directory:
+            text = original_standard.read_text(encoding="utf-8")
+            section = re.search(r"^## 2\..*?(?=^## )", text,
+                                re.MULTILINE | re.DOTALL).group(0)
+            planted_text = text.replace(
+                section, section.replace(STANDARD_CROSS_REFERENCE, "已裁决"), 1)
+            planted = pathlib.Path(directory) / "SPACE_UTILIZATION_STANDARD.md"
+            planted.write_text(planted_text, encoding="utf-8")
+            STANDARD = planted
+            try:
+                self.assertTrue(any("clean bill of health" in item for item in findings()))
             finally:
                 STANDARD = original_standard
 
