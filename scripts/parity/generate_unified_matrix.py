@@ -136,7 +136,7 @@ def generate_surface_tsv(surface: str, out_path: Path):
     if surface == "iced":
         lines = [
             "name\tpage\tshape\tskin\twindow_size\tinteraction\tsidebar_expansion"
-            "\ttraffic_audit\tconnection_view_mode\n"
+            "\ttraffic_audit\tconnection_view_mode\tconnection_columns\n"
         ]
     else:
         lines = ["name\tpage\tskin\twindow_size\n"]
@@ -147,9 +147,10 @@ def generate_surface_tsv(surface: str, out_path: Path):
         if surface == "iced":
             # The eighth column is the traffic audit's own selection and the
             # ninth is the Connections morphology the frame asks the owner's
-            # readback for; a row that names neither keeps the reader's
+            # readback for; the tenth is the Connections column set the owner
+            # published. A row that names none of them keeps the reader's
             # default.
-            return f"{name}\t{page}\t{shape}\t{skin}\t{window}\t{interaction}\t\t\t\n"
+            return f"{name}\t{page}\t{shape}\t{skin}\t{window}\t{interaction}\t\t\t\t\n"
         return f"{name}\t{page}\t{skin}\t{window}\n"
 
     # 1. 118 Business scenarios (alphabetical by feature id)

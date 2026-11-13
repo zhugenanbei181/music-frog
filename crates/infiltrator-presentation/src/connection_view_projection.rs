@@ -112,5 +112,6 @@ const fn semantic_id(column: ConnectionColumn) -> &'static str {
         ConnectionColumn::Dscp => "connection.column.dscp",
         ConnectionColumn::RemoteDestination => "connection.column.remote_destination",
         ConnectionColumn::DnsMode => "connection.column.dns_mode",
+        ConnectionColumn::Duration => "connection.column.duration",
     }
 }

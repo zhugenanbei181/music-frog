@@ -31,6 +31,7 @@ pub(super) fn translate_connection_view_en(key: &str) -> Cow<'static, str> {
         "connection_column_dscp" => "DSCP".into(),
         "connection_column_remote_destination" => "Remote Destination".into(),
         "connection_column_dns_mode" => "DNS Mode".into(),
+        "connection_column_duration" => "Duration".into(),
         "connection_view_mode_list" => "List View".into(),
         "connection_view_mode_table" => "Table View".into(),
         "connection_view_reset_columns" => "Reset Columns".into(),

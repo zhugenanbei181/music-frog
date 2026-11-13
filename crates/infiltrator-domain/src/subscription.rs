@@ -481,16 +481,12 @@ impl WafChallengeDetector {
     /// Detects whether the downloaded content is an HTML webpage rather than a proxy config.
     pub fn is_html_disguised(body: &str) -> bool {
         let trimmed = body.trim();
-        if trimmed.starts_with("<!DOCTYPE")
+        trimmed.starts_with("<!DOCTYPE")
             || trimmed.starts_with("<!doctype")
             || trimmed.starts_with("<html")
             || trimmed.starts_with("<HTML")
             || (trimmed.contains("<head>") && trimmed.contains("<body>"))
             || (trimmed.contains("<script") && trimmed.contains("</script>"))
-        {
-            return true;
-        }
-        false
     }
 }
 

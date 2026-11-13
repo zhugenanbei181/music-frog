@@ -8,7 +8,7 @@ use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_domain::connection_view::ConnectionGroupingMode;
-use infiltrator_test_support::connection_grouping_fixtures::grouping_snapshot;
+use infiltrator_test_support::connection_grouping_fixtures::grouping_observation;
 use lurker_core_contract::error::Failure;
 
 pub(super) fn activate(state: &mut AppState, feature: FeatureId) -> Task<Message> {
@@ -24,7 +24,7 @@ pub(super) fn activate(state: &mut AppState, feature: FeatureId) -> Task<Message
             )
         }));
         let _ = state.update(Message::SurfaceSnapshotUpdated(Box::new(snapshot)));
-        let _ = state.update(Message::ConnectionsReceived(grouping_snapshot()));
+        let _ = state.update(Message::ConnectionsReceived(grouping_observation()));
         let search = feature == FeatureId::ConnectionsSearchHighlight;
         let _ = state.update(Message::SetConnectionGroupingMode(if search {
             ConnectionGroupingMode::Flat
@@ -45,7 +45,7 @@ pub(super) fn activate(state: &mut AppState, feature: FeatureId) -> Task<Message
                 .diag
                 .connections
                 .as_ref()
-                .and_then(|s| s.connections.first())
+                .and_then(|s| s.snapshot().connections.first())
                 .expect("connection inspection fixture")
                 .id
                 .clone(),

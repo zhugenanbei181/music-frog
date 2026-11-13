@@ -9,8 +9,9 @@
 //! Wall-clock facts and the retention cap are caller inputs. The history never
 //! reads a clock or invents a closed connection that was never observed.
 
+use crate::connection_observation::parse_connection_start;
 use crate::connection_view::{ConnectionView, RouteChain};
-use chrono::{DateTime, NaiveDateTime, Utc};
+use chrono::{DateTime, Utc};
 use infiltrator_contract::traffic_history::{ClosedConnectionSnapshot, ClosedConnectionsSnapshot};
 use lurker_core_contract::identity::CoreScope;
 use lurker_core_contract::outbound::identity::SnapshotRevision;
@@ -31,18 +32,6 @@ pub fn duration_since_connection_start(start: &str, observed_at: DateTime<Utc>) 
         .num_milliseconds()
         .try_into()
         .unwrap_or(0)
-}
-
-fn parse_connection_start(start: &str) -> Option<DateTime<Utc>> {
-    DateTime::parse_from_rfc3339(start)
-        .map(|value| value.with_timezone(&Utc))
-        .ok()
-        .or_else(|| {
-            NaiveDateTime::parse_from_str(start, "%Y-%m-%d %H:%M:%S")
-                .or_else(|_| NaiveDateTime::parse_from_str(start, "%Y-%m-%d %H:%M"))
-                .ok()
-                .map(|value| value.and_utc())
-        })
 }
 
 /// The mutually exclusive phases of a scoped observation stream.

@@ -59,9 +59,9 @@ fn demo_fixture_inventory_matches_the_demo_contract() {
         .as_ref()
         .expect("demo seeds a connection snapshot");
     assert!(
-        snapshot.connections.len() >= 10,
+        snapshot.snapshot().connections.len() >= 10,
         "expected >= 10 demo connections, got {}",
-        snapshot.connections.len()
+        snapshot.snapshot().connections.len()
     );
 
     // Locale: demo boots in Chinese.

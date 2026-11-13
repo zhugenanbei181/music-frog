@@ -42,6 +42,7 @@ fn demo_env(page: Route, scenario: FeatureId) -> DemoEnv {
         scenario: Some(scenario),
         sidebar_expansion: SidebarExpansionPreference::default(),
         connection_view_mode: ConnectionViewMode::default(),
+        connection_columns: None,
         traffic_audit: None,
     }
 }

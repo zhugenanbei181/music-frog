@@ -54,8 +54,8 @@ pub fn replace_rule_at_location(
         ));
     }
     let mut slots = Vec::new();
-    for index in (header + 1)..doc.lines.len() {
-        let line = &doc.lines[index].text;
+    for (index, entry) in doc.lines.iter().enumerate().skip(header + 1) {
+        let line = &entry.text;
         if line.trim().is_empty() || line.trim_start().starts_with('#') {
             continue;
         }

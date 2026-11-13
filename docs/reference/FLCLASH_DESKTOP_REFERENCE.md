@@ -855,3 +855,39 @@ catalog 解析，避免 `BE Fast` / `IT Relay` 这类普通英文词被两字母
 自测 **9/9**；contract/shared/domain/presentation lib nextest **1710/1710**，`cargo check`
 覆盖 Iced/Slint 全目标。本批只改地区解析，不改任何旗资产几何或已发布 fixture；4:3 直角、
 零圆角容器与方形 fallback 代码板保持不变。
+
+## 24. 连接表的时长列：上游用客户端时钟，本仓用 owner 发布的观察时刻（b241）
+
+上游 `lib/features/connection/tracker_info_table.dart` 的 live 连接表在
+`isLive && detailed` 时多一列 `duration`（宽 80，muted），值来自
+`trackerDurationText(DateTime.now().difference(info.start))`：不足一分写 `12 s`，
+不足一小时写 `3.4 min`（十分钟以下保留一位小数，以上取整），其余写 `1.2 h`。
+客户端时钟意味着同一帧里每一行的年龄都随渲染时刻漂移，截图也无法复现。
+
+b240 把这一列记成「等 owner 发布观察时刻」的诚实缺席；本批顺着这句话往下挖，
+挖到真正的缺口不在 UI：**观察连接的那一刻根本没有被发布**——ports 的
+`ConnectionObservationSnapshot` 只带 scope / revision / snapshot，没有 instant，
+于是任何要回答「这条连接活了多久」的消费方只能自己读钟
+（`ClosedConnectionsApplication::observe` 就是 `Utc::now()`），第二套时钟由此产生，
+同一次观测在不同消费方读出的年龄还会彼此漂移。
+
+本仓求同的是「连接表有一列年龄」与「秒 / 分 / 时三档的单位写法」；存异的是时钟归属：
+Core 的观察带**被观察的那一刻**，domain 新增 typed `ConnectionObservationInstant
+{ Observed { at }, Unobserved }` 与 `ObservedConnections`（行与观察时刻同属一个事实），
+`infiltrator_application::observation_clock::accepted_at()` 是 Core 里唯一读墙上时钟的
+地方，`ConnectionApplication` 以 typed `AcceptedConnectionObservation` 发布 owner 的行与
+Core 接受它们的时刻，`ClosedConnectionsApplication` 也改用同一个 Core 时钟而不再自读钟。
+presentation 的表投影把「活着的行」按「观察时刻 − 该行发布的 start」算年龄，「已关闭的行」
+按该行自己发布的 `duration_ms` 回答，两者都没有就是诚实未知（不是 0 秒）；共享
+`elapsed_time::format_duration_ms` 一处发布秒 / 分 / 时写法，单位不随语言变，与字节单位同理。
+
+列身份同样求同存异：上游把 duration 固定成 live 表的末列，本仓把它做成契约
+`ConnectionColumn::Duration`（闭集 22 → **23**，wire `duration`，`support()` = Reported），
+像其它列一样由读者自己勾选、自己排序；**默认列集仍保留「建立时间」而不同时挂两列时间**
+（上游 live 表没有「建立时间」列，两种写法回答同一个问题，本仓让读者选一种）。
+Iced 的两帧表格回执（`connections-table-standard` / `connections-table-compact`）由矩阵第 10 列
+`connection_columns` 向 owner 读回请求这套列，帧里「持续时间」紧邻「建立时间」，可见
+`10 min` / `7.8 min` / `4.4 min` 三档写法。
+
+诚实边界：时长列只在 Iced 一侧落地；Bevy / Slint / Android 的连接页快照由并行会话持有的
+composition 层发布，尚无观察时刻，那一侧因此仍无时长列——诚实缺席，不伪造。

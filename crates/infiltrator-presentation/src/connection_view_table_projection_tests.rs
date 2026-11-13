@@ -8,11 +8,23 @@ use infiltrator_contract::connection_view_preference::{
     ConnectionColumn, ConnectionColumnSet, ConnectionColumnSupport, ConnectionViewMode,
     ConnectionViewPreference,
 };
+use infiltrator_contract::traffic_history::ClosedConnectionSnapshot;
 use infiltrator_domain::connection_rate::ConnectionRate;
+use infiltrator_domain::connection_observation::ConnectionObservationInstant;
 use infiltrator_domain::connection_view::RatedConnection;
 use infiltrator_domain::runtime::{Connection, ConnectionMetadata};
 use infiltrator_shared::byte_units::format_bytes;
 use infiltrator_shared::effect_assets::text_width_em;
+use chrono::{DateTime, Utc};
+
+/// The instant the fixture rows were observed at.
+fn observed_instant() -> ConnectionObservationInstant {
+    ConnectionObservationInstant::observed_at(
+        DateTime::parse_from_rfc3339("2026-11-13T09:05:00Z")
+            .expect("instant")
+            .with_timezone(&Utc),
+    )
+}
 
 fn full_connection() -> Connection {
     Connection {
@@ -62,7 +74,7 @@ fn table_of(
 ) -> super::ConnectionTableProjection {
     let columns = columns_of(visible);
     let rows = vec![RatedConnection::new(connection, measured_rate())];
-    project_connection_view_table(&columns, &rows, status)
+    project_connection_view_table(&columns, &rows, status, observed_instant())
 }
 
 #[test]
@@ -162,12 +174,22 @@ fn an_unmeasured_rate_is_the_unknown_and_a_measured_rate_is_live() {
         ..Default::default()
     };
     let rows = vec![RatedConnection::new(&connection, unmeasured)];
-    let table = project_connection_view_table(&columns, &rows, ConnectionTableStatus::Active);
+    let table = project_connection_view_table(
+        &columns,
+        &rows,
+        ConnectionTableStatus::Active,
+        observed_instant(),
+    );
     assert_eq!(table.rows[0].cells[0], ConnectionTableCell::Unavailable);
     assert_eq!(table.rows[0].cells[1], ConnectionTableCell::Unavailable);
 
     let rows = vec![RatedConnection::new(&connection, measured_rate())];
-    let table = project_connection_view_table(&columns, &rows, ConnectionTableStatus::Active);
+    let table = project_connection_view_table(
+        &columns,
+        &rows,
+        ConnectionTableStatus::Active,
+        observed_instant(),
+    );
     assert!(matches!(
         table.rows[0].cells[0],
         ConnectionTableCell::Live(_)
@@ -261,4 +283,54 @@ fn ellipsize_cuts_at_the_visual_width_and_marks_the_cut() {
         text_width_em(&cjk) <= 4.0,
         "the cut must stay inside the column: {cjk}"
     );
+}
+
+#[test]
+fn a_live_row_publishes_its_age_against_the_owners_instant() {
+    let table = table_of(
+        &[ConnectionColumn::Duration],
+        &full_connection(),
+        ConnectionTableStatus::Active,
+    );
+
+    assert_eq!(table.rows[0].cells[0].text(), Some("5.0 min"));
+}
+
+#[test]
+fn a_live_row_without_an_owner_instant_stays_the_honest_unknown() {
+    let columns = columns_of(&[ConnectionColumn::Duration]);
+    let connection = full_connection();
+    let rows = vec![RatedConnection::new(&connection, measured_rate())];
+    let table = project_connection_view_table(
+        &columns,
+        &rows,
+        ConnectionTableStatus::Active,
+        ConnectionObservationInstant::unobserved(),
+    );
+
+    assert_eq!(table.rows[0].cells[0], ConnectionTableCell::Unavailable);
+}
+
+#[test]
+fn a_closed_row_publishes_the_length_it_lived() {
+    let columns = columns_of(&[ConnectionColumn::Duration]);
+    let closed = ClosedConnectionSnapshot {
+        id: "conn-1".into(),
+        destination: "api.example.org".into(),
+        duration_ms: 204_000,
+        upload_bytes: 2048,
+        download_bytes: 4096,
+        rule: "DomainSuffix".into(),
+        outbound: "HK-01".into(),
+        closed_at: "2026-11-13T09:05:00Z".into(),
+    };
+    let rows = vec![RatedConnection::new(&closed, ConnectionRate::default())];
+    let table = project_connection_view_table(
+        &columns,
+        &rows,
+        ConnectionTableStatus::Closed,
+        ConnectionObservationInstant::unobserved(),
+    );
+
+    assert_eq!(table.rows[0].cells[0].text(), Some("3.4 min"));
 }

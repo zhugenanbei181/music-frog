@@ -8,19 +8,14 @@ use serde_yaml_ng::Value;
 
 /// Check if a mixin can be applied purely via [`SourceDoc`] text splicing.
 pub fn can_apply_mixin_via_fidelity(mixin: &MixinConfig) -> bool {
-    if mixin.dns.is_some()
-        || mixin.tun.is_some()
-        || mixin.sniffer.is_some()
-        || mixin.proxies.is_some()
-        || mixin.proxy_groups.is_some()
-        || mixin.proxy_providers.is_some()
-        || mixin.rule_providers.is_some()
-        || mixin.custom_yaml.is_some()
-    {
-        return false;
-    }
-
-    true
+    mixin.dns.is_none()
+        && mixin.tun.is_none()
+        && mixin.sniffer.is_none()
+        && mixin.proxies.is_none()
+        && mixin.proxy_groups.is_none()
+        && mixin.proxy_providers.is_none()
+        && mixin.rule_providers.is_none()
+        && mixin.custom_yaml.is_none()
 }
 
 /// Apply supported text edits and verify against the shared structural semantic owner.

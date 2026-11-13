@@ -23,7 +23,7 @@ use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_iced::state::proxy_search::ProxySearchPhase;
 use infiltrator_ports::surface::SurfaceReader;
-use infiltrator_test_support::connection_grouping_fixtures::grouping_snapshot;
+use infiltrator_test_support::connection_grouping_fixtures::grouping_observation;
 use infiltrator_test_support::log_capture_fixtures::LogCaptureProcess;
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::CoreScope;
@@ -243,7 +243,7 @@ fn composed_snapshot_retires_demo_rows_and_rejects_reads_from_the_previous_core_
         HostKind::Desktop,
     );
     let (mut state, _) = AppState::new();
-    let _ = state.update(Message::ConnectionsReceived(grouping_snapshot()));
+    let _ = state.update(Message::ConnectionsReceived(grouping_observation()));
     assert_eq!(state.diag.connections_model.source_count(), 9);
     state.attach_product_application(core.clone());
     state.shell.demo = false;

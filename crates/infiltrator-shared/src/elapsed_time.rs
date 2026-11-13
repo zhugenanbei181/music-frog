@@ -11,6 +11,8 @@ const MILLIS_PER_SECOND: u64 = 1_000;
 const SECONDS_PER_MINUTE: u64 = 60;
 /// The number of seconds in one hour.
 const SECONDS_PER_HOUR: u64 = 60 * SECONDS_PER_MINUTE;
+/// The number of minutes in one hour.
+const MINUTES_PER_HOUR: u64 = 60;
 
 /// Format an elapsed duration as `HH:MM:SS`.
 ///
@@ -26,9 +28,31 @@ pub fn format_elapsed_ms(millis: u64) -> String {
     format!("{hours:02}:{minutes:02}:{seconds:02}")
 }
 
+/// Format an elapsed duration as a compact length.
+///
+/// A running connection reads as a length, not as a clock face: the
+/// reference desktop client writes seconds, then minutes with one decimal,
+/// then hours with one decimal. The units stay the same in every language,
+/// exactly like the byte units, so the number a reader sees never depends on
+/// who rendered it.
+pub fn format_duration_ms(millis: u64) -> String {
+    let total_seconds = millis / MILLIS_PER_SECOND;
+    if total_seconds < SECONDS_PER_MINUTE {
+        return format!("{total_seconds} s");
+    }
+    let minutes = total_seconds as f64 / SECONDS_PER_MINUTE as f64;
+    if minutes < MINUTES_PER_HOUR as f64 {
+        if minutes < 10.0 {
+            return format!("{minutes:.1} min");
+        }
+        return format!("{} min", minutes.round() as u64);
+    }
+    format!("{:.1} h", minutes / MINUTES_PER_HOUR as f64)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::format_elapsed_ms;
+    use super::{format_duration_ms, format_elapsed_ms};
 
     #[test]
     fn a_measured_session_reads_as_a_clock_face() {
@@ -55,5 +79,18 @@ mod tests {
             format_elapsed_ms(27 * 3_600_000 + 4 * 60_000 + 49_000),
             "27:04:49"
         );
+    }
+
+    #[test]
+    fn a_connection_age_reads_as_a_compact_length() {
+        assert_eq!(format_duration_ms(0), "0 s");
+        assert_eq!(format_duration_ms(12_000), "12 s");
+        assert_eq!(format_duration_ms(59_000), "59 s");
+        assert_eq!(format_duration_ms(60_000), "1.0 min");
+        assert_eq!(format_duration_ms(204_000), "3.4 min");
+        assert_eq!(format_duration_ms(600_000), "10 min");
+        assert_eq!(format_duration_ms(720_000), "12 min");
+        assert_eq!(format_duration_ms(3_600_000), "1.0 h");
+        assert_eq!(format_duration_ms(4_320_000), "1.2 h");
     }
 }

@@ -4,13 +4,15 @@ use infiltrator_domain::connection_view::ConnectionGroupingMode;
 use infiltrator_iced::state::AppState;
 use infiltrator_iced::types::app::Route;
 use infiltrator_iced::types::message::Message;
-use infiltrator_test_support::connection_grouping_fixtures::grouping_snapshot;
+use infiltrator_test_support::connection_grouping_fixtures::{
+    grouping_observation, grouping_snapshot, observed,
+};
 
 #[test]
 fn grouping_updates_all_groups_and_preserves_search_without_commands() {
     let (mut state, _) = AppState::demo(&demo_env(Route::Runtime));
     let mut snapshot = grouping_snapshot();
-    let _ = state.update(Message::ConnectionsReceived(snapshot.clone()));
+    let _ = state.update(Message::ConnectionsReceived(observed(snapshot.clone())));
     assert_eq!(
         state
             .update(Message::SetConnectionGroupingMode(
@@ -39,7 +41,7 @@ fn grouping_updates_all_groups_and_preserves_search_without_commands() {
         .connections
         .retain(|row| row.id == "group-duplicate");
     snapshot.connections[0].upload = 4096;
-    let _ = state.update(Message::ConnectionsReceived(snapshot));
+    let _ = state.update(Message::ConnectionsReceived(observed(snapshot)));
     assert_eq!(state.diag.connections_model.rows()[0].count, 1);
     assert_eq!(
         state.diag.connections_model.rows()[0].traffic,
@@ -58,7 +60,7 @@ fn grouping_first_observation_respects_existing_search() {
         .diag
         .connections_model
         .edit_query(&state.runtime.connection_query);
-    let _ = state.update(Message::ConnectionsReceived(grouping_snapshot()));
+    let _ = state.update(Message::ConnectionsReceived(grouping_observation()));
     let _ = state.update(Message::SetConnectionGroupingMode(
         ConnectionGroupingMode::ByProcess,
     ));

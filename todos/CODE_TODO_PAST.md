@@ -524,6 +524,32 @@ presentation 把建立时间格式化成 `MM-DD HH:MM:SS`、单元格固定宽�
 经 owner 读回读入）；`space_utilization --surface iced --enforce` **194 帧 violations=0**（两帧未用留白
 **0.4% / 0.5%**）、`receipt-freshness 0`、`screenshot-identity` 唯一红腿仍是并行会话的 Bevy 别名。
 ⑤ **上游交互面（b240 补齐）**：pinned FlClash `lib/features/connection/tracker_info_table.dart` 的连接表把**出站**渲染成 tonal chip，按下即按该代理过滤（`RecordFilter(RecordFacetKind.proxy, exit)`）；本仓原链路列是纯文本。b240 让 presentation 发布 typed `ConnectionTableCell::Chain { outbound, rest }`，Iced 把出站渲染成可点胶囊（共享 `style_chip` 样式），按下即发 typed `UpdateRuntimeConnectionFilter`，共享查询折叠本就含链路词 → 零 core 改动同语义；守卫新增该判据 + 1 项 planted 负例（自测 **15 → 16/16**）。**存异**：上游列集按宽度增删、窄窗把上下行合成 traffic；本仓列集是**用户持久化偏好**（契约 22 列闭集），故不按宽度丢列，代价是表格横向滚动；上游的**时长**列用客户端时钟，本仓禁止视图读本地时钟，该列在 owner 发布观察时刻前诚实缺席。
-⑥ **待验证范围**：contract/scenario 锚点与 `resolve_surface_evidence.py` ready cells 留统一批次；Bevy / Slint /
-Android 尚未消费该形态，不声称任何跨表面结论；全仓 `--workspace` nextest/clippy 与结构门动态全腿留统一批次。
+⑥ **上游最后一列与它背后的 core 缺口（b241 补齐）**：pinned FlClash 的 live 连接表末列是**时长**
+（`duration`，宽 80，muted），值由 `trackerDurationText(DateTime.now().difference(info.start))` 算出
+（秒 / 分（十分钟以下一位小数，以上取整）/ 时）。b240 把这一列记成「等 owner 发布观察时刻」的诚实缺席；
+b241 顺着这句话往下挖，挖到真正的缺口不在 UI——**观察连接的那一刻根本没有被发布**：ports 的
+`ConnectionObservationSnapshot` 只带 scope / revision / snapshot，没有 instant，于是任何要回答「这条连接活了
+多久」的消费方只能自己读钟（`ClosedConnectionsApplication::observe` 就是 `Utc::now()`），第二套时钟由此产生，
+同一次观测在不同消费方读出的年龄还会彼此漂移。b241 自底向上补齐：**domain** 新增 typed
+`ConnectionObservationInstant { Observed { at }, Unobserved }` / `ConnectionDuration` / `ObservedConnections`
+（行与观察时刻同属一个事实），并把私有 start 解析器提为唯一一份 `parse_connection_start`；`ConnectionView`
+新增 `view_duration()`、`RatedConnection` 转发它（否则 rated 行会把它吃掉）、`ClosedConnectionSnapshot` 实现它；
+**application** 新增 `observation_clock::accepted_at()`（Core 里唯一读墙上时钟的地方）与 typed
+`AcceptedConnectionObservation`（owner 的行 + Core 接受它们的时刻），`snapshot()` 与 `stream()` 都发布它，
+关闭记录 owner 也改用同一个 Core 时钟；**contract** 新增 `ConnectionColumn::Duration`（闭集 22 → **23**，
+wire `duration`，`support()` = Reported，**不进默认列集**——上游 live 表没有「建立时间」列，两种写法回答同一个
+问题，本仓让读者选一种而不是同时挂两列时间）；**shared** 新增 `connection.column.duration` 中英文案与
+`elapsed_time::format_duration_ms`（秒 / 分 / 时，单位不随语言变，与字节单位同理）；**presentation** 的表投影多
+一个 typed 观察时刻参数（活着的行按「观察时刻 − 该行发布的 start」，关闭的行按该行自己发布的 `duration_ms`，
+都没有就是诚实未知而不是 0 秒）；**Iced** 的 `state.diag.connections` 换成 typed `ObservedConnections`，
+demo 与 capture fixture 用**固定**观察时刻保证像素可复现，capture 矩阵第 10 列 `connection_columns` 让每一行
+向 owner 读回请求它要渲染的列集。**求同**：上游有这一列、写法三档一致；**存异**：上游用客户端时钟并固定末列，
+本仓用 owner 发布的观察时刻、并把它做成读者可勾选可排序的第 23 列。**门禁**：守卫新增「视图不得自读墙上时钟」
+判据 + 1 项 planted 负例（自测 **16 → 17/17**）。**证据（L）**：七包 nextest **2590/2590**、Iced **663/663**、
+全仓 `cargo clippy --workspace --all-targets -- -D warnings` exit 0、整批重采 **194/194**、
+`space_utilization --surface iced --enforce` **194 帧 violations=0**、`receipt-freshness 0`；两帧表格回执里
+「持续时间」紧邻「建立时间」，可见 `10 min` / `7.8 min` / `4.4 min` 三档写法。**诚实边界**：Bevy / Slint /
+Android 的连接页快照由并行会话持有的 composition 层发布，尚无观察时刻 → 那一侧仍无时长列，不伪造。
+⑦ **待验证范围**：contract/scenario 锚点与 `resolve_surface_evidence.py` ready cells 留统一批次；Bevy / Slint /
+Android 尚未消费该形态，不声称任何跨表面结论；全仓 `--workspace` nextest 与结构门动态全腿留统一批次。
 本条保持 `Integrated`，不办结。

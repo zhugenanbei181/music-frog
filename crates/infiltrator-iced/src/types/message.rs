@@ -44,10 +44,11 @@ use infiltrator_contract::{
 use infiltrator_desktop::process_enumerator::{ExtendedProcessInfo, ProcessCategory};
 use infiltrator_domain::{
     app_routing::{AppRoutingConfig, AppRoutingMode, AppRoutingRule},
+    connection_observation::ObservedConnections,
     connection_view::{ConnectionGroupingMode, ConnectionSortKey},
     profiles::ProfileInfo,
     rules::RuleProviderDiff,
-    runtime::{ConnectionSnapshot, TrafficData},
+    runtime::TrafficData,
     settings::AppSettings,
     traffic_audit::{TrafficDimension, TrafficWindow},
 };
@@ -236,11 +237,14 @@ pub enum Message {
     RefreshRuntimeNow,
     TrafficReceived(TrafficData),
     IpInfoReceived(Result<IpProbeResult, InfiltratorError>, usize),
-    ConnectionsReceived(ConnectionSnapshot),
+    /// One accepted connection list, with the instant the Core accepted it.
+    ConnectionsReceived(ObservedConnections),
     LogReceived(String),
     RuntimeStreamLogReceived(CoreScope, String),
     RuntimeStreamTrafficReceived(CoreScope, TrafficData),
-    RuntimeStreamConnectionsReceived(CoreScope, ConnectionSnapshot),
+    /// One accepted connection list from the runtime stream, with the instant
+    /// the Core accepted it.
+    RuntimeStreamConnectionsReceived(CoreScope, ObservedConnections),
     RuntimeStreamStateChanged {
         kind: RuntimeStreamKind,
         scope: CoreScope,

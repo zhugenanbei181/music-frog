@@ -5,7 +5,7 @@ use crate::types::message::Message;
 use crate::view::runtime::connections_controls;
 use crate::view_root::interaction_regions::InteractionRegion;
 use infiltrator_domain::connection_view::ConnectionGroupingMode;
-use infiltrator_test_support::connection_grouping_fixtures::grouping_snapshot;
+use infiltrator_test_support::connection_grouping_fixtures::grouping_observation;
 
 fn feed(state: &mut AppState, messages: Vec<Message>) {
     assert!(
@@ -25,7 +25,7 @@ fn choose(state: &mut AppState, region: InteractionRegion) {
 fn native_grouping_controls_preserve_filtered_counts_across_dimensions_and_clear() {
     let (mut state, _) = AppState::new();
     state.shell.demo = true;
-    let _ = state.update(Message::ConnectionsReceived(grouping_snapshot()));
+    let _ = state.update(Message::ConnectionsReceived(grouping_observation()));
     choose(&mut state, InteractionRegion::ConnectionGroupProcess);
     assert_eq!(state.diag.connections_model.rows().len(), 8);
     let messages = native(

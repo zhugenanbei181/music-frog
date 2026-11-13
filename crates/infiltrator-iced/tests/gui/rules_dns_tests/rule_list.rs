@@ -12,7 +12,7 @@ use infiltrator_contract::rule_edit::RuleMoveDirection;
 use infiltrator_contract::surface_snapshot::PageId;
 use infiltrator_presentation::shell_readout::count_copy;
 use infiltrator_shared::locales::Lang;
-use infiltrator_test_support::connection_grouping_fixtures::grouping_snapshot;
+use infiltrator_test_support::connection_grouping_fixtures::grouping_observation;
 use lurker_core_contract::error::ErrorCode;
 use std::sync::atomic::Ordering;
 use tokio::runtime::Builder;
@@ -48,7 +48,7 @@ fn tea_rule_hit_counts_replay_shared_rows_and_ignore_unrelated_connection_snapsh
     assert_eq!(state.editor.rules_render_cache[0].hit_count, Some(5));
     assert_eq!(state.editor.rules_render_cache[3].hit_count, Some(12));
     assert_eq!(state.editor.rules_render_cache[1].hit_count, Some(0));
-    let _ = state.update(Message::ConnectionsReceived(grouping_snapshot()));
+    let _ = state.update(Message::ConnectionsReceived(grouping_observation()));
     assert_eq!(state.editor.rules_render_cache[0].hit_count, Some(5));
     assert_eq!(state.editor.rules_render_cache[3].hit_count, Some(12));
     state.surface = Default::default();

@@ -21,9 +21,11 @@ use crate::connection_view_projection::ConnectionViewColumnProjection;
 use chrono::DateTime;
 use infiltrator_contract::connection::ConnectionRateObservation;
 use infiltrator_contract::connection_view_preference::{ConnectionColumn, ConnectionColumnSupport};
+use infiltrator_domain::connection_observation::ConnectionObservationInstant;
 use infiltrator_domain::connection_view::{ConnectionView, RatedConnection, route_chain};
 use infiltrator_shared::byte_units::format_bytes;
 use infiltrator_shared::effect_assets::text_width_em;
+use infiltrator_shared::elapsed_time::format_duration_ms;
 
 /// The honest value of a fact nobody published.
 pub const UNAVAILABLE: &str = "—";
@@ -155,11 +157,15 @@ pub struct ConnectionTableProjection {
 /// Project the user's visible columns and the observed rows into a table.
 ///
 /// The rows arrive in the page's own order; the projection keeps that order
-/// and never sorts or filters on its own.
+/// and never sorts or filters on its own. The instant of the observation is
+/// the owner's: a row that publishes its start is measured against it, so no
+/// surface has to read a clock of its own to know how long a connection has
+/// been alive.
 pub fn project_connection_view_table<C: ConnectionView>(
     columns: &[ConnectionViewColumnProjection],
     rows: &[RatedConnection<'_, C>],
     status: ConnectionTableStatus,
+    instant: ConnectionObservationInstant,
 ) -> ConnectionTableProjection {
     let headers: Vec<ConnectionTableHeader> = columns
         .iter()
@@ -177,7 +183,7 @@ pub fn project_connection_view_table<C: ConnectionView>(
             id: row.row.view_id().to_owned(),
             cells: headers
                 .iter()
-                .map(|header| cell_for(header.column, row, status))
+                .map(|header| cell_for(header.column, row, status, instant))
                 .collect(),
         })
         .collect();
@@ -197,7 +203,8 @@ pub const fn connection_column_tone(column: ConnectionColumn) -> ConnectionTable
         | ConnectionColumn::UploadSpeed
         | ConnectionColumn::DownloadSpeed
         | ConnectionColumn::Upload
-        | ConnectionColumn::Download => ConnectionTableTone::Numeric,
+        | ConnectionColumn::Download
+        | ConnectionColumn::Duration => ConnectionTableTone::Numeric,
         ConnectionColumn::Status
         | ConnectionColumn::Type
         | ConnectionColumn::Host
@@ -224,7 +231,8 @@ pub const fn connection_column_width(column: ConnectionColumn) -> ConnectionColu
         | ConnectionColumn::Upload
         | ConnectionColumn::Download
         | ConnectionColumn::Dscp
-        | ConnectionColumn::DnsMode => ConnectionColumnWidth::Narrow,
+        | ConnectionColumn::DnsMode
+        | ConnectionColumn::Duration => ConnectionColumnWidth::Narrow,
         ConnectionColumn::EstablishTime
         | ConnectionColumn::SniffHost
         | ConnectionColumn::Process
@@ -244,6 +252,7 @@ fn cell_for<C: ConnectionView>(
     column: ConnectionColumn,
     row: &RatedConnection<'_, C>,
     status: ConnectionTableStatus,
+    instant: ConnectionObservationInstant,
 ) -> ConnectionTableCell {
     let support = column.support();
     if support == ConnectionColumnSupport::Unreported {
@@ -272,6 +281,7 @@ fn cell_for<C: ConnectionView>(
         }
         ConnectionColumn::RemoteDestination => reported(&row.view_remote_destination()),
         ConnectionColumn::DnsMode => reported(row.view_dns_mode()),
+        ConnectionColumn::Duration => duration_cell(row, status, instant),
         // The contract already refused these four; the match stays exhaustive
         // over the closed registry so a future column cannot slip through.
         ConnectionColumn::SniffHost
@@ -294,6 +304,28 @@ fn chain_cell<C: ConnectionView>(row: &RatedConnection<'_, C>) -> ConnectionTabl
     ConnectionTableCell::Chain {
         outbound: outbound.to_owned(),
         rest: rest.join(" → "),
+    }
+}
+
+/// The duration of one row.
+///
+/// A live row publishes its start, so its age is measured against the instant
+/// of the observation that carried it. A closed record publishes the length
+/// it lived, so it answers the question itself. A row that publishes neither
+/// keeps the honest unknown: a zero would read like a connection that just
+/// opened.
+fn duration_cell<C: ConnectionView>(
+    row: &RatedConnection<'_, C>,
+    status: ConnectionTableStatus,
+    instant: ConnectionObservationInstant,
+) -> ConnectionTableCell {
+    let duration_ms = match status {
+        ConnectionTableStatus::Active => instant.age_of(row.view_start()),
+        ConnectionTableStatus::Closed => row.view_duration().duration_ms(),
+    };
+    match duration_ms {
+        Some(duration_ms) => ConnectionTableCell::Text(format_duration_ms(duration_ms)),
+        None => ConnectionTableCell::Unavailable,
     }
 }
 

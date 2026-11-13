@@ -163,8 +163,8 @@ impl SourceDoc {
         let mut last_item = None;
         let mut item_indent = 2;
         let mut end = self.lines.len();
-        for i in (header + 1)..self.lines.len() {
-            let text = &self.lines[i].text;
+        for (i, entry) in self.lines.iter().enumerate().skip(header + 1) {
+            let text = &entry.text;
             if is_blank(text) {
                 continue;
             }

@@ -33,7 +33,7 @@ use crate::types::message::Message;
 use crate::view::theme::{theme_from_name, theme_to_name};
 use crate::window_chrome::{MIN_WINDOW_SIZE, window_settings};
 use iced::Task;
-use infiltrator_contract::connection_view_preference::ConnectionViewMode;
+use infiltrator_contract::connection_view_preference::{ConnectionColumnSet, ConnectionViewMode};
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::shell_sidebar_preference::SidebarExpansionPreference;
 use infiltrator_domain::traffic_audit::{TrafficDimension, TrafficWindow};
@@ -109,6 +109,13 @@ pub struct DemoEnv {
     /// or absent value keeps the owner's default instead of guessing a second
     /// state.
     pub connection_view_mode: ConnectionViewMode,
+    /// The Connections columns this capture asks for, parsed from
+    /// `INFILTRATOR_CONNECTION_COLUMNS` (a comma-separated list of the
+    /// contract's own wire column names, in the order the reader wants them).
+    /// The demo is the owner's readback stand-in: an absent value keeps the
+    /// owner's default column set, and a value the contract does not own is a
+    /// capture error rather than a quiet second default.
+    pub connection_columns: Option<ConnectionColumnSet>,
     /// The traffic audit's range and dimension this capture asks for, parsed
     /// from `INFILTRATOR_TRAFFIC_AUDIT` (`<range>:<dimension>`, e.g.
     /// `30d:process`). The demo applies it through the production message
@@ -172,11 +179,40 @@ impl DemoEnv {
                 .ok()
                 .and_then(|raw| ConnectionViewMode::from_wire_id(raw.trim()).ok())
                 .unwrap_or_default(),
+            connection_columns: parse_connection_columns(
+                var("INFILTRATOR_CONNECTION_COLUMNS").ok().as_deref(),
+            ),
             traffic_audit: var("INFILTRATOR_TRAFFIC_AUDIT")
                 .ok()
                 .and_then(|raw| parse_traffic_audit(&raw)),
         }
     }
+}
+
+/// Parse `INFILTRATOR_CONNECTION_COLUMNS`: the contract's own wire column
+/// names, comma separated, in the order the reader wants them.
+///
+/// A capture that names a column the contract does not own fails loudly: a
+/// quiet fallback would publish a frame that proves nothing about the column
+/// it claims to show.
+fn parse_connection_columns(raw: Option<&str>) -> Option<ConnectionColumnSet> {
+    let raw = raw?.trim();
+    if raw.is_empty() {
+        return None;
+    }
+    let names: Vec<&str> = raw
+        .split(',')
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .collect();
+    if names.is_empty() {
+        return None;
+    }
+    Some(
+        ConnectionColumnSet::from_wire_ids(names).unwrap_or_else(|error| {
+            panic!("the capture asked for Connections columns the contract does not own: {error}")
+        }),
+    )
 }
 
 /// Parse `INFILTRATOR_TRAFFIC_AUDIT`: `<1h|24h|7d|30d>:<source-ip|host|outbound|process>`.
@@ -335,3 +371,27 @@ mod tests;
 #[cfg(test)]
 #[path = "../tests/gui/demo_interaction_tests.rs"]
 mod interaction_tests;
+
+#[cfg(test)]
+mod connection_column_tests {
+    use super::*;
+
+    #[test]
+    fn a_capture_asks_for_the_columns_the_contract_owns() {
+        let columns = parse_connection_columns(Some("status,host,duration"))
+            .expect("the contract owns these columns");
+        assert_eq!(columns.wire_ids(), vec!["status", "host", "duration"]);
+    }
+
+    #[test]
+    fn an_absent_or_empty_list_keeps_the_readers_default() {
+        assert!(parse_connection_columns(None).is_none());
+        assert!(parse_connection_columns(Some("   ")).is_none());
+    }
+
+    #[test]
+    #[should_panic(expected = "the contract does not own")]
+    fn a_capture_that_names_an_unknown_column_fails_loudly() {
+        let _ = parse_connection_columns(Some("status,not_a_column"));
+    }
+}

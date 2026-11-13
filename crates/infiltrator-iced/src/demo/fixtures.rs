@@ -3,10 +3,32 @@
 
 use infiltrator_contract::traffic_waveform::{TrafficSample, TrafficWaveformSnapshot};
 use infiltrator_desktop::process_enumerator::{ExtendedProcessInfo, ProcessCategory};
+use infiltrator_domain::connection_observation::{
+    ConnectionObservationInstant, ObservedConnections,
+};
 use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_domain::rules::RuleEntry;
 use infiltrator_domain::runtime::{Connection, ConnectionMetadata, ConnectionSnapshot};
 use std::collections::VecDeque;
+
+/// The instant the demo observed its connections at.
+///
+/// The demo is a capture surface: a wall clock here would make every frame
+/// differ from the last one, so the demo reads one fixed instant and the
+/// ages it renders stay reproducible.
+const DEMO_OBSERVED_AT: &str = "2026-08-29T15:30:00+08:00";
+
+/// Pair one demo snapshot with the instant the demo observed it at.
+pub(super) fn demo_observation(snapshot: ConnectionSnapshot) -> ObservedConnections {
+    ObservedConnections::new(
+        snapshot,
+        ConnectionObservationInstant::observed_at(
+            chrono::DateTime::parse_from_rfc3339(DEMO_OBSERVED_AT)
+                .expect("demo instant")
+                .with_timezone(&chrono::Utc),
+        ),
+    )
+}
 
 /// 60 samples (the app's own history cap and the chart's `max_points`) of a
 /// believable wave: up 0.5–4 MB/s, down 1–12 MB/s.

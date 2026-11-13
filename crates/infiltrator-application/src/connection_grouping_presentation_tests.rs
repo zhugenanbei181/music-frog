@@ -102,7 +102,7 @@ fn connection_projection_preserves_ip_search_and_latest_sort() {
     connection_view::sort_connections(&mut live, ConnectionSortKey::LatestDesc);
     connection_view::sort_connections(&mut projected, ConnectionSortKey::LatestDesc);
     assert_eq!(live[0].id, "group-7");
-    assert_eq!(projected[0].start, "2026-10-06T00:00:07Z");
+    assert_eq!(projected[0].start, "2026-10-06T00:59:55Z");
     assert_eq!(
         live.iter().map(|row| &row.id).collect::<Vec<_>>(),
         projected.iter().map(|row| &row.id).collect::<Vec<_>>()

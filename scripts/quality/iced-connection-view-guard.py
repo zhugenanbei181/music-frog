@@ -8,7 +8,7 @@ lexically and proves that:
 
 * List and Table are both real segments and both emit the typed preference
   message;
-* the 22 choices come from the shared projection, not ``ConnectionColumn::ALL``
+* the 23 choices come from the shared projection, not ``ConnectionColumn::ALL``
   in the view;
 * Reset emits ``ConnectionViewIntent::ResetColumns``;
 * all user-visible copy goes through ``Lang(...).tr(...)``;
@@ -82,6 +82,7 @@ CHOOSER_MOUNT = re.compile(r"column_chooser_mounted\s*\(")
 GROUPING_MOUNT = re.compile(r"grouping_control_mounted\s*\(")
 TABLE_READBACK = re.compile(r"diag\.connection_view")
 OUTBOUND_FILTER = re.compile(r"Message::UpdateRuntimeConnectionFilter")
+WALL_CLOCK = re.compile(r"Utc::now\(\)|SystemTime::now\(\)|current_unix_secs\(\)")
 
 
 def read(path: pathlib.Path) -> str:
@@ -136,7 +137,7 @@ def findings(
     if not CHOICES.search(controls):
         problems.append("the column choices no longer come from the shared projection")
     if VIEW_ARRAY.search(controls):
-        problems.append("the view has rebuilt a second 22-column registry")
+        problems.append("the view has rebuilt a second 23-column registry")
     if not RESET.search(controls) or NOOP.search(controls):
         problems.append("Reset must publish ResetColumns rather than a dead input")
     if not LANG_TR.search(controls):
@@ -182,6 +183,14 @@ def findings(
         problems.append(
             "the table's outbound chip does not publish the typed filter intent"
         )
+    for path, text in (
+        (CONNECTIONS, connections),
+        (TABLE_VIEW, table),
+    ):
+        if WALL_CLOCK.search(text):
+            problems.append(
+                f"{path.relative_to(ROOT)} reads a wall clock instead of the owner's instant"
+            )
     for region in (
         "ConnectionViewControls",
         "ConnectionViewModeList",
@@ -238,7 +247,7 @@ class GuardSelfTest(unittest.TestCase):
             "let modes = ConnectionViewMode::ALL;",
             "let modes = ConnectionViewMode::ALL;\n    let shadow_registry = ConnectionColumn::ALL;",
         )
-        self.assertTrue(any("second 22-column registry" in item for item in self.planted(controls_text=planted)))
+        self.assertTrue(any("second 23-column registry" in item for item in self.planted(controls_text=planted)))
 
     def test_reset_changed_to_noop_is_rejected(self) -> None:
         planted = self.live["controls_text"].replace(
@@ -316,7 +325,7 @@ class GuardSelfTest(unittest.TestCase):
         )
 
     def test_a_table_owned_column_registry_is_rejected(self) -> None:
-        planted = self.live["table_text"] + "\nconst SHADOW: [ConnectionColumn; 22] = ConnectionColumn::ALL;\n"
+        planted = self.live["table_text"] + "\nconst SHADOW: [ConnectionColumn; 23] = ConnectionColumn::ALL;\n"
         self.assertTrue(
             any(
                 "second column registry" in item
@@ -341,6 +350,18 @@ class GuardSelfTest(unittest.TestCase):
         self.assertTrue(
             any(
                 "outbound chip does not publish the typed filter intent" in item
+                for item in self.planted(table_text=planted)
+            )
+        )
+
+    def test_a_view_that_reads_its_own_clock_is_rejected(self) -> None:
+        planted = self.live["table_text"].replace(
+            "    let headers = &projection.headers;",
+            "    let _now = chrono::Utc::now();\n    let headers = &projection.headers;",
+        )
+        self.assertTrue(
+            any(
+                "reads a wall clock instead of the owner's instant" in item
                 for item in self.planted(table_text=planted)
             )
         )

@@ -14,17 +14,17 @@
 
 | # | 问题 | 合格证据 |
 | --- | --- | --- |
-| 1 | x86_64 与 aarch64 是否都支持？ | 每个架构至少一条可复跑的交叉 `cargo check`（L）或目标产物（C/D） |
-| 2 | Windows / Linux / macOS 是否都支持？ | 每个平台有构建腿（C）或安装包（D）；不支持的必须显式写 `Unsupported` 并登记原因 |
-| 3 | Android / iOS 是否都支持？ | APK/应用包产物（C/D）或显式 `Unsupported` |
-| 4 | 各个 UI 是否都接入了？ | 每个 UI 的编译证据 + 功能验收范围；薄壳必须写「最小接入」 |
-| 5 | 该复用的是否都复用了？ | 共享 owner 清单；已知重复实现必须清零或立项 |
-| 5a | 设计资源是否按强制标准验证？ | [DESIGN_RESOURCE_STANDARD.md](DESIGN_RESOURCE_STANDARD.md) §5 判定项清单（条数随标准增减，以该节为准）的证据；身份变化需双视口像素回执，复用旧回执即不合格 |
-| 6 | 各处界面的功能是否都接入了？ | parity cell 或平台矩阵状态；`Unsupported` 必须显式列出 |
-| 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
-| 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
+| 1 | 部分 | L | b241 改 domain/application/contract/shared/presentation/iced 纯 Rust、capture 台架与 L4 台账，零平台 API；七包 nextest **2590/2590**、Iced **663/663**（含 capture-tools 门控的 95 项）、**全仓 `cargo clippy --workspace --all-targets -- -D warnings` exit 0**（`unused_imports` 单项放宽给并行 b234 会话 WIP 的 2 个未用导入）为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1） |
+| 2 | 部分 | L | Linux 本机完成七包编译 / Clippy / nextest、Iced 整批重采与发布；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID |
+| 3 | 部分 | L | 零 Android/iOS 代码与资源改动；观察时刻与时长列只读桌面已有的 typed 读回与共享词表，对移动平台中立，但三 flavor 实机交互与 iOS 产物仍留在外部环境看板，不拿桌面像素冒充移动端证据 |
+| 4 | 部分 | L | **本批：Iced 连接表补上上游最后一列「时长」**——契约第 23 列 `ConnectionColumn::Duration`，值来自 owner 发布的观察时刻（上游用客户端 `DateTime.now()`，本仓用 Core 接受观察的那一刻）；Iced 整批重采 **194/194**（b241 批次，`20261113T052924Z_93f8aa31bbff_dirty_1007806`），`space_utilization --surface iced --enforce` **194 帧 violations=0**，两帧表格回执里「持续时间」紧邻「建立时间」，可见 `10 min` / `7.8 min` / `4.4 min` 三档写法。Slint 211 帧与 Bevy 192 帧仍归各自会话，那一侧尚无观察时刻因此仍无时长列 |
+| 5 | 完整 | L | 时长只有一条真源链：domain `connection_observation`（typed 观察时刻与时长事实）→ application `observation_clock::accepted_at()` + typed `AcceptedConnectionObservation` → presentation 表投影的 typed 时刻参数 → Iced 视图只渲染共享投影；`ConnectionColumn::Duration` 的身份在契约闭集，秒 / 分 / 时的写法在共享 `elapsed_time::format_duration_ms`；视图不读钟（守卫判据钉住）、不拆链字符串、不持第二份列集合 |
+| 5a | 部分 | L | 零字体 / 字重 / 图标 / 旗资产改动；新增的时长列复用既有字体与列宽三档（`text_width_em` 是唯一字体字节与宽度 owner），新增中英文案各一条；Iced 194 帧真像素回执已发布 → 桌面侧完整。圆形旗帜容器仍由 4:3 直角资产与 flag guard 钉住 |
+| 6 | 部分 | L | domain 4 项 + presentation 3 项 + shared 1 项 + test-support 1 项 + Iced 3 项新测试钉住观察时刻的年龄、关闭记录自报时长、无时刻即诚实未知、秒 / 分 / 时三档写法与 capture 列集解析；守卫 **17/17** + enforce 0（含「视图不得自读墙上时钟」判据与 planted 负例）；Iced **194/194** 真像素回执已发布，`receipt-freshness 0`。全仓 `--workspace` nextest、结构门动态全腿、`resolve_surface_evidence.py` ready cells 与并行 Bevy 身份红腿仍留统一批次 |
+| 7 | 完整 | L | 观察时刻链：ports 观察 → application 接受时刻 → domain typed 事实 → presentation 投影 → Iced 渲染，一条链；列身份链：contract `ConnectionColumn::Duration` → projection semantic ID → 共享词表 → Iced 表头，同一条链；Core 里读墙上时钟的地方收敛为 `observation_clock::accepted_at()` 一处，关闭记录 owner 也改用它 → 无跨 UI 私有业务真源、无第二套时钟 |
+| 8 | 部分 | L | 同主题 domain/application/contract/shared/presentation/iced/门禁一次落地后集中跑受影响包 nextest 与 Clippy，再跑一次整批重采与三条像素门；只跑受影响包，不逐文件反复全量验证，也不格式化并行 WIP。本批第一次让全仓 clippy 真正重编，顺手收口 HEAD 既有的 9 处 lint 红灯。全仓 `--workspace` nextest、结构门动态全腿与 `resolve_surface_evidence.py` 留统一批次一次跑完 |
 
-## 当前状态（2026-11-13 第二百四十批次；b111–b239 见下方批次八问摘要）## 当前状态（2026-11-13 第二百四十批次；b111–b239 见下方批次八问摘要）## 当前状态（2026-11-13 第二百三十九批次；b111–b238 见下方批次八问摘要）## 当前状态（2026-11-13 第二百三十八批次；b111–b237 见下方批次八问摘要）
+## 当前状态（2026-11-13 第二百四十一批次；b111–b240 见下方批次八问摘要）## 当前状态（2026-11-13 第二百四十一批次；b111–b240 见下方批次八问摘要）## 当前状态（2026-11-13 第二百三十九批次；b111–b238 见下方批次八问摘要）## 当前状态（2026-11-13 第二百三十八批次；b111–b237 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
@@ -95,7 +95,19 @@
 | 7 | 完整 | L | 契约常量 → 导出器 → v18 JSON → Python 版本 pin → 判定器夹具/读回 → 双场景参照守卫 → L2 标准 / L3 上游对照 / L4 台账分层收口；`doc-governance OK`、`closure 8/8`、结构收集器 **198 腿静态形状 0 findings**，无跨 UI 私有业务真源 |
 | 8 | 部分 | L | 同主题导出物、守卫、判据夹具、标准与台账一次落地后集中跑契约构建、空间/参照 Python 门和双表面报告；判据身份变化不触发截图重采。全仓 `--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` 留统一批次一次跑完 |
 
-## 最近一批问答（2026-11-13 第二百四十批次：FlClash 出站胶囊落到 Iced 连接表）
+## 最近一批问答（2026-11-13 第二百四十一批次：FlClash 连接表最后一列「时长」与它背后的 core 缺口）
+
+1. x86_64/aarch64：本批只改 domain/application/contract/shared/presentation/iced 纯 Rust、capture 台架与 L4 台账，零平台 API；七包 nextest **2590/2590**、Iced **663/663**、**全仓 `cargo clippy --workspace --all-targets -- -D warnings` exit 0**、守卫 **17/17** + enforce 0、`space_utilization --surface iced --enforce` **194 帧 violations=0**、`receipt-freshness 0` 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
+2. Windows/Linux/macOS：Linux 本机完成 Iced 整批重采（194/194）与发布；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID → 部分（L）。
+3. Android/iOS：零 Android/iOS 代码与资源改动；观察时刻与时长列只读桌面已有的 typed 读回与共享词表，对移动平台中立；三 flavor 实机交互与 iOS 产物仍留在外部环境看板 → 部分（L）。
+4. 各 UI：**Iced 连接表补上了上游最后一列「时长」**——契约第 23 列 `ConnectionColumn::Duration`，活着的行按「owner 发布的观察时刻 − 该行发布的 start」算年龄，关闭的行按自己发布的 `duration_ms` 回答；整批重采 194/194，两帧表格回执里「持续时间」紧邻「建立时间」，可见 `10 min` / `7.8 min` / `4.4 min` 三档。Slint / Bevy / Android 仍不消费该形态（那一侧的连接页快照尚无观察时刻，因此诚实缺席）→ 部分（L）。
+5. 复用：时长只有一条真源链——domain `connection_observation` 的 typed 观察时刻与时长事实 → application `observation_clock::accepted_at()` 与 `AcceptedConnectionObservation` → presentation 表投影的 typed 时刻参数 → Iced 渲染；列身份在契约闭集、写法在共享 `elapsed_time::format_duration_ms`；视图不读钟、不拆链字符串、不持第二份列集合 → 完整（L）。
+5a. 设计资源：零字体 / 字重 / 图标 / 旗资产改动；时长列复用既有字体与列宽三档（`text_width_em` 是唯一字体字节与宽度 owner），新增中英文案各一条；上游的**时长**列用客户端时钟，本仓改用 owner 发布的观察时刻 → 部分（L）。
+6. 各处界面的功能接入：domain 4 项 + presentation 3 项 + shared 1 项 + test-support 1 项 + Iced 3 项新测试钉住年龄、关闭记录自报时长、无时刻即诚实未知、三档写法与 capture 列集解析；`iced-connection-view-guard.py` 新增「视图不得自读墙上时钟」判据 + planted 负例，自测 **16 → 17/17** + enforce 0；Iced **194/194** 真像素回执已发布，`receipt-freshness 0`。全仓 `--workspace` nextest、结构门动态全腿、`resolve_surface_evidence.py` ready cells 与并行 Bevy 身份红腿仍留统一批次 → 部分（L）。
+7. 模块化：观察时刻链（ports 观察 → application 接受时刻 → domain typed 事实 → presentation 投影 → Iced 渲染）与列身份链（contract → projection semantic ID → 共享词表 → Iced 表头）各自一条链；Core 里读墙上时钟的地方收敛为 `observation_clock::accepted_at()` 一处，关闭记录 owner 也改用它 → 完整（L）。
+8. CI 与批次效率：同主题源码、门禁一次落地后先跑受影响包，再跑一次整批重采与三条像素门；只跑受影响包，不逐文件反复全量验证，也不格式化并行会话的 WIP。本批第一次让全仓 clippy 真正重编，顺手收口 HEAD 既有的 9 处 lint 红灯（此前批次的「clippy exit 0」是缓存造成的假绿）。全仓 `--workspace` nextest 与结构门动态全腿留统一批次一次跑完 → 部分（L）。
+
+## 历史问答（2026-11-13 第二百四十批次：FlClash 出站胶囊落到 Iced 连接表）
 
 1. x86_64/aarch64：本批只改 presentation/iced 纯 Rust、capture 台架与 L4 台账，零平台 API；presentation **11/11**、Iced **568/568**、三包 Clippy `-D warnings` exit 0、守卫 **16/16** + enforce 0、`space_utilization --surface iced --enforce` **194 帧 violations=0**、`receipt-freshness 0` 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：Linux 本机完成 Iced 整批重采（194/194，357s）与发布；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID → 部分（L）。

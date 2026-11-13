@@ -12,6 +12,7 @@
 //! second representation to reuse the reduction.
 
 use crate::connection_rate::ConnectionRate;
+use crate::connection_observation::ConnectionDuration;
 use crate::rules::RuleEntry;
 use crate::runtime::Connection;
 use infiltrator_contract::rule_override::CreateRuleOverrideIntent;
@@ -314,6 +315,14 @@ pub trait ConnectionView {
     fn view_start(&self) -> &str {
         ""
     }
+    /// The duration the owner published for this row.
+    ///
+    /// A closed record carries the length it lived, so it answers this
+    /// question itself. A live row publishes only its start, and its age is
+    /// measured against the instant of the observation that carried it.
+    fn view_duration(&self) -> ConnectionDuration {
+        ConnectionDuration::Unobserved
+    }
     /// Parsed route-chain hops in routing order (DUAL-13-06).
     fn view_chain(&self) -> &[String] {
         &[]
@@ -482,6 +491,10 @@ impl<C: ConnectionView> ConnectionView for RatedConnection<'_, C> {
 
     fn view_start(&self) -> &str {
         self.row.view_start()
+    }
+
+    fn view_duration(&self) -> ConnectionDuration {
+        self.row.view_duration()
     }
 
     fn view_chain(&self) -> &[String] {

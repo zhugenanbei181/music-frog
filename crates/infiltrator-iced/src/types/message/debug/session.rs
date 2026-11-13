@@ -267,7 +267,7 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         Message::ConnectionsReceived(c) => write!(
             f,
             "ConnectionsReceived({} connections)",
-            c.connections.len()
+            c.snapshot().connections.len()
         ),
         Message::LogReceived(l) => write!(f, "LogReceived({})", l),
         Message::RuntimeStreamLogReceived(scope, _) => {
@@ -281,7 +281,7 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         Message::RuntimeStreamConnectionsReceived(scope, snapshot) => write!(
             f,
             "RuntimeStreamConnectionsReceived(scope={scope:?}, connections={})",
-            snapshot.connections.len()
+            snapshot.snapshot().connections.len()
         ),
         Message::RuntimeStreamStateChanged { kind, scope, state } => write!(
             f,

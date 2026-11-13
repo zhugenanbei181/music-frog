@@ -28,6 +28,7 @@ use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme};
 use infiltrator_contract::connection_view_preference::ConnectionViewMode;
 use infiltrator_domain::connection_activity::{IDLE_TIMEOUT_CHOICES, idle_timeout_minutes_label};
+use infiltrator_domain::connection_observation::ConnectionObservationInstant;
 use infiltrator_domain::connection_rate::{ConnectionRate, ConnectionRates};
 use infiltrator_domain::connection_view::{ConnectionGroupingMode, RatedConnection};
 use infiltrator_domain::runtime::Connection;
@@ -111,6 +112,20 @@ pub fn format_rate(bps: f64) -> String {
     format!("{}/s", format_bytes(bps.max(0.0) as u64))
 }
 
+/// The instant the Core accepted the connection list the page renders.
+///
+/// A page without an accepted list has no instant to measure against, so the
+/// age column keeps the honest unknown. The surface never reads a clock of
+/// its own.
+fn observed_instant(state: &AppState) -> ConnectionObservationInstant {
+    state
+        .diag
+        .connections
+        .as_ref()
+        .map(|observed| observed.instant())
+        .unwrap_or(ConnectionObservationInstant::unobserved())
+}
+
 pub(crate) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<'a, Message> {
     connections_section_with_scroll_owner(state, lang, ConnectionListScrollOwner::RuntimePage)
 }
@@ -144,7 +159,7 @@ fn connections_section_with_scroll_owner<'a>(
 
     // 2. Traffic totals and stream status
     let (upload_total, download_total) = match &state.diag.connections {
-        Some(c) => (c.upload_total, c.download_total),
+        Some(c) => (c.snapshot().upload_total, c.snapshot().download_total),
         None => (0, 0),
     };
     let upload_badge = badge(
@@ -380,6 +395,7 @@ fn connections_section_with_scroll_owner<'a>(
                     &state.diag.connection_view.columns,
                     &rated,
                     ConnectionTableStatus::Closed,
+                    ConnectionObservationInstant::unobserved(),
                 );
                 connections_section =
                     connections_section.push(connections_table::connection_table(
@@ -442,6 +458,7 @@ fn connections_section_with_scroll_owner<'a>(
                 &state.diag.connection_view.columns,
                 &rated_rows,
                 ConnectionTableStatus::Active,
+                observed_instant(state),
             );
             connections_section = connections_section.push(connections_table::connection_table(
                 state,

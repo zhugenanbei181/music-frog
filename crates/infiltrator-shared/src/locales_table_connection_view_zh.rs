@@ -6,7 +6,7 @@
 
 use std::borrow::Cow;
 
-pub(crate) const CONNECTION_VIEW_COPY_KEYS: [&str; 26] = [
+pub(crate) const CONNECTION_VIEW_COPY_KEYS: [&str; 27] = [
     "connection.column.status",
     "connection.column.establish_time",
     "connection.column.type",
@@ -29,13 +29,14 @@ pub(crate) const CONNECTION_VIEW_COPY_KEYS: [&str; 26] = [
     "connection.column.dscp",
     "connection.column.remote_destination",
     "connection.column.dns_mode",
+    "connection.column.duration",
     "connection.view_mode.list",
     "connection.view_mode.table",
     "connection.view.reset_columns",
     "connection.view.title",
 ];
 
-pub(crate) const CONNECTION_VIEW_COPY_KEY_ALIASES: [&str; 26] = [
+pub(crate) const CONNECTION_VIEW_COPY_KEY_ALIASES: [&str; 27] = [
     "connection_column_status",
     "connection_column_establish_time",
     "connection_column_type",
@@ -58,6 +59,7 @@ pub(crate) const CONNECTION_VIEW_COPY_KEY_ALIASES: [&str; 26] = [
     "connection_column_dscp",
     "connection_column_remote_destination",
     "connection_column_dns_mode",
+    "connection_column_duration",
     "connection_view_mode_list",
     "connection_view_mode_table",
     "connection_view_reset_columns",
@@ -103,6 +105,7 @@ fn translate_connection_view_flat_zh(key: &str) -> Cow<'static, str> {
         "connection_column_dscp" => "DSCP".into(),
         "connection_column_remote_destination" => "远端目标".into(),
         "connection_column_dns_mode" => "DNS 模式".into(),
+        "connection_column_duration" => "持续时间".into(),
         "connection_view_mode_list" => "列表视图".into(),
         "connection_view_mode_table" => "表格视图".into(),
         "connection_view_reset_columns" => "重置列".into(),

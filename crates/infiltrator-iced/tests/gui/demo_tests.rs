@@ -42,6 +42,7 @@ fn demo_env(page: Route) -> DemoEnv {
         scenario: None,
         sidebar_expansion: SidebarExpansionPreference::default(),
         connection_view_mode: ConnectionViewMode::default(),
+        connection_columns: None,
         traffic_audit: None,
     }
 }
@@ -102,7 +103,7 @@ fn demo_fixture_inventory_covers_all_pages() {
     assert_eq!(state.runtime.traffic_topology.links.len(), 4);
     assert!(state.runtime.traffic_topology.is_flowing());
     assert_eq!(
-        state.diag.connections.as_ref().map(|c| c.connections.len()),
+        state.diag.connections.as_ref().map(|c| c.snapshot().connections.len()),
         Some(10)
     );
     assert!(state.diag.logs.len() >= 40);
@@ -133,9 +134,9 @@ fn demo_connections_populate_every_field_the_runtime_view_renders() {
         .connections
         .as_ref()
         .expect("demo seeds connections");
-    assert!(snapshot.connections.len() >= 10);
+    assert!(snapshot.snapshot().connections.len() >= 10);
 
-    for conn in &snapshot.connections {
+    for conn in &snapshot.snapshot().connections {
         assert!(!conn.id.is_empty(), "id drives the close button");
         assert!(
             !conn.metadata.host.is_empty() || !conn.metadata.destination_ip.is_empty(),

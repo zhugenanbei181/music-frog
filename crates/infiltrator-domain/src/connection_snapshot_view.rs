@@ -1,4 +1,5 @@
 //! Shared connection snapshot implements the domain reduction seam.
+use crate::connection_observation::ConnectionDuration;
 use crate::connection_view::{ConnectionView, bare_host};
 use infiltrator_contract::surface_snapshot::ConnectionSnapshot;
 use infiltrator_contract::traffic_history::ClosedConnectionSnapshot;
@@ -111,6 +112,12 @@ impl ConnectionView for ClosedConnectionSnapshot {
 
     fn view_start(&self) -> &str {
         &self.closed_at
+    }
+
+    fn view_duration(&self) -> ConnectionDuration {
+        ConnectionDuration::Observed {
+            duration_ms: self.duration_ms,
+        }
     }
 
     fn view_joined_chain(&self) -> &str {

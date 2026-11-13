@@ -1,6 +1,7 @@
 use super::*;
 use infiltrator_contract::tray_status::{TrayEventContext, resolve_tray_event_in};
 use infiltrator_presentation::dns_page_model::DnsPageTab;
+use infiltrator_test_support::connection_grouping_fixtures::observed;
 
 #[test]
 fn test_tray_and_exit() {
@@ -373,7 +374,7 @@ fn connections_pagination_windows_and_clamps() {
     state.diag.connections_page_size = 100;
 
     // 250 connections → 3 pages; next from page 0 → 1 → 2, then clamps at 2.
-    let _ = state.update(Message::ConnectionsReceived(snapshot_with(250)));
+    let _ = state.update(Message::ConnectionsReceived(observed(snapshot_with(250))));
     for expected in [1usize, 2, 2] {
         let _ = state.update(Message::ConnectionsNextPage);
         assert_eq!(state.diag.connections_page, expected);
@@ -382,7 +383,7 @@ fn connections_pagination_windows_and_clamps() {
     assert_eq!((page, start, end), (2, 200, 250));
 
     // Snapshot shrinks below the current page → clamped back into range.
-    let _ = state.update(Message::ConnectionsReceived(snapshot_with(80)));
+    let _ = state.update(Message::ConnectionsReceived(observed(snapshot_with(80))));
     let (page, start, end) = state.connections_window(80);
     assert_eq!((page, start, end), (0, 0, 80));
     assert_eq!(state.diag.connections_page, 0);
@@ -392,7 +393,7 @@ fn connections_pagination_windows_and_clamps() {
     assert_eq!(state.diag.connections_page, 0);
 
     // Filter/sort changes reset to the first page.
-    let _ = state.update(Message::ConnectionsReceived(snapshot_with(250)));
+    let _ = state.update(Message::ConnectionsReceived(observed(snapshot_with(250))));
     let _ = state.update(Message::ConnectionsNextPage);
     let _ = state.update(Message::UpdateRuntimeConnectionFilter("x".into()));
     assert_eq!(state.diag.connections_page, 0);
@@ -433,7 +434,7 @@ fn connection_idle_timeout_and_activity_tracking() {
             chains: Vec::new(),
         }],
     };
-    let _ = state.update(Message::ConnectionsReceived(snapshot));
+    let _ = state.update(Message::ConnectionsReceived(observed(snapshot)));
     assert_eq!(state.diag.connection_activity.tracked(), 1);
     assert!(
         state
@@ -469,7 +470,7 @@ fn connection_instantaneous_rates_derive_from_successive_snapshots() {
     // Deterministic timestamps: the derivation divides by the elapsed time we
     // hand it, exactly like the live stream would.
     let base = Instant::now();
-    let _ = state.apply_connections_snapshot(snapshot_with(1_000, 2_000), base);
+    let _ = state.apply_connections_snapshot(observed(snapshot_with(1_000, 2_000)), base);
     assert_eq!(
         state.diag.connection_rate_book.get("c-rate"),
         Default::default(),
@@ -477,7 +478,10 @@ fn connection_instantaneous_rates_derive_from_successive_snapshots() {
     );
 
     let _ = state
-        .apply_connections_snapshot(snapshot_with(3_000, 10_000), base + Duration::from_secs(2));
+        .apply_connections_snapshot(
+            observed(snapshot_with(3_000, 10_000)),
+            base + Duration::from_secs(2),
+        );
     let rate = state.diag.connection_rate_book.get("c-rate");
     assert_eq!(rate.upload_bps, 1_000.0);
     assert_eq!(rate.download_bps, 4_000.0);
@@ -485,7 +489,7 @@ fn connection_instantaneous_rates_derive_from_successive_snapshots() {
 
     // Crossing the shared 5 MB/s threshold arms the pulse for the next frame.
     let _ = state.apply_connections_snapshot(
-        snapshot_with(3_000, 10_000 + (HIGH_THROUGHPUT_THRESHOLD_BPS * 2.0) as u64),
+        observed(snapshot_with(3_000, 10_000 + (HIGH_THROUGHPUT_THRESHOLD_BPS * 2.0) as u64)),
         base + Duration::from_secs(4),
     );
     let rate = state.diag.connection_rate_book.get("c-rate");
@@ -506,11 +510,11 @@ fn connection_instantaneous_rates_derive_from_successive_snapshots() {
 
     // Once the connection disappears the book and the pulse go quiet.
     let _ = state.apply_connections_snapshot(
-        ConnectionSnapshot {
+        observed(ConnectionSnapshot {
             download_total: 0,
             upload_total: 0,
             connections: Vec::new(),
-        },
+        }),
         base + Duration::from_secs(6),
     );
     assert!(state.diag.connection_rate_book.is_empty());

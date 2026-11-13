@@ -19,6 +19,7 @@ use infiltrator_application::system_proxy_application::SystemProxyApplication;
 use infiltrator_contract::cadence::RenderCadence;
 use infiltrator_contract::shortcuts::KeyModifiers;
 use infiltrator_contract::theme::AppearanceMode;
+use infiltrator_domain::connection_observation::ObservedConnections;
 use infiltrator_ports::host_runtime::HostRuntime;
 use infiltrator_ports::runtime_stream::{
     RuntimeStreamEvent, RuntimeStreamTerminal, ScopedRuntimeStreamEvent,
@@ -204,7 +205,10 @@ fn build_runtime_stream(input: &RuntimeStreamInput) -> BoxStream<'static, Messag
                                 if output
                                     .try_send(Message::RuntimeStreamConnectionsReceived(
                                         event.scope,
-                                        snapshot.snapshot().clone(),
+                                        ObservedConnections::new(
+                                            snapshot.snapshot().clone(),
+                                            snapshot.instant(),
+                                        ),
                                     ))
                                     .is_err()
                                 {

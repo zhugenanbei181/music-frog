@@ -1,21 +1,92 @@
 //! Active-connection use-cases over the scoped connection port.
 
+use crate::observation_clock::accepted_at;
 use crate::runtime_scope::active_scope;
 use crate::runtime_stream_application::scope_checked;
+use chrono::{DateTime, Utc};
+use futures_util::StreamExt;
 use infiltrator_contract::connection::ConnectionId;
 use infiltrator_domain::connection_activity::ConnectionActivityTracker;
-use infiltrator_domain::runtime::Connection;
+use infiltrator_domain::connection_observation::ConnectionObservationInstant;
+use infiltrator_domain::runtime::{Connection, ConnectionSnapshot};
 use infiltrator_ports::connection::{
     ConnectionControlReceipt, ConnectionControlRequest, ConnectionControlTarget,
     ConnectionObservationSnapshot, ConnectionPort,
 };
-use infiltrator_ports::runtime_stream::ScopedRuntimeStream;
+use infiltrator_ports::runtime_stream::{
+    RuntimeStreamEvent, ScopedRuntimeStream, ScopedRuntimeStreamEvent,
+};
 use lurker_core_contract::error::{ErrorCode, Failure};
 use lurker_core_contract::identity::CoreScope;
 use lurker_core_contract::outbound::identity::SnapshotRevision;
 use lurker_core_ports::core_scope::CoreScopeSource;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
+
+/// One connection observation the Core accepted.
+///
+/// The ports publish the owner's facts; the Core publishes the instant it
+/// accepted them. The instant travels with the observation, so every
+/// consumer of a connection list - the live table, the closed history, a
+/// command line - measures an age against the same clock instead of reading
+/// one of its own. An observation therefore carries exactly one answer to
+/// "when did the Core see this".
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AcceptedConnectionObservation {
+    observed: ConnectionObservationSnapshot,
+    observed_at: DateTime<Utc>,
+}
+
+impl AcceptedConnectionObservation {
+    /// Accept one owner observation at the Core's clock.
+    pub fn accept(observed: ConnectionObservationSnapshot) -> Self {
+        Self::accepted_at(observed, accepted_at())
+    }
+
+    /// Accept one owner observation at a given instant.
+    ///
+    /// The instant is an argument so a deterministic test can drive the same
+    /// seam the runtime uses; the production path always takes the Core
+    /// clock.
+    pub fn accepted_at(observed: ConnectionObservationSnapshot, observed_at: DateTime<Utc>) -> Self {
+        Self {
+            observed,
+            observed_at,
+        }
+    }
+
+    /// The Core scope this observation belongs to.
+    pub fn scope(&self) -> &CoreScope {
+        self.observed.scope()
+    }
+
+    /// The revision the owner's identity set carried.
+    pub const fn revision(&self) -> SnapshotRevision {
+        self.observed.revision()
+    }
+
+    /// The owner's rows.
+    pub fn snapshot(&self) -> &ConnectionSnapshot {
+        self.observed.snapshot()
+    }
+
+    /// The engine-scoped identities of the observed rows.
+    pub fn connection_ids(&self) -> &[ConnectionId] {
+        self.observed.connection_ids()
+    }
+
+    /// The instant the Core accepted this observation.
+    pub const fn observed_at(&self) -> DateTime<Utc> {
+        self.observed_at
+    }
+
+    /// The owner's instant for this observation.
+    pub const fn instant(&self) -> ConnectionObservationInstant {
+        ConnectionObservationInstant::Observed {
+            at: self.observed_at,
+        }
+    }
+}
 
 /// Outcome of one idle-connection sweep (DUAL-13-11).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -44,7 +115,7 @@ impl ConnectionApplication {
         }
     }
 
-    pub async fn snapshot(&self) -> Result<ConnectionObservationSnapshot, Failure> {
+    pub async fn snapshot(&self) -> Result<AcceptedConnectionObservation, Failure> {
         let scope = active_scope(self.scope_source.as_ref())?;
         self.snapshot_for_scope(scope).await
     }
@@ -62,7 +133,7 @@ impl ConnectionApplication {
     pub async fn snapshot_for_scope(
         &self,
         scope: CoreScope,
-    ) -> Result<ConnectionObservationSnapshot, Failure> {
+    ) -> Result<AcceptedConnectionObservation, Failure> {
         let observed = self
             .port
             .observe(scope.clone())
@@ -71,7 +142,7 @@ impl ConnectionApplication {
         if observed.scope() != &scope {
             return Err(stale_scope_failure());
         }
-        Ok(observed)
+        Ok(AcceptedConnectionObservation::accept(observed))
     }
 
     pub async fn close_for_scope(&self, scope: CoreScope, raw_id: &str) -> Result<(), Failure> {
@@ -130,14 +201,16 @@ impl ConnectionApplication {
 
     pub async fn stream(
         &self,
-    ) -> Result<ScopedRuntimeStream<ConnectionObservationSnapshot>, Failure> {
+    ) -> Result<ScopedRuntimeStream<AcceptedConnectionObservation>, Failure> {
         let scope = active_scope(self.scope_source.as_ref())?;
         let stream = self
             .port
             .stream(scope.clone())
             .await
             .map_err(Failure::from)?;
-        Ok(scope_checked(self.scope_source.clone(), scope, stream))
+        Ok(scope_checked(self.scope_source.clone(), scope, stream)
+            .map(accept_stream_event)
+            .boxed())
     }
 
     /// Record the current connection slice so idle detection can compare
@@ -216,6 +289,27 @@ fn validate_receipt(
         return Err(stale_scope_failure());
     }
     Ok(())
+}
+
+/// Accept one streamed owner observation at the Core's clock.
+///
+/// The stream phases carry no observation, so they pass through untouched;
+/// only an item becomes an accepted observation.
+fn accept_stream_event(
+    event: ScopedRuntimeStreamEvent<ConnectionObservationSnapshot>,
+) -> ScopedRuntimeStreamEvent<AcceptedConnectionObservation> {
+    ScopedRuntimeStreamEvent {
+        scope: event.scope,
+        event: match event.event {
+            RuntimeStreamEvent::Item(observed) => {
+                RuntimeStreamEvent::Item(AcceptedConnectionObservation::accept(observed))
+            }
+            RuntimeStreamEvent::Connecting => RuntimeStreamEvent::Connecting,
+            RuntimeStreamEvent::Connected => RuntimeStreamEvent::Connected,
+            RuntimeStreamEvent::Reconnecting(failure) => RuntimeStreamEvent::Reconnecting(failure),
+            RuntimeStreamEvent::Terminal(terminal) => RuntimeStreamEvent::Terminal(terminal),
+        },
+    }
 }
 
 fn stale_scope_failure() -> Failure {

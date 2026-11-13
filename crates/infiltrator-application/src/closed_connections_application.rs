@@ -10,6 +10,7 @@
 //! Like the traffic waveform owner, it is cheap to clone (one shared inner
 //! state) and never reads a clock outside an observation it was handed.
 
+use crate::observation_clock::accepted_at;
 use chrono::{DateTime, Utc};
 use infiltrator_contract::traffic_history::ClosedConnectionsSnapshot;
 use infiltrator_domain::closed_connection_history::{
@@ -48,7 +49,7 @@ impl ClosedConnectionsApplication {
     /// Record one live observation against the current wall clock. The
     /// surface reader calls this once per accepted scoped observation.
     pub fn observe(&self, observed: &ConnectionObservationSnapshot) {
-        self.observe_at(observed, Utc::now());
+        self.observe_at(observed, accepted_at());
     }
 
     /// The authoritative readback published with every surface snapshot.

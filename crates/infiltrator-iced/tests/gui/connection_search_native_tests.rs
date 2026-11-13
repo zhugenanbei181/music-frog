@@ -4,7 +4,7 @@ use crate::test_mounts::native_widgets::native;
 use crate::types::message::Message;
 use crate::view::runtime::connections_controls;
 use crate::view_root::interaction_regions::InteractionRegion;
-use infiltrator_test_support::connection_grouping_fixtures::grouping_snapshot;
+use infiltrator_test_support::connection_grouping_fixtures::{grouping_observation, grouping_snapshot, observed};
 
 fn edit(state: &mut AppState, query: &str) {
     let messages = native(
@@ -21,7 +21,7 @@ fn edit(state: &mut AppState, query: &str) {
 fn native_connection_search_preserves_original_runs_metadata_empty_and_clear_through_tea() {
     let (mut state, _) = AppState::new();
     state.shell.demo = true;
-    let _ = state.update(Message::ConnectionsReceived(grouping_snapshot()));
+    let _ = state.update(Message::ConnectionsReceived(grouping_observation()));
     edit(&mut state, "API-0");
     assert_eq!(
         (
@@ -64,12 +64,12 @@ fn native_connection_search_refresh_and_core_stop_retire_observations_without_lo
     let (mut state, _) = AppState::new();
     state.shell.demo = true;
     let mut snapshot = grouping_snapshot();
-    let _ = state.update(Message::ConnectionsReceived(snapshot.clone()));
+    let _ = state.update(Message::ConnectionsReceived(observed(snapshot.clone())));
     edit(&mut state, "API-0");
     snapshot
         .connections
         .retain(|row| row.id == "group-duplicate");
-    let _ = state.update(Message::ConnectionsReceived(snapshot));
+    let _ = state.update(Message::ConnectionsReceived(observed(snapshot)));
     assert_eq!(
         (
             state.diag.connections_model.matched_count(),

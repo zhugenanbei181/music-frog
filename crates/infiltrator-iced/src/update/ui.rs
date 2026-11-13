@@ -526,6 +526,7 @@ impl AppState {
                 let connection = self.diag.inspecting_connection_id.as_ref().and_then(|id| {
                     self.diag.connections.as_ref().and_then(|snapshot| {
                         snapshot
+                            .snapshot()
                             .connections
                             .iter()
                             .find(|connection| &connection.id == id)
@@ -543,6 +544,7 @@ impl AppState {
                 self.diag.inspecting_connection_id = id.filter(|id| {
                     self.diag.connections.as_ref().is_some_and(|snapshot| {
                         snapshot
+                            .snapshot()
                             .connections
                             .iter()
                             .any(|connection| &connection.id == id)

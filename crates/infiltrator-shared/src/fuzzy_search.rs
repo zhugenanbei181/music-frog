@@ -97,11 +97,7 @@ pub fn pinyin_fuzzy_match(haystack: &str, query: &str) -> bool {
     let code = NodeRegion::classify(haystack)
         .search_code()
         .to_ascii_lowercase();
-    if code == q || code.starts_with(&q) {
-        return true;
-    }
-
-    false
+    code == q || code.starts_with(&q)
 }
 
 #[cfg(test)]

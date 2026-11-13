@@ -7,6 +7,7 @@
 //! test-intent: behavior
 
 use infiltrator_contract::shell_sidebar_preference::SidebarExpansionPreference;
+use infiltrator_contract::connection_view_preference::ConnectionViewMode;
 use infiltrator_iced::capture_section::CaptureSection;
 use infiltrator_iced::demo::{DemoEnv, parse_skin};
 use infiltrator_iced::state::AppState;
@@ -31,6 +32,8 @@ pub fn demo_env(page: Route) -> DemoEnv {
         capture_marker: None,
         scenario: None,
         sidebar_expansion: SidebarExpansionPreference::default(),
+        connection_view_mode: ConnectionViewMode::default(),
+        connection_columns: None,
         traffic_audit: None,
     }
 }

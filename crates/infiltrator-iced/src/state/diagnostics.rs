@@ -24,9 +24,10 @@ use infiltrator_contract::overview_layout::OverviewCardKind;
 use infiltrator_contract::speedtest::SpeedtestSnapshot;
 use infiltrator_contract::traffic_history::ClosedConnectionSnapshot;
 use infiltrator_domain::connection_activity::ConnectionActivityTracker;
+use infiltrator_domain::connection_observation::ObservedConnections;
 use infiltrator_domain::connection_rate::ConnectionRates;
 use infiltrator_domain::runtime::Connection;
-use infiltrator_domain::runtime::{ConnectionSnapshot, TrafficData};
+use infiltrator_domain::runtime::TrafficData;
 use infiltrator_presentation::connection_page_model::ConnectionsPageModel;
 use infiltrator_presentation::log_page_model::LogsPageModel;
 use lurker_core_contract::error::Failure;
@@ -48,7 +49,10 @@ pub struct DiagnosticsState {
     pub public_ip_provider: Option<String>,
     pub public_ip_checked_at: Option<String>,
     pub public_ip_error: Option<String>,
-    pub connections: Option<ConnectionSnapshot>,
+    /// The last accepted connection list and the instant the Core accepted
+    /// it. The two travel together: a list without its instant would let the
+    /// page answer "how long has this been alive" from a clock of its own.
+    pub connections: Option<ObservedConnections>,
     /// Connections list pagination (mirrors the rules page pattern): the
     /// view renders only the current window so multi-thousand-connection
     /// snapshots never build thousands of widgets at once.

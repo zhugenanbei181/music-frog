@@ -67,6 +67,7 @@ pub mod offline_startup_application;
 pub mod outbound_application;
 pub mod overview;
 pub mod overview_layout_application;
+pub mod observation_clock;
 pub mod pac_application;
 pub mod palette_preference_application;
 pub mod port_conflict_application;

@@ -271,7 +271,7 @@ pub(crate) fn ready(state: &AppState, feature: FeatureId) -> bool {
                     .diag
                     .connections
                     .as_ref()
-                    .is_some_and(|s| s.connections.iter().any(|c| &c.id == id))
+                    .is_some_and(|s| s.snapshot().connections.iter().any(|c| &c.id == id))
             }),
         FeatureId::SpeedtestDetailsModal => {
             state.diag.speedtest_detail_open && !state.diag.speedtest.results.is_empty()

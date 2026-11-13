@@ -46,7 +46,10 @@ impl ConnectionViewMode {
 /// owner uses it to publish an ordered column vocabulary, while a user
 /// preference keeps its own ordered visible subset. `DestinationIp` uses the
 /// pinned source's `destinationIP` detail-modal identity, so the closed set
-/// has 22 entries while the source table registry has 21 data columns.
+/// has 23 entries while the source table registry has 21 data columns. The
+/// last entry, `Duration`, is the one column this product adds: the
+/// reference desktop client publishes the age of a live connection, and this
+/// kernel publishes the start and the observation instant it needs to do so.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ConnectionColumn {
     Status,
@@ -71,10 +74,17 @@ pub enum ConnectionColumn {
     Dscp,
     RemoteDestination,
     DnsMode,
+    /// How long the connection has been alive.
+    ///
+    /// The kernel publishes the start of every connection and the Core
+    /// publishes the instant of the observation that carried it, so the age
+    /// is a fact of the product and not a number a surface invents from its
+    /// own clock. A closed record publishes its own length instead.
+    Duration,
 }
 
 impl ConnectionColumn {
-    pub const ALL: [Self; 22] = [
+    pub const ALL: [Self; 23] = [
         Self::Status,
         Self::EstablishTime,
         Self::Type,
@@ -97,8 +107,16 @@ impl ConnectionColumn {
         Self::Dscp,
         Self::RemoteDestination,
         Self::DnsMode,
+        Self::Duration,
     ];
 
+    /// The columns a reader sees before they choose their own.
+    ///
+    /// The duration column is deliberately not here: it answers the same
+    /// question as the establishment time, so it is one column among the
+    /// reader's own choices rather than a second time column every table
+    /// carries by default. Upstream hard-codes it as the live table's last
+    /// column; this product lets the reader decide.
     pub const DEFAULT_VISIBLE: [Self; 12] = [
         Self::Status,
         Self::EstablishTime,
@@ -138,6 +156,7 @@ impl ConnectionColumn {
             Self::Dscp => "dscp",
             Self::RemoteDestination => "remoteDestination",
             Self::DnsMode => "dnsMode",
+            Self::Duration => "duration",
         }
     }
 
@@ -165,6 +184,7 @@ impl ConnectionColumn {
             "dscp" => Ok(Self::Dscp),
             "remoteDestination" => Ok(Self::RemoteDestination),
             "dnsMode" => Ok(Self::DnsMode),
+            "duration" => Ok(Self::Duration),
             _ => Err(ConnectionViewPreferenceError::UnknownColumn(raw.to_owned())),
         }
     }
@@ -198,7 +218,8 @@ impl ConnectionColumn {
             | Self::Upload
             | Self::Download
             | Self::RemoteDestination
-            | Self::DnsMode => ConnectionColumnSupport::Reported,
+            | Self::DnsMode
+            | Self::Duration => ConnectionColumnSupport::Reported,
         }
     }
 

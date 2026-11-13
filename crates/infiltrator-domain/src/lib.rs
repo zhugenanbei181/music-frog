@@ -12,6 +12,7 @@ pub mod backup;
 pub mod closed_connection_history;
 pub mod config;
 pub mod connection_activity;
+pub mod connection_observation;
 pub mod connection_rate;
 pub mod connection_view;
 pub mod core_state;

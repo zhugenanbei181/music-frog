@@ -293,10 +293,7 @@ impl RequestHistoryFilter {
                 return false;
             }
         }
-        if !self.status_filter.matches(record.status) {
-            return false;
-        }
-        true
+        self.status_filter.matches(record.status)
     }
 }
 

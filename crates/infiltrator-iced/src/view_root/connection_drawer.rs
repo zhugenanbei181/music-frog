@@ -27,7 +27,7 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
         .diag
         .connections
         .as_ref()
-        .and_then(|snap| snap.connections.iter().find(|c| c.id == conn_id));
+        .and_then(|snap| snap.snapshot().connections.iter().find(|c| c.id == conn_id));
 
     let Some(conn) = conn else {
         return container(Space::new().width(0).height(0)).into();

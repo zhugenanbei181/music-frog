@@ -14,6 +14,7 @@ use infiltrator_contract::connection::timing_availability;
 use infiltrator_contract::shortcuts::KeyModifiers;
 use infiltrator_iced::state::AppState;
 use infiltrator_iced::types::app::Route;
+use infiltrator_test_support::connection_grouping_fixtures::observed;
 use infiltrator_iced::types::message::Message;
 use tokio::runtime::Builder;
 
@@ -21,7 +22,7 @@ use tokio::runtime::Builder;
 fn connection_inspection_close_escape_and_navigation_do_not_execute_commands() {
     let (mut state, _) = AppState::demo(&demo_env(Route::Runtime));
     let original = state.diag.connections.clone();
-    let connection = original.as_ref().unwrap().connections[0].clone();
+    let connection = original.as_ref().unwrap().snapshot().connections[0].clone();
     let (application, handler) = recording_application();
     attach_product_application_with_accepted_owner_snapshot(&mut state, application);
     state.shell.demo = false;
@@ -71,7 +72,7 @@ fn connection_inspection_close_escape_and_navigation_do_not_execute_commands() {
 #[test]
 fn connection_copy_emits_native_write_and_disconnect_executes_shared_identity() {
     let (mut state, _) = AppState::demo(&demo_env(Route::Runtime));
-    let connection = state.diag.connections.as_ref().unwrap().connections[0].clone();
+    let connection = state.diag.connections.as_ref().unwrap().snapshot().connections[0].clone();
     let facts = project_connection(
         &connection,
         state.diag.connection_rate_book.get(&connection.id),
@@ -109,17 +110,17 @@ fn connection_copy_emits_native_write_and_disconnect_executes_shared_identity() 
 #[test]
 fn connection_inspection_follows_identity_and_closes_when_the_connection_disappears() {
     let (mut state, _) = AppState::demo(&demo_env(Route::Runtime));
-    let mut snapshot = state.diag.connections.clone().unwrap();
+    let mut snapshot = state.diag.connections.clone().unwrap().snapshot().clone();
     let id = snapshot.connections[0].id.clone();
     let _ = state.update(Message::InspectConnection(Some(id.clone())));
     snapshot.connections.reverse();
-    let _ = state.update(Message::ConnectionsReceived(snapshot.clone()));
+    let _ = state.update(Message::ConnectionsReceived(observed(snapshot.clone())));
     assert_eq!(state.diag.inspecting_connection_id.as_ref(), Some(&id));
     drop(state.view());
     snapshot
         .connections
         .retain(|connection| connection.id != id);
-    let _ = state.update(Message::ConnectionsReceived(snapshot));
+    let _ = state.update(Message::ConnectionsReceived(observed(snapshot)));
     assert_eq!(state.diag.inspecting_connection_id, None);
     assert_eq!(state.update(Message::CopyConnectionHost).units(), 0);
 }

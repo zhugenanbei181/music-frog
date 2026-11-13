@@ -237,6 +237,7 @@ fn test_advancement_w5_2_typed_outbound_latency_history_is_observed_and_probe_fa
         scenario: None,
         sidebar_expansion: SidebarExpansionPreference::default(),
         connection_view_mode: ConnectionViewMode::default(),
+        connection_columns: None,
         traffic_audit: None,
     };
     let (mut state, _) = AppState::demo(&env);

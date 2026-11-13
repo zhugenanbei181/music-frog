@@ -26,7 +26,7 @@ pub fn stats_grid<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message>
         .diag
         .connections
         .as_ref()
-        .map(|snapshot| snapshot.connections.len().to_string())
+        .map(|snapshot| snapshot.snapshot().connections.len().to_string())
         .unwrap_or_else(|| "—".to_string());
     let memory = match &state.runtime.core_resources {
         CoreResourceSnapshot::Observed {
@@ -62,7 +62,9 @@ pub fn stats_grid<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message>
         .diag
         .connections
         .as_ref()
-        .map(|c| format_bytes(c.download_total + c.upload_total))
+        .map(|c| {
+            format_bytes(c.snapshot().download_total + c.snapshot().upload_total)
+        })
         .unwrap_or_else(|| "—".to_string());
 
     let tiles: Vec<Element<'a, Message>> = vec![

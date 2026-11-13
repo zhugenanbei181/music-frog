@@ -13,8 +13,8 @@ use iced::widget::operation::{scroll_to, snap_to};
 use iced::widget::scrollable::{AbsoluteOffset, RelativeOffset};
 use infiltrator_application::connection_application::ConnectionApplication;
 use infiltrator_contract::command::CommandIntent;
+use infiltrator_domain::connection_observation::ObservedConnections;
 use infiltrator_domain::connection_view::matches_search;
-use infiltrator_domain::runtime::ConnectionSnapshot;
 use infiltrator_shared::locales::{Lang, Localizer};
 use lurker_core_contract::error::InfiltratorError;
 use std::time::Instant;
@@ -365,6 +365,7 @@ impl AppState {
                     .as_ref()
                     .map(|snapshot| {
                         snapshot
+                            .snapshot()
                             .connections
                             .iter()
                             .filter(|conn| matches_search(*conn, &query))
@@ -401,7 +402,7 @@ impl AppState {
                     Some(snapshot) => {
                         self.diag
                             .connection_activity
-                            .observe(&snapshot.connections, now);
+                            .observe(&snapshot.snapshot().connections, now);
                         self.diag.connection_activity.idle_ids(now, timeout)
                     }
                     None => Vec::new(),
@@ -431,13 +432,13 @@ impl AppState {
     /// This is the seam the deterministic tests drive.
     pub(crate) fn apply_connections_snapshot(
         &mut self,
-        data: ConnectionSnapshot,
+        data: ObservedConnections,
         now: Instant,
     ) -> Task<Message> {
         use infiltrator_domain::runtime::TrafficData;
 
-        let upload_total = data.upload_total;
-        let download_total = data.download_total;
+        let upload_total = data.snapshot().upload_total;
+        let download_total = data.snapshot().download_total;
 
         // The WebSocket traffic stream is authoritative. If a core does not
         // expose it, retain a safe polling fallback based on the actual
@@ -479,7 +480,7 @@ impl AppState {
         self.diag.connection_rate_book = self
             .diag
             .connection_rates
-            .observe_at(now, &data.connections);
+            .observe_at(now, &data.snapshot().connections);
 
         // DUAL-13-11: record byte-change times for idle detection.
         let observed_at = current_unix_secs();
@@ -489,18 +490,19 @@ impl AppState {
         // rate book it derived, and later asks for the window it displays.
         self.diag.traffic_audit.observe(
             observed_at,
-            &data.connections,
+            &data.snapshot().connections,
             &self.diag.connection_rate_book,
         );
         self.diag
             .connection_activity
-            .observe(&data.connections, observed_at);
+            .observe(&data.snapshot().connections, observed_at);
         if self
             .diag
             .inspecting_connection_id
             .as_ref()
             .is_some_and(|id| {
                 !data
+                    .snapshot()
                     .connections
                     .iter()
                     .any(|connection| &connection.id == id)
@@ -511,7 +513,9 @@ impl AppState {
         self.diag
             .connections_model
             .edit_query(self.runtime.connection_query.trim());
-        self.diag.connections_model.observe(&data.connections);
+        self.diag
+            .connections_model
+            .observe(&data.snapshot().connections);
         self.diag.connections = Some(data);
         self.clamp_connections_page();
         Task::none()
@@ -524,7 +528,7 @@ impl AppState {
             .diag
             .connections
             .as_ref()
-            .map(|snapshot| snapshot.connections.len())
+            .map(|snapshot| snapshot.snapshot().connections.len())
             .unwrap_or(0);
         self.diag.connections_page = clamped_page(
             self.diag.connections_page,

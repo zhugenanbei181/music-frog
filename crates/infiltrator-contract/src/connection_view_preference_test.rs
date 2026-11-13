@@ -19,7 +19,7 @@ const DEFAULT_WIRE_IDS: [&str; 12] = [
     "download",
 ];
 
-const ALL_WIRE_IDS: [&str; 22] = [
+const ALL_WIRE_IDS: [&str; 23] = [
     "status",
     "establishTime",
     "type",
@@ -42,6 +42,7 @@ const ALL_WIRE_IDS: [&str; 22] = [
     "dscp",
     "remoteDestination",
     "dnsMode",
+    "duration",
 ];
 
 #[test]

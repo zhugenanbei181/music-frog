@@ -3,10 +3,10 @@
 
 use super::DemoEnv;
 use super::fixtures::{
-    demo_connections, demo_logs, demo_profiles, demo_rules, demo_traffic_history,
-    demo_traffic_waveform, dns_json_fixture, fake_ip_json_fixture, profile_yaml_fixture,
-    proxy_providers_json_fixture, rule_providers_json_fixture, sniffer_json_fixture,
-    tun_json_fixture,
+    demo_connections, demo_logs, demo_observation, demo_profiles, demo_rules,
+    demo_traffic_history, demo_traffic_waveform, dns_json_fixture, fake_ip_json_fixture,
+    profile_yaml_fixture, proxy_providers_json_fixture, rule_providers_json_fixture,
+    sniffer_json_fixture, tun_json_fixture,
 };
 use super::proxy_fixtures::demo_outbound_surface;
 use crate::admin_server::ADMIN_DEFAULT_PORT;
@@ -107,7 +107,10 @@ impl AppState {
         // uses, so a frame never renders a second column or mode truth.
         let connection_view = ConnectionViewPreference {
             mode: env.connection_view_mode,
-            ..ConnectionViewPreference::default()
+            visible_columns: env
+                .connection_columns
+                .clone()
+                .unwrap_or_else(|| ConnectionViewPreference::default().visible_columns),
         };
         state.diag.connection_view =
             project_connection_view(&ConnectionColumnSet::all(), &connection_view);
@@ -140,8 +143,11 @@ impl AppState {
             conn.download /= 2;
         }
         let now = Instant::now();
-        let _ = state.apply_connections_snapshot(previous, now - time::Duration::from_secs(2));
-        let _ = state.apply_connections_snapshot(connections, now);
+        let _ = state.apply_connections_snapshot(
+            demo_observation(previous),
+            now - time::Duration::from_secs(2),
+        );
+        let _ = state.apply_connections_snapshot(demo_observation(connections), now);
         // A capture may ask for a non-default range and dimension. It is
         // applied through the production message path - the same messages the
         // two controls send - so the frame proves the selection itself moved,

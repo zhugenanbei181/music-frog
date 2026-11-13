@@ -252,16 +252,12 @@ where
     let intent = parse_reset_intent_record::<S>(&intent_bytes)?;
     let complete_path = config_dir.join(layout.reset_complete_file_name.as_str());
     let complete = read_optional_bytes(&complete_path).await?;
-    if complete
+    Ok(complete
         .as_deref()
         .map(parse_reset_intent_record::<S>)
         .transpose()?
         .as_ref()
-        == Some(&intent)
-    {
-        return Ok(false);
-    }
-    Ok(true)
+        != Some(&intent))
 }
 
 /// Fails when any engine namespace still carries a pending profile reset.
