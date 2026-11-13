@@ -18,6 +18,10 @@ use iced::{Alignment, Element, Length, Theme};
 use infiltrator_contract::runtime_control::RuntimeControlStatus;
 use infiltrator_ports::host_runtime::TunServiceStatus;
 use infiltrator_presentation::settings_status_projection::format_service_mode;
+use infiltrator_presentation::tun_stack_options::{
+    selectable_tun_stack_choices, selectable_tun_stack_index, selectable_tun_stack_wire_name_at,
+    tun_stack_copy_key,
+};
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub(super) fn tun_card<'a>(
@@ -52,11 +56,12 @@ pub(super) fn tun_card<'a>(
         ),
     };
 
-    let stack_options = vec![
-        "gVisor".to_string(),
-        "Mixed".to_string(),
-        "System".to_string(),
-    ];
+    let stack_options: Vec<String> = selectable_tun_stack_choices()
+        .into_iter()
+        .map(|choice| {
+            lang.tr(tun_stack_copy_key(choice.stack)).to_string()
+        })
+        .collect();
     let observed = &state.runtime.runtime_control;
     let available = observed.status == RuntimeControlStatus::Ready
         && !state.runtime.runtime_patch_stage.is_applying();
@@ -67,19 +72,11 @@ pub(super) fn tun_card<'a>(
     let current_stack_index = observed
         .tun_stack
         .as_deref()
-        .and_then(|value| {
-            ["gvisor", "mixed", "system"]
-                .iter()
-                .position(|stack| value.eq_ignore_ascii_case(stack))
-        })
+        .and_then(selectable_tun_stack_index)
         .unwrap_or(usize::MAX);
     let tun_stack_selector =
         segmented_control_with_actions(&stack_options, current_stack_index, move |index| {
-            let stack = match index {
-                1 => "mixed",
-                2 => "system",
-                _ => "gvisor",
-            };
+            let stack = selectable_tun_stack_wire_name_at(index);
             stack_available.then(|| Message::SetTunStack(stack.to_string()))
         });
 

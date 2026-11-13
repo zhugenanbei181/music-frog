@@ -168,6 +168,54 @@ impl ConnectionColumn {
             _ => Err(ConnectionViewPreferenceError::UnknownColumn(raw.to_owned())),
         }
     }
+
+    /// Whether the kernel publishes the fact this column names.
+    ///
+    /// The closed registry carries every column the peer product offers, but
+    /// this kernel does not report all of them: there is no inbound address,
+    /// no DSCP marking and no sniffed host in the observed metadata. A column
+    /// the owner does not report renders the honest unknown - it never guesses
+    /// a value, and a surface cannot invent one to fill a cell.
+    pub const fn support(self) -> ConnectionColumnSupport {
+        match self {
+            Self::SniffHost | Self::InboundIp | Self::InboundPort | Self::Dscp => {
+                ConnectionColumnSupport::Unreported
+            }
+            Self::Status
+            | Self::EstablishTime
+            | Self::Type
+            | Self::Host
+            | Self::Process
+            | Self::ProcessPath
+            | Self::Rule
+            | Self::ProxyChain
+            | Self::SourceIp
+            | Self::SourcePort
+            | Self::DestinationIp
+            | Self::DestinationPort
+            | Self::UploadSpeed
+            | Self::DownloadSpeed
+            | Self::Upload
+            | Self::Download
+            | Self::RemoteDestination
+            | Self::DnsMode => ConnectionColumnSupport::Reported,
+        }
+    }
+
+    /// Whether a surface may render a real value in this column.
+    pub const fn is_reported(self) -> bool {
+        matches!(self.support(), ConnectionColumnSupport::Reported)
+    }
+}
+
+/// Whether the kernel publishes the fact a Connections column names.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ConnectionColumnSupport {
+    /// The owner publishes this fact; a surface renders it.
+    Reported,
+    /// The kernel never publishes this fact; a surface renders the unknown.
+    Unreported,
 }
 
 impl Serialize for ConnectionColumn {

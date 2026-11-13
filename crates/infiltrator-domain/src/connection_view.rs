@@ -283,6 +283,29 @@ pub trait ConnectionView {
     fn view_destination_port(&self) -> &str {
         ""
     }
+    /// The transport protocol the kernel reported ("tcp", "udp", ...).
+    fn view_network(&self) -> &str {
+        ""
+    }
+    /// The local port the connection came from.
+    fn view_source_port(&self) -> &str {
+        ""
+    }
+    /// The DNS resolution mode the kernel reported for this connection.
+    fn view_dns_mode(&self) -> &str {
+        ""
+    }
+    /// The remote endpoint the connection is aimed at.
+    ///
+    /// The host when the kernel named one, else the destination address; a
+    /// connection that reported neither keeps the honest empty.
+    fn view_remote_destination(&self) -> String {
+        let host = self.view_host().trim();
+        if !host.is_empty() {
+            return host.to_owned();
+        }
+        self.view_destination_ip().trim().to_owned()
+    }
     /// Matched rule type; empty when it was not reported.
     fn view_rule(&self) -> &str {
         ""
@@ -336,6 +359,15 @@ impl ConnectionView for Connection {
 
     fn view_destination_port(&self) -> &str {
         &self.metadata.destination_port
+    }
+    fn view_network(&self) -> &str {
+        &self.metadata.network
+    }
+    fn view_source_port(&self) -> &str {
+        &self.metadata.source_port
+    }
+    fn view_dns_mode(&self) -> &str {
+        &self.metadata.dns_mode
     }
     fn view_rule(&self) -> &str {
         &self.rule

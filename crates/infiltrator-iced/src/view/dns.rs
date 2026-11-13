@@ -33,6 +33,7 @@ use infiltrator_contract::dns::{
     DnsUpstreamProtocol, append_server, parse_server_list, remove_server_at,
 };
 use infiltrator_contract::dns_form::DnsFormField;
+use infiltrator_contract::tun::TunStack;
 use infiltrator_presentation::dns_page_model::{DnsEditMode, DnsOperation, DnsPageTab};
 use infiltrator_shared::locales::{Lang, Localizer};
 
@@ -330,12 +331,9 @@ fn tun_form_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Messa
             "stack",
             None::<&str>,
             pick_list(
-                &["gvisor", "system", "mixed"][..],
-                if ["gvisor", "system", "mixed"].contains(&state.editor.tun_form.stack.as_str()) {
-                    Some(state.editor.tun_form.stack.as_str())
-                } else {
-                    None
-                },
+                TunStack::SELECTABLE_WIRE_NAMES.as_slice(),
+                TunStack::choice_index_for_wire(&state.editor.tun_form.stack)
+                    .and_then(|index| TunStack::SELECTABLE_WIRE_NAMES.get(index).copied()),
                 |v| Message::UpdateTunFormStack(v.to_string()),
             )
             .width(if state.shell.viewport.tier.is_compact() {

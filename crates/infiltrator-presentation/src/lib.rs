@@ -132,6 +132,7 @@ pub mod theme_readback_projection;
 pub mod title_bar_projection;
 pub mod top_talkers_projection;
 pub mod traffic_audit_options;
+pub mod tun_stack_options;
 pub mod traffic_readout;
 pub mod traffic_topology_projection;
 pub mod tray_projection;

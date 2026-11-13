@@ -1,6 +1,7 @@
 use super::{
-    ConnectionColumn, ConnectionColumnSet, ConnectionViewIntent, ConnectionViewMode,
-    ConnectionViewPreference, ConnectionViewPreferenceError, apply_connection_view_intent,
+    ConnectionColumn, ConnectionColumnSet, ConnectionColumnSupport, ConnectionViewIntent,
+    ConnectionViewMode, ConnectionViewPreference, ConnectionViewPreferenceError,
+    apply_connection_view_intent,
 };
 
 const DEFAULT_WIRE_IDS: [&str; 12] = [
@@ -288,4 +289,29 @@ fn reset_columns_transition_restores_exact_default_order() {
         }
     );
     assert_eq!(reset.visible_columns.wire_ids(), DEFAULT_WIRE_IDS);
+}
+
+#[test]
+fn a_column_the_kernel_never_reports_is_marked_unreported() {
+    for column in ConnectionColumn::ALL {
+        let expected = match column {
+            ConnectionColumn::SniffHost
+            | ConnectionColumn::InboundIp
+            | ConnectionColumn::InboundPort
+            | ConnectionColumn::Dscp => ConnectionColumnSupport::Unreported,
+            _ => ConnectionColumnSupport::Reported,
+        };
+        assert_eq!(column.support(), expected, "{column:?}");
+        assert_eq!(column.is_reported(), expected == ConnectionColumnSupport::Reported);
+    }
+}
+
+#[test]
+fn every_default_visible_column_is_a_reported_fact() {
+    for column in ConnectionColumn::DEFAULT_VISIBLE {
+        assert!(
+            column.is_reported(),
+            "the default table must not open on a column the kernel never publishes: {column:?}"
+        );
+    }
 }

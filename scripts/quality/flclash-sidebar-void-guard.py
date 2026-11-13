@@ -61,7 +61,7 @@ class ReferenceScene:
     sha256: str
     right_edge_px: int
     expected_void_pct: float
-    expected_head_void_pct: float
+    expected_head_reserve_pct: float
     expected_tail_pct: float
 
 
@@ -71,20 +71,25 @@ REFERENCES = (
         sha256="f6406be498613bc0249e9ae2350125a0e670e9620d0ae4b1be1aec7353372bcc",
         right_edge_px=429,
         expected_void_pct=3.06,
-        expected_head_void_pct=3.06,
+        expected_head_reserve_pct=6.97,
         expected_tail_pct=65.17,
     ),
     ReferenceScene(
         path=pathlib.Path("docs/reference/flclash-desktop/flclash-desktop-proxies.png"),
         sha256="ebe094bae677d5419cb380e800d5eee74197d20a48891fbe25ba340af7f98e8e",
         right_edge_px=432,
-        expected_void_pct=3.49,
-        expected_head_void_pct=2.62,
+        expected_void_pct=2.72,
+        expected_head_reserve_pct=7.85,
         expected_tail_pct=70.24,
     ),
 )
 SIDEBAR_STACK_BOTTOM_PX = 579
-SIDEBAR_FIRST_ROW_PX = 89
+# The desktop scene paints one collapse affordance above its destination
+# list: an icon-only band that never crosses the label column. The first
+# destination row is the first band that does cross it.
+DESTINATION_LABEL_COLUMN_PX = 100
+TITLE_BAR_BAND_PX = 38
+EXPECTED_FIRST_DESTINATION_PX = (154, 191)
 SUBSTANTIAL_RUN_PX = 3
 ROW_INK_FRACTION = 0.01
 GROUND_DELTA = 14
@@ -134,11 +139,45 @@ def sidebar_bands(image: np.ndarray, scene: ReferenceScene) -> tuple[list[tuple[
     return [band for band in bands if band[1] - band[0] + 1 >= SUBSTANTIAL_RUN_PX], height
 
 
+def band_columns(image: np.ndarray, scene: ReferenceScene, band: tuple[int, int]) -> tuple[int, int]:
+    """The ink span of one band, in scene pixels."""
+    height = image.shape[0]
+    strip = image[:, 0:scene.right_edge_px].astype(int)
+    ground = np.median(strip[height // 2, 4:10].reshape(-1, 3), axis=0)
+    ink = np.abs(strip - ground).sum(axis=2) > GROUND_DELTA
+    columns = np.where(ink[band[0]:band[1] + 1].any(axis=0))[0]
+    if columns.size == 0:
+        return (0, 0)
+    return (int(columns.min()), int(columns.max()))
+
+
+def destination_bands(image: np.ndarray, scene: ReferenceScene) -> list[tuple[int, int]]:
+    """The bands that are destinations: their ink crosses the label column.
+
+    The desktop scene's collapse affordance is an icon-only band; a
+    destination row always carries a label, so its ink reaches past the icon
+    column. Measuring the collapse button as a destination row would make the
+    reference's own head reserve look like a row gap.
+    """
+    bands, _ = sidebar_bands(image, scene)
+    destinations = []
+    for band in bands:
+        first, last = band_columns(image, scene, band)
+        if last >= DESTINATION_LABEL_COLUMN_PX:
+            destinations.append(band)
+    return destinations
+
+
 def measured_void_pct(image: np.ndarray, scene: ReferenceScene) -> float:
-    bands, height = sidebar_bands(image, scene)
-    if len(bands) < 2:
+    """The largest ground run between two consecutive destination rows."""
+    destinations = destination_bands(image, scene)
+    height = image.shape[0]
+    if len(destinations) < 2:
         return 0.0
-    voids = [bands[i + 1][0] - bands[i][1] - 1 for i in range(len(bands) - 1)]
+    voids = [
+        destinations[i + 1][0] - destinations[i][1] - 1
+        for i in range(len(destinations) - 1)
+    ]
     return round(100.0 * max(voids) / height, 2)
 
 
@@ -159,21 +198,20 @@ def measured_chrome_band_pct(image: np.ndarray, scene: ReferenceScene) -> float:
 
 
 def measured_first_row_px(image: np.ndarray, scene: ReferenceScene) -> int | None:
-    """The first destination ink row after the mounted title-bar strip."""
-    bands, _ = sidebar_bands(image, scene)
-    for start, _ in bands:
-        if start >= 38:
-            return start
-    return None
+    """The first destination row, skipping the collapse affordance."""
+    destinations = destination_bands(image, scene)
+    if not destinations:
+        return None
+    return destinations[0][0]
 
 
-def measured_head_void_pct(image: np.ndarray, scene: ReferenceScene) -> float:
-    """Ground between the title-bar strip and the first destination row."""
-    bands, height = sidebar_bands(image, scene)
-    first = next((start for start, _ in bands if start >= 38), None)
+def measured_head_reserve_pct(image: np.ndarray, scene: ReferenceScene) -> float:
+    """Ground the reference keeps above its first destination row."""
+    height = image.shape[0]
+    first = measured_first_row_px(image, scene)
     if first is None:
         return 100.0
-    return round(100.0 * max(0, first - 38) / height, 2)
+    return round(100.0 * max(0, first - TITLE_BAR_BAND_PX) / height, 2)
 
 
 def exported_limits() -> dict[str, float]:
@@ -225,7 +263,7 @@ def findings() -> list[str]:
         image = load_scene(scene)
         values = {
             "void": measured_void_pct(image, scene),
-            "head_void": measured_head_void_pct(image, scene),
+            "head_reserve": measured_head_reserve_pct(image, scene),
             "nav_tail": measured_nav_tail_pct(image, scene),
             "chrome_band": measured_chrome_band_pct(image, scene),
         }
@@ -235,15 +273,16 @@ def findings() -> list[str]:
                 f"{scene.path} measures {values['void']}% void, not the documented "
                 f"{scene.expected_void_pct}%"
             )
-        if measured_first_row_px(image, scene) != SIDEBAR_FIRST_ROW_PX:
+        expected_first = EXPECTED_FIRST_DESTINATION_PX[REFERENCES.index(scene)]
+        if measured_first_row_px(image, scene) != expected_first:
             found.append(
                 f"{scene.path} no longer paints its first destination row at "
-                f"y{SIDEBAR_FIRST_ROW_PX}; re-adjudicate the typed stack interval"
+                f"y{expected_first}; re-adjudicate the typed stack interval"
             )
-        if abs(values["head_void"] - scene.expected_head_void_pct) > 0.05:
+        if abs(values["head_reserve"] - scene.expected_head_reserve_pct) > 0.05:
             found.append(
-                f"{scene.path} measures {values['head_void']}% ground before the first "
-                f"destination, not the documented {scene.expected_head_void_pct}%"
+                f"{scene.path} keeps {values['head_reserve']}% ground above its first "
+                f"destination, not the documented {scene.expected_head_reserve_pct}%"
             )
         if abs(values["nav_tail"] - scene.expected_tail_pct) > 0.05:
             found.append(
@@ -263,7 +302,7 @@ def findings() -> list[str]:
     if measurements:
         worst_chrome = max(item["chrome_band"] for item in measurements)
         worst_void = max(item["void"] for item in measurements)
-        worst_head_void = max(item["head_void"] for item in measurements)
+        worst_head_reserve = max(item["head_reserve"] for item in measurements)
         worst_tail = max(item["nav_tail"] for item in measurements)
         if limits["chrome_band_limit_pct"] != worst_chrome:
             found.append(
@@ -277,10 +316,10 @@ def findings() -> list[str]:
                 f"worst reference void; the documented scale headroom is "
                 f"[{MIN_SCALE_MULTIPLE}, {MAX_SCALE_MULTIPLE}]x"
             )
-        if worst_head_void > limits["void_limit_pct"]:
+        if worst_head_reserve > limits["void_limit_pct"]:
             found.append(
                 f"the exported void cap {limits['void_limit_pct']}% would outlaw the "
-                f"reference's {worst_head_void}% ground before its first destination"
+                f"reference's {worst_head_reserve}% ground above its first destination"
             )
         headroom = limits["nav_tail_ground_limit_pct"] - worst_tail
         if not 0.0 <= headroom <= MAX_TAIL_HEADROOM_PCT:
@@ -311,11 +350,11 @@ def findings() -> list[str]:
 
     standard = STANDARD.read_text(encoding="utf-8")
     reference_doc = REFERENCE_DOC.read_text(encoding="utf-8")
-    facts = ("2.62", "3.06", "3.49", "65.17", "70.24", "8%", "73%", "18%", "50%", "60%")
+    facts = ("2.72", "3.06", "6.97", "7.85", "65.17", "70.24", "8%", "73%", "18%", "50%", "60%")
     for fact in facts:
         if fact not in standard:
             found.append(f"the standard no longer publishes the measured sidebar fact {fact}")
-    for fact in ("2.62", "70.24", "73%", "flclash-desktop-proxies.png"):
+    for fact in ("2.72", "6.97", "7.85", "70.24", "73%", "flclash-desktop-proxies.png"):
         if fact not in reference_doc:
             found.append(f"the upstream reference no longer publishes the real scene fact {fact}")
     for leg in ("flclash-sidebar-void-guard.py --self-test",
@@ -334,20 +373,40 @@ class GuardSelfTest(unittest.TestCase):
         self.assertEqual(findings(), [])
 
     def test_both_scenes_measure_their_documented_gaps(self) -> None:
-        for scene in REFERENCES:
+        for index, scene in enumerate(REFERENCES):
             image = self.images[scene.path]
             self.assertEqual(measured_void_pct(image, scene), scene.expected_void_pct)
-            self.assertEqual(measured_first_row_px(image, scene), SIDEBAR_FIRST_ROW_PX)
-            self.assertEqual(measured_head_void_pct(image, scene),
-                             scene.expected_head_void_pct)
+            self.assertEqual(
+                measured_first_row_px(image, scene),
+                EXPECTED_FIRST_DESTINATION_PX[index],
+            )
+            self.assertEqual(measured_head_reserve_pct(image, scene),
+                             scene.expected_head_reserve_pct)
             self.assertEqual(measured_nav_tail_pct(image, scene), scene.expected_tail_pct)
             self.assertEqual(measured_chrome_band_pct(image, scene), 0.0)
 
+    def test_the_collapse_affordance_is_not_a_destination_row(self) -> None:
+        # The desktop scene paints an icon-only collapse band above its
+        # destinations. Reading it as the first destination row would make the
+        # reference's own head reserve look like a row gap, so the guard
+        # separates the two by the ink span.
+        image = self.images[self.dashboard.path]
+        bands, _ = sidebar_bands(image, self.dashboard)
+        toggle = next(band for band in bands if band[0] == 89)
+        first, last = band_columns(image, self.dashboard, toggle)
+        self.assertEqual((first, last), (18, 57))
+        self.assertLess(last, DESTINATION_LABEL_COLUMN_PX)
+        self.assertEqual(measured_first_row_px(image, self.dashboard), 154)
+
     def test_a_sparse_reference_stack_cannot_hide_its_first_ground_band(self) -> None:
         planted = self.images[self.dashboard.path].copy()
-        planted[89:579, 0:60] = planted[1000:1490, 0:60]
-        self.assertGreater(measured_head_void_pct(planted, self.dashboard),
-                           self.dashboard.expected_head_void_pct)
+        ground = np.median(
+            planted[planted.shape[0] // 2, 4:10].reshape(-1, 3), axis=0
+        ).astype(np.uint8)
+        for start, end in ((154, 249), (278, 317), (366, 405), (454, 493), (545, 579)):
+            planted[start:end + 1, 0:200] = ground
+        self.assertGreater(measured_head_reserve_pct(planted, self.dashboard),
+                           self.dashboard.expected_head_reserve_pct)
         global REFERENCES
         original_references = REFERENCES
         with tempfile.TemporaryDirectory() as directory:
@@ -361,6 +420,33 @@ class GuardSelfTest(unittest.TestCase):
             try:
                 self.assertTrue(any("first destination row" in item for item in findings()),
                                 findings())
+            finally:
+                REFERENCES = original_references
+
+    def test_a_reference_whose_head_reserve_exceeds_the_cap_is_rejected(self) -> None:
+        # The 8% cap has to admit the reference's own head reserve; a scene
+        # that keeps more ground above its first destination than the cap
+        # allows must be refused rather than excused.
+        global REFERENCES
+        original_references = REFERENCES
+        planted = self.images[self.proxies.path].copy()
+        ground = np.median(
+            planted[planted.shape[0] // 2, 4:10].reshape(-1, 3), axis=0
+        ).astype(np.uint8)
+        planted[191:229, 0:432] = ground
+        with tempfile.TemporaryDirectory() as directory:
+            planted_path = pathlib.Path(directory) / "late-proxies.png"
+            Image.fromarray(planted).save(planted_path)
+            digest = hashlib.sha256(planted_path.read_bytes()).hexdigest()
+            REFERENCES = (
+                self.dashboard,
+                dataclasses.replace(self.proxies, path=planted_path, sha256=digest),
+            )
+            try:
+                self.assertTrue(
+                    any("above its first destination" in item for item in findings()),
+                    findings(),
+                )
             finally:
                 REFERENCES = original_references
 

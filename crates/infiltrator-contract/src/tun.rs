@@ -144,6 +144,127 @@ impl TunStack {
     }
 }
 
+/// One entry of the TUN stack selector a surface renders.
+///
+/// The contract owns the catalog; this type adds the two facts a control
+/// needs and cannot invent: the wire name it sends back, and whether the
+/// entry may be applied at all. A surface therefore cannot offer a value the
+/// core would refuse, cannot spell the same stack two ways, and cannot
+/// rebuild the vocabulary in its own file.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TunStackChoice {
+    pub stack: TunStack,
+    /// The value a surface sends back when the user picks this entry.
+    pub wire_name: &'static str,
+    /// Whether picking this entry may reach the core.
+    pub selectable: bool,
+    /// Why the entry cannot be applied, when it cannot.
+    pub unavailable_reason: Option<&'static str>,
+}
+
+impl TunStack {
+    /// The entries a TUN stack selector offers, in the contract's own order.
+    ///
+    /// Every entry is present, including the reference-only one: hiding it
+    /// would leave a user who already has such a value with a selector that
+    /// silently shows nothing selected. An entry that cannot be applied
+    /// carries the reason, so the surface can explain it instead of dropping
+    /// it.
+    pub const fn choices() -> [TunStackChoice; 4] {
+        [
+            TunStackChoice {
+                stack: TunStack::Gvisor,
+                wire_name: "gvisor",
+                selectable: true,
+                unavailable_reason: None,
+            },
+            TunStackChoice {
+                stack: TunStack::System,
+                wire_name: "system",
+                selectable: true,
+                unavailable_reason: None,
+            },
+            TunStackChoice {
+                stack: TunStack::Mixed,
+                wire_name: "mixed",
+                selectable: true,
+                unavailable_reason: None,
+            },
+            TunStackChoice {
+                stack: TunStack::Lwip,
+                wire_name: "lwip",
+                selectable: false,
+                unavailable_reason: Some(
+                    "upstream documents LWIP for comparison only; live top-level TUN values are system/gvisor/mixed",
+                ),
+            },
+        ]
+    }
+
+    /// The choice a selector shows as selected for a wire name.
+    ///
+    /// `None` means the value is not in the catalog at all - a corrupt
+    /// configuration, not a missing selection.
+    pub fn choice_for_wire(wire_name: &str) -> Option<TunStackChoice> {
+        Self::parse(wire_name).and_then(|stack| {
+            Self::choices()
+                .into_iter()
+                .find(|choice| choice.stack == stack)
+        })
+    }
+
+    /// The index of a wire name in [`TunStack::choices`], or `None`.
+    pub fn choice_index_for_wire(wire_name: &str) -> Option<usize> {
+        let stack = Self::parse(wire_name)?;
+        Self::choices()
+            .iter()
+            .position(|choice| choice.stack == stack)
+    }
+
+    /// The wire name of the entry at a catalog index.
+    pub fn wire_name_at(index: usize) -> &'static str {
+        let choices = Self::choices();
+        choices[index.min(choices.len() - 1)].wire_name
+    }
+
+    /// The wire name of the entry a selector may offer, at that selector's
+    /// index.
+    pub fn selectable_wire_name_at(index: usize) -> &'static str {
+        Self::SELECTABLE_WIRE_NAMES[index.min(Self::SELECTABLE_WIRE_NAMES.len() - 1)]
+    }
+
+    /// The wire names of the entries a selector may offer.
+    ///
+    /// A fixed array so a control can borrow it for its whole lifetime: the
+    /// values a surface offers are the ones the core accepts, and a surface
+    /// never assembles the list itself.
+    pub const SELECTABLE_WIRE_NAMES: [&'static str; 3] = ["gvisor", "system", "mixed"];
+
+    /// The entries a selector may offer.
+    pub const fn selectable_choices() -> [TunStackChoice; 3] {
+        [
+            TunStackChoice {
+                stack: TunStack::Gvisor,
+                wire_name: "gvisor",
+                selectable: true,
+                unavailable_reason: None,
+            },
+            TunStackChoice {
+                stack: TunStack::System,
+                wire_name: "system",
+                selectable: true,
+                unavailable_reason: None,
+            },
+            TunStackChoice {
+                stack: TunStack::Mixed,
+                wire_name: "mixed",
+                selectable: true,
+                unavailable_reason: None,
+            },
+        ]
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -168,6 +289,73 @@ mod tests {
             TunStack::Lwip.availability(),
             TunStackAvailability::ReferenceOnly { .. }
         ));
+    }
+
+    #[test]
+    fn the_selector_catalog_is_the_contract_catalog() {
+        assert_eq!(
+            TunStack::choices().map(|choice| choice.stack),
+            TunStack::ALL
+        );
+        assert_eq!(
+            TunStack::choices().map(|choice| choice.wire_name),
+            ["gvisor", "system", "mixed", "lwip"]
+        );
+    }
+
+    #[test]
+    fn only_live_values_are_selectable_and_the_rest_explain_why() {
+        for choice in TunStack::choices() {
+            assert_eq!(
+                choice.selectable,
+                choice.stack.is_live_supported(),
+                "{choice:?}"
+            );
+            assert_eq!(
+                choice.unavailable_reason.is_some(),
+                !choice.selectable,
+                "{choice:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_catalog_index_and_a_wire_name_name_the_same_entry() {
+        for (index, choice) in TunStack::choices().iter().enumerate() {
+            assert_eq!(TunStack::wire_name_at(index), choice.wire_name);
+            assert_eq!(
+                TunStack::choice_index_for_wire(choice.wire_name),
+                Some(index)
+            );
+            assert_eq!(
+                TunStack::choice_for_wire(choice.wire_name).map(|found| found.stack),
+                Some(choice.stack)
+            );
+        }
+        assert_eq!(TunStack::wire_name_at(99), "lwip");
+        assert_eq!(TunStack::choice_for_wire("unknown"), None);
+        assert_eq!(TunStack::choice_index_for_wire(" Gvisor "), Some(0));
+    }
+
+    #[test]
+    fn the_offered_index_names_the_offered_entry() {
+        for (index, name) in TunStack::SELECTABLE_WIRE_NAMES.iter().enumerate() {
+            assert_eq!(TunStack::selectable_wire_name_at(index), *name);
+        }
+        assert_eq!(TunStack::selectable_wire_name_at(99), "mixed");
+    }
+
+    #[test]
+    fn the_offered_entries_are_exactly_the_live_ones() {
+        assert_eq!(
+            TunStack::selectable_choices()
+                .map(|choice| choice.wire_name),
+            TunStack::SELECTABLE_WIRE_NAMES
+        );
+        for choice in TunStack::selectable_choices() {
+            assert!(choice.selectable, "{choice:?}");
+            assert!(choice.stack.is_live_supported(), "{choice:?}");
+        }
     }
 
     #[test]

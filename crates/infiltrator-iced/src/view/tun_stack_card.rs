@@ -12,6 +12,7 @@ use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_contract::mtu::{MtuNegotiationSnapshot, MtuProbeState};
 use infiltrator_contract::tun::TunStack;
+use infiltrator_presentation::tun_stack_options::{TUN_STACK_CHOICES, tun_stack_copy_key};
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn tun_stack_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
@@ -31,52 +32,22 @@ pub fn tun_stack_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
 
     let active_stack = TunStack::parse(&tun_cfg.active_stack).unwrap_or_default();
 
-    let stack_pills = row![
-        button(theme::role_body_text(
-            lang.tr("tun_stack_gvisor").to_string()
+    let mut stack_pills = row![].spacing(theme::SP_XS).align_y(Alignment::Center);
+    for choice in TUN_STACK_CHOICES {
+        let active = active_stack == choice.stack;
+        let pill = button(theme::role_body_text(
+            lang.tr(tun_stack_copy_key(choice.stack)).to_string(),
         ))
         .padding([4, 8])
-        .style(if active_stack == TunStack::Gvisor {
-            style_accent
-        } else {
-            style_ghost
-        })
-        .on_press(Message::SetTunStack(TunStack::Gvisor.as_str().to_owned())),
-        Space::new().width(theme::SP_XS),
-        button(theme::role_body_text(
-            lang.tr("tun_stack_system").to_string()
-        ))
-        .padding([4, 8])
-        .style(if active_stack == TunStack::System {
-            style_accent
-        } else {
-            style_ghost
-        })
-        .on_press(Message::SetTunStack(TunStack::System.as_str().to_owned())),
-        Space::new().width(theme::SP_XS),
-        button(theme::role_body_text(
-            lang.tr("tun_stack_mixed").to_string()
-        ))
-        .padding([4, 8])
-        .style(if active_stack == TunStack::Mixed {
-            style_accent
-        } else {
-            style_ghost
-        })
-        .on_press(Message::SetTunStack(TunStack::Mixed.as_str().to_owned())),
-        Space::new().width(theme::SP_XS),
-        button(theme::role_body_text(
-            lang.tr("settings_lwip_reference").into_owned()
-        ))
-        .padding([4, 8])
-        .style(style_ghost)
+        .style(if active { style_accent } else { style_ghost })
         .on_press_maybe(
-            TunStack::Lwip
-                .is_live_supported()
-                .then_some(Message::SetTunStack(TunStack::Lwip.as_str().to_owned()))
-        ),
-    ]
-    .align_y(Alignment::Center);
+            choice
+                .selectable
+                .then(|| Message::SetTunStack(choice.wire_name.to_owned())),
+        );
+        stack_pills = stack_pills.push(pill);
+    }
+    let stack_pills = stack_pills;
 
     let mtu_val = state
         .runtime

@@ -24,19 +24,19 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-13 第二百三十五批次；b111–b234 见下方批次八问摘要）
+## 当前状态（2026-11-13 第二百三十七批次；b111–b236 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | b235 只改空间判定器、FlClash 双场景守卫、L2/L3 标准与收口文档；`space_utilization --self-test` **73/73**、`--check-export` current、Slint **211/211** / Iced **192/192** `enforce 0`、FlClash 守卫 **12/12** + enforce 0 为 `L`。并行 WIP 与 `Cargo.lock` 不夹带、不格式化；交叉架构与 aarch64 目标产物未复跑（GAP-1.1） |
-| 2 | 部分 | L | Linux 本机完成唯一判定器、双张 tracked FlClash PNG 逐像素复量、两表面发布帧复判与文档守卫；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID |
-| 3 | 部分 | L | 零 Android/iOS 代码与资源改动；typed destination interval 由共享标题栏带与每帧导航栈底裁决，按构造对移动平台中立，但三 flavor 实机交互与 iOS 产物仍留在外部环境看板，不拿桌面像素冒充移动端证据 |
-| 4 | 部分 | L | 唯一判定器同时量 Slint **211/211** 与 Iced **192/192** 发布帧，边界空带纳入后最差 `void` 仍 **6.2%**；本批零可见 UI 改动，Bevy 192 帧像素与 `FLPROFILES-002` 仍归另一会话，`resolve_surface_evidence.py` ready cells 留统一批次 |
-| 5 | 完整 | L | `void` 仍在 v19 导出的 8% 上限内判罚；契约 chrome 带 + 每帧 `nav_stack_bottom_px` 是区间唯一真源，判定器不新增私有高度、第四项上限或第二份欠账表 |
+| 1 | 部分 | L | b237 改契约 TUN 栈 owner、domain `ConnectionView` 访问器、presentation 投影、Iced 三处视图、FlClash 双场景守卫与 L2/L3 标准；契约/domain/presentation nextest **1672/1672**、Iced **562/562**、四包 Clippy `-D warnings` exit 0、空间判定器 **73/73**、FlClash 守卫 **14/14** + enforce 0 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1） |
+| 2 | 部分 | L | Linux 本机完成契约/domain/presentation/Iced 编译与定向测试、唯一判定器、双张 tracked FlClash PNG 逐像素复量、两表面发布帧复判与文档守卫；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID |
+| 3 | 部分 | L | 零 Android/iOS 代码与资源改动；TUN 栈词表与 typed destination interval 按构造对移动平台中立，但三 flavor 实机交互与 iOS 产物仍留在外部环境看板，不拿桌面像素冒充移动端证据 |
+| 4 | 部分 | L | 判定器同时量 Slint **211/211** 与 Iced **192/192** 发布帧；本批零可见 UI 改动（Iced 三处 TUN 控件的可见选项集合未变），Bevy 192 帧像素与 `FLPROFILES-002` 仍归另一会话，`resolve_surface_evidence.py` ready cells 留统一批次 |
+| 5 | 完整 | L | TUN 栈词表回到契约 `TunStack` 一处 owner（typed `TunStackChoice` + `choices()` + `selectable_choices()`），presentation `tun_stack_options` 只发布可选项与 copy key，Iced 三处视图不再持有栈名字面量；FlClash 侧栏几何仍只读共享 chrome 带与每帧 receipt |
 | 5a | 完整 | L | 零字体/字重/图标/旗资产/文案/可见像素变化；沿用已发布 Slint 211 / Iced 192 真像素回执复判，无双视口重采需求。圆形旗帜容器仍由 4:3 直角资产与 flag guard 钉住 |
-| 6 | 部分 | L | 三项 planted 证明稀疏栈、栈底连续地面会被 `void` 咬住且诚实栈仍通过；FlClash 守卫钉住两图 y89 首行与 3.06% / 2.62% 起点空带，双表面 enforce 与 `--check-export` 为 `L`。全仓 `--workspace` nextest/clippy、结构门动态全腿、`resolve_surface_evidence.py` ready cells 与并行 Bevy 身份红腿仍留统一批次 |
-| 7 | 完整 | L | 共享 chrome 带 / 每帧 receipt → typed destination interval → `rail_of()` → `rail_findings()` → `flclash-sidebar-void-guard.py` → L2/L3 标准与 L4 台账，一条链；区间两端同一把尺子，无跨 UI 私有业务真源 |
-| 8 | 部分 | L | 同主题判定器、参照守卫、标准、收口与台账一次落地后集中跑 self-test / export / 双表面真像素复判 / 双场景像素门；零像素变化不触发截图重采，不逐文件反复全量验证。全仓 `--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` 留统一批次一次跑完 |
+| 6 | 部分 | L | 契约 6 项 + presentation 4 项新测试钉住 TUN 栈目录、可选项与索引映射；FlClash 守卫改用「墨迹是否跨标签列」区分折叠钮与目的地行，并钉住 y154 / y191、6.97% / 7.85%、2.72%，自测 **14/14** + enforce 0。全仓 `--workspace` nextest/clippy、结构门动态全腿、`resolve_surface_evidence.py` ready cells 与并行 Bevy 身份红腿仍留统一批次 |
+| 7 | 完整 | L | 契约 `TunStack` typed owner → presentation `tun_stack_options` → Iced `dns.rs` / `settings/tun.rs` / `tun_stack_card.rs` 三处消费，一条链；`ConnectionView` 新访问器也归 domain 一处，视图不再直接读 `metadata`。共享 chrome 带 / 每帧 receipt → typed destination interval → `rail_of()` → 参照守卫 → L2/L3 标准 → L4 台账，另一条链；无跨 UI 私有业务真源 |
+| 8 | 部分 | L | 同主题契约、domain、presentation、Iced 接线、参照守卫、标准与台账一次落地后集中跑四包 nextest / Clippy / 定向 Python 门；零像素变化不触发截图重采，不逐文件反复全量验证。全仓 `--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` 留统一批次一次跑完 |
 
 ## 历史状态（2026-11-13 第二百二十七批次；b111–b226 见下方批次八问摘要）
 
@@ -95,7 +95,20 @@
 | 7 | 完整 | L | 契约常量 → 导出器 → v18 JSON → Python 版本 pin → 判定器夹具/读回 → 双场景参照守卫 → L2 标准 / L3 上游对照 / L4 台账分层收口；`doc-governance OK`、`closure 8/8`、结构收集器 **198 腿静态形状 0 findings**，无跨 UI 私有业务真源 |
 | 8 | 部分 | L | 同主题导出物、守卫、判据夹具、标准与台账一次落地后集中跑契约构建、空间/参照 Python 门和双表面报告；判据身份变化不触发截图重采。全仓 `--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` 留统一批次一次跑完 |
 
-## 最近一批问答（2026-11-13 第二百三十五批次：导航区间两端空地纳入 `void`）
+## 最近一批问答（2026-11-13 第二百三十七批次：FlClash 首行语义更正 + TUN 栈词表回到契约 owner）
+
+1. x86_64/aarch64：本批只改 Contract/Domain/Presentation/Iced 纯 Rust、FlClash 参照守卫与 L2/L3/L4 文档，零平台 API；契约/domain/presentation nextest **1672/1672**、Iced **562/562**、四包 Clippy `--all-targets -D warnings` exit 0、空间判定器 **73/73**、FlClash 守卫 **14/14** + enforce 0 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
+2. Windows/Linux/macOS：Linux 本机完成四包编译/Clippy、定向单测、双张 tracked FlClash PNG 逐像素复量、两表面发布回执复判与文档守卫；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID → 部分（L）。
+3. Android/iOS：零 Android/iOS 代码与资源改动；TUN 栈词表与 typed destination interval 按构造对移动平台中立，但三 flavor 实机交互与 iOS 产物仍按既有条目留在外部环境看板，不拿桌面编译冒充移动端证据 → 部分（L）。
+4. 各 UI：Iced 三处 TUN 栈控件（DNS 页下拉、设置页分段、运行页药丸）全部改为消费契约 owner，**可见选项集合未变**；判定器对 Slint **211/211** 与 Iced **192/192** 发布帧复判仍 0 违规。Bevy 192 帧像素与 `FLPROFILES-002` 仍归另一会话，`resolve_surface_evidence.py` ready cells 留统一批次 → 部分（L）。
+5. 复用：TUN 栈目录、可选项、索引映射与 copy key 由契约 `TunStack` typed `TunStackChoice` + presentation `tun_stack_options` 一处发布，Iced 三处视图不再持有栈名字面量；`ConnectionView` 新增的访问器也归 domain，视图不直接读 `metadata` → 完整（L）。
+5a. 设计资源：零字体/字重/图标/旗资产/文案/可见像素变化；沿用已发布 Slint 211 / Iced 192 真像素回执，无双视口重采需求，圆形旗帜容器仍由 4:3 直角资产与 flag guard 钉住 → 完整（L）。
+6. 各处界面的功能接入：契约 6 项 + presentation 4 项新测试钉住目录、可选项、可应用性与索引映射；FlClash 守卫改用「墨迹是否跨标签列」区分折叠钮与目的地行，钉住 y154 / y191、6.97% / 7.85% 首行保留与 2.72% 行间死带，自测 **14/14** + enforce 0；空间判定器度量未变（**73/73**、双表面 0 违规）。全仓 `--workspace` nextest/clippy、结构门动态全腿、`resolve_surface_evidence.py` ready cells 与并行 Bevy 身份红腿仍留统一批次 → 部分（L）。
+7. 模块化：契约 `TunStack` typed owner → presentation `tun_stack_options` → Iced 三处消费，一条链；共享 chrome 带 / 每帧 receipt → typed destination interval → `rail_of()` → 参照守卫 → L2/L3 标准 → L4 台账，另一条链。两条链上都没有跨 UI 私有业务真源 → 完整（L）。
+8. CI 与批次效率：同主题契约、domain、presentation、Iced 接线、参照守卫、标准与台账一次落地后集中跑四包 nextest / Clippy / 定向 Python 门；零像素变化不触发截图重采，不逐文件反复全量验证，也不格式化并行 WIP。全仓 `--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` 留统一批次一次跑完 → 部分（L）。
+
+
+## 历史问答（2026-11-13 第二百三十五批次：导航区间两端空地纳入 `void`）
 
 1. x86_64/aarch64：本批只改唯一判定器 Python、FlClash 双场景守卫、L2/L3 标准与收口文档，零平台 API；`space_utilization --self-test` **73/73**、`--check-export` current、双表面 **211/192 帧 enforce 0 违规**、FlClash 守卫 **12/12** + enforce 0 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：Linux 本机完成判定器定向门、两张 tracked FlClash PNG 逐像素复量、双表面发布回执复判与文档守卫；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID → 部分（L）。
