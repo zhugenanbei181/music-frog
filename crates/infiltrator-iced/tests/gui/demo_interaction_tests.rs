@@ -10,6 +10,7 @@ use crate::demo::sync::demo_conflict_key;
 use crate::state::AppState;
 use crate::test_mounts::surface_task_harness::drain_surface_task;
 use crate::types::app::ConfirmAction;
+use infiltrator_contract::connection_view_preference::ConnectionViewMode;
 use infiltrator_contract::overview_layout::OverviewCardKind;
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::privileged_network::PrivilegedNetworkState;
@@ -40,6 +41,7 @@ fn demo_env(page: Route, scenario: FeatureId) -> DemoEnv {
         capture_marker: None,
         scenario: Some(scenario),
         sidebar_expansion: SidebarExpansionPreference::default(),
+        connection_view_mode: ConnectionViewMode::default(),
         traffic_audit: None,
     }
 }

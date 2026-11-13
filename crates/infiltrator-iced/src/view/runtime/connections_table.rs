@@ -135,11 +135,11 @@ fn header_cell<'a>(header: &ConnectionTableHeader, lang: Lang<'a>) -> Element<'a
     let label = lang.tr(header.semantic_id).to_string();
     let budget = text_budget_em(width, TextRole::Caption);
     container(
-        theme::role_text(ellipsize(&label, budget), TextRole::Caption)
-            .style(|t: &Theme| text::Style {
+        theme::role_text(ellipsize(&label, budget), TextRole::Caption).style(|t: &Theme| {
+            text::Style {
                 color: Some(theme::tokens(t).text_tertiary),
-            })
-            .width(Length::Fill),
+            }
+        }),
     )
     .width(Length::Fixed(width))
     .padding(cell_padding())
@@ -175,7 +175,6 @@ fn body_cell<'a>(
                     .style(move |t: &Theme| text::Style {
                         color: Some(tone_color(t, tone)),
                     })
-                    .width(Length::Fill)
                     .into()
             }
         }
@@ -185,7 +184,6 @@ fn body_cell<'a>(
                 .style(|t: &Theme| text::Style {
                     color: Some(theme::tokens(t).success),
                 })
-                .width(Length::Fill)
                 .into()
         }
         ConnectionTableCell::Unavailable => {
@@ -193,7 +191,6 @@ fn body_cell<'a>(
                 .style(|t: &Theme| text::Style {
                     color: Some(theme::tokens(t).text_tertiary),
                 })
-                .width(Length::Fill)
                 .into()
         }
     };
@@ -201,6 +198,7 @@ fn body_cell<'a>(
         .width(Length::Fixed(width))
         .padding(cell_padding())
         .align_x(Alignment::Start)
+        .clip(true)
         .into()
 }
 

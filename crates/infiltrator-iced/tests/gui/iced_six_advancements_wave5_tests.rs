@@ -11,6 +11,7 @@ use crate::state::runtime::OutboundProbeStage;
 use crate::types::message::Message;
 use crate::types::message::mtu_probe::MtuProbeCompletion;
 use infiltrator_composition::capture_fixtures::list_document;
+use infiltrator_contract::connection_view_preference::ConnectionViewMode;
 use infiltrator_contract::ipv6::Ipv6RoutingSnapshot;
 use infiltrator_contract::lan::{LanSecuritySnapshot, LanSharingSnapshot};
 use infiltrator_contract::mtu::{MtuNegotiationSnapshot, PhysicalMtuSnapshot};
@@ -235,6 +236,7 @@ fn test_advancement_w5_2_typed_outbound_latency_history_is_observed_and_probe_fa
         capture_marker: None,
         scenario: None,
         sidebar_expansion: SidebarExpansionPreference::default(),
+        connection_view_mode: ConnectionViewMode::default(),
         traffic_audit: None,
     };
     let (mut state, _) = AppState::demo(&env);

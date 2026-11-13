@@ -80,9 +80,10 @@ class UnifiedMatrixTests(unittest.TestCase):
                 "interaction",
                 "sidebar_expansion",
                 "traffic_audit",
+                "connection_view_mode",
             ],
         )
-        self.assertEqual(header[-1], "traffic_audit")
+        self.assertEqual(header[-1], "connection_view_mode")
 
     def test_a_surface_owned_row_keeps_its_place_and_its_columns(self):
         """Twelve of the Slint rows sit inside the generated block, not after it."""

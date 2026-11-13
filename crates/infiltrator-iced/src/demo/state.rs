@@ -21,6 +21,9 @@ use crate::types::runtime::RuntimeStatus;
 use iced::widget::text_editor::Content;
 use infiltrator_composition::capture_fixtures::list_document;
 use infiltrator_contract::active_exit::ActiveExitSnapshot;
+use infiltrator_contract::connection_view_preference::{
+    ConnectionColumnSet, ConnectionViewPreference,
+};
 use infiltrator_contract::dns::{DnsCoreSwitches, DnsEnhancedMode, DnsFakeIpFilterMode};
 use infiltrator_contract::dns_form::DnsWorkbenchForm;
 use infiltrator_contract::network_roaming::{
@@ -40,6 +43,7 @@ use infiltrator_domain::mrs::{Behavior, MrsMetadata};
 use infiltrator_domain::profile_options::{FilterDedup, FilterSpec, RenameSpec};
 use infiltrator_domain::runtime::TrafficData;
 use infiltrator_domain::traffic_scale::compute;
+use infiltrator_presentation::connection_view_projection::project_connection_view;
 use infiltrator_presentation::rule_list_editor::RuleListReadback;
 use infiltrator_test_support::subscription_filter_fixture::observation;
 use lurker_core_contract::identity::EngineId;
@@ -97,6 +101,16 @@ impl AppState {
             settings: RuntimeProbeSettings::default(),
         });
         let _ = state.apply_shared_surface_snapshot(demo_outbound_surface(CoreLifecycle::Running));
+        // The demo fixture is the settings owner's readback stand-in: the
+        // Connections morphology a capture names is seeded here and nowhere
+        // else, through the same shared projection the production readback
+        // uses, so a frame never renders a second column or mode truth.
+        let connection_view = ConnectionViewPreference {
+            mode: env.connection_view_mode,
+            ..ConnectionViewPreference::default()
+        };
+        state.diag.connection_view =
+            project_connection_view(&ConnectionColumnSet::all(), &connection_view);
         state.runtime.traffic_topology = TrafficTopologySnapshot::demo_fixture();
         state.runtime.active_exit = ActiveExitSnapshot::demo_fixture();
         state.runtime.subscription_quota = SubscriptionQuotaSnapshot::demo_fixture();

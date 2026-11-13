@@ -8,6 +8,7 @@ use crate::state::AppState;
 use crate::types::message::Message;
 use crate::view::checkbox::check_box;
 use crate::view::component_forms::{style_accent, style_ghost};
+use crate::view::scrollbar;
 use crate::view::theme;
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::advanced::widget::Id;
@@ -85,6 +86,28 @@ pub(crate) fn view_mode_controls(state: &AppState) -> Element<'_, Message> {
         .into()
     });
 
+    let mode_row = row(mode_buttons)
+        .spacing(theme::SP_XS)
+        .align_y(iced::Alignment::Center);
+    container(column![mode_row].spacing(theme::SP_XS).width(Length::Fill))
+        .id(InteractionRegion::ConnectionViewControls.id())
+        .width(Length::Fill)
+        .into()
+}
+
+/// The column chooser of the table morphology.
+///
+/// The chooser is its own band, not another column of the filter bar: twenty
+/// two labelled columns need room the filter bar does not have, and a band
+/// that scrolls sideways keeps the page's vertical budget for the table
+/// itself.
+pub(crate) fn column_chooser_controls(state: &AppState) -> Option<Element<'_, Message>> {
+    let lang = Lang(&state.shell.lang);
+    let projection = &state.diag.connection_view;
+    if !column_chooser_mounted(projection.mode) {
+        return None;
+    }
+
     let choices = column_choices(projection);
     let columns: Vec<Element<'_, Message>> = choices
         .into_iter()
@@ -117,47 +140,38 @@ pub(crate) fn view_mode_controls(state: &AppState) -> Element<'_, Message> {
     .id(InteractionRegion::ConnectionViewResetColumns.id());
 
     let title = theme::role_body_text(lang.tr(CONNECTION_VIEW_TITLE_KEY));
-    let mode_row = row(mode_buttons)
-        .spacing(theme::SP_XS)
-        .align_y(iced::Alignment::Center);
-
-    // The column vocabulary configures the table. In the list morphology no
-    // column is rendered, so the chooser and its reset are not mounted: a
-    // control that cannot change what the user sees never appears.
-    if !column_chooser_mounted(projection.mode) {
-        return container(column![mode_row].spacing(theme::SP_XS).width(Length::Fill))
-            .id(InteractionRegion::ConnectionViewControls.id())
-            .width(Length::Fill)
-            .into();
-    }
-
     let actions: Element<'_, Message> = if state.shell.viewport.tier.is_narrow() {
-        Column::from_iter([Element::from(mode_row), Element::from(reset)])
+        Column::from_iter([Element::from(reset)])
             .spacing(theme::SP_XS)
             .width(Length::Fill)
             .into()
     } else {
-        Row::from_iter([Element::from(mode_row), Element::from(reset)])
+        Row::from_iter([Element::from(reset)])
             .spacing(theme::SP_SM)
             .align_y(iced::Alignment::Center)
             .width(Length::Fill)
             .into()
     };
 
-    let column_grid = row(columns)
-        .spacing(theme::SP_SM)
-        .align_y(iced::Alignment::Center)
-        .width(Length::Fill)
-        .wrap();
-
-    container(
-        column![title, actions, column_grid]
-            .spacing(theme::SP_XS)
-            .width(Length::Fill),
+    // One row that scrolls sideways: the chooser must never cost the table
+    // its own height.
+    let column_strip = scrollbar::horizontal_scrollable(
+        row(columns)
+            .spacing(theme::SP_SM)
+            .align_y(iced::Alignment::Center),
     )
-    .id(InteractionRegion::ConnectionViewControls.id())
-    .width(Length::Fill)
-    .into()
+    .width(Length::Fill);
+
+    Some(
+        container(
+            column![title, actions, column_strip]
+                .spacing(theme::SP_XS)
+                .width(Length::Fill),
+        )
+        .id(InteractionRegion::ConnectionViewColumns.id())
+        .width(Length::Fill)
+        .into(),
+    )
 }
 
 #[cfg(test)]

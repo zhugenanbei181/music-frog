@@ -18,6 +18,7 @@
 //! cannot dispatch a command.
 
 use crate::connection_view_projection::ConnectionViewColumnProjection;
+use chrono::DateTime;
 use infiltrator_contract::connection::ConnectionRateObservation;
 use infiltrator_contract::connection_view_preference::{ConnectionColumn, ConnectionColumnSupport};
 use infiltrator_domain::connection_view::{ConnectionView, RatedConnection, route_chain};
@@ -280,7 +281,17 @@ fn establish_time<C: ConnectionView>(
     if status == ConnectionTableStatus::Closed {
         return ConnectionTableCell::Unavailable;
     }
-    reported(row.view_start())
+    let start = row.view_start().trim();
+    if start.is_empty() {
+        return ConnectionTableCell::Unavailable;
+    }
+    // The kernel reports the instant in RFC3339; a table reads it as a clock
+    // reading, not as a raw wire string, and an unparseable stamp keeps the
+    // owner's own text rather than becoming a guess.
+    match DateTime::parse_from_rfc3339(start) {
+        Ok(stamp) => ConnectionTableCell::Text(stamp.format("%m-%d %H:%M:%S").to_string()),
+        Err(_) => ConnectionTableCell::Text(start.to_owned()),
+    }
 }
 
 /// One instantaneous rate, or the unknown when no window was measured.

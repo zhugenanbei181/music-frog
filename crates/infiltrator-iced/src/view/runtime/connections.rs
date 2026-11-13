@@ -335,6 +335,14 @@ fn connections_section_with_scroll_owner<'a>(
         Space::new().height(theme::SP_MD),
     ];
 
+    // The column chooser is its own band above the table: twenty-two
+    // labelled columns need room the filter bar does not have, and a band
+    // that scrolls sideways keeps the page's vertical budget for the table.
+    if let Some(chooser) = connection_view_controls::column_chooser_controls(state) {
+        connections_section = connections_section.push(chooser);
+        connections_section = connections_section.push(Space::new().height(theme::SP_MD));
+    }
+
     if is_closed_tab {
         let mut closed_rows = state
             .diag

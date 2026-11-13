@@ -21,6 +21,7 @@
 //! | `INFILTRATOR_LANG`          | `zh-CN` (default) or `en-US`                   |
 //! | `INFILTRATOR_WINDOW_SIZE`   | `WxH` (default 1180x780)                       |
 //! | `INFILTRATOR_CAPTURE_MARKER`| file getting `CAPTURE_READY page=<p> skin=<s>` appended after the first rendered frame |
+//! | `INFILTRATOR_CONNECTION_VIEW_MODE` | the Connections morphology this capture asks for: `list` or `table` (default: the owner's `list`) |
 //! | `INFILTRATOR_TRAFFIC_AUDIT` | traffic audit selection `<1h\|24h\|7d\|30d>:<source-ip\|host\|outbound\|process>` (default: the reader's own `24h:host`) |
 //!
 //! Fixture tables live in [`fixtures`] / [`proxy_fixtures`], the demo
@@ -32,6 +33,7 @@ use crate::types::message::Message;
 use crate::view::theme::{theme_from_name, theme_to_name};
 use crate::window_chrome::{MIN_WINDOW_SIZE, window_settings};
 use iced::Task;
+use infiltrator_contract::connection_view_preference::ConnectionViewMode;
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::shell_sidebar_preference::SidebarExpansionPreference;
 use infiltrator_domain::traffic_audit::{TrafficDimension, TrafficWindow};
@@ -101,6 +103,12 @@ pub struct DemoEnv {
     /// it. The demo is the owner's readback stand-in: an unknown or absent
     /// value keeps the owner's default instead of guessing a second state.
     pub sidebar_expansion: SidebarExpansionPreference,
+    /// The Connections morphology this capture asks for, parsed from
+    /// `INFILTRATOR_CONNECTION_VIEW_MODE` (`list` or `table`, the contract's
+    /// own wire names). The demo is the owner's readback stand-in: an unknown
+    /// or absent value keeps the owner's default instead of guessing a second
+    /// state.
+    pub connection_view_mode: ConnectionViewMode,
     /// The traffic audit's range and dimension this capture asks for, parsed
     /// from `INFILTRATOR_TRAFFIC_AUDIT` (`<range>:<dimension>`, e.g.
     /// `30d:process`). The demo applies it through the production message
@@ -159,6 +167,10 @@ impl DemoEnv {
             sidebar_expansion: var("INFILTRATOR_SIDEBAR_EXPANSION")
                 .ok()
                 .and_then(|raw| SidebarExpansionPreference::from_wire_value(&raw))
+                .unwrap_or_default(),
+            connection_view_mode: var("INFILTRATOR_CONNECTION_VIEW_MODE")
+                .ok()
+                .and_then(|raw| ConnectionViewMode::from_wire_id(raw.trim()).ok())
                 .unwrap_or_default(),
             traffic_audit: var("INFILTRATOR_TRAFFIC_AUDIT")
                 .ok()

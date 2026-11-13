@@ -15,6 +15,7 @@ use crate::view::theme::{forest_theme, is_forest, theme_to_name, tokens};
 use iced::Rectangle;
 use iced::Size;
 use iced::window::Screenshot;
+use infiltrator_contract::connection_view_preference::ConnectionViewMode;
 use infiltrator_contract::mini_hud::MiniHudWaveformStrip;
 use infiltrator_contract::resources::CoreResourceSnapshot;
 use infiltrator_contract::resources::ResourceAvailability;
@@ -40,6 +41,7 @@ fn demo_env(page: Route) -> DemoEnv {
         capture_marker: None,
         scenario: None,
         sidebar_expansion: SidebarExpansionPreference::default(),
+        connection_view_mode: ConnectionViewMode::default(),
         traffic_audit: None,
     }
 }

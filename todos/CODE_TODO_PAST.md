@@ -516,7 +516,13 @@ em 宽裁剪并留省略号，全角字符计两倍）；**Iced** 新增 `connec
 偏好读回）+ 5 项 planted 负例，自测 **10 → 15/15** + enforce 0；domain **643/643**、presentation
 **1057/1057**、Iced **568/568**；三包 Clippy `--all-targets -D warnings` exit 0（`unused_imports` 单项放宽：
 并行 b234 会话 `navigation_capability.rs` WIP 的 2 个未用导入，非本批文件）。
-④ **待验证范围**：本批**有可见像素变化**（列表形态下 22 个列复选框不再挂载、已关闭页签状态点由红改灰），
-Iced 192 帧发布回执 `20261112T092915Z_4429d9259479_dirty_2279303` 因此过期，standard/compact 双视口
-真实像素回执与表格形态帧**待重采**；contract/scenario 锚点与 `resolve_surface_evidence.py` ready cells 留
-统一批次；Bevy / Slint / Android 尚未消费该形态，不声称任何跨表面结论。本条保持 `Integrated`，不办结。
+④ **像素与门（L）**：b238 修好读回消费后**实拍立刻暴露三条排版缺陷**——列选择器在筛选行里换行成 4 行把整页挤没、
+建立时间是原始 ISO 串顶满一列、单元格文字溢出到邻列；b239 一次收口：列选择器独立成一条横向滚动的窄带（只占一行）、
+presentation 把建立时间格式化成 `MM-DD HH:MM:SS`、单元格固定宽并裁剪。Iced 整批重采 **194/194**（413s，
+`20261113T025220Z_be5c79bbe469_dirty_3957778`，binary sha256 `f8b2b708…`），新增
+`connections-table-standard` / `connections-table-compact` 两帧（矩阵第 9 列 `connection_view_mode` 由 demo
+经 owner 读回读入）；`space_utilization --surface iced --enforce` **194 帧 violations=0**（两帧未用留白
+**0.4% / 0.5%**）、`receipt-freshness 0`、`screenshot-identity` 唯一红腿仍是并行会话的 Bevy 别名。
+⑤ **待验证范围**：contract/scenario 锚点与 `resolve_surface_evidence.py` ready cells 留统一批次；Bevy / Slint /
+Android 尚未消费该形态，不声称任何跨表面结论；全仓 `--workspace` nextest/clippy 与结构门动态全腿留统一批次。
+本条保持 `Integrated`，不办结。

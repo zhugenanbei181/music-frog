@@ -1,193 +1,195 @@
-name	page	shape	skin	window_size	interaction	sidebar_expansion	traffic_audit
-app-routing-policy-editor-standard	app_routing	app_routing	forest	1180x780	app-routing-policy-editor		
-app-routing-policy-editor-compact	app_routing	app_routing	forest	720x480	app-routing-policy-editor		
-connections-close-all-confirm-standard	connections	connections_workbench	forest	1180x780	connections-close-all-confirm		
-connections-close-all-confirm-compact	connections	connections_workbench	forest	720x480	connections-close-all-confirm		
-connections-details-drawer-standard	connections	connections_workbench	forest	1180x780	connections-details-drawer		
-connections-details-drawer-compact	connections	connections_workbench	forest	720x480	connections-details-drawer		
-connections-grouping-standard	connections	connections_workbench	forest	1180x780	connections-grouping		
-connections-grouping-compact	connections	connections_workbench	forest	720x480	connections-grouping		
-connections-search-highlight-standard	connections	connections	forest	1180x780	connections-search-highlight		
-connections-search-highlight-compact	connections	connections	forest	720x480	connections-search-highlight		
-core-version-rollback-confirm-standard	settings	settings_workbench	forest	1180x780	core-version-rollback-confirm		
-core-version-rollback-confirm-compact	settings	settings_workbench	forest	720x480	core-version-rollback-confirm		
-dns-fake-ip-flush-confirm-standard	dns	dns	forest	1180x780	dns-fake-ip-flush-confirm		
-dns-fake-ip-flush-confirm-compact	dns	dns	forest	720x480	dns-fake-ip-flush-confirm		
-dns-hosts-editor-standard	dns	dns	forest	1180x780	dns-hosts-editor		
-dns-hosts-editor-compact	dns	dns	forest	720x480	dns-hosts-editor		
-dns-leak-alert-standard	dns	dns	forest	1180x780	dns-leak-alert		
-dns-leak-alert-compact	dns	dns	forest	720x480	dns-leak-alert		
-dns-query-details-standard	dns	dns	forest	1180x780	dns-query-details		
-dns-query-details-compact	dns	dns	forest	720x480	dns-query-details		
-doctor-failure-recovery-standard	doctor	doctor	forest	1180x780	doctor-failure-recovery		
-doctor-failure-recovery-compact	doctor	doctor	forest	720x480	doctor-failure-recovery		
-doctor-repair-progress-standard	doctor	doctor	forest	1180x780	doctor-repair-progress		
-doctor-repair-progress-compact	doctor	doctor	forest	720x480	doctor-repair-progress		
-editor-large-document-window-standard	editor	editor	forest	1180x780	editor-large-document-window		
-editor-large-document-window-compact	editor	editor	forest	720x480	editor-large-document-window		
-editor-snippet-insertion-standard	editor	editor	forest	1180x780	editor-snippet-insertion		
-editor-snippet-insertion-compact	editor	editor	forest	720x480	editor-snippet-insertion		
-editor-yaml-error-navigation-standard	editor	editor	forest	1180x780	editor-yaml-error-navigation		
-editor-yaml-error-navigation-compact	editor	editor	forest	720x480	editor-yaml-error-navigation		
-lifecycle-recovery-panel-standard	doctor	doctor	forest	1180x780	lifecycle-recovery-panel		
-lifecycle-recovery-panel-compact	doctor	doctor	forest	720x480	lifecycle-recovery-panel		
-logs-redacted-export-standard	logs	logs_workbench	forest	1180x780	logs-redacted-export		
-logs-redacted-export-compact	logs	logs_workbench	forest	720x480	logs-redacted-export		
-logs-scroll-lock-standard	logs	logs_workbench	forest	1180x780	logs-scroll-lock		
-logs-scroll-lock-compact	logs	logs_workbench	forest	720x480	logs-scroll-lock		
-logs-search-highlight-standard	logs	logs	forest	1180x780	logs-search-highlight		
-logs-search-highlight-compact	logs	logs	forest	720x480	logs-search-highlight		
-overview-card-reorder-standard	overview	overview	forest	1180x780	overview-card-reorder		
-overview-card-reorder-compact	overview	overview	forest	720x480	overview-card-reorder		
-overview-reconnect-mask-standard	overview	overview_workbench	forest	1180x780	overview-reconnect-mask		
-overview-reconnect-mask-compact	overview	overview_workbench	forest	720x480	overview-reconnect-mask		
-overview-topology-drilldown-standard	rules	overview_workbench	forest	1180x780	overview-topology-drilldown		
-overview-topology-drilldown-compact	rules	overview_workbench	forest	720x480	overview-topology-drilldown		
-profiles-aggregator-preview-standard	profiles	filters	forest	1180x780	profiles-aggregator-preview		
-profiles-aggregator-preview-compact	profiles	filters	forest	720x480	profiles-aggregator-preview		
-profiles-aggregator-wizard-standard	profiles	filters	forest	1180x780	profiles-aggregator-wizard		
-profiles-aggregator-wizard-compact	profiles	filters	forest	720x480	profiles-aggregator-wizard		
-profiles-delete-confirm-standard	profiles	profiles	forest	1180x780	profiles-delete-confirm		
-profiles-delete-confirm-compact	profiles	profiles	forest	720x480	profiles-delete-confirm		
-profiles-diff-viewer-standard	editor	editor	forest	1180x780	profiles-diff-viewer		
-profiles-diff-viewer-compact	editor	editor	forest	720x480	profiles-diff-viewer		
-profiles-filter-editor-standard	filter	filters	forest	1180x780	profiles-filter-editor		
-profiles-filter-editor-compact	filter	filters	forest	720x480	profiles-filter-editor		
-profiles-import-modal-standard	profiles	profiles	forest	1180x780	profiles-import-modal		
-profiles-import-modal-compact	profiles	profiles	forest	720x480	profiles-import-modal		
-profiles-script-export-review-standard	editor	editor	forest	1180x780	profiles-script-export-review		
-profiles-script-export-review-compact	editor	editor	forest	720x480	profiles-script-export-review		
-profiles-script-sandbox-standard	editor	editor	forest	1180x780	profiles-script-sandbox		
-profiles-script-sandbox-compact	editor	editor	forest	720x480	profiles-script-sandbox		
-profiles-snapshot-restore-confirm-standard	editor	editor	forest	1180x780	profiles-snapshot-restore-confirm		
-profiles-snapshot-restore-confirm-compact	editor	editor	forest	720x480	profiles-snapshot-restore-confirm		
-profiles-subscription-error-standard	profiles	filters	forest	1180x780	profiles-subscription-error		
-profiles-subscription-error-compact	profiles	filters	forest	720x480	profiles-subscription-error		
-proxies-custom-node-modal-standard	proxies	proxies_workbench	forest	1180x780	proxies-custom-node-modal		
-proxies-custom-node-modal-compact	proxies	proxies_workbench	forest	720x480	proxies-custom-node-modal		
-proxies-group-expanded-standard	proxies	proxies_workbench	forest	1180x780	proxies-group-expanded		
-proxies-group-expanded-compact	proxies	proxies_workbench	forest	720x480	proxies-group-expanded		
-proxies-group-reorder-standard	proxies	proxies_workbench	forest	1180x780	proxies-group-reorder		
-proxies-group-reorder-compact	proxies	proxies_workbench	forest	720x480	proxies-group-reorder		
-proxies-node-detail-drawer-standard	proxies	proxies_workbench	forest	1180x780	proxies-node-detail-drawer		
-proxies-node-detail-drawer-compact	proxies	proxies_workbench	forest	720x480	proxies-node-detail-drawer		
-proxies-probe-settings-standard	proxies	proxies_workbench	forest	1180x780	proxies-probe-settings		
-proxies-probe-settings-compact	proxies	proxies_workbench	forest	720x480	proxies-probe-settings		
-proxies-search-highlight-standard	proxies	proxies	forest	1180x780	proxies-search-highlight		
-proxies-search-highlight-compact	proxies	proxies	forest	720x480	proxies-search-highlight		
-proxies-uri-import-preview-standard	proxies	proxies_workbench	forest	1180x780	proxies-uri-import-preview		
-proxies-uri-import-preview-compact	proxies	proxies_workbench	forest	720x480	proxies-uri-import-preview		
-rules-list-editor-standard	rules	rules_workbench	forest	1180x780	rules-list-editor		
-rules-list-editor-compact	rules	rules_workbench	forest	720x480	rules-list-editor		
-rules-override-editor-standard	rules	rules_workbench	forest	1180x780	rules-override-editor		
-rules-override-editor-compact	rules	rules_workbench	forest	720x480	rules-override-editor		
-rules-provider-refresh-error-standard	rules-providers	rules_workbench	forest	1180x780	rules-provider-refresh-error		
-rules-provider-refresh-error-compact	rules-providers	rules_workbench	forest	720x480	rules-provider-refresh-error		
-rules-search-highlight-standard	rules	rules	forest	1180x780	rules-search-highlight		
-rules-search-highlight-compact	rules	rules	forest	720x480	rules-search-highlight		
-rules-statistics-inspector-standard	rules	rules_workbench	forest	1180x780	rules-statistics-inspector		
-rules-statistics-inspector-compact	rules	rules_workbench	forest	720x480	rules-statistics-inspector		
-rules-tracer-drawer-standard	rules	rules_workbench	forest	1180x780	rules-tracer-drawer		
-rules-tracer-drawer-compact	rules	rules_workbench	forest	720x480	rules-tracer-drawer		
-runtime-telemetry-observation-standard	runtime	runtime_workbench	forest	1180x780	runtime-telemetry-observation		
-runtime-telemetry-observation-compact	runtime	runtime_workbench	forest	720x480	runtime-telemetry-observation		
-settings-lan-security-standard	settings	settings_workbench	forest	1180x780	settings-lan-security		
-settings-lan-security-compact	settings	settings_workbench	forest	720x480	settings-lan-security		
-settings-language-choice-standard	settings	settings_workbench	forest	1180x780	settings-language-choice		
-settings-language-choice-compact	settings	settings_workbench	forest	720x480	settings-language-choice		
-settings-permission-panel-standard	settings	settings_workbench	forest	1180x780	settings-permission-panel		
-settings-permission-panel-compact	settings	settings_workbench	forest	720x480	settings-permission-panel		
-settings-port-conflict-repair-standard	settings	settings_workbench	forest	1180x780	settings-port-conflict-repair		
-settings-port-conflict-repair-compact	settings	settings_workbench	forest	720x480	settings-port-conflict-repair		
-settings-tun-permission-standard	settings	settings_workbench	forest	1180x780	settings-tun-permission		
-settings-tun-permission-compact	settings	settings_workbench	forest	720x480	settings-tun-permission		
-shell-command-palette-standard	overview	shell_workbench	forest	1180x780	shell-command-palette		
-shell-command-palette-compact	overview	shell_workbench	forest	720x480	shell-command-palette		
-shell-routing-intent-authentication-standard	overview	shell_workbench	forest	1180x780	shell-routing-intent-authentication		
-shell-routing-intent-authentication-compact	overview	shell_workbench	forest	720x480	shell-routing-intent-authentication		
-shell-routing-intent-control-standard	overview	shell_workbench	forest	1180x780	shell-routing-intent-control		
-shell-routing-intent-control-compact	overview	shell_workbench	forest	720x480	shell-routing-intent-control		
-speedtest-details-modal-standard	runtime	runtime_workbench	forest	1180x780	speedtest-details-modal		
-speedtest-details-modal-compact	runtime	runtime_workbench	forest	720x480	speedtest-details-modal		
-speedtest-history-comparison-standard	runtime	runtime_workbench	forest	1180x780	speedtest-history-comparison		
-speedtest-history-comparison-compact	runtime	runtime_workbench	forest	720x480	speedtest-history-comparison		
-speedtest-progress-cancel-standard	overview	runtime_workbench	forest	1180x780	speedtest-progress-cancel		
-speedtest-progress-cancel-compact	overview	runtime_workbench	forest	720x480	speedtest-progress-cancel		
-sync-conflict-resolver-standard	sync	sync	forest	1180x780	sync-conflict-resolver		
-sync-conflict-resolver-compact	sync	sync	forest	720x480	sync-conflict-resolver		
-sync-restore-confirm-standard	editor	sync	forest	1180x780	sync-restore-confirm		
-sync-restore-confirm-compact	editor	sync	forest	720x480	sync-restore-confirm		
-overview-dark	overview	overview	dark	1180x780			
-overview-light	overview	overview	light	1180x780			
-overview-forest	overview	overview	forest	1180x780			
-overview-amoled	overview	overview	amoled	1180x780			
-proxies-dark	proxies	proxies	dark	1180x780			
-proxies-light	proxies	proxies	light	1180x780			
-proxies-forest	proxies	proxies	forest	1180x780			
-proxies-amoled	proxies	proxies	amoled	1180x780			
-rules-dark	rules	rules	dark	1180x780			
-rules-light	rules	rules	light	1180x780			
-rules-forest	rules	rules	forest	1180x780			
-rules-amoled	rules	rules	amoled	1180x780			
-settings-dark	settings	settings	dark	1180x780			
-settings-light	settings	settings	light	1180x780			
-settings-forest	settings	settings	forest	1180x780			
-settings-amoled	settings	settings	amoled	1180x780			
-profiles-dark	profiles	profiles	dark	1180x780			
-profiles-light	profiles	profiles	light	1180x780			
-profiles-forest	profiles	profiles	forest	1180x780			
-profiles-amoled	profiles	profiles	amoled	1180x780			
-connections-dark	connections	connections	dark	1180x780			
-connections-light	connections	connections	light	1180x780			
-connections-forest	connections	connections	forest	1180x780			
-connections-amoled	connections	connections	amoled	1180x780			
-logs-dark	logs	logs	dark	1180x780			
-logs-light	logs	logs	light	1180x780			
-logs-forest	logs	logs	forest	1180x780			
-logs-amoled	logs	logs	amoled	1180x780			
-runtime-dark	runtime	runtime	dark	1180x780			
-runtime-light	runtime	runtime	light	1180x780			
-runtime-forest	runtime	runtime	forest	1180x780			
-runtime-amoled	runtime	runtime	amoled	1180x780			
-dns-dark	dns	dns	dark	1180x780			
-dns-light	dns	dns	light	1180x780			
-dns-forest	dns	dns	forest	1180x780			
-dns-amoled	dns	dns	amoled	1180x780			
-doctor-dark	doctor	doctor	dark	1180x780			
-doctor-light	doctor	doctor	light	1180x780			
-doctor-forest	doctor	doctor	forest	1180x780			
-doctor-amoled	doctor	doctor	amoled	1180x780			
-sync-dark	sync	sync	dark	1180x780			
-sync-light	sync	sync	light	1180x780			
-sync-forest	sync	sync	forest	1180x780			
-sync-amoled	sync	sync	amoled	1180x780			
-app-routing-dark	app_routing	app_routing	dark	1180x780			
-app-routing-light	app_routing	app_routing	light	1180x780			
-app-routing-forest	app_routing	app_routing	forest	1180x780			
-app-routing-amoled	app_routing	app_routing	amoled	1180x780			
-editor-dark	editor	editor	dark	1180x780			
-editor-light	editor	editor	light	1180x780			
-editor-forest	editor	editor	forest	1180x780			
-editor-amoled	editor	editor	amoled	1180x780			
-mixin-dark	mixin	editor	dark	1180x780			
-mixin-light	mixin	editor	light	1180x780			
-mixin-forest	mixin	editor	forest	1180x780			
-mixin-amoled	mixin	editor	amoled	1180x780			
-filter-dark	filter	filters	dark	1180x780			
-filter-light	filter	filters	light	1180x780			
-filter-forest	filter	filters	forest	1180x780			
-filter-amoled	filter	filters	amoled	1180x780			
-about-dark	settings	about	dark	1180x780			
-about-light	settings	about	light	1180x780			
-about-forest	settings	about	forest	1180x780			
-about-amoled	settings	about	amoled	1180x780			
-sidebar-collapsed-standard	overview	overview	forest	1180x780		collapsed	
-sidebar-collapsed-compact	overview	overview	forest	720x480		collapsed	
-traffic-standard	traffic	traffic	forest	1180x780			
-traffic-compact	traffic	traffic	forest	720x480			
-traffic-audit-standard	traffic-audit	traffic	forest	1180x780			30d:process
-traffic-audit-compact	traffic-audit	traffic	forest	720x480			30d:process
-connections-page-compact	connections	connections	forest	720x480			
-logs-page-compact	logs	logs	forest	720x480			
-profiles-grid-standard	profiles-grid	profiles	forest	1180x780			
-profiles-grid-compact	profiles-grid	profiles	forest	720x480			
+name	page	shape	skin	window_size	interaction	sidebar_expansion	traffic_audit	connection_view_mode
+app-routing-policy-editor-standard	app_routing	app_routing	forest	1180x780	app-routing-policy-editor			
+app-routing-policy-editor-compact	app_routing	app_routing	forest	720x480	app-routing-policy-editor			
+connections-close-all-confirm-standard	connections	connections_workbench	forest	1180x780	connections-close-all-confirm			
+connections-close-all-confirm-compact	connections	connections_workbench	forest	720x480	connections-close-all-confirm			
+connections-details-drawer-standard	connections	connections_workbench	forest	1180x780	connections-details-drawer			
+connections-details-drawer-compact	connections	connections_workbench	forest	720x480	connections-details-drawer			
+connections-grouping-standard	connections	connections_workbench	forest	1180x780	connections-grouping			
+connections-grouping-compact	connections	connections_workbench	forest	720x480	connections-grouping			
+connections-search-highlight-standard	connections	connections	forest	1180x780	connections-search-highlight			
+connections-search-highlight-compact	connections	connections	forest	720x480	connections-search-highlight			
+core-version-rollback-confirm-standard	settings	settings_workbench	forest	1180x780	core-version-rollback-confirm			
+core-version-rollback-confirm-compact	settings	settings_workbench	forest	720x480	core-version-rollback-confirm			
+dns-fake-ip-flush-confirm-standard	dns	dns	forest	1180x780	dns-fake-ip-flush-confirm			
+dns-fake-ip-flush-confirm-compact	dns	dns	forest	720x480	dns-fake-ip-flush-confirm			
+dns-hosts-editor-standard	dns	dns	forest	1180x780	dns-hosts-editor			
+dns-hosts-editor-compact	dns	dns	forest	720x480	dns-hosts-editor			
+dns-leak-alert-standard	dns	dns	forest	1180x780	dns-leak-alert			
+dns-leak-alert-compact	dns	dns	forest	720x480	dns-leak-alert			
+dns-query-details-standard	dns	dns	forest	1180x780	dns-query-details			
+dns-query-details-compact	dns	dns	forest	720x480	dns-query-details			
+doctor-failure-recovery-standard	doctor	doctor	forest	1180x780	doctor-failure-recovery			
+doctor-failure-recovery-compact	doctor	doctor	forest	720x480	doctor-failure-recovery			
+doctor-repair-progress-standard	doctor	doctor	forest	1180x780	doctor-repair-progress			
+doctor-repair-progress-compact	doctor	doctor	forest	720x480	doctor-repair-progress			
+editor-large-document-window-standard	editor	editor	forest	1180x780	editor-large-document-window			
+editor-large-document-window-compact	editor	editor	forest	720x480	editor-large-document-window			
+editor-snippet-insertion-standard	editor	editor	forest	1180x780	editor-snippet-insertion			
+editor-snippet-insertion-compact	editor	editor	forest	720x480	editor-snippet-insertion			
+editor-yaml-error-navigation-standard	editor	editor	forest	1180x780	editor-yaml-error-navigation			
+editor-yaml-error-navigation-compact	editor	editor	forest	720x480	editor-yaml-error-navigation			
+lifecycle-recovery-panel-standard	doctor	doctor	forest	1180x780	lifecycle-recovery-panel			
+lifecycle-recovery-panel-compact	doctor	doctor	forest	720x480	lifecycle-recovery-panel			
+logs-redacted-export-standard	logs	logs_workbench	forest	1180x780	logs-redacted-export			
+logs-redacted-export-compact	logs	logs_workbench	forest	720x480	logs-redacted-export			
+logs-scroll-lock-standard	logs	logs_workbench	forest	1180x780	logs-scroll-lock			
+logs-scroll-lock-compact	logs	logs_workbench	forest	720x480	logs-scroll-lock			
+logs-search-highlight-standard	logs	logs	forest	1180x780	logs-search-highlight			
+logs-search-highlight-compact	logs	logs	forest	720x480	logs-search-highlight			
+overview-card-reorder-standard	overview	overview	forest	1180x780	overview-card-reorder			
+overview-card-reorder-compact	overview	overview	forest	720x480	overview-card-reorder			
+overview-reconnect-mask-standard	overview	overview_workbench	forest	1180x780	overview-reconnect-mask			
+overview-reconnect-mask-compact	overview	overview_workbench	forest	720x480	overview-reconnect-mask			
+overview-topology-drilldown-standard	rules	overview_workbench	forest	1180x780	overview-topology-drilldown			
+overview-topology-drilldown-compact	rules	overview_workbench	forest	720x480	overview-topology-drilldown			
+profiles-aggregator-preview-standard	profiles	filters	forest	1180x780	profiles-aggregator-preview			
+profiles-aggregator-preview-compact	profiles	filters	forest	720x480	profiles-aggregator-preview			
+profiles-aggregator-wizard-standard	profiles	filters	forest	1180x780	profiles-aggregator-wizard			
+profiles-aggregator-wizard-compact	profiles	filters	forest	720x480	profiles-aggregator-wizard			
+profiles-delete-confirm-standard	profiles	profiles	forest	1180x780	profiles-delete-confirm			
+profiles-delete-confirm-compact	profiles	profiles	forest	720x480	profiles-delete-confirm			
+profiles-diff-viewer-standard	editor	editor	forest	1180x780	profiles-diff-viewer			
+profiles-diff-viewer-compact	editor	editor	forest	720x480	profiles-diff-viewer			
+profiles-filter-editor-standard	filter	filters	forest	1180x780	profiles-filter-editor			
+profiles-filter-editor-compact	filter	filters	forest	720x480	profiles-filter-editor			
+profiles-import-modal-standard	profiles	profiles	forest	1180x780	profiles-import-modal			
+profiles-import-modal-compact	profiles	profiles	forest	720x480	profiles-import-modal			
+profiles-script-export-review-standard	editor	editor	forest	1180x780	profiles-script-export-review			
+profiles-script-export-review-compact	editor	editor	forest	720x480	profiles-script-export-review			
+profiles-script-sandbox-standard	editor	editor	forest	1180x780	profiles-script-sandbox			
+profiles-script-sandbox-compact	editor	editor	forest	720x480	profiles-script-sandbox			
+profiles-snapshot-restore-confirm-standard	editor	editor	forest	1180x780	profiles-snapshot-restore-confirm			
+profiles-snapshot-restore-confirm-compact	editor	editor	forest	720x480	profiles-snapshot-restore-confirm			
+profiles-subscription-error-standard	profiles	filters	forest	1180x780	profiles-subscription-error			
+profiles-subscription-error-compact	profiles	filters	forest	720x480	profiles-subscription-error			
+proxies-custom-node-modal-standard	proxies	proxies_workbench	forest	1180x780	proxies-custom-node-modal			
+proxies-custom-node-modal-compact	proxies	proxies_workbench	forest	720x480	proxies-custom-node-modal			
+proxies-group-expanded-standard	proxies	proxies_workbench	forest	1180x780	proxies-group-expanded			
+proxies-group-expanded-compact	proxies	proxies_workbench	forest	720x480	proxies-group-expanded			
+proxies-group-reorder-standard	proxies	proxies_workbench	forest	1180x780	proxies-group-reorder			
+proxies-group-reorder-compact	proxies	proxies_workbench	forest	720x480	proxies-group-reorder			
+proxies-node-detail-drawer-standard	proxies	proxies_workbench	forest	1180x780	proxies-node-detail-drawer			
+proxies-node-detail-drawer-compact	proxies	proxies_workbench	forest	720x480	proxies-node-detail-drawer			
+proxies-probe-settings-standard	proxies	proxies_workbench	forest	1180x780	proxies-probe-settings			
+proxies-probe-settings-compact	proxies	proxies_workbench	forest	720x480	proxies-probe-settings			
+proxies-search-highlight-standard	proxies	proxies	forest	1180x780	proxies-search-highlight			
+proxies-search-highlight-compact	proxies	proxies	forest	720x480	proxies-search-highlight			
+proxies-uri-import-preview-standard	proxies	proxies_workbench	forest	1180x780	proxies-uri-import-preview			
+proxies-uri-import-preview-compact	proxies	proxies_workbench	forest	720x480	proxies-uri-import-preview			
+rules-list-editor-standard	rules	rules_workbench	forest	1180x780	rules-list-editor			
+rules-list-editor-compact	rules	rules_workbench	forest	720x480	rules-list-editor			
+rules-override-editor-standard	rules	rules_workbench	forest	1180x780	rules-override-editor			
+rules-override-editor-compact	rules	rules_workbench	forest	720x480	rules-override-editor			
+rules-provider-refresh-error-standard	rules-providers	rules_workbench	forest	1180x780	rules-provider-refresh-error			
+rules-provider-refresh-error-compact	rules-providers	rules_workbench	forest	720x480	rules-provider-refresh-error			
+rules-search-highlight-standard	rules	rules	forest	1180x780	rules-search-highlight			
+rules-search-highlight-compact	rules	rules	forest	720x480	rules-search-highlight			
+rules-statistics-inspector-standard	rules	rules_workbench	forest	1180x780	rules-statistics-inspector			
+rules-statistics-inspector-compact	rules	rules_workbench	forest	720x480	rules-statistics-inspector			
+rules-tracer-drawer-standard	rules	rules_workbench	forest	1180x780	rules-tracer-drawer			
+rules-tracer-drawer-compact	rules	rules_workbench	forest	720x480	rules-tracer-drawer			
+runtime-telemetry-observation-standard	runtime	runtime_workbench	forest	1180x780	runtime-telemetry-observation			
+runtime-telemetry-observation-compact	runtime	runtime_workbench	forest	720x480	runtime-telemetry-observation			
+settings-lan-security-standard	settings	settings_workbench	forest	1180x780	settings-lan-security			
+settings-lan-security-compact	settings	settings_workbench	forest	720x480	settings-lan-security			
+settings-language-choice-standard	settings	settings_workbench	forest	1180x780	settings-language-choice			
+settings-language-choice-compact	settings	settings_workbench	forest	720x480	settings-language-choice			
+settings-permission-panel-standard	settings	settings_workbench	forest	1180x780	settings-permission-panel			
+settings-permission-panel-compact	settings	settings_workbench	forest	720x480	settings-permission-panel			
+settings-port-conflict-repair-standard	settings	settings_workbench	forest	1180x780	settings-port-conflict-repair			
+settings-port-conflict-repair-compact	settings	settings_workbench	forest	720x480	settings-port-conflict-repair			
+settings-tun-permission-standard	settings	settings_workbench	forest	1180x780	settings-tun-permission			
+settings-tun-permission-compact	settings	settings_workbench	forest	720x480	settings-tun-permission			
+shell-command-palette-standard	overview	shell_workbench	forest	1180x780	shell-command-palette			
+shell-command-palette-compact	overview	shell_workbench	forest	720x480	shell-command-palette			
+shell-routing-intent-authentication-standard	overview	shell_workbench	forest	1180x780	shell-routing-intent-authentication			
+shell-routing-intent-authentication-compact	overview	shell_workbench	forest	720x480	shell-routing-intent-authentication			
+shell-routing-intent-control-standard	overview	shell_workbench	forest	1180x780	shell-routing-intent-control			
+shell-routing-intent-control-compact	overview	shell_workbench	forest	720x480	shell-routing-intent-control			
+speedtest-details-modal-standard	runtime	runtime_workbench	forest	1180x780	speedtest-details-modal			
+speedtest-details-modal-compact	runtime	runtime_workbench	forest	720x480	speedtest-details-modal			
+speedtest-history-comparison-standard	runtime	runtime_workbench	forest	1180x780	speedtest-history-comparison			
+speedtest-history-comparison-compact	runtime	runtime_workbench	forest	720x480	speedtest-history-comparison			
+speedtest-progress-cancel-standard	overview	runtime_workbench	forest	1180x780	speedtest-progress-cancel			
+speedtest-progress-cancel-compact	overview	runtime_workbench	forest	720x480	speedtest-progress-cancel			
+sync-conflict-resolver-standard	sync	sync	forest	1180x780	sync-conflict-resolver			
+sync-conflict-resolver-compact	sync	sync	forest	720x480	sync-conflict-resolver			
+sync-restore-confirm-standard	editor	sync	forest	1180x780	sync-restore-confirm			
+sync-restore-confirm-compact	editor	sync	forest	720x480	sync-restore-confirm			
+overview-dark	overview	overview	dark	1180x780				
+overview-light	overview	overview	light	1180x780				
+overview-forest	overview	overview	forest	1180x780				
+overview-amoled	overview	overview	amoled	1180x780				
+proxies-dark	proxies	proxies	dark	1180x780				
+proxies-light	proxies	proxies	light	1180x780				
+proxies-forest	proxies	proxies	forest	1180x780				
+proxies-amoled	proxies	proxies	amoled	1180x780				
+rules-dark	rules	rules	dark	1180x780				
+rules-light	rules	rules	light	1180x780				
+rules-forest	rules	rules	forest	1180x780				
+rules-amoled	rules	rules	amoled	1180x780				
+settings-dark	settings	settings	dark	1180x780				
+settings-light	settings	settings	light	1180x780				
+settings-forest	settings	settings	forest	1180x780				
+settings-amoled	settings	settings	amoled	1180x780				
+profiles-dark	profiles	profiles	dark	1180x780				
+profiles-light	profiles	profiles	light	1180x780				
+profiles-forest	profiles	profiles	forest	1180x780				
+profiles-amoled	profiles	profiles	amoled	1180x780				
+connections-dark	connections	connections	dark	1180x780				
+connections-light	connections	connections	light	1180x780				
+connections-forest	connections	connections	forest	1180x780				
+connections-amoled	connections	connections	amoled	1180x780				
+logs-dark	logs	logs	dark	1180x780				
+logs-light	logs	logs	light	1180x780				
+logs-forest	logs	logs	forest	1180x780				
+logs-amoled	logs	logs	amoled	1180x780				
+runtime-dark	runtime	runtime	dark	1180x780				
+runtime-light	runtime	runtime	light	1180x780				
+runtime-forest	runtime	runtime	forest	1180x780				
+runtime-amoled	runtime	runtime	amoled	1180x780				
+dns-dark	dns	dns	dark	1180x780				
+dns-light	dns	dns	light	1180x780				
+dns-forest	dns	dns	forest	1180x780				
+dns-amoled	dns	dns	amoled	1180x780				
+doctor-dark	doctor	doctor	dark	1180x780				
+doctor-light	doctor	doctor	light	1180x780				
+doctor-forest	doctor	doctor	forest	1180x780				
+doctor-amoled	doctor	doctor	amoled	1180x780				
+sync-dark	sync	sync	dark	1180x780				
+sync-light	sync	sync	light	1180x780				
+sync-forest	sync	sync	forest	1180x780				
+sync-amoled	sync	sync	amoled	1180x780				
+app-routing-dark	app_routing	app_routing	dark	1180x780				
+app-routing-light	app_routing	app_routing	light	1180x780				
+app-routing-forest	app_routing	app_routing	forest	1180x780				
+app-routing-amoled	app_routing	app_routing	amoled	1180x780				
+editor-dark	editor	editor	dark	1180x780				
+editor-light	editor	editor	light	1180x780				
+editor-forest	editor	editor	forest	1180x780				
+editor-amoled	editor	editor	amoled	1180x780				
+mixin-dark	mixin	editor	dark	1180x780				
+mixin-light	mixin	editor	light	1180x780				
+mixin-forest	mixin	editor	forest	1180x780				
+mixin-amoled	mixin	editor	amoled	1180x780				
+filter-dark	filter	filters	dark	1180x780				
+filter-light	filter	filters	light	1180x780				
+filter-forest	filter	filters	forest	1180x780				
+filter-amoled	filter	filters	amoled	1180x780				
+about-dark	settings	about	dark	1180x780				
+about-light	settings	about	light	1180x780				
+about-forest	settings	about	forest	1180x780				
+about-amoled	settings	about	amoled	1180x780				
+sidebar-collapsed-standard	overview	overview	forest	1180x780		collapsed		
+sidebar-collapsed-compact	overview	overview	forest	720x480		collapsed		
+traffic-standard	traffic	traffic	forest	1180x780				
+traffic-compact	traffic	traffic	forest	720x480				
+traffic-audit-standard	traffic-audit	traffic	forest	1180x780			30d:process	
+traffic-audit-compact	traffic-audit	traffic	forest	720x480			30d:process	
+connections-page-compact	connections	connections	forest	720x480				
+connections-table-standard	connections	connections	forest	1180x780				table
+connections-table-compact	connections	connections	forest	720x480				table
+logs-page-compact	logs	logs	forest	720x480				
+profiles-grid-standard	profiles-grid	profiles	forest	1180x780				
+profiles-grid-compact	profiles-grid	profiles	forest	720x480				

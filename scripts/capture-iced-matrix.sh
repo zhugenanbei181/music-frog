@@ -227,7 +227,7 @@ print(" ".join(sorted(feature[0] for feature in matrix.parse_features())))
 PY
 )"
 
-# A row is `name page shape skin window_size interaction sidebar_expansion traffic_audit`:
+# A row is `name page shape skin window_size interaction sidebar_expansion traffic_audit connection_view_mode`:
 # the surface's route, the contract page shape the frame is judged by, the
 # parity interaction fixture it opens (empty for a plain page), and the owner
 # sidebar preference it publishes (empty for everything but the two rows the
@@ -235,17 +235,20 @@ PY
 # (`<range>:<dimension>`), empty meaning the reader's default. A shell-form
 # receipt has no interaction; deriving one from the scenario name asked the demo
 # to open a business the row never named, and the fixture panicked on it.
-awk -F '\t' 'NR > 1 && $1 != "" && NF != 8 {
-  printf "invalid scenario row (expected 8 columns, found %d): %s\n", NF, $0 > "/dev/stderr"
+# The last column names the Connections morphology the frame asks the owner's
+# readback for (`list` or `table`), empty meaning the owner's default.
+awk -F '\t' 'NR > 1 && $1 != "" && NF != 9 {
+  printf "invalid scenario row (expected 9 columns, found %d): %s\n", NF, $0 > "/dev/stderr"
   bad = 1
 } END { exit bad + 0 }' "$MATRIX" || exit 2
 
-while IFS=$'\t' read -r name page shape skin window_size interaction sidebar_expansion traffic_audit; do
+while IFS=$'\t' read -r name page shape skin window_size interaction sidebar_expansion traffic_audit connection_view_mode; do
   [ "$name" = name ] && continue
   [ -n "$name" ] || continue
   [ "$interaction" = "-" ] && interaction=""
   [ "$sidebar_expansion" = "-" ] && sidebar_expansion=""
   [ "$traffic_audit" = "-" ] && traffic_audit=""
+  [ "$connection_view_mode" = "-" ] && connection_view_mode=""
   [[ "$window_size" =~ ^[0-9]+x[0-9]+$ ]] || {
     printf 'invalid scenario row (bad window_size): %s\n' "$name" >&2
     exit 2
@@ -277,6 +280,14 @@ while IFS=$'\t' read -r name page shape skin window_size interaction sidebar_exp
   *)
     printf 'invalid scenario row (bad sidebar_expansion): %s -> %s\n' \
       "$name" "$sidebar_expansion" >&2
+    exit 2
+    ;;
+  esac
+  case "$connection_view_mode" in
+  "" | list | table) ;;
+  *)
+    printf 'invalid scenario row (bad connection_view_mode): %s -> %s\n' \
+      "$name" "$connection_view_mode" >&2
     exit 2
     ;;
   esac
@@ -511,6 +522,10 @@ capture_one() {
   # messages its controls send, so a row that names one proves the range and
   # the dimension really moved the picture; an empty column keeps the default.
   local traffic_audit="$8"
+  # The Connections morphology is the owner's persisted readback, so a row
+  # that names one proves the page really renders that morphology; an empty
+  # column keeps the owner's default.
+  local connection_view_mode="$9"
   # The app's marker names the ROUTE (`route_env_name`); scenario pages that
   # are route variants (mixin = editor + Mixin pane) wait on the route name.
   local marker_page="$page"
@@ -568,6 +583,7 @@ capture_one() {
       INFILTRATOR_SKIN="$skin" \
       INFILTRATOR_SIDEBAR_EXPANSION="$sidebar_expansion" \
       INFILTRATOR_TRAFFIC_AUDIT="$traffic_audit" \
+      INFILTRATOR_CONNECTION_VIEW_MODE="$connection_view_mode" \
       INFILTRATOR_WINDOW_SIZE="$window_size" \
       INFILTRATOR_CAPTURE_MARKER="$marker" \
       setsid "$APP" --demo >"$log" 2>&1 &
@@ -720,14 +736,15 @@ capture_one() {
 : >"$RUN_DIR/capture-markers.log"
 FAILURES=0
 FAILED_NAMES=""
-while IFS=$'\t' read -r name page shape skin window_size interaction sidebar_expansion traffic_audit; do
+while IFS=$'\t' read -r name page shape skin window_size interaction sidebar_expansion traffic_audit connection_view_mode; do
   [ "$name" = name ] && continue
   [ -n "$name" ] || continue
   [ "$interaction" = "-" ] && interaction=""
   [ "$sidebar_expansion" = "-" ] && sidebar_expansion=""
   [ "$traffic_audit" = "-" ] && traffic_audit=""
+  [ "$connection_view_mode" = "-" ] && connection_view_mode=""
   if ! capture_one "$name" "$page" "$shape" "$skin" "$window_size" "$interaction" \
-    "$sidebar_expansion" "$traffic_audit"; then
+    "$sidebar_expansion" "$traffic_audit" "$connection_view_mode"; then
     FAILURES=$((FAILURES + 1))
     FAILED_NAMES="$FAILED_NAMES $name"
   fi
