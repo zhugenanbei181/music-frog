@@ -490,8 +490,18 @@ pub const SHELL_BOTTOM_AIR_HEADROOM_PX: u16 = 8;
 /// nobody ever measured that band, so a reserve grew to 72u while the
 /// reference kept 20dp. A reserve is a length, not a fraction - the reference
 /// pays it once as a padding constant at every window height - so the cap is
-/// a length too. `space_utilization.py` reads this exported number and refuses
-/// a frame that reserves more than it without registered debt.
+/// a length too.
+///
+/// What is enforced today: `flclash-shell-reserve-guard.py` re-measures the
+/// 20dp from the tracked scene and requires this exported bound to equal that
+/// measurement plus the bounded headroom. What is **not** enforced yet: no
+/// frame-level refusal exists - `space_utilization.py` consumes
+/// `shell_bottom_air_px` only to keep the band out of the page's box, and reads
+/// no `shell_air` key at all (measured: 130 of the 211 published Slint frames
+/// reserve 72 against this 28 bound and none of them is judged). Closing that
+/// half requires the shell to consume this export first, then a re-capture; it
+/// is registered as `SPACEUTIL-020`, and standard §3.6 publishes the same
+/// boundary. Do not restate this comment as a promise the judge has not kept.
 pub const SHELL_BOTTOM_AIR_LIMIT_PX: u16 =
     SHELL_BOTTOM_AIR_REFERENCE_PX + SHELL_BOTTOM_AIR_HEADROOM_PX;
 

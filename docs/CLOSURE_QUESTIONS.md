@@ -24,7 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-14 第二百五十二批次：`main-gate` 的 rustdoc 构建半按 typed `skipped` 收口，并修掉干净树 14 处导入违规；b111–b251 见下方批次八问摘要）
+## 当前状态（2026-11-14 第二百五十三批次：`dense` 上限第一次有了参照物执行器，四处「记录与像素分叉」按实测改写，实测新立 `FLPARITY-051`；b111–b252 见下方批次八问摘要）
+
+| # | 结论 | 等级 | 缺口 / owner |
+| --- | --- | --- | --- |
+| 1 | 部分 | L | 本批改 1 个新 Python 守卫、1 个既有 Python 守卫、契约 doc-comment 与 4 份文档，零平台 API、零 Rust 代码；`py_compile`、新守卫 **10/10**、保留带守卫 **14/14**、判定器 `--self-test`、导出器重建 exit 0 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1） |
+| 2 | 部分 | L | Linux 本机完成两棵树实测：开发者树双表面 211 / 194 帧 `--enforce` violations=0（读数逐字不变），暂存树（`git checkout-index`）里三条像素腿按 typed rc=3 显式跳过、其余腿实判 0 红；Windows/macOS 构建腿未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
+| 3 | 部分 | L | 零 Android/iOS 代码、资源或脚本改动；本批裁决桌面参照物的纵向/横向留白判据，移动端证据链未触碰，三 flavor 实机与 iOS 产物仍留外部环境看板 |
+| 4 | 部分 | L | **本批零可见像素变化**：不改任何 `.slint`、不重采、契约导出 `page-structure.json` 逐字节不变、`generate_viewport_ladder.py --check` fresh；沿用 Slint **211** / Iced **194** 发布回执。`FLPARITY-051` 的收口需要整批重采，而 capture 二进制仍被并行会话未提交的 `infiltrator-presentation` 3 个 `E0425` 挡住，按所有权不代改、不冒充像素证据 |
+| 5 | 完整 | L | 新守卫不复制任何尺子或数字：盒规则与 `vertical` / `row_usage` 来自 `scripts/parity/space_utilization.py`，参照物保留带与 SHA-256 来自 `flclash-shell-reserve-guard.py`，页身留白来自导出 `page_padding.px`；`dense` 上限仍只在契约 `page_structure` 一处发布。契约 `page_structure.rs` 的改动是 **纯 doc-comment**（diff 中无一行非 `///`），不再声称一条不存在的判据 |
+| 6 | 部分 | L | 未新增业务能力，新增/修正 4 类判据事实：`dense` 参照物实测 4.7% 与 ≤8pp 有界余量入格（planted 10 项，两条文案负例各自唯一命中）；L3 Slint 手册的 72u 句必须点名 `SPACEUTIL-020`（11 → **14/14**，开发期即咬出 `172u` 子串误命中与「同条目另一句的过去」过度豁免两处真缺陷并修在判据）；四处文档依据按像素改写（2.0 px/dp、370px≈185dp、5 列属 `loose`、leading 改无量纲、Bevy 16px）；实测新立 `FLPARITY-051`（网格缝两个真源，发布帧同一 908px 房间三行右沿 x1151/x1155/x1163）。真机与双视口新像素证据未推进 → 部分（L） |
+| 7 | 完整 | L | 判据链一条且不新增第二份数字：tracked 像素 →（判定器尺子 + 保留带守卫）→ 契约常量 → 导出 → 参照守卫 → L2 §3.1/§4 与 L3 手册 → L4 `FLPARITY-051` / `SPACEUTIL-020`；缝的两个真源是**被测出来的缺陷**并登记 owner，本批没有在 UI 层就地二选一，也没为让测量通过而加布尔 |
+| 8 | 部分 | L | 零全仓编译；提交态结构门 **216 腿**（本线 +2）、静态 findings=0，`doc-governance OK`（本批自查时发现自己 ledger 文案引入 2 条 L4→L3 上引，已按层级改写而非放宽门）。**`GATERUN-003` 下半未完**：`structure_gate_ledger.json` 的 `screenshot-identity` 声明在 CI 树已转绿、在本机会话树仍红，两种树不能同时成立，留并行 Bevy 像素落地后由统一批次移除；并行 toolchain bump、2 条 `navigation-capability-owner-guard` 腿与 `surface_reader.rs` 804 行超限均不属本批 |
+
+## 最近一批问答（2026-11-14 第二百五十三批次：参照物的账用参照物的尺子重算）
+
+1. x86_64/aarch64：改动面只有 2 个 Python 守卫（1 新 1 改）、契约 doc-comment、L2/L3/boards 文档；`py_compile` 全通过、新守卫 **10/10**、保留带 **14/14**、判定器 `--self-test` OK 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
+2. Windows/Linux/macOS：Linux 本机做两棵树——开发者树双表面 211 / 194 帧 `--enforce` violations=0 且读数与上批逐字相同；暂存树用 `git checkout-index` 重建后三条像素腿逐条 typed 跳过、其余实判 0 红。Windows/macOS 构建腿未复跑，macOS 仍 `Unsupported`（GAP-2.2）→ 部分（L）。
+3. Android/iOS：零 Android/iOS 代码、资源或脚本改动；本批评的是桌面参照物的页身留白与外壳保留带，移动端三 flavor 实机与 iOS 产物仍在外部环境看板 → 部分（L）。
+4. 各 UI：本批零像素变化、零 `.slint` 改动、零导出字节变化，沿用已有回执；新发现的 `FLPARITY-051` 需要整批重采才能真正收口，而 capture 二进制此刻被并行会话 3 个 `E0425` 挡住，如实留在该条的「当前阻塞」段，不冒充实机/像素验收 → 部分（L）。
+5. 复用：新守卫把尺子与数字全部交还原 owner——`vertical` / `row_usage` / `content_box` 从判定器 import，`measured_reserve_dp` / `PX_PER_DP` / `REFERENCE_SHA256` 从保留带守卫 import，留白从导出 `page_padding.px` 读；`dense` 上限仍只在 `page_structure` 一处。契约文件只改注释，实测 diff 里除 `///` 行外 0 行变化 → 完整（L）。
+6. 各处界面的功能接入：未新增业务功能，新增的是可复跑判据与事实更正。`dense` 行旧文「参考产品实测 **0.0%**」被自己的尺子推翻（参照物 `band` 4.7% > `tail` 0.0%，且 0.0% 只在按 §2 排除 39px 外壳保留带后才成立）；代理页「约 1.5 缩放 / 371px ≈ 248dp」按 pinned `proxyGridSpacing = 8.0` 与实测 16px 缝只能是 2.0 px/dp（1.5 会把缝读成 10.7dp，与源码冲突），5 列仅在 `loose` 偏好下成立；§3.3 的「429px 对 220dp」在 pinned 源码无出处，改为无量纲比例并保留 12dp/48dp 的第二条读法；L3 留白表 Bevy 行由 12px 更正为 HEAD 的 `S16`。守卫 planted 合计 10 + 14 全绿，两条文案负例各自唯一命中 → 部分（L）。
+7. 模块化：判据链一条，且本批把「上限已裁决、无人执行」的两处（`shell_air` 逐帧拒判、`dense` 参照物复量）分别登记为 `SPACEUTIL-020` 与新建执行器，而不是在 UI 层就地改一个数让测量通过；`FLPARITY-051` 的缝冲突自底向上写明 owner 顺序（契约 → 生成器 → 双表面 → 同批重采）→ 完整（L）。
+8. CI 与批次效率：零全仓编译，全部证据秒级到十秒级；提交态结构门 216 腿静态 findings=0。自查发现自己写进 ledger 的文案造成 2 条 L4→L3 上引，按层级规范改写文字而非放宽 `doc-governance-guard`。仍留统一批次：`structure_gate_ledger.json` 那条「CI 绿 / 本机会话树红」的 `screenshot-identity` 声明的移除、`--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` ready cells → 部分（L）。
+
+## 历史状态（2026-11-14 第二百五十二批次；b111–b251 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
@@ -37,7 +61,7 @@
 | 7 | 完整 | L | 归属链一条：`structure_gate_ownership.py`（typed 协议 + 名单）→ `rustdoc-guard.py --mode docs` 先判离线半再按 env 跳过构建半 → `check-structure.sh` 单列 `skipped` → `structure-gate-guard.py` 核对名单/理由/互斥 → `ci-trigger-guard.py` 反查 workflow。未给判定器或 UI 留第二份 env 字面量或布尔开关 |
 | 8 | 部分 | L | 零全仓编译；`ci-dependencies`、`structure-gate-guard` 216 腿 findings=0、`ci-trigger-guard` 0，干净暂存树 `import-guard` **scanned=3002 violations=0**（修前 14）。`GATERUN-003` 下半仍未办结：`screenshot-identity` 的旧红腿声明在 CI 树已转绿需移除；并行会话的 2 条 `navigation-capability-owner-guard` 腿与未提交像素按所有权不夹带；真实 compile-capable CI run 待本批 push 后复验 |
 
-## 最近一批问答（2026-11-14 第二百五十二批次：no-compilation 树的 rustdoc 构建半收口）
+## 历史问答（2026-11-14 第二百五十二批次：no-compilation 树的 rustdoc 构建半收口）
 
 1. x86_64/aarch64：改动面是 5 个 Python 文件、`main-gate.yml` 的 5 行 env 片段与 5 个 Bevy headless 测试；`cargo build --offline -p infiltrator-contract --bin export_page_structure`、`py_compile`、ownership **8/8**、rustdoc 外部 **20/20**、ci-trigger 外部 **29/29** 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：Linux 本机用真实环境变量做两树验证——no-compile 树 `MUSICFROG_NO_COMPILE_GATE=1` 实测 `SKIP_RC=3` 且 fake cargo 陷阱零调用；普通树真实 `cargo doc` 调用 7 次，1.100.0 下如实暴露 `uniffi_bindgen` workspace 警告（并行 toolchain 归属，不改 Cargo.toml）。CI 的 `1.99.1` 树则实测 `cargo doc` exit 101（run `43505074516`），正是本批要让它 typed skipped 的那一半。Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）→ 部分（L）。

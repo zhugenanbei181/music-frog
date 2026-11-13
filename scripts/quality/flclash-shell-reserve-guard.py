@@ -77,7 +77,19 @@ STANDARD_SECTION_MARK = "### 3.6"
 # names the number.
 STANDARD_BOX_SECTION = "## 2."
 STANDARD_RESERVE_PX = "72u"
+# A bare substring match reads "72u" inside "172u" (a width pair in an
+# unrelated bullet), so the token is matched with a non-digit boundary.
+STANDARD_RESERVE_RE = re.compile(r"(?<![0-9])72u")
 STANDARD_CROSS_REFERENCE = "SPACEUTIL-020"
+# The Slint surface handbook is what a Slint agent reads before touching this
+# geometry. It used to call the 72u the shell's own breathing room and quote
+# "74px = 72u 空气 + 描边" as the expected receipt, naming neither the exported
+# bound nor the registration, so the L2 leg alone could stay green while the
+# handbook still presented an over-bound reserve as normal.
+SURFACE_DOC = ROOT / "crates/infiltrator-slint/docs/SURFACE.md"
+# Words that make a 72u mention a statement about retired geometry rather than
+# a clean bill of health for what the shell draws today.
+HISTORICAL_MARKS = ("曾", "此前", "过去", "退役")
 
 
 def digest(path: pathlib.Path) -> str:
@@ -138,6 +150,60 @@ def contract_declaration(name: str) -> int | None:
     if reference is None or headroom is None:
         return None
     return reference + headroom
+
+
+def _display(path: pathlib.Path) -> str:
+    """Repo-relative when it is inside the repo, absolute when it is not.
+
+    Planted tests legitimately point the leg at a temporary file, and a
+    finding must still be writable there instead of raising out of the guard.
+    """
+    try:
+        return str(path.relative_to(ROOT))
+    except ValueError:
+        return str(path)
+
+
+def surface_doc_findings() -> list[str]:
+    """The handbook a Slint agent reads must not clear the over-bound reserve.
+
+    One bullet is one claim: the surface doc keeps each adjudication on one
+    long wrapped line, so a bullet that states the 72u size must either name
+    the open registration or place the mention inside a sentence that says in
+    words that the geometry is gone. The marker is searched in the *sentence*
+    around the token, not anywhere in the bullet - the b134 bullet starts with
+    "过去只按行数取高" about a different fact, and a bullet-wide search there
+    would let the page-air claim pass unmarked (measured on the live file).
+    """
+    if not SURFACE_DOC.is_file():
+        return []
+    found: list[str] = []
+    text = SURFACE_DOC.read_text(encoding="utf-8")
+    for block in re.split(r"\n(?=\s*(?:\d+\.|[-*]\s*\*\*|#{2,3}\s))", text):
+        if not STANDARD_RESERVE_RE.search(block):
+            continue
+        if STANDARD_CROSS_REFERENCE in block:
+            continue
+        if all(any(mark in _sentence_of(block, match.start())
+                   for mark in HISTORICAL_MARKS)
+               for match in STANDARD_RESERVE_RE.finditer(block)):
+            continue
+        found.append(
+            f"{_display(SURFACE_DOC)} names {STANDARD_RESERVE_PX} of shell air "
+            f"without {STANDARD_CROSS_REFERENCE} or a retirement mark in the same "
+            "sentence; the handbook must not read as a clean bill of health for a "
+            "reserve over the exported bound"
+        )
+    return found
+
+
+def _sentence_of(text: str, index: int) -> str:
+    """The clause around `index`, split on sentence punctuation only."""
+    starts = [0] + [match.end() for match in re.finditer(r"[。；;！!\n]", text)]
+    ends = [match.start() for match in re.finditer(r"[。；;！!\n]", text)] + [len(text)]
+    begin = max(position for position in starts if position <= index)
+    stop = min((position for position in ends if position >= index), default=len(text))
+    return text[begin:stop]
 
 
 def findings() -> list[str]:
@@ -212,7 +278,7 @@ def findings() -> list[str]:
             f"the space-utilization standard no longer has a {STANDARD_BOX_SECTION} "
             "measurement-box section"
         )
-    elif STANDARD_RESERVE_PX in section.group(0):
+    elif STANDARD_RESERVE_RE.search(section.group(0)):
         # The reserve is still described by its size, so the same section has
         # to say whether that size is within the bound.
         if STANDARD_CROSS_REFERENCE not in section.group(0):
@@ -221,6 +287,9 @@ def findings() -> list[str]:
                 f"air without naming {STANDARD_CROSS_REFERENCE}; the box rule must not "
                 "read as a clean bill of health for a reserve over the exported bound"
             )
+
+
+    found.extend(surface_doc_findings())
     for leg in ("flclash-shell-reserve-guard.py --self-test",
                 "flclash-shell-reserve-guard.py --mode enforce"):
         if leg not in GATE.read_text(encoding="utf-8"):
@@ -337,6 +406,41 @@ class GuardSelfTest(unittest.TestCase):
                                     for item in findings()))
             finally:
                 STANDARD = original_standard
+
+    def test_the_surface_doc_that_names_the_registration_is_accepted(self) -> None:
+        """The live handbook passes the new leg, so the leg is not just noise."""
+        self.assertEqual(surface_doc_findings(), [])
+
+    def test_a_surface_doc_that_clears_the_reserve_is_rejected(self) -> None:
+        """The handbook may not present 72u as ordinary breathing room.
+
+        L2 §2 already had to name the registration (b244 续二); this is the
+        same law on the file a Slint agent actually opens, proven by deleting
+        only the cross-reference from the live document.
+        """
+        global SURFACE_DOC
+        original = SURFACE_DOC
+        text = original.read_text(encoding="utf-8")
+        self.assertIn(STANDARD_CROSS_REFERENCE, text)
+        with tempfile.TemporaryDirectory() as directory:
+            planted = pathlib.Path(directory) / "SURFACE.md"
+            planted.write_text(text.replace(STANDARD_CROSS_REFERENCE, "已归档", 1),
+                               encoding="utf-8")
+            SURFACE_DOC = planted
+            try:
+                self.assertTrue(any("handbook" in item for item in surface_doc_findings()),
+                                surface_doc_findings())
+            finally:
+                SURFACE_DOC = original
+
+    def test_a_wider_number_does_not_trigger_the_reserve_leg(self) -> None:
+        """"172u" is a width pair, not the shell's reserve.
+
+        The first cut matched the bare substring and bit an unrelated bullet;
+        a token match needs the unit boundary, and this pins that it has one.
+        """
+        self.assertIsNone(STANDARD_RESERVE_RE.search("配置名 130u vs 172u"))
+        self.assertIsNotNone(STANDARD_RESERVE_RE.search("8u/72u 空气"))
 
     def test_a_box_section_that_calls_the_reserve_legitimate_is_rejected(self) -> None:
         """§2 may name 72u only while it also names the registration.

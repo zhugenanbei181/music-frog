@@ -17,6 +17,7 @@
 侧栏边界实测 431px、底色 (14,14,17)/(12,14,15)。它此前只是 `.private/` 里的
 一张 gitignored 缩放图；b201 把它提升为可复跑的门禁输入，
 `scripts/quality/flclash-content-ground-guard.py` 逐像素复量页身 80.64% 页尾空地，
+`scripts/quality/flclash-dashboard-ground-guard.py` 复量仪表盘场景的 4.7% `unused`，
 并把空间利用率标准 §3.1 的 `content` 82% 上限钉在实测值加 1.4pp 余量上。
 
 ## 1. 上游架构（要求对标的「高级架构」）
@@ -614,8 +615,15 @@ runtime 页里的区块；本批只把卡栈缝收到预算内（`SP_LG` → `SP
 上游 `lib/common/layout.dart::getProxiesColumns(viewWidth, proxiesLayout)` 发布
 `max(ceil(viewWidth / 250), 2)`，再由 `tight / standard / loose` 三档用户偏好做
 `+1 / 0 / -1`；`lib/views/proxies/tab.dart` 用 `max(width - 32, 0)` 把页身可用宽
-传给它，网格自己另付 8dp 横向 seam。真实代理页场景图（3193×1949，约 1.5 缩放）
-实测 5 列、每卡 371px ≈ 248dp，与 250dp 门槛同构。
+传给它，网格自己另付 8dp 横向 seam。真实代理页场景图（3193×1949）逐像素实测（b253）：5 列、每卡 **370px**、
+卡间缝 **16px**。以 pinned `proxyGridSpacing = 8.0`（`lib/views/proxies/common.dart:7`、
+`lib/views/proxies/tab.dart:269-270` 的 `mainAxisSpacing` / `crossAxisSpacing: 8`）为标度锚，
+该图标度 **≈2.0 px/dp**，故每卡 ≈ **185dp**、缝 = 8.0dp，与 250dp 门槛同向
+（370px 是 `Loose` 偏好下少画一列的结果：页身 2761px ÷ 2.0 = 1380dp，
+`max(ceil((1380−32)/250), 2) = 6`，`loose` 再 −1 得 5；`standard` 会给 6——
+这是上游三档用户偏好，不是布局缺陷）。
+**旧写法（约 1.5 缩放、每卡 371px ≈ 248dp）不可复跑且自相矛盾**：按 1.5 缩放
+那 16px 缝就成了 10.7dp，与源码的 `8.0` 冲突；2.0 px/dp 同时满足缝与列数两式。
 
 本仓此前由 `ViewportTier::proxy_grid_columns` 在四个窗口档上固定
 `1 / 2 / 3 / 4` 列：`proxies-dark`（1180×780）页身 910px 只画 3 列、每卡约
@@ -726,7 +734,7 @@ manifest 却记 65536 字节（恰为一个 pipe buffer）并给出对应的旧�
 | Slint 桌面 | **30u** | `theme.slint` 的 `page-margin-desktop` |
 | Slint 紧凑 | 16u | `theme.slint` 的 `page-padding` |
 | Iced | **16 / 24 / 40 / 48px 按档递增** | `responsive_viewport::ViewportTier::content_padding_px()` |
-| Bevy | 12px | `shell_scene.rs` 的 `UiRect::horizontal(rem(space::S12))` |
+| Bevy | 16px（`SPACEUTIL-018` 已收归契约导出） | `shell_scene.rs` 的 `ContentColumn`：`UiRect::all(rem(space::S16))`，同节点 `row_gap` 亦 `S16` |
 
 同一个 1180×780 窗口实测：Slint 页身 880px、Iced 页身 860px（本批 b216 的两表面
 回执普查），而参考物在 960px 页宽里只让出 32px。也就是说 Iced 在 expanded 档
@@ -759,8 +767,10 @@ manifest 却记 65536 字节（恰为一个 pipe buffer）并给出对应的旧�
    此前是 Slint 880 对 Iced 860。`dense` / `framed` 页没有因页身变宽暴露新的页尾
    地面（expanded 档 124 帧 `unused` 中位 3.9%，与上一批逐字相同），因此未动用 §5 的任何一种收口，
    也未放宽任何上限。
-5. Bevy 文件与像素仍由另一会话持有（`FLPROFILES-002` 同一纪律）：其
-   `shell_scene.rs` 的 12px 副本本批未碰，留作该表面接线时消费同一导出值。
+5. Bevy 文件与像素仍由另一会话持有（`FLPROFILES-002` 同一纪律）：本节立项时
+   其内容列是 `S12` 副本，b253 复量 HEAD 与工作树均为 `UiRect::all(rem(space::S16))`
+   （剩余的 `S12` 是底栏胶囊 `:246`/`:260`、路由胶囊 `:369` 与侧栏 `:406`，不是内容列）；
+   本条只更正记录，不重开 `SPACEUTIL-018` 的验收。
 6. 网格的第二次扣减已同批清退：`proxy_node_columns()` 不再减 32，
    `PROXY_GRID_INSET_PX` 与导出键 `proxy_grid.page_inset_px` 一并删除，契约与导出
    各有一条断言拒绝它们回来（`page_structure.rs` 的
