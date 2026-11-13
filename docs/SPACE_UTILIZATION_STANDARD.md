@@ -247,6 +247,20 @@ interval 内取最大连续地面行；区间两端分别由共享契约与每�
 也不把短窗口伪达标。发布批按新档复判仍 `violations=0`，最紧预算使用率
 **94.0%**（Slint） / **80.2%**（Iced），证明标准开始真正约束短窗口。
 
+**b235 判据收口（destination interval 两端空地同样是 `void`）**：b231 把测量
+限制在 `CHROME_DRAG_STRIP_HEIGHT_PX .. nav_stack_bottom_px` 后，实现却把贴着
+区间两端的连续地面带排除在最大 `void` 之外。planted 实测：只在区间末端画一行
+字形，起点前留出 392px 地面，`void` 仍报 0%；把最后一行提前、让地面延伸到
+receipt 的栈底，也会被同一条件抹掉。这两类都是「声明的导航区间占着地面却不画
+导航」，正是 8% 比例要拒的空隙，不能因为触到边界就变成合法。现在
+`rail_of()` 对 typed destination interval 内所有连续地面行取最大值，包含首尾
+空带；两项 planted 负例分别咬住稀疏栈与栈底大空带，第三项证明诚实栈仍通过。
+两张 tracked FlClash 场景的首行墨迹起于 y89（`flclash-sidebar-void-guard.py`
+复量），标题栏带到首行之间的地面为 51px / 1665px = **3.06%** 与
+51px / 1949px = **2.62%**，仍低于 8% 上限；行间最大死带另为 3.06% / 3.49%，
+不能拿它替代首行前空带。本仓已发布 Slint 211 / Iced 192 帧按同一口径复判最差
+**6.2%**，`violations=0`。不改导出上限、不改任何像素、不新增欠账。
+
 **b226 收口**：三项侧栏上限均由 `infiltrator-contract::page_structure` 的
 `NAV_CHROME_BAND_LIMIT_PCT` / `NAV_VOID_LIMIT_PCT` /
 `NAV_TAIL_GROUND_LIMIT_PCT` 一处发布，经导出物 v18 的 `navigation_limits`

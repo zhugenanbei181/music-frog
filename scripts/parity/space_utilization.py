@@ -744,6 +744,13 @@ def rail_of(image: np.ndarray, chrome: dict) -> dict | None:
     such a band by colour would invent 16% voids in dark and amoled skins.
     The shell already publishes both ends of the stack, so the judge needs no
     second, colour-derived answer to where destinations live.
+
+    A ground run touching either end of that interval is still dead space the
+    stack claims but does not use. Excluding it let a pane paint one glyph near
+    the stack bottom and report `void` 0% while the destination interval began
+    with a window-sized empty band; the same erasure let a last row followed by
+    a long ground run hide behind the receipt's stack end. Both edges therefore
+    count, without adding a fourth cap or a private headroom number.
     """
     height, width, _ = image.shape
     column = int(chrome["nav_column_px"])
@@ -760,8 +767,7 @@ def rail_of(image: np.ndarray, chrome: dict) -> dict | None:
     stack_first = window_header_band_px()
     stack_last = min(bottom, height) - 1
     ground_runs = runs(~row_ink[stack_first:stack_last + 1])
-    voids = [last - first + 1 for first, last in ground_runs
-             if first > 0 and last < stack_last - stack_first]
+    voids = [last - first + 1 for first, last in ground_runs]
     navigation = [band for band in bands if band[0] < bottom]
     nav_tail = 0.0
     if navigation:
@@ -1237,6 +1243,7 @@ def _labelled_nav(image: np.ndarray, first_x: int = 8) -> None:
     pixels that claim has to match, so a test can plant the two independently.
     """
     column = painted_nav_column(image.shape[1])
+    _fill(image, 71, 84, first_x, min(first_x + 20, column), INK)
     for y in (110, 158, 206, 254, 302, 350, 398, 446):
         _fill(image, y, y + 20, first_x, min(first_x + 20, column), INK)
 
@@ -1646,6 +1653,29 @@ class SelfTest(unittest.TestCase):
         self.assertGreater(
             with_card["chrome_band_pct"],
             navigation_limits()["chrome_band_limit_pct"], with_card)
+
+    def test_a_sparse_stack_cannot_hide_its_first_ground_band(self) -> None:
+        image = _desktop_body()
+        _fill(image, 430, 450, 8, 28, INK)
+        entry = self.measure_one(image, chrome=_chrome(1180, 780))
+        self.assertGreater(entry["void_pct"], navigation_limits()["void_limit_pct"], entry)
+        self.assertTrue(any("nav stack keeps a" in item for item in
+                            rail_findings([entry], {"frames": {}, "rail": {}})), entry)
+
+    def test_a_ground_run_ending_at_the_stack_bottom_is_a_void(self) -> None:
+        image = _desktop_body()
+        self._nav_only_rail(image)
+        _fill(image, 460, 480, 8, 28, INK)
+        chrome = _chrome(1180, 780, nav_stack_bottom_px=610)
+        entry = self.measure_one(image, chrome=chrome)
+        self.assertGreater(entry["void_pct"], navigation_limits()["void_limit_pct"], entry)
+
+    def test_the_honest_destination_interval_still_passes_after_edge_audit(self) -> None:
+        image = _desktop_body()
+        self._nav_only_rail(image)
+        entry = self.measure_one(image, chrome=_chrome(1180, 780))
+        self.assertLessEqual(entry["void_pct"], navigation_limits()["void_limit_pct"], entry)
+        self.assertEqual(rail_findings([entry], {"frames": {}, "rail": {}}), [], entry)
 
     def test_nav_rows_below_the_old_70pct_line_are_not_accused(self) -> None:
         # The shape-blind line this judge used to guess (70% of the height)

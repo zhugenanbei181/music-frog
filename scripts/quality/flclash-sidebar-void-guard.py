@@ -61,6 +61,7 @@ class ReferenceScene:
     sha256: str
     right_edge_px: int
     expected_void_pct: float
+    expected_head_void_pct: float
     expected_tail_pct: float
 
 
@@ -70,6 +71,7 @@ REFERENCES = (
         sha256="f6406be498613bc0249e9ae2350125a0e670e9620d0ae4b1be1aec7353372bcc",
         right_edge_px=429,
         expected_void_pct=3.06,
+        expected_head_void_pct=3.06,
         expected_tail_pct=65.17,
     ),
     ReferenceScene(
@@ -77,10 +79,12 @@ REFERENCES = (
         sha256="ebe094bae677d5419cb380e800d5eee74197d20a48891fbe25ba340af7f98e8e",
         right_edge_px=432,
         expected_void_pct=3.49,
+        expected_head_void_pct=2.62,
         expected_tail_pct=70.24,
     ),
 )
 SIDEBAR_STACK_BOTTOM_PX = 579
+SIDEBAR_FIRST_ROW_PX = 89
 SUBSTANTIAL_RUN_PX = 3
 ROW_INK_FRACTION = 0.01
 GROUND_DELTA = 14
@@ -154,6 +158,24 @@ def measured_chrome_band_pct(image: np.ndarray, scene: ReferenceScene) -> float:
     return round(100.0 * max(below, default=0) / height, 2)
 
 
+def measured_first_row_px(image: np.ndarray, scene: ReferenceScene) -> int | None:
+    """The first destination ink row after the mounted title-bar strip."""
+    bands, _ = sidebar_bands(image, scene)
+    for start, _ in bands:
+        if start >= 38:
+            return start
+    return None
+
+
+def measured_head_void_pct(image: np.ndarray, scene: ReferenceScene) -> float:
+    """Ground between the title-bar strip and the first destination row."""
+    bands, height = sidebar_bands(image, scene)
+    first = next((start for start, _ in bands if start >= 38), None)
+    if first is None:
+        return 100.0
+    return round(100.0 * max(0, first - 38) / height, 2)
+
+
 def exported_limits() -> dict[str, float]:
     document = json.loads(EXPORT.read_text(encoding="utf-8"))
     limits = document.get("navigation_limits")
@@ -203,6 +225,7 @@ def findings() -> list[str]:
         image = load_scene(scene)
         values = {
             "void": measured_void_pct(image, scene),
+            "head_void": measured_head_void_pct(image, scene),
             "nav_tail": measured_nav_tail_pct(image, scene),
             "chrome_band": measured_chrome_band_pct(image, scene),
         }
@@ -211,6 +234,16 @@ def findings() -> list[str]:
             found.append(
                 f"{scene.path} measures {values['void']}% void, not the documented "
                 f"{scene.expected_void_pct}%"
+            )
+        if measured_first_row_px(image, scene) != SIDEBAR_FIRST_ROW_PX:
+            found.append(
+                f"{scene.path} no longer paints its first destination row at "
+                f"y{SIDEBAR_FIRST_ROW_PX}; re-adjudicate the typed stack interval"
+            )
+        if abs(values["head_void"] - scene.expected_head_void_pct) > 0.05:
+            found.append(
+                f"{scene.path} measures {values['head_void']}% ground before the first "
+                f"destination, not the documented {scene.expected_head_void_pct}%"
             )
         if abs(values["nav_tail"] - scene.expected_tail_pct) > 0.05:
             found.append(
@@ -230,6 +263,7 @@ def findings() -> list[str]:
     if measurements:
         worst_chrome = max(item["chrome_band"] for item in measurements)
         worst_void = max(item["void"] for item in measurements)
+        worst_head_void = max(item["head_void"] for item in measurements)
         worst_tail = max(item["nav_tail"] for item in measurements)
         if limits["chrome_band_limit_pct"] != worst_chrome:
             found.append(
@@ -242,6 +276,11 @@ def findings() -> list[str]:
                 f"the exported void cap {limits['void_limit_pct']}% is {multiple:.2f}x the "
                 f"worst reference void; the documented scale headroom is "
                 f"[{MIN_SCALE_MULTIPLE}, {MAX_SCALE_MULTIPLE}]x"
+            )
+        if worst_head_void > limits["void_limit_pct"]:
+            found.append(
+                f"the exported void cap {limits['void_limit_pct']}% would outlaw the "
+                f"reference's {worst_head_void}% ground before its first destination"
             )
         headroom = limits["nav_tail_ground_limit_pct"] - worst_tail
         if not 0.0 <= headroom <= MAX_TAIL_HEADROOM_PCT:
@@ -272,11 +311,11 @@ def findings() -> list[str]:
 
     standard = STANDARD.read_text(encoding="utf-8")
     reference_doc = REFERENCE_DOC.read_text(encoding="utf-8")
-    facts = ("3.06", "3.49", "65.17", "70.24", "8%", "73%", "18%", "50%", "60%")
+    facts = ("2.62", "3.06", "3.49", "65.17", "70.24", "8%", "73%", "18%", "50%", "60%")
     for fact in facts:
         if fact not in standard:
             found.append(f"the standard no longer publishes the measured sidebar fact {fact}")
-    for fact in ("70.24", "73%", "flclash-desktop-proxies.png"):
+    for fact in ("2.62", "70.24", "73%", "flclash-desktop-proxies.png"):
         if fact not in reference_doc:
             found.append(f"the upstream reference no longer publishes the real scene fact {fact}")
     for leg in ("flclash-sidebar-void-guard.py --self-test",
@@ -298,8 +337,32 @@ class GuardSelfTest(unittest.TestCase):
         for scene in REFERENCES:
             image = self.images[scene.path]
             self.assertEqual(measured_void_pct(image, scene), scene.expected_void_pct)
+            self.assertEqual(measured_first_row_px(image, scene), SIDEBAR_FIRST_ROW_PX)
+            self.assertEqual(measured_head_void_pct(image, scene),
+                             scene.expected_head_void_pct)
             self.assertEqual(measured_nav_tail_pct(image, scene), scene.expected_tail_pct)
             self.assertEqual(measured_chrome_band_pct(image, scene), 0.0)
+
+    def test_a_sparse_reference_stack_cannot_hide_its_first_ground_band(self) -> None:
+        planted = self.images[self.dashboard.path].copy()
+        planted[89:579, 0:60] = planted[1000:1490, 0:60]
+        self.assertGreater(measured_head_void_pct(planted, self.dashboard),
+                           self.dashboard.expected_head_void_pct)
+        global REFERENCES
+        original_references = REFERENCES
+        with tempfile.TemporaryDirectory() as directory:
+            planted_path = pathlib.Path(directory) / "sparse-dashboard.png"
+            Image.fromarray(planted).save(planted_path)
+            digest = hashlib.sha256(planted_path.read_bytes()).hexdigest()
+            REFERENCES = (
+                dataclasses.replace(self.dashboard, path=planted_path, sha256=digest),
+                self.proxies,
+            )
+            try:
+                self.assertTrue(any("first destination row" in item for item in findings()),
+                                findings())
+            finally:
+                REFERENCES = original_references
 
     def test_a_dashboard_only_tail_cap_would_outlaw_the_proxies_scene(self) -> None:
         global EXPORT
