@@ -12,9 +12,10 @@ use crate::view::scrollbar;
 use crate::view::theme;
 use crate::view_root::interaction_regions::InteractionRegion;
 use iced::advanced::widget::Id;
-use iced::widget::{Column, Row, button, column, container, row};
+use iced::widget::{button, column, container, row};
 use iced::{Element, Length};
 use infiltrator_contract::connection_view_preference::{ConnectionViewIntent, ConnectionViewMode};
+use infiltrator_presentation::connection_page_chrome::{self, ConnectionChooserPlacement};
 use infiltrator_presentation::connection_view_projection::{
     CONNECTION_VIEW_MODE_LIST_KEY, CONNECTION_VIEW_MODE_TABLE_KEY,
     CONNECTION_VIEW_RESET_COLUMNS_KEY, CONNECTION_VIEW_TITLE_KEY, ConnectionViewProjection,
@@ -55,15 +56,6 @@ const fn mode_label_key(mode: ConnectionViewMode) -> &'static str {
     }
 }
 
-/// Whether the column chooser is mounted for the given readback.
-///
-/// The column vocabulary configures the table. In the list morphology no
-/// column is rendered, so a chooser there would be a control that cannot
-/// change what the user sees.
-pub(crate) const fn column_chooser_mounted(mode: ConnectionViewMode) -> bool {
-    matches!(mode, ConnectionViewMode::Table)
-}
-
 pub(crate) fn view_mode_controls(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
     let projection = &state.diag.connection_view;
@@ -101,10 +93,15 @@ pub(crate) fn view_mode_controls(state: &AppState) -> Element<'_, Message> {
 /// two labelled columns need room the filter bar does not have, and a band
 /// that scrolls sideways keeps the page's vertical budget for the table
 /// itself.
-pub(crate) fn column_chooser_controls(state: &AppState) -> Option<Element<'_, Message>> {
+pub(crate) fn column_chooser_controls(
+    state: &AppState,
+    placement: ConnectionChooserPlacement,
+) -> Option<Element<'_, Message>> {
     let lang = Lang(&state.shell.lang);
     let projection = &state.diag.connection_view;
-    if !column_chooser_mounted(projection.mode) {
+    // Which morphology mounts the chooser is the page's rule, so the shared
+    // owner decides; this surface only renders it.
+    if !connection_page_chrome::column_chooser_mounted(projection.mode) {
         return None;
     }
 
@@ -140,18 +137,6 @@ pub(crate) fn column_chooser_controls(state: &AppState) -> Option<Element<'_, Me
     .id(InteractionRegion::ConnectionViewResetColumns.id());
 
     let title = theme::role_body_text(lang.tr(CONNECTION_VIEW_TITLE_KEY));
-    let actions: Element<'_, Message> = if state.shell.viewport.tier.is_narrow() {
-        Column::from_iter([Element::from(reset)])
-            .spacing(theme::SP_XS)
-            .width(Length::Fill)
-            .into()
-    } else {
-        Row::from_iter([Element::from(reset)])
-            .spacing(theme::SP_SM)
-            .align_y(iced::Alignment::Center)
-            .width(Length::Fill)
-            .into()
-    };
 
     // One row that scrolls sideways: the chooser must never cost the table
     // its own height.
@@ -162,15 +147,28 @@ pub(crate) fn column_chooser_controls(state: &AppState) -> Option<Element<'_, Me
     )
     .width(Length::Fill);
 
-    Some(
-        container(
-            column![title, actions, column_strip]
+    // How many rows the chooser takes is the page's rule: a narrow window
+    // folds the title onto the strip's own row, because the row it saves is
+    // a row the table gets.
+    let body: Element<'_, Message> = match placement {
+        ConnectionChooserPlacement::TwoRows => {
+            column![row![title, reset].spacing(theme::SP_SM), column_strip]
                 .spacing(theme::SP_XS)
-                .width(Length::Fill),
-        )
-        .id(InteractionRegion::ConnectionViewColumns.id())
-        .width(Length::Fill)
-        .into(),
+                .width(Length::Fill)
+                .into()
+        }
+        ConnectionChooserPlacement::OneRow => row![title, reset, column_strip]
+            .spacing(theme::SP_SM)
+            .align_y(iced::Alignment::Center)
+            .width(Length::Fill)
+            .into(),
+    };
+
+    Some(
+        container(body)
+            .id(InteractionRegion::ConnectionViewColumns.id())
+            .width(Length::Fill)
+            .into(),
     )
 }
 

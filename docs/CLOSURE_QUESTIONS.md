@@ -14,17 +14,43 @@
 
 | # | 问题 | 合格证据 |
 | --- | --- | --- |
-| 1 | 部分 | L | b241 改 domain/application/contract/shared/presentation/iced 纯 Rust、capture 台架与 L4 台账，零平台 API；七包 nextest **2590/2590**、Iced **663/663**（含 capture-tools 门控的 95 项）、**全仓 `cargo clippy --workspace --all-targets -- -D warnings` exit 0**（`unused_imports` 单项放宽给并行 b234 会话 WIP 的 2 个未用导入）为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1） |
-| 2 | 部分 | L | Linux 本机完成七包编译 / Clippy / nextest、Iced 整批重采与发布；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID |
-| 3 | 部分 | L | 零 Android/iOS 代码与资源改动；观察时刻与时长列只读桌面已有的 typed 读回与共享词表，对移动平台中立，但三 flavor 实机交互与 iOS 产物仍留在外部环境看板，不拿桌面像素冒充移动端证据 |
-| 4 | 部分 | L | **本批：Iced 连接表补上上游最后一列「时长」**——契约第 23 列 `ConnectionColumn::Duration`，值来自 owner 发布的观察时刻（上游用客户端 `DateTime.now()`，本仓用 Core 接受观察的那一刻）；Iced 整批重采 **194/194**（b241 批次，`20261113T052924Z_93f8aa31bbff_dirty_1007806`），`space_utilization --surface iced --enforce` **194 帧 violations=0**，两帧表格回执里「持续时间」紧邻「建立时间」，可见 `10 min` / `7.8 min` / `4.4 min` 三档写法。Slint 211 帧与 Bevy 192 帧仍归各自会话，那一侧尚无观察时刻因此仍无时长列 |
-| 5 | 完整 | L | 时长只有一条真源链：domain `connection_observation`（typed 观察时刻与时长事实）→ application `observation_clock::accepted_at()` + typed `AcceptedConnectionObservation` → presentation 表投影的 typed 时刻参数 → Iced 视图只渲染共享投影；`ConnectionColumn::Duration` 的身份在契约闭集，秒 / 分 / 时的写法在共享 `elapsed_time::format_duration_ms`；视图不读钟（守卫判据钉住）、不拆链字符串、不持第二份列集合 |
-| 5a | 部分 | L | 零字体 / 字重 / 图标 / 旗资产改动；新增的时长列复用既有字体与列宽三档（`text_width_em` 是唯一字体字节与宽度 owner），新增中英文案各一条；Iced 194 帧真像素回执已发布 → 桌面侧完整。圆形旗帜容器仍由 4:3 直角资产与 flag guard 钉住 |
-| 6 | 部分 | L | domain 4 项 + presentation 3 项 + shared 1 项 + test-support 1 项 + Iced 3 项新测试钉住观察时刻的年龄、关闭记录自报时长、无时刻即诚实未知、秒 / 分 / 时三档写法与 capture 列集解析；守卫 **17/17** + enforce 0（含「视图不得自读墙上时钟」判据与 planted 负例）；Iced **194/194** 真像素回执已发布，`receipt-freshness 0`。全仓 `--workspace` nextest、结构门动态全腿、`resolve_surface_evidence.py` ready cells 与并行 Bevy 身份红腿仍留统一批次 |
-| 7 | 完整 | L | 观察时刻链：ports 观察 → application 接受时刻 → domain typed 事实 → presentation 投影 → Iced 渲染，一条链；列身份链：contract `ConnectionColumn::Duration` → projection semantic ID → 共享词表 → Iced 表头，同一条链；Core 里读墙上时钟的地方收敛为 `observation_clock::accepted_at()` 一处，关闭记录 owner 也改用它 → 无跨 UI 私有业务真源、无第二套时钟 |
-| 8 | 部分 | L | 同主题 domain/application/contract/shared/presentation/iced/门禁一次落地后集中跑受影响包 nextest 与 Clippy，再跑一次整批重采与三条像素门；只跑受影响包，不逐文件反复全量验证，也不格式化并行 WIP。本批第一次让全仓 clippy 真正重编，顺手收口 HEAD 既有的 9 处 lint 红灯。全仓 `--workspace` nextest、结构门动态全腿与 `resolve_surface_evidence.py` 留统一批次一次跑完 |
+| 1 | 部分 | L | b242 改 presentation / iced 纯 Rust、capture 台架与 L4 台账，零平台 API；presentation nextest **429/429**、Iced **663/663**（合计 **1092/1092**）、两包 Clippy `--all-targets -D warnings` exit 0（`unused_imports` 单项放宽给并行 b234 会话 WIP 的 2 个未用导入）为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1） |
+| 2 | 部分 | L | Linux 本机完成两包编译 / Clippy / nextest、Iced 整批重采与发布、守卫自测；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID |
+| 3 | 部分 | L | 零 Android/iOS 代码与资源改动；紧凑档折行规则只读桌面已有的共享阶梯 `ViewportTier` 与 presentation owner，对移动平台中立，但三 flavor 实机交互与 iOS 产物仍留在外部环境看板 |
+| 4 | 部分 | L | **本批：Iced 连接页在紧凑视口把表格还给读者**——紧凑档页签 / 形态 / 断开筛选并成一行、流量摘要并进标题栏带、列选择器标题并进横向滚动条带；Iced 整批重采 **194/194**（b242 批次），`space_utilization --surface iced --enforce` **194 帧 violations=0**，紧凑帧从「0 行表格」变为**表头 + 2 行完整数据**。Slint 211 帧与 Bevy 192 帧仍归各自会话 |
+| 5 | 完整 | L | 连接页的控件布局只有一条真源链：presentation `connection_page_chrome`（控件带 / 堆栈 / 页面 chrome 折行规则）→ Iced 视图只映射像素；两条形态挂载规则此前住在 Iced 视图里，本批迁回 owner，视图不再私藏业务规则 |
+| 5a | 部分 | L | 零字体 / 字重 / 图标 / 旗资产 / 文案改动；本批只动布局，控件与既有文案原样复用；Iced 194 帧真像素回执已发布 → 桌面侧完整。圆形旗帜容器仍由 4:3 直角资产与 flag guard 钉住 |
+| 6 | 部分 | L | presentation **10 项**新测试钉住窄档折行、宽档单行、搜索独占一行、形态挂载与每个控件带只挂一次；Iced 既有 **663 项**守住接线；守卫 **25/25** + enforce 0（5 条新判据 + 8 项 planted 负例）；Iced **194/194** 真像素回执已发布，`receipt-freshness 0`。全仓 `--workspace` nextest、结构门动态全腿、`resolve_surface_evidence.py` ready cells 与并行 Bevy 身份红腿仍留统一批次 |
+| 7 | 完整 | L | 阶梯链：contract `ViewportTier` → presentation `connection_page_chrome` → Iced 视图，一条链；挂载规则链：presentation owner → 视图，不再有 Iced 私有副本；判定链：owner 消费判据 → 守卫 planted 负例 → L2/L3 标准 → L4 台账，另一条链；无跨 UI 私有业务真源、无视图层自排控件栈 |
+| 8 | 部分 | L | 同主题 presentation / iced / 门禁一次落地后集中跑两包 nextest 与 Clippy，再跑一次整批重采与像素门；只跑受影响包，不逐文件反复全量验证，也不格式化并行 WIP。全仓 `--workspace` nextest、结构门动态全腿与 `resolve_surface_evidence.py` 留统一批次一次跑完 |
 
-## 当前状态（2026-11-13 第二百四十一批次；b111–b240 见下方批次八问摘要）## 当前状态（2026-11-13 第二百四十一批次；b111–b240 见下方批次八问摘要）## 当前状态（2026-11-13 第二百三十九批次；b111–b238 见下方批次八问摘要）## 当前状态（2026-11-13 第二百三十八批次；b111–b237 见下方批次八问摘要）
+## 当前状态（2026-11-13 第二百四十二批次；b111–b241 见下方批次八问摘要）
+
+| # | 结论 | 等级 | 缺口 / owner |
+| --- | --- | --- | --- |
+| 1 | 部分 | L | b242 改 presentation / iced 纯 Rust、capture 台架与 L4 台账，零平台 API；presentation nextest **429/429**、Iced **663/663**（合计 **1092/1092**）、两包 Clippy `--all-targets -D warnings` exit 0（`unused_imports` 单项放宽给并行 b234 会话 WIP 的 2 个未用导入）为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1） |
+| 2 | 部分 | L | Linux 本机完成两包编译 / Clippy / nextest、Iced 整批重采与发布、守卫自测；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID |
+| 3 | 部分 | L | 零 Android/iOS 代码与资源改动；紧凑档折行规则只读桌面已有的共享阶梯 `ViewportTier` 与 presentation owner，对移动平台中立，但三 flavor 实机交互与 iOS 产物仍留在外部环境看板 |
+| 4 | 部分 | L | **本批：Iced 连接页在紧凑视口把表格还给读者**——紧凑档页签 / 形态 / 断开筛选并成一行、流量摘要并进标题栏带、列选择器标题并进横向滚动条带；Iced 整批重采 **194/194**（b242 批次），`space_utilization --surface iced --enforce` **194 帧 violations=0**，紧凑帧从「0 行表格」变为**表头 + 2 行完整数据**。Slint 211 帧与 Bevy 192 帧仍归各自会话 |
+| 5 | 完整 | L | 连接页的控件布局只有一条真源链：presentation `connection_page_chrome`（控件带 / 堆栈 / 页面 chrome 折行规则）→ Iced 视图只映射像素；两条形态挂载规则此前住在 Iced 视图里，本批迁回 owner，视图不再私藏业务规则 |
+| 5a | 部分 | L | 零字体 / 字重 / 图标 / 旗资产 / 文案改动；本批只动布局，控件与既有文案原样复用；Iced 194 帧真像素回执已发布 → 桌面侧完整。圆形旗帜容器仍由 4:3 直角资产与 flag guard 钉住 |
+| 6 | 部分 | L | presentation **10 项**新测试钉住窄档折行、宽档单行、搜索独占一行、形态挂载与每个控件带只挂一次；Iced 既有 **663 项**守住接线；守卫 **25/25** + enforce 0（5 条新判据 + 8 项 planted 负例）；Iced **194/194** 真像素回执已发布，`receipt-freshness 0`。全仓 `--workspace` nextest、结构门动态全腿、`resolve_surface_evidence.py` ready cells 与并行 Bevy 身份红腿仍留统一批次 |
+| 7 | 完整 | L | 阶梯链：contract `ViewportTier` → presentation `connection_page_chrome` → Iced 视图，一条链；挂载规则链：presentation owner → 视图，不再有 Iced 私有副本；判定链：owner 消费判据 → 守卫 planted 负例 → L2/L3 标准 → L4 台账，另一条链；无跨 UI 私有业务真源、无视图层自排控件栈 |
+| 8 | 部分 | L | 同主题 presentation / iced / 门禁一次落地后集中跑两包 nextest 与 Clippy，再跑一次整批重采与像素门；只跑受影响包，不逐文件反复全量验证，也不格式化并行 WIP。全仓 `--workspace` nextest、结构门动态全腿与 `resolve_surface_evidence.py` 留统一批次一次跑完 |
+
+## 最近一批问答（2026-11-13 第二百四十二批次：紧凑档连接页把表格还给读者）
+
+1. x86_64/aarch64：本批只改 presentation / iced 纯 Rust、capture 台架与 L4 台账，零平台 API；presentation nextest **429/429**、Iced **663/663**（合计 **1092/1092**）、两包 Clippy `--all-targets -D warnings` exit 0（`unused_imports` 单项放宽给并行 b234 会话 WIP 的 2 个未用导入）为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
+2. Windows/Linux/macOS：Linux 本机完成两包编译 / Clippy / nextest、守卫自测、Iced 整批重采与发布；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID → 部分（L）。
+3. Android/iOS：零 Android/iOS 代码与资源改动；紧凑档折行规则只读桌面已有的共享阶梯 `ViewportTier` 与 presentation owner，对移动平台中立，但三 flavor 实机交互与 iOS 产物仍留在外部环境看板，不拿桌面像素冒充移动端证据 → 部分（L）。
+4. 各 UI：本批只交付 Iced 侧紧凑档折行与 owner 收口；Slint / Bevy 的连接页控件栈尚未消费该 owner，按文件所有权不夹带（其像素仍由各自会话持有），本批只声称 Iced 侧结论 → 部分（L）。
+5. 复用：连接页控件带 / 堆栈 / 页面 chrome 折行规则由 `infiltrator_presentation::connection_page_chrome` 一处发布，契约 `ViewportTier` 是档事实的唯一来源，Iced 视图只映射像素；两条形态挂载规则（分组控件 / 列选择器）本批由 Iced 视图迁回该 owner，视图不再有第二份副本 → 完整（L）。
+5a. 设计资源：零字体 / 字重 / 图标 / 旗资产 / 文案 / 可见资产改动；本批只改布局，控件与既有文案原样复用；沿用 4:3 直角旗面资产与 flag guard，圆形旗帜容器仍被钉住 → 完整（L）。
+6. 各处界面的功能接入：presentation **10 项**新测试钉住窄档折行 / 宽档单行 / 搜索独占一行 / 形态挂载 / 每个控件带只挂一次；Iced 既有 **663 项**守住接线；守卫 **25/25** + enforce 0（5 条 owner 消费判据 + 8 项 planted 负例）；Iced **194/194** 真像素回执已发布，`receipt-freshness 0` → 部分（L）。
+7. 模块化：阶梯链 contract `ViewportTier` → presentation `connection_page_chrome` → Iced 视图；挂载规则链 presentation owner → Iced 视图（不再有 Iced 私有副本）；判定链 owner 消费判据 → 守卫 planted 负例 → L2/L3 标准 → L4 台账；两条链上都没有跨 UI 私有业务真源 → 完整（L）。
+8. CI 与批次效率：同主题 presentation、iced、门禁一次落地后集中跑两包 nextest / Clippy / 定向 Python 门，再统一跑一次整批重采与像素门；只跑受影响包，不逐文件反复全量验证，也不格式化并行 WIP。全仓 `--workspace` nextest、结构门动态全腿与 `resolve_surface_evidence.py` 留统一批次一次跑完 → 部分（L）。
+
+## 历史状态（2026-11-13 第二百四十一批次；b111–b240 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
@@ -95,7 +121,7 @@
 | 7 | 完整 | L | 契约常量 → 导出器 → v18 JSON → Python 版本 pin → 判定器夹具/读回 → 双场景参照守卫 → L2 标准 / L3 上游对照 / L4 台账分层收口；`doc-governance OK`、`closure 8/8`、结构收集器 **198 腿静态形状 0 findings**，无跨 UI 私有业务真源 |
 | 8 | 部分 | L | 同主题导出物、守卫、判据夹具、标准与台账一次落地后集中跑契约构建、空间/参照 Python 门和双表面报告；判据身份变化不触发截图重采。全仓 `--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` 留统一批次一次跑完 |
 
-## 最近一批问答（2026-11-13 第二百四十一批次：FlClash 连接表最后一列「时长」与它背后的 core 缺口）
+## 历史问答（2026-11-13 第二百四十一批次：FlClash 连接表最后一列「时长」与它背后的 core 缺口）
 
 1. x86_64/aarch64：本批只改 domain/application/contract/shared/presentation/iced 纯 Rust、capture 台架与 L4 台账，零平台 API；七包 nextest **2590/2590**、Iced **663/663**、**全仓 `cargo clippy --workspace --all-targets -- -D warnings` exit 0**、守卫 **17/17** + enforce 0、`space_utilization --surface iced --enforce` **194 帧 violations=0**、`receipt-freshness 0` 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：Linux 本机完成 Iced 整批重采（194/194）与发布；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID → 部分（L）。
@@ -254,7 +280,7 @@
 7. 模块化：catalog → 生成器 → contract 码表 → `NodeRegion` → shared/domain/presentation → 表面旗码索引 → `flag-plate-guard` 一条链；`geo_region_tests.rs` 拆出后生产文件 670 行、测试文件 192 行，line/import/typed-state/implicit-state/doc/closure 全 0，无跨 UI 私有业务真源 → 完整（L）。
 8. CI 与批次效率：同主题源码、生成物、守卫、标准和台账一次落地后集中跑四包 nextest/Clippy、Iced/Slint check 与定向质量门；不改截图矩阵、不触发无变化重采。全仓 `--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` 仍留统一批次一次跑完 → 部分（L）。
 
-## 最近一批问答（2026-11-13 第二百二十六批次：侧栏栈尾空气也有比例上限）
+## 历史问答（2026-11-13 第二百二十六批次：侧栏栈尾空气也有比例上限）
 
 1. x86_64/aarch64：本批为共享契约纯 Rust、Python 判定器/守卫、v17 JSON 导出与 L2/L3 文档，零平台 API、零 wire；`cargo build -p infiltrator-contract --bin export_page_structure` exit 0、`space_utilization --self-test` **65/65**、`flclash-sidebar-void-guard --self-test` **9/9**、`--check-export` current 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：Linux 本机完成导出器构建、空间判据、参照图复量与文档门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID → 部分（L）。
@@ -266,7 +292,7 @@
 7. 模块化：契约 `NAV_TAIL_GROUND_LIMIT_PCT` → v17 `navigation_limits` → 判定器 `navigation_limits()` / `rail_of()` / `rail_findings()` / `rail_debt_from_results()` → 参照守卫 `measured_nav_tail_pct()` → L2 标准与 L3 上游对照，一条事实一条链；旧「侧栏两项」口径同步改为三项，不留 Python 私有阈值 → 完整（L）。
 8. CI 与批次效率：源码、导出物、守卫、标准和八问按一个 cohesive slice 落地后只跑定向门与两表面像素报告；判据身份变化不触发截图重采，避免 211/192 帧无意义采集。全仓 `--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` 仍留统一批次一次跑完 → 部分（L）。
 
-## 最近一批问答（2026-11-13 第二百二十五批次：Bevy 代理节点网格回到 FlClash 页宽 owner）
+## 历史问答（2026-11-13 第二百二十五批次：Bevy 代理节点网格回到 FlClash 页宽 owner）
 
 1. x86_64/aarch64：本批为 Bevy/Core 纯 Rust、headless 测试、Python guards 与结构门四腿，零平台 API、零 wire identity；`cargo fmt --all -- --check`、五包 `cargo clippy --all-targets -D warnings`、Bevy lib **199/199**、Core 三包 lib **1346/1346**、定向 headless **27/27** 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：Linux 本机完成 Bevy/Core 定向编译、动态 resize 测试、大列表回收器测试、两个 owner guard、BSN/rem/scene/typed-state/implicit-state/line/import 门；本批不改截图矩阵、不触发 capture，Windows/macOS 构建腿和安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID → 部分（L）。
@@ -278,7 +304,7 @@
 7. 模块化：新增 `proxy_grid_geometry.rs` 作为 Bevy 唯一页宽几何 owner，暴露 `ProxyGridGeometry` / `ProxyGridContainer` / 纯函数；route 只传视口，scene 只挂 typed marker，full-mount / reconcile / virtual 三条渲染路径只消费几何。Core 侧新增 `public_ip_probe` contract/port/application 模块，按业务缝拆出 `core_application/public_ip_probe.rs`、`core_application/test_support.rs` 与 `surface_reader/theme.rs`，两个超 800 行文件归零。两个 owner guard 共 15 项 planted 覆盖 tier 表、compact bool、首帧 31%、unsupported dispatch、default readback、硬编码时间与缺结构门腿，实测 **9/9 + 6/6**，无第二业务真源 → 完整（L）。
 8. CI 与批次效率：一次完成同主题源码/测试/守卫/结构门接线后，集中跑五包 Clippy、Bevy/Core lib nextest、一组 Bevy headless、一组静态门和两个 owner guard；没有边改边跑全仓，也没有因源码-only 改动触发 192 帧 capture。全仓 `--workspace` nextest、结构门动态全腿与 `resolve_surface_evidence.py` 仍留统一批次一次跑完 → 部分（L）。
 
-## 最近一批问答（2026-11-13 第二百二十四批次：ClashParty 连接视图的 typed 底层 owner）
+## 历史问答（2026-11-13 第二百二十四批次：ClashParty 连接视图的 typed 底层 owner）
 
 1. x86_64/aarch64：本批只新增 contract/presentation 纯 Rust 与相邻测试，零平台 API、零 wire identity 变更；`cargo fmt --all -- --check`、两包 lib nextest **995/995** 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：Linux 本机完成定向 Rust、fmt、import、typed-state、implicit-state 与文档门；本批零 UI/像素变化，未触发 capture；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2），未取受控 CI run ID → 部分（L）。
@@ -290,7 +316,7 @@
 7. 模块化：contract owner 单独持有 mode / `ConnectionColumn::ALL` / `ConnectionColumnSet` / `ConnectionViewPreference` / `ConnectionViewIntent` / typed error；presentation 只持有 `project_connection_view` 与 semantic ID 映射。模型不执行命令、不访问 I/O、不依赖 UI toolkit，旧 UI 侧尚未接入因此没有第二业务真源 → 完整（L）。
 8. CI 与批次效率：单次构建后一次跑完两包 lib nextest、fmt 与受影响静态门；未触发 211/184 帧重采，不制造诊断批次。全仓 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py` 仍留统一批次一次跑完 → 部分（L）。
 
-## 最近一批问答（2026-11-12 第二百二十三批次：仪表盘文案从数据字段回到共享词表）
+## 历史问答（2026-11-12 第二百二十三批次：仪表盘文案从数据字段回到共享词表）
 
 1. x86_64/aarch64：本批改动为 contract/presentation/shared PO/Slint/Bevy 纯 Rust、`.po` 与 Python 判据，零平台 API、零 wire；Slint capture 特性 `cargo check`、Bevy `cargo check`、四包 lib nextest **1092/1092** 与 211/211 发布批为 `L`；交叉架构与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：Linux 本机完成 KWin + 嵌套 niri 的 211 帧整批采集、双语言仪表盘回执、Python 全量回归与结构门 **194 腿 / 1 红 / findings=0**；Windows/macOS 构建腿和安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）。`main-gate.yml` 复用同一结构门，但本批未取受控 CI run ID → 部分（L）。
@@ -302,7 +328,7 @@
 7. 模块化：contract typed quality key → presentation 纯数值/观测枚举 → shared PO 文案 owner → Slint/Bevy 边界翻译 → `DashboardFacts` 窗口发布 → capture marker 读回 → i18n/freshness/space/identity 判据，每层只读上游事实；`i18n-guard` 新增 dashboard 专属边界判据，拒绝投影再发 CJK、旧 localized 字段或四个消费点跳过词表，planted「字段复辟 / 英文 CJK」实测会咬，无跨 UI 私有业务真源 → 完整（L）。
 8. CI 与批次效率：最终一次构建后整批 211 帧集中复采，旧诊断批不作为发布证据；9 个新 PO 条目由全量目录判据一次验完，`CAPTURE_LOCALE` planted 负例覆盖英文仪表盘夹带中文；结构门一次跑完 194 腿且唯一红腿为另一会话未提交的 Bevy 像素身份。全仓 `--workspace` nextest/clippy 与 `resolve_surface_evidence.py` 仍留统一批次一次跑完 → 部分（L）。
 
-## 最近一批问答（2026-11-12 第二百二十二批次：Slint 编译器驱动文案全部回到共享 PO）
+## 历史问答（2026-11-12 第二百二十二批次：Slint 编译器驱动文案全部回到共享 PO）
 
 1. x86_64/aarch64：本批改动为 shared 产品 PO、Slint `AppWindow` 读回属性 / capture marker / 矩阵与 Python/JSON 判据，均为架构中性资源、`.slint` 与脚本，零平台 API、零 wire；`cargo check -p infiltrator-slint --features gpu-skia,capture-tools --bin infiltrator-slint`、`cargo fmt --all -- --check` 与 Slint 211/211 发布批为 `L`；交叉架构与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：Linux 本机完成 KWin + 嵌套 niri 的 211 帧整批采集、双语言页面回执与定向门禁；Windows/macOS 构建腿和安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）。`main-gate.yml` 仍复用同一结构门，但本批未取受控 CI run ID → 部分（L）。
@@ -314,7 +340,7 @@
 7. 模块化：文案 owner（shared PO）→ `build.rs` bundled translations → Slint `@tr` 组件 → `AppWindow` 发布标题属性 → `CAPTURE_NAV` / `CAPTURE_LOCALE` 取证 → i18n / freshness / matrix 守卫，每层只读上游事实；页面帧是矩阵声明、locale 是 manifest 列、欠账是空清单，三者没有第二份写入者 → 完整（L）。
 8. CI 与批次效率：最终一次构建后整批 211 帧（既有 203 + 8 张双语言页面帧）集中复采，旧诊断批不作为发布证据；新增 98 条 PO 由全量目录判据一次验完，新增 `CAPTURE_LOCALE` planted 负例覆盖中英混排退化；全仓 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py` 仍留统一批次一次跑完 → 部分（L）。
 
-## 最近一批问答（2026-11-12 第二百二十批次：结构门真正跑完每一条腿）
+## 历史问答（2026-11-12 第二百二十批次：结构门真正跑完每一条腿）
 
 1. x86_64/aarch64：本批零产品代码、零平台 API、零 wire，只改 `scripts/quality/check-structure.sh` 的执行模型与两个 Python/JSON 守卫；`bash -n` 通过、`structure-gate-guard --self-test` **11/11**、整门 **194 条腿全部执行** 为 `L`；交叉架构与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：Linux 本机整门复跑 rc=1（两条已声明红腿）证明收集器不再中止；Windows/macOS 构建腿与安装包未复跑，macOS 显式 `Unsupported`（GAP-2.2）。`.github/workflows/main-gate.yml` 直接调用同一 `check-structure.sh`，因此该修复对三个平台的 CI 同样生效，但本批未取受控 CI run ID → 部分（L）。
@@ -325,7 +351,7 @@
 7. 模块化：执行器（`check-structure.sh` 的 `gate()` 只收集）、裁决器（`structure-gate-guard.py` 只判形状与对账）、台账（只声明红腿）、文档（L0/L2/L4 同批）四处职责分离；`bash -n` 通过，`import` / `line` / `test-layout` / `doc-governance` 各腿 0，无跨 UI 私有业务真源 → 完整（L）。
 8. CI：**本批修正一条真实的 CI 缺陷**——`set -e` 让第一道红腿中止整个结构门，其后 155 条腿在 `main-gate.yml` 与本机都静默不跑，所以「结构门通过/唯一红腿」从来不能证明判据被执行；改为收集式后整门单批约 10 分钟跑完 194 腿，新增红腿必须显式声明 owner 与理由，转绿必须删声明；`scripts/test.sh` 与 `main-gate.yml` 沿用同一入口，缓存/`--locked`/触发策略未变，未取受控 CI run ID → 部分（L）。
 
-## 最近一批问答（2026-11-12 第二百一十九批次：旗面只有一个清单，Iced 不再画 emoji 字形）
+## 历史问答（2026-11-12 第二百一十九批次：旗面只有一个清单，Iced 不再画 emoji 字形）
 
 1. x86_64/aarch64：本批改动为契约/shared/presentation 纯 Rust、Iced 生成字节表与两个桌面表面消费点，零平台 API、零 wire；`cargo check --workspace --all-targets` exit 0、五包 nextest **3423/3423**（run 见台账）、Bevy `capture-tools` **831/831** 为 `L`；交叉腿与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：Linux 本机完成编译、Clippy、fmt 与 Iced 192 帧整批采集；Windows/macOS 构建腿与安装包仍缺，macOS 显式 `Unsupported`（GAP-2.2）。本批消除一条真实平台差异：旗面此前由宿主 emoji 字体决定（本机 Noto、Windows Segoe UI Emoji 各画各的），现在两端都画同一份 4:3 矢量 → 部分（L）。
@@ -336,7 +362,7 @@
 7. 模块化：文件级达标（新文件 `flag_plate.rs` 118 行、`flag_assets_generated.rs` 为生成物、`test-layout-guard` 0 violations——生成表按生产模块声明、测试按 `tests/gui/` 挂载）；无跨 UI 私有业务真源：Iced 不再自行拼旗面字符串，presentation DTO 只出 ISO 代码，UI 侧零 emoji → 完整（L）。
 8. CI：**本批实测推翻了对结构门的长期假设**——`check-structure.sh` 第 2 行 `set -euo pipefail`，第 64 行 `screenshot-identity-guard --mode enforce` 因另一会话未提交的 Bevy `runtime-dark` / `overview-dark` 别名返回 1 就整门退出，第 65 行起的每条腿（`receipt-freshness`、`i18n-guard --mode enforce`、`design-resource-authority`、本批新加的 `flag-plate-guard` 两腿…）在 CI 与本机都不会执行；本批的 `flag-plate-guard` 结果全部来自手工 `sed -n '65,$p'` 切片复跑，故 §八问结论由「部分」下调为「缺失」并立项 `GATERUN-001`（收集式执行器 + 失败签名台账）。同批按「契约落码 → 定向 nextest/clippy/fmt → Iced 整批一次采集 → 四腿复核」推进，未边改边重采；**顺带抓到并更正一条真实记账缺陷**：b215 起台账把现在佛写成 34 pt 而表内实测 37 pt（b214 迁入 2 pt 时把 35→34 写反），b217/b218 继续抄错，本批按「逐节小计以表内行为准」重列并写明更正；全仓 `--workspace` nextest/clippy 仍留统一验证批次 → 部分（L）。
 
-## 最近一批问答（2026-11-12 第二百一十八批次：页身左右留白只付一次 16dp）
+## 历史问答（2026-11-12 第二百一十八批次：页身左右留白只付一次 16dp）
 
 1. x86_64/aarch64：本批改的是共享契约、两个桌面表面与生成器/判定器，零平台 API、零 wire；三包 nextest **1535/1535**、Clippy `--all-targets -D warnings`、fmt 为 `L`；交叉架构与 aarch64 目标产物未复跑 → 部分（L）。
 2. Windows/Linux/macOS：Linux 本机完成三包编译与 Slint/Iced 两表面整批采集（KWin + 嵌套 niri）；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）→ 部分（L）。
@@ -348,7 +374,7 @@
 7. 模块化：契约常量 → v16 导出 → 生成 `ViewportLadder.page-padding` → 两表面只读 → 帧自述 `page_margin_px` → 判定器逐帧比对一条链；导出故意不含 `TierFact.content_padding_px`，「我这一档的留白」在结构上不可能再分叉；`line` / `import` / `typed-state` / `implicit-state` / `doc-governance` / `closure-questions` 全 0 → 完整（L）。
 8. CI 与批次效率：先落码、再定向三包验证、再两表面各整批采集一次、最后四腿复判，未边改边重采；`dense` / `framed` 页没有因页身变宽暴露新地面（expanded 中位 3.9% 与上一批逐字相同），故未动用 §5 收口也未放宽上限；全仓 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py` 仍留统一验证批次一次跑完 → 部分（L）。
 
-## 最近一批问答（2026-11-12 第二百一十七批次：页身左右留白的参照物源码复核 / 实测新立 `SPACEUTIL-018`）
+## 历史问答（2026-11-12 第二百一十七批次：页身左右留白的参照物源码复核 / 实测新立 `SPACEUTIL-018`）
 
 1. x86_64/aarch64：本批是只读侦察 + 文档/台账登记，零产品代码、零 wire、零快照；结论落在共享契约的待裁决条目上，架构中性，故无新的编译腿可跑（`L` 证据是既有 b216 发布批与两表面 enforce 读数仍然有效）→ 部分（L）。
 2. Windows/Linux/macOS：未构建任何平台产物；页身留白是跨平台布局事实，收口时三表面各自重采即可，本批不声称平台支持状态变化 → 部分（L）。
@@ -360,7 +386,7 @@
 7. 模块化：留白的裁决位置已写清（契约一处发布 → v16 导出 → 生成器 / 判定器 / 三表面只读导出），参照基准 §20 逐条给出上游源码位置与两张 tracked 场景图的逐像素折算，结论不依赖散文 → 完整（L）。
 8. CI 与批次效率：本批零 cargo、零重采，只做上游源码拉取与像素复核即立项，避免为「让台账好看」而擅改三表面共享数；统一验证批次仍一次跑完全仓腿 → 部分（L）。
 
-## 最近一批问答（2026-11-12 第二百一十六批次：Slint 页面密度不再跟随侧栏折叠偏好 + 取证回执索引落定字节）
+## 历史问答（2026-11-12 第二百一十六批次：Slint 页面密度不再跟随侧栏折叠偏好 + 取证回执索引落定字节）
 
 1. x86_64/aarch64：本批改的是 Slint 布局语言、两个 Python 台架脚本与生成器，架构中性、零平台 API、零 wire；`cargo nextest run --locked -p infiltrator-slint` **389/389**、`bash -n` 三脚本与共享 helper 全通过为 `L`。交叉架构与 aarch64 目标产物未复跑，仍由 CI / 设备矩阵补证 → 部分（L）。
 2. Windows/Linux/macOS：只在本机 Linux 台架（KWin + 嵌套 niri）编译并整批采集 199 帧；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 `Unsupported`（GAP-2.2）→ 部分（L）。
@@ -372,7 +398,7 @@
 7. 模块化：一条事实一条链——契约 `TierFact.labelled_sidebar` → 导出 `tiers[]` → 生成 `ViewportLadder.labelled_sidebar(tier)` → `theme.slint` 的 `desktop-page` → `lumen-app.slint` 的 `compact-layout` 与两个页面的 typed 网格形态；侧栏标签仍只读偏好感知的 `sidebar_labelled(...)`，两个事实各自唯一、互不代答；`line` / `import` / `typed-state` / `implicit-state` / `doc-governance` / `slint-syntax` 全 0 → 完整（L）。
 8. CI 与批次效率：按「落码 → 定向 nextest/guard → 整批采集一次 → enforce / freshness / identity 三腿」推进，未边改边重采。本批有一次真实返工并如实记账：首轮 199 帧重采后 `receipt-freshness` 报 1 条，追查发现是台架在 niri 仍在刷新 PNG 时就取摘要（记 65536 B、落盘 75920 B），修在共享 helper 后**整批重采第二次**（643s），旧批作废不计证据；两帧动画相位/提示条时序非确定性登记为未收口事实，未用放宽门禁掩盖。全仓 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py` 仍留统一验证批次一次跑完 → 部分（L）。
 
-## 最近一批问答（2026-11-12 第二百一十五批次：Iced 已关闭连接 typed 消费）
+## 历史问答（2026-11-12 第二百一十五批次：Iced 已关闭连接 typed 消费）
 
 1. x86_64/aarch64：本批只改 Iced 状态、视图、消息与 headless 测试，零平台 API / 零 wire；`--locked` Iced lib nextest **550/550**、headless **92/92**、Clippy `--all-targets -D warnings`、`cargo fmt --all --check` 为 `L`。交叉架构与 aarch64 目标产物未复跑 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 完成 Iced 编译 / 测试 / Clippy / fmt；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
@@ -384,7 +410,7 @@
 7. 模块化：`ConnectionTab` 在 state 层 typed 表达，消息/View/Update/Demo/测试各只消费状态；`line` / `import` / `typed-state` / `implicit-state` / `doc-governance` / `closure-questions` 全 0 → 完整（L）。
 8. CI 与批次效率：开发期只跑 Iced lib、headless feature 批与静态门；未重复全仓重编；全仓 `--workspace` nextest / 结构门全腿与 `resolve_surface_evidence.py` 留统一验证批次一次跑完 → 部分（L）。
 
-## 最近一批问答（2026-11-12 第二百一十四批次：已关闭连接 Core 单一 owner）
+## 历史问答（2026-11-12 第二百一十四批次：已关闭连接 Core 单一 owner）
 
 1. x86_64/aarch64：本批是中性 Rust 的 domain/application/composition 与宿主接线，零平台 API / 零 wire；`--locked` 三包 nextest **1385/1385**、六包 Clippy `--all-targets -D warnings`、`cargo fmt --all --check` 为 `L`。交叉构建与 aarch64 目标机产物未复跑 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 完成三包测试、六包 Clippy / fmt；桌面宿主组合静态编译通过但没有构建腿、安装包或重采帧；Windows/macOS 未复跑，macOS 沿用 `Unsupported` → 部分（L）。
@@ -396,7 +422,7 @@
 7. 模块化：domain typed 两态与 revision 围栏、application 单例、SurfaceReader 唯一观察入口、命令子模块各守一层；`dispatch.rs` 纯 helper 与组合测试按 800 行预算拆出两个文件，门禁 line/import/typed-state/implicit-state/doc-governance/closure 全 0 → 完整（L）。
 8. CI 与批次效率：开发期只跑受影响包；收口时一次三包 nextest + 一次六包 Clippy + 一次静态门；全仓 `--workspace` nextest / 结构门全腿与 `resolve_surface_evidence.py` 留统一验证批次一次跑完，避免与另一工作区争抢唯一 Cargo lane → 部分（L）。
 
-## 最近一批问答（2026-11-12 第二百一十三批次：Iced 双网格消费共享页身宽）
+## 历史问答（2026-11-12 第二百一十三批次：Iced 双网格消费共享页身宽）
 
 1. x86_64/aarch64：本批改共享页身宽、v15 导出、Iced/Slint 双网格与诊断台架隔离，零平台 API / 零 wire；`--locked` contract+Slint+Iced nextest **1626/1626**、三包 Clippy `--all-targets -D warnings`、`cargo fmt --all --check` 为 `L`。交叉构建与 aarch64 目标机产物未复跑 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 完成三包定向测试 / Clippy / fmt、Iced **192/192** run `20261111T220532Z_923ba4af7b2f_dirty_2656390` 与 Slint **199/199** run `20261111T221050Z_923ba4af7b2f_dirty_2705566`、双表面空间门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
@@ -408,7 +434,7 @@
 7. 模块化：契约页身宽 + typed forms → v15 导出 → 生成函数 → Iced/Slint 页面一条链完成；`slint-viewport-tier-guard` 45/45、`iced-observation-routes-guard` 14/14；诊断批不再发布正式语料；`line` / `import` / `typed-state` / `implicit-state` / `doc-governance` / `closure-questions` 全 0 → 完整（L）。
 8. CI 与批次效率：开发期只跑受影响三包；产出期一次 Iced 192 帧（304s）+ 一次 Slint 199 帧（457s）+ 双表面空间门与全组 planted 自测，未重复全仓重编；全仓 `--workspace` nextest / clippy、结构门全腿与 `resolve_surface_evidence.py` 留统一批次一次跑完 → 部分（L）。
 
-## 最近一批问答（2026-11-12 第二百一十二批次：Slint 代理节点网格按页宽连续裁决）
+## 历史问答（2026-11-12 第二百一十二批次：Slint 代理节点网格按页宽连续裁决）
 
 1. x86_64/aarch64：本批改共享页宽规则（v14 导出）、Slint 生成器与代理页布局，零平台 API / 零 wire；`--locked` contract+Slint nextest **984/984**、定向 Clippy `--all-targets -D warnings`、`cargo fmt --all --check` 为 `L`。交叉构建与 aarch64 目标机产物未复跑 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 完成两包定向测试 / Clippy / fmt、199 帧整批重采（run `20261111T205728Z_58a80f5286b1_dirty_2295244`，369s）、空间门与回执新鲜度；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
@@ -420,7 +446,7 @@
 7. 模块化：契约 typed `ProxyGridForm` → v14 导出 → 生成函数 → Slint 页面一条链完成；`slint-viewport-tier-guard` 43/43（生成函数无人读、私写 250/32、重命名词表均咬）；`line` / `import` / `typed-state` / `implicit-state` / `doc-governance` / `closure-questions` 全 0 → 完整（L）。
 8. CI 与批次效率：开发期只跑受影响两包；产出期一次 199 帧重采（369s）+ 双表面空间门 + 全组 planted 自测与导出新鲜度，未重复全仓重编；全仓 `--workspace` nextest / clippy、结构门全腿与 `resolve_surface_evidence.py` 留统一批次一次跑完 → 部分（L）。
 
-## 最近一批问答（2026-11-12 第二百一十一批次：Iced 流量统计成为独立目的地）
+## 历史问答（2026-11-12 第二百一十一批次：Iced 流量统计成为独立目的地）
 
 1. x86_64/aarch64：本批改契约页形 owner（v13 导出）、Iced `Route::Traffic`、捕获矩阵与 190 帧真实像素，零平台 API / 零 wire；`--locked` contract+shared+Iced nextest **1313/1313**、定向 clippy `--all-targets -D warnings`、`cargo fmt --all --check` 为 `L`。交叉构建与 aarch64 目标机产物未复跑 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 完成三包定向测试 / clippy / fmt、190 帧整批重采（run `20261111T192135Z_a866e860b2d7_dirty_1788701`，binary SHA-256 `0b9d58144cab3302a8efe139c6845be73c739e4460f3032aa03823ce694eace8`）、Iced 190 + Slint 199 帧空间门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
@@ -432,7 +458,7 @@
 7. 模块化：契约 → v13 导出 → 生成器 / 判定器 → Iced 消费一条链完成；`iced-observation-routes-guard` 13/13（旧 `runtime-traffic` 别名、Runtime→Settings 归属、页顶帧均咬）、`iced-sidebar-nav-guard` 8/8、`sidebar-expansion-owner-guard` 10/10、`slint-viewport-tier-guard` 41/41；`line` / `import` / `typed-state` / `implicit-state` / `doc-governance` / `closure-questions` 全 0 → 完整（L）。
 8. CI 与批次效率：开发期只跑受影响三包；产出期一次 190 帧重采（283s）+ Iced / Slint 双表面空间门 + 全组 planted 自测与导出新鲜度，未重复全仓重编；全仓 `--workspace` nextest / clippy、结构门全腿与 `resolve_surface_evidence.py` 留统一批次一次跑完，`screenshot-identity` 唯一红腿是另一会话 Bevy 像素 → 部分（L）。
 
-## 最近一批问答（2026-11-12 第二百零九批次：Iced 侧栏宽度只读契约）
+## 历史问答（2026-11-12 第二百零九批次：Iced 侧栏宽度只读契约）
 
 1. x86_64/aarch64：本批删除 `SIDEBAR_WIDTH` / `RAIL_WIDTH` 字面量并改读 `SidebarForm::width_px()`，零平台 API / 零 wire / 零像素；Iced nextest **547/547**、clippy `--all-targets -D warnings`、`cargo fmt --all --check` 为 `L`。交叉构建与 aarch64 目标机产物未复跑 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 完成 Iced 定向测试/clippy/fmt 与既有 188 帧空间门复核；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
@@ -444,7 +470,7 @@
 7. 模块化：契约 → 表面消费一条链完成；guard 新腿对旧源码形态可咬；`line` / `import` / `typed-state` / `doc-governance` / `closure-questions` 全 0 → 完整（L）。
 8. CI 与批次效率：开发期只跑 Iced 定向测试、专属守卫与 fmt；零像素重采、零全仓验证；全仓 `--workspace` nextest / clippy、结构门全腿与 `resolve_surface_evidence.py` 留统一批次一次跑完 → 部分（L）。
 
-## 最近一批问答（2026-11-12 第二百零八交付批次：Profiles 页面按上游 300px 规则重排）
+## 历史问答（2026-11-12 第二百零八交付批次：Profiles 页面按上游 300px 规则重排）
 
 1. x86_64/aarch64：本批改 contract `responsive_viewport` 新规则与 v12 导出、Slint 生成器与 Profiles 页布局，零平台 API / 零 wire / 零快照；contract nextest **594/594**、Slint nextest **389/389**、clippy `--all-targets -D warnings`、`cargo check -p infiltrator-slint --features gpu-skia,capture-tools`、`cargo fmt --all --check` 为 `L`。交叉构建与 aarch64 目标机产物未复跑 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 完成定向测试/clippy/capture 构建、199 帧整批重采、空间门与回执新鲜度；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`。FlClash 桌面条带 32/28dp 与本仓 38 的差异仍归 `FLPARITY-050` → 部分（L）。
@@ -456,7 +482,7 @@
 7. 模块化：契约 → 导出 → 生成器 → 页面一条链完成，版本门与 owner guard 同批迁移；`slint-viewport-tier-guard` 41/41 + enforce 0、`sidebar-expansion-owner-guard` 9/9 + enforce 0、`slint-dashboard-grid-guard` 0、`slint-syntax-guard` 100% PASS；全仓结构门唯一红腿仍是另一会话的 Bevy 别名像素 → 完整（L）。
 8. CI 与批次效率：开发期只跑受影响包与专属守卫，像素一次整批重采（394s）而非逐场景补帧；全仓 `--workspace` nextest / clippy、结构门全腿与 `resolve_surface_evidence.py` 留统一批次一次跑完 → 部分（L）。
 
-## 最近一批问答（2026-11-11 第二百零七交付批次：回执的页身原点与桌面标题栏挂载）
+## 历史问答（2026-11-11 第二百零七交付批次：回执的页身原点与桌面标题栏挂载）
 
 1. x86_64/aarch64：本批改共享契约 `shell_receipt` 的字段语义、Slint 桌面宿主与 `.slint` 挂载条件、判定器 fixture 与 L2/L3 文档，零平台 API / 零 wire / 零快照；contract+Slint nextest **982/982**（run `7123c0ed-f3dc-4db2-ba50-01b62d48ad08`）、两包 clippy `--all-targets -D warnings`、`cargo check -p infiltrator-slint --features gpu-skia,capture-tools`、`cargo fmt --all --check` 为 `L`。交叉构建与 aarch64 目标机产物未复跑 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 完成定向测试/clippy/capture 构建、199 帧整批重采、空间门与回执新鲜度；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`。pinned FlClash v0.9.3 `getWindowHeaderHeight` 为 Windows/Linux 32dp、macOS 28dp，本仓 38 尚未按上游分支裁决，据实记 `FLPARITY-050` → 部分（L）。
@@ -468,7 +494,7 @@
 7. 模块化：窗饰规划从 `lib.rs` 拆出 `desktop_window_chrome.rs`（937 行超 800 预算 → `line-guard` 0），契约语义、宿主规划、`.slint` 消费、判定器测量四层各自单一职责；`slint-viewport-tier-guard` planted 36 → **41/41**，HEAD 旧 `.slint` / `demo.rs` 喂入 enforce 腿实测 **10 findings**、改后 0；判定器新增第 63 项原点 planted（改回旧原点时恰好它 FAIL `0 != 38`），`--self-test` **63/63**；`import` / `typed-state` / `implicit-state` 23/0/0 / `slint-syntax` / `slint-dead-input` / `slint-mobile-chrome` / `doc-governance` 全 0；全仓结构门唯一红腿仍是另一会话的 Bevy 别名像素 → 完整（L）。
 8. CI 与批次效率：开发期只跑受影响包与专属守卫，像素一次整批重采（418s）而非逐场景补帧，收口期把两处口径缺陷修在门上（L2 §3.1 曾写「b207 起契约规划 32px / 实测 98px」，与契约 38 及 387 帧已发布回执 `shell_top_air_px=46/38`、`sidebar_toggle_px=104` 同时矛盾，按实测改写；判定器 planted `_chrome()` 的窗口原点是自洽硬编码，改回旧带高时像素与回执一起漂移而 `--self-test` 仍全绿，该 fixture 无法自证原点，据实并入 `FLPARITY-050` 验收而非在 Python 另记数）。全仓 `--workspace` nextest / clippy、结构门全腿与 `resolve_surface_evidence.py` 留统一批次一次跑完 → 部分（L）。
 
-## 最近一批问答（2026-11-11 第二百零五交付批次：Iced 连接/日志独立页与日志页真实留白根因）
+## 历史问答（2026-11-11 第二百零五交付批次：Iced 连接/日志独立页与日志页真实留白根因）
 
 1. x86_64/aarch64：本批只改 Iced 表面、契约 parity 载体、捕获器与 Python 回执源码指纹规则，不改平台 API/wire/snapshot；最终 Iced nextest **638/638**、Clippy `--all-targets --features capture-tools -- -D warnings` exit 0、`cargo fmt --all --check` clean 为 `L`。交叉架构与目标机产物未验 → 部分（L）。
 2. Windows/Linux/macOS：Linux 完成包测试、Clippy、结构门（除 Bevy 身份项）、188 帧捕获、空间与回执门；Windows/macOS 构建和安装包未复跑 → 部分（L）。
@@ -480,7 +506,7 @@
 7. 模块化：捕获路由/页面布局/连接和日志呈现分别在 owner 模块；路由守卫 self-test 8/8/enforce 0，源码指纹回归单测 1/1（截图/manifest 更新不再改变源码身份，源码资产变化仍会改变指纹），`line` / `import` / `typed-state` / 文档治理通过。全结构门到截图身份项才被 Bevy 既有别名差异拦截 → 完整（L）。
 8. CI 与批次效率：最终统一捕获 188 帧耗时 280 秒，run `20261111T101129Z_8e1c2a6d7c71_dirty_3339388`，binary SHA-256 `59f611a2b60c27b96476e6f46e99ceff61891c48ad3804fe96edd636e5af7ea0`；Iced nextest 638/638，Clippy 无警告；未跑全 workspace nextest/clippy。结构门红腿为另一会话的 Bevy runtime/overview 像素别名；此项与本批 Iced 文件分离 → 部分（L）。
 
-## 最近一批问答（2026-11-11 第二百零六批次：统一验证修复 typed frame stage 与失效 parity 锚点）
+## 历史问答（2026-11-11 第二百零六批次：统一验证修复 typed frame stage 与失效 parity 锚点）
 
 1. x86_64/aarch64：本批只改 Bevy UI 内部帧观测参数结构、Iced capture-only 计数门与 parity test ID；不改 platform API、wire 或 snapshot。locked workspace nextest **6716/6716（15 skipped）**、workspace Clippy `--all-targets -D warnings`、`cargo fmt --all --check` 为 `L`；交叉构建与目标设备未验 → 部分（L）。
 2. Windows/Linux/macOS：Linux 完成全仓 nextest、Clippy 与 fmt；`check-structure.sh` 唯一红腿为 Bevy `runtime-dark` / `overview-dark` 截图别名差异，场景文件与截图由另一会话持有；Windows/macOS 构建及安装包未复跑 → 部分（L）。
@@ -492,7 +518,7 @@
 7. 模块化：typed frame stage 归 Bevy frame-observation owner，捕获路由计数归 Iced sidebar/capture 边界，ClashParty 场景锚点归 feature evidence 台账；没有在测试或 UI 写临时状态 → 完整（L）。
 8. CI 与批次效率：全仓 locked nextest **6716/6716（15 skipped）**、workspace Clippy `-D warnings` exit 0、fmt clean；完整结构门唯一失败是另一会话 Bevy `runtime-dark` / `overview-dark` alias。resolver schema/registry/discovery 检查通过，但不含 product receipts，180 cells unclosed → 部分（L）。
 
-## 最近一批问答（2026-11-11 第二百零四交付批次：侧栏空隙上限按 FlClash 实测像素收紧）
+## 历史问答（2026-11-11 第二百零四交付批次：侧栏空隙上限按 FlClash 实测像素收紧）
 
 1. x86_64/aarch64：本批用 tracked FlClash 参考图像素把 `void` 上限从 12% 收紧到 8%，新增 1 个守卫、修掉 `--update-debt` 可扩张 rail 欠账的真实缺陷，零平台 API / 零 wire / 零快照变更；contract nextest **593/593**、contract clippy `--all-targets -D warnings` exit 0、`cargo fmt --all --check` 干净、判定器自测 **62/62**、新守卫 7/7、quality/parity 单测全绿为 `L`。交叉构建、aarch64 与目标机仍由 CI / 设备矩阵补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 跑完 contract 定向测试/clippy/fmt、判定器 6 模式、双表面 `--enforce`、生成器与全部相关守卫、quality/parity 单测与结构门切片；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
@@ -504,7 +530,7 @@
 7. 模块化：新守卫 7 项 planted 覆盖换图、错测量、栈底非导航块、平铺照抄 3.06%、任意放宽上限、结构门漏接；判定器新增 `debt_growth_findings` / `rail_debt_from_results` 与第 62 项 planted，证明 `--update-debt` 只把低于上限的实测值从欠账里删除而非登记为新欠账；`line` / `import` / `typed-state` / `doc-governance` 全 0 → 完整（L）。
 8. CI 与批次效率：本批零发布像素、零重采，只跑 contract 定向测试/clippy 与 Python 守卫；全仓结构门仍在另一会话未提交的 Bevy 像素身份腿上红（`runtime-dark.png` / `overview-dark.png` 不再同字节），该腿之后的切片单独跑完为 exit 0；全仓 `--workspace` nextest/clippy 与 `resolve_surface_evidence.py` 仍留统一批次一次跑完 → 部分（L）。
 
-## 最近一批问答（2026-11-11 第二百零三交付批次：侧栏上限收归契约导出，判定器不再留私有数字）
+## 历史问答（2026-11-11 第二百零三交付批次：侧栏上限收归契约导出，判定器不再留私有数字）
 
 1. x86_64/aarch64：本批改 contract 共享契约、导出物与 Python 判定器/守卫：新增 2 个 typed 常量、`page-structure.json` 升 v11、判定器与 3 个版本门同批迁移，零平台 API / 零 wire / 零快照变更；contract nextest **593/593**、contract clippy `--all-targets -D warnings` exit 0、`cargo fmt --all --check` 干净、判定器自测 **61/61**、`py_compile` 全绿为 `L`。交叉构建、aarch64 与目标机仍由 CI / 设备矩阵补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 跑完 contract 定向测试/clippy/fmt、判定器 6 模式、双表面 `--enforce`、生成器 `--check`、两个版本守卫自测 36/36 与 9/9、quality/parity 单测与结构门切片；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
@@ -516,7 +542,7 @@
 7. 模块化：契约常量 → 导出 v11 → 判定器 → 生成器/梯守卫/owner 守卫一次迁移，不留新旧双轨；新增 planted「把导出 `void` 上限改成 0 会改变判定」证明执法随导出变化，两处旧阶梯 fixture 同步补 `navigation_limits`；L0 总纲与 L2 标准同批改写该事实；`line` / `import` / `typed-state` / `doc-governance` 全 0 → 完整（L）。
 8. CI 与批次效率：本批零发布像素、零重采，只跑 contract 定向测试/clippy 与 Python 守卫；全仓结构门仍在另一会话未提交的 Bevy 像素身份腿上红（`runtime-dark.png` / `overview-dark.png` 不再同字节），该腿之后的切片单独跑完为 exit 0；全仓 `--workspace` nextest/clippy 与 `resolve_surface_evidence.py` 仍留统一批次一次跑完 → 部分（L）。
 
-## 最近一批问答（2026-11-11 第二百零二交付批次：删掉标准里与实测相矛盾的一刀切旧文）
+## 历史问答（2026-11-11 第二百零二交付批次：删掉标准里与实测相矛盾的一刀切旧文）
 
 1. x86_64/aarch64：本批改 L2 空间利用率标准 §4 与守卫判据，新增第 8 项 planted，零 Rust / 零平台 API / 零 wire / 零快照变更；守卫自测 **8/8**、`--mode enforce` findings=0、`doc-governance OK`、`closure 8/8` 为 `L`。交叉构建、aarch64 与目标机仍由 CI / 设备矩阵补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 跑完守卫双腿、结构门切片、双表面空间判定器、回执新鲜度与文档门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
@@ -528,7 +554,7 @@
 7. 模块化：守卫第 8 项 planted 用临时文件把 §4 改回 b144 旧文，实测会报「b144 one-size-fits-all ban 与 §3.1 形态上限冲突」；`line` / `import` / `typed-state` / `doc-governance` 全 0 → 完整（L）。
 8. CI 与批次效率：本批零发布像素、零重采、零 Rust 重编；全仓结构门仍在另一会话未提交的 Bevy 像素身份腿上红（`runtime-dark.png` / `overview-dark.png` 不再同字节），该腿之后的切片单独跑完为 exit 0；全仓 `--workspace` nextest/clippy 与 `resolve_surface_evidence.py` 仍留统一批次一次跑完 → 部分（L）。
 
-## 最近一批问答（2026-11-11 第二百零一交付批次：空间利用率上限钉在真实参考像素上）
+## 历史问答（2026-11-11 第二百零一交付批次：空间利用率上限钉在真实参考像素上）
 
 1. x86_64/aarch64：本批新增 1 张 tracked 参考图、1 个 Python 守卫、结构门 2 条腿与 2 份 L2/L3 文档，零 Rust / 零平台 API / 零 wire / 零快照变更；守卫自测 **7/7**、`--mode enforce` findings=0、`python3 -m unittest discover -s scripts/quality/tests -p 'test_*.py'` 与 parity 单测全绿、`doc-governance OK` 为 `L`。交叉构建、aarch64 与目标机仍由 CI / 设备矩阵补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 跑完新守卫双腿、结构门从该腿之后的切片、双表面空间判定器、回执新鲜度与文档门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
@@ -540,7 +566,7 @@
 7. 模块化：守卫按仓库既有 `flclash-*-guard.py` 形态自成模块，7 项 planted 自测覆盖换参考图、错测量盒、填满页、错误 SHA-256、悄悄放宽上限、契约源码与导出漂移、结构门漏接；实测把导出上限改成 95% 会报「margin 14.4pp 超出 (0, 2.0]」；`line` / `import` / `typed-state` / `doc-governance` 全 0 → 完整（L）。
 8. CI 与批次效率：本批零发布像素、零重采、零 Rust 重编；全仓结构门仍在另一会话未提交的 Bevy 像素身份腿上红（`runtime-dark.png` / `overview-dark.png` 不再同字节），该腿之后的切片单独跑完为 exit 0；全仓 `--workspace` nextest/clippy 与 `resolve_surface_evidence.py` 仍留统一批次一次跑完 → 部分（L）。
 
-## 最近一批问答（2026-11-11 第二百交付批次：共享读模型、模块预算与默认特性编译一次收口）
+## 历史问答（2026-11-11 第二百交付批次：共享读模型、模块预算与默认特性编译一次收口）
 
 1. x86_64/aarch64：本批改 domain / application / contract / Iced / Slint 五包 Rust 类型归属、测试模块拆分与导入卫生，零平台 API、零 wire / 快照变更；五包 nextest **2832/2832**、五包 clippy `--all-targets -D warnings` exit 0、Iced `--features capture-tools` clippy exit 0、`cargo fmt --all --check` 干净为 `L`。交叉构建、aarch64 与目标机仍由 CI / 设备矩阵补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 跑完五包定向测试/clippy/fmt、双表面空间判定器、回执新鲜度、文档门与收口门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
@@ -552,7 +578,7 @@
 7. 模块化：实测 HEAD 的 `connection_view.rs` 为 **801** 非注释行（超 800 预算 1 行），按仓库既有 `#[path]` 约定把 348 行测试模块拆到 `connection_view_test.rs`，生产文件回到 **493** 行；同批修掉 Iced `capture_frame.rs` 一条只在 `capture-tools`/`test` 下使用却无条件导入的 `sidebar_presentation`，默认特性 clippy 由红转绿；`lumen_projection.rs` 与 `theme.rs` 把内联长路径 / `BTreeSet` 搬进 `use`，不改解析结果。`line-guard` 2956 文件 0 违规、`import-guard` 0、`typed-state` 0、`doc-governance OK` → 完整（L）。
 8. CI 与批次效率：本批零像素、零重采，只跑五包定向测试/clippy；全仓 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py` 仍留统一批次一次跑完；另一会话未提交的 Bevy 像素仍是全仓身份门唯一红腿 → 部分（L）。
 
-## 最近一批问答（2026-11-11 第一百九十九交付批次：流量审计读模型收归 domain）
+## 历史问答（2026-11-11 第一百九十九交付批次：流量审计读模型收归 domain）
 
 1. x86_64/aarch64：本批改 domain / application / presentation / Iced 四包 Rust 类型归属，零平台 API、零 wire / 快照变更；四包 nextest **2335/2335**、四包 clippy `--all-targets -D warnings` exit 0、四包 `fmt --check` 干净为 `L`。交叉构建、aarch64 与目标机仍由 CI / 设备矩阵补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 跑完四包定向测试/clippy/fmt、结构门定向腿、双表面空间判定器与回执新鲜度；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
@@ -564,7 +590,7 @@
 7. 模块化：层级按真实依赖方向裁决——contract 不能反向依赖 domain，presentation 只是 application 的 dev-dependency，故读模型归 domain；一次误放 presentation 的半成品已撤回。新增 2 条 domain 单测，`import` / `line` / `typed-state` 全 0，`doc-governance OK` → 完整（L）。
 8. CI 与批次效率：本批零像素、零重采，只跑四包定向测试/clippy；全仓 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py` 仍留统一批次一次跑完；另一会话未提交的 Bevy 像素仍是全仓身份门唯一红腿 → 部分（L）。
 
-## 最近一批问答（2026-11-11 第一百九十八交付批次：Iced 8 列矩阵单测回归收口）
+## 历史问答（2026-11-11 第一百九十八交付批次：Iced 8 列矩阵单测回归收口）
 
 1. x86_64/aarch64：本批只改 `scripts/parity/test_generate_unified_matrix.py`，零 Rust / 零平台 API / 零 wire；`python3 scripts/parity/test_generate_unified_matrix.py` **7/7 OK**、`python3 -m unittest discover -s scripts/parity -p 'test_*.py'` **65/65 OK** 为 `L`。交叉构建、aarch64 与目标机仍由 CI / 设备矩阵补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 跑完 parity 单测、生成器 `--check --surface=iced --surface=slint`、文档门与收口门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
@@ -576,7 +602,7 @@
 7. 模块化：单测按表面分别断言 header——Slint / Bevy 保持 4 列且不含审计列，Iced 保持 8 列且末列是 `traffic_audit`；原有 6 项生成器自测不变，`doc-governance OK` → 完整（L）。
 8. CI 与批次效率：本批零 Rust、零像素、零重编，只跑 parity 单测与生成器 `--check`；全仓 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py` 仍留统一批次一次跑完；另一会话未提交的 Bevy 像素仍是全仓身份门唯一红腿 → 部分（L）。
 
-## 最近一批问答（2026-11-11 第一百九十七交付批次：`FLPARITY-048` 标签截断收归共享 owner）
+## 历史问答（2026-11-11 第一百九十七交付批次：`FLPARITY-048` 标签截断收归共享 owner）
 
 1. x86_64/aarch64：本批改 `infiltrator-contract` / `infiltrator-presentation` / `infiltrator-slint` 三层 Rust 与两个 `.slint` 文件，零平台 API、零 wire；三包 nextest **1372/1372**、Slint lib **29/29**、定向 clippy `--lib -D warnings` 与 `fmt --check` 为 `L`。交叉构建、aarch64 与目标机仍由 CI / 设备矩阵补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 跑完定向测试、`overview-dark` 单帧诊断（176s）与 Slint/文档守卫；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
@@ -588,7 +614,7 @@
 7. 模块化：contract 新模块、presentation 度量桥、Slint 投影、被动 `.slint` 消费四层边界清楚；新增 12 条单测（contract 5 / presentation 5 / Slint lib 2）分别钉住几何、度量、缩放、非法盒、空串与实际显示词；`slint-syntax-guard` 100% PASS、`slint-dead-input` 0、`doc-governance` OK → 完整（L）。
 8. CI 与批次效率：本批零重采、零像素变更，只跑一次单帧诊断（176s）+ 三包定向测试/编译；未跑全仓 `--workspace` nextest/clippy 与结构门全腿（留统一批次一次跑完）；另一会话未提交的 Bevy 像素仍是全仓身份门唯一红腿 → 部分（L）。
 
-## 最近一批问答（2026-11-11 第一百九十六交付批次：`SLINT-022` 标准控件回执不随宿主翻转）
+## 历史问答（2026-11-11 第一百九十六交付批次：`SLINT-022` 标准控件回执不随宿主翻转）
 
 1. x86_64/aarch64：本批只改 `crates/infiltrator-slint/ui/lumen-app.slint`、`LUMEN-PATCHES.md` 与 `scripts/quality/slint-theme-channel-guard.py`，零平台 API、零 wire；`cargo check -p infiltrator-slint --features capture-tools` exit 0、`slint-syntax-guard` 100% PASS、`slint-theme-channel-guard --self-test` **8/8** 为 `L`。交叉构建与 aarch64 目标产物未变，仍由 CI / 设备矩阵补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 在 `prefer-light` 与 `prefer-dark` 宿主设置下各采一帧 `proxies-dark`，两次 `image.png` sha256 同为 `e43974c613e4…`、全帧与右缘 2px 带差异 0 px，宿主设置随后恢复；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
@@ -600,7 +626,7 @@
 7. 模块化：明暗事实只在根窗口两处发布；`slint-theme-channel-guard.py` 的 enforce + self-test 双腿原已接入结构门，本批只把判据从 6 项扩到 8 项，`LUMEN-PATCHES.md` 同步更正 b181 的过时结论；`slint-syntax-guard` 100% PASS、`slint-source-import-guard` 718 files / 36 patched / 8,726,178 bytes → 完整（L）。
 8. CI 与批次效率：本批零重采、零像素变更，只跑两次单帧诊断与定向守卫/编译，未触发全仓重编；全仓 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py` 仍留统一批次一次跑完；另一会话未提交的 Bevy 像素仍是全仓身份门唯一红腿 → 部分（L）。
 
-## 最近一批问答（2026-11-11 第一百九十五交付批次：`TRAFFICAUDIT-001` 全链接真 / 29 帧 AA 归因）
+## 历史问答（2026-11-11 第一百九十五交付批次：`TRAFFICAUDIT-001` 全链接真 / 29 帧 AA 归因）
 
 1. x86_64/aarch64：本批改 domain / application / presentation / Iced 四层 Rust，零平台 API、零 wire；`cargo nextest run -p infiltrator-domain` **631/631**、`-p infiltrator-application` **675/675**、`-p infiltrator-iced --features capture-tools` **634/634**、合并 **1309/1309**、定向 clippy `--all-targets -D warnings` exit 0 为 `L`。交叉构建与 aarch64 目标产物未变，仍由 CI / 设备矩阵补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 跑完四包 nextest / clippy / fmt、Iced 186/186 真实像素重采（run `20261111T015000Z_ac6d8f958d10_dirty_353763`，binary sha `af62c849…`）、`space_utilization --surface iced --enforce` 0 违规、结构门定向腿与质量脚本单测 **367/367**；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
@@ -612,7 +638,7 @@
 7. 模块化：域窗口/累加器、application 读回、presentation 词表、Iced 状态各自成模块，测试与被测同目录（新增 domain 6 / application 5 / presentation 3 条）；`import-guard` 0（开发期 6 项内联长路径已归位）、`line-guard` 0、`typed-state` 0、`iced-dead-input-guard --self-test` PASS 且 enforce 0/0、`iced-sidebar-nav-guard` 0、`generate_unified_matrix --check --surface=iced --surface=slint` OK → 完整（L）。
 8. CI 与批次效率：开发期只跑受影响包；产出期一次跑 186 帧重采（453s）+ 双表面判定器 + `python3 -m unittest discover -s scripts/quality/tests` **367/367**，未重复全仓重编。全仓 `--workspace` nextest/clippy、结构门全腿与 `resolve_surface_evidence.py` 仍留统一批次一次跑完；`--features capture-tools` 下 `tests/capture_marker_tests.rs` 的既有编译失败按 b154/b180 记录属他人欠账；另一会话未提交的 Bevy 像素仍是全仓身份门唯一红腿 → 部分（L）。
 
-## 最近一批问答（2026-11-11 第一百九十四交付批次：`TRAFFICAUDIT-001` 域片 / 累加器收成一张索引）
+## 历史问答（2026-11-11 第一百九十四交付批次：`TRAFFICAUDIT-001` 域片 / 累加器收成一张索引）
 
 1. x86_64/aarch64：本批只改 `crates/infiltrator-domain/src` 的两个文件（`traffic_audit.rs` 与其测试、`connection_view.rs` 的一条 trait 默认实现），零平台 API、零 wire；`cargo nextest run -p infiltrator-domain` **625/625**、`cargo clippy -p infiltrator-domain --all-targets -- -D warnings` exit 0 为 `L`。交叉构建与 aarch64 目标产物未变，仍由 CI / 设备矩阵补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 完成 nextest、clippy、fmt 与五条相关守卫（line / import / typed-state / core-boundary / mod-rs / test-layout）复核；本批无平台相关改动，Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
@@ -624,7 +650,7 @@
 7. 模块化：维度、记录与读各自只有一处实现，测试与被测代码同目录（`traffic_audit_test.rs`），`test-layout-guard` / `mod-rs-guard` / `import-guard` 全 0；新增的 4 条用例把「通用读 == 命名访问器」写进断言，此后两个入口不可能各自漂移 → 完整（L）。
 8. CI 与批次效率：开发期只跑 `infiltrator-domain` 一个包（nextest 0.6s、clippy 20s），未触发全仓重编；**未跑全仓统一验证批次**（`--workspace` nextest/clippy 由收口批次一次跑完）；`--features capture-tools` 下 `tests/capture_marker_tests.rs` 的既有编译失败按 b154/b180 记录仍属他人欠账 → 部分（L）。
 
-## 最近一批问答（2026-11-11 第一百九十三交付批次：同一张国旗回执第四次到达 / 判据从结论变可量）
+## 历史问答（2026-11-11 第一百九十三交付批次：同一张国旗回执第四次到达 / 判据从结论变可量）
 
 1. x86_64/aarch64：本批只改 `docs/DESIGN_RESOURCE_STANDARD.md` §3.1 与三份台账，零平台 API、零 Rust、零像素；`slint-flag-shape-guard --mode enforce` findings=0、`--self-test` **24/24 OK**、发布回执像素复量为 `L`。交叉构建与 aarch64 目标产物未变，仍由 CI / 设备矩阵补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 完成守卫双腿、发布帧像素复量（`overview-dark` 发布批 `20261110T220049Z_7c92aaf890f3_dirty_2457766`）、文档门与收口门；本批无平台相关改动，Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
@@ -636,7 +662,7 @@
 7. 模块化：判据集中在 `scripts/quality/slint-flag-shape-guard.py`（planted 自测 24/24），标准 §3.1 是它的文档面；本批把「容器不得圆」写成可量条款后仍然只有一个判定器、一套阈值，工具不新增 → 完整（L）。
 8. CI 与批次效率：零 Rust、零像素、零重采，成本只有守卫自测与一次像素复量（秒级）；**未跑全仓统一验证批次**（`--workspace` nextest/clippy 由收口批次一次跑完）；`--features capture-tools` 下 `tests/capture_marker_tests.rs` 的既有编译失败按 b154/b180 记录仍属他人欠账 → 部分（L）。
 
-## 最近一批问答（2026-11-11 第一百九十二交付批次：Iced 死控件守卫落地 / 形态归属审计）
+## 历史问答（2026-11-11 第一百九十二交付批次：Iced 死控件守卫落地 / 形态归属审计）
 
 1. x86_64/aarch64：本批只新增守卫与台账并改文档/账本（`scripts/quality/iced-dead-input-guard.py`、`iced_dead_input_inventory.json`、`check-structure.sh` 两条腿、空间利用率标准与三份台账），零平台 API、零 Rust；`--self-test` PASS、`--mode enforce` findings=0 为 `L`。交叉构建与 aarch64 目标产物未变，仍由 CI / 设备矩阵补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 完成守卫自测、enforce、判定器双腿复核、contract+Iced nextest **1224/1224**、定向 clippy 与 `cargo fmt --check`，并**逐条复跑结构门前 63 条腿**（此前我的验证口径从身份腿之后开始，漏掉了前段）——唯一红腿仍是另一会话未提交的 Bevy 别名像素；同批复跑中发现并修好一条 **b189 引入的 `import-guard` 违规**（`pub(crate) use dns_query::DNS_QUERY_SCROLL_ID;` 再导出，改为从定义模块的规范路径导入），这是**验证口径的缺口**而不是守卫坏了，已据实记入本批；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
@@ -648,7 +674,7 @@
 7. 模块化：守卫自带 planted 自测（一条正例 + 四条负例：受限 `pick_list`、`unwrap_or` 兜底、模态遮罩吞点击、`Task::perform` 完成回调），台账与守卫同目录且只减不增，新增死控件会被 `--update-inventory` 拒绝（实测）；标准 §3.1 是判据唯一的文档面 → 完整（L）。
 8. CI 与批次效率：零 Rust、零像素、零重采，成本只有守卫自测（毫秒级）与两条判定复核；守卫两条腿已接入结构门（紧邻 Iced 侧栏守卫）。**未跑全仓统一验证批次**（`--workspace` nextest/clippy 由收口批次一次跑完）；`--features capture-tools` 下 `tests/capture_marker_tests.rs` 的既有编译失败按 b154/b180 记录仍属他人欠账 → 部分（L）。
 
-## 最近一批问答（2026-11-11 第一百九十一交付批次：底栏不是页身内容，测量盒两轴对称）
+## 历史问答（2026-11-11 第一百九十一交付批次：底栏不是页身内容，测量盒两轴对称）
 
 1. x86_64/aarch64：本批只改判定器与文档（`scripts/parity/space_utilization.py`、空间利用率强制标准、账本与收口表），零平台 API、零 Rust；`space_utilization --self-test` **60/60**、双表面 `--enforce` violations=0 为 `L`。交叉构建与 aarch64 目标产物未变，仍由 CI / 设备矩阵补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 完成自测、双表面判定与报告复核；本批无平台相关改动，Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
@@ -660,7 +686,7 @@
 7. 模块化：修正点只有 `content_box` 一个函数，planted 负例与它同批落地（栏内墨迹必须在盒外、空页身必须读成 100% 页尾），并且把该负例在改动前复跑证明会咬（FAIL → OK）；标准 §2/§11 是它的唯一文档面 → 完整（L）。
 8. CI 与批次效率：本批零 Rust 改动、零像素改动、零重采，成本只有判据自测（1.9s）与两次判定（各约 5s）——先量、再改判据、再用同一份已发布语料复核，是这一批能做到的最小成本。**未跑全仓统一验证批次**（`--workspace` nextest/clippy 由收口批次一次跑完）；`--features capture-tools` 下 `tests/capture_marker_tests.rs` 的既有编译失败按 b154/b180 记录仍属他人欠账 → 部分（L）。
 
-## 最近一批问答（2026-11-11 第一百九十交付批次：Iced 密度缺口一次收口、欠账台账归零）
+## 历史问答（2026-11-11 第一百九十交付批次：Iced 密度缺口一次收口、欠账台账归零）
 
 1. x86_64/aarch64：本批只改 Iced 表面（`view/components.rs`、`view/chrome.rs`、`sidebar_chrome.rs`、`view/rules.rs`、`view/runtime.rs`、`tests/gui/sidebar_chrome_tests.rs`）、共享契约（`design_tokens.rs` 的浅色页身令牌与 `SurfaceElevation::Background`、`surface_hierarchy.rs` 的逐皮肤判据）、Bevy 侧同值拷贝与 Iced 语料，不含平台 API；`cargo check -p infiltrator-iced --features capture-tools` exit 0、Iced nextest **636/636**、contract nextest **588/588** 为 `L`。交叉构建与 aarch64 目标产物仍由 CI / 设备矩阵补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 完成编译、定向 nextest、定向 clippy、`cargo fmt`、Iced 整批重采（184/184，298s）与结构门身份腿之后 **160 条腿**（`set -e` 下 exit 0）；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
@@ -672,7 +698,7 @@
 7. 模块化：Iced 的页面与共享事实分开——页身框架是一个组件、标题条占位由画条的人发布、浅色地面由契约令牌发布、可辨性判据住在契约里；页面不再自持第二个滚动窗（`rules-page-scroll` 退役），runtime 的卡栈缝读数来自文档化间距阶梯而非私有魔数；一次被撤回的实验（把列表体拉成 `Fill` 高）在提交前还原，不留半成品 → 完整（L）。
 8. CI 与批次效率：一次 Iced 构建 + 一次 184 帧重采（298s）+ 结构门身份腿之后 160 条腿（`set -e` 下 exit 0）+ contract/Iced nextest 与定向 clippy/fmt，改动面限定在 Iced、契约与 Bevy 侧的一份同值拷贝。**未跑全仓统一验证批次**（`--workspace` nextest/clippy 由收口批次一次跑完）；`--features capture-tools` 下 `tests/capture_marker_tests.rs` 的既有编译失败按 b154/b180 记录仍属他人欠账、本批不越权修 → 部分（L）。
 
-## 最近一批问答（2026-11-11 第一百八十九交付批次：Iced 的第一份空间利用率回执 / 矩阵带契约形态列）
+## 历史问答（2026-11-11 第一百八十九交付批次：Iced 的第一份空间利用率回执 / 矩阵带契约形态列）
 
 1. x86_64/aarch64：本批只改 Iced 表面与捕获装置（`view_root/modals/dns_query.rs`、`view_root/modals.rs`、`capture_geometry.rs`、`scripts/parity/generate_unified_matrix.py`、`scripts/capture-iced-matrix.sh`、`scripts/capture_iced_scenarios.tsv`、`scripts/parity/space_utilization.py`、别名表、Iced 语料与文档），不含平台 API；`cargo check -p infiltrator-iced --features capture-tools` exit 0、Iced nextest **636/636** 为 `L`。交叉构建与 aarch64 目标产物仍由 CI / 设备矩阵补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 完成编译、定向 nextest、定向 clippy、`cargo fmt --check`、Iced 整批重采（184/184，268s）与守卫批（判定器 `--self-test` **59/59**、双表面 `--enforce` violations=0、`receipt-freshness 0`、矩阵 `--check` OK）；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
@@ -684,7 +710,7 @@
 7. 模块化：采集装置与表面分开——生成器只写它拥有的列、脚本只校验与转发、判定器只读回执与像素；亚像素容差是文档化常量而非散落魔数；DNS 滚动区 identity 与 reveal 目标都由组件自身发布，探针只引用 → 完整（L）。
 8. CI 与批次效率：一次构建 + 一次 184 帧重采（268s）+ 一批守卫，改动面限定在 Iced 一包、捕获装置、语料与文档；判定器两条腿与新矩阵腿已接入结构门。**未跑全仓统一验证批次**；`--features capture-tools` 下 `tests/capture_marker_tests.rs` 的既有编译失败按 b154/b180 记录仍属他人欠账、本批不越权修 → 部分（L）。
 
-## 最近一批问答（2026-11-11 第一百八十八交付批次：国旗资产族整体方化 / 组件与令牌零圆角）
+## 历史问答（2026-11-11 第一百八十八交付批次：国旗资产族整体方化 / 组件与令牌零圆角）
 
 1. x86_64/aarch64：本批只改 Slint 表面（`ui/lumen-flags.slint`、`ui/components/country_chip.slint`、`ui/components/theme.slint`、`ui/pages/page_about.slint`）、共享资产与目录（`assets/flags/` 258 个 SVG、`asset-catalog.json`、`NOTICE.md`、新增 `LICENSE-FLAG-ICONS`）、zh/en 两份 `.po`、`scripts/quality/slint-flag-shape-guard.py`、`scripts/parity/screenshot_aliases.tsv` 与文档，不含任何架构相关或平台相关代码；`cargo check -p infiltrator-slint` exit 0、Slint nextest **386/386** 为 `L`。交叉 `scripts/cross-check.sh` 与 aarch64 目标产物仍由 CI runner / 设备矩阵补证，故只能写「部分（L）」。
 2. Windows/Linux/macOS：本机 Linux 完成编译、定向 nextest、199 帧整批重采（199/199，358s）与守卫批（`slint-flag-shape-guard --self-test 24/24`、`--mode enforce findings=0`、`space_utilization --enforce violations=0`、`receipt-freshness 0`）；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported` → 部分（L）。
@@ -696,7 +722,7 @@
 7. 模块化：资产归资产（`assets/flags/` + catalog 单一清单）、几何归组件（`FlagIcon` / `CountryChip` 各一处派生）、门禁归守卫（清单几何 / 组件 / 主题三层判据各一条腿），页面不再持有任何容器或兜底文案；本批还顺带清掉一次误夹带的矩阵重排（发现 `capture_slint_scenarios.tsv` 被生成器重写成 4 列并丢掉 12 个手工附录场景行后，还原到 HEAD 再重采） → 完整（L）。
 8. CI 与批次效率：一次构建 + 一次 199 帧重采（358s）+ 一批守卫，改动面限定在 Slint 一包、共享资产、文案表、守卫与文档，符合「一组一收口」；**未跑全仓统一验证批次**（`cargo nextest --workspace --no-fail-fast`、clippy 与结构门全腿由收口批次一次跑完），且 `--features capture-tools` 下 `tests/capture_marker_tests.rs` 的既有编译失败按 b154/b180 记录仍属他人欠账、本批不越权修 → 部分（L）。
 
-## 最近一批问答（2026-11-11 第一百八十七交付批次：Iced 侧栏发布自己的 chrome 回执 / 行几何对齐参照行）
+## 历史问答（2026-11-11 第一百八十七交付批次：Iced 侧栏发布自己的 chrome 回执 / 行几何对齐参照行）
 
 1. x86_64/aarch64：本批只改 Iced 表面（`src/sidebar_chrome.rs` 新增、`capture_geometry.rs`、`capture_frame.rs`、`demo.rs`、`demo/capture.rs`、`demo/state.rs`、`state/shell.rs`、`state/surface_snapshot.rs`、`types/message.rs`、`update/ui.rs`、`view/sidebar.rs`、`view/components.rs`、`view/theme.rs` 与其测试）、判定器脚本、两份共享文案表条目与三份文档，零平台 API、零设备交互；`cargo check -p infiltrator-iced --all-targets --features capture-tools` exit 0、Iced nextest **636/636**、`cargo clippy -p infiltrator-iced --all-targets --features capture-tools -- -D warnings` exit 0；交叉 `scripts/cross-check.sh` 与 aarch64 产物仍待 CI runner / 设备矩阵补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 完成编译、三次定向 nextest、两次定向 clippy、`cargo fmt --check` 与守卫批；本批**无像素重采**（Iced 语料仍是 b186 前的旧批），Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） → 部分（L）。
@@ -708,7 +734,7 @@
 7. 模块化：侧栏的「形态 + 回执」从视图里拆出——`sidebar_chrome.rs` 只做偏好×视口的唯一解析、12 键装配与 widget id 常量，探针在 `capture_geometry.rs`，视图只画解析结果并向 owner 发 typed intent；判定器把 Slint 专属假设参数化成「表面」而不是复制第二份判定器（`--surface` 只选择采集根与台账，判定逻辑共用，自测 50 → **58/58**）。批次内还顺手修掉 b186 留下的 5 处 rustfmt 偏差（`i18n_parity_tests` 过行、`overview_master_switches_tests` 与 `view/overview_master_switches.rs`/`view/settings.rs` 的 import 次序、`view_sidebar_tests` 多余空行），使命中路径回到 `cargo fmt --check` 干净；新增单测按仓库约定挂在 `tests/gui/sidebar_chrome_tests.rs`（首版内联在 `sidebar_chrome.rs`，被 `test-layout-guard.py` 咬出后改正） → 完整（L）。
 8. CI 与批次效率：本批无像素重采（Iced 侧重采是 `SPACEUTIL-012`），开销集中在三次定向 nextest、两次定向 clippy、一次 `cargo fmt --check` 与一批守卫；改动面限定在 Iced 一包 + 判定器 + 文案表 + 文档，符合「一组一收口」。**未跑全仓统一验证批次**（`cargo nextest --workspace`、`cargo clippy --workspace`、结构门全腿、`resolve_surface_evidence.py`），按仓库纪律留给收口批次一次跑完；本批新立 `SPACEUTIL-012`（2 pt / `Planned`），未办结分母 **115 → 117 pt / 47 → 48 条**（现在佛 12 → 13 条 / 27 → 29 pt），已归档 **1,258 pt / 463 条** 保持，累计 **1,375 pt**，严格归档交付率 **91.6% → 91.5%**（1,258/1,375） → 部分（L）。
 
-## 最近一批问答（2026-11-11 第一百八十六交付批次：Iced 侧栏回归纯导航 / 行集唯一来自共享注册表）
+## 历史问答（2026-11-11 第一百八十六交付批次：Iced 侧栏回归纯导航 / 行集唯一来自共享注册表）
 
 1. x86_64/aarch64：本批只改 Iced 表面（`view/sidebar.rs`、`view/settings.rs`、`view/chrome.rs`、`view/components.rs`、`view/svg_icons.rs`、`view/overview_master_switches.rs` 与其测试）、一条新守卫与文档，零平台 API、零设备交互；`cargo check -p infiltrator-iced --all-targets` exit 0、Iced nextest **539/539** 与 **630/630**（含 headless 二进制）、`cargo clippy --workspace --all-targets -- -D warnings` exit 0；交叉 `scripts/cross-check.sh` 与 aarch64 产物仍待 CI runner / 设备矩阵补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 完成编译、定向 nextest、全仓 clippy 与守卫；本批无像素重采（Iced 不发布 chrome 回执），Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） → 部分（L）。
@@ -720,7 +746,7 @@
 7. 模块化：侧栏现在是「一个列 + 三种形态」的投影（207 行）：`sidebar.rs` 只做「注册表行 → 行组件」，字形解析归 `svg_icons.rs`，事实展示归各页与标题栏，折页清单归契约 `pages_folded_under`；门禁把「不得回来」的六条写死，删除的区块与 helper 不留第二套几何或兼容分支。批次内还据实修好一条**属主在 Iced 测试自己的**缺陷：headless 二进制需 `--features capture-tools` 才被 `-p infiltrator-iced` 选中，于是该测试族此前未进过「537/537」；复跑后发现 `i18n_parity_tests` 的 key 清单是手写 12 张表（漏了 `locales_table_shared_copy_{zh,en}` 与 `locales_table_errors_{zh,en}`），`about_brand_note` 因此被判「缺失」。修法是**把清单改成目录发现**并把 zh/en 配对判据改用同一发现（英文表名有 `locales_table_en_*` 与 `*_en.rs` 两种形态，两半都要认），修完实测 zh 8 张 / en 3 张表、键集各 **2,712** 且完全相等——这是「判据看不见目录」的失败模式，不是放宽门 → 完整（L）。
 8. CI 与批次效率：本批无像素重采（Iced 侧尚无回执通道），开销集中在一次全仓 clippy、一次全仓 nextest、两次定向 nextest 与一次结构门全腿；改动面限定在 Iced 一包，符合「一组一收口」。**统一验证批次结果**：`cargo nextest run --workspace --no-fail-fast` **5950/5950**（15 skipped）exit 0、`cargo clippy --workspace --all-targets -- -D warnings` exit 0、身份腿之后 **157 条结构门腿 exit 0**；本批新立 `SPACEUTIL-011`（2 pt / `Integrated`），未办结分母 **113 → 115 pt / 46 → 47 条**（现在佛 11 → 12 条 / 25 → 27 pt），已归档 **1,258 pt / 463 条** 保持，累计 **1,371 → 1,373 pt**，严格归档交付率 **91.8% → 91.6%**（1,258/1,373） → 部分（L）。
 
-## 最近一批问答（2026-11-11 第一百八十五交付批次：身份块就是旗面本身 / 圆角取旗面自己的圆角）
+## 历史问答（2026-11-11 第一百八十五交付批次：身份块就是旗面本身 / 圆角取旗面自己的圆角）
 
 1. x86_64/aarch64：本批只改 Slint 表面（`ui/components/country_chip.slint`、`ui/components/theme.slint`）、一条 `.slint` 门禁、别名摘要与三份文档，零 Rust、零平台 API、零设备交互；`cargo check -p infiltrator-slint` exit 0、Slint nextest **386/386**；交叉 `scripts/cross-check.sh` 与 aarch64 产物仍待 CI runner / 设备矩阵补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 完成编译、定向 nextest、199 帧真实像素整批重采与全部守卫；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） → 部分（L）。
@@ -732,7 +758,7 @@
 7. 模块化：旗面几何（`plate-height` / `canvas-lead`）、兜底与地面（`background` 条件）、圆角（`LumenTheme.country-chip-radius`）三件事各只有一个真源且都被门禁钉住；「Slint 不按圆角裁剪子元素」这一渲染事实已核实到上游 crate 源码，取代了此前默认的错误模型；没有为让像素过关而在页面里加布尔或写死数字 → 完整（L）。
 8. CI 与批次效率：本批一次整批重采（1386s；同一时段另一会话在满负荷编译，b184 同规模为 435s，可见机器争用代价），未逐场景补帧；改动面 14 帧且三处判据同向（旗面盒、chip 高、地面消失）说明切片边界清晰。全仓统一验证、结构门全腿与 9 条 `Integrated` 仍由收口批次一次跑完；本批不办结、不新立，未办结分母 **113 pt / 46 条**、已归档 **1,258 pt / 463 条**、累计 **1,371 pt**、严格归档交付率 **91.8%** 均保持 → 部分（L）。
 
-## 最近一批问答（2026-11-11 第一百八十四交付批次：策略组网格按参照物的宽度规则排布 / 卡的宽度先回到行的份额）
+## 历史问答（2026-11-11 第一百八十四交付批次：策略组网格按参照物的宽度规则排布 / 卡的宽度先回到行的份额）
 
 1. x86_64/aarch64：本批只改 Slint 表面（`ui/pages/home_widgets.slint`、`ui/pages/home_desktop_grid.slint`、`ui/components/theme.slint`）、一条 `.slint` 门禁腿与台账/收口文档，零 Rust、零平台 API、零设备交互；`cargo check -p infiltrator-slint` exit 0、Slint nextest **386/386** 为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 产物仍待 CI runner / 设备矩阵补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 完成编译、定向 nextest、199 帧真实像素整批重采与全部守卫；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） → 部分（L）。
@@ -744,7 +770,7 @@
 7. 模块化：宽度只在页面一处发布（`footer-row-gap` / `connections-card-width` / `policy-card-width` 三条属性），表的七列分数只在表内乘一次，策略组的列数规则只在 `HomePolicyGroupGrid` 一处；旧令牌 `policy-card-min-width`（其注释还写着「2 张瓦片 + 间距 + 内边距」，即旧两列假设）与其门禁腿同批清退，不留第二套几何。第一次实现让网格直接读被 stretch 决定的自身宽度，编译即报 binding loop，**没有**用布尔旁路或写死数字蒙混，而是回到「房间由行给出」这一层修 → 完整（L）。
 8. CI 与批次效率：本批一次整批重采（435s）而非逐场景补帧；改动面小（7 帧）且三条判据同向（瓦片宽度、卡内死地、行份额）说明切片边界清晰——「卡能有多宽」必须先不依赖内容，网格才敢问自己的房间。全仓统一验证与 9 条 `Integrated`（含本批 `FLPARITY-049`）仍由收口 owner 一次跑完；本批不办结、不新立，未办结分母 **113 pt / 46 条**、已归档 **1,258 pt / 463 条**、累计 **1,371 pt**、严格归档交付率 **91.8%** 均保持 → 部分（L）。
 
-## 最近一批问答（2026-11-11 第一百八十三交付批次：国旗的容器不再是圆 / 身份块只有一个 owner）
+## 历史问答（2026-11-11 第一百八十三交付批次：国旗的容器不再是圆 / 身份块只有一个 owner）
 
 1. x86_64/aarch64：本批只改 Slint 表面（新增 `ui/components/country_chip.slint`，改 `ui/components/theme.slint`、两个首页出口行与 `docs/SURFACE.md`）、一个 `.slint` 门禁（`scripts/quality/slint-flag-shape-guard.py`）与台账/标准文档，零 Rust、零平台 API、零设备交互；`cargo check -p infiltrator-slint` exit 0、Slint nextest **386/386** 为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 产物仍待 CI runner / 设备矩阵补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 完成编译、定向 nextest、199 帧真实像素整批重采与全部守卫；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） → 部分（L）。
@@ -756,7 +782,7 @@
 7. 模块化：形状事实只在 `ui/components/country_chip.slint` 一处；圆角只在 `theme.slint` 的 `country-chip-radius` 一处；`FlagIcon` 仍只画方板（不 clip、不圆角、`image-fit: contain`），两个首页出口行都不再持有容器或兜底文案。同批撤回一次未成立的尝试（策略组瓦片 `vertical-stretch: 1`）并 `git checkout` 还原——复核上游 `_GroupTiles` 的固定 `mainAxisExtent: height` + 溢出 `DashboardFadeOut` 后判定「拉伸瓦片」不是对标结论，工作树无残留双轨；`docs/SURFACE.md` 的组件清单同批登记新组件 → 完整（L）。
 8. CI 与批次效率：本批属可见身份变化，按「身份改动集中一次做完」一次整批重采（421s），不逐场景补帧；改动面小（14 帧、单帧 104–168 px）说明切片边界清晰——把「容器形状」从一个门禁看不见的位置（页面里的私有 `Rectangle`）搬进门禁能咬的 owner。全仓统一验证与 8 条 `Integrated` 仍由收口 owner 一次跑完；新立 `FLPARITY-049` 2 pt 使未办结分母 111 → **113 pt / 46 条**（现在佛 10 → 11 条 / 23 → 25 pt）、累计 1,369 → **1,371 pt**，严格归档交付率 91.9% → **91.8%**（1,258/1,371） → 部分（L）。
 
-## 最近一批问答（2026-11-10 第一百八十二交付批次：速率卡的波形填满卡身 / 缩放事实只由 owner 决定）
+## 历史问答（2026-11-10 第一百八十二交付批次：速率卡的波形填满卡身 / 缩放事实只由 owner 决定）
 
 1. x86_64/aarch64：本批只改 Slint 表面的仪表盘布局与投影消费（`ui/pages/home_widgets.slint`、`ui/pages/home_desktop_grid.slint`、`ui/pages/home_compact_flow.slint`、`src/lumen_projection/dashboard.rs`）、一条 Python 判据与两条 Rust 用例，零平台 API、零设备交互；`cargo check -p infiltrator-slint`、`cargo clippy -p infiltrator-slint --all-targets -- -D warnings` **exit 0**、Slint nextest **386/386** 为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 产物仍待 CI runner / 设备矩阵补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 完成编译、clippy、定向 nextest、199 帧真实像素整批重采与全部守卫；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） → 部分（L）。
@@ -768,7 +794,7 @@
 7. 模块化：形状事实只在 `HomeWaveBand` 一处（`vertical-stretch: 1` + `min-height`，入口按事实改名 `min-band-height`，两个调用点同批迁移、不留旧名兼容分支）；尺度事实只在 presentation owner 一处；几何只在 `waveform_path` 一处。两张速率卡内各自的透明垫片同批删除，仪表盘页的 `Rectangle { vertical-stretch: 1; background: transparent; }` 为 0 → 完整（L）。
 8. CI 与批次效率：本批属可见身份变化，按「身份改动集中一次做完」一次整批重采（440s），不逐场景补帧；改动面小（11 帧）说明切片边界清晰，并把「被中断批次能被当成发布批次」修在门上而不是放宽判据或手工清理暂存目录。全仓统一验证与 7 条 `Integrated`（`SLINT-023` 入列，共 15 pt）仍由收口 owner 一次跑完；`SLINT-023` 2 pt 使未办结分母 109 → **111 pt / 45 条**（现在佛 9 → 10 条 / 21 → 23 pt）、累计 1,367 → **1,369 pt**，严格归档交付率 92.0% → **91.9%**（1,258/1,369） → 部分（L）。
 
-## 最近一批问答（2026-11-10 第一百八十一交付批次：明暗事实只有一个写者 / `@material` 组件不再自行跟平台）
+## 历史问答（2026-11-10 第一百八十一交付批次：明暗事实只有一个写者 / `@material` 组件不再自行跟平台）
 
 1. x86_64/aarch64：本批改 Slint 表面的 vendored 主题选择（`material_palette.slint` 的 `scheme`、`elevation.slint` 的 `dark`、`lumen-app.slint` 的两笔写入）与两条 Python 判据，零平台 API、零设备交互；`cargo check -p infiltrator-slint --all-targets`、`cargo clippy -p infiltrator-slint --all-targets -- -D warnings` **exit 0**、Slint nextest **384/384** 为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 产物仍待 CI runner / 设备矩阵补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 完成编译、clippy、定向 nextest、199 帧真实像素整批重采与全部 Slint 守卫；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） → 部分（L）。
@@ -780,7 +806,7 @@
 7. 模块化：改动落在三个 owner 各一处——vendored `MaterialPalette`（通道输入 + `scheme` 选择）、`Elevation`（读同一通道）、`lumen-app.slint`（根窗口在写 `LumenTheme.dark-mode` 的两处同笔写入）；明暗结论仍只在 `LumenTheme.dark-mode` 一处产生。供应商台账同时修好：`material_palette.slint` 的记录此前只指向 pristine 副本，编译器真正读取的在制文件从未被清单枚举，上一条补丁（`color-scheme` 输出，`9c7bb6e`）因此从未登记——门一直绿是因为它看不见；现按仓库既有 34 个 patched 记录的约定把两份在制文件改记为 patched + `original_bytes`/`original_sha256`/`patch_source`，`imported_bytes` 8,725,428 → 8,726,178 → 完整（L）。
 8. CI 与批次效率：本批属可见身份变化，按「身份改动集中一次做完」一次整批重采（578s），不逐场景补帧、不留新旧双轨，并把一条能让补丁绕过供应商台账的门洞修在门上。全仓统一验证与 6 条 `Integrated`（`SLINT-021` 入列）仍由收口 owner 一次跑完；`SLINT-021` 2 pt 交付 + 实测新立 `SLINT-022` 2 pt 使未办结分母 105 → **109 pt / 44 条**（现在佛 7 → 9 条 / 17 → 21 pt）、累计 1,363 → **1,367 pt**，严格归档交付率 92.3% → **92.0%**（1,258/1,367）——新登记缺陷让分母变大、比率下降，是如实记账而非倒退 → 部分（L）。
 
-## 最近一批问答（2026-11-10 第一百八十交付批次：demo 快照沿业务缝拆成 baseline/pages / 结构门 line 预算与 `mod.rs` 扫描域回到绿）
+## 历史问答（2026-11-10 第一百八十交付批次：demo 快照沿业务缝拆成 baseline/pages / 结构门 line 预算与 `mod.rs` 扫描域回到绿）
 
 1. x86_64/aarch64：本批只重排 `crates/infiltrator-slint/src/demo*` 的源码结构与一条 Python 判据的扫描域，零平台 API、零设备交互；`cargo check -p infiltrator-slint`（默认特性）零警告、`cargo clippy -p infiltrator-slint --all-targets -- -D warnings` **exit 0**、Slint nextest **384/384** 为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 产物仍待 CI runner / 设备矩阵补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 完成编译、clippy、定向 nextest 与 `check-structure.sh` 的 176/177 条腿；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） → 部分（L）。
@@ -792,7 +818,7 @@
 7. 模块化：`demo.rs` **822 → 311** 非注释行（总行 958 → 403），新增 `demo/baseline.rs`（142 非注释行）与 `demo/pages.rs`（413 非注释行），三者均落在 800 行预算内且沿业务缝而不是按行数切分；搬移前后 `demo*` 代码行（去注释去空行）多重集比对显示移除行与新增行只有导入、函数签名、`PageData::ready(...)` 包装与 `}` 收尾等胶水，**零数据字面量改变**，即纯搬移；`mod-rs-guard` 的扫描域同时收窄为产品树（隐藏路径分量一律跳过），实测 `git ls-files` 下隐藏目录内 `*.rs` 0 条、全仓被跟踪 `mod.rs` 0 条 → 完整（L）。
 8. CI 与批次效率：本批把两条红腿（`line-guard` 的 822 行模块预算、`mod-rs-guard` 把 gitignored `.evidence/` 暂存树算进产品树）都修在门上而不是放宽判据，且不改像素因此零重采成本，只复跑守卫双腿与受影响包；`mod-rs-guard` 的 planted 自测由 2 增到 3，新增「隐藏暂存树里的 `mod.rs` 不被扫、同一棵树里非隐藏路径仍被咬」的负例。全仓统一验证与 5 条 `Integrated`（含 b177 的 `SLINT-020`）仍由收口 owner 一次跑完；严格交付率保持 **1,258 / 1,363 = 92.3%** → 部分（L）。
 
-## 最近一批问答（2026-11-10 第一百七十八交付批次：panic 门的清单腿与源码腿同域 / 把门修在门上）
+## 历史问答（2026-11-10 第一百七十八交付批次：panic 门的清单腿与源码腿同域 / 把门修在门上）
 
 1. x86_64/aarch64：本批只改 `scripts/quality/panic-boundary-guard.py` 的 manifest 扫描域与一条 planted 自测，零 Rust、零平台 API、零设备交互；`python3 -m py_compile`、`--mode enforce`（5 registered boundaries / 5 sites / no panic=abort）、`--self-test` **5/5 OK** 为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 产物仍待 CI runner / 设备矩阵补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 完成守卫双腿、367 项质量脚本单测与文档门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） → 部分（L）。
@@ -804,7 +830,7 @@
 7. 模块化：改动落在一个文件的 `_manifests()` 与一条自测；扫描根仍是唯一声明并被两条腿共用。归属纪律同时写进 docstring：`.evidence/` 是 gitignored 本地暂存区，L0 要求 WIP 放那里，因此它不是产品构建图，不得让门禁判红 → 完整（L）。
 8. CI 与批次效率：本批把「结构门因 gitignored 暂存区而红」修在门上而不是关掉门，不改像素因此零重采成本，只复跑守卫双腿与质量脚本单测。全仓统一验证与 5 条 `Integrated`（含 b177 的 `SLINT-020`）仍由收口 owner 一次跑完；严格交付率保持 **1,258 / 1,363 = 92.3%** → 部分（L）。
 
-## 最近一批问答（2026-11-10 第一百七十七交付批次：国旗是方形资产 / 清单、容器与门禁一次改回事实）
+## 历史问答（2026-11-10 第一百七十七交付批次：国旗是方形资产 / 清单、容器与门禁一次改回事实）
 
 1. x86_64/aarch64：本批改 Slint 呈现层（`ui/lumen-flags.slint` 的清单与 `FlagIcon`）、shared 资产清单（`asset-catalog.json` 与退役 `assets/flags/circle-png/`）、五个调用点与新 Python 守卫，零平台 API、零设备交互；`cargo check -p infiltrator-slint --all-targets`、`cargo clippy -p infiltrator-slint -p infiltrator-shared --all-targets -- -D warnings` 零警告、Slint nextest **384/384**、shared nextest **79/79** 为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 产物仍待 CI runner / 设备矩阵补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 完成编译、clippy、定向 nextest、199 帧真实像素重采与全部守卫；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） → 部分（L）。
@@ -816,7 +842,7 @@
 7. 模块化：形状事实只在 catalog 一处、清单只在 `lumen-flags.slint` 一处、索引只在 `src/flag_assets.rs` 一处、绘制只在 `FlagIcon` 一处；守卫独立成 SLINT-020，不与 SLINT-013~019 重叠；`lumen-source/` 内的圆形副本按逐字节供应商导入快照保留，由 `slint-source-import-guard.py` 与 `SOURCE_IMPORT_MANIFEST.json` 钉住，不是本仓可消费清单。选中态对勾仍是圆形——那是徽记，不是旗帜 → 完整（L）。
 8. CI 与批次效率：本批一次整批重采（413s）而非逐场景补帧，并同批删除 1.7MB 重复资产与 258 条 catalog 记录，资产面与判定面同时变小；裁决与实测写进 L2 设计资源标准 §3.1、L3 Slint 表面契约与 L3 桌面参照基准 §12，使其它表面收口时有同一判据。全仓统一验证与 5 条 `Integrated` 仍由收口 owner 一次跑完；`SLINT-020` 2 pt 入现在佛，未办结分母 103 → **105 pt / 42 条**，严格交付率 **1,258 / 1,363 = 92.3%** → 部分（L）。
 
-## 最近一批问答（2026-11-10 第一百七十六交付批次：FlClash 折叠钮只有一个字形 / 词进 hover tooltip）
+## 历史问答（2026-11-10 第一百七十六交付批次：FlClash 折叠钮只有一个字形 / 词进 hover tooltip）
 
 1. x86_64/aarch64：本批只改 `crates/infiltrator-slint/ui/components/sidebar.slint` 的一个元素体与三份文档，零 Rust、零平台 API、零设备交互；`cargo check -p infiltrator-slint --all-targets`、`cargo clippy -p infiltrator-slint --all-targets -- -D warnings` 零警告、Slint 定向 nextest **384/384** 为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 产物仍待 CI runner / 设备矩阵补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 完成 Slint 全目标编译与 clippy、199 帧真实像素重采、空间/回执/身份/设计资源与全部 Slint 结构守卫；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） → 部分（L）。
@@ -828,7 +854,7 @@
 7. 模块化：改动落在 `sidebar.slint` 一个文件的一个元素体，文字事实回归共享文案目录的唯一真源，形态结论仍只在 `page_structure` 导出表，chrome 投影仍只在 `ShellReceipt`；侧栏不保存私有 collapsed 布尔、不从列宽反推偏好，`slint-rail-edge-dialect` 与 `sidebar-expansion-owner` 两条长腿守卫均不回归 → 完整（L）。
 8. CI 与批次效率：本批属可见身份变化，按「身份改动集中一次做完」一次整批重采（499s），不逐场景补帧、不留新旧双轨；把两次错误拼法的实测数字写进 L3 参照基准 §11，使同类改动有可查对照。全仓统一验证与 5 条 `Integrated` 仍由收口 owner 一次跑完；新立 `FLPARITY-048` 1 pt 使未办结分母 102 → **103 pt / 41 条**、累计 1,361 pt，严格交付率 **1,258 / 1,361 = 92.4%** → 部分（L）。
 
-## 最近一批问答（2026-11-10 第一百七十五交付批次：SLINT-009 的排版腿跟随绘制者 / 把误判修在门上）
+## 历史问答（2026-11-10 第一百七十五交付批次：SLINT-009 的排版腿跟随绘制者 / 把误判修在门上）
 
 1. x86_64/aarch64：本批只改 `scripts/quality/slint-viewport-tier-guard.py` 的一条 Python 判据与三份文档，零 Rust、零平台 API、零设备交互；`python3 -m py_compile`、`--mode enforce` findings=0、`--self-test` **36/36 OK** 为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 产物仍待 CI runner / 设备矩阵补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 完成守卫双腿、文档治理与收口门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） → 部分（L）。
@@ -840,7 +866,7 @@
 7. 模块化：判据的事实源分工写清并落进文档——页面 = 挂载与交付，共享行 = 类型角色/值行盒/基线对齐，theme = 角色 token；新增的 `child_blocks()` 只读组件顶层子块，避免「组件里另一处 bottom」替被钉的子块顶包（第一版判据正是这样漏判，已被 planted 咬住并收紧） → 完整（L）。
 8. CI 与批次效率：本批把「结构门在 HEAD 长期为红」修在门上而不是关掉门；不改像素因此零重采成本，只复跑守卫双腿与文档门。全仓统一验证与 5 条 `Integrated` 仍由收口 owner 一次跑完，严格交付率保持 **92.5%** → 部分（L）。
 
-## 最近一批问答（2026-11-10 第一百七十四交付批次：chrome 回执成为独立组件 / 外壳压回 SLINT-001 预算）
+## 历史问答（2026-11-10 第一百七十四交付批次：chrome 回执成为独立组件 / 外壳压回 SLINT-001 预算）
 
 1. x86_64/aarch64：本批只改 Slint 呈现层（`sidebar.slint`/`app_body.slint`/`lumen-app.slint` 与新组件）与 Python 判定器，零平台 API、零设备交互；`cargo check -p infiltrator-slint --all-targets`、Slint 定向 nextest **384/384**、contract 定向 nextest **587/587**、`cargo clippy -p infiltrator-slint --all-targets -- -D warnings` 零警告为 `L`；交叉 `scripts/cross-check.sh`、aarch64 产物与目标设备仍待 CI runner / 设备矩阵补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 完成 Slint 全目标编译/clippy、定向 nextest、199 帧真实像素重采、语法门与全部独立守卫；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） → 部分（L）。
@@ -852,7 +878,7 @@
 7. 模块化：chrome 投影归 `components/shell_receipt.slint`，按钮带测量归 `components/sidebar.slint`，页身事实归 `components/app_body.slint`，外壳只做 typed 接线；wire、解析、判定各只有一个真源；没有 bool/Option 阶段组合，也没有跨 UI 私有推导 → 完整（L）。
 8. CI 与批次效率：开发期只跑受影响包与局部守卫，199 帧矩阵与组团集中验收各跑一次；本批把 chrome 投影从外壳的 struct 字面量收进组件，并把 `lumen-app.slint` 609 → 436 代码行（SLINT-001 由超标转达标），外壳可读性与可门禁性同时提升。全仓统一验证与 5 条 `Integrated` 仍由收口 owner 一次跑完，严格交付率保持 **92.5%** → 部分（L）。
 
-## 最近一批问答（2026-11-10 第一百七十二交付批次：FlClash 侧栏形态成为导出表 / 偏好与视口不再分家）
+## 历史问答（2026-11-10 第一百七十二交付批次：FlClash 侧栏形态成为导出表 / 偏好与视口不再分家）
 
 1. x86_64/aarch64：本批只改中性 Rust 导出、JSON 真源、Python 生成器/守卫与 Slint typed 查表适配物，零平台 API、零设备交互；contract 定向 nextest **584/584**、`cargo check -p infiltrator-slint --all-targets`、owner guard 7/7 + enforce 0、生成器 fresh 为 `L`，交叉 `scripts/cross-check.sh`、aarch64 产物与目标设备仍待 CI runner / 设备矩阵补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 完成定向测试、Slint 全目标编译、`rustfmt --check`、`py_compile`、导出 fresh、生成器 check、owner/shared-copy/i18n/typed-state/隐式状态/文档治理/空间/回执/身份/设计资源/侧栏分隔/收口守卫；Windows/macOS 构建腿和安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） → 部分（L）。
@@ -864,7 +890,7 @@
 7. 模块化：上游事实归 pinned TSV，typed 身份/resolver/transition 归 contract module，封闭变体表归 page_structure 导出，生成物归唯一生成器，外壳/主题/侧栏各只消费一项 typed 结论，结构不变量归 owner guard；没有 bool/Option 组合阶段、没有 UI 私有推导、没有跨表面第二真源 → 完整（L）。
 8. CI 与批次效率：开发期只跑 contract 定向测试、Slint 全目标编译、生成器检查与本批独立守卫；因默认解析结果不变且无像素身份变化，省下整批 197 帧重采，沿用 b169 已发布回执并复核四门。全仓统一验证与 5 条 `Integrated` 办结仍由收口 owner 一次跑完，严格交付率保持 **92.5%** → 部分（L）。
 
-## 最近一批问答（2026-11-10 第一百七十一交付批次：FlClash 侧栏偏好贯通设置 owner / typed 命令与权威读回）
+## 历史问答（2026-11-10 第一百七十一交付批次：FlClash 侧栏偏好贯通设置 owner / typed 命令与权威读回）
 
 1. x86_64/aarch64：本批只贯通中性 Rust 的 typed 命令、settings 持久化、页面读回与离线 owner guard，零平台 API、零设备交互；四包定向 nextest **1937/1937**、`cargo check -p infiltrator-slint --all-targets`、守卫 4/4 + enforce 0 为 `L`，交叉 `scripts/cross-check.sh`、aarch64 产物与目标设备仍待 CI runner / 设备矩阵补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 完成定向测试、Slint 全目标编译、`rustfmt --check`、`py_compile`、owner/shared-copy/i18n/typed-state/隐式状态/文档治理/空间/回执/身份/设计资源与收口守卫；Windows/macOS 构建腿和安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） → 部分（L）。
@@ -876,7 +902,7 @@
 7. 模块化：上游事实归 pinned TSV，身份/resolver/transition 归 contract module，持久化字段与默认值归 domain settings，命令执行归 application，页面读回归 composition snapshot，结构不变量归离线守卫；L2 空间标准与 L3 桌面参照只做向下导航，没有 bool/Option 组合阶段、没有 UI 私有推导、没有跨表面第二真源 → 完整（L）。
 8. CI 与批次效率：开发期只跑受影响四包定向测试、Slint 全目标编译与本批独立守卫；因不改像素身份，省下整批 197 帧重采，沿用 b169 已发布回执并复核四门。全仓统一验证与 5 条 `Integrated` 办结仍由收口 owner 一次跑完，严格交付率保持 **92.5%** → 部分（L）。
 
-## 最近一批问答（2026-11-10 第一百七十交付批次：FlClash 侧栏展开偏好成为 typed Core 契约 / UI 布尔退役）
+## 历史问答（2026-11-10 第一百七十交付批次：FlClash 侧栏展开偏好成为 typed Core 契约 / UI 布尔退役）
 
 1. x86_64/aarch64：本批只新增中性 `shell_sidebar_preference` contract、四行 pinned 源码台账与离线守卫，零平台 API、零 wire 形状、零设备交互；contract 定向 nextest 5/5 与守卫 7/7 为 `L`，交叉 `scripts/cross-check.sh`、aarch64 产物与目标设备仍待 CI runner / 设备矩阵补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 完成契约测试、`rustfmt --check`、Python `py_compile`、来源守卫、typed-state、隐式状态、文档治理与空间导出检查；Windows/macOS 构建腿和安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2） → 部分（L）。
@@ -888,7 +914,7 @@
 7. 模块化：上游事实归 pinned TSV，偏好/能力/呈现/intent 归独立 contract module，typed transition 与 resolver 一处穷尽，校验归离线守卫，L2 空间标准与 L3 桌面参照只做向下导航；没有 bool/Option 组合阶段、没有 UI 私有推导、没有跨表面第二真源 → 完整（L）。
 8. CI 与批次效率：开发期只跑 contract 定向测试、离线守卫与各独立门；因不改像素身份，省下整批 197 帧重采，沿用 b169 已发布回执并复核四门。全仓统一验证与 5 条 `Integrated` 办结仍由收口 owner 一次跑完，严格交付率保持 **92.5%** → 部分（L）。
 
-## 最近一批问答（2026-11-10 第一百六十九交付批次：FlClash 配置卡来源标签成为共享身份行 / URL 猜测退役）
+## 历史问答（2026-11-10 第一百六十九交付批次：FlClash 配置卡来源标签成为共享身份行 / URL 猜测退役）
 
 1. x86_64/aarch64：本批只新增中性 shared copy key、presentation 来源投影、Slint 共享组件与守卫，复用 `ProfileSnapshot.filter_source` 已有 wire 事实，不改平台 API；四包定向 nextest **1424/1424**、shared-copy/i18n/来源守卫/文档治理/收口守卫全绿为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 产物未随本批复跑，`C`/`D` 待补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 台架完成定向 nextest、格式检查、独立守卫与整批 Slint 像素重采；Windows/macOS 构建腿与安装包未复跑，macOS 沿用既有 `Unsupported` 登记（GAP-2.2） → 部分（L）。
@@ -900,7 +926,7 @@
 7. 模块化：身份是 owner 的 `ProfileDocumentSourceKind`，阶段表达是 `ProfileSourceObservation::{Local,Subscription,Imported,Synchronized,Unobserved}`，词表归 shared copy，投影归 presentation，名称/来源行归 `ProfileIdentityRow`，结构不变量归守卫；UI 无 URL 字符串判定、无 bool 来源旗标、无跨页面重复布局 → 完整（L）。
 8. CI 与批次效率：开发期只跑四包定向测试与本批独立守卫；可见文案/布局改变后由同一 capture 台架整批 197 帧重采，最终发布批 `20261110T002611Z_536f4a1c8930_dirty_56001`（999s）一次集中复核空间、回执时效、截图身份、设计资源、文案与状态门。全仓统一验证与 5 条 `Integrated` 办结仍待另一会话 WIP 落地后由收口方一次跑完，严格交付率保持 **92.5%** → 部分（L）。
 
-## 最近一批问答（2026-11-10 第一百六十八交付批次：FlClash 相对更新时间成为共享 typed 事实 / Slint 配置卡纯消费）
+## 历史问答（2026-11-10 第一百六十八交付批次：FlClash 相对更新时间成为共享 typed 事实 / Slint 配置卡纯消费）
 
 1. x86_64/aarch64：本批只改中性 Rust 契约、共享文案、presentation 投影、Slint 消费与上游对照文档，无平台专用代码、wire 形状或设备 API；四包定向 nextest **1424/1424** 全绿、组件化收口后两包 766/766、共享文案/i18n/typed-state/语义状态/相对时间守卫/文档守卫全绿为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 产物未随本批复跑，`C`/`D` 待补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 台架完成定向 nextest、格式检查、独立守卫与整批 Slint 像素重采；Windows/macOS 构建腿与安装包未复跑，macOS 沿用既有 `Unsupported` 登记（GAP-2.2） → 部分（L）。
@@ -912,7 +938,7 @@
 7. 模块化：档位与时刻是 contract typed enum/struct，阶段表达是 `ProfileUpdateAge::{Observed,Unobserved}`，copy selection 是 `RelativeTimePresentation`，parse/project/localize/render 各归一层；`Option` 只表达可选数据而非阶段，UI 无 `SystemTime::now()`、无时钟推导、无 bool 旗标 → 完整（L）。
 8. CI 与批次效率：开发期只跑四包定向测试与本批独立守卫；可见文案改变后由同一 capture 台架一次发布整批 197 帧并集中复核空间、回执时效、截图身份与设计资源门。全仓统一验证与 5 条 `Integrated` 办结仍待另一会话 WIP 落地后由收口方一次跑完，严格交付率保持 **92.5%** → 部分（L）。
 
-## 最近一批问答（2026-11-10 第一百六十七交付批次：FlClash 仪表盘 11 卡注册表成为可门禁台账 / Core 能力对照再补机器可读半条）
+## 历史问答（2026-11-10 第一百六十七交付批次：FlClash 仪表盘 11 卡注册表成为可门禁台账 / Core 能力对照再补机器可读半条）
 
 1. x86_64/aarch64：本批只新增 vendored TSV、离线 Python 守卫、L3 参考文档与结构门两条接线，零 Rust/wire/UI 改动，架构中性；新守卫 planted 自测 **10/10**、enforce 11 卡 findings=0、既有 CoreMethod 守卫 8/8 与 56 条 findings=0、`py_compile` 通过、`doc-governance` 通过为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 产物未随本批复跑，`C`/`D` 待补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 台架跑完新守卫、旧 CoreMethod 守卫、文档治理与 `py_compile`；Windows/macOS 构建腿与安装包未复跑，macOS 沿用既有 `Unsupported` 登记（GAP-2.2） → 部分（L）。
@@ -924,7 +950,7 @@
 7. 模块化：上游身份归 TSV、校验归单一守卫、结构门只做接线、L3 文档只做导航与求同存异裁决；无 bool/Option 隐式阶段、无跨 UI 私有业务推导，也没有把上游组件清单复制进生产代码 → 完整（L）。
 8. CI 与批次效率：离线守卫仅读 11 行 TSV，自测+enforce <0.02s；本批不改像素身份，省下一次 197 帧重采。全仓统一验证与 5 条 `Integrated` 办结仍待另一会话 WIP 落地后由收口方一次跑完，严格交付率保持 **92.5%** → 部分（L）。
 
-## 最近一批问答（2026-11-10 第一百六十六交付批次：FlClash 仪表盘密度按页身裁决 / 三态下沉共享契约 / Slint 纯消费导出查表）
+## 历史问答（2026-11-10 第一百六十六交付批次：FlClash 仪表盘密度按页身裁决 / 三态下沉共享契约 / Slint 纯消费导出查表）
 
 1. x86_64/aarch64：本批只改中性 Rust 契约与导出、Python 生成器/守卫、Slint 组件消费与参考文档，不写平台专用代码或 wire；`cargo nextest run -p infiltrator-contract` 两项定向新增用例通过、`cargo run --bin export_page_structure` 生成 version 9、生成链 `--check` fresh、守卫与判定器自测为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 产物未随本批复跑，`C`/`D` 待补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 台架完成契约测试、导出、生成、守卫、45 项判定器 planted 与 197 帧空间判定；Linux 台架按密度身份变化整批 197 帧重采发布 `20261109T211847Z_a7a2c705124d_dirty_3344529`（606s），Windows/macOS 构建腿与安装包未复跑，macOS 沿用既有 `Unsupported` 登记（GAP-2.2） → 部分（L）。
@@ -946,9 +972,9 @@
 7. 模块化：typed reason 归 contract、文案 key 归 `shared_copy`、资源归 shared/PO/Android、投影归 presentation、消费归 Slint、结构不变量归单一守卫；没有新增 bool/Option 阶段，也没有跨 UI 私有业务推导 → 完整（L）。
 8. CI 与批次效率：开发期只跑四包定向 nextest **1424/1424** 与三方 Python 守卫，收尾期一次整批 197 帧重采与结构门；全仓统一验证和 5 条 `Integrated` 办结仍待另一会话 WIP 落地后由收口方一次跑完，严格交付率保持 **92.5%** → 部分（L）。
 
-## 最近一批问答（2026-11-10 第一百六十五交付批次：未登记能力原因成为共享 typed key / 中英文界面都不再漏出英文原文）
+## 历史问答（2026-11-10 第一百六十五交付批次：未登记能力原因成为共享 typed key / 中英文界面都不再漏出英文原文）
 
-## 最近一批问答（2026-11-10 第一百六十四交付批次：FlClash 桌面侧栏的无标题导航节奏成为契约策略 / 整批 197 帧重采）
+## 历史问答（2026-11-10 第一百六十四交付批次：FlClash 桌面侧栏的无标题导航节奏成为契约策略 / 整批 197 帧重采）
 
 1. x86_64/aarch64：本批新增中性 Rust 契约模块、导出物、Python 生成器/守卫、Slint 几何与文档，不写平台专用代码或 wire；`cargo nextest run -p infiltrator-contract -j 2` **571/571**、`cargo nextest run -p infiltrator-slint -j 2` **383/383**、`cargo check -q -p infiltrator-slint` 通过为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 产物未随本批复跑，`C`/`D` 待补 → 部分（L）。
 2. Windows/Linux/macOS：Linux 台架完成 KWin+Niri 后台整批 197 帧重采（`CAPTURE MATRIX PASS: 197 scenario(s) in 383s`）、发布目录摘要刷新、空间利用率与回执时效全绿；Windows/macOS 构建腿与安装包未复跑，macOS 沿用既有 `Unsupported` 登记（GAP-2.2） → 部分（L）。
@@ -960,7 +986,7 @@
 7. 模块化：策略归 contract、导出归 exporter、表面词汇归 `viewport_tier.slint`、查表归生成器、呈现归 `sidebar.slint`、校验归单一守卫；`app_body.slint` 只把 typed `navigation-form` 传给侧栏，无新增布尔阶段或私有业务推导 → 完整（L）。
 8. CI 与批次效率：开发期只跑契约/Slint 两包定向测试与独立守卫，收尾期只跑一次完整 197 帧重采与一组判定腿，避免重复全仓编译；全仓统一验证与 5 条 `Integrated` 办结仍待另一会话 WIP 落地后由收口方一次跑完，严格交付率保持 **92.5%** → 部分（L）。
 
-## 最近一批问答（2026-11-10 第一百六十三交付批次：FlClash Core 方法面的 56 条逐条裁决成为可门禁台账）
+## 历史问答（2026-11-10 第一百六十三交付批次：FlClash Core 方法面的 56 条逐条裁决成为可门禁台账）
 
 1. x86_64/aarch64：本批只新增参考 TSV、Python 守卫、L3 文档与结构门接线，零 Rust/wire/契约改动，架构中性；`python3 scripts/quality/flclash-core-parity-guard.py --self-test` **8/8**、`--mode enforce` findings=0、`py_compile` 通过、`bash scripts/quality/check-structure.sh` exit 0 为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 目标产物未随本批复跑，`C`/`D` 待补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 台架跑完全结构门（含新守卫两腿）与全部独立判定腿；Windows/macOS 构建腿与安装包未复跑，macOS 沿用既有 `Unsupported` 登记（GAP-2.2） → 部分（L）。
@@ -972,7 +998,7 @@
 7. 模块化：上游清单归 vendored TSV、校验归单一守卫、结构门只做接线、L3 文档只做导航，四处各一条职责；守卫离线只读 TSV，不编译工作区、不克隆上游，无布尔状态或私有推导 → 完整（L）。
 8. CI 与批次效率：过程腿按定向原则跑（守卫自测/enforce/doc-governance/py_compile），重型腿只跑一次结构门；台账摘要校验避免每次重新解析上游源码，守卫耗时 <0.01s。全仓腿与 5 条 `Integrated` 办结仍待另一会话 WIP 落地后由收口方一次跑完，严格交付率保持 **92.5%** → 部分（L）。
 
-## 最近一批问答（2026-11-10 第一百六十二交付批次：侧栏 leading 的声明值必须与像素起笔相等 / 判定器新增像素级水平判据）
+## 历史问答（2026-11-10 第一百六十二交付批次：侧栏 leading 的声明值必须与像素起笔相等 / 判定器新增像素级水平判据）
 
 1. x86_64/aarch64：本批只改判定器 Python、Slint 守卫 Python 与 L2 标准文档，零 Rust/契约/wire 改动，架构中性；`python3 -m py_compile` 两个脚本通过、`python3 scripts/parity/space_utilization.py --self-test` **45/45**、`python3 scripts/quality/slint-viewport-tier-guard.py --self-test` **30/30**、`bash scripts/quality/check-structure.sh` exit 0（含全部 quality unittests）为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 目标产物未随本批复跑，`C`/`D` 待补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 台架复跑全部判定腿（`--enforce` 197 帧 violations=0、`--check-export` current、`receipt-freshness 0`、`screenshot-identity 574/10/0`、`doc-governance OK`、`closure-questions 8/8`）；本批不改像素、未重采，Windows/macOS 构建腿与安装包未复跑，macOS 沿用既有 `Unsupported` 登记（GAP-2.2） → 部分（L）。
@@ -984,7 +1010,7 @@
 7. 模块化：像素测量归 `painted_nav_leading()`、判定归 `leading_findings()`、装配归 `main()`，守卫只做结构词法校验；三者各一条职责，无新增布尔状态、无跨层私有推导，`SPACEUTIL-010` 的「预算」与「像素」两半由同一个判定器入口收口 → 完整（L）。
 8. CI 与批次效率：过程腿按定向原则跑（两个 Python 自测、判定器 enforce/export、四个守卫、py_compile），重型腿只跑一次 `check-structure.sh`（exit 0）；因不改像素身份，省下一次 197 帧重采（上批实测 422s）。严格交付率保持 **92.5%**，5 条 `Integrated` 待统一验证批次一并办结 → 部分（L）。
 
-## 最近一批问答（2026-11-09 第一百六十交付批次：概览列数两种语义在契约分开 / span 网格改读导出的 860 页宽规则 / 像素结果不变）
+## 历史问答（2026-11-09 第一百六十交付批次：概览列数两种语义在契约分开 / span 网格改读导出的 860 页宽规则 / 像素结果不变）
 
 1. x86_64/aarch64：本批改共享契约、导出物、生成器、Slint 表面与守卫，架构中性；`cargo nextest run -p infiltrator-contract -p infiltrator-slint -j 2` **947 run / 947 passed / 0 skipped**（contract 564 = 562 + 两条 DashboardColumns 用例、slint 383）、`cargo clippy -p infiltrator-contract -p infiltrator-slint --all-targets -D warnings` exit 0、`cargo fmt --all --check` 0 偏差为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 目标产物未随本批复跑，`C`/`D` 待补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 台架复跑全部判据腿（`space_utilization --enforce` 197 帧 violations=0、`--check-export` current、生成器 `--check` fresh、两个守卫自测 41/41 与 29/29、`slint-syntax-guard` 100% PASS）；本批像素结果不变故未重采，Windows/macOS 构建腿与安装包未复跑，macOS 沿用既有 `Unsupported` 登记（GAP-2.2） → 部分（L）。
@@ -996,7 +1022,7 @@
 7. 模块化：语义归属在底层 typed 枚举里裁决，生成器只做导出→适配器投影，Slint 页面只消费查表，守卫只做词法/结构校验；旧私有 ternary 与 generator 里「span 网格不生成」的过期注释同批删除，无兼容轨道、无新增布尔状态（`dense` 仍是既有真实二值事实） → 完整（L）。
 8. CI 与批次效率：本批按单一契约/表面主题定向验收（`nextest -p contract -p slint` 947、两包 clippy、fmt、两个自测、导出新鲜度、生成器新鲜度），未跨层散布改动；因像素结果可证不变，省下一次 197 帧重采（上批实测 422s），全仓 nextest/clippy/结构门与 5 条 `Integrated` 的办结统一留到组团收口批次一次跑完。严格交付率保持 **92.5%** → 部分（L）。
 
-## 最近一批问答（2026-11-09 第一百五十九交付批次：侧栏列内 leading 按场景实测裁决 / 回执第九键与 8% 比例判据 / 整批 197 帧重采）
+## 历史问答（2026-11-09 第一百五十九交付批次：侧栏列内 leading 按场景实测裁决 / 回执第九键与 8% 比例判据 / 整批 197 帧重采）
 
 1. x86_64/aarch64：本批改共享契约、导出物、Slint 表面、判定器、守卫与文档，架构中性；`cargo nextest run -p infiltrator-contract -j 2` **562 run / 562 passed / 0 skipped**（新增 leading 配对与逐档预算两例）、`cargo nextest run -p infiltrator-slint -j 2` **383 run / 383 passed / 0 skipped**（冷帧断言第九键为 0 且与形态配对）、`cargo fmt --all --check` 0 偏差为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 目标产物未随本批复跑，`C`/`D` 待补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 台架（KWin + Niri 嵌套合成器）跑完整批 197 帧重采（`CAPTURE MATRIX PASS: 197 scenario(s) in 422s`）与全部判据腿；Windows/macOS 构建腿与安装包未复跑，macOS 沿用既有 `Unsupported` 登记（GAP-2.2），Linux 打包腿仍在现在佛 `APPID-001.3` → 部分（L）。
@@ -1008,7 +1034,7 @@
 7. 模块化：列发布自己让出的空地，外壳只搬运，宿主只换算，判定器只读；`init` 而非 `<=>` 是构建期实测的运行时约束（Slint 拒绝把 `<=>` 绑到派生属性，报 `Cannot assign to 'out' property`），不是私有旁路。旧入口 `2 * rail-item-padding` 与 version 5 导出同批清退，无兼容轨道；`bool` 仍只表达「此形态是否带标签」这一真实二值事实，配对不变量是 typed 的 → 完整（L）。
 8. CI 与批次效率：过程腿按定向原则跑（契约 562、Slint 383、判定器与守卫自测、导出物与别名刷新），重型腿（整批 197 帧重采 422s + 全仓门）留给统一验证批次；本机同时有另一仓库 72 小时 soak runner 与多条 cargo 流（load 21～30），预构建单独预热后 capture 内建 `timeout 20m cargo build` 命中缓存，整批 422s 完成。交付率保持 **92.5%**（`SPACEUTIL-010` 2 pt 交付转 `Integrated` 未办结），5 条 `Integrated` 待统一验证批次一并办结 → 部分（L）。
 
-## 最近一批问答（2026-11-09 第一百五十八交付批次：侧栏行高 44u 对上游 40dp 的实测裁决 / 参照基准 §2 与 §2.1 收口 / 侧栏水平起始边界缺口登记）
+## 历史问答（2026-11-09 第一百五十八交付批次：侧栏行高 44u 对上游 40dp 的实测裁决 / 参照基准 §2 与 §2.1 收口 / 侧栏水平起始边界缺口登记）
 
 1. x86_64/aarch64：本批只改 Markdown 与 `theme.slint` 的一处注释，零几何值、零 wire、零导出物改动，架构中性；`cargo nextest run -p infiltrator-slint -j 2` **383 run / 383 passed / 0 skipped**、`cargo clippy -p infiltrator-slint --all-targets -D warnings` exit 0、`cargo fmt --all --check` 0 偏差为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 目标产物未随本批复跑，`C`/`D` 待补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 台架（KWin + Niri 嵌套合成器）跑完一次 60 帧诊断采集作为裁决证据（`CAPTURE DIAGNOSTIC PASS: 60 scenario(s) in 262s`，不发布），并复跑全部判据腿；Windows/macOS 构建腿与安装包未复跑，macOS 沿用既有 `Unsupported` 登记（GAP-2.2），Linux 打包腿仍在现在佛 `APPID-001.3` → 部分（L）。
@@ -1020,7 +1046,7 @@
 7. 模块化：裁决、测量与令牌各归其位——参照物测量与两次实测数字归 L3 参照基准，行高令牌仍只在 `LumenTheme` 一处，判定器只读像素与回执；`theme.slint` 里描述 b146 已删除的「状态卡/品牌块/版本行」与已作废「内容宽胶囊」的过期注释本批清除，不留「以后再改」 → 完整（L）。
 8. CI 与批次效率：过程腿按定向原则跑（slint 383、clippy、fmt），重型腿只跑一次 `check-structure.sh`（exit 0，含 space self-test 38/38、`--enforce`、`--check-export`、freshness、identity、`closure-questions`、`doc-governance`、`slint-viewport-tier-guard 24/24` 与 quality unittests）；诊断采集 60 帧 262s 只用于裁决，不发布因而不占用整批重采成本，且「诊断批永不参与判定」已实跑复核（`--enforce` 仍判 197 帧发布批）。交付率随本批由 92.6% → **92.5%**（新立 `SPACEUTIL-010` 2 pt 让未办结分母 100 → 102 pt），4 条 `Integrated` 待统一验证批次一并办结 → 部分（L）。
 
-## 最近一批问答（2026-11-09 第一百五十七交付批次：导航栈下沿由侧栏实测并随帧发布 / 70% 形状盲启发式退役 / 图标轨侧栏轴开启）
+## 历史问答（2026-11-09 第一百五十七交付批次：导航栈下沿由侧栏实测并随帧发布 / 70% 形状盲启发式退役 / 图标轨侧栏轴开启）
 
 1. x86_64/aarch64：本批改动全在共享契约、Slint 表面、判定器与守卫，架构中性；`cargo nextest run -p infiltrator-contract -j 2` **560 run / 560 passed / 0 failed**（新增「列宽与栈底是一对事实」用例）、`cargo nextest run -p infiltrator-slint -j 2` **383 run / 383 passed / 0 skipped**（冷帧断言 `nav_stack_bottom_px == 0` 且与列宽配对）、`cargo clippy -p infiltrator-contract --all-targets -D warnings` exit 0、`cargo fmt --all --check` 0 偏差为 `L`；交叉 `scripts/cross-check.sh` 与 aarch64 目标产物未随本批复跑，`C`/`D` 待补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 台架（KWin + Niri 嵌套合成器）跑完 197 帧整批重采与全部判据腿；Windows/macOS 构建腿与安装包未复跑，macOS 沿用既有 `Unsupported` 登记（GAP-2.2），Linux 打包腿仍在现在佛 `APPID-001.3` → 部分（L）。
@@ -1032,7 +1058,7 @@
 7. 模块化：测量归测量者——侧栏只发布自己末行的下沿，外壳只搬运，宿主只换算，判定器只读；`SPACEUTIL-009` 条目里三种错误来源（占位块 y、纯 `changed` 事件、布局子项 `y` 早读）全部以实测排除并写进代码注释，不留「以后再修」。无新增布尔状态：`nav_stack_bottom_px > 0 ⟺ nav_column_px > 0` 是 typed 不变量，契约用例与判定器 `chrome_findings` 两侧同判，破坏者直接拒判而非降级 → 完整（L）。
 8. CI 与批次效率：过程腿按定向原则跑（契约 560、Slint 383、两个 guard 自测、判定器自测各计一次），重型腿（整批 197 帧重采 + 全仓门）留给统一验证批次；本批实测记下一条台架事实：capture 内建 `timeout 20m cargo build` 在邻居负载（load 21～47）下被截断一次，改由先行单独 `cargo build` 预热同一目标三元组、capture 命中缓存后整批 197 帧只用 ~600s（最终发布批 `20261109T120842Z_9d58ffe1dea7_dirty_963715` 实测整批 197 帧重采 392s）。交付率待统一验证批次随本条结清后重算，本批只登记 `SPACEUTIL-009` 2 pt 交付（`Integrated`），不改归档侧 → 部分（L）。
 
-## 最近一批问答（2026-11-09 第一百五十六统一验证批次：一次组团收口 b152～b155 / 全仓 nextest 5903 全绿 / 四条 10 pt 归档）
+## 历史问答（2026-11-09 第一百五十六统一验证批次：一次组团收口 b152～b155 / 全仓 nextest 5903 全绿 / 四条 10 pt 归档）
 
 1. x86_64/aarch64：本批零产品代码改动，只跑集中验收腿，架构中性；`cargo nextest run --workspace --no-fail-fast -j 2` **5903 run / 5903 passed / 15 skipped / 0 failed**、`cargo clippy --workspace --all-targets -j 2 -- -D warnings` exit 0、`cargo fmt --all --check` 0 偏差、`bash scripts/quality/check-structure.sh` exit 0 为 `L`——这是自 b154 登记 `EDITORPERF-001`（50k 窗口逐行重数上方换行）以来全仓腿第一次转绿，也是本批能一次结清四条的前提；交叉 `scripts/cross-check.sh` 腿与 aarch64 目标产物未随本批复跑，`C`/`D` 待补证 → 部分（L）。
 2. Windows/Linux/macOS：本机 Linux 台架（KWin + Niri 嵌套合成器）跑完全量门；Windows/macOS 构建腿与安装包未复跑，macOS 沿用既有 `Unsupported` 登记（GAP-2.2），Linux 打包腿仍在现在佛 `APPID-001.3` → 部分（L）。
@@ -1044,7 +1070,7 @@
 7. 模块化：本批不新增结构，只按「改动一批一批做、验收一组一组办」把积攒的 `Integrated` 一次结清；台账与看板同步收口——四条从本板表格退出并在归档表登记逐行证据，`frames` 欠账保持为空，`implicit-state`/`typed-state` 判决台账无 `open` 项，文件级 import hygiene 与行预算在结构门内保持 0 违规 → 完整（L）。
 8. CI 与批次效率：本批就是集中验收腿——重型门（全仓 nextest + 全仓 clippy + 结构门）各只跑一次，而不是为四条各跑一遍全仓；四条同批结清使交付率从 91.9% 升到 **92.6%**（1,258/1,358，累计逐字不变，只把点从未办结侧搬到已归档侧）。过程实测记下一条环境事实：本机全天被其它仓库的 cargo 流挤压（load 40～56，niri soak 单进程 262% CPU），结构门在本批被饿到 35 分钟仍未退出，说明重型腿必须后台化 + 轮询、且不能与其他会话同时开第二条 cargo lane；受控 CI 的 `C` 腿与真机 `D` 腿仍按既有条目留在斗战胜佛，不为本批重复立项 → 部分（L）。
 
-## 最近一批问答（2026-11-09 第一百五十五交付批次：编辑器窗口按行索引读取 / 50k 性能预算回到可实现的产品承诺）
+## 历史问答（2026-11-09 第一百五十五交付批次：编辑器窗口按行索引读取 / 50k 性能预算回到可实现的产品承诺）
 
 1. x86_64/aarch64：b155 只改共享契约 `editor_viewport` 的窗口读取与性能回执，架构中性；`cargo nextest run -p infiltrator-contract -p infiltrator-presentation -p infiltrator-slint -j 2 --no-fail-fast` **1318 run / 1318 passed / 0 failed**（1315→1318 是本批新增 3 项窗口用例，此前唯一失败的 50k 墙钟断言现在以「实现真的只花窗口的钱」通过）、`cargo clippy -p infiltrator-contract --all-targets -j 2 -- -D warnings` exit 0、`cargo fmt --all --check` 0 偏差、`import hygiene scanned=2934 violations=0` 为 `L`；本批未复跑交叉腿，也未产出 aarch64 目标产物，`C`/`D` 待补证 → 部分（L）。
 2. Windows/Linux/macOS：只在本机 Linux 台架编译与验收；改动不含任何平台代码路径（纯 `&str` 行偏移算式），Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 `Unsupported` 登记（GAP-2.2）→ 部分（L）。
@@ -1056,7 +1082,7 @@
 7. 模块化：一条事实一条链——文本 → `LineIndexedDocument`（行起始的唯一持有者，越界返回 `None` 而不是猜一行）→ `EditorViewport`（窗口算术，未变）→ `DocumentPerformanceReceipt`（工作量 `slice_lines` + 计时两轨）→ `DocumentPerformanceStatus::ExceededSliceWork`（typed 新变体，在任何计时断言之前先判，不用布尔兼职）。预算数字 2000µs／8000µs／240 行一字未放宽，`--no-fail-fast` 全绿证明是靠实现达标而非改门达标 → 完整（L）。
 8. CI 与批次效率：纯契约算法改动按分级验收——只跑受影响包的定向 nextest/clippy/fmt/import hygiene 与身份四腿，不重采 197 帧（无像素变化，重采会伪造「身份变化」证据）；`--workspace` nextest/clippy 归下一批统一验证批次。过程期两次真实纠错记入本批：一条上一轮遗留的 clippy 流跑的是修好 import 之前的源码，已终止重跑；一条 `--release` 单测复跑与采集/验收抢同一条 cargo lane，按「同一时刻只允许一条流跑 cargo」终止，改为采集后单独复跑。台架本机全天有其它仓库的 cargo 流（load 30～50），故重型腿一律 `setsid nohup` 后台跑并轮询日志，不阻塞判断 → 部分（L）。
 
-## 最近一批问答（2026-11-09 第一百五十四交付批次：每帧自述外壳几何 / 判定器不再镜像边距 / 撤回不可信的导航栈高度）
+## 历史问答（2026-11-09 第一百五十四交付批次：每帧自述外壳几何 / 判定器不再镜像边距 / 撤回不可信的导航栈高度）
 
 1. x86_64/aarch64：b154 改的是共享契约的 `shell_receipt` 词汇与导出、Slint 宿主读回、capture marker 与两个 Python 门禁，纯架构中性；`cargo nextest run -p infiltrator-contract -p infiltrator-presentation -p infiltrator-slint -j 2 --no-fail-fast` **1315 run / 1314 passed / 1 failed**、三包 `cargo clippy --all-targets -j 2 -- -D warnings` exit 0、`cargo fmt --all --check` 0 偏差、`import hygiene scanned=2934 violations=0` 为 `L`。唯一失败是既有的 `editor_viewport_test::window_slicing_and_search_operate_within_budget_on_large_documents`：它对 50k 文档切片断言 8000µs 墙钟上限，本机有邻居 cargo 流（load 33～50）时报 12031/12066µs，单独复跑仍报 **8084µs**（余量仅 1%）；本批 diff 未触碰 `editor_viewport.rs` 及其测试，故按「环境故障先归属」判为既有测量缺陷而非本切片缺陷，已实测登记 `EDITORPERF-001`（2 pt，P1，阻塞全仓 nextest 全绿），不放宽预算、不跳过测试。本批未复跑 `scripts/cross-check.sh` 交叉腿，也未产出 aarch64 目标产物，`C`/`D` 待补证 → 部分（L）。
 2. Windows/Linux/macOS：只在本机 Linux 台架（KWin + Niri 嵌套合成器）编译与整批采集；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 `Unsupported` 登记（GAP-2.2）→ 部分（L）。
@@ -1068,7 +1094,7 @@
 7. 模块化：一条事实一条链——契约 typed `ShellChromeFacts`（7 键 + `reserves_dock_band()`）→ exporter version 4 → 生成物 `viewport-ladder.slint` 的 `NavigationForm` → `lumen-app.slint` 发布 `ReceiptChrome` 与 `app_body.slint` 的 `out property` → 宿主 `shell_chrome_facts()`（`logical_units()` 单独承担 device→logical 换算并有独立算术用例）→ marker 行 → 判定器 `chrome_findings()`；`models.slint` 只声明类型，判定器不再记得任何 padding；新立的 `crates/infiltrator-slint/tests/shell_receipt_tests.rs` 用冷帧证明 bottom_nav/0/底带>0/边距16/缩放100 与换算语义 → 完整（L）。
 8. CI 与批次效率：按「代码全部落地 → 定向 nextest/clippy/fmt → import hygiene → 整批采集一次 → enforce / freshness / identity / parity 四腿 → 结构门一次」推进。本批有一次真实返工并如实记账：上一轮 import 归位把 `use crate::shell_receipt::CHROME_KEYS;` 越界替换成不可编译的 `use CHROME_KEYS;`，该修复发生在首次采集**之后**，故首批 `20261109T021415Z…` 的回执与最终源码不同源、作废不计证据，修净后重跑 `import hygiene 2934/0` 并**整批重采一次**（749s，本机同时有其它仓库 cargo 流，load 33～50）；采集后语料 PNG 本身在指纹范围内，故发布后树指纹必然再变，核对方式是「采集后除 `docs/screenshots` 外无任何 `crates/`／`scripts/` 改动」，本批实测为空。受控 CI 的 `C` 腿与真机 `D` 腿仍按既有条目留在斗战胜佛，`--workspace` nextest/clippy 归下一批统一验证（先收 `EDITORPERF-001`），不为本批重复立项 → 部分（L）。
 
-## 最近一批问答（2026-11-09 第一百五十三交付批次：中等档图标轨落地 / 外壳列的比例标准入契约 / Slint 整批重采）
+## 历史问答（2026-11-09 第一百五十三交付批次：中等档图标轨落地 / 外壳列的比例标准入契约 / Slint 整批重采）
 
 1. x86_64/aarch64：b153 改的是共享契约的导航裁决、presentation 的底部带事实、Slint 外壳与三个 Python 门禁，架构中性；`cargo nextest run -p infiltrator-contract -p infiltrator-presentation -p infiltrator-slint -j 2` **1308 run / 1308 passed / 0 failed**、`cargo clippy` 同三包 `--all-targets -j 2 -- -D warnings` exit 0、`cargo fmt --all --check` 0 偏差、`bash scripts/quality/check-structure.sh` exit 0 为 `L`；本批未复跑 `scripts/cross-check.sh` 交叉腿，也未产出 aarch64 目标产物，`C`/`D` 待补证 → 部分（L）。
 2. Windows/Linux/macOS：只在本机 Linux 台架（KWin + Niri 嵌套合成器）编译与整批采集；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 `Unsupported` 登记（GAP-2.2）→ 部分（L）。
@@ -1080,7 +1106,7 @@
 7. 模块化：一条事实一条链——契约 typed 裁决（`SidebarForm::has_column/shows_labels` + `shell_navigation` + `max_nav_column_px`）→ exporter → 生成器写 `NavigationForm` 查表 → 三个消费点（`lumen-app.slint` 发布属性、`app_body.slint` 挂载、`sidebar.slint` 行形态），Rust 侧 presentation/driver 只读该 typed 形态；`slint-viewport-tier-guard.py` 的 `navigation_mount_findings` 同时钉 `.slint` 挂载依据与 Rust 投影依据，planted 自测 17 → **20**（改回密度挂载、私有形态词表、底栏借密度三类退化都被抓住），`NavigationForm` 变体名被钉成与导出形态 id 逐个相等 → 完整（L）。
 8. CI 与批次效率：按「先落码→定向门→整批采集一次→身份/新鲜度/导出三腿→结构门一次」推进；结构门第一轮实测 `lumen-app.slint` 605 行超 SLINT-001 的 600 行预算，本批没有拆墙改预算，而是把新增声明并入该文件既有的多语句同行写法并删掉一条重复触发器，回到 **600 行整**后**重跑定向 nextest/clippy 再重采 197 帧**（改 `.slint` 会令上一批指纹失效，旧批已作废不计证据）；受控 CI 的 `C` 腿与真机 `D` 腿仍按既有条目留在斗战胜佛，不为本批重复立项 → 部分（L）。
 
-## 最近一批问答（2026-11-09 第一百五十二交付批次：视口阶梯单一真源 / 档界·导航列·列数改为契约导出 / Slint 整批重采）
+## 历史问答（2026-11-09 第一百五十二交付批次：视口阶梯单一真源 / 档界·导航列·列数改为契约导出 / Slint 整批重采）
 
 1. x86_64/aarch64：b152 改的是共享契约的阶梯导出、Slint 布局语言与两个 Python 守卫/判定器，架构中性；`cargo nextest run -p infiltrator-contract -p infiltrator-slint` 927 run / 927 passed、`cargo clippy -p infiltrator-contract -p infiltrator-slint --all-targets -j 2 -- -D warnings` exit 0、`bash scripts/quality/check-structure.sh` exit 0 为 `L`；本批未复跑 `scripts/cross-check.sh` 交叉腿，也未产出 aarch64 目标产物，`C`/`D` 待补证 → 部分（L）。
 2. Windows/Linux/macOS：只在本机 Linux 台架编译与整批采集（KWin + Niri 嵌套合成器）；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 `Unsupported` 登记（GAP-2.2）→ 部分（L）。
@@ -1092,7 +1118,7 @@
 7. 模块化：一个事实一条链——契约持有 typed 表（`TierFact` + `viewport_ladder` 方法）→ exporter 导出 JSON → 生成器写 Slint 适配器 → 三个消费点（`theme.slint` 档界与 `rail-width`、`page_proxies.slint` 列数、`lumen-app.slint`/`home_desktop_grid.slint` 的 `labelled_sidebar`）与判定器各自只读导出物，无人再写数字；`viewport-ladder.slint` 是生成物（手改即 stale），`ViewportTier` 变体名被门禁钉成与导出档 id 逐个相等，跨语言同一词表；无人消费的生成查表函数直接被门禁拒绝 → 完整（L）。
 8. CI 与批次效率：本批把「代码全部落地 → 定向 nextest/clippy → 整批采集一次 → 身份/新鲜度/导出三腿守卫 → 全量结构门一次」按顺序收口，没有边改边重采；新学到的两条采集顺序硬规则写入 [回执不变量](reference/MOBILE_RECEIPT_INVARIANTS.md)（`crates/`、`scripts/` 任一改动即令本批回执过期，故先落码后采集；被打断的运行 `scenario_count` 仍是矩阵全数，必须删除后才重跑），受控 CI 的 `C` 腿与真机 `D` 腿仍按既有条目留在斗战胜佛，不为本批重复立项 → 部分（L）。
 
-## 最近一批问答（2026-11-09 第一百五十一交付批次：统一验证批次 / 组团收口 b144～b150 / 全仓 nextest 5883 全绿）
+## 历史问答（2026-11-09 第一百五十一交付批次：统一验证批次 / 组团收口 b144～b150 / 全仓 nextest 5883 全绿）
 
 1. x86_64/aarch64：本批是无产品行为改动的统一验收批次，只补两条本流自己的测试欠账与一条上游公告登记，架构中性；全量 `cargo check --workspace --all-targets` 零错误、`cargo nextest run --workspace --no-fail-fast` **5883 run / 5883 passed / 15 skipped / 0 failed**、`cargo clippy --workspace --all-targets -- -D warnings` exit 0 为 `L`；本批未复跑 `scripts/cross-check.sh` 交叉腿，也未产出 aarch64 目标产物，`C`/`D` 待补证 → 部分（L）。
 2. Windows/Linux/macOS：本批只在本机 Linux 台架跑全量门（含 `cargo deny check` 四项 ok、`cargo metadata --locked` ok）；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 `Unsupported` 登记（GAP-2.2）→ 部分（L）。
@@ -1104,7 +1130,7 @@
 7. 模块化：全仓结构门 exit 0（文件级 2931 项 import hygiene violations=0、行预算 800 上限回归、typed-state findings=0、implicit-state 全判决、bevy bsn/rem 0 违规、feature matrix 11 crates/35 features 对齐）；无跨 UI 私有业务真源；过去佛积攒的 `Integrated` 条目已批量解锁退出并在台账登记 → 完整（L）。
 8. CI：本批就是「改动一批一批做、验收一组一组办」的集中验收腿，全套重型门只跑一次而非每改一文件一遍；`cargo fmt --all --check` 0 偏差；`cargo metadata --locked` 与 `cargo deny check` 四项 ok 保持钉住与可复现；剩余低效点（受控 CI 腿缺 `C`、真机腿缺 `D`）按既有条目留在斗战胜佛，不为本批重复立项 → 部分（L）。
 
-## 最近一批问答（2026-11-09 第一百五十交付批次：页身空气归位 / compact 档 framed 页填满页身 / 空间利用率欠账台账清零）
+## 历史问答（2026-11-09 第一百五十交付批次：页身空气归位 / compact 档 framed 页填满页身 / 空间利用率欠账台账清零）
 
 1. x86_64/aarch64：b150 是 Slint 外壳几何 + 共享契约层零改动 + 三处 import 归位，架构中性；`cargo check -p infiltrator-slint --all-targets`、`cargo nextest run -p infiltrator-application -p infiltrator-desktop -p infiltrator-slint` 1348/1348 全绿、`cargo clippy` 三包 `--all-targets -D warnings` 零警告为 `L`；本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。
 2. Windows/Linux/macOS：b150 只在本机 Linux 台架编译与整批采集；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 Unsupported 登记 → 部分（L）。
@@ -1116,7 +1142,7 @@
 7. 模块化：底部空气从「有没有底栏」改回「外壳档」这一处事实（避免同一空间被两个 owner 声明）；`ClearTrafficHistory` 的实现下沉到独立模块 `command_application/traffic_history.rs`，dispatch 表只留一行 typed 调用；SLINT-018 守卫按 b146「侧栏只放导航」的裁决改写为「导航栈之下不得有任何内容」（5 项 planted 自测全绿）→ 完整（L）。
 8. CI：结构门 40+ 项 exit 0（`import hygiene` 5 条 b146/b147 遗留违规清零、`line budget` 800 行上限回归、`feature matrix` 台账漏登记补齐、`slint rail edge dialect` 按新裁决改写）；`cargo fmt --all --check` 0 偏差；space self-test 20/20、`--enforce` 197 帧 violations=0；`--workspace` nextest/clippy 与提交/CI 腿待统一验证批次 → 部分（L）。
 
-## 最近一批问答（2026-11-09 第一百四十九交付批次：空间利用率阈值按页面形态重定 / 撤回对参考产品的误判）
+## 历史问答（2026-11-09 第一百四十九交付批次：空间利用率阈值按页面形态重定 / 撤回对参考产品的误判）
 
 1. x86_64/aarch64：b149 是共享契约的 typed 页面形态表 + Python 判定器，架构中性；`cargo nextest run -p infiltrator-contract page_structure` 4 项通过、判定器 self-test 20/20 与 `--enforce` 197 帧 0 为 `L`，本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。
 2. Windows/Linux/macOS：b149 只在本机 Linux 台架编译与判定；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 Unsupported 登记 → 部分（L）。
@@ -1128,7 +1154,7 @@
 7. 模块化：typed `PageStructure::{Framed,Dense,Content}` + `ShellPage::structure()` + slug→形态映射构成一处裁决；工作台形态与母页分离（`logs` framed vs `logs_workbench` content）由契约显式声明；contract 4 项 nextest 与判定器 3 项新 planted 自测互为镜像 → 完整（L）。
 8. CI：结构门新增 `--check-export` 腿；self-test 20/20、`--enforce` 197 帧 violations=0、台账 38→3；doc-governance / closure / receipt-freshness / screenshot-identity 全 0；`--workspace` nextest/clippy 与提交/CI 腿待统一验证批次 → 部分（L）。
 
-## 最近一批问答（2026-11-09 第一百四十八交付批次：FLCLASH-002 仪表盘注册表复核裁决（存异，无缺口））
+## 历史问答（2026-11-09 第一百四十八交付批次：FLCLASH-002 仪表盘注册表复核裁决（存异，无缺口））
 
 1. x86_64/aarch64：b148 是纯契约复核与台账裁决，零源码/零二进制变更，架构中性；沿用 b147 六包 `cargo check` 与 2195 项 nextest 的 `L` 证据，本批无新增编译腿，`C`/`D` 待补证 → 部分（L）。
 2. Windows/Linux/macOS：b148 不改任何平台产物，沿用既有登记；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 Unsupported 登记 → 部分（L）。
@@ -1140,7 +1166,7 @@
 7. 模块化：撤销 b146「缺 enum + registry」的误判，按「不为办结造功能」原则把 `FLCLASH-002` 直接办结并写明存异理由；doc-governance / closure / space 门禁沿用全绿 → 完整（L）。
 8. CI：本批只改台账与 L3 基准文档，不触发编译、不重采像素；`doc-governance-guard` OK、`closure-questions-guard` 8/8；`--workspace` nextest/clippy 与 CI 腿待统一验证批次 → 部分（L）。
 
-## 最近一批问答（2026-11-09 第一百四十七交付批次：FLCLASH-001 Core 缺口收口 / ClearTrafficHistory 空操作与错映射根治）
+## 历史问答（2026-11-09 第一百四十七交付批次：FLCLASH-001 Core 缺口收口 / ClearTrafficHistory 空操作与错映射根治）
 
 1. x86_64/aarch64：b147 是 Rust Core/应用层的 typed 命令与 owner 共享，架构中性；六包 `cargo check` 与 2195 项 nextest 为 `L`，本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。
 2. Windows/Linux/macOS：b147 只在本机 Linux 台架编译与测试；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 Unsupported 登记 → 部分（L）。
@@ -1152,7 +1178,7 @@
 7. 模块化：`domain reset → application reset → CoreApplication owner/getter → SurfaceReader + CommandApplication 共享 → dispatch/capability` 单向收口；新增 `command_application_traffic_history_tests.rs` 与 domain/application 内聚测试；typed-state / implicit-state 全 0 → 完整（L）。
 8. CI：全部结构守卫、i18n、shared-copy、doc-governance、closure、space self-test 17/17 + enforce 197 帧 0、receipt-freshness 0、screenshot-identity 574/10/0 全绿；`cargo fmt --all --check` 0；六包 check 通过；`--workspace` nextest/clippy 与提交/CI 腿待统一验证批次 → 部分（L）。
 
-## 最近一批问答（2026-11-08 第一百四十六交付批次：FlClash 桌面真实场景对照 / 侧栏纯导航 typed 注册表 / 判定器重裁）
+## 历史问答（2026-11-08 第一百四十六交付批次：FlClash 桌面真实场景对照 / 侧栏纯导航 typed 注册表 / 判定器重裁）
 
 1. x86_64/aarch64：b146 是 contract 导航契约、Slint 投影与桌面侧栏，架构中性；`cargo check -p infiltrator-slint --all-targets` 与整批 197 帧发布为 `L`，本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。
 2. Windows/Linux/macOS：b146 只在本机 Linux 台架完成编译与整批 197 帧发布；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 Unsupported 登记 → 部分（L）。
@@ -1164,7 +1190,7 @@
 7. 模块化：`contract → projection → NavigationSlot → sidebar` 单向消费，`DashboardWidget` 式的 typed 注册表与 `NavigationPort.getItems()` 同构；`chrome_band` 判定器替换 `pill_tail` 并保留「全宽选中带不得判浪费」回归测试（self-test 17/17）；14 项 Slint 守卫 + typed-state/implicit-state 全 0 → 完整（L）。
 8. CI：space self-test/enforce 双腿已在结构门；`--enforce` 197 帧 violations=0、`chrome_band` 0.0%、void 4.4%，欠账台账 rail 由 16.3% 收紧到 0；`receipt-freshness=0`、`screenshot-identity scanned=574 aliases=10 violations=0`；过期批次按只留最新删除；`--workspace` nextest/clippy 与提交/CI 腿待统一验证批次 → 部分（L）。
 
-## 最近一批问答（2026-11-08 第一百四十五交付批次：侧栏选中胶囊按内容取宽 / 判定器皮肤盲根治）
+## 历史问答（2026-11-08 第一百四十五交付批次：侧栏选中胶囊按内容取宽 / 判定器皮肤盲根治）
 
 1. x86_64/aarch64：b145 是 Slint 侧栏胶囊几何与 Python 判定器，架构中性；`cargo check -p infiltrator-slint --all-targets` 与整批 197 帧发布为 `L`，本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。
 2. Windows/Linux/macOS：b145 只在本机 Linux 台架完成编译与整批 197 帧发布；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 Unsupported 登记 → 部分（L）。
@@ -1176,7 +1202,7 @@
 7. 模块化：判定器皮肤盲根治并新增 3 项 planted 自测（深色短标签被抓 / 深色内容宽通过 / 浅深同判），self-test 17/17；桌面分支由 `if` 改 `visible` 让 `nav-label` id 可解析（Slint 条件块内 id 不可外层访问），与 `HomeStatusChip` 同范式；几何真源在 `NavButtonMetrics`/`theme.slint` 一处 → 完整（L）。
 8. CI：space self-test 与 enforce 双腿已在结构门；本批 `--enforce` 197 帧 violations=0、六 Slint 守卫全 0、`cargo nextest run -p infiltrator-slint` 379/379；`--workspace` nextest/clippy 与提交/CI 腿待统一验证批次 → 部分（L）。
 
-## 最近一批问答（2026-11-08 第一百四十四交付批次：空间利用率强制标准 / 像素判定器与只减欠账台账）
+## 历史问答（2026-11-08 第一百四十四交付批次：空间利用率强制标准 / 像素判定器与只减欠账台账）
 
 1. x86_64/aarch64：b144 是 L2 标准文本、判定脚本与台账 JSON，不进入任何产品二进制，架构中性；判定器对最新发布整批 197 帧可复跑为 `L`，本批未复跑交叉 `cargo check`（无被测代码变更）→ 完整（L）。
 2. Windows/Linux/macOS：判定器只读已发布 PNG 与 Python/PIL，本机 Linux 台架 `--self-test` 14/14、`--enforce` violations=0 为 `L`；未在 Windows/macOS 复跑脚本，且本批不改任何平台的构建产物 → 部分（L）。
@@ -1188,7 +1214,7 @@
 7. 模块化：标准文本（L2）/ 判定器（scripts/parity）/ 台账（scripts/quality）/ 门禁接线（`check-structure.sh` 两条腿）四件事各自一处；14 项 planted 自测覆盖「填满的卡不得判违规」「卡不得自证底色」「边缘噪声不得伪装满页」「框架卡内空视口不是页面浪费」「定宽胶囊必须被抓」，正反例都在脚本内自带 → 完整（L）。
 8. CI：新增两条腿接入 `check-structure.sh`（self-test + enforce），判定只读已发布整批，单批耗时约 6s，不触发编译；`doc-governance-guard` OK（同批修掉一条 L4 叶台账上引 L3 的既存违规）、`closure-questions-guard` 8/8；`--workspace` nextest/clippy 与提交腿留待统一验证批次 → 部分（L）。
 
-## 最近一批问答（2026-11-08 第一百四十交付批次：编辑器动作条双视口裁切 / 说明句归位与一业务一卡）
+## 历史问答（2026-11-08 第一百四十交付批次：编辑器动作条双视口裁切 / 说明句归位与一业务一卡）
 
 1. x86_64/aarch64：b140 是 Slint 投影标签、页面拆卡与双语文案键，架构中性；`cargo check -p infiltrator-slint -p infiltrator-shared` 与整批 197 帧发布为 `L`，本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。
 2. Windows/Linux/macOS：b140 只在本机 Linux 台架完成编译与整批 197 帧发布；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 Unsupported 登记 → 部分（L）。
@@ -1200,7 +1226,7 @@
 7. 模块化：标签事实在共享文案表一处，页面只组合共享 `WorkbenchCard`/`WorkbenchButton`；新增 `slint-action-label-guard.py`（SLINT-017）钉死「按钮标签不得是句子、不得超动作预算」，enforce + self-test 双腿接入结构门 → 完整（L）。
 8. CI：本批新增 SLINT-017 守卫并注册 enforce + self-test；整批 197/197 发布 524s。`check-structure.sh`（set -e）在 367 项 quality unittest 处因他人 Bevy 外债（`infiltrator-bevy-ui` capture-tools 启用 `zhuge-ui-kit-bevy/capture-tools` 未同步台账，唯一失败，不碰）提前退出，其后守卫含 SLINT-017 已逐一单独验证全 0，不写「结构门整体通过」；`--workspace` nextest/clippy 与提交/CI 腿待统一验证批次 → 部分（L）。
 
-## 最近一批问答（2026-11-08 第一百三十九交付批次：侧栏分组标题列 / 菜单栏三列阶梯唯一化）
+## 历史问答（2026-11-08 第一百三十九交付批次：侧栏分组标题列 / 菜单栏三列阶梯唯一化）
 
 1. x86_64/aarch64：b139 是 Slint 侧栏列几何与注释，架构中性；`cargo check -p infiltrator-slint` 与整批 197 帧发布为 `L`，本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。
 2. Windows/Linux/macOS：b139 只在本机 Linux 台架完成编译与整批 197 帧发布；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 Unsupported 登记 → 部分（L）。
@@ -1212,7 +1238,7 @@
 7. 模块化：列事实集中在 `theme.slint` 一处，`sidebar.slint` 只读 token；未新增页面私有 padding 字面量，`slint-padding-guard`（SLINT-012）0 违规 → 完整（L）。
 8. CI：本批无 CI 变更；未新增守卫（列真源由既有 `slint-padding` 与注释契约约束）；整批 197/197 发布 384s；`--workspace` nextest/clippy 与提交/CI 腿待统一验证批次，不写「已高效验证」 → 部分（L）。
 
-## 最近一批问答（2026-11-08 第一百三十八交付批次：仪表盘密集档整卡消失 / 行不再支付不存在的列）
+## 历史问答（2026-11-08 第一百三十八交付批次：仪表盘密集档整卡消失 / 行不再支付不存在的列）
 
 1. x86_64/aarch64：b138 是 Slint 布局结构与门禁脚本，架构中性；`cargo check -p infiltrator-slint`、定向 nextest 379/379 与整批 197 帧发布为 `L`，本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。
 2. Windows/Linux/macOS：b138 只在本机 Linux 台架完成编译、定向测试与整批 197 帧发布；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 Unsupported 登记 → 部分（L）。
@@ -1224,7 +1250,7 @@
 7. 模块化：改动集中在 `home_desktop_grid.slint` 一个文件的两个行容器与卡片自陈位置（529 非注释行，≤600 预算），守卫独立成 SLINT-016，不与 SLINT-013/014/015 重叠 → 完整（L）。
 8. CI：本批无 CI 变更；新守卫以 enforce + self-test 双腿接入 `check-structure.sh`；整批 197/197 发布 666s；`proxies-search-highlight-compact` 的 44646 px 差异经全带 max delta=1/255 与 −2..+2 平移不改善判定为光栅舍入噪声，不写成源码缺陷；`--workspace` nextest/clippy 与提交/CI 腿待统一验证批次，不写「已高效验证」 → 部分（L）。
 
-## 最近一批问答（2026-11-08 第一百三十七交付批次：字体公共体系权威回补 `FactNamed`）
+## 历史问答（2026-11-08 第一百三十七交付批次：字体公共体系权威回补 `FactNamed`）
 
 1. x86_64/aarch64：b137 是 contract typed 权威的登记回补，架构中性；`cargo nextest -p infiltrator-contract` 532/532 为 `L`，未复跑交叉 `cargo check` 与安装包腿，`C`/`D` 待补证 → 部分（L）。
 2. Windows/Linux/macOS：b137 只在本机 Linux 台架编译与测试；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 Unsupported 登记 → 部分（L）。
@@ -1236,7 +1262,7 @@
 7. 模块化：改动只在 `crates/infiltrator-contract/src/design_resources.rs` 一个文件的枚举/表/断言，加上由唯一生成器写出的适配物与导出物；无手写生成物、无第二套角色表 → 完整（L）。
 8. CI：本批无 CI 变更；`design-resource-authority.py` 已在结构门与 main-gate 注册（正是它发现了缺位）；`--workspace` nextest/clippy 与提交/CI 腿待统一验证批次，不写「已高效验证」 → 部分（L）。
 
-## 最近一批问答（2026-11-08 第一百三十六交付批次：应用分流选择器等宽 / 按钮不得拉伸）
+## 历史问答（2026-11-08 第一百三十六交付批次：应用分流选择器等宽 / 按钮不得拉伸）
 
 1. x86_64/aarch64：b136 的改动是 Slint 布局与门禁脚本，架构中性；`cargo check -p infiltrator-slint` 通过、整批 197 帧发布为 `L`，本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。
 2. Windows/Linux/macOS：b136 只在本机 Linux 台架完成编译与整批 197 帧发布；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 Unsupported 登记 → 部分（L）。
@@ -1248,7 +1274,7 @@
 7. 模块化：段宽计算在 `page_app_routing.slint` 一处，gap 在 `theme.slint` 一处，守卫独立成 `SLINT-015` 不与 `SLINT-013`/`SLINT-014` 重叠；`page_app_routing.slint` 105 行（≤600 预算），`slint-syntax-guard` 100% PASS → 完整（L）。
 8. CI：本批无 CI 变更；新守卫以 enforce + self-test 双腿接入 `check-structure.sh`；整批 197/197 发布 338s；**采集期状态抖动已定性**——186 帧 sha 变化但量级极小且集中在返回箭头/滚动条悬停着色，同源两次单场景重采字节完全相同，判定为合成器/焦点期状态而非源码；`--workspace` nextest/clippy 与提交/CI 腿待统一验证批次，不写「已高效验证」 → 部分（L）。
 
-## 最近一批问答（2026-11-08 第一百三十五交付批次：自愈诊断页幻影带 / 行动作列对齐）
+## 历史问答（2026-11-08 第一百三十五交付批次：自愈诊断页幻影带 / 行动作列对齐）
 
 1. x86_64/aarch64：b135 的改动是 Slint 布局语义与门禁脚本，架构中性；slint 定向 nextest 379/379、专项守卫与整批 197 帧发布为 `L`，本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。
 2. Windows/Linux/macOS：b135 只在本机 Linux 台架完成编译、定向测试与整批 197 帧发布；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 Unsupported 登记 → 部分（L）。
@@ -1260,7 +1286,7 @@
 7. 模块化：行与动作胶囊在 `workbench_parts.slint` 一处（组件先声明后使用），间距规则在页内 repeater 自持，行宽 token 在 `theme.slint` 一处；`page_doctor.slint` 保持 ≤600 非注释行预算，SLINT-014 与 SLINT-013 无重叠 → 完整（L）。
 8. CI：本批无 CI 变更；新守卫以 enforce + self-test 双腿接入 `check-structure.sh`；整批 197/197 发布 375s；`--workspace` nextest/clippy 与提交/CI 腿待统一验证批次，不写「已高效验证」 → 部分（L）。
 
-## 最近一批问答（2026-11-08 第一百三十四交付批次：列表页主卡填满视口 / 列表内滚）
+## 历史问答（2026-11-08 第一百三十四交付批次：列表页主卡填满视口 / 列表内滚）
 
 1. x86_64/aarch64：b134 的改动是 Slint 布局语义与门禁脚本，架构中性；slint 定向 nextest 379/379、专项守卫与整批 197 帧发布为 `L`，本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。
 2. Windows/Linux/macOS：b134 只在本机 Linux 台架完成编译、定向测试与整批 197 帧发布；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 Unsupported 登记 → 部分（L）。
@@ -1272,7 +1298,7 @@
 7. 模块化：页身高度发布在 `app_body.slint` 一处，卡高模式在 `card_height.slint` + `cards.slint`，列表滚动在 `list_body.slint`，无跨页面拷贝；`page_observe.slint` 518 行（≤600 预算），SLINT-001..013 守卫全绿 → 完整（L）。
 8. CI：本批无 CI 变更；新守卫以 enforce + self-test 双腿接入 `check-structure.sh`；整批 197/197 发布 417s；`--workspace` nextest/clippy 与提交/CI 腿待统一验证批次，不写高效已验证 → 部分（L）。
 
-## 最近一批问答（2026-11-08 第一百三十三交付批次：概览卡网格等宽 / 同构卡基线对齐）
+## 历史问答（2026-11-08 第一百三十三交付批次：概览卡网格等宽 / 同构卡基线对齐）
 
 1. x86_64/aarch64：b133 的改动是 Slint 布局语义与门禁脚本，架构中性；slint 定向 nextest、专项守卫与整批 197 帧发布为 `L`，本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。
 2. Windows/Linux/macOS：b133 只在本机 Linux 台架完成编译、定向测试与整批 197 帧发布；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 Unsupported 登记 → 部分（L）。
@@ -1284,7 +1310,7 @@
 7. 模块化：`slint-viewport-tier-guard.py` 新增两条硬门（概览页必须读 overview-card-columns/gap、卡片自身语句不得用 horizontal-stretch 定宽、fact 值必须留在共享值行盒）并新增 2 项 planted 自测（共 12 项）；未新增隐式状态机候选 → 部分（L）。
 8. CI：本批完成 197/197 整批发布（384s）、11 项专项守卫零违规与 12 项守卫自测全绿；`--workspace` nextest/clippy 与提交/CI 腿待统一验证批次，不写高效已验证 → 部分（L）。
 
-## 最近一批问答（2026-11-08 第一百三十二交付批次：Core 会话起点底层贯通 / 运行时长真实发布）
+## 历史问答（2026-11-08 第一百三十二交付批次：Core 会话起点底层贯通 / 运行时长真实发布）
 
 1. x86_64/aarch64：b132 的改动是 contract/domain/application/presentation 的 typed 会话事实与共享时长格式化器，架构中性；contract+domain+shared+presentation 1606/1606、application+slint 1044/1044 定向 nextest 与 CORE-SESSION / SLINT-011 专项守卫为 `L`，本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。
 2. Windows/Linux/macOS：b132 只在本机 Linux 台架完成编译、定向测试与整批 197 帧发布；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 Unsupported 登记 → 部分（L）。
@@ -1296,7 +1322,7 @@
 7. 模块化：新增 `scripts/quality/core-session-guard.py`（CORE-SESSION，6 条规则 + 5 项 planted 自测）并接入 `check-structure.sh`；`slint-fact-row-guard.py` 增「projection 不得写死时长字面量」一条；本批未新增隐式状态机候选（会话起点是 typed 字段而非阶段标志）→ 部分（L）。
 8. CI：本批完成 1606/1606 + 1044/1044 定向 nextest、197/197 整批发布（383s）与十项专项守卫零违规，结构门离线项除三条他人 Bevy 在制外债（bevy-ui `capture-tools` 特性未同步 feature-matrix 台账、bevy-widgets `card.rs` 新增 rem 外债、presentation `tray_projection.rs` 未用导入）外全绿；`--workspace` nextest/clippy 与提交/CI 腿待统一验证批次，不写高效已验证 → 部分（L）。
 
-## 最近一批问答（2026-11-08 第一百三十一交付批次：侧栏页脚吞吐行越界 / 公共 padding 门禁）
+## 历史问答（2026-11-08 第一百三十一交付批次：侧栏页脚吞吐行越界 / 公共 padding 门禁）
 
 1. x86_64/aarch64：b131 的改动是 Slint 布局语义与共享脚本规则，架构中性；379/379（slint）定向 nextest 与专项守卫为 `L`，本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。
 2. Windows/Linux/macOS：b131 只在本机 Linux 台架完成编译、定向测试与整批 197 帧发布；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 Unsupported 登记 → 部分（L）。
@@ -1308,7 +1334,7 @@
 7. 模块化：`slint-padding`（新增 4 自测）、`slint-fact-row`、`slint-dock-material`、`slint-mobile-chrome`、`slint-surface-ladder`、`slint-viewport-tier`、`slint-syntax`、`slint-dead-input`、`design-resource-authority`、`doc-governance` 全零违规 → 部分（L）。
 8. CI：本批完成 379/379 定向 nextest、197/197 整批发布（682s）与十项专项守卫零违规；`--workspace` nextest/clippy 与提交/CI 腿待统一验证批次，不写高效已验证 → 部分（L）。
 
-## 最近一批问答（2026-11-07 第一百三十交付批次：概览事实行 typed 契约 / 双列基线对齐）
+## 历史问答（2026-11-07 第一百三十交付批次：概览事实行 typed 契约 / 双列基线对齐）
 
 1. x86_64/aarch64：b130 的 `ui_fact` contract、presentation 投影与 Slint 组件均为架构中性的 typed 定义；902/902（contract+presentation）与 379/379（slint）定向 nextest 及专项守卫为 `L`，本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。
 2. Windows/Linux/macOS：b130 只在本机 Linux 台架完成编译、定向测试与诊断帧；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 Unsupported 登记 → 部分（L）。
@@ -1320,7 +1346,7 @@
 7. 模块化：`slint-fact-row`（新增 5 自测）、`slint-typography-role`（角色闭集 25→26）、`slint-dead-input`、`design-resource-authority`、`doc-governance`、`closure-questions` 全零违规；事实行无第二份页面拷贝，无跨 UI 私有业务真源 → 部分（L）。
 8. CI：本批完成 902/902 + 379/379 定向 nextest、全量守卫零违规与移动/桌面诊断帧；全量 197 帧重采、`--workspace` nextest/clippy 与提交/CI 腿待统一验证批次 → 部分（L）。
 
-## 最近一批问答（2026-11-07 第一百二十九交付批次：底部胶囊玻璃 veil 材质单一真源 / 横跳根治）
+## 历史问答（2026-11-07 第一百二十九交付批次：底部胶囊玻璃 veil 材质单一真源 / 横跳根治）
 
 1. x86_64/aarch64：b129 的 `MobileDockMaterial`、`floating-surface`、`dock-rim-color` 均为架构中性的 typed contract 与资源定义；本地 197 帧 capture、525/525 contract nextest、379/379 slint nextest 与专项守卫为 `L`，本批未复跑交叉 `cargo check` 或产出目标架构安装包，`C`/`D` 待补证 → 部分（L）。
 2. Windows/Linux/macOS：b129 只在本机 Linux 台架完成 197/197 整批发布与本机编译；Windows/macOS 构建腿与安装包未随本批复跑，macOS 沿用既有 Unsupported 登记 → 部分（L）。
@@ -1405,7 +1431,7 @@
 | b127 空间 / 对齐 / 菜单栏共治 | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 缺失（L） | 部分（L） | 部分（L） | L：197/197 发布、897/897 定向 nextest、公共几何 token、服务数值完整、dock 字重统一、receipt/identity/专项守卫零违规；P0 空带与 sticky header 属底层未决，C/D、workspace 重型门与提交证据待补。 |
 | b128 底部菜单半透明悬浮 / 移动端无滚动条 / 青蛙hero闭环 | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 部分（L） | 缺失（L） | 部分（L） | 部分（L） | L：197/197 发布、902/902 定向 nextest、毛玻璃浮动材质、无滚动条、青蛙512英雄按钮叠加闭环；C/D、workspace 重型门待补。 |
 
-## 最近一批问答（2026-11-05 第一百一十交付批次：全仓统一公共字体/字号/字重跨四表面闭环落地）
+## 历史问答（2026-11-05 第一百一十交付批次：全仓统一公共字体/字号/字重跨四表面闭环落地）
 
 1. x86_64/aarch64：中性 contract `design_resources` 与 `design-authority.json` 均为跨架构纯 Rust / Kotlin / Slint 资源定义；六包定向 nextest 2179/2179 全绿，无架构专用代码，交叉腿未复跑 → 部分（L）。
 2. Windows/Linux/macOS：Iced、Slint、Bevy 三桌面表面统一接入 Inter、JetBrains Mono、HarmonyOS Sans 五张物理面与 14 种 TextRole 排版阶梯，字重严格闭合 400/500/600，跨平台一致；Linux 本机全矩阵截图 558 张重拍完成，Windows/macOS 安装包与真机腿仍在斗战胜佛 → 部分（L）。
@@ -1417,7 +1443,7 @@
 7. 模块化：各表面模块化拆分（`overview_hero.rs`, `overview_traffic_scenes.rs`, `demo/outbound.rs`），单文件 ≤800 行（`line budget guard: scanned=2912 violations=0`，`kotlin line budget guard: scanned=233 violations=0`）；`import-guard` 0 违规；`scrollbar-contract-guard` 0 违规；`i18n-guard` 0 违规；无跨 UI 私有业务真源 → 部分（L）。
 8. CI / 统一批次：`check-structure.sh` 40+ 结构守卫全部 exit 0；`cargo fmt --all --check` 0 偏差；六包定向 nextest 2179/2179 全绿；Clippy 6 包 `--all-targets -D warnings` 零警告；`screenshot-identity-guard` 550 张截图 10 aliases 0 违规；`scrollbar-contract-guard` 0 违规；`shared-copy-guard` 0 违规；`i18n-guard` 0 违规 → 部分（L）。
 
-## 最近一批问答（2026-11-04 第一百零八交付批次：Iced 布局对标与共享描述强制接入）
+## 历史问答（2026-11-04 第一百零八交付批次：Iced 布局对标与共享描述强制接入）
 
 1. x86_64/aarch64：本批只改中性 contract key、共享文案表、PO、Android 资源与 UI 消费端；Iced capture 包 `cargo check` 全绿，无架构专用代码，交叉腿未复跑 → 部分（L）。
 2. Windows/Linux/macOS：Iced/Bevy/Slint 共用同一桌面编译路径；Linux 本机定向 check 全绿，Windows/macOS 原生安装包与实机腿仍归属斗战胜佛与未来佛 → 部分（L）。
@@ -1429,7 +1455,7 @@
 7. 模块化：新增 key 目录、两张共享文案表与独立守卫均在既有 owner 边界内；Iced 侧栏 800 行预算内，未新增隐式状态或跨 UI 私有真源；文档层级与反向引用门全绿 → 部分（L）。
 8. CI：五包定向 nextest 2152/2152、Iced 537/537、Bevy headless 609/610（唯一失败为他会话 `dns_hosts_action_tests` 焦点行为 WIP，与本批文案无关）全绿；共享文案守卫自测/enforce、守卫回归 6/6、文档治理、收口八问、`cargo fmt --all --check`、i18n guard（重复 key 0，本批新增违规 0）与 Iced capture `cargo check` 全绿；Iced 全矩阵 182/182；全仓结构门/Clippy 与其余表面截图受他会话 WIP 影响，留待统一收口批次 → 部分（L）。
 
-## 最近一批问答（2026-11-03 第一百零七交付批次：全部可推条目办结归档、现在佛与过去佛全面清零）
+## 历史问答（2026-11-03 第一百零七交付批次：全部可推条目办结归档、现在佛与过去佛全面清零）
 
 1. x86_64/aarch64：`profile_share` 与 `shell_interaction` 均为中性跨架构纯 Rust / Kotlin 契约；`infiltrator-contract` 505 项单测全绿，Clippy `-D warnings` 零警告，Android 三 flavor Gradle 单元测试通过，无架构专用硬编码 → 部分（L）。
 2. Windows/Linux/macOS：跨端交互基线与 Profile 分享模型为平台无关公共契约；Windows/macOS 原生安装包与实机腿仍归属斗战胜佛与未来佛对应条目 → 部分（L）。
@@ -1440,7 +1466,7 @@
 7. 模块化：`OverviewScreen.kt` 与 `OverviewCards.kt` 模块化解耦，全仓 2893 个源码文件与 228 个 Kotlin 文件行预算 100% 达标（0 violations）；mod.rs 0 违规；隐式状态机 23 候选 0 undecided 0 open；rem 体系 0 违规 0 debt → 部分（L）。
 8. CI：`check-structure.sh` 40+ 结构守卫全部 PASS；`cargo fmt --all --check` 0 偏差；`closure-questions-guard.py` 8/8 通过；同批一体提交并推入 main → 部分（L）。
 
-## 最近一批问答（2026-11-03 第一百零六交付批次：Android 交互取证全绿、消除 part[123] 命名与过去佛清空归档）
+## 历史问答（2026-11-03 第一百零六交付批次：Android 交互取证全绿、消除 part[123] 命名与过去佛清空归档）
 
 1. x86_64/aarch64：Android bridge、active profile 恢复与跨进程租约/并发逻辑均为中性跨架构纯 Rust / Kotlin 实现；`infiltrator-android` 221 项单测全绿，`mihomo-config` 159 项单测全绿，无架构专用硬编码 → 部分（L）。
 2. Windows/Linux/macOS：本批改动聚焦于 Android 模拟器 M1 交互取证与 active-profile 恢复幂等性，不触碰桌面原生打包；Windows/macOS 安装包与实机腿仍在斗战胜佛/未来佛 → 部分（L）。
@@ -1451,7 +1477,7 @@
 7. 模块化：彻底清除全仓 `part1`/`part2`/`part3` 无语义命名；单文件 <=800 行严格达标（`line budget guard: budget=800 scanned=2891 violations=0`，`kotlin line budget guard: budget=800 scanned=227 violations=0`）；mod.rs 0 违规；无跨 UI 私有业务真源 → 部分（L）。
 8. CI：`check-structure.sh` 40+ 结构守卫全部 PASS；`cargo fmt --all --check` 0 偏差；`android-interaction-receipt-guard.py --mode enforce` 0 违规；`closure-questions-guard.py` 8/8 通过；同批一体提交并推入 main → 部分（L）。
 
-## 最近一批问答（2026-11-03 第一百零五交付批次：Slint 桌面 GPU 渲染通道办结归档）
+## 历史问答（2026-11-03 第一百零五交付批次：Slint 桌面 GPU 渲染通道办结归档）
 
 1. x86_64/aarch64：`gpu-skia` 特性与选择器为平台无关代码；定向 `cargo nextest run -p infiltrator-slint` 364/364 全绿，clippy `-p infiltrator-slint --all-targets -D warnings` 零警告 → 部分（L）。
 2. Windows/Linux/macOS：`select_desktop_gpu_backend` 保持平台统一路径，`SLINT_BACKEND` 逃生口与 winit present 模式不变；Linux Wayland 离线台架取得 Skia/wgpu 运行时回执；Windows/macOS 原生安装包与实机腿仍在斗战胜佛/未来佛 → 部分（L）。
@@ -1462,7 +1488,7 @@
 7. 模块化：`gpu-skia` 登记进 `feature_matrix.json`（kind=platform）并经 feature-matrix-guard enforce；typed-state 0 findings、implicit-state 23 候选 0 undecided 0 open、slint-syntax-guard 100% PASS、check-structure.sh exit 0 → 部分（L）。
 8. CI：`cargo fmt --all --check` 0 偏差；随批升级 `pulldown-cmark` 0.13.6 修复 RUSTSEC-2026-0433，`cargo deny check advisories bans licenses sources` 四项 ok、`cargo metadata --locked` ok；采集台架新增 `SLINT_CAPTURE_PROFILE/GL/PERF/SOAK_SECONDS` 可复跑旋钮，性能回执绑定 run id 与 binary sha256；同批提交并推送 main → 部分（L）。
 
-## 最近一批问答（2026-11-02 第一百零四交付批次：统一验证批次与集中归档，过去佛 13 条 / 38 pt 一次性办结）
+## 历史问答（2026-11-02 第一百零四交付批次：统一验证批次与集中归档，过去佛 13 条 / 38 pt 一次性办结）
 
 1. x86_64/aarch64：统一批次 `cargo nextest run --workspace --no-fail-fast` 5,767 passed / 0 failed / 15 skipped，clippy `--workspace --all-targets -D warnings` 零警告；`neutral-crate-release.sh structure` 七个中性 crate 全 ready；sing-box 真实二进制 v1.14.3 driver smoke 四项 proof 全 proven（`node_speed_test` 实测 983ms）→ 部分（L）。
 2. Windows/Linux/macOS：托盘、CSD 标题栏与侧栏材质三桌面代码路径随统一批次编译与全量测试验证；真实安装包、Win11 Snap 菜单与 DWM/Vibrancy 原生材质像素腿随斗战胜佛/未来佛既有条目取证 → 部分（L）。
@@ -1473,7 +1499,7 @@
 7. 模块化：`check-structure.sh` 40+ 结构守卫 exit 0（行预算/import 卫生/mod-rs 清退/typed-state/implicit-state 判决台账全绿）；`resolve_surface_evidence.py` pass（status=pass，360 anchors，180 cells）→ 部分（L）。
 8. CI：`cargo fmt --all --check` 0 偏差；clippy 零警告；`cargo deny check advisories bans licenses sources` 四项 ok；`cargo metadata --locked` ok；同批提交并推送 main → 部分（L）。
 
-## 最近一批问答（2026-11-01 第一百零三交付批次：FLPARITY-039 桌面侧栏系统材质效果与诚实降级交付与 rem 体系严格落实）
+## 历史问答（2026-11-01 第一百零三交付批次：FLPARITY-039 桌面侧栏系统材质效果与诚实降级交付与 rem 体系严格落实）
 
 1. x86_64/aarch64：中性 pure-Rust 契约（`SidebarMaterialKind`、`SidebarMaterialSupport`、`SidebarMaterialSpec`）与 presentation 投影平台无关；受影响六包定向 nextest 2,241/2,241 全绿，无目标架构缺陷 → 部分（L）。
 2. Windows/Linux/macOS：Windows Mica/MicaAlt/Acrylic 构建号门禁（22000/22621/17134）判定，macOS Vibrancy 与 Linux WaylandBlur 宿主支持检测与无扩展时诚实回 `None`，不伪造系统材质；安装包与真机仍待外部环境腿 → 部分（L）。
@@ -1484,7 +1510,7 @@
 7. 模块化：全仓文件行预算严格守卫（所有 Rust 文件 ≤800 行，Slint ≤600 行，Kotlin ≤800 行）；隐式状态机审计 23 项候选全量判决 0 undecided 0 open；bevy_rem_guard 0 违规 0 debt；slint-syntax-guard 100% PASS → 部分（L）。
 8. CI：受影响六包定向 nextest 2,241/2,241 全绿；六包 clippy 0 警告；cargo fmt 0 偏差；check-structure.sh 40+ 项门禁全部 PASS；同批提交并推送 main → 部分（L）。
 
-## 最近一批问答（2026-11-01 第一百零二交付批次：FLPARITY-018 自定义无框窗口标题栏（CSD）、实时流量胶囊与多端统一系统窗管交付与 rem 体系严格落实）
+## 历史问答（2026-11-01 第一百零二交付批次：FLPARITY-018 自定义无框窗口标题栏（CSD）、实时流量胶囊与多端统一系统窗管交付与 rem 体系严格落实）
 
 1. x86_64/aarch64：中性 pure-Rust 契约（`TitleBarTrafficCapsule`、`TitleBarControlsPlacement`、`DesktopPlatformKind`、`TitleBarInsets`、`SnapLayoutSupport`、`DesktopTitleBarSpec`）与 presentation 标题栏投影均为平台无关纯 Rust；受影响六包定向 nextest 2,230/2,230 全绿（首轮仅 `editor_viewport` 50k 性能预算条在并行重载下抖动，`--no-fail-fast` 复跑确认归属为负载噪声），无目标架构专有缺陷 → 部分（L）。
 2. Windows/Linux/macOS：Windows Snap Layout API 按 HKLM CurrentBuildNumber ≥ 22000 判定支持并给出显式 `Unsupported { reason }`，最大化按钮 `WM_NCHITTEST` `HTMAXBUTTON` 几何（右起 46/46/46 三键）由 `SnapLayoutButtonGeometry::STANDARD_WIN11` 唯一持有并带命中测试单测；macOS 控件左置 insets、Windows/Linux 右置 insets 由 `TitleBarInsets::for_platform` 裁决；非 Windows 平台诚实回 `non-windows-platform`；安装包与目标真机仍待外部环境腿 → 部分（L）。
@@ -1495,7 +1521,7 @@
 7. 模块化：全仓文件行预算严格守卫（所有 Rust 文件 ≤800 行，Slint ≤600 行，Kotlin ≤800 行）；无隐式布尔状态机（typed-state-guard 0 findings）；bevy_rem_guard 0 违规 0 debt；Slint 尺寸统一 * LumenUiScale.unit 0 裸 px；slint-syntax-guard 100% PASS → 部分（L）。
 8. CI：受影响六包（contract/presentation/desktop/iced/bevy-ui/slint）定向 nextest 2,230/2,230 全绿；六包 clippy `--all-targets -- -D warnings` 0 警告；`cargo fmt --all --check` 0 偏差；bevy_rem_guard、slint-syntax-guard、typed-state-guard 全绿；同批提交并推送 main → 部分（L）。
 
-## 最近一批问答（2026-11-01 第一百零一交付批次：FLPARITY-006 桌面托盘宿主与彩色状态图标交付与 rem 体系严格落实）
+## 历史问答（2026-11-01 第一百零一交付批次：FLPARITY-006 桌面托盘宿主与彩色状态图标交付与 rem 体系严格落实）
 
 1. x86_64/aarch64：中性 pure-Rust 领域、契约、托盘菜单树构建器与平台宿主接口，全量 workspace nextest 5,748/5,748 全绿，无目标架构专有缺陷 → 部分（L）。
 2. Windows/Linux/macOS：桌面三端（Iced、Bevy、Slint）托盘宿主全部具备真实平台后端接线（Linux StatusNotifierItem/ksni，Windows/macOS muda+tray-icon）；无托盘环境诚实降级 TrayStartup::Unavailable 并报告 Unsupported 不崩溃；安装包与目标真机仍待外部环境腿 → 部分（L）。
@@ -1506,7 +1532,7 @@
 7. 模块化：全仓文件行预算严格守卫（所有 Rust 文件 ≤800 行，Slint ≤600 行，Kotlin ≤800 行）；无隐式布尔状态机；import-guard 扫描 2882 文件 0 违规；bevy_rem_guard 0 违规 0 debt；Slint 尺寸统一 * LumenUiScale.unit 0 裸 px；mod-rs-guard 0 违规 → 部分（L）。
 8. CI：全量结构门 check-structure.sh 40+ 项门禁全部 PASS；cargo fmt --all --check 0 偏差；cargo clippy --workspace --all-targets -- -D warnings 0 警告；全仓 nextest 5,748/5,748 全绿；同批提交并推送 main → 部分（L）。
 
-## 最近一批问答（2026-11-01 第一百交付批次：GAP-7.6 三端信息架构与交互模型对齐交付与 rem 体系严格落实）
+## 历史问答（2026-11-01 第一百交付批次：GAP-7.6 三端信息架构与交互模型对齐交付与 rem 体系严格落实）
 
 1. x86_64/aarch64：中性 pure-Rust 领域、契约、各 UI 表现模型与驱动，全量定向 nextest 1,736/1,736（contract 485 + presentation 340 + iced 548 + slint 363）全绿，无目标架构专有缺陷 → 部分（L）。
 2. Windows/Linux/macOS：桌面三端（Iced、Bevy、Slint）消除私有硬编码延迟等级与各端不同的页面中文名，统一遵照 Contract 延迟阈值（<100 Fast / 100~250 Medium / ≥250 Slow / 0 Timeout）与 15 个页面短标题字典；安装包与目标真机仍待外部环境腿 → 部分（L）。
@@ -1517,7 +1543,7 @@
 7. 模块化：全仓文件行预算严格守卫（所有 Rust 文件 ≤800 行，Slint ≤600 行，Kotlin ≤800 行）；无隐式布尔状态机；import-guard 扫描 2880 文件 0 违规；bevy_rem_guard 0 违规 0 debt；Slint 尺寸统一 * LumenUiScale.unit 0 裸 px；mod-rs-guard 0 违规 → 部分（L）。
 8. CI：全量结构门 check-structure.sh 40+ 项门禁全部 PASS；cargo fmt --all --check 0 偏差；cargo clippy -p infiltrator-contract -p infiltrator-presentation -p infiltrator-iced -p infiltrator-slint --all-targets -- -D warnings 0 警告；定向 nextest 1,736/1,736 全绿；同批提交并推送 main → 部分（L）。
 
-## 最近一批问答（2026-11-01 第九十九交付批次：统一集成验证批次与集中归档）
+## 历史问答（2026-11-01 第九十九交付批次：统一集成验证批次与集中归档）
 
 1. x86_64/aarch64：中性 pure-Rust 领域、契约、各 UI 表现模型与驱动，全量 workspace nextest 5,748/5,748 全绿，无目标架构专有缺陷 → 部分（L）。
 2. Windows/Linux/macOS：桌面三端（Iced、Bevy、Slint）全量集成测试、主题切换、快捷键、输入法与 16/18 业务页面模型全量验证通过；安装包与目标真机仍待外部环境腿 → 部分（L）。
@@ -1528,7 +1554,7 @@
 7. 模块化：全仓文件行预算严格守卫（所有 Rust 文件 ≤800 行，Slint ≤600 行，Kotlin ≤800 行）；无隐式布尔状态机（22 处候选 100% 裁决）；bevy_rem_guard 0 违规 0 debt；Slint 尺寸统一 * LumenUiScale.unit 0 裸 px；mod-rs-guard 0 违规 → 部分（L）。
 8. CI：统一集成验证全量通过——cargo nextest run --workspace --no-fail-fast 5,748 passed / 0 failed / 15 skipped；cargo clippy --workspace --all-targets -- -D warnings 零警告；cargo deny check 四项 ok；cargo metadata --locked ok；check-structure.sh 40+ 项结构门 exit 0；cargo fmt --all --check 0 偏差；版本号按身份改动升至 0.51.0 → 部分（L）。
 
-## 最近一批问答（2026-11-01 第九十八交付批次：FLPARITY-007 Tools 信息架构与 About/Disclaimer/Licenses 页面四端闭环交付与 rem 体系严格落实）
+## 历史问答（2026-11-01 第九十八交付批次：FLPARITY-007 Tools 信息架构与 About/Disclaimer/Licenses 页面四端闭环交付与 rem 体系严格落实）
 
 1. x86_64/aarch64：中性 pure-Rust 领域、契约、共享资产与各 UI 表现模型，不涉及平台专有汇编；定向 nextest 1709/1709 全绿（contract+shared+iced 1108，bevy-ui 601），无目标架构依赖缺陷 → 部分（L）。
 2. Windows/Linux/macOS：桌面三端（Iced、Bevy、Slint）Tools、About、Disclaimer、Licenses 导航与展现完整对齐；严格落实 rem 体系，Bevy 0 px 违例 0 debt，代码行预算 2880 文件 0 违规；安装包与真机仍待统一验证与外部环境腿 → 部分（L）。
@@ -1539,7 +1565,7 @@
 7. 模块化：文件行预算严格守卫（line-guard 2880 文件 0 违规，kt-line-guard 227 文件 0 违规，route.rs 773 行，mount.rs 102 行）；bevy_rem_guard violations=0, debt=0；bevy_bsn_guard violations=0；bevy_scene_gate 0 违规；i18n-guard 0 errors；无跨层隐式状态机 → 部分（L）。
 8. CI：全量结构门 check-structure.sh 40+ 项门禁全部 PASS；cargo fmt --all --check 零偏差；Clippy -p infiltrator-contract -p infiltrator-shared -p infiltrator-iced -p infiltrator-bevy-ui --all-targets -- -D warnings 零警告；同批提交并推送 main → 部分（L）。
 
-## 最近一批问答（2026-11-01 第九十七交付批次：FLPARITY-010 Slint 键盘焦点、输入法与按键分发模型闭环交付与 parity 矩阵全量锚定）
+## 历史问答（2026-11-01 第九十七交付批次：FLPARITY-010 Slint 键盘焦点、输入法与按键分发模型闭环交付与 parity 矩阵全量锚定）
 
 1. x86_64/aarch64：中性 pure-Rust 领域、契约、键盘焦点与 Slint 模型，不涉及平台专有汇编；定向 nextest 434/434 全绿（contract 371 + slint 63），无架构专有缺陷 → 部分（L）。
 2. Windows/Linux/macOS：Slint 窗口焦点由通用 `on_window_focus_changed` 回调感知，按键分发与 IME 状态追踪完全跨平台；安装包与真机仍待统一验证与外部环境腿 → 部分（L）。
@@ -1550,7 +1576,7 @@
 7. 模块化：严格遵守 ≤800 行代码预算（`focus_ime.rs` 281 行，`keyboard_focus_tests.rs` 171 行，`line-guard.py` 2878 文件 0 违规）；`lumen-app.slint` 紧凑后 596 行，`slint-syntax-guard.py` 100% PASS；`import-guard.py` 0 违规；`bevy_rem_guard` 0 违例 0 debt；`typed-state-guard` 0 findings；`implicit-state-audit` 0 open 0 undecided → 部分（L）。
 8. CI：统一执行 `scripts/quality/check-structure.sh` 40+ 项门禁全部 PASS；`cargo fmt --check` 0 偏差；`cargo clippy -p infiltrator-contract -p infiltrator-slint --all-targets -- -D warnings` 0 警告；定向 nextest 434/434 全绿；同批提交并推送 `main` → 部分（L）。
 
-## 最近一批问答（2026-11-01 第九十六交付批次：FLPARITY-036 自定义种子色与色彩风格全量闭环交付与 rem 体系落实）
+## 历史问答（2026-11-01 第九十六交付批次：FLPARITY-036 自定义种子色与色彩风格全量闭环交付与 rem 体系落实）
 
 1. x86_64/aarch64：中性 pure-Rust 领域、契约、存储与应用逻辑，不涉及平台专有汇编；定向 nextest 1780/1780 全绿，无目标架构依赖缺陷 → 部分（L）。
 2. Windows/Linux/macOS：桌面端配置持久化由统一 `FilePalettePreferenceStore` 支持（标准配置目录存储 JSON），全平台通用；安装包与真机仍待统一验证与外部环境腿 → 部分（L）。
@@ -1561,7 +1587,7 @@
 7. 模块化：严格遵守 ≤800 行文件预算（`dispatch.rs` 791 行，`composition.rs` 782 行，`surface_reader.rs` 782 行，`line-guard.py` 2876 文件 0 违规）；`import-guard.py` 0 违规；`bevy_rem_guard` 0 违例 0 debt；`typed-state-guard` 0 findings；`implicit-state-audit` 0 open 0 undecided → 部分（L）。
 8. CI：统一执行 `check-structure.sh` 40+ 项门禁全部 PASS；`cargo fmt --check` 0 偏差；`cargo clippy --workspace --all-targets -- -D warnings` 0 警告；定向 nextest 1780/1780 全绿；同批提交并推送 `main` → 部分（L）。
 
-## 最近一批问答（2026-11-01 第九十五交付批次：FLPARITY-017 Android Compose 路由微动效与转场动效闭环交付）
+## 历史问答（2026-11-01 第九十五交付批次：FLPARITY-017 Android Compose 路由微动效与转场动效闭环交付）
 
 1. x86_64/aarch64：本批为 Android Compose 界面层转场动效接入与 AndroidManifest 清理，底层 Rust 交叉目标编译（`cargo build --release --locked --target aarch64-linux-android` 与 `x86_64-linux-android`）全绿；定向 JVM 单测与 Rust 单测全绿 → 部分（L）。
 2. Windows/Linux/macOS：桌面端动效此前已在批次 78 完成，本批仅完善 Android Compose 对应实现；Linux 结构门与守卫全绿；受控平台环境在斗战胜佛 → 部分（L）。
@@ -1572,7 +1598,7 @@
 7. 模块化：文件行数严格控制（所有文件 ≤800 行，`kt-line-guard.py` 227 文件扫描 0 违规）；无隐式布尔状态机；严格落实 rem 体系（`bevy_rem_guard` 0 违规 0 debt，Slint 统一 `* LumenUiScale.unit`）；Android 架构红线 141 点 0 违例；`ktlintCheck` 与 `detekt` 全绿；`cargo fmt --all --check` 0 偏差 → 部分（L）。
 8. CI：本地 Gradle 开启 configuration cache 与 build cache，`:app:androidLintGate` 校验三大 flavor Debug Lint，本地单测、全量结构门（40+ 项）与 Rust/Kotlin 静态分析全绿；同次闭环提交并推送至 `origin/main` → 部分（L）。
 
-## 最近一批问答（2026-11-01 第九十四交付批次：残余 Clippy 与 Bevy ECS 系统参数复杂度收敛，FLPARITY-014 迁入过去佛）
+## 历史问答（2026-11-01 第九十四交付批次：残余 Clippy 与 Bevy ECS 系统参数复杂度收敛，FLPARITY-014 迁入过去佛）
 
 1. x86_64/aarch64：中性纯 Rust 逻辑与 UI 参数收敛，不影响 cross 目标架构；定向 nextest 553/553、全包 Clippy（包含 `--all-features`）全绿，交叉构建结论不变 → 部分（L）。
 2. Windows/Linux/macOS：修复仅作用于 infiltrator-bevy-ui 与 infiltrator-slint 的静态类型与警告，桌面三端通用；平台受控真实安装包仍在斗战胜佛 → 部分（L）。
@@ -1583,7 +1609,7 @@
 7. 各处界面是否模块化了？严格落实 rem 体系，Bevy 0 违规（bevy_rem_guard --mode enforce 0 违规，debt 为 0），Slint 统一 LumenUiScale.unit，check-structure.sh 全量结构门（40+ 项）exit 0，typed-state-guard 与 implicit-state-audit 0 违规 → 部分（L）。
 8. CI 打包是否最高效？集中跑全量结构门、rem 守卫、截图身份守卫、clippy（--all-targets --all-features -D warnings）与定向 nextest；本批次同次闭环提交推送 main → 部分（L）。
 
-## 最近一批问答（2026-11-01 第九十三交付批次：桌面 192 张四主题截图重采与确定性修复，收口 PARITY-001.6 桌面部分）
+## 历史问答（2026-11-01 第九十三交付批次：桌面 192 张四主题截图重采与确定性修复，收口 PARITY-001.6 桌面部分）
 
 1. x86_64/aarch64：中性纯 Rust 逻辑与桌面截图管线，不影响底层 cross 目标架构；定向 nextest 553/553、Clippy 全绿，交叉构建结论不变 → 部分（L）。
 2. Windows/Linux/macOS：修复仅作用于桌面 capture 与 demo snapshot 读回逻辑，Windows/Linux/macOS 桌面三端共用一套截图流水线与 theme_readback 投影契约；平台受控真实安装包仍在斗战胜佛 → 部分（L）。
@@ -1594,7 +1620,7 @@
 7. 各处界面是否模块化了？严格落实 rem 体系，Bevy 0 违规（bevy_rem_guard --mode enforce 0 违规，debt 为 0），Slint 统一 LumenUiScale.unit，check-structure.sh 全量结构门 exit 0，typed-state-guard 与 implicit-state-audit 0 违规 → 部分（L）。
 8. CI 打包是否最高效？开发期仅跑受影响包定向反馈，集中跑全量结构门、rem 守卫、截图身份守卫与 clippy；本批次同次闭环提交推送 main → 部分（L）。
 
-## 最近一批问答（2026-11-01 FLPARITY-014 计划①宿主动态色适配器：Desktop SystemThemeObservationPort 实现）
+## 历史问答（2026-11-01 FLPARITY-014 计划①宿主动态色适配器：Desktop SystemThemeObservationPort 实现）
 
 1. x86_64/aarch64：纯 Rust adapter + 字符串解析，runner cfg 隔离；定向 nextest 694/694、clippy 全绿，交叉腿结论不变 → 部分（L）。
 2. Windows/Linux/macOS：Linux GNOME（gsettings）与 Windows（reg query）已具备实测解析函数与单测钉死；macOS 诚实降级 Unobserved；Windows/macOS 受控运行环境仍在斗战胜佛 → 部分（L）。
@@ -1605,7 +1631,7 @@
 7. 模块化：`SystemThemeRunner` 抽象解耦平台命令与数据结构；无新增 bool/Option 隐式态（implicit-state audit 22 候选全判决）；typed-state/implicit-state/rem 守卫 0 违规、结构门 exit 0 → 部分（L）。
 8. CI：全量结构门收口一次跑通；单 commit 推送由 `main-gate` 复验 → 部分（L）。
 
-## 最近一批问答（2026-11-01 FLPARITY-014 计划②消费腿：Android Compose 快照主题读回消费）
+## 历史问答（2026-11-01 FLPARITY-014 计划②消费腿：Android Compose 快照主题读回消费）
 
 1. x86_64/aarch64：本批为 Kotlin/Compose 消费层，Rust 零改动；JVM 单测全绿，aarch64 交叉腿结论不变 → 部分（L）。
 2. Windows/Linux/macOS：N/A——本批为 Android 消费切片，桌面三端已于 batch 88–90 接线完毕。
@@ -1616,7 +1642,7 @@
 7. 模块化：解析单点在 ui/common、组合单点在 ui/theme；无新增 bool/Option 隐式态；架构红线守卫 0 违例、结构门 exit 0 → 部分（L）。
 8. CI：Android CI 为 tag-gated 外部环境腿；本批以本地 Gradle + 全量结构门收口，推送由 `main-gate` 复验 → 部分（L）。
 
-## 最近一批问答（2026-11-01 FLPARITY-014 计划②消费腿：Slint 快照主题读回消费）
+## 历史问答（2026-11-01 FLPARITY-014 计划②消费腿：Slint 快照主题读回消费）
 
 1. x86_64/aarch64：纯 Slint 投影层改动，无平台特化代码；定向 nextest/clippy 全绿，交叉腿结论不变 → 部分（L）。
 2. Windows/Linux/macOS：无宿主平台代码；Windows/macOS 受控环境腿在斗战胜佛 → 部分（L）。
@@ -1627,7 +1653,7 @@
 7. 模块化：无新增 bool/Option 隐式态（implicit-state audit 22 候选全判决）；typed-state/implicit-state/rem 守卫 0 违规；slint 359/359、clippy `-D warnings` 零警告、fmt 0 偏差、结构门 exit 0 → 部分（L）。
 8. CI：全量结构门收口一次跑通；单 commit 推送由 `main-gate` 复验 → 部分（L）。
 
-## 最近一批问答（2026-11-01 FLPARITY-014 计划②消费腿：Iced 快照主题读回消费）
+## 历史问答（2026-11-01 FLPARITY-014 计划②消费腿：Iced 快照主题读回消费）
 
 1. x86_64/aarch64：纯 Iced UI 状态流改动，无平台特化代码；定向 nextest/clippy 全绿，交叉腿结论不变 → 部分（L）。
 2. Windows/Linux/macOS：无宿主平台代码；Windows/macOS 受控环境腿在斗战胜佛 → 部分（L）。
@@ -1638,7 +1664,7 @@
 7. 模块化：无新增 bool/Option 隐式态（implicit-state audit 22 候选全判决）；typed-state/implicit-state/rem 守卫 0 违规；iced 547/547、clippy `-D warnings` 零警告、fmt 0 偏差、结构门 exit 0 → 部分（L）。
 8. CI：全量结构门收口一次跑通；单 commit 推送由 `main-gate` 复验 → 部分（L）。
 
-## 最近一批问答（2026-11-01 FLPARITY-014 计划②消费腿：Bevy 快照主题读回消费）
+## 历史问答（2026-11-01 FLPARITY-014 计划②消费腿：Bevy 快照主题读回消费）
 
 1. x86_64/aarch64：纯 Bevy UI 状态流改动，无平台特化代码；定向 nextest/clippy 全绿，交叉腿结论不变 → 部分（L）。
 2. Windows/Linux/macOS：无宿主平台代码；Windows/macOS 受控环境腿在斗战胜佛 → 部分（L）。
@@ -1649,7 +1675,7 @@
 7. 模块化：无新增 bool/Option 隐式态（implicit-state audit 22 候选全判决）；typed-state/implicit-state/rem 守卫 0 违规；定向 nextest 1352/1352（bevy-ui 806 + iced 546）、两包 clippy `-D warnings` 零警告、fmt 0 偏差、结构门 exit 0 → 部分（L）。
 8. CI：全量结构门收口一次跑通；单 commit 推送由 `main-gate` 复验 → 部分（L）。
 
-## 最近一批问答（2026-11-01 FLPARITY-014 计划②写通腿：主题切换持久化）
+## 历史问答（2026-11-01 FLPARITY-014 计划②写通腿：主题切换持久化）
 
 1. x86_64/aarch64：纯 UI 状态流改动，无平台特化代码；交叉腿结论不变 → 部分（L）。
 2. Windows/Linux/macOS：切换写通经 settings owner，无宿主平台代码；Windows/macOS 受控环境腿在斗战胜佛 → 部分（L）。
@@ -1660,7 +1686,7 @@
 7. 模块化：无新增 bool/Option 隐式态；typed-state/implicit-state/rem 守卫 0 违规；定向 nextest 740/740、clippy `-D warnings` 零警告、fmt 0 偏差 → 部分（L）。
 8. CI：全量结构门收口一次跑通；单 commit 推送由 `main-gate` 复验 → 部分（L）。
 
-## 最近一批问答（2026-11-01 FLPARITY-014 计划②发布腿：快照主题权威读回）
+## 历史问答（2026-11-01 FLPARITY-014 计划②发布腿：快照主题权威读回）
 
 1. x86_64/aarch64：纯 Rust 契约/组合层改动，无平台特化代码；`cargo metadata --locked` ok，交叉腿结论不变 → 部分（L）。
 2. Windows/Linux/macOS：宿主动态色 adapter 仍未交付（观测保持 Unobserved）；Windows/macOS 受控环境腿在斗战胜佛 → 部分（L）。
@@ -1671,7 +1697,7 @@
 7. 模块化：无新增 bool/Option 隐式态；typed-state/implicit-state/rem 守卫 0 违规；定向 nextest 全绿（contract/composition/presentation/iced/bevy-ui）、六包 clippy `-D warnings` 零警告、fmt 0 偏差 → 部分（L）。
 8. CI：全量结构门收口一次跑通；单 commit 推送由 `main-gate` 复验 → 部分（L）。
 
-## 最近一批问答（2026-11-01 FLPARITY-014 计划① Core 腿：主题权威读回完整化）
+## 历史问答（2026-11-01 FLPARITY-014 计划① Core 腿：主题权威读回完整化）
 
 1. x86_64/aarch64：本批为纯 Rust 契约/端口/呈现层改动，无平台特化代码；`cargo metadata --locked` ok，既有交叉腿结论不变 → 部分（L）。
 2. Windows/Linux/macOS：零宿主平台代码；系统动态色宿主 adapter 与快照发布仍是后续腿，Windows/macOS 受控环境腿在斗战胜佛 → 部分（L）。
@@ -1682,7 +1708,7 @@
 7. 模块化：typed enum 取代 `Option<DynamicColorSeed>` 隐式观测态（红线条款）；读回携带观测事实本身；定向 nextest 1587/1587、五包 clippy `-D warnings` 零警告、fmt 0 偏差 → 部分（L）。
 8. CI：全量结构门收口一次跑通；单 commit 推送由 `main-gate` 复验 → 部分（L）。
 
-## 最近一批问答（2026-11-01 统一验证批次 archive 43 条 / 119pt）
+## 历史问答（2026-11-01 统一验证批次 archive 43 条 / 119pt）
 
 1. x86_64/aarch64：本批为台账与验收收口，零代码改动；`cargo metadata --locked` ok，既有 `scripts/cross-check.sh` 交叉腿结论不变 → 部分（L）。
 2. Windows/Linux/macOS：零代码改动，桌面三端既有平台结论不变；Windows/macOS 受控环境腿仍在斗战胜佛 → 部分（L）。
@@ -1693,7 +1719,7 @@
 7. 模块化：零代码改动，无新增状态表达；typed-state、implicit-state、stdout-discipline、rem 守卫全绿；`cargo clippy --workspace --all-targets -- -D warnings` 零警告 → 部分（L）。
 8. CI：全量结构门 `check-structure.sh` 收口一次跑通；台账四板与本表按批次一次提交推送并由 `main-gate` 复验 → 部分（L）。
 
-## 最近一批问答（2026-11-01 Bevy/Slint 紧凑视口收口与 PARITY-001.5 办结批次）
+## 历史问答（2026-11-01 Bevy/Slint 紧凑视口收口与 PARITY-001.5 办结批次）
 
 1. x86_64/aarch64：本批改动为 Bevy 捕获 reveal 滚动逻辑、Slint compact 滚动锚点、parity 场景证据映射与 resolver 未承载页面容差，全部本机 x86_64 真实验证（28/28 单元格 100% 通过）；交叉构建腿既有结论不变 → 部分（L）。
 2. Windows/Linux/macOS：桌面三端在本机 Linux 私有虚拟 Wayland 实机跑批；Windows/macOS 受控环境腿仍在斗战胜佛 → 部分（L）。
@@ -1704,7 +1730,7 @@
 7. 模块化：彻底落实 Slint 组件层 rem 体系（`LumenUiScale.unit` 彻底替换裸 px，除基准与注释外 0 处裸 px）；无新增 bool/Option 隐式状态；typed-state/implicit-state 守卫 0 违规；stdout 台账 18 处严格受控；clippy `-D warnings` 零警告 → 部分（L）。
 8. CI：全量结构门 `check-structure.sh` 一次跑通；改动成批提交推送并由 `main-gate` 统一复验 → 部分（L）。
 
-## 最近一批问答（2026-11-01 Iced reveal 语义升级与回执账本严格重建批次）
+## 历史问答（2026-11-01 Iced reveal 语义升级与回执账本严格重建批次）
 
 1. x86_64/aarch64：本批改动为 Iced 捕获几何的 reveal 判据（head-only 量测、宽度门槛、±1px 容差）、iced 矩阵 TSV 页列与 alias 清单，全部本机 x86_64 运行验证（iced 546/546、三表面全矩阵 182×3 场）；交叉构建腿既有结论不变 → 部分（L）。
 2. Windows/Linux/macOS：桌面三端在本机 Linux 私有虚拟 Wayland 实机跑批；Windows/macOS 受控环境腿仍在斗战胜佛 → 部分（L）。
@@ -1715,7 +1741,7 @@
 7. 模块化：无新增 bool/Option 隐式状态；几何判据拆为 fits_height/head_only 命名谓词；fmt/typed-state/implicit-state 守卫 0 违规；iced 546/546、clippy `-D warnings` 全绿 → 部分（L）。
 8. CI：本批改动（捕获几何+TSV+alias+台账）按批次一次提交推送并由 `main-gate` 复验；全量结构门与 workspace nextest 留给本批收口统一跑一次 → 部分（L）。
 
-## 最近一批问答（2026-10-31 Bevy 重采腿与全矩阵入库办结批次）
+## 历史问答（2026-10-31 Bevy 重采腿与全矩阵入库办结批次）
 
 1. x86_64/aarch64：本批改动为 Bevy 捕获引导（typed `CaptureSection` + 嵌套滚动查找）、profiles_import 三个字段补 `NativeTextField` 标记、proxies/import/aggregator 三处捕获流程与 demo 偏好基线，全部本机 x86_64 运行验证；无交叉构建腿改动，`scripts/cross-check.sh`/`scripts/android-check.sh` 既有结论不变 → 部分（L）。
 2. Windows/Linux/macOS：桌面三端在本机 Linux 私有虚拟 Wayland 实机跑批的既有结论不变（Bevy 182 张矩阵本轮按当前构建重采并入库，manifest 绑定 binary sha256）；Windows/macOS 受控环境腿仍在斗战胜佛 → 部分（L）。
@@ -1726,7 +1752,7 @@
 7. 模块化：本批新增 typed `CaptureSection` enum + `ProfilesStage::ImportIntent` 变体（穷尽 match），无新增 bool/Option 隐式状态；stdout 台账登记两处 capture_tooling 进度站点（ceiling 1/文件）；typed-state/implicit-state/rem 守卫 0 违规 → 部分（L）。
 8. CI：收口统一跑一次全量结构门 `check-structure.sh` exit 0（import hygiene 2872 文件 0 违规、特性矩阵 11 crates/34 features、stdout-discipline、截图身份守卫 enforce）、`cargo fmt --all --check` 0 偏差；改动按批次一次提交推送并由 `main-gate` 复验 → 部分（L）。
 
-## 最近一批问答（2026-10-31 Bevy 矩阵 5 场清零与 182/182 全绿批次）
+## 历史问答（2026-10-31 Bevy 矩阵 5 场清零与 182/182 全绿批次）
 
 1. x86_64/aarch64：本批未动交叉构建腿；`scripts/cross-check.sh` 与 `scripts/android-check.sh` 的既有结论不变；本批改动仅涉及 Bevy 捕获层三个文件的捕获几何/阶段语义与捕获脚本预算，不产生也不消耗新的目标架构证据 → 部分（L）。
 2. Windows/Linux/macOS：桌面三端在本机 Linux 私有虚拟 Wayland 实机跑批的既有结论不变（Iced 117、Bevy 182、Slint 142 在库）；Windows/macOS 受控环境腿仍在斗战胜佛 → 部分（L）。
@@ -1746,7 +1772,7 @@
 7. 各处界面是否模块化了？：修复纯物理步进逻辑（增加 `SPRING_MAX_SUBSTEP_SECS` 与 `SPRING_MAX_SIMULATED_SECS` 常量），无新增状态标志或 bool/Option 隐式状态机；rem/typed-state/implicit-state 守卫 0 违规 → 部分（L）。
 8. CI 打包是否最高效？：定向 nextest 481+194 全绿、两 crate Clippy 0 warning、全量结构门 `check-structure.sh` 退出码 0、`bevy_rem_guard --mode enforce` 0 违规；全仓验证一体收尾 → 部分（L）。
 
-## 最近一批问答（2026-10-31 Slint 权限锚点重采与守卫切 enforce 批次）
+## 历史问答（2026-10-31 Slint 权限锚点重采与守卫切 enforce 批次）
 
 1. x86_64 与 aarch64 是否都支持？：本批只补 Slint 捕获滚动锚点、声明共享页面模型既有合并关系的 alias 并切换守卫模式，无平台能力面改动；infiltrator-slint 358 项测试本机全绿 → 部分（L）。
 2. Windows / Linux / macOS 是否都支持？：不触平台能力面；Windows/macOS 安装包取证归属斗战胜佛既有条目 → 部分（L）。
@@ -1757,7 +1783,7 @@
 7. 各处界面是否模块化了？：锚点为 typed match 新增 arm，alias 为数据清单；无新增 bool/Option 状态机；fmt/line 守卫 0 违规 → 部分（L）。
 8. CI 打包是否最高效？：定向 `cargo nextest -p infiltrator-slint` 358/358、Clippy `-D warnings` 0 error、`screenshot-identity-guard --mode enforce` 全绿；全仓结构门在本批收口统一复跑一次 → 部分（L）。
 
-## 最近一批问答（2026-10-31 Iced 页面变体锚点与 16 张重采交付批次）
+## 历史问答（2026-10-31 Iced 页面变体锚点与 16 张重采交付批次）
 
 1. x86_64 与 aarch64 是否都支持？：本批改 Iced demo/capture 装配与视图区段 id，纯 Rust 类型与布局操作，无平台汇编；infiltrator-iced 636 项测试与 Clippy 本机 x86_64 全绿 → 部分（L）。
 2. Windows / Linux / macOS 是否都支持？：本批不触平台能力面；Windows/macOS 安装包取证归属斗战胜佛既有条目 → 部分（L）。
@@ -1768,7 +1794,7 @@
 7. 各处界面是否模块化了？：`CaptureSection` 收敛为无门控独立模块并在 demo re-export；无 bool/Option 状态机新增；line/import 守卫 0 违规 → 部分（L）。
 8. CI 打包是否最高效？：cargo fmt 0 偏差；clippy `-p infiltrator-iced --all-targets -D warnings` 0 error；包测试 636/636；`doc-governance-guard`/`closure-questions-guard`（8/8）/`screenshot-identity-guard` 全绿；全仓结构门与 workspace nextest 留给本批收口的统一结构门复跑 → 部分（L）。
 
-## 最近一批问答（2026-10-31 domain/core typed 错误收敛交付批次）
+## 历史问答（2026-10-31 domain/core typed 错误收敛交付批次）
 
 1. x86_64 与 aarch64 是否都支持？：typed 错误是纯 Rust 类型重写，无平台汇编或硬件绑定；workspace check/clippy/nextest 在本机 x86_64 全绿，交叉腿无新平台面 → 部分（L）。
 2. Windows / Linux / macOS 是否都支持？：错误收敛只在 domain/core 与下游边界接线，不影响平台能力面；Windows/macOS 安装包取证归属斗战胜佛既有条目 → 部分（L）。
@@ -1779,7 +1805,7 @@
 7. 各处界面是否模块化了？：每层一个 typed 错误枚举 + 类别保持 Context trait，取代散落 anyhow；`dns.rs` 压回 800 行预算内；line/import 守卫 0 违规；typed-state-guard 0 findings → 部分（L）。
 8. CI 打包是否最高效？：cargo fmt 0 偏差；clippy `--workspace --all-targets -D warnings` 0 error；workspace nextest 5723/5723 passed（15 skipped）；结构门（import hygiene 2871 文件 0 违规、line budget 0、feature matrix 全解析）全绿；typed-state/implicit-state 守卫全绿 → 部分（L/C）。
 
-## 最近一批问答（2026-10-31 自定义种子色与 Material 色彩风格选择交付批次）
+## 历史问答（2026-10-31 自定义种子色与 Material 色彩风格选择交付批次）
 
 1. x86_64 与 aarch64 是否都支持？：纯 Rust 契约（HCT 派生）与状态服务，无平台汇编或硬件绑定，全架构编译兼容 → 部分（L）。
 2. Windows / Linux / macOS 是否都支持？：palette_preference 契约、store 端口、application 草稿/保存/读回流与 presentation scheme 投影在 Linux 定向测试全绿；Windows/macOS 共享同一纯 Rust 契约，安装包取证归属斗战胜佛 → 部分（L）。
@@ -1790,7 +1816,7 @@
 7. 各处界面是否模块化了？：零新增 mod.rs；palette_preference.rs（约 470 行）、palette_preference_application.rs、palette_preference_projection.rs 均通过 line-guard；draft/saved 是 typed 结构，mutation 回执是 typed enum（Applied/RevisionStale/InvalidSeed）；import-guard 0 违规；无跨 UI 私有业务真源 → 部分（L）。
 8. CI 打包是否最高效？：cargo fmt --check 0 偏差；cargo clippy -D warnings 六包全绿；定向 nextest 1564/1564 全绿；workspace check 全绿；八守卫全绿；远端 main-gate run 41108309487 全绿 → 部分（L/C）。
 
-## 最近一批问答（2026-10-31 跨端微动效与页面过渡系统交付批次）
+## 历史问答（2026-10-31 跨端微动效与页面过渡系统交付批次）
 
 1. x86_64 与 aarch64 是否都支持？：纯 Rust 契约与投影，无平台汇编或硬件绑定，全架构编译兼容 → 部分（L）。
 2. Windows / Linux / macOS 是否都支持？：contract 的 TransitionSpec/CubicBezier 与 presentation 的 motion_projection 在 Linux 定向测试全绿；Windows/macOS 共享同一纯 Rust 契约，安装包取证归属斗战胜佛 → 部分（L）。
@@ -1801,7 +1827,7 @@
 7. 各处界面是否模块化了？：零新增 mod.rs；motion_spec.rs（830 行含注释）与 motion_projection.rs 均通过 line-guard；typed-state 0 findings，TransitionProgress 为 typed 结构，TransitionDirection 为 typed enum；无跨 UI 私有业务真源 → 部分（L）。
 8. CI 打包是否最高效？：cargo fmt --check 0 偏差；cargo clippy -D warnings 五包全绿；import/line/typed-state/implicit-state/i18n/mod-rs/doc-governance/closure-questions 八守卫全绿；远端 main-gate run 41103829832 全绿（首跑 41102830070 抓出 iced 内联测试守卫违规，已同批 path-mount 修复）→ 部分（L/C）。
 
-## 最近一批问答（2026-10-31 大型配置文档编辑响应性能契约交付批次）
+## 历史问答（2026-10-31 大型配置文档编辑响应性能契约交付批次）
 
 1. x86_64 与 aarch64 是否都支持？：交付纯中性 Rust 性能预算契约、流式视口切片算法与有界脱敏预览，无平台汇编或硬件绑定，全架构编译兼容 → 部分（L）。
 2. Windows / Linux / macOS 是否都支持？：EditorViewport 视口切片、窗口搜索与有界脱敏预览在 Linux 上通过针对 4k 与 50k 行文档的严苛性能测试（微秒级切片）；Windows 与 macOS 共享同一纯 Rust 契约；安装包与目标机取证归属斗战胜佛 → 部分（L）。
@@ -1812,7 +1838,7 @@
 7. 各处界面是否模块化了？：零新增 mod.rs；严格遵循 foo.rs 规范；所有新增与修改文件均 <=800 行（line-guard 0 违规）；typed-state 门禁 0 findings，操作结果与性能状态返回 typed enum（DocumentPerformanceStatus）；无跨 UI 私有业务真源 → 部分（L）。
 8. CI 打包是否最高效？：cargo clippy -D warnings 全绿；cargo fmt --check 0 偏差；i18n-guard 0 违规；typed-state-guard 0 findings；implicit-state-audit 0 open 0 undecided；closure-questions-guard 8/8 通过 → 部分（L）。
 
-## 最近一批问答（2026-10-31 远端 CI 真实取证办结批次）
+## 历史问答（2026-10-31 远端 CI 真实取证办结批次）
 
 1. x86_64 与 aarch64 是否都支持？：纯台账更新与远端 main-gate CI 取证，无代码架构漂移 → 部分（L）。
 2. Windows / Linux / macOS 是否都支持？：跨平台代码保持全绿，安装包与目标机取证归属斗战胜佛 → 部分（L）。
@@ -1823,7 +1849,7 @@
 7. 各处界面是否模块化了？：结构门与格式化 100% 通过（main-gate 绿），无跨 UI 私有业务真源 → 部分（L）。
 8. CI 打包是否最高效？：main-gate 运行 41093052155 耗时 55 秒全绿，去浮动引用与单一钉版验证完整 → 部分（L）。
 
-## 最近一批问答（2026-10-31 统一验证收口批次）
+## 历史问答（2026-10-31 统一验证收口批次）
 
 1. x86_64 与 aarch64 是否都支持？：统一验证批次覆盖 workspace 全量编译与测试（nextest 5680/5680 passed），x64 本机回执齐备；aarch64 交叉腿由 `scripts/cross-check.sh` 既有回执背书，本批未触碰架构敏感代码 → 部分（L）。
 2. Windows / Linux / macOS 是否都支持？：本批零功能改动，桌面三平台支持面不漂移；安装包真实产物仍归属 CI/打包腿 → 部分（L）。
@@ -1834,7 +1860,7 @@
 7. 各处界面是否模块化了？：全量结构门 exit 0（mod-rs 0、line-guard 0、typed-state 0 findings、implicit-state 0 open 0 undecided），模块化纪律全绿 → 部分（L）。
 8. CI 打包是否最高效？：cargo 四项一次跑完（fmt/clippy/nextest/deny）+ 结构门一次复跑，`cargo deny check advisories bans licenses sources` 首次取得网络回执并确认四项 ok；推送后 main-gate 远端回执待下次 CI run → 部分（L）。
 
-## 最近一批问答（2026-10-31 产品图标资产一致性审计交付批次）
+## 历史问答（2026-10-31 产品图标资产一致性审计交付批次）
 
 1. x86_64 与 aarch64 是否都支持？：本批产物为 PNG/ICO 位图资产、Gradle 资源拷贝任务与纯 Python 生成/守卫脚本，不含架构专用代码；Rust 侧仅有 `infiltrator-shared` 注册表测试，x64/arm64 编译面无漂移 → 部分（L）。
 2. Windows / Linux / macOS 是否都支持？：五帧 `icon.ico` 服务 Windows 资源管理器与 NSIS，`icon.png` 供 Linux desktop/托盘与 macOS icns 生成脚本继续消费；桌面安装包真实产物验证仍归属 CI/打包腿 → 部分（L）。
@@ -1845,7 +1871,7 @@
 7. 各处界面是否模块化了？：零新增 mod.rs；line-guard 0 违规；守卫逻辑集中在 `android-product-identity-guard` 单一 owner，生成逻辑集中在 `scripts/product_icon_variants.py` 单一 owner；typed-state-guard 0 findings → 部分（L）。
 8. CI 打包是否最高效？：守卫自测 32/32、`infiltrator-shared` nextest 77/77、Clippy `-D warnings`、cargo fmt --check、import/typed-state/implicit-state/i18n/line/mod-rs/doc-governance 守卫 0 违规；Gradle 仅验证三个增量图标生成任务，未触发全 APK 构建 → 部分（L）。
 
-## 最近一批问答（2026-10-31 可选通用覆写及更早应用时机交付批次）
+## 历史问答（2026-10-31 可选通用覆写及更早应用时机交付批次）
 
 1. x86_64 与 aarch64 是否都支持？：本批交付纯中性 Rust 合约模型、端口抽象、应用服务与呈现投影，无平台专用汇编或硬件绑定，全架构编译兼容；cross-check 保持通过 → 部分（L）。
 2. Windows / Linux / macOS 是否都支持？：通用覆写服务与投影在 Linux 上通过定向单元测试与行为验证；Windows 与 macOS 共享同一纯 Rust 契约与呈现模型；真实目标机运行仍归属斗战胜佛对应条目 → 部分（L）。
@@ -1856,7 +1882,7 @@
 7. 各处界面是否模块化了？：零新增 mod.rs；严格遵循 foo.rs 规范；所有新增与修改文件均 <=800 行（line-guard 0 违规）；typed-state 门禁 0 findings，操作结果返回 typed receipt 消除 BOOL_OPERATION_RESULT；无跨 UI 私有业务真源 → 部分（L）。
 8. CI 打包是否最高效？：cargo clippy -D warnings 全绿；cargo fmt --check 0 偏差；i18n-guard 0 违规；typed-state-guard 0 findings；implicit-state-audit 0 open 0 undecided；closure-questions-guard 8/8 通过 → 部分（L）。
 
-## 最近一批问答（2026-10-30 将代理节点加入用户拥有的本地代理配置交付批次）
+## 历史问答（2026-10-30 将代理节点加入用户拥有的本地代理配置交付批次）
 
 1. x86_64 与 aarch64 是否都支持？：本批交付纯中性 Rust 合约模型、端口抽象、应用服务与呈现投影，无平台专用汇编或硬件绑定，全架构编译兼容；cross-check 保持通过 → 部分（L）。
 2. Windows / Linux / macOS 是否都支持？：本地代理配置服务与投影在 Linux 上通过定向单元测试与行为验证；Windows 与 macOS 共享同一纯 Rust 契约与呈现模型；真实目标机运行仍归属斗战胜佛对应条目 → 部分（L）。
@@ -1867,7 +1893,7 @@
 7. 各处界面是否模块化了？：零新增 mod.rs；严格遵循 foo.rs 规范；所有新增与修改文件均 <=800 行（line-guard 0 违规）；typed-state 门禁 0 findings，操作结果返回 typed receipt 消除 BOOL_OPERATION_RESULT；无跨 UI 私有业务真源 → 部分（L）。
 8. CI 打包是否最高效？：cargo clippy -D warnings 全绿；cargo fmt --check 0 偏差；i18n-guard 0 违规；typed-state-guard 0 findings；implicit-state-audit 0 open 0 undecided；closure-questions-guard 8/8 通过 → 部分（L）。
 
-## 最近一批问答（2026-10-30 Bevy 表面快照升级缺口修复批次）
+## 历史问答（2026-10-30 Bevy 表面快照升级缺口修复批次）
 
 1. x86_64 与 aarch64 是否都支持？：修复 infiltrator-bevy-ui 测试快照缺口，纯 Rust 数据结构初始化，全架构兼容；cross-check 保持通过 → 部分（L）。
 2. Windows / Linux / macOS 是否都支持？：Bevy 表面在全平台共享统一 SurfaceSnapshot 结构与呈现模型；Linux 本地编译与 nextest 全绿；真实目标机运行仍归属斗战胜佛对应条目 → 部分（L）。
@@ -1878,7 +1904,7 @@
 7. 各处界面是否模块化了？：零新增 mod.rs；严格遵循 foo.rs 规范；所有修改文件均 <=800 行（line-guard 0 违规）；typed-state 门禁 0 findings；无跨 UI 私有业务真源 → 部分（L）。
 8. CI 打包是否最高效？：cargo clippy --workspace --all-targets -- -D warnings 全绿；cargo fmt --check 0 偏差；i18n-guard 0 违规；typed-state-guard 0 findings；implicit-state-audit 0 open 0 undecided；closure-questions-guard 8/8 通过 → 部分（L）。
 
-## 最近一批问答（2026-10-30 加密备份真实导出、校验与恢复交付批次）
+## 历史问答（2026-10-30 加密备份真实导出、校验与恢复交付批次）
 
 1. x86_64 与 aarch64 是否都支持？：本批交付纯中性 Rust 合约模型、端口抽象、应用服务与呈现投影，无平台专用汇编或硬件绑定，全架构编译兼容；cross-check 保持通过 → 部分（L）。
 2. Windows / Linux / macOS 是否都支持？：加密备份导出、校验与恢复服务在 Linux 上通过定向单元测试与行为验证；Windows 与 macOS 共享同一纯 Rust 契约与呈现模型；真实目标机运行仍归属斗战胜佛对应条目 → 部分（L）。
@@ -1889,7 +1915,7 @@
 7. 各处界面是否模块化了？：零新增 mod.rs；严格遵循 foo.rs 规范；所有新增与修改文件均 <=800 行（line-guard 0 违规）；typed-state 门禁 0 findings，操作结果返回 typed receipt 消除 BOOL_OPERATION_RESULT；无跨 UI 私有业务真源 → 部分（L）。
 8. CI 打包是否最高效？：cargo clippy -D warnings 全绿；cargo fmt --check 0 偏差；i18n-guard 0 违规；typed-state-guard 0 findings；implicit-state-audit 0 open 0 undecided；closure-questions-guard 8/8 通过 → 部分（L）。
 
-## 最近一批问答（2026-10-30 实时请求历史页交付批次）
+## 历史问答（2026-10-30 实时请求历史页交付批次）
 
 1. x86_64 与 aarch64 是否都支持？：本批交付纯中性 Rust 合约模型、端口抽象、应用服务与呈现投影，无平台专用汇编或硬件绑定，全架构编译兼容；cross-check 保持通过 → 部分（L）。
 2. Windows / Linux / macOS 是否都支持？：实时请求历史环形缓冲服务与投影在 Linux 上通过定向单元测试与行为验证；Windows 与 macOS 共享同一纯 Rust 契约与呈现模型；真实目标机运行仍归属斗战胜佛对应条目 → 部分（L）。
@@ -1900,7 +1926,7 @@
 7. 各处界面是否模块化了？：零新增 mod.rs；严格遵循 foo.rs 规范；所有新增与修改文件均 <=800 行（line-guard 0 违规）；typed-state 门禁 0 findings，toggle_pause 返回 typed tracking_state 消除 BOOL_OPERATION_RESULT；无跨 UI 私有业务真源 → 部分（L）。
 8. CI 打包是否最高效？：cargo clippy -D warnings 全绿；cargo fmt --check 0 偏差；i18n-guard 0 违规；typed-state-guard 0 findings；implicit-state-audit 0 open 0 undecided；closure-questions-guard 8/8 通过 → 部分（L）。
 
-## 最近一批问答（2026-10-30 DNS 查询历史页交付批次）
+## 历史问答（2026-10-30 DNS 查询历史页交付批次）
 
 1. x86_64 与 aarch64 是否都支持？：本批交付纯中性 Rust 合约模型、端口抽象、应用服务与呈现投影，无平台专用汇编或硬件绑定，全架构编译兼容；cross-check 保持通过 → 部分（L）。
 2. Windows / Linux / macOS 是否都支持？：DNS 查询历史环形缓冲服务与投影在 Linux 上通过定向单元测试与行为验证；Windows 与 macOS 共享同一纯 Rust 契约与呈现模型；真实目标机运行仍归属斗战胜佛对应条目 → 部分（L）。
@@ -1911,7 +1937,7 @@
 7. 各处界面是否模块化了？：零新增 mod.rs；严格遵循 foo.rs 规范；所有新增与修改文件均 <=800 行（line-guard 0 违规）；typed-state 门禁 0 findings，toggle_pause 返回 typed recording_state 消除 BOOL_OPERATION_RESULT，多阶段状态穷尽匹配；无跨 UI 私有业务真源 → 部分（L）。
 8. CI 打包是否最高效？：cargo clippy -D warnings 全绿；cargo fmt --check 0 偏差；i18n-guard 0 违规；typed-state-guard 0 findings；implicit-state-audit 0 open 0 undecided；closure-questions-guard 8/8 通过 → 部分（L）。
 
-## 最近一批问答（2026-10-30 IP 质量查询、缓存与多端展示交付批次）
+## 历史问答（2026-10-30 IP 质量查询、缓存与多端展示交付批次）
 
 1. x86_64/aarch64：本批交付纯中性 Rust 合约模型、端口抽象、应用服务与呈现投影，无平台专用汇编或硬件绑定，全架构编译兼容；cross-check 保持通过 → 部分（L）。
 2. Windows/Linux/macOS：桌面端 IP 质量查询服务与投影在 Linux 上通过定向单元测试与行为验证；Windows 与 macOS 共享同一纯 Rust 契约与呈现模型；真实目标机运行仍归属斗战胜佛对应条目 → 部分（L）。
@@ -1922,7 +1948,7 @@
 7. 模块化：零新增 mod.rs；严格遵循 foo.rs 规范；所有新增与修改文件均 <=800 行（line-guard 0 违规）；typed-state 门禁 0 findings，显式枚举互斥；无跨 UI 私有业务真源 → 部分（L）。
 8. CI：cargo clippy -D warnings 全绿；cargo fmt --check 0 偏差；i18n-guard 0 违规；typed-state-guard 0 findings；implicit-state-audit 0 open 0 undecided；closure-questions-guard 8/8 通过 → 部分（L）。
 
-## 最近一批问答（2026-10-30 三端用户可见文案与数据格式收口交付批次）
+## 历史问答（2026-10-30 三端用户可见文案与数据格式收口交付批次）
 
 1. x86_64/aarch64：文案收口与共享键表为纯架构中立代码，跨全平台全架构兼容；`scripts/quality/cross-build-guard.py` 通过 → 部分（L）。
 2. Windows/Linux/macOS：桌面三端（Iced、Bevy、Slint）文案与提示收口完成，无平台私有英文硬编码；macOS 保持 Unsupported；Windows/Linux 平台逻辑一致 → 部分（L）。
@@ -1933,7 +1959,7 @@
 7. 模块化：零新增 `mod.rs`；line budget 0 违规（<=800 行）；隐式状态机语义审计 22 条全判决 0 open 0 undecided；无跨 UI 私有业务真源 → 部分（L）。
 8. CI：`cargo fmt --check` 0 偏差；`git diff --check` 干净；`python3 scripts/quality/i18n-guard.py` 0 违规；`line-guard.py` 0 违规；`closure-questions-guard.py` 8/8 通过 → 部分（L）。
 
-## 最近一批问答（2026-10-30 Mihomo v1.19.33 升级与工具链收口交付批次）
+## 历史问答（2026-10-30 Mihomo v1.19.33 升级与工具链收口交付批次）
 
 1. x86_64/aarch64：锁定全平台 Mihomo v1.19.33（linux/windows/darwin/android x64+arm64）SHA-256 制品质押；`rust-toolchain.toml` 与工作流统一固定为 Rust `1.99.1`；交叉构建守卫与工具链守卫通过 → 部分（L）。
 2. Windows/Linux/macOS：真实二进制烟测与 Conformance 在 Linux x86_64 实跑证明 Mihomo v1.19.33 与 sing-box v1.14.3 双引擎 live owner switch 均全绿通过；Windows/macOS 目标系统运行回执仍需对应平台 runner → 部分（L）。
@@ -1944,7 +1970,7 @@
 7. 模块化：零新增 `mod.rs`；无隐式状态机（22 条全判决 0 open 0 undecided）；`check-structure.sh` 341 项单测与全量守卫 100% 通过；代码行数预算合规 → 部分（L）。
 8. CI：全仓 `rust-version = "1.99.1"` 统一固定，`scripts/quality/toolchain-consistency-guard.py` 0 违规；`mihomo-evidence-guard.py` 通过；`cargo fmt --check` 0 偏差；`git diff --check` 干净 → 部分（L）。
 
-## 最近一批问答（2026-10-29 桌面系统代理所有权安全交付批次）
+## 历史问答（2026-10-29 桌面系统代理所有权安全交付批次）
 
 1. x86_64/aarch64：本批为平台无关的 Contract、Ports、Application 与 Desktop 代理适配器改动；未重跑交叉构建，架构结论不外推 → 部分（L）。
 2. Windows/Linux/macOS：GNOME/KDE、Windows 与 macOS 适配器接入权威读回和 fail-closed 检查；Linux 定向测试通过，但本批未运行 Windows/macOS 目标构建或目标系统读回 → 部分（L）。
@@ -1955,7 +1981,7 @@
 7. 模块化：journal 拆为 `system_proxy.rs` + `system_proxy/journal.rs`，没有新增 `mod.rs`；切片路径的 mod-rs、typed-state、implicit-state、line 与 import 守卫通过；不涉及 UI 私有业务真源 → 部分（L）。
 8. CI：三 crate 定向 Clippy `--all-targets -D warnings` 通过；全仓 nextest 未完成，workspace Clippy 与结构门未通过/受其他路径问题阻断，未运行 CI 或真实目标平台回执 → 部分（L）。
 
-## 最近一批问答（2026-10-29 FlClash v0.9.2 release 清单终核与用户主题反馈）
+## 历史问答（2026-10-29 FlClash v0.9.2 release 清单终核与用户主题反馈）
 
 1. x86_64/aarch64：本批仅审计 UI theme consumers、采集矩阵、manifest 与 FlClash v0.9.2 主题实现；未改交叉构建，目标腿结论不变 → 部分（L）。
 2. Windows/Linux/macOS：三平台窗口材质差距仍由 `FLPARITY-039` 承载；本批发现深色和 Forest palette 的真实页面层级缺像素证据，纳入 `FLPARITY-014` + `PARITY-001.6` → 部分（L）。
@@ -1988,7 +2014,7 @@
 7. 模块化：文件行数预算严格控制（所有修改文件全部 ≤800 行，`line-guard.py` 0 违规）；无隐式布尔状态机；各端只消费呈现快照，无私有状态污染；`cargo fmt --check` 100% 通过 → 部分（L）。
 8. CI：定向测试全绿（contract 3 项）；`i18n-guard.py --mode=enforce` 零错误通过；`closure-questions-guard.py` 8/8 通过；`line-guard.py` 0 违规；`cargo fmt --check` 0 偏差 → 部分（L）。
 
-## 最近一批问答（2026-10-29 Android 常驻通知栏流速监控与 Quick Settings 快捷磁贴深度集成交付批次）
+## 历史问答（2026-10-29 Android 常驻通知栏流速监控与 Quick Settings 快捷磁贴深度集成交付批次）
 
 1. x86_64/aarch64：本批为 Android 通知栏流速 headline 扩展与 QS 磁贴状态机，未改动底层交叉构建；`scripts/cross-check.sh` 与 `scripts/android-check.sh` 保持全绿结论，最终安装包与目标设备证据仍由设备矩阵取证（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：桌面端与 Android 表面保持解耦；桌面三端在 Linux 上运行并通过全部定向单元与服务路径测试；Windows/macOS 受控环境在斗战胜佛等真实环境；Linux 打包腿已交付待统一批次复验 → 部分（L）。
@@ -1999,7 +2025,7 @@
 7. 模块化：文件行数预算严格控制（所有 Kotlin 文件全部 ≤800 行，`kt-line-guard` 0 违规）；无隐式布尔状态机；各端只消费呈现快照，无私有状态污染；`cargo fmt --check` 100% 通过 → 部分（L）。
 8. CI：定向测试全绿；`check-structure.sh` 40+ 项门禁通过；`i18n-guard.py --mode=enforce` 零错误通过；`closure-questions-guard.py` 8/8 通过；`line-guard.py` 0 违规；`cargo fmt --check` 0 偏差 → 部分（L）。
 
-## 最近一批问答（2026-10-29 Android TV 遥控器 D-pad 全屏焦点光晕与 Leanback 专属体验交付批次）
+## 历史问答（2026-10-29 Android TV 遥控器 D-pad 全屏焦点光晕与 Leanback 专属体验交付批次）
 
 1. x86_64/aarch64：本批为 D-pad 遥控按键动作枚举、防死锁焦点拓扑与焦点光晕规格，未改动底层交叉构建；`scripts/cross-check.sh` 与 `scripts/android-check.sh` 保持全绿结论，最终安装包与目标设备证据仍由设备矩阵取证（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：桌面端三表面方向键导航逻辑健全；桌面三端在 Linux 上运行并通过全部定向单元与服务路径测试；Windows/macOS 受控环境在斗战胜佛等真实环境；Linux 打包腿已交付待统一批次复验 → 部分（L）。
@@ -2010,7 +2036,7 @@
 7. 模块化：文件行数预算严格控制（所有修改文件全部 ≤800 行，`line-guard.py` 与 `kt-line-guard.py` 0 违规）；无隐式布尔状态机；各端只消费呈现快照，无私有状态污染；`cargo fmt --check` 100% 通过 → 部分（L）。
 8. CI：定向测试全绿（contract 3 项、presentation 3 项）；`i18n-guard.py --mode=enforce` 零错误通过；`closure-questions-guard.py` 8/8 通过；`line-guard.py` 0 违规；`cargo fmt --check` 0 偏差 → 部分（L）。
 
-## 最近一批问答（2026-10-29 全端骨架屏微光加载与情绪插画空状态交付批次）
+## 历史问答（2026-10-29 全端骨架屏微光加载与情绪插画空状态交付批次）
 
 1. x86_64/aarch64：本批为契约微光数学模型与情绪插画规范、呈现层骨架屏排版投影，未改动底层交叉构建；`scripts/cross-check.sh` 与 `scripts/android-check.sh` 保持全绿结论，最终安装包与目标设备证据仍由设备矩阵取证（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：桌面三端在 Linux 上运行并通过全部定向单元与服务路径测试；Windows/macOS 受控环境在斗战胜佛等真实环境；Linux 打包腿已交付待统一批次复验 → 部分（L）。
@@ -2021,7 +2047,7 @@
 7. 模块化：文件行数预算严格控制（所有修改文件全部 ≤800 行，`line-guard.py` 0 违规）；无隐式布尔状态机；各端只消费呈现快照，无私有状态污染；`cargo fmt --check` 100% 通过 → 部分（L）。
 8. CI：定向测试全绿（contract 2 项、presentation 2 项）；`i18n-guard.py --mode=enforce` 零错误通过；`closure-questions-guard.py` 8/8 通过；`line-guard.py` 0 违规；`cargo fmt --check` 0 偏差 → 部分（L）。
 
-## 最近一批问答（2026-10-29 局域网代理共享二维码与同网段设备配置向导交付批次）
+## 历史问答（2026-10-29 局域网代理共享二维码与同网段设备配置向导交付批次）
 
 1. x86_64/aarch64：本批为局域网代理端点模型、网卡探测抽象与多设备指引投影，未改动底层交叉构建；`scripts/cross-check.sh` 与 `scripts/android-check.sh` 保持全绿结论，最终安装包与目标设备证据仍由设备矩阵取证（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：桌面三端在 Linux 上运行并通过全部定向单元与服务路径测试；Windows/macOS 受控环境在斗战胜佛等真实环境；Linux 打包腿已交付待统一批次复验 → 部分（L）。
@@ -2032,7 +2058,7 @@
 7. 模块化：文件行数预算严格控制（所有修改文件全部 ≤800 行，`line-guard.py` 0 违规）；无隐式布尔状态机；各端只消费呈现快照，无私有状态污染；`cargo fmt --check` 100% 通过 → 部分（L）。
 8. CI：定向测试全绿（contract 3 项、presentation 1 项）；`i18n-guard.py --mode=enforce` 零错误通过；`closure-questions-guard.py` 8/8 通过；`line-guard.py` 0 违规；`cargo fmt --check` 0 偏差 → 部分（L）。
 
-## 最近一批问答（2026-10-29 Android 12+ 动态壁纸 Monet 取色与分应用代理高清图标选择器交付批次）
+## 历史问答（2026-10-29 Android 12+ 动态壁纸 Monet 取色与分应用代理高清图标选择器交付批次）
 
 1. x86_64/aarch64：本批为 Android Compose 主题引擎与分应用选择器模型，未改动底层交叉构建；`scripts/cross-check.sh` 与 `scripts/android-check.sh` 保持全绿结论，最终安装包与目标设备证据仍由设备矩阵取证（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：桌面端与 Android 表面保持解耦；桌面三端在 Linux 上运行并通过全部定向单元与服务路径测试；Windows/macOS 受控环境在斗战胜佛等真实环境；Linux 打包腿已交付待统一批次复验 → 部分（L）。
@@ -2043,7 +2069,7 @@
 7. 模块化：文件行数预算严格控制（所有 Kotlin 文件全部 ≤800 行，`kt-line-guard` 0 违规）；无隐式布尔状态机；各端只消费呈现快照，无私有状态污染；`cargo fmt --check` 100% 通过 → 部分（L）。
 8. CI：定向测试全绿；`check-structure.sh` 40+ 项门禁通过；`i18n-guard.py --mode=enforce` 零错误通过；`closure-questions-guard.py` 8/8 通过；`line-guard.py` 0 违规；`cargo fmt --check` 0 偏差 → 部分（L）。
 
-## 最近一批问答（2026-10-29 系统代理与 TUN 模式提权修复向导交付批次）
+## 历史问答（2026-10-29 系统代理与 TUN 模式提权修复向导交付批次）
 
 1. x86_64/aarch64：本批为契约提权分类与系统代理看门狗模型、端口抽象与呈现层向导弹窗模型，未改动底层交叉构建；`scripts/cross-check.sh` 与 `scripts/android-check.sh` 保持全绿结论，最终安装包与目标设备证据仍由设备矩阵取证（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：桌面三端在 Linux 上运行并通过全部定向单元与服务路径测试；Windows/macOS 受控环境在斗战胜佛等真实环境；Linux 打包腿已交付待统一批次复验 → 部分（L）。
@@ -2054,7 +2080,7 @@
 7. 模块化：文件行数预算严格控制（所有修改文件全部 ≤800 行，`line-guard.py` 0 违规）；无隐式布尔状态机；各端只消费呈现快照，无私有状态污染；`cargo fmt --check` 100% 通过 → 部分（L）。
 8. CI：定向测试全绿（contract 3 项、ports 23 项、presentation 2 项）；`i18n-guard.py --mode=enforce` 零错误通过；`closure-questions-guard.py` 8/8 通过；`line-guard.py` 0 违规；`cargo fmt --check` 0 偏差 → 部分（L）。
 
-## 最近一批问答（2026-10-29 订阅更新故障智能诊断器与节点正则清洗向导交付批次）
+## 历史问答（2026-10-29 订阅更新故障智能诊断器与节点正则清洗向导交付批次）
 
 1. x86_64/aarch64：本批为契约订阅诊断分类与正则模型、领域层编译管道算法与呈现层诊断投影，未改动底层交叉构建；`scripts/cross-check.sh` 与 `scripts/android-check.sh` 保持全绿结论，最终安装包与目标设备证据仍由设备矩阵取证（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：桌面三端在 Linux 上运行并通过全部定向单元与服务路径测试；Windows/macOS 受控环境在斗战胜佛等真实环境；Linux 打包腿已交付待统一批次复验 → 部分（L）。
@@ -2065,7 +2091,7 @@
 7. 模块化：文件行数预算严格控制（所有修改文件全部 ≤800 行，`line-guard.py` 0 违规）；无隐式布尔状态机；各端只消费呈现快照，无私有状态污染；`cargo fmt --check` 100% 通过 → 部分（L）。
 8. CI：定向测试全绿（contract 2 项、domain 1 项、presentation 2 项）；`i18n-guard.py --mode=enforce` 零错误通过；`closure-questions-guard.py` 8/8 通过；`line-guard.py` 0 违规；`cargo fmt --check` 0 偏差 → 部分（L）。
 
-## 最近一批问答（2026-10-29 代理节点多维高级组合筛选器与批量测速工具栏交付批次）
+## 历史问答（2026-10-29 代理节点多维高级组合筛选器与批量测速工具栏交付批次）
 
 1. x86_64/aarch64：本批为契约多维筛选枚举、呈现层组合筛选器与批量操作模型，未改动底层交叉构建；`scripts/cross-check.sh` 与 `scripts/android-check.sh` 保持全绿结论，最终安装包与目标设备证据仍由设备矩阵取证（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：桌面三端在 Linux 上运行并通过全部定向单元与服务路径测试；Windows/macOS 受控环境在斗战胜佛等真实环境；Linux 打包腿已交付待统一批次复验 → 部分（L）。
@@ -2076,7 +2102,7 @@
 7. 模块化：文件行数预算严格控制（所有修改文件全部 ≤800 行，`line-guard.py` 0 违规）；无隐式布尔状态机；各端只消费呈现快照，无私有状态污染；`cargo fmt --check` 100% 通过 → 部分（L）。
 8. CI：定向测试全绿（contract 3 项、presentation 297 项）；`i18n-guard.py --mode=enforce` 零错误通过；`closure-questions-guard.py` 8/8 通过；`line-guard.py` 0 违规；`cargo fmt --check` 0 偏差 → 部分（L）。
 
-## 最近一批问答（2026-10-29 流量曲线悬停探针与时序回读交付批次）
+## 历史问答（2026-10-29 流量曲线悬停探针与时序回读交付批次）
 
 1. x86_64/aarch64：本批为呈现层时序图表探针算法与多端交互对齐，未改动底层交叉构建；`scripts/cross-check.sh` 与 `scripts/android-check.sh` 保持全绿结论，最终安装包与目标设备证据仍由设备矩阵取证（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：桌面三端在 Linux 上运行并通过全部定向单元与服务路径测试；Windows/macOS 受控环境在斗战胜佛等真实环境；Linux 打包腿已交付待统一批次复验 → 部分（L）。
@@ -2087,7 +2113,7 @@
 7. 模块化：文件行数预算严格控制（所有修改文件全部 ≤800 行，`line-guard.py` 0 违规）；无隐式布尔状态机；各端只消费呈现快照，无私有状态污染；`cargo fmt --check` 100% 通过 → 部分（L）。
 8. CI：定向测试全绿（presentation 9 项、iced 1 项）；`i18n-guard.py --mode=enforce` 零错误通过；`closure-questions-guard.py` 8/8 通过；`line-guard.py` 0 违规；`cargo fmt --check` 0 偏差 → 部分（L）。
 
-## 最近一批问答（2026-10-29 代理节点国家/地区国旗与地理位置高分图标交付批次）
+## 历史问答（2026-10-29 代理节点国家/地区国旗与地理位置高分图标交付批次）
 
 1. x86_64/aarch64：本批为契约标准地区枚举、呈现层国旗映射与多端节点卡片适配，未改动底层交叉构建；`scripts/cross-check.sh` 与 `scripts/android-check.sh` 保持全绿结论，最终安装包与目标设备证据仍由设备矩阵取证（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：桌面三端在 Linux 上运行并通过全部定向单元与服务路径测试；Windows/macOS 受控环境在斗战胜佛等真实环境；Linux 打包腿已交付待统一批次复验 → 部分（L）。
@@ -2098,7 +2124,7 @@
 7. 模块化：文件行数预算严格控制（所有修改文件全部 ≤800 行，`line-guard.py` 0 违规）；无隐式布尔状态机；各端只消费呈现快照，无私有状态污染；`cargo fmt --check` 100% 通过 → 部分（L）。
 8. CI：定向测试全绿（contract 408 项、shared 76 项、presentation 294 项、slint 356 项、iced 2 项）；`i18n-guard.py --mode=enforce` 零错误通过；`closure-questions-guard.py` 8/8 通过；`line-guard.py` 0 违规；`cargo fmt --check` 0 偏差 → 部分（L）。
 
-## 最近一批问答（2026-10-28 FlClash 深度对标全量补齐建档立项批次）
+## 历史问答（2026-10-28 FlClash 深度对标全量补齐建档立项批次）
 
 1. x86_64/aarch64：本批为全量建档立项与台账更新，未改动底层交叉构建；`scripts/cross-check.sh` 与 `scripts/android-check.sh` 保持全绿结论，最终安装包与目标设备证据仍由设备矩阵取证（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：桌面三端在 Linux 上运行并通过全部定向单元与服务路径测试；Windows/macOS 受控环境在斗战胜佛等真实环境；Linux 打包腿已交付待统一批次复验 → 部分（L）。
@@ -2109,7 +2135,7 @@
 7. 模块化：文件行数预算严格控制（所有文件全部 ≤800 行，`line-guard.py` 0 违规）；无隐式布尔状态机；各端模型去重；`cargo fmt --all --check` 100% 通过 → 部分（L）。
 8. CI：`i18n-guard.py --mode=enforce` 零错误通过；`closure-questions-guard.py` 8/8 通过；`line-guard.py` 0 违规；`cargo fmt --all --check` 0 偏差 → 部分（L）。
 
-## 最近一批问答（2026-10-28 代理节点响应式多列栅格与协议标签交付批次）
+## 历史问答（2026-10-28 代理节点响应式多列栅格与协议标签交付批次）
 
 1. x86_64/aarch64：本批为契约协议枚举、呈现层映射与多端节点卡片适配，未改动底层交叉构建；`scripts/cross-check.sh` 与 `scripts/android-check.sh` 保持全绿结论，最终安装包与目标设备证据仍由设备矩阵取证（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：桌面三端在 Linux 上运行并通过全部定向单元与服务路径测试；Windows/macOS 受控环境在斗战胜佛等真实环境；Linux 打包腿已交付待统一批次复验 → 部分（L）。
@@ -2120,7 +2146,7 @@
 7. 模块化：文件行数预算严格控制（所有修改文件全部 ≤800 行，`line-guard.py` 0 违规）；无隐式布尔状态机；各端只消费呈现快照，无私有状态污染；`cargo fmt --all --check` 100% 通过 → 部分（L）。
 8. CI：定向测试全绿（contract 1 项专属单测、presentation 1 项单测、Iced 6 项代理单测）；`i18n-guard.py --mode=enforce` 零错误通过；`closure-questions-guard.py` 8/8 通过；`line-guard.py` 0 违规；`cargo fmt --all --check` 0 偏差 → 部分（L）。
 
-## 最近一批问答（2026-10-28 概览页平滑贝塞尔流量曲线与分流模式快捷切换交付批次）
+## 历史问答（2026-10-28 概览页平滑贝塞尔流量曲线与分流模式快捷切换交付批次）
 
 1. x86_64/aarch64：本批为 UI 呈现层与各端表面适配实现，未改动交叉构建底座；`scripts/cross-check.sh` 与 `scripts/android-check.sh` 保持全绿结论，最终安装包与目标设备证据仍由设备矩阵取证（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：桌面三端在 Linux 上运行并通过全部定向单元与服务路径测试；Windows/macOS 受控环境在斗战胜佛等真实环境；Linux 打包腿已交付待统一批次复验 → 部分（L）。
@@ -2131,7 +2157,7 @@
 7. 模块化：文件行数预算严格控制（所有修改文件全部 ≤800 行，`line-guard.py` 0 违规）；无隐式布尔状态机；各端只消费呈现快照，无私有状态污染；`cargo fmt --all --check` 100% 通过 → 部分（L）。
 8. CI：定向测试全绿（Slint 8 项流量单测与 1 项专属 split_rate 单测、Iced 2 项 active exit 单测）；`i18n-guard.py --mode=enforce` 零错误通过；`closure-questions-guard.py` 8/8 通过；`line-guard.py` 0 违规；`cargo fmt --all --check` 0 偏差 → 部分（L）。
 
-## 最近一批问答（2026-10-28 Slint 通用工作台产品化与订阅流量配额到期可视化交付批次）
+## 历史问答（2026-10-28 Slint 通用工作台产品化与订阅流量配额到期可视化交付批次）
 
 1. x86_64/aarch64：本批为 UI 呈现层与各端表面适配实现，未改动交叉构建底座；`scripts/cross-check.sh` 与 `scripts/android-check.sh` 保持全绿结论，最终安装包与目标设备证据仍由设备矩阵取证（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：桌面三端在 Linux 上运行并通过全部定向单元与服务路径测试；Windows/macOS 受控环境在斗战胜佛等真实环境；Linux 打包腿已交付待统一批次复验 → 部分（L）。
@@ -2142,7 +2168,7 @@
 7. 模块化：文件行数预算严格控制（所有修改文件全部 ≤800 行，`line-guard.py` 0 违规）；无隐式布尔状态机；各端只消费呈现快照，无私有状态污染；`cargo fmt --all --check` 100% 通过 → 部分（L）。
 8. CI：定向测试全绿（Slint 355、Iced 6、Bevy 4）；`i18n-guard.py --mode=enforce` 零错误通过；`closure-questions-guard.py` 8/8 通过；`line-guard.py` 0 违规；`cargo fmt --all --check` 0 偏差 → 部分（L）。
 
-## 最近一批问答（2026-10-28 网络切换自动清理 DNS 缓存交付批次）
+## 历史问答（2026-10-28 网络切换自动清理 DNS 缓存交付批次）
 
 1. x86_64/aarch64：本批为 contract 与 core application 契约实现，未动交叉构建腿；`scripts/cross-check.sh` 与 `scripts/android-check.sh` 保持全绿结论，最终安装包与目标设备证据仍由设备矩阵取证（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：桌面三端在 Linux 上运行并通过定向单元测试；Windows/macOS 受控环境在斗战胜佛等真实环境；Linux 打包腿已交付待统一批次复验 → 部分（L）。
@@ -2164,7 +2190,7 @@
 7. 模块化：文件级模块化（<=800/600 行）全绿，全仓 `mod.rs` 永久清零；Slint 拆分遵循 `SLINT-001` 单文件预算守卫；无跨 UI 私有业务真源，架构逐层裁决收口；`cargo fmt --all --check` 100% 通过 → 部分（L）。
 8. CI：全套定向测试全绿（Iced 542、Slint 355、Bevy 77、Contract/Shared 480）；Clippy `-D warnings`（Iced/Slint）零警告通过；`scripts/quality/check-structure.sh` 40+ 道独立 guard（338 项测试）100% PASS，`import-guard.py` 2811 文件零违例，`closure-questions-guard.py` 8/8 通过 → 部分（L）。
 
-## 最近一批问答（2026-10-27 布局错位、反向暗色白块与通栏黑砖治理批次）
+## 历史问答（2026-10-27 布局错位、反向暗色白块与通栏黑砖治理批次）
 
 1. x86_64/aarch64：本批未动交叉构建腿；`scripts/cross-check.sh`（zig 0.14.1 + `cargo-zigbuild`、`cargo-xwin`）与 `scripts/android-check.sh`（NDK 29.0.14206865）保持全绿结论，`cross-build-guard.py` 把四条桌面 triple、两条 aarch64 交叉腿与两条 Android 腿钉在位；最终安装包与目标设备证据仍由设备矩阵取证（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：桌面三端在 Linux 上全量通过私有虚拟 Wayland 实机跑批（Iced 117 张、Bevy 88 张、Slint 142 张全满在库）；Windows/macOS 受控环境在斗战胜佛等真实环境；Linux 打包腿已交付待统一批次复验 → 部分（L）。
@@ -2175,7 +2201,7 @@
 7. 模块化：文件行数预算严格控制（全部 ≤800/600 行），`mod.rs` 永久清零；Slint 拆分遵循 `SLINT-001` 单文件预算守卫；无跨 UI 私有业务真源，架构逐层裁决收口 → 部分（L）。
 8. CI：全套测试（三端 1,091 项）与结构门（`check-structure.sh` 40+ 项工程守卫）100% PASS，`import-guard.py` 白名单收敛，`bevy_rem_guard` 零 debt，无编译警告与债务遗留 → 部分（L）。
 
-## 最近一批问答（2026-10-20 第三表面补齐、页面模型与远端门禁批次）
+## 历史问答（2026-10-20 第三表面补齐、页面模型与远端门禁批次）
 
 1. x86_64/aarch64：本批未动交叉构建腿；`scripts/cross-check.sh`（zig 0.14.1 + `cargo-zigbuild`、`cargo-xwin`）与 `scripts/android-check.sh`（NDK 29.0.14206865）保持全绿结论，`cross-build-guard.py` 把四条桌面 triple、两条 aarch64 交叉腿与两条 Android 腿钉在位且拒绝 Apple 目标混入；最终安装包与目标设备证据仍缺（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：Windows 安装包与 macOS/iOS 目标机腿在斗战胜佛等受控环境；本批的可推改动是 Linux 打包腿（deb 与 AppImage 从登记表产出、安装-启动-卸载冒烟通过）与 release 作业的签名前置 fail closed → 部分（L）。
@@ -2186,7 +2212,7 @@
 7. 模块化：文件级达标；隐式状态机语义审计 + 判决台账常驻，16 处阶段表已改 typed enum + typed transition；**本批：页面模型有唯一 owner 并开始收编各表面**；三个 owner 收敛（release 签名、圆角阶梯、中性 API 基线）；开关几何收敛为 widgets 的唯一真源；地球增强有自己的 typed 阶段与降级策略 → 部分（L）。
 8. CI：**本批：远端门禁首次全绿**——`main-gate` 在推送后通过（格式化 + 全部结构守卫）；**本批还修掉了三个真实缺陷**：① 推送到远端才暴露出 27 个文件偏离格式化器的形状（本地提交期间门禁不跑），现在提交即格式化，远端树的形状与格式化器一致，而正在被别的会话写的文件用「只改索引里的提交形状、不动工作树」的方式修复，两边都不丢改动；② Android 取证流的测试在干净检出上因为目标目录不存在而失败，现在测试自己建目录；③ release 作业此前用 debug key 签名发布产物且不带任何签名 secret，现在缺 secret 即在昂贵的构建之前失败。生态门禁 workflow（示例编译、SemVer 类型检查、无头混沌矩阵）已登记触发策略，只有受控 `v*` tag 起 job → 部分（L）。
 
-## 最近一批问答（2026-10-21 页面模型收编、真实交互与 0.51.0 批次）
+## 历史问答（2026-10-21 页面模型收编、真实交互与 0.51.0 批次）
 
 1. x86_64/aarch64：本批未动交叉构建腿；`scripts/cross-check.sh`（zig 0.14.1 + `cargo-zigbuild`、`cargo-xwin`）与 `scripts/android-check.sh`（NDK 29.0.14206865）保持全绿结论，`cross-build-guard.py` 把四条桌面 triple、两条 aarch64 交叉腿与两条 Android 腿钉在位；最终安装包与目标设备证据仍缺（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：本批未动平台打包腿；Windows 安装包与 macOS/iOS 目标机腿在斗战胜佛等受控环境，Linux 打包腿（deb 与 AppImage）已交付并在过去佛待统一批次复验；本批的可推改动是版本号按身份改动一次做完升到 0.51.0（工作区版本、20 个成员 pin、lock 文件、SemVer 基线、发布拓扑与产品身份守卫同时通过）→ 部分（L）。
@@ -2197,7 +2223,7 @@
 7. 模块化：文件级达标；隐式状态机语义审计 + 判决台账常驻；**本批：九个页面模型与两个共用基座成为页面状态的唯一 owner**（`OperationPhase` 的提交令牌让被取代的答复不移动状态，`EditableDraft` 的「已修改」由草稿与基线推导而不是 flag，Iced 的 `lan_sharing_dirty`/`lan_security_dirty` 与 Bevy 的 `RulesJsonState.dirty` 随之消失）→ 部分（L）。
 8. CI：**本批：版本号按身份改动一次做完升到 0.51.0**（工作区版本、20 个成员 pin、lock 文件、SemVer 基线与两份文档同步；发布拓扑守卫读工作区版本而不是测试里的字面量，版本号再升不必改测试）；**本批把一个真实缺陷修在门上**——`test_neutral_release_guard` 曾硬编码 `0.50.0`，每次发版都会把一个与版本无关的测试打红，现在它读工作区版本；远端 `main-gate`（格式化 + 全部结构守卫）在本批之前的推送上持续绿；`v0.51.0` tag 触发的 release 流水线（run `39477624601`）里 **validate、test-gate 与四条桌面构建腿全绿**，Android 腿按设计因缺用户 keystore secrets 在签名前置 fail closed，发布作业被跳过（没有产出未签名的发布件）；**本批还修掉了 tag 流水线上的两个真实缺陷**：① parity 证据解析的锚点指向了一个被迁移改回的测试名，test-gate 因此跑不到那个测试而失败，锚点现在指向真实存在的测试；② 测试门禁的构建写爆了 runner 根分区（runner 连自己的日志都写不进去），改为只保留行号表并回收镜像里用不到的工具链 → 部分（L）。
 
-## 最近一批问答（2026-10-21 契约缺口、owner 能力与真实交互批次）
+## 历史问答（2026-10-21 契约缺口、owner 能力与真实交互批次）
 
 1. x86_64/aarch64：本批未动交叉构建腿；`scripts/cross-check.sh` 与 `scripts/android-check.sh` 保持全绿结论，`cross-build-guard.py` 把四条桌面 triple、两条 aarch64 交叉腿与两条 Android 腿钉在位；最终安装包与目标设备证据仍缺（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：本批未动平台打包腿；Windows 安装包与 macOS/iOS 目标机腿在斗战胜佛等受控环境，Linux 打包腿已交付并在过去佛待统一批次复验；本批的可推改动是版本号按身份改动一次做完升到 0.51.0（工作区版本、20 个成员 pin、lock 文件、SemVer 基线、发布拓扑与产品身份守卫同时通过）→ 部分（L）。
@@ -2208,7 +2234,7 @@
 7. 模块化：文件级达标；隐式状态机语义审计 + 判决台账常驻；**本批：九个页面模型与两个共用基座成为页面状态的唯一 owner**；**本批：契约层五处事实与两个「声明了却回 unsupported」的命令都由真实 owner 回答**；**本批：13 个端口 fixture 带 README 索引**，每个 fixture 诚实回答（失败的源真的失败、不知道的配置真的回 `unsupported()`）→ 部分（L）。
 8. CI：**本批：版本号按身份改动一次做完升到 0.51.0**（发布拓扑守卫读工作区版本而不是测试里的字面量，版本号再升不必改测试）；**本批把 tag 流水线上的两个真实缺陷修在门上**——① parity 证据解析的锚点指向了一个被迁移改回的测试名，test-gate 因此跑不到那个测试而失败，锚点现在指向真实存在的测试；② 测试门禁的构建写爆了 runner 根分区（runner 连自己的日志都写不进去），改为只保留行号表并回收镜像里用不到的工具链；`v0.51.0` run `39477624601` 的 validate、test-gate 与四条桌面构建腿全绿，Android 腿按设计因缺用户 keystore secrets fail closed（没有产出未签名的发布件）→ 部分（L）。
 
-## 最近一批问答（2026-10-22 工程约束补齐批次）
+## 历史问答（2026-10-22 工程约束补齐批次）
 
 1. x86_64/aarch64：本批未动交叉构建腿，`scripts/cross-check.sh` 与 `scripts/android-check.sh` 的既有结论不变；本批新增的七道门禁都是离线结构门，不产生也不消耗任何目标架构证据 → 部分（L）。
 2. Windows/Linux/macOS：本批未新增平台构建腿，安装包证据仍缺；本批只把依赖政策、工具链钉版、unsafe 可追溯、panic 边界、库层输出、构建脚本与特性矩阵变成常驻门禁 → 部分（L）。
@@ -2219,7 +2245,7 @@
 7. 模块化：**本批：五份台账成为常驻门禁**——unsafe 操作数必须与源码逐个一致、缺少安全说明的数量只能下降；每个 panic 边界必须登记它拦住的失败，任何 profile 禁止 abort；内层 crate 的标准输出清零，其它库层站点登记上限；每个构建脚本必须声明归属 crate、构建依赖、是否派生进程与是否写文件；每个特性必须分类，default 不得隐式开启捕获与测试特性 → 部分（L）。
 8. CI：**本批：生态门禁新增 tag 门控的依赖政策作业**（公告、许可、禁用、来源四项一起执行），主门禁原先浮动的工具链引用改为钉住与工作区同一个发布版，工具链版本从此只有一个真源；本批的改动全部是离线门禁与配置，不触发任何编译成本 → 部分（L）。
 
-## 最近一批问答（2026-10-23 Bevy ECS 规范收敛与质量门禁收尾批次）
+## 历史问答（2026-10-23 Bevy ECS 规范收敛与质量门禁收尾批次）
 
 1. x86_64/aarch64：本批未动交叉构建腿，`scripts/cross-check.sh` 与 `scripts/android-check.sh` 的既有结论不变；本批改动仅针对 Bevy UI 表面系统参数与类型定义，不产生也不消耗新的目标架构证据 → 部分（L）。
 2. Windows/Linux/macOS：本批未新增平台构建腿，安装包证据仍缺；本批聚焦消除 Bevy UI 的 ECS 复杂度与参数超限，确保桌面编译与 Clippy 零警告零错误 → 部分（L）。

@@ -1,8 +1,9 @@
-use super::{ColumnChoiceState, column_choices, column_chooser_mounted, mode_label_key};
+use super::{ColumnChoiceState, column_choices, mode_label_key};
 use infiltrator_contract::connection_view_preference::{
     ConnectionColumn, ConnectionColumnSet, ConnectionViewIntent, ConnectionViewMode,
     ConnectionViewPreference,
 };
+use infiltrator_presentation::connection_page_chrome::column_chooser_mounted;
 use infiltrator_presentation::connection_view_projection::{
     CONNECTION_VIEW_MODE_LIST_KEY, CONNECTION_VIEW_MODE_TABLE_KEY,
     CONNECTION_VIEW_RESET_COLUMNS_KEY, CONNECTION_VIEW_TITLE_KEY, ConnectionViewProjection,

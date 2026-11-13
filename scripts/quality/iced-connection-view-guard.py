@@ -20,6 +20,10 @@ lexically and proves that:
   column vocabulary in the view;
 * the column chooser and the grouping control are mounted by the shared
   morphology rule, so neither can appear as a control that changes nothing;
+* the rule that mounts them lives in the shared owner rather than in the
+  surface, and the page's control bands - and the rows they share at a given
+  viewport tier - are published by that owner too, so a narrow window cannot
+  spend its vertical budget on a stack the surface arranged on its own;
 * ``check-structure.sh`` executes both the self-test and enforce legs.
 
 Usage:
@@ -49,6 +53,7 @@ TABLE_TESTS = ROOT / "crates/infiltrator-iced/tests/gui/connections_table_tests.
 CONTROLS_SEAM = ROOT / "crates/infiltrator-iced/src/view/runtime/connections_controls.rs"
 REGIONS = ROOT / "crates/infiltrator-iced/src/view_root/interaction_regions.rs"
 INTEGRATION_TESTS = ROOT / "crates/infiltrator-iced/tests/gui/view_runtime_connections_tests.rs"
+OWNER = ROOT / "crates/infiltrator-presentation/src/connection_page_chrome.rs"
 GATE = ROOT / "scripts/quality/check-structure.sh"
 GUARD = "iced-connection-view-guard.py"
 
@@ -83,6 +88,19 @@ GROUPING_MOUNT = re.compile(r"grouping_control_mounted\s*\(")
 TABLE_READBACK = re.compile(r"diag\.connection_view")
 OUTBOUND_FILTER = re.compile(r"Message::UpdateRuntimeConnectionFilter")
 WALL_CLOCK = re.compile(r"Utc::now\(\)|SystemTime::now\(\)|current_unix_secs\(\)")
+CONTROL_STACK = re.compile(r"connection_control_stack\s*\(")
+PAGE_CHROME = re.compile(r"connection_page_chrome\s*\(")
+CHOOSER_PLACEMENT = re.compile(r"chrome\.chooser")
+TIER_BRANCH = re.compile(r"is_narrow\s*\(")
+LOCAL_MOUNT_DEF = re.compile(
+    r"fn\s+(?:grouping_control_mounted|column_chooser_mounted)\s*\("
+)
+OWNER_STACK = re.compile(r"pub fn connection_control_stack\s*\(")
+OWNER_GROUPING = re.compile(r"pub const fn grouping_control_mounted\s*\(")
+OWNER_CHOOSER = re.compile(r"pub const fn column_chooser_mounted\s*\(")
+OWNER_TIER = re.compile(r"ViewportTier")
+OWNER_TRAFFIC_PLACEMENT = re.compile(r"pub enum ConnectionTrafficPlacement")
+OWNER_CHOOSER_PLACEMENT = re.compile(r"pub enum ConnectionChooserPlacement")
 
 
 def read(path: pathlib.Path) -> str:
@@ -106,6 +124,7 @@ def findings(
     seam_text: str | None = None,
     regions_text: str | None = None,
     gate_text: str | None = None,
+    owner_text: str | None = None,
 ) -> list[str]:
     controls = production(
         read(CONTROLS) if controls_text is None else controls_text
@@ -120,6 +139,7 @@ def findings(
     seam = production(read(CONTROLS_SEAM) if seam_text is None else seam_text)
     regions = production(read(REGIONS) if regions_text is None else regions_text)
     gate = read(GATE) if gate_text is None else gate_text
+    owner = production(read(OWNER) if owner_text is None else owner_text)
     problems: list[str] = []
 
     if not LIST.search(controls) or not TABLE.search(controls):
@@ -173,6 +193,42 @@ def findings(
         problems.append(
             "the grouping control is not mounted by the shared morphology rule"
         )
+    if not CONTROL_STACK.search(connections):
+        problems.append(
+            "the Connections page does not consume the shared control stack"
+        )
+    if TIER_BRANCH.search(connections):
+        problems.append(
+            "the Connections page decides the control-stack arrangement itself"
+        )
+    if not PAGE_CHROME.search(connections):
+        problems.append(
+            "the Connections page does not consume the shared page chrome"
+        )
+    if not CHOOSER_PLACEMENT.search(connections):
+        problems.append(
+            "the column chooser ignores the shared placement rule"
+        )
+    for path, text in (
+        (CONTROLS, controls),
+        (CONNECTIONS, connections),
+    ):
+        if LOCAL_MOUNT_DEF.search(text):
+            problems.append(
+                f"{path.relative_to(ROOT)} owns a morphology mount rule instead of the shared owner"
+            )
+    if not OWNER_STACK.search(owner) or not OWNER_TIER.search(owner):
+        problems.append(
+            "the shared owner no longer publishes the connections control stack"
+        )
+    if not OWNER_GROUPING.search(owner) or not OWNER_CHOOSER.search(owner):
+        problems.append(
+            "the shared owner no longer publishes the morphology mount rules"
+        )
+    if not OWNER_TRAFFIC_PLACEMENT.search(owner) or not OWNER_CHOOSER_PLACEMENT.search(owner):
+        problems.append(
+            "the shared owner no longer publishes the page chrome placements"
+        )
     if VIEW_ARRAY.search(table):
         problems.append("the table module has rebuilt a second column registry")
     if TABLE_READBACK.search(table):
@@ -215,6 +271,7 @@ class GuardSelfTest(unittest.TestCase):
             "seam_text": read(CONTROLS_SEAM),
             "regions_text": read(REGIONS),
             "gate_text": read(GATE),
+            "owner_text": read(OWNER),
         }
 
     def planted(self, **changes: str) -> list[str]:
@@ -368,13 +425,115 @@ class GuardSelfTest(unittest.TestCase):
 
     def test_a_chooser_without_the_shared_morphology_rule_is_rejected(self) -> None:
         planted = self.live["controls_text"].replace(
-            "if !column_chooser_mounted(projection.mode) {",
+            "if !connection_page_chrome::column_chooser_mounted(projection.mode) {",
             "if projection.mode != ConnectionViewMode::Table {",
         ).replace("column_chooser_mounted", "unused_chooser_gate")
         self.assertTrue(
             any(
                 "column chooser is not mounted by the shared morphology rule" in item
                 for item in self.planted(controls_text=planted)
+            )
+        )
+
+    def test_a_page_that_arranges_its_own_stack_is_rejected(self) -> None:
+        planted = self.live["connections_text"].replace(
+            "connection_page_chrome::connection_control_stack(state.shell.viewport.tier, view_mode)",
+            "if state.shell.viewport.tier.is_narrow() { vec![] } else { vec![] }",
+        )
+        self.assertTrue(
+            any(
+                "decides the control-stack arrangement itself" in item
+                for item in self.planted(connections_text=planted)
+            )
+        )
+
+    def test_a_page_that_drops_the_shared_stack_is_rejected(self) -> None:
+        planted = self.live["connections_text"].replace(
+            "connection_page_chrome::connection_control_stack(state.shell.viewport.tier, view_mode)",
+            "connection_control_stack_local(state.shell.viewport.tier, view_mode)",
+        )
+        self.assertTrue(
+            any(
+                "does not consume the shared control stack" in item
+                for item in self.planted(connections_text=planted)
+            )
+        )
+
+    def test_a_surface_that_owns_a_mount_rule_is_rejected(self) -> None:
+        planted = self.live["controls_text"].replace(
+            "use infiltrator_presentation::connection_page_chrome::{self, ConnectionChooserPlacement};",
+            "use infiltrator_presentation::connection_page_chrome::{self, ConnectionChooserPlacement};\n"
+            "const fn column_chooser_mounted(mode: ConnectionViewMode) -> bool {\n"
+            "    matches!(mode, ConnectionViewMode::Table)\n"
+            "}",
+        )
+        self.assertTrue(
+            any(
+                "owns a morphology mount rule instead of the shared owner" in item
+                for item in self.planted(controls_text=planted)
+            )
+        )
+
+    def test_an_owner_that_drops_a_mount_rule_is_rejected(self) -> None:
+        planted = self.live["owner_text"].replace(
+            "pub const fn column_chooser_mounted(mode: ConnectionViewMode) -> bool {",
+            "pub const fn chooser_gate(mode: ConnectionViewMode) -> bool {",
+        )
+        self.assertTrue(
+            any(
+                "no longer publishes the morphology mount rules" in item
+                for item in self.planted(owner_text=planted)
+            )
+        )
+
+    def test_an_owner_that_drops_the_stack_is_rejected(self) -> None:
+        planted = self.live["owner_text"].replace(
+            "pub fn connection_control_stack(",
+            "pub fn control_stack(",
+        )
+        self.assertTrue(
+            any(
+                "no longer publishes the connections control stack" in item
+                for item in self.planted(owner_text=planted)
+            )
+        )
+
+    def test_a_page_that_drops_the_shared_chrome_is_rejected(self) -> None:
+        planted = self.live["connections_text"].replace(
+            "connection_page_chrome::connection_page_chrome(state.shell.viewport.tier)",
+            "connection_page_chrome::ConnectionPageChrome::wide()",
+        )
+        self.assertTrue(
+            any(
+                "does not consume the shared page chrome" in item
+                for item in self.planted(connections_text=planted)
+            )
+        )
+
+    def test_a_chooser_that_ignores_the_placement_is_rejected(self) -> None:
+        planted = self.live["connections_text"].replace(
+            "column_view_controls::column_chooser_controls(state, chrome.chooser)",
+            "column_view_controls::column_chooser_controls(state)",
+        ).replace(
+            "connection_view_controls::column_chooser_controls(state, chrome.chooser)",
+            "connection_view_controls::column_chooser_controls(state)",
+        )
+        self.assertTrue(
+            any(
+                "column chooser ignores the shared placement rule" in item
+                for item in self.planted(connections_text=planted)
+            )
+        )
+
+    def test_an_owner_that_drops_a_placement_is_rejected(self) -> None:
+        planted = self.live["owner_text"].replace(
+            "pub enum ConnectionTrafficPlacement {",
+            "pub enum TrafficPlacement {",
+        )
+        self.assertTrue(
+            any(
+                "no longer publishes the page chrome placements" in item
+                for item in self.planted(owner_text=planted)
             )
         )
 

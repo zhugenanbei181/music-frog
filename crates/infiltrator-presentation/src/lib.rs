@@ -19,6 +19,7 @@ pub mod clock;
 pub mod command_palette_projection;
 pub mod connection_detail_projection;
 pub mod connection_grouping;
+pub mod connection_page_chrome;
 pub mod connection_page_model;
 pub mod connection_search;
 pub mod connection_table_projection;

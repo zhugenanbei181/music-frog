@@ -34,6 +34,9 @@ use infiltrator_domain::connection_view::{ConnectionGroupingMode, RatedConnectio
 use infiltrator_domain::runtime::Connection;
 use infiltrator_domain::{connection_rate, connection_view};
 use infiltrator_presentation::connection_grouping::sort_label_key;
+use infiltrator_presentation::connection_page_chrome::{
+    self, ConnectionControlBand, ConnectionTrafficPlacement,
+};
 use infiltrator_presentation::connection_page_model::{CONNECTION_SORT_OPTIONS, sort_option_at};
 use infiltrator_presentation::connection_view_table_projection::{
     ConnectionTableStatus, project_connection_view_table,
@@ -89,15 +92,6 @@ pub fn outbound_target_info(conn: &Connection) -> (String, BadgeKind) {
     };
 
     (target, kind)
-}
-
-/// Whether the grouping control is mounted for the given readback.
-///
-/// The table shows one row per connection, so the grouping buckets have no
-/// place there: a grouping control in the table morphology would fold rows
-/// the table cannot show.
-pub(crate) const fn grouping_control_mounted(mode: ConnectionViewMode) -> bool {
-    matches!(mode, ConnectionViewMode::List)
 }
 
 /// DUAL-13-10: the breathing glow of one row at the shared pulse phase; zero
@@ -187,12 +181,11 @@ fn connections_section_with_scroll_owner<'a>(
     ));
 
     // Keep metrics, sorting and destructive actions on independent native rows.
-    let header_trailing = row![
-        icon_button(Icon::RefreshCw, 14.0, Message::RefreshRuntimeNow),
-        close_all_btn,
-    ]
-    .spacing(theme::SP_SM)
-    .align_y(Alignment::Center);
+    // Where the traffic summary rides is the page's rule: a narrow window
+    // cannot pay for a band per fact, so the summary rides in the header band
+    // instead of taking a row the table does not get. The fact itself is
+    // published either way.
+    let chrome = connection_page_chrome::connection_page_chrome(state.shell.viewport.tier);
     let traffic_summary = row![
         stream_badge(&state.diag.connections_stream_state, &lang),
         upload_badge,
@@ -200,6 +193,21 @@ fn connections_section_with_scroll_owner<'a>(
     ]
     .spacing(theme::SP_SM)
     .align_y(Alignment::Center);
+    let refresh_button = icon_button(Icon::RefreshCw, 14.0, Message::RefreshRuntimeNow);
+    let (header_trailing, traffic_row) = match chrome.traffic {
+        ConnectionTrafficPlacement::HeaderBand => (
+            row![traffic_summary, refresh_button, close_all_btn]
+                .spacing(theme::SP_SM)
+                .align_y(Alignment::Center),
+            None,
+        ),
+        ConnectionTrafficPlacement::OwnRow => (
+            row![refresh_button, close_all_btn]
+                .spacing(theme::SP_SM)
+                .align_y(Alignment::Center),
+            Some(traffic_summary),
+        ),
+    };
 
     // 5. Sub-tabs: the typed destination is state, not a string prefix.
     let user_filter = state.runtime.connection_query.trim();
@@ -227,9 +235,10 @@ fn connections_section_with_scroll_owner<'a>(
 
     // The grouping control folds the rows into buckets, which the table
     // cannot show: a table row is one connection. In the table morphology the
-    // control is not mounted at all, so no control is ever inert.
-    let group_control =
-        grouping_control_mounted(view_mode).then(|| connections_controls::grouping(state));
+    // control is not mounted at all, so no control is ever inert. Which
+    // morphology mounts it is the page's rule, so the shared owner decides.
+    let group_control = connection_page_chrome::grouping_control_mounted(view_mode)
+        .then(|| connections_controls::grouping(state));
     let search_control = connections_controls::search(state);
     let connection_view_control = connection_view_controls::view_mode_controls(state);
 
@@ -245,36 +254,47 @@ fn connections_section_with_scroll_owner<'a>(
     .style(style_ghost)
     .on_press_maybe((!user_filter.is_empty()).then_some(Message::CloseFilteredConnections));
 
-    let filter_bar: Element<'_, Message> = if state.shell.viewport.tier.is_narrow() {
-        let mut items: Vec<Element<'_, Message>> = vec![
-            row![sub_tabs, close_filtered_btn]
+    // Which controls the page mounts and which of them share a row is
+    // published by the shared owner: the tier is the viewport ladder's fact
+    // and the arrangement that follows from it is the page's, so a narrow
+    // window's vertical budget is spent the same way on every surface.
+    let control_stack =
+        connection_page_chrome::connection_control_stack(state.shell.viewport.tier, view_mode);
+    let mut tabs_band = Some(sub_tabs);
+    let mut grouping_band = group_control;
+    let mut search_band = Some(search_control);
+    let mut morphology_band = Some(connection_view_control);
+    let mut close_filtered_band = Some(close_filtered_btn.into());
+    let mut stack_rows: Vec<Element<'_, Message>> = Vec::new();
+    for row_bands in control_stack.rows() {
+        let mut elements: Vec<Element<'_, Message>> = Vec::new();
+        for band in row_bands {
+            let element = match band {
+                ConnectionControlBand::Tabs => tabs_band.take(),
+                ConnectionControlBand::Grouping => grouping_band.take(),
+                ConnectionControlBand::Search => search_band.take(),
+                ConnectionControlBand::Morphology => morphology_band.take(),
+                ConnectionControlBand::CloseFiltered => close_filtered_band.take(),
+            };
+            if let Some(element) = element {
+                elements.push(element);
+            }
+        }
+        if elements.is_empty() {
+            continue;
+        }
+        stack_rows.push(
+            row(elements)
                 .spacing(theme::SP_SM)
                 .align_y(Alignment::Center)
+                .width(Length::Fill)
                 .into(),
-        ];
-        if let Some(group_control) = group_control {
-            items.push(group_control);
-        }
-        items.push(search_control);
-        items.push(connection_view_control);
-        column(items)
-            .spacing(theme::SP_SM)
-            .width(Length::Fill)
-            .into()
-    } else {
-        let mut items: Vec<Element<'_, Message>> = vec![sub_tabs];
-        if let Some(group_control) = group_control {
-            items.push(group_control);
-        }
-        items.push(search_control);
-        items.push(connection_view_control);
-        items.push(close_filtered_btn.into());
-        row(items)
-            .spacing(theme::SP_SM)
-            .align_y(Alignment::Center)
-            .width(Length::Fill)
-            .into()
-    };
+        );
+    }
+    let filter_bar: Element<'_, Message> = column(stack_rows)
+        .spacing(theme::SP_SM)
+        .width(Length::Fill)
+        .into();
 
     // DUAL-13-11: idle-timeout control + manual sweep with honest last-sweep
     // status. The timeout choices and the idle reduction are the shared domain
@@ -340,20 +360,25 @@ fn connections_section_with_scroll_owner<'a>(
             Some(header_trailing.into())
         ),
         Space::new().height(theme::SP_SM),
-        traffic_summary,
-        Space::new().height(theme::SP_SM),
-        conn_sort_control,
-        Space::new().height(theme::SP_SM),
-        filter_bar,
-        Space::new().height(theme::SP_SM),
-        idle_bar,
-        Space::new().height(theme::SP_MD),
     ];
+    if let Some(traffic_row) = traffic_row {
+        connections_section = connections_section
+            .push(traffic_row)
+            .push(Space::new().height(theme::SP_SM));
+    }
+    connections_section = connections_section
+        .push(conn_sort_control)
+        .push(Space::new().height(theme::SP_SM))
+        .push(filter_bar)
+        .push(Space::new().height(theme::SP_SM))
+        .push(idle_bar)
+        .push(Space::new().height(theme::SP_MD));
 
     // The column chooser is its own band above the table: twenty-two
     // labelled columns need room the filter bar does not have, and a band
     // that scrolls sideways keeps the page's vertical budget for the table.
-    if let Some(chooser) = connection_view_controls::column_chooser_controls(state) {
+    if let Some(chooser) = connection_view_controls::column_chooser_controls(state, chrome.chooser)
+    {
         connections_section = connections_section.push(chooser);
         connections_section = connections_section.push(Space::new().height(theme::SP_MD));
     }

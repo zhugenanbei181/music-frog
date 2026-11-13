@@ -64,7 +64,7 @@ primary 色竖向指示条（16dp 高，随选中项动画移动），没有强�
 | 选中态 | 全宽 8% 底 + 3dp 指示条 | 全宽 `nav-selected-fill`（text-primary 8%）+ 3u 宽 16u 高指示条；b145 的 120u 强调色胶囊已废 | **求同（已落地）**：`pill_tail` 判据作废，右侧空地按合法呼吸位测量 |
 | 行几何 | 40dp 高 / 4dp 间距 / 24dp 图标 / 12dp 标签间隙；行内墨迹带 37–40px（19–21dp），即两侧各约 10dp 空气；参照物实测 5 行 | 44u 高 / 4u 间距 / 24u 图标 / 12u 标签间隙 / 3u×16u 指示条（`LumenTheme` 一处令牌，无第二套列规格）；行内图标墨迹 22u，即两侧各 11u 空气；本仓轨道实测 8 项 | **求同 + 一处存异（b158 实测裁决，见 §2.1）**：间距、图标、标签间隙、指示条四项与上游同数；行高 **保留 44u**，理由是三条实测量而不是观感——① 参照物那 40dp 行里的墨迹只有 19–21dp，两侧各约 10dp 空气，本仓 44u 行内 22u 墨迹给出 11u 空气；**落到 40u 会把两侧空气压到 9u，比参照物更紧**；② 40u 在这条栈上少用 32u，而 `rail-row-height` 在桌面**没有内容消费者**（实测 0 处非 compact `NavButton` 实例），这 32u 全部变成导航列内部地面，判定器按 `void` 记账（实测 6.2% → 10.0%，上限 12%，预算占用 52% → 83%），`chrome_band` 两种行高都是 0.0%；③ 本仓轨道 8 项对参照物实测 5 行，同一行高差在更长的栈上代价更大。**所以 40dp 不可移植：它在参照物里是对的，在本仓会更紧且更空。** |
 | 列内起始边界（leading） | 字形盒起于列缘 7.2dp、标签墨迹 44.1dp（场景实测）；源码推导为 12dp / 48dp（`min(12,(48−40)/2) + (40−24)/2`） | b158 实测 x32（= 2 × `rail-item-padding`）、标签 x68，占 240u 列的 13.3%，是状态卡时代的嵌套遗留，从未被任何判据审过 | **求同（b159 落地，`SPACEUTIL-010`）**：令牌改 `space-2`（8u），得字形盒 x8、标签 x44 —— **与场景实测的 7.2dp / 44.1dp 逐条对齐在 1u 内**（比源码推导的 12dp/48dp 更贴真实发布物）；列现在逐帧发布 `nav_content_offset_px`，判定器按导出的 `nav_leading_limit_px`（列宽的 8%，240 → 19u）判定，源码那组较宽松的读法（12u，5.5%）仍在预算内 |
-| 导航项来源 | `NavigationPort.getItems()` typed 列表 + `modes`；`openLogs` / `hasProxies` 再在运行时裁剪 | `shell_navigation::desktop_items(surface)` typed 注册表（静态 `NavigationSurface::{Desktop, Dock}` 只对应上游的目的地形态/归属，不等价于 `modes` 动态能力门控），投影为 `NavigationSlot`（id/label/group/group-label/icon 语义名）供侧栏纯消费；`group` 仍是注册表事实，但桌面呈现由 `shell_sidebar_presentation::NavigationSeparator` 单独裁决是否画成标题 | **求同（b146 已落地，b164 补上呈现策略，b232 补上 surface owner）**：字面量清单已删；侧栏不读任何业务快照，图标只经设计权威的 canonical 名；上游 `_SidebarPane` 的 `Column(destinations.indexed)` 不插标题，本仓因此也不再花一行标题盒 + 16u 上空气把 8 行切成两簇。**存异与缺口**：上游 `NavigationItemMode::{always, needHasProxies, openLogs, more}` 与 `openLogs` / `hasProxies` / `moreFull`、当前页不可见时回退首项，在本仓尚无等价 typed capability snapshot / active-page fallback；这是 Core-first 待办，不得在 UI 层临时过滤或删行 |
+| 导航项来源 | `NavigationPort.getItems()` typed 列表 + `modes`；`openLogs` / `hasProxies` 再在运行时裁剪 | `shell_navigation::desktop_items(surface)` typed 注册表负责目的地形态/归属；`navigation_capability::NavigationCapabilitySnapshot` 用 typed `NavigationMode::{Mobile, Desktop, Tools, ToolsFull}`、`NavigationFeatureState`、可见行、Tools 索引与活动页回退发布动态能力答案，并由 `SurfaceSnapshot.navigation_capability: PageData<_>` 读回。`open_logs` 由 `AppSettings` 与 `UpdateSetting` 持久化，`has_proxies` 由 Composition 从已观测 profiles / outbound inventory 派生；旧 wire 缺字段只得到 `PageData::unavailable`，绝不猜能力 | **求同（b146 已落地，b164 补呈现策略，b232 补 surface owner，b234 补 Core 能力真源）**：字面量清单已删；侧栏不读业务快照，图标只经设计权威 canonical 名；上游 `_SidebarPane` 的 `Column(destinations.indexed)` 不插标题，本仓也不画两簇标题。**存异与剩余接线**：本仓用 `PageData` 明确区分「能力 owner 已观测」与「旧 wire 未观测」，不照抄 Flutter provider 的隐式 default；`NavigationMode::Tools/ToolsFull` 与活动页回退已由 Contract 单一 owner 发布，但各 UI 仍按 Core-first 顺序消费该 readback，未接完前不得在侧栏 UI 临时过滤或删行 |
 | 折叠 | `expanded` / `compactWidth=48` 两档；`canExpandSidebar` 只在 desktop 档放行标签 | 导航形态由契约 `NavigationForm` 决定，`compact-layout` 只控制页面密度；但旧标题栏条件错误地跟随 `compact-layout` | **求同（b153 推翻 b145 的「存异」判断；b207 修正标题栏挂载）**：上游按档给形态，本仓同样由契约给——`compact` 底部导航、`medium` 64px 图标轨、`expanded/ultra` 带标签列。页面密度不能替代窗口 chrome 状态；frameless desktop shell 即使使用 rail，也必须挂载桌面标题栏与窗口控制。 |
 | 窗口 chrome 与页身原点 | pinned v0.9.3 `lib/common/layout.dart::getWindowHeaderHeight`：桌面 Windows/Linux 32dp、macOS 28dp；真实场景图顶部保留 pin / minimize / maximize / close 控件带，截图实测约 27dp，与 macOS 分支相符 | `overview-dark`（1180×780）曾自绘 40px 标题栏、页身顶边另留 8px；旧 `CAPTURE_CHROME` 却只报 `shell_top_air_px=8`。`overview-compact-dark`（720×480）挂 rail，却因 `compact-layout` 条件漏掉标题栏并报 0px | **求同并删掉 Slint 第二真源（b207）**：标题栏挂载与窗饰由桌面宿主读 `WindowChrome::FRAMELESS` 一次规划；其 38px 被 Slint / Iced / Bevy 共用，但与 pinned FlClash 的 Windows/Linux 32dp 仍差 6dp（macOS 28dp，本仓当前 `Unsupported`），另立 `FLPARITY-050` 收口共同契约与三表面回执。`shell_top_air_px` 回报窗口坐标 `AppBody.y + page-content-padding-top`，底边同步包含窗口到 AppBody 的距离。标准帧回执从 8px 校正为 **46px**，rail / 窄桌面帧从 0px 校正为 **38px**；`compact-layout` 从此只决定页面密度。 |
 | 标签何时出现 | `labelOpacity = (progress − 0.4)/0.6`，轨形态不画标签，靠 tooltip 补 | 与上游同判：`ViewportLadder.labelled_sidebar(tier)` 决定行内是否画标签 | **求同**：轨形态只画图标（图标 24u 居中、选中全宽淡底 + 3u 指示条），标签留给带标签列；分组标题不再由「有标签」推导 |
@@ -891,3 +891,35 @@ Iced 的两帧表格回执（`connections-table-standard` / `connections-table-c
 
 诚实边界：时长列只在 Iced 一侧落地；Bevy / Slint / Android 的连接页快照由并行会话持有的
 composition 层发布，尚无观察时刻，那一侧因此仍无时长列——诚实缺席，不伪造。
+
+## 25. 连接页的控件带：上游放进 AppBar，本仓摊在页身里（b242）
+
+上游 `lib/views/connection/requests.dart` 的 `Scaffold` 把页面的三个控件**全部放进标题栏**：
+`title: _labelOf(_feed)` 与 `titleMenuItems: _buildFeedMenu()`（运行中 / 最近两条数据流的切换）、
+`searchState: AppBarSearchState(onSearch: _search)`（搜索框）、`iconActions: _buildActions()` 与
+`menuItems: _filters.menuItems(...)`（过滤器）。`body` 里**只剩表格**——
+`RecordTableFrame<TrackerInfo>` 包着 `trackerInfoColumns(context, width: width, isLive: false)`
+的列定义。也就是说：**上游的连接页页身没有控件栈**，控件不与表格抢高度。
+
+本仓的对应页面把同样的事实摊成页身里的 **9 条控件带**：流量徽章、排序分段控件、页签、筛选框、
+形态切换、空闲超时、清理按钮、列选择器带，加上标题行。每一带都是真实功能，没有一条是死控件；
+但页身要自己跟这些控件抢高度，于是**紧凑档先崩**——b241 重采后逐帧复核 `connections-table-compact`
+（720×480）发现表格表头落在 480px 窗口之外，读者**一行业务数据都看不到**；而
+`space_utilization --enforce` 判 0 违规，因为判定器量的是**页身盒与尾部地面**，看不见折叠线以下
+还有多少内容——**「主内容整体落到折叠线以下」这一整类缺陷穿过全部门禁**。
+
+b242 的收口是「按共享阶梯收行」而不是「删控件」：presentation 新增唯一 owner
+`connection_page_chrome`，发布 typed `ConnectionControlBand`（页签 / 分组 / 搜索 / 形态 / 断开筛选）、
+`ConnectionControlStack`（控件带按契约 `ViewportTier` 排成几行）、`ConnectionTrafficPlacement
+{ OwnRow, HeaderBand }` 与 `ConnectionChooserPlacement { TwoRows, OneRow }`；窄档下页签 / 形态 /
+断开筛选并成一行、流量摘要并进标题栏带、列选择器标题并进横向滚动条带，**事实一条不删**，控件带从
+9 条收到 6 条，紧凑帧从「0 行表格」变成**表头 + 2 行完整数据**（`08-29 15:22:14 | 7.8 min | TCP |
+www.youtube.com:443` 与 `08-29 15:27:49 | 2.2 min | UDP | store.steampowered.com:44`）。
+两条形态挂载规则（分组控件 / 列选择器）此前住在 Iced 视图里，本批一并迁回 owner。
+
+**求同存异**：求同的是「控件不与表格抢页身高度」这一上游结论；存异的是本仓的连接页比上游多几条
+真实功能带（排序分段控件、空闲超时、列选择器），因此标准档仍是 8 条带 + 表格，与上游「页身只留表格」
+的差距据实登记为 `CPPARITY-009-UI`（3 pt）：先在 presentation 裁决「页身 chrome 带能承载哪些控件带」的
+typed 宿主模型，再把控件带逐条迁进 chrome 带。**诚实边界**：判定器看不见折叠线以下这一类缺陷据实
+登记为 `SPACEUTIL-019`（2 pt），收口方向是由表面发布**可见内容回执**、判定器加 `content_visible` 判据，
+不得靠放宽任何留白上限来让测量通过。

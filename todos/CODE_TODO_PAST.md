@@ -553,3 +553,43 @@ Android 的连接页快照由并行会话持有的 composition 层发布，尚�
 ⑦ **待验证范围**：contract/scenario 锚点与 `resolve_surface_evidence.py` ready cells 留统一批次；Bevy / Slint /
 Android 尚未消费该形态，不声称任何跨表面结论；全仓 `--workspace` nextest 与结构门动态全腿留统一批次。
 本条保持 `Integrated`，不办结。
+
+## 12.93 紧凑视口下连接表把表格还给读者（1条待验证）
+
+| ID | 状态 / 优先级 | points | owner | 依赖 |
+| --- | --- | --- | --- | --- |
+| `CPPARITY-008-UI` | `Integrated` / P1（b242 实测立项并交付 UI 消费片，待统一批次办结） | 2 | `infiltrator-presentation::connection_page_chrome`（控件带 / 堆栈 / 页面 chrome 折行规则的唯一 owner）→ `infiltrator-iced`（连接页只消费 owner；紧凑档页签 / 形态 / 断开筛选并成一行、流量摘要并进标题栏带、列选择器标题并进横向滚动条带）→ `scripts/quality/iced-connection-view-guard.py`（owner 消费判据 + planted 负例）+ standard/compact 双视口真实像素回执 | `CPPARITY-006-UI`（过去佛 §12.92） |
+
+**`CPPARITY-008-UI` 720×480 视口里连接表一行都看不见（2 pt / `Integrated`）**：
+
+① **真正找到的问题**：b241 整批重采后逐帧复核 `connections-table-compact`（720×480）发现，从标题栏到
+「连接视图」列选择器带**全是控件**——流量徽章、排序分段控件、页签、筛选框、形态切换、空闲超时、
+清理按钮、列选择器带共 **9 条带**，表格表头落在 480px 窗口之外，读者在紧凑视口**一行业务数据都
+看不到**；而 `space_utilization --enforce` 判 0 违规，因为判定器量的是**页身盒与尾部地面**，看不见
+折叠线以下还有多少内容——**「主内容整体落到折叠线以下」这一整类缺陷穿过全部门禁**。
+
+② **对标上游找到的根因**：逐行读 pinned FlClash `lib/views/connection/requests.dart` 的 `Scaffold`，
+上游把**页签（`titleMenuItems`）、搜索（`searchState: AppBarSearchState`）与动作（`iconActions`）全部
+放进 AppBar**，`body` 里**只剩表格**（`RecordTableFrame<TrackerInfo>`）；本仓把同样的事实摊成页身里
+9 条控件带，页身要自己跟控件抢高度——这就是紧凑档先崩的原因，也是标准档仍有 8 条带的原因。
+
+③ **自底向上收口**：**presentation** 新增本批唯一 owner `connection_page_chrome`——typed
+`ConnectionControlBand`（页签 / 分组 / 搜索 / 形态 / 断开筛选）、`ConnectionControlStack`（控件带按
+共享阶梯 `ViewportTier` 排成几行）、typed `ConnectionTrafficPlacement { OwnRow, HeaderBand }` 与
+`ConnectionChooserPlacement { TwoRows, OneRow }`、`connection_page_chrome(tier)`；**两条挂载规则**
+（`grouping_control_mounted` / `column_chooser_mounted`）此前住在 **Iced 视图里**（守卫文案却写着
+「shared morphology rule」），本批**迁回 owner**，视图不再私藏业务规则。**Iced** 连接页改为只消费
+owner：紧凑档页签 / 形态 / 断开筛选并成一行、流量摘要并进标题栏带、列选择器标题并进横向滚动条带；
+视图里**再无 `is_narrow()` 分支**、**再无本地挂载规则**。
+
+④ **像素与门（L）**：紧凑帧从「0 行表格」变为**表头 + 2 行完整数据**（`08-29 15:22:14 | 7.8 min |
+TCP | www.youtube.com:443` 与 `08-29 15:27:49 | 2.2 min | UDP | store.steampowered.com:44`）；
+presentation nextest **429/429**、Iced **663/663**（合计 **1092/1092**）、两包 Clippy `--all-targets
+-D warnings` exit 0（`unused_imports` 单项放宽给并行 b234 会话 WIP 的 2 个未用导入）、守卫
+**17 → 25/25** + enforce 0（新增「页面必须消费共享控件栈 / 不得自排控件栈 / 不得自持挂载规则 /
+必须消费共享页面 chrome / 列选择器必须吃发布的 placement」5 条判据 + 8 项 planted 负例）。
+
+⑤ **诚实边界**：本批只收口**紧凑档**；标准档仍是 8 条控件带 + 表格，与上游「页身只留表格」的差距
+据实登记为 `CPPARITY-009-UI`（3 pt）；判定器看不见折叠线以下这一类缺陷据实登记为 `SPACEUTIL-019`
+（2 pt）；全仓 `--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` ready
+cells 留统一批次；`screenshot-identity` 唯一红腿仍是并行会话未提交的 Bevy 别名。

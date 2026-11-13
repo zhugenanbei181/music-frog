@@ -10,6 +10,7 @@ use infiltrator_domain::connection_rate::{
 use infiltrator_domain::connection_view::matches_search;
 use infiltrator_domain::connection_view::{ConnectionSortKey, aggregate_connections, route_chain};
 use infiltrator_domain::runtime::{Connection, ConnectionMetadata};
+use infiltrator_presentation::connection_page_chrome::grouping_control_mounted;
 use infiltrator_presentation::connection_page_model::ConnectionsPageModel;
 use infiltrator_presentation::connection_view_projection::{
     CONNECTION_VIEW_MODE_LIST_KEY, CONNECTION_VIEW_MODE_TABLE_KEY,
