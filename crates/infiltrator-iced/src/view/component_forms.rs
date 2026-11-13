@@ -133,6 +133,32 @@ pub fn style_ghost(t: &Theme, status: button::Status) -> button::Style {
     }
 }
 
+/// A chip-shaped button: a small pill the reader can press.
+///
+/// The reference product renders the connection's outbound as exactly this:
+/// a tonal chip that narrows the list to that proxy when it is pressed.
+pub fn style_chip(t: &Theme, status: button::Status) -> button::Style {
+    let tk = theme::tokens(t);
+    button::Style {
+        background: match status {
+            button::Status::Hovered => Some(tk.hover.into()),
+            button::Status::Pressed => Some(tk.pressed.into()),
+            _ => Some(tk.chip_bg.into()),
+        },
+        border: Border {
+            radius: border::Radius::from(theme::R_CHIP),
+            width: theme::HAIRLINE,
+            color: tk.card_border,
+        },
+        text_color: match status {
+            button::Status::Disabled => tk.text_tertiary,
+            button::Status::Hovered | button::Status::Pressed => tk.text_primary,
+            _ => tk.text_secondary,
+        },
+        ..Default::default()
+    }
+}
+
 pub fn style_danger(t: &Theme, status: button::Status) -> button::Style {
     let tk = theme::tokens(t);
     let (bg, fg) = match status {

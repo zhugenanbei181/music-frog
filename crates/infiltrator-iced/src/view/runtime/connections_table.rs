@@ -13,12 +13,13 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
+use crate::view::component_forms::style_chip;
 use crate::view::components::icon_button;
 use crate::view::runtime::connection_search;
 use crate::view::scrollbar;
 use crate::view::svg_icons::Icon;
 use crate::view::theme;
-use iced::widget::{Space, column, container, row, text};
+use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Element, Length, Padding, Theme, border};
 use infiltrator_contract::connection_view_preference::ConnectionColumn;
 use infiltrator_contract::design_resources::{TextRole, typeface};
@@ -159,6 +160,37 @@ fn body_cell<'a>(
     let tone = header.tone;
     let content: Element<'a, Message> = match cell {
         ConnectionTableCell::Status(status) => connection_status_dot(*status),
+        ConnectionTableCell::Chain { outbound, rest } => {
+            // The reference product renders the outbound as a chip the
+            // reader can press to narrow the list to that proxy; the hops
+            // after it stay plain text.
+            let active = state.runtime.connection_query.trim() == outbound.trim();
+            let filter = if active {
+                String::new()
+            } else {
+                outbound.clone()
+            };
+            let chip = button(theme::role_text(outbound.clone(), TextRole::Label))
+                .padding([3, 8])
+                .style(style_chip)
+                .on_press(Message::UpdateRuntimeConnectionFilter(filter));
+            if rest.is_empty() {
+                chip.into()
+            } else {
+                row![
+                    chip,
+                    Space::new().width(theme::SP_XS),
+                    theme::role_text(rest.clone(), TextRole::Label).style(|t: &Theme| {
+                        text::Style {
+                            color: Some(theme::tokens(t).text_tertiary),
+                        }
+                    }),
+                ]
+                .spacing(0)
+                .align_y(Alignment::Center)
+                .into()
+            }
+        }
         ConnectionTableCell::Text(value) => {
             // The search highlight is the page's own answer to "which row
             // matched"; the table keeps it on the endpoint column, so the

@@ -523,6 +523,7 @@ presentation 把建立时间格式化成 `MM-DD HH:MM:SS`、单元格固定宽�
 `connections-table-standard` / `connections-table-compact` 两帧（矩阵第 9 列 `connection_view_mode` 由 demo
 经 owner 读回读入）；`space_utilization --surface iced --enforce` **194 帧 violations=0**（两帧未用留白
 **0.4% / 0.5%**）、`receipt-freshness 0`、`screenshot-identity` 唯一红腿仍是并行会话的 Bevy 别名。
-⑤ **待验证范围**：contract/scenario 锚点与 `resolve_surface_evidence.py` ready cells 留统一批次；Bevy / Slint /
+⑤ **上游交互面（b240 补齐）**：pinned FlClash `lib/features/connection/tracker_info_table.dart` 的连接表把**出站**渲染成 tonal chip，按下即按该代理过滤（`RecordFilter(RecordFacetKind.proxy, exit)`）；本仓原链路列是纯文本。b240 让 presentation 发布 typed `ConnectionTableCell::Chain { outbound, rest }`，Iced 把出站渲染成可点胶囊（共享 `style_chip` 样式），按下即发 typed `UpdateRuntimeConnectionFilter`，共享查询折叠本就含链路词 → 零 core 改动同语义；守卫新增该判据 + 1 项 planted 负例（自测 **15 → 16/16**）。**存异**：上游列集按宽度增删、窄窗把上下行合成 traffic；本仓列集是**用户持久化偏好**（契约 22 列闭集），故不按宽度丢列，代价是表格横向滚动；上游的**时长**列用客户端时钟，本仓禁止视图读本地时钟，该列在 owner 发布观察时刻前诚实缺席。
+⑥ **待验证范围**：contract/scenario 锚点与 `resolve_surface_evidence.py` ready cells 留统一批次；Bevy / Slint /
 Android 尚未消费该形态，不声称任何跨表面结论；全仓 `--workspace` nextest/clippy 与结构门动态全腿留统一批次。
 本条保持 `Integrated`，不办结。

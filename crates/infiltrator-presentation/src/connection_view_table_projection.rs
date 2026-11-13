@@ -77,6 +77,18 @@ pub enum ConnectionTableCell {
     Live(String),
     /// The row's status, rendered as a status dot.
     Status(ConnectionTableStatus),
+    /// The route chain: its first hop is the outbound the connection left
+    /// through, the rest are the hops after it.
+    ///
+    /// The outbound is its own value because the reference product renders it
+    /// as a chip the reader can press to narrow the list to that proxy; a
+    /// plain string would force every surface to split the chain again.
+    Chain {
+        /// The outbound the connection left through.
+        outbound: String,
+        /// The hops after the outbound, already joined for display.
+        rest: String,
+    },
     /// Nobody published this fact.
     Unavailable,
 }
@@ -86,7 +98,20 @@ impl ConnectionTableCell {
     pub fn text(&self) -> Option<&str> {
         match self {
             Self::Text(value) | Self::Live(value) => Some(value.as_str()),
+            Self::Chain { outbound, rest } => Some(if rest.is_empty() {
+                outbound.as_str()
+            } else {
+                rest.as_str()
+            }),
             Self::Status(_) | Self::Unavailable => None,
+        }
+    }
+
+    /// The outbound this cell names, when the cell names one.
+    pub fn outbound(&self) -> Option<&str> {
+        match self {
+            Self::Chain { outbound, .. } => Some(outbound.as_str()),
+            _ => None,
         }
     }
 
@@ -232,7 +257,7 @@ fn cell_for<C: ConnectionView>(
         ConnectionColumn::Process => reported(&row.view_process_name()),
         ConnectionColumn::ProcessPath => reported(row.view_process_path()),
         ConnectionColumn::Rule => reported(row.view_rule()),
-        ConnectionColumn::ProxyChain => reported(&route_chain(row.row).display(" → ")),
+        ConnectionColumn::ProxyChain => chain_cell(row),
         ConnectionColumn::SourceIp => reported(row.view_source_ip()),
         ConnectionColumn::SourcePort => reported(row.view_source_port()),
         ConnectionColumn::DestinationIp => reported(row.view_destination_ip()),
@@ -256,6 +281,19 @@ fn cell_for<C: ConnectionView>(
             debug_assert_eq!(support, ConnectionColumnSupport::Unreported);
             ConnectionTableCell::Unavailable
         }
+    }
+}
+
+/// The route chain cell: the outbound first, the hops after it second.
+fn chain_cell<C: ConnectionView>(row: &RatedConnection<'_, C>) -> ConnectionTableCell {
+    let chain = route_chain(row.row);
+    let Some(outbound) = chain.first() else {
+        return ConnectionTableCell::Unavailable;
+    };
+    let rest = chain.hops().iter().skip(1).cloned().collect::<Vec<_>>();
+    ConnectionTableCell::Chain {
+        outbound: outbound.to_owned(),
+        rest: rest.join(" → "),
     }
 }
 

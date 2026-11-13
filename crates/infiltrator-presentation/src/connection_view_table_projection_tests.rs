@@ -218,6 +218,36 @@ fn the_unknown_is_one_shared_honest_value() {
 }
 
 #[test]
+fn the_chain_cell_names_the_outbound_and_the_hops_after_it() {
+    let table = table_of(
+        &[ConnectionColumn::ProxyChain],
+        &full_connection(),
+        ConnectionTableStatus::Active,
+    );
+    assert_eq!(
+        table.rows[0].cells[0],
+        ConnectionTableCell::Chain {
+            outbound: "HK-01".to_owned(),
+            rest: "PROXIES".to_owned(),
+        }
+    );
+    assert_eq!(table.rows[0].cells[0].outbound(), Some("HK-01"));
+}
+
+#[test]
+fn a_connection_without_a_chain_reports_the_honest_unknown() {
+    let mut connection = full_connection();
+    connection.chains.clear();
+    let table = table_of(
+        &[ConnectionColumn::ProxyChain],
+        &connection,
+        ConnectionTableStatus::Active,
+    );
+    assert_eq!(table.rows[0].cells[0], ConnectionTableCell::Unavailable);
+    assert_eq!(table.rows[0].cells[0].outbound(), None);
+}
+
+#[test]
 fn ellipsize_cuts_at_the_visual_width_and_marks_the_cut() {
     assert_eq!(ellipsize("short", 10.0), "short");
     let cut = ellipsize("api.example.org", 6.0);

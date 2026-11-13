@@ -81,6 +81,7 @@ TABLE_PROJECTION = re.compile(r"project_connection_view_table\s*\(")
 CHOOSER_MOUNT = re.compile(r"column_chooser_mounted\s*\(")
 GROUPING_MOUNT = re.compile(r"grouping_control_mounted\s*\(")
 TABLE_READBACK = re.compile(r"diag\.connection_view")
+OUTBOUND_FILTER = re.compile(r"Message::UpdateRuntimeConnectionFilter")
 
 
 def read(path: pathlib.Path) -> str:
@@ -176,6 +177,10 @@ def findings(
     if TABLE_READBACK.search(table):
         problems.append(
             "the table module reads the preference readback instead of the projection"
+        )
+    if not OUTBOUND_FILTER.search(table):
+        problems.append(
+            "the table's outbound chip does not publish the typed filter intent"
         )
     for region in (
         "ConnectionViewControls",
@@ -324,6 +329,18 @@ class GuardSelfTest(unittest.TestCase):
         self.assertTrue(
             any(
                 "reads the preference readback instead of the projection" in item
+                for item in self.planted(table_text=planted)
+            )
+        )
+
+    def test_a_dead_outbound_chip_is_rejected(self) -> None:
+        planted = self.live["table_text"].replace(
+            "Message::UpdateRuntimeConnectionFilter(filter)",
+            "Message::Noop",
+        )
+        self.assertTrue(
+            any(
+                "outbound chip does not publish the typed filter intent" in item
                 for item in self.planted(table_text=planted)
             )
         )
