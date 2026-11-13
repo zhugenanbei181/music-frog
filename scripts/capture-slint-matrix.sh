@@ -684,17 +684,7 @@ while IFS= read -r name; do
   install -m 644 "$RUN_DIR/$name/image.png" "$OUT_DIR/$name.png"
 done < <(awk -F '\t' 'NR > 1 && $11 == "ok" { print $1 }' "$MANIFEST")
 install -m 644 "$MANIFEST" "$MANIFEST_PUBLISHED"
-python3 - "$OUT_DIR" "$MANIFEST" <<'PY'
-import csv, pathlib, sys
-out = pathlib.Path(sys.argv[1])
-manifest = pathlib.Path(sys.argv[2])
-with manifest.open(encoding="utf-8", newline="") as handle:
-    current = {row["scenario"] for row in csv.DictReader(handle, delimiter="	") if row.get("status") == "ok"}
-for image in out.glob("*.png"):
-    if image.stem not in current:
-        image.unlink()
-        print(f"removed stale screenshot: {image.name}")
-PY
+sweep_unindexed_pixels "$OUT_DIR" "$MANIFEST"
 ELAPSED=$(( $(date +%s) - START_EPOCH ))
 if [ "$FAILURES" -ne 0 ]; then
   printf 'CAPTURE MATRIX FAILED: %d/%d scenario(s) failed:%s\n' \

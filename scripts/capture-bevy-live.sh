@@ -18,8 +18,11 @@
 #     (src/controller.rs) instead of the demo fixture, so the banner shows
 #     the core's real version and the chips show the core's real numbers
 #     (an idle core reports ~0 B/s rates: honest zeros, not a failure);
-#   4. merge the overview-live row into crates/infiltrator-bevy-ui/docs/screenshots/bevy/manifest.tsv
-#     (append: the demo rows of the last matrix run are preserved);
+#   4. keep the live row as private evidence under target/bevy-live/manifest.tsv.
+#     The published corpus and its index belong to the canonical matrix run
+#     alone: this capture filters one scenario by name, and merging a filtered
+#     row into the published index is how a corpus ends up with rows no pixel on
+#     disk backs;
 #   5. tear the core down via its process group (terminate_owned, the same
 #     discipline as capture-iced / capture-bevy-matrix).
 #
@@ -42,8 +45,8 @@ CONTROLLER="127.0.0.1:9099"
 MIXED_PORT="7899"
 BASE_URL="${MIHOMO_BASE_URL:-https://github.com/MetaCubeX/mihomo/releases/download}"
 VERSION_URL="http://$CONTROLLER/version"
-OUT_DIR="$REPO/crates/infiltrator-bevy-ui/docs/screenshots/bevy"
-MANIFEST="$OUT_DIR/manifest.tsv"
+EVIDENCE_ROOT="$REPO/.evidence/captures/bevy"
+LIVE_MANIFEST="$LIVE_DIR/manifest.tsv"
 READY_ITERS=60 # 60 * 0.25s = 15s controller budget
 ARCHIVE_PATH=""
 TEMP_CORE=""
@@ -247,12 +250,12 @@ printf 'live_core_asset=%s\nlive_core_sha256=%s\nlive_core_version=%s\ncontrolle
 # (src/controller.rs reads it in the windowed launcher). Everything else —
 # build, virtual compositor stack, PID/title-bound screenshot, manifest —
 # is the standard capture-bevy-matrix machinery.
-# The matrix republishes manifest.tsv for exactly the scenarios it ran, so
-# the previous manifest is preserved here for the append-merge afterwards.
-MANIFEST_PREVIOUS="$LIVE_DIR/manifest.previous.tsv"
-if [ -f "$MANIFEST" ]; then
-  cp "$MANIFEST" "$MANIFEST_PREVIOUS"
-fi
+# A name-filtered matrix run is diagnostic: it writes its images and its index
+# under its own evidence run directory and leaves the published corpus alone.
+# Mark now so the run directory the matrix creates below can be identified
+# without guessing.
+START_MARKER="$LIVE_DIR/.matrix-start"
+: >"$START_MARKER"
 export INFILTRATOR_BEVY_CONTROLLER="http://$CONTROLLER"
 export INFILTRATOR_BEVY_FEATURES="capture-controller"
 export INFILTRATOR_CAPTURE_SCENARIOS="overview-live"
@@ -261,30 +264,25 @@ if ! bash "$REPO/scripts/capture-bevy-matrix.sh"; then
   exit 1
 fi
 
-# ------------------------------------------- 4. append the row to the manifest --
-# Merge instead of clobber: the previous manifest's rows (the demo
-# scenarios) survive, the fresh overview-live row replaces any older one.
-LIVE_ROW="$(awk -F '\t' '$1 == "overview-live" { print }' "$MANIFEST")"
-[ -n "$LIVE_ROW" ] || {
-  printf 'manifest merge failed: no overview-live row found\n' >&2
+# ------------------------------------- 4. the live row stays private evidence --
+# Read the receipt from the run directory this invocation just produced, never
+# from the published tree: the published index must describe exactly the pixels
+# the published corpus holds, and this capture produced one of them.
+RUN_DIR="$(find "$EVIDENCE_ROOT" -mindepth 1 -maxdepth 1 -type d -newer "$START_MARKER" \
+  -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)"
+[ -n "$RUN_DIR" ] && [ -s "$RUN_DIR/capture-manifest.tsv" ] || {
+  printf 'live capture produced no evidence run directory under %s\n' "$EVIDENCE_ROOT" >&2
   exit 1
 }
-if [ -f "$MANIFEST_PREVIOUS" ]; then
-  HEADER="$(head -n1 "$MANIFEST_PREVIOUS")"
-  { printf '%s\n' "$HEADER"
-    awk -F '\t' '$1 != "overview-live" && $1 != "scenario" && $1 != "" { print }' "$MANIFEST_PREVIOUS"
-    printf '%s\n' "$LIVE_ROW"
-  } >"$MANIFEST.merged"
-else
-  awk -F '\t' -v live="$LIVE_ROW" '
-    NR == 1 { print; next }
-    $1 == "overview-live" { print live; next }
-    $1 != "" { print }
-  ' live="$LIVE_ROW" "$MANIFEST" >"$MANIFEST.merged"
-fi
-install -m 644 "$MANIFEST.merged" "$MANIFEST"
-rm -f "$MANIFEST.merged" "$MANIFEST_PREVIOUS"
+{
+  head -n1 "$RUN_DIR/capture-manifest.tsv"
+  awk -F '\t' 'NR > 1 && $1 == "overview-live" && $11 == "ok"' "$RUN_DIR/capture-manifest.tsv"
+} >"$LIVE_MANIFEST"
+[ "$(wc -l <"$LIVE_MANIFEST")" -eq 2 ] || {
+  printf 'no ok overview-live row in %s\n' "$RUN_DIR/capture-manifest.tsv" >&2
+  exit 1
+}
 
-printf 'LIVE CAPTURE PASS: %s/overview-live.png\n' "$OUT_DIR"
-printf 'manifest rows:\n'
-cat "$MANIFEST"
+printf 'LIVE CAPTURE PASS: %s/image.png\n' "$RUN_DIR/overview-live"
+printf 'private evidence index: %s\n' "$LIVE_MANIFEST"
+cat "$LIVE_MANIFEST"

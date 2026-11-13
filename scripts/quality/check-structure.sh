@@ -111,6 +111,8 @@ gate python3 scripts/quality/screenshot-identity-guard.py --self-test
 gate python3 scripts/quality/screenshot-identity-guard.py --mode enforce
 gate python3 scripts/quality/receipt-freshness-guard.py --self-test
 gate python3 scripts/quality/receipt-freshness-guard.py --mode enforce
+gate python3 scripts/quality/capture-corpus-integrity-guard.py --self-test
+gate python3 scripts/quality/capture-corpus-integrity-guard.py --mode enforce
 gate python3 scripts/quality/retired-surface-guard.py
 gate python3 -m unittest discover -s scripts/quality/tests -p 'test_easing_owner_tests_mutation.py'
 gate python3 scripts/quality/lurker-neutrality-guard.py --self-test

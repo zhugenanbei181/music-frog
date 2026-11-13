@@ -59,7 +59,8 @@ APP_TITLE="Lurker"
 CRATE_DIR="$REPO/crates/infiltrator-bevy-desktop-host"
 APP="${CARGO_TARGET_DIR:-$REPO/target}/debug/infiltrator-bevy-ui"
 ASSET_ROOT="$REPO/crates/infiltrator-bevy-widgets"
-MATRIX_SRC="${INFILTRATOR_CAPTURE_MATRIX:-$REPO/scripts/capture_bevy_scenarios.tsv}"
+CANONICAL_MATRIX="$REPO/scripts/capture_bevy_scenarios.tsv"
+MATRIX_SRC="${INFILTRATOR_CAPTURE_MATRIX:-$CANONICAL_MATRIX}"
 OUT_DIR="${INFILTRATOR_CAPTURE_OUT_DIR:-$REPO/crates/infiltrator-bevy-ui/docs/screenshots/bevy}"
 MANIFEST_PUBLISHED="$OUT_DIR/manifest.tsv"
 EVIDENCE_ROOT="$REPO/.evidence/captures/bevy"
@@ -199,7 +200,11 @@ chmod 700 "$RUNTIME_DIR"
 # --------------------------------------------------------- scenario matrix --
 SCENARIO_FILTER="${INFILTRATOR_CAPTURE_SCENARIOS:-${1:-}}"
 MATRIX="$MATRIX_SRC"
+# A name-filtered run is diagnostic: it must never delete or overwrite the
+# published corpus, because its manifest only holds the filtered rows.
+PUBLISH_CORPUS=1
 if [ -n "$SCENARIO_FILTER" ]; then
+  PUBLISH_CORPUS=0
   MATRIX="$RUN_DIR/scenarios-selected.tsv"
   awk -F '\t' -v list="$SCENARIO_FILTER" '
     BEGIN {
@@ -243,11 +248,21 @@ SCENARIO_COUNT="$(awk -F '\t' 'NR > 1 && $1 != "" { count += 1 } END { print cou
   printf 'capture matrix is empty: %s\n' "$MATRIX" >&2
   exit 2
 }
-# The published tree must reflect exactly this run: drop previous outputs for
-# the scenarios about to be captured (full-matrix runs therefore start clean).
-awk -F '\t' 'NR > 1 && $1 != "" { print $1 }' "$MATRIX" | while IFS= read -r name; do
-  rm -f "$OUT_DIR/$name.png"
-done
+# Only a run over the canonical matrix may publish. A filtered selection or a
+# matrix from elsewhere can never be evidence for the whole corpus, so it must
+# not truncate the published tree nor replace its index.
+if [ "$MATRIX" != "$MATRIX_SRC" ]; then
+  PUBLISH_CORPUS=0
+fi
+if [ "$MATRIX_SRC" != "$CANONICAL_MATRIX" ]; then
+  PUBLISH_CORPUS=0
+fi
+# The published tree is never emptied up front. Each captured frame is written
+# under the run directory, and publication at the end installs exactly the ok
+# images, then the index, then sweeps pixels the index does not name. Deleting
+# before the run succeeds was what turned one aborted batch into 190 orphaned
+# PNGs behind a one-row index: the old pixels were gone while the old index
+# still described them.
 
 # ------------------------------------------------------------------- build --
 SOURCE_FINGERPRINT="$(python3 scripts/parity/visual_receipts.py --fingerprint)"
@@ -689,7 +704,6 @@ capture_one() {
   fi
 
   if [ "$action_status" = ok ]; then
-    install -m 644 "$image" "$OUT_DIR/$name.png"
     printf '  pass  %-22s %sx%s %s B\n' "$name" "$width" "$height" "$bytes"
   else
     printf '  FAIL  %-22s %s (app log: %s)\n' "$name" "$action_status" "$log" >&2
@@ -729,15 +743,36 @@ while IFS=$'\t' read -r name page skin window_size; do
 done <"$MATRIX"
 
 # ----------------------------------------------------------------- summary --
-install -m 644 "$MANIFEST" "$MANIFEST_PUBLISHED"
 ELAPSED=$(( $(date +%s) - START_EPOCH ))
+# A diagnostic run produced evidence for a subset only: report it and stop
+# before touching the published index, whose rows must match the corpus.
+if [ "$PUBLISH_CORPUS" -eq 0 ]; then
+  printf 'diagnostic run: %d scenario(s) captured under %s; the published corpus and its index are untouched\n' \
+    "$SCENARIO_COUNT" "$RUN_DIR"
+  if [ "$FAILURES" -ne 0 ]; then
+    printf 'CAPTURE MATRIX FAILED: %d/%d scenario(s) failed:%s\n' \
+      "$FAILURES" "$SCENARIO_COUNT" "$FAILED_NAMES" >&2
+    exit 1
+  fi
+  printf 'CAPTURE DIAGNOSTIC PASS: %d scenario(s) in %ds\n' "$SCENARIO_COUNT" "$ELAPSED"
+  exit 0
+fi
 if [ "$FAILURES" -ne 0 ]; then
   printf 'CAPTURE MATRIX FAILED: %d/%d scenario(s) failed:%s\n' \
     "$FAILURES" "$SCENARIO_COUNT" "$FAILED_NAMES" >&2
-  printf 'successful shots and the manifest were still published to %s\n' "$OUT_DIR" >&2
   printf 'debug evidence retained at %s\n' "$RUN_DIR" >&2
   exit 1
 fi
+# Publication is a batch: images first, then the index they belong to, then the
+# stale-pixel sweep. Nothing touches the published tree until the whole
+# canonical run has produced every image it claims, so an interrupted or partly
+# failed batch can never leave fresh pixels behind an index that predates them.
+while IFS= read -r name; do
+  [ -s "$RUN_DIR/$name/image.png" ] || fail_hard "ok scenario has no image to publish: $name"
+  install -m 644 "$RUN_DIR/$name/image.png" "$OUT_DIR/$name.png"
+done < <(awk -F '\t' 'NR > 1 && $11 == "ok" { print $1 }' "$MANIFEST")
+install -m 644 "$MANIFEST" "$MANIFEST_PUBLISHED"
+sweep_unindexed_pixels "$OUT_DIR" "$MANIFEST"
 
 printf 'CAPTURE MATRIX PASS: %d scenario(s) in %ds -> %s\n' \
   "$SCENARIO_COUNT" "$ELAPSED" "$OUT_DIR"

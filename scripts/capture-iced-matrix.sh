@@ -723,9 +723,6 @@ capture_one() {
   fi
 
   if [ "$action_status" = ok ]; then
-    if [ "$PUBLISH_CORPUS" -eq 1 ]; then
-      install -m 644 "$image" "$OUT_DIR/$name.png"
-    fi
     printf '  pass  %-22s %sx%s %s B\n' "$name" "$width" "$height" "$bytes"
   else
     printf '  FAIL  %-22s %s (app log: %s)\n' "$name" "$action_status" "$log" >&2
@@ -789,7 +786,16 @@ if [ "$FAILURES" -ne 0 ]; then
   printf 'debug evidence retained at %s\n' "$RUN_DIR" >&2
   exit 1
 fi
+# Publication is a batch: images first, then the index they belong to, then the
+# stale-pixel sweep. Nothing touches the published tree until the whole
+# canonical run has produced every image it claims, so an interrupted or partly
+# failed batch can never leave fresh pixels behind an index that predates them.
+while IFS= read -r name; do
+  [ -s "$RUN_DIR/$name/image.png" ] || fail_hard "ok scenario has no image to publish: $name"
+  install -m 644 "$RUN_DIR/$name/image.png" "$OUT_DIR/$name.png"
+done < <(awk -F '\t' 'NR > 1 && $11 == "ok" { print $1 }' "$MANIFEST")
 install -m 644 "$MANIFEST" "$MANIFEST_PUBLISHED"
+sweep_unindexed_pixels "$OUT_DIR" "$MANIFEST"
 
 printf 'CAPTURE MATRIX PASS: %d scenario(s) in %ds -> %s\n' \
   "$SCENARIO_COUNT" "$ELAPSED" "$OUT_DIR"

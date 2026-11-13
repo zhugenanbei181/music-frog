@@ -53,3 +53,36 @@ capture_settled_image() {
   done
   return 1
 }
+
+# Remove published pixels that the published index does not describe.
+#
+# A screenshot tree is evidence only while its index and its files are the same
+# batch. Two failure modes were measured in this repository:
+#
+#   * a name-filtered run deleted the pixels of the previous full batch and then
+#     published an index holding one row - the Bevy tree shipped 191 PNGs against
+#     a 2-row index, so 190 files could be cited by nothing and no file could be
+#     traced to a run;
+#   * a scenario dropped from a matrix left its PNG behind forever, because
+#     nothing ever removed a file the index no longer names.
+#
+# The rule lives here because all three matrices share this harness: publishing
+# must end with the index describing exactly the pixels on disk, and a per-
+# surface copy of the sweep would drift and leave one surface silently
+# accumulating uncitable receipts.
+sweep_unindexed_pixels() {
+  local out_dir="$1" manifest="$2"
+  python3 - "$out_dir" "$manifest" <<'PY'
+import csv, pathlib, sys
+
+out = pathlib.Path(sys.argv[1])
+manifest = pathlib.Path(sys.argv[2])
+with manifest.open(encoding="utf-8", newline="") as handle:
+    current = {row["scenario"] for row in csv.DictReader(handle, delimiter="\t")
+               if row.get("status") == "ok"}
+for image in sorted(out.glob("*.png")):
+    if image.stem not in current:
+        image.unlink()
+        print(f"removed stale screenshot: {image.name}")
+PY
+}
