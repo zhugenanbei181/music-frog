@@ -33,6 +33,7 @@
 - `python3 scripts/quality/mobile-cfg-discipline-guard.py --mode enforce`：跨平台条件编译纪律与诚实能力守卫，禁止平台排除通用主题/契约类型，强制公开 API 类型完整性与移动宿主能力诚实声明。
 - `python3 scripts/quality/android-interaction-receipt-guard.py --mode enforce`：Android 三 flavor 模拟器交互回执验签门禁，校验每一步骤绑定 APK 摘要、业务 ID、证明发生过的 logcat 片段与相对噪声地板的像素差。
 - `python3 scripts/quality/capture-corpus-integrity-guard.py --mode enforce`：三表面已发布截图语料与其索引必须是同一批次——索引每一行的像素必须存在且摘要、字节数、窗口尺寸逐项相符；矩阵每一行必须有回执。语料与索引分叉时两边都会咬：多余像素只能由 `scripts/quality/capture_corpus_debt.json` 的**计数上界**兜住，且只允许收紧（`--tighten-debt`），因此收口一条分叉只能靠真正重采，不能靠改台账。发布规矩只写在 `scripts/parity/capture_attempt.sh::sweep_unindexed_pixels()` 一处，三个采集脚本共用，守卫同时核对三处都消费它。
+- `python3 scripts/quality/todo-status-freshness-guard.py --mode enforce`：任务看板的状态不得落后于它自己写入的归档台账。已归档的 ID 不得再占四板的状态表行；现在佛正文里以该 ID 开头的详情条目必须写明它是怎么结束的。批次历史行（`POINT_LEDGER`）豁免——那是叙述已经发生的事。立项动因是实测到的两条**过期待办**：`FLCLASH-001` 已归档，条目却仍写「待独立 Core 批次收口」并规定要新增 `ConnectionOperation::ResetStatistics` + 铺 adapter 矩阵，而 L3 参照基准明确记载该方案经复核被**否决**（Mihomo HTTP API 无 traffic-reset endpoint，凭空新增会把不存在的引擎能力写成第二真源）——照旧条目施工会推翻一条已裁决的架构结论；`SPACEUTIL-001` 同样已归档，条目验收却仍要求「`pill_tail` 腿通过」，而该判据 b146 已作废。
 
 每个守卫都支持 `--self-test` 自检，单元回归在 `scripts/quality/tests/` 下随结构门一起运行。
 

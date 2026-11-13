@@ -33,8 +33,8 @@
 | 3 | 部分 | L | 零 Android/iOS 代码与脚本改动；Android 回执链由 `android-interaction-receipt-guard.py` 独立把守，本批未触碰；三 flavor 实机与 iOS 产物仍留在外部环境看板 |
 | 4 | 部分 | L | **本批零可见像素变化**：只改发布纪律与守卫，不重采任何表面，沿用 Slint 211 / Iced 194 发布回执（两表面 `--enforce` 各 0 违规、`receipt-freshness 0`）。Bevy 语料的**索引重建**未做——本机无法构建 capture 二进制（并行会话未提交的 `infiltrator-presentation` 实测 3 个 `E0425`，Bevy 经 `infiltrator-desktop` 传递依赖同挂），据实登记 `GAP-7.7` |
 | 5 | 完整 | L | 清扫律法只写一处：`capture_attempt.sh::sweep_unindexed_pixels()`，三个矩阵脚本共用同一实现（Slint 原有的内联副本同批删除，不留双轨）；`capture_corpus_debt.json` 是新分叉的唯一台账，守卫核对三处脚本都消费该函数，`test_capture_attempt.py` 断言三处都不得再各自实现 |
-| 6 | 部分 | L | 未新增业务能力，新增一条判据链：`capture-corpus-integrity-guard.py` planted **9/9** + `--mode enforce` findings=0，且对**提交态**（HEAD 语料 + 本批脚本）与**工作树态**都实测 0；`structure-gate-guard` **208 腿 findings=0**。三表面中 Bevy 的像素重建未做（见第 4 行），Slint/Iced 逐行摘要 100% 相符 |
-| 7 | 完整 | L | 判据链一条：canonical 矩阵 → 诊断/发布门 → 批处理发布（图→索引→清扫）→ 一致性守卫 → L4 `GAP-7.7`；发布保护**从三处文本判据收归为两条可执行判据**（脚本结构 + 语料实读），不再依赖人记得加 `if` |
+| 6 | 部分 | L | 未新增业务能力，新增两条判据链：`capture-corpus-integrity-guard.py` planted **9/9** + `--mode enforce` findings=0，且对**提交态**（HEAD 语料 + 本批脚本）与**工作树态**都实测 0；`todo-status-freshness-guard.py` planted **6/6**（已归档 ID 不得占活动行、过期详情条目必须写明怎么结束、批次历史整块豁免），双腿入门后 `structure-gate-guard` **提交态 208 腿 findings=0**（工作树 210，多的 2 腿属并行会话未提交的 `navigation-capability-owner-guard`）；后者实测揪出两条**会误导施工的过期待办**（`FLCLASH-001` 仍要求实现 L3 已否决的 `ResetStatistics`、`SPACEUTIL-001` 仍按 b146 作废的 `pill_tail` 验收），已按最终裁决改写。三表面中 Bevy 的像素重建未做（见第 4 行），Slint/Iced 逐行摘要 100% 相符 |
+| 7 | 完整 | L | 判据链两条：canonical 矩阵 → 诊断/发布门 → 批处理发布（图→索引→清扫）→ 一致性守卫 → L4 `GAP-7.7`；看板状态 → 归档台账 → `todo-status-freshness-guard`（同一状态不留两处）；发布保护**从三处文本判据收归为两条可执行判据**（脚本结构 + 语料实读），不再依赖人记得加 `if` |
 | 8 | 部分 | L | 按「开发期只跑受影响包」：本批**零 cargo 编译**（纯 shell/Python），只跑 `bash -n`、`py_compile`、unittest 与守卫，秒级反馈；全仓 `--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` ready cells 仍留统一批次 |
 
 ## 最近一批问答（2026-11-13 第二百四十五批次：已发布截图语料与它的索引必须是同一批次）
@@ -44,9 +44,9 @@
 3. Android/iOS：零改动；Android 的交互回执由 `android-interaction-receipt-guard.py` 独立把守，iOS 无 target。本批的语料一致性判据只管三个桌面表面的 `docs/screenshots/`，不冒领移动端证据 → 部分（L）。
 4. 各 UI 接入：Slint 与 Iced 的已发布语料**逐行实读通过**（211 行 / 211 张、194 行 / 194 张，像素摘要、字节数、窗口尺寸与索引 100% 相符，矩阵每行都有回执）；Bevy 实测 **191 张像素对 2 行索引**（HEAD）——189 张无索引、190 个矩阵场景无回执，且同类截断在 git 历史至少复发三次（183 → 65 → 3 → 2 行）。发布保护本批已在三表面共用同一实现修好，**语料重建**因 capture 二进制不可构建而未完，登记 `GAP-7.7`（3 pt）与 `SPACEUTIL-022`（3 pt）→ 部分（L）。
 5. 复用：清扫律法落在三表面**已经共享**的 `scripts/parity/capture_attempt.sh`（b216 的 `capture_settled_image()` 同一文件、同一理由：一份实现三处消费），并删掉 Slint 脚本里的内联副本；台账只存**分叉计数上界**，不复制像素事实、不复制路径清单，`--tighten-debt` 只允许收紧并拒绝新开条目 → 完整（L）。
-6. 各处界面的功能接入：新增一条判据而非新功能——`capture-corpus-integrity-guard.py` planted **9/9**（含「未索引像素必须咬」「上界只能收紧」「被修复后仍留着条目也要咬」「摘要/字节/尺寸三类说谎都要咬」「矩阵缺回执必须咬」），`--mode enforce` 对提交态与工作树态均 findings=0；`test_capture_attempt.py` 6 → **8** 项，其中「把 Bevy 改回 mid-run install」的变异实测会红（不是空过）。Bevy 侧功能本身未变 → 部分（L）。
-7. 模块化：判据链一条且无第二真源——canonical 矩阵（场景集）→ 发布门（`PUBLISH_CORPUS`）→ 批处理发布 → 共享清扫 → 一致性守卫 → 分叉台账 → L4 条目；本批同时**关掉了第二个写发布索引的入口**（`capture-bevy-live.sh` 改为只写 `target/bevy-live/manifest.tsv` 私有证据，实测其场景自 `84561ba` 起就不在矩阵里，四个修订矩阵命中数一律 0）→ 完整（L）。
-8. CI 与批次效率：本批**零 cargo 编译**，证据全部秒级（shell 语法、py_compile、17 项 Python 测试、两个守卫），未占用两条 cargo lane 中的任何一条，符合「改动成批推进、验收分组收口」；结构门新增 2 腿（208 腿 findings=0），未重复跑全仓。全仓 `--workspace`、结构门动态全腿与 `resolve_surface_evidence.py` 仍留统一批次 → 部分（L）。
+6. 各处界面的功能接入：新增两条判据而非新功能——`capture-corpus-integrity-guard.py` planted **9/9**（含「未索引像素必须咬」「上界只能收紧」「被修复后仍留着条目也要咬」「摘要/字节/尺寸三类说谎都要咬」「矩阵缺回执必须咬」），`--mode enforce` 对提交态与工作树态均 findings=0；`test_capture_attempt.py` 6 → **8** 项，其中「把 Bevy 改回 mid-run install」的变异实测会红（不是空过）。同批续段再加 `todo-status-freshness-guard.py` planted **6/6**，实测揪出两条会误导施工的过期待办（`FLCLASH-001` 仍要求实现 L3 已否决的 `ConnectionOperation::ResetStatistics`、`SPACEUTIL-001` 仍按 b146 作废的 `pill_tail` 验收），已按最终裁决改写而不是删史，贴回旧文案的变异实测同样会咬。Bevy 侧功能本身未变 → 部分（L）。
+7. 模块化：判据链两条且各自无第二真源——其一 canonical 矩阵（场景集）→ 发布门（`PUBLISH_CORPUS`）→ 批处理发布 → 共享清扫 → 一致性守卫 → 分叉台账 → L4 条目，本批同时**关掉了第二个写发布索引的入口**（`capture-bevy-live.sh` 改为只写 `target/bevy-live/manifest.tsv` 私有证据，实测其场景自 `84561ba` 起就不在矩阵里，四个修订矩阵命中数一律 0）；其二 任务看板状态 → 归档台账 → `todo-status-freshness-guard`，同一状态不再允许存在两份互相矛盾的记录 → 完整（L）。
+8. CI 与批次效率：本批**零 cargo 编译**，证据全部秒级（shell 语法、py_compile、17 项 Python 测试、两个守卫），未占用两条 cargo lane 中的任何一条，符合「改动成批推进、验收分组收口」；结构门本线累计新增 4 腿（**提交态 208 腿 findings=0**；本机工作树 210 中多出的 2 腿属并行会话未提交的 `navigation-capability-owner-guard`，不计入本线交付），未重复跑全仓。全仓 `--workspace`、结构门动态全腿与 `resolve_surface_evidence.py` 仍留统一批次 → 部分（L）。
 
 ## 历史问答（2026-11-13 第二百四十四批次：外壳底部保留带第一次有了参照物上限）
 
