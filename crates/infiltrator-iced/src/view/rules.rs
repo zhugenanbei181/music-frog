@@ -22,6 +22,7 @@ use iced::widget::{Id, Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_contract::rules_workspace::RulesTab;
 use infiltrator_domain::rules::matrix::{RuleTypeFamily, matrix_family, matrix_label};
+use infiltrator_presentation::rule_form_binding::form_targets;
 use infiltrator_presentation::rule_list_projection::{editor_preview, editor_status};
 use infiltrator_presentation::rules_page_model::RulesOperation;
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -185,19 +186,10 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         .into();
     }
 
-    let mut available_targets: Vec<String> = state
-        .runtime
-        .proxy_groups
-        .iter()
-        .map(|group| group.name.clone())
-        .collect();
-    available_targets.sort();
-    if !available_targets.contains(&"DIRECT".to_string()) {
-        available_targets.push("DIRECT".to_string());
-    }
-    if !available_targets.contains(&"REJECT".to_string()) {
-        available_targets.push("REJECT".to_string());
-    }
+    // The rule document's target catalogue is authoritative. The old view-local
+    // list sorted live proxy groups and appended literal DIRECT / REJECT, so it
+    // could offer a target the commit path rejects and hide one it accepts.
+    let available_targets = form_targets(&state.editor.rule_list);
 
     let tab_content: Element<'_, Message> = match state.editor.rules_model.tab() {
         // The list owns its own scroll window, so the page does not wrap it in

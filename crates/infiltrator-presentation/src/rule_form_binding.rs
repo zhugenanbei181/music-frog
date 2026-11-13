@@ -26,6 +26,27 @@ pub fn default_form_target(editor: &RuleListEditor) -> String {
     }
 }
 
+/// The selectable rule targets, published by the observed rule document.
+///
+/// The Core readback's `RuleDocumentSnapshot.targets` is the only authority on
+/// which outbounds this profile can address. A view that rebuilds the list from
+/// live proxy groups, then appends literal `DIRECT` / `REJECT`, answers a
+/// different question: it offers targets the current document cannot commit,
+/// and hides targets the document does declare. The order stays the owner's;
+/// only empty and duplicate rows are removed, so the picker can render exactly
+/// the facts the commit path will validate.
+pub fn form_targets(editor: &RuleListEditor) -> Vec<String> {
+    let Some(base) = editor.base.as_ref() else {
+        return Vec::new();
+    };
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+    base.targets
+        .iter()
+        .filter(|target| !target.trim().is_empty() && seen.insert((*target).clone()))
+        .cloned()
+        .collect()
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum RuleFormBinding {
     #[default]
