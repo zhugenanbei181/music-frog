@@ -81,6 +81,9 @@ STANDARD_RESERVE_PX = "72u"
 # unrelated bullet), so the token is matched with a non-digit boundary.
 STANDARD_RESERVE_RE = re.compile(r"(?<![0-9])72u")
 STANDARD_CROSS_REFERENCE = "SPACEUTIL-020"
+# The box rule may only state the reserve as the contract's exported
+# band (b265): a length of its own is a second owner of the bottom.
+STANDARD_EXPORTED_RESERVE = "shell_air.bottom_reference_px"
 # The Slint surface handbook is what a Slint agent reads before touching this
 # geometry. It used to call the 72u the shell's own breathing room and quote
 # "74px = 72u 空气 + 描边" as the expected receipt, naming neither the exported
@@ -287,6 +290,15 @@ def findings() -> list[str]:
                 f"air without naming {STANDARD_CROSS_REFERENCE}; the box rule must not "
                 "read as a clean bill of health for a reserve over the exported bound"
             )
+    if STANDARD_EXPORTED_RESERVE not in section.group(0):
+        # The box rule states the reserve as a number, so that number has to be
+        # the contract's export: a section that names a length of its own is a
+        # second opinion about how much air a window deserves (b265).
+        found.append(
+            f"{STANDARD_BOX_SECTION} does not name {STANDARD_EXPORTED_RESERVE}; the box "
+            "rule must state the reserve as the contract's exported band, not a "
+            "length of its own"
+        )
 
 
     found.extend(surface_doc_findings())

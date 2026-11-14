@@ -32,6 +32,23 @@ export global ViewportLadder {
     // exactly how Slint reached 30u while its siblings drew 24/40/48px.
     out property <length> page-padding: 16 * LumenUiScale.unit;
 
+    // The air the shell keeps for itself below the page body, in design units,
+    // and the ceiling that air may not pass.
+    //
+    // The reference keeps one band under its last content row: 39px on the
+    // tracked desktop scene, which is 20.00dp at that scene's 1.95 px/dp.
+    // This surface used to keep 72u - 3.6 times the reference - and because
+    // the band sits outside the measured page body, nothing ever paid for
+    // it: the window grew a fifth of its height that no judgement could
+    // see. The contract therefore exports the measured reference and the
+    // bounded headroom above it, and the judge refuses any frame whose own
+    // receipt says it kept more than the exported ceiling.
+    //
+    // Both numbers come from the contract export, so the surface cannot keep
+    // a second opinion about how much air a window deserves.
+    out property <length> shell-bottom-air: 20 * LumenUiScale.unit;
+    out property <length> shell-bottom-air-limit: 28 * LumenUiScale.unit;
+
     // How many proxy node cards fit in the page body. The contract exports
     // FlClash's `getProxiesColumns` standard-layout width rule: divide the
     // page body by the 250dp floor and keep at least two columns. The page

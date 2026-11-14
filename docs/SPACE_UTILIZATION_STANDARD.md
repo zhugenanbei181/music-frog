@@ -27,13 +27,15 @@
 
 1. **测量盒是页身，不是窗口**。shell 自己保留的页面空气在盒外，永不计入浪费。
    **这份空气是「外壳档」的事实，不是「有没有底栏」的事实**：桌面外壳留上 8u、
-   下 72u 的页面呼吸位（**注意：该 72u 自 b244 起已超出 §3.6 按参照物实测裁决的上限
-   `shell_air.bottom_limit_px = 28`，收口登记为 `SPACEUTIL-020`；此处只说明它今天
-   仍是真源与口径，不表示它达标**）；紧凑外壳**一点不留**——它唯一的底部空间属于浮动底栏，
+   下**导出**的底部保留带（契约 `shell_air.bottom_reference_px = 20`，即参照物
+   实测的 20dp；上限 `shell_air.bottom_limit_px = 28`，见 §3.6）——**外壳不得留
+   自己的数**（b265 实测收口，`SPACEUTIL-020`：此前桌面档硬写 72u，是参照物的
+   3.6 倍，而这条带在盒外，于是没有任何一帧为它付账）；紧凑外壳**一点不留**——它唯一的底部空间属于浮动底栏，
    而底栏由外壳的列自己预留那一条带（`dock-band-height`），没有底栏的页面
    就不得替它留。空气真源见
    `crates/infiltrator-slint/ui/components/app_body.slint` 的
-   `page-content-padding-top` / `page-content-padding-bottom`。
+   `page-content-padding-top` / `page-content-padding-bottom`（底部读
+   `ViewportLadder.shell-bottom-air`，即契约导出值）。
    （b150 实测修正：旧规则把底部空气挂在「底栏未预留」上，于是紧凑档每个
    无底栏页面都在最后一块下面压着 72u 死地——720×480 档是 480 行里的 72 行，
    12.9%，正是 framed 页框悬在空带上方的原因。改正后三帧 tail 由 12.9% 归 0.0%。）
@@ -539,18 +541,19 @@ standard`，再由 `DashboardDensityScope` 发布给所有卡片。四条可核�
 后者**不是**假回执，而是同一保留带在不同滚动偏移下的正常表现。判据因此只钉「外壳声明并
 保留多少」，不得被写成「每帧底部必须有 72px 地面」，否则会把滚动页判成缺陷。
 
-**执行位置与 b244 的诚实边界**：本节现在被强制的是**参照物、上限与其算术**——
+**执行位置与 b265 的收口**：本节被强制的是**参照物、上限与其算术**——
 `flclash-shell-reserve-guard.py` 钉住 tracked 像素、`page_structure` 常量、导出
-`shell_air` 三键、本节文案与结构门双腿，任一漂移即红。**尚未**被强制的是「某一帧
-实际保留了 72u」这件事：判定器逐帧读回执里的 `shell_bottom_air_px` 并把它排除在测量
-盒之外（§2 的规则不变），但不会因该值超过 `shell_air.bottom_limit_px` 而拒判。把这条
-腿接进判定器需要**先**让外壳消费导出值（`app_body.slint` 的 padding 改读
-`ViewportLadder` 导出而非 `72 * LumenUiScale.unit` 字面量），否则整批桌面帧会同时变红
-且必须重采语料；该接线连同 72u 保留带的收口登记为 `SPACEUTIL-020`（现在佛，
-`Planned`），收口只能走 §5 的三种方式（交给真实消费者、与页身留白合并、按参照物
-收窄），不得在 UI 层加布尔开关让测量通过。本批不改任何像素、不改 `app_body.slint`、
-不重采语料，因此发布批 `20261112T213727Z_1ff41e54d1b1_dirty_2083100` 的 211 帧读数
-逐字不变。
+`shell_air` 三键、本节文案与结构门双腿，任一漂移即红。**b265 把剩下的那一半也接上了**：
+① 外壳消费导出值——`app_body.slint` 的桌面 padding 改读 `ViewportLadder.shell-bottom-air`
+（= 契约导出的 20u），不再写 `72 * LumenUiScale.unit` 字面量；收口走的是 §5 的
+「按参照物收窄」，没有在 UI 层加布尔开关让测量通过。② 判定器逐帧拒判——回执里的
+`shell_bottom_air_px` 超过 `shell_air.bottom_limit_px` 即违规（缺 `shell_air` 键同样
+拒判），于是这条带不再只对参照物与常量负责，也对**自己画的每一帧**负责。③ 守卫改写
+——`slint-viewport-tier-guard` 的 chrome air 腿现在要求表面读导出值，并拒斥任何
+私有的字面量长度。④ 语料重采——外壳几何变了，发布帧必须整批重采（见该批回执）。
+**这条上限约束的仍然是几何，不是某一帧的滚动位置**：`page-content-padding-bottom` 是
+`ScrollView` 内容里的 padding，因此它只在**滚到底**时才显形；判据只钉「外壳声明并
+保留多少」，不得被写成「每帧底部必须有 20px 地面」，否则会把滚动页判成缺陷。
 
 ## 4. 内容少不是豁免（b149 按形态修订）
 

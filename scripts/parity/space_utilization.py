@@ -564,6 +564,35 @@ def page_padding_px() -> int | None:
     return int(padding["px"])
 
 
+def shell_bottom_air_limit_px() -> int | None:
+    """The exported ceiling for the band the shell keeps below its page body.
+
+    `SPACEUTIL-020` exists because that band was, until now, outside every
+    judgement: the page body excludes it, so a surface could grow it without
+    any frame ever being refused. The contract exports the reference band
+    (20dp, measured on the tracked desktop scene) and the bounded headroom
+    above it; this ceiling is what the judge refuses a frame for exceeding.
+    """
+    if not PAGE_STRUCTURE_FILE.is_file():
+        return None
+    document = json.loads(PAGE_STRUCTURE_FILE.read_text(encoding="utf-8"))
+    shell_air = document.get("shell_air")
+    if not isinstance(shell_air, dict) or "bottom_limit_px" not in shell_air:
+        return None
+    return int(shell_air["bottom_limit_px"])
+
+
+def shell_bottom_air_reference_px() -> int | None:
+    """The exported band the reference itself keeps below its last row."""
+    if not PAGE_STRUCTURE_FILE.is_file():
+        return None
+    document = json.loads(PAGE_STRUCTURE_FILE.read_text(encoding="utf-8"))
+    shell_air = document.get("shell_air")
+    if not isinstance(shell_air, dict) or "bottom_reference_px" not in shell_air:
+        return None
+    return int(shell_air["bottom_reference_px"])
+
+
 def navigation_limits() -> dict[str, float]:
     """The exported navigation-column caps; no private copy in the judge.
 
@@ -1034,6 +1063,24 @@ def chrome_findings(results: list[dict]) -> list[str]:
                 f"{entry['scenario']}: a {band}px dock band with form "
                 f"{nav_form(chrome)} - a band belongs to a bar, not to a page density"
             )
+        air_ceiling = shell_bottom_air_limit_px()
+        if air_ceiling is None:
+            found.append(
+                "page-structure.json carries no shell_air; the judge cannot say how "
+                "much air a frame was allowed to keep below its page body"
+            )
+        elif shell_bottom_air_px(chrome) > air_ceiling:
+            # The band the shell keeps below the page body sits OUTSIDE the
+            # measured box, so every tail and band reading in this frame was
+            # computed in a room smaller than the window. A shell that keeps
+            # more than the exported ceiling spends ground no frame can be
+            # charged for, and the reference keeps 20dp on the tracked scene.
+            found.append(
+                f"{entry['scenario']}: the shell kept {shell_bottom_air_px(chrome)}px of "
+                f"bottom air while the contract exports a {air_ceiling}px ceiling - the "
+                "band sits outside the measured page body, so no frame would ever be "
+                "charged for it"
+            )
         bottom = int(chrome["nav_stack_bottom_px"])
         if (bottom > 0) != (int(chrome["nav_column_px"]) > 0):
             found.append(
@@ -1311,6 +1358,7 @@ def _chrome(width: int, height: int, **override) -> dict:
     # that planted 30 here would have been a frame the new leg must reject, and
     # the planted legs would then be proving the fixture rather than the rule.
     gutter = page_padding_px()
+    air = shell_bottom_air_reference_px()
     chrome = {
         "nav_form": form,
         "nav_column_px": int(fact["nav_column_px"]),
@@ -1318,7 +1366,7 @@ def _chrome(width: int, height: int, **override) -> dict:
         "nav_content_offset_px": 12 if labelled else 0,
         "page_margin_px": 16 if gutter is None else gutter,
         "shell_top_air_px": 46 if labelled else 38,
-        "shell_bottom_air_px": 72 if labelled else 0,
+        "shell_bottom_air_px": (air if labelled else 0) if air is not None else 0,
         "dock_band_px": 72 if form == "bottom_nav" else 0,
         "scale_percent": 100,
         "sidebar_expansion": "expanded",
@@ -1791,6 +1839,24 @@ class SelfTest(unittest.TestCase):
                                  chrome=_chrome(1180, 780, nav_content_offset_px=budget))
         self.assertEqual(chrome_findings([keeps]), [])
 
+    def test_a_frame_that_keeps_more_air_than_the_ceiling_is_refused(self) -> None:
+        # SPACEUTIL-020: the band below the page body sits OUTSIDE the
+        # measured box, so a shell that keeps more of it than the contract
+        # allows spends ground that no frame can ever be charged for. The
+        # reference keeps 20dp on the tracked desktop scene; the exported
+        # ceiling is that plus its bounded headroom. 72px - what the surface
+        # used to keep - is three and a half times the reference and must be
+        # refused.
+        ceiling = shell_bottom_air_limit_px()
+        self.assertIsNotNone(ceiling)
+        entry = self.measure_one(_desktop_body(),
+                                 chrome=_chrome(1180, 780, shell_bottom_air_px=72))
+        found = chrome_findings([entry])
+        self.assertTrue(any("bottom air" in item for item in found), found)
+        keeps = self.measure_one(_desktop_body(),
+                                 chrome=_chrome(1180, 780, shell_bottom_air_px=ceiling))
+        self.assertEqual(chrome_findings([keeps]), [])
+
     def test_a_labelled_column_without_a_leading_is_reported(self) -> None:
         # Half of the pair: a pane that labels its rows states the leading it
         # gives away, so stating none leaves that axis unmeasured.
@@ -2194,7 +2260,8 @@ class SelfTest(unittest.TestCase):
         # answer now comes from one exported fact per tier.
         self.assertEqual(tier(820), "medium")
         self.assertEqual(tier(1180), "expanded")
-        self.assertEqual(shell_bottom_air_px(_chrome(1180, 780)), 72)
+        self.assertEqual(shell_bottom_air_px(_chrome(1180, 780)),
+                         shell_bottom_air_reference_px())
         self.assertEqual(shell_bottom_air_px(_chrome(820, 480)), 0)
         entry = self.measure_one(_canvas(820, 480))
         self.assertNotIn("chrome_band_pct", entry, entry)

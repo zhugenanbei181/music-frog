@@ -24,7 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-14 第二百六十五批次：发布语料移出版本库、落到专用目录——像素不进 git、索引继续进 git，三张语料整批重采收口，两条证据条目办结；本批零业务代码；b111–b264 见下方批次八问摘要）
+## 当前状态（2026-11-14 第二百六十六批次：桌面外壳自留的底部保留带改读契约导出值（72u → 20u，参照物实测 20dp），判定器逐帧拒判超过导出上限的帧；`SPACEUTIL-020` 办结归档；本批改外壳几何并整批重采 Slint 语料；b111–b265 见下方批次八问摘要）
+
+| # | 结论 | 等级 | 缺口 / owner |
+| --- | --- | --- | --- |
+| 1 | 部分 | L | 本批改外壳几何 + 判定器/守卫：空间判定器 Slint **211 帧 violations=0**、Iced **194 帧 violations=0**、`capture-corpus-integrity` findings=0、`screenshot-identity` scanned=599 aliases=22 violations=0、`receipt-freshness` violations=0、`--check-export` current、参照守卫 findings=0 + 自测 14/14、`slint-viewport-tier-guard` findings=0 + 自测 56/56 为 `L`。aarch64 交叉目标产物未复跑（GAP-1.1） |
+| 2 | 部分 | L | Linux 本机完成整批重采与全部像素判定；本批零 workflow、零构建面改动。Windows/macOS 构建腿未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
+| 3 | 部分 | L | 零 Android/iOS 代码、资源或脚本改动；Android 的外壳底部保留本批未查 |
+| 4 | 部分 | L | 桌面外壳的底部保留带从私有的 72u 收窄到契约导出的 20u（参照物实测 20dp），并整批重采 Slint 211 帧；framed 页框随页身长高填满，`content` 页形尾部按定义止于最后一块（最紧 65.80% / 预算 82%）→ 部分（L） |
+| 5 | 完整 | L | 重复实现清零：保留带只有一个真源（契约导出 → 生成器 → 表面 → 判定器 → 守卫），表面不再留自己的数 |
+| 6 | 部分 | L | 新增可执行判据一条（逐帧拒判超上限的保留带）+ 守卫判据改写；未新增业务能力 → 部分（L） |
+| 7 | 完整 | L | 外壳几何由契约导出决定，判定器只读导出，界面不推导第二个数；零新增布尔与私有推导 → 完整（L） |
+| 8 | 部分 | L | 一次整批重采（583s）+ 一次判定 + 定向守卫跑完；`--workspace` nextest 与 Clippy 留统一批次 → 部分（L） |
+
+## 最近一批问答（2026-11-14 第二百六十六批次：外壳的保留带归回契约）
+
+1. x86_64/aarch64：本批改桌面外壳几何、判定器与守卫；空间判定器 Slint 211 帧 violations=0、Iced 194 帧 violations=0、`capture-corpus-integrity` findings=0、`screenshot-identity` violations=0、`receipt-freshness` violations=0、`--check-export` current、参照守卫 findings=0 + 14/14、`slint-viewport-tier-guard` findings=0 + 56/56 为 `L`。aarch64 交叉目标产物未复跑（GAP-1.1）→ 部分（L）。
+2. Windows/Linux/macOS：Linux 本机完成整批重采与全部像素判定，本批零 workflow、零构建面改动。Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）→ 部分（L）。
+3. Android/iOS：零 Android/iOS 代码、资源或脚本改动 → 部分（L）。
+4. 各 UI：Slint 桌面外壳的底部保留带按参照物收窄并整批重采 211 帧；Iced / Bevy / Android 的外壳保留本批未查 → 部分（L）。
+5. 复用：保留带收归契约导出一处真源，四段接通，守卫钉住漂移 → 完整（L）。
+6. 各处界面的功能接入：本批未新增功能，只把外壳几何改回契约导出值并把回执重采 → 部分（L）。
+7. 模块化：外壳几何由契约决定、判定器只读导出、界面不推导第二个数；零新增布尔与私有推导 → 完整（L）。
+8. CI 与批次效率：一次整批重采（583s）+ 一次判定 + 定向守卫跑完；`--workspace` nextest 与 Clippy 留统一批次 → 部分（L）。
+
+## 历史状态（2026-11-14 第二百六十五批次：发布语料移出版本库、落到专用目录——像素不进 git、索引继续进 git，三张语料整批重采收口，两条证据条目办结；本批零业务代码；b111–b264 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
@@ -37,7 +61,7 @@
 | 7 | 完整 | L | 像素与索引各归其位：像素是本机验收证据（`.evidence/corpora/`，git 忽略），索引是钉住矩阵覆盖的受版本库管理事实；界面与判据只消费，零新增布尔与私有推导 → 完整（L） |
 | 8 | 部分 | L | 两次整批重采（Iced 562s + Bevy 1589s）+ 一次判定 + 一次结构门跑完；`--workspace` nextest 与 Clippy 留统一批次 → 部分（L） |
 
-## 最近一批问答（2026-11-14 第二百六十五批次：证据搬出版本库，索引留下）
+## 历史问答（2026-11-14 第二百六十五批次：证据搬出版本库，索引留下）
 
 1. x86_64/aarch64：本批零 Rust 业务代码改动，只改采集脚本、判定器/守卫与文档；空间判定器 Slint 211 帧 violations=0、Iced 194 帧 violations=0、`capture-corpus-integrity` findings=0 + 自测 12/12、`screenshot-identity` scanned=599 aliases=22 violations=0、`receipt-freshness` violations=0、`scripts/quality/tests` 398 条全绿、结构门 220 腿 0 failed 0 skipped 为 `L`。aarch64 交叉目标产物未复跑（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：Linux 本机完成两次整批重采与全部门禁，本批零 workflow、零构建面改动。Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）→ 部分（L）。
@@ -47,6 +71,30 @@
 6. 各处界面的功能接入：本批未新增功能，只把已交付的页名落到两张语料并把像素证据搬出版本库 → 部分（L）。
 7. 模块化：像素是本机证据、索引是受管事实，两者各归其位；界面与判据只消费，零新增布尔与私有推导 → 完整（L）。
 8. CI 与批次效率：两次整批重采（562s + 1589s）+ 一次判定 + 一次结构门跑完；`--workspace` nextest 与 Clippy 留统一批次 → 部分（L）。
+
+## 历史状态（2026-11-14 第二百六十四批次：死控件门禁的自测跟随空账本——Iced 七个静默 no-op 控件退役后，账本已是空账本，门禁自测必须钉住空账本而不是一个已经不存在的数字；CI 修复批，零业务代码、零像素、零 cargo；b111–b263 见下方批次八问摘要）
+
+| # | 结论 | 等级 | 缺口 / owner |
+| --- | --- | --- | --- |
+| 1 | 部分 | L | 本批只改门禁期望：`iced-dead-input-guard --self-test` **8/8**、`scripts/quality/tests` 对应用例 **3/3**、`--mode enforce` findings=0 registered=0 为 `L`；零 Rust 源码改动，aarch64 交叉目标产物未复跑（GAP-1.1） |
+| 2 | 部分 | L | Linux 本机完成门禁核对；本批零 workflow、零构建面改动。Windows/macOS 构建腿未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
+| 3 | 部分 | L | 零 Android/iOS 代码、资源或脚本改动 |
+| 4 | 部分 | L | 门禁的判据未变（已启用控件不得回落 `Message::Noop`、账本只能收紧），变的只是自测钉住的那个数字；本批**零像素重采**，Iced / Bevy 两张语料的重采与像素判定属下一批 → 部分（L） |
+| 5 | 完整 | L | 重复实现清零：没有新造守卫，也没有第二份账本；自测跟随空账本 |
+| 6 | 部分 | L | 新增可执行判据一条（空账本自测 + 「已登记但控件已消失」的负例）；未新增业务能力 → 部分（L） |
+| 7 | 完整 | L | 门禁期望、账本与控件代码各归一处，界面不动；零新增布尔与私有推导 → 完整（L） |
+| 8 | 部分 | L | 本批零 cargo 调用、零全仓重编、零像素重采；统一验收批次留待下一批 → 部分（L） |
+
+## 历史问答（2026-11-14 第二百六十四批次：门禁自测跟随空账本）
+
+1. x86_64/aarch64：本批零 Rust 源码改动，只改门禁自测的期望值；`iced-dead-input-guard --self-test` 8/8、`scripts/quality/tests` 3/3、`--mode enforce` findings=0 registered=0 为 `L`。aarch64 交叉目标产物未复跑（GAP-1.1）→ 部分（L）。
+2. Windows/Linux/macOS：Linux 本机完成门禁核对，本批零 workflow、零构建面改动。Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）→ 部分（L）。
+3. Android/iOS：零 Android/iOS 代码、资源或脚本改动 → 部分（L）。
+4. 各 UI：本批**不动任何界面**：门禁只审 Iced 源码里的空转控件写法；两张语料的重采与像素判定属下一批 → 部分（L）。
+5. 复用：没有新造守卫，也没有第二份账本；自测跟随空账本 → 完整（L）。
+6. 各处界面的功能接入：本批未新增功能，只把门禁的期望跟上一个已经改变的事实 → 部分（L）。
+7. 模块化：门禁期望、账本与控件代码各归一处，界面不动；零新增布尔与私有推导 → 完整（L）。
+8. CI 与批次效率：本批零 cargo、零采集，只跑门禁自测与用例 → 部分（L）。
 
 ## 历史状态（2026-11-14 第二百六十三批次：Iced 七个「已启用却点不动」的控件收口——静默 no-op 全部退役，欠账库存 7 → 0；owner 其实早已发布全部事实，故不新造契约词汇；本批改 Iced 表面，零像素重采；b111–b262 见下方批次八问摘要）
 

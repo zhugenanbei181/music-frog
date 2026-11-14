@@ -122,6 +122,23 @@ PAGE_PADDING_DOC = [
     "exactly how Slint reached 30u while its siblings drew 24/40/48px.",
 ]
 
+SHELL_AIR_DOC = [
+    "The air the shell keeps for itself below the page body, in design units,",
+    "and the ceiling that air may not pass.",
+    "",
+    "The reference keeps one band under its last content row: 39px on the",
+    "tracked desktop scene, which is 20.00dp at that scene's 1.95 px/dp.",
+    "This surface used to keep 72u - 3.6 times the reference - and because",
+    "the band sits outside the measured page body, nothing ever paid for",
+    "it: the window grew a fifth of its height that no judgement could",
+    "see. The contract therefore exports the measured reference and the",
+    "bounded headroom above it, and the judge refuses any frame whose own",
+    "receipt says it kept more than the exported ceiling.",
+    "",
+    "Both numbers come from the contract export, so the surface cannot keep",
+    "a second opinion about how much air a window deserves.",
+]
+
 SIDEBAR_VARIANT_DOC = [
     "FlClash persists only `sidebarExpanded` in app settings and derives one",
     "`expanded` fact from the viewport capability. The contract exports the",
@@ -259,6 +276,9 @@ def slint_ladder(document: dict) -> str:
     proxy_stacked = int(proxy_grid["stacked_columns"])
     proxy_forms = [entry["id"] for entry in proxy_grid["variants"]]
     page_padding = int(document["page_padding"]["px"])
+    shell_air = document["shell_air"]
+    shell_bottom_air = int(shell_air["bottom_reference_px"])
+    shell_bottom_air_limit = int(shell_air["bottom_limit_px"])
     assert "page_inset_px" not in proxy_grid, (
         "the export still carries a second page inset for the proxy grid"
     )
@@ -272,6 +292,16 @@ def slint_ladder(document: dict) -> str:
     body += [f"    // {line}".rstrip() for line in PAGE_PADDING_DOC]
     body.append(
         f"    out property <length> page-padding: {page_padding} * LumenUiScale.unit;"
+    )
+    body.append("")
+    body += [f"    // {line}".rstrip() for line in SHELL_AIR_DOC]
+    body.append(
+        f"    out property <length> shell-bottom-air: "
+        f"{shell_bottom_air} * LumenUiScale.unit;"
+    )
+    body.append(
+        f"    out property <length> shell-bottom-air-limit: "
+        f"{shell_bottom_air_limit} * LumenUiScale.unit;"
     )
     body.append("")
     body += [f"    // {line}".rstrip() for line in PROXY_GRID_DOC]

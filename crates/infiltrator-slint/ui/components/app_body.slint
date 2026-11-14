@@ -12,6 +12,7 @@ import {
 } from "./models.slint";
 import { DesktopSideBar } from "./sidebar.slint";
 import { NavigationForm } from "./viewport_tier.slint";
+import { ViewportLadder } from "./viewport-ladder.slint";
 import { PagesRouter } from "../pages/pages_router.slint";
 import { ConnectionSort, LogLevel, NetworkMode, RouteMode, RuntimeStatus, ThemeMode, TrafficRange } from "./domain_enums.slint";
 import { MobileDockBandState, MobileDockBandProjection } from "./mobile_dock_state.slint";
@@ -80,27 +81,27 @@ export component AppBody inherits Rectangle {
             : 0 * LumenUiScale.unit;
         // The air the page body keeps for itself, and it is a CHROME fact.
         //
-        // The desktop chrome frames its content in a field: 8u above, 72u
-        // below. The compact chrome has no shell air at all - its only bottom
-        // room belongs to the floating dock, and the dock reserves its own
-        // band in the column below, so a page that has no dock must not
-        // reserve it either.
+        // The desktop chrome frames its content in a field: 8u above, and
+        // below it keeps exactly the air the reference keeps - 20u, the
+        // contract's measured reference band (39px = 20.00dp on the tracked
+        // desktop scene). It used to keep 72u, three and a half times the
+        // reference, and because that band sits OUTSIDE the measured page
+        // body, nothing ever paid for it: a fifth of a desktop window's
+        // height was ground no judgement could see. The number now comes
+        // from the contract export, so the surface has no second opinion
+        // about how much air a window deserves.
         //
-        // The bottom air used to follow the DOCK instead of the chrome:
-        // "no band reserved, so pay 72u". On the desktop that was right (the
-        // desktop chrome keeps a page breath), but on the compact chrome
-        // every dockless page - a pushed list page with no bottom nav -
-        // paid 72u of dead ground under its last block. Measured on the
-        // 720x480 compact tier that is 72 of 480 rows, 12.9% of the body,
-        // and it is exactly why the framed list pages' frame floated above a
-        // band of nothing while their sibling frames filled the page. The
-        // dock band is still subtracted exactly once, by the column above.
+        // The compact chrome has no shell air at all - its only bottom room
+        // belongs to the floating dock, and the dock reserves its own band
+        // in the column below, so a page that has no dock must not reserve
+        // it either. The dock band is still subtracted exactly once, by the
+        // column above.
         out property <length> page-content-padding-top: root.compact-layout
             ? 0 * LumenUiScale.unit
             : 8 * LumenUiScale.unit;
         out property <length> page-content-padding-bottom: root.compact-layout
             ? 0 * LumenUiScale.unit
-            : 72 * LumenUiScale.unit;
+            : ViewportLadder.shell-bottom-air;
         // The height one page body may use. The page scroll viewport is the
         // page's ground; the page's own air is subtracted here, so a list
         // page's card reaches the bottom of the page and still keeps clear
