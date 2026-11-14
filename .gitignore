@@ -1,8 +1,16 @@
 # Node / pnpm artifacts
 node_modules/
 
-# Persistent local acceptance artifacts (kept outside cargo clean)
-.evidence/
+# Persistent local acceptance artifacts (kept outside cargo clean).
+# The published screenshot corpora live here as well: their pixels are local
+# acceptance evidence and never enter git, while each surface's
+# `manifest.tsv` — the index that names every published frame — stays tracked
+# so CI can still hold a surface to its canonical matrix.
+**/.evidence/**
+!.evidence/corpora/
+!.evidence/corpora/**/
+.evidence/corpora/**/*.png
+!.evidence/corpora/**/manifest.tsv
 
 # Rust build artifacts
 target/
@@ -69,9 +77,6 @@ android/local.properties
 android/app/src/main/assets/mihomo/mihomo-android-arm64-v8
 android/app/src/main/java/infiltrator_android/
 android/Medium-Phone-*
-
-# The Bevy UI capture matrix is published identity evidence (GAP-7.3):
-# the 182 PNGs and their manifest.tsv are tracked and identity-guarded.
 
 # Design font collection binaries and local commercial candidates
 crates/infiltrator-shared/assets/fonts/base-local/

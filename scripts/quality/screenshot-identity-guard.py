@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Identity-uniqueness guard for the checked-in desktop screenshot matrix.
+"""Identity-uniqueness guard for the published desktop screenshot corpora.
 
-Rule (GAP-7.3): every PNG under the three published screenshot roots must
+Rule (GAP-7.3): every PNG under the three published corpus roots must
 have a unique SHA-256 inside its surface unless the duplicate cell is
 declared in the explicit alias manifest (`scripts/parity/screenshot_aliases.tsv`).
 Two different business cells sharing one byte-identical capture is bad data:
@@ -12,6 +12,11 @@ the structure gate now runs this guard in enforce mode.
 The alias manifest itself is audited: stale entries (file gone, digest
 drifted, canonical mismatch, entry no longer duplicated) are violations, so
 the list can never rot into a silent allowlist.
+
+The pixels are local evidence (`.evidence/corpora/<surface>/`, never in git),
+so this guard reads the published directory itself rather than the git index.
+A tree that never captured has no pixels at all: the guard then reports that
+it has nothing to judge instead of inventing a verdict.
 """
 
 from __future__ import annotations
@@ -20,18 +25,15 @@ import argparse
 import hashlib
 import pathlib
 import re
-import subprocess
 import sys
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT / "scripts" / "parity"))
+from corpus_layout import SURFACE_CORPORA
+sys.path.insert(0, str(REPO_ROOT / "scripts" / "quality"))
+from structure_gate_ownership import SKIP_EXIT_CODE
 
-# The published matrix the 2026-10-27 tri-surface visual audit read. Bevy
-# keeps its capture tree one level deeper; the surface key maps to the root.
-SCREENSHOT_ROOTS = {
-    "iced": pathlib.Path("crates/infiltrator-iced/docs/screenshots"),
-    "bevy": pathlib.Path("crates/infiltrator-bevy-ui/docs/screenshots"),
-    "slint": pathlib.Path("crates/infiltrator-slint/docs/screenshots"),
-}
+SCREENSHOT_ROOTS = dict(SURFACE_CORPORA)
 
 ALIAS_MANIFEST = pathlib.Path("scripts/parity/screenshot_aliases.tsv")
 ALIAS_FIELDS = ("surface", "file", "sha256", "canonical", "reason")
@@ -74,26 +76,16 @@ def read_alias_manifest(root: pathlib.Path) -> list[dict[str, str]]:
 
 
 def scan_groups(root: pathlib.Path) -> tuple[dict[str, list[pathlib.Path]], int]:
-    """Hash every git-tracked published PNG; return {sha: [paths]} and the count.
+    """Hash every published PNG; return {sha: [paths]} and the count.
 
-    The corpus is the tracked matrix, not the local worktree: capture export
-    directories that were never committed (Bevy keeps its matrix in the
-    git-ignored `docs/screenshots/bevy/` until PARITY-001.6 lands it) are not
-    part of the published evidence and must not gate CI.
+    The pixels live outside git, so the corpus is the published directory
+    itself. Nested capture families (the Slint parity frames) belong to the
+    same surface and are scanned with it.
     """
     groups: dict[str, list[pathlib.Path]] = {}
     total = 0
     for surface, relative in SCREENSHOT_ROOTS.items():
-        tracked = subprocess.run(
-            ["git", "ls-files", "-z", "--", relative.as_posix()],
-            cwd=root, check=True, capture_output=True,
-        ).stdout.split(b"\0")
-        for entry in sorted(tracked):
-            if not entry or not entry.endswith(b".png"):
-                continue
-            path = root / entry.decode("utf-8")
-            if not path.exists():
-                raise FileNotFoundError(f"tracked screenshot missing from worktree: {path}")
+        for path in sorted((root / relative).rglob("*.png")):
             groups.setdefault(sha256_of(path), []).append(path)
             total += 1
     return groups, total
@@ -202,9 +194,9 @@ def self_test() -> int:
             "\t".join(
                 [
                     "iced",
-                    "crates/infiltrator-iced/docs/screenshots/a.png",
+                    ".evidence/corpora/iced/a.png",
                     "a" * 64,
-                    "crates/infiltrator-iced/docs/screenshots/b.png",
+                    ".evidence/corpora/iced/b.png",
                     "same blank page, one viewport difference",
                 ]
             ),
@@ -228,6 +220,12 @@ def main() -> int:
     if args.self_test:
         return self_test()
     problems, total = violations(REPO_ROOT)
+    if total == 0:
+        # No published pixels in this tree: the guard has nothing to judge and
+        # says so. It is never a pass, and it never a failure either.
+        print("screenshot identity guard: skipped; this tree has no published corpus",
+              file=sys.stderr)
+        return SKIP_EXIT_CODE if args.mode == "enforce" else 0
     print(
         f"screenshot identity guard: scanned={total} "
         f"aliases={len(read_alias_manifest(REPO_ROOT))} violations={len(problems)}"

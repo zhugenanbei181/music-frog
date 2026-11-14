@@ -9,7 +9,7 @@
 ## 1. 判据与可复现测量
 
 - 参考图：`docs/reference/flclash-mobile/flclash-mobile-{dashboard.png,proxies.jpg,profiles.jpg,tools.jpg}`；本次用 SHA-256 复核，与既有长文登记一致。
-- 发布帧：`crates/infiltrator-slint/docs/screenshots/`，b127 批次 `.evidence/captures/slint/20261107T080044Z_9107f001fa16_dirty_2012886/`；只取 `manifest.tsv` 中 `status=ok` 且 SHA-256 相同的 **400 × 800** 竖屏帧。
+- 发布帧：`.evidence/corpora/slint/`（本地发布语料，像素不进 git，索引 `manifest.tsv` 进 git），b127 批次 `.evidence/captures/slint/20261107T080044Z_9107f001fa16_dirty_2012886/`；只取 `manifest.tsv` 中 `status=ok` 且 SHA-256 相同的 **400 × 800** 竖屏帧。
 - 工具：审计环境有 Pillow / NumPy，没有 OpenCV；`/tmp/b128_audit/measure.py` 与 `/tmp/b128_audit/detail.py` 用 RGB 数组、逐行扫描、扫描线连通域、色差分类和中位数完成等价测量，报告在 `/tmp/b128_audit/measure_report.json`、`/tmp/b128_audit/detail_report.json`，联系表与裁图在同一目录。`/tmp` 文件不属于仓库回执，主收口方重采后必须重跑这些测量。
 - 参考图坐标按原图像素记录，括号中给占屏宽/高百分比；b127 坐标按 400 × 800 记录，1u = 1px。参考图与发布帧的 DPR 不同，因此比较的是比例、顺序、几何分区和同屏内部关系，不把参考图绝对像素直接写成实现尺寸。
 - 颜色条件采用「主题 token 的颜色」而非固定外观色：dark 的页面 / 卡片 / 强调 / 分割线实测约 `(10,11,14)` / `(29,33,38)` / `(1,104,136)` / `(38,42,48)`；light 约 `(239,240,243)` / `(255,255,255)` / `(1,104,136)` / `(213,216,218)`。像素 guard 必须从主题导出读取期望色，避免皮肤变更造成假失败；本文的实测值只锚定 b127。
@@ -124,7 +124,7 @@
 - b127 发布目录 `20261107T080044Z_9107f001fa16_dirty_2012886`：`captured_at=2026-11-07T08:02:25Z`（本地 16:02），`capture-manifest.tsv` / 发布 `manifest.tsv` 同为 16:06:17，PNG 发布 mtime 16:06:17.52–16:06:17.69，`scenario_count=197`，`source_fingerprint=a6a6324028002882b655a36edea7694674b0367d5e231b7a5ec0e3ec98e4f49f`，`binary_sha256=f19e3629309814c868e85a8ecdbe722bc8f1da64f6449c45dcdaeaf15773e55f`。
 - 16:20–16:23 有 `design_resources.rs`、`design-authority.json`、`design-type.slint`、`layout-tokens.slint`、`mascot-assets.slint`、`home_compact_flow.slint`、`home_desktop_grid.slint`、`theme.slint` WIP；其后的并行流还继续改 dock typed state / body / guard。活源码指纹在审计期间连续变化（16:35 与 17:09 两次计算彼此不同，也均不等于 b127 的 `a6a6…49f`），所以本文不冻结任何「当前指纹」hex；每次对账都以 `visual_receipts.py --fingerprint` 当时的输出为准。**b127 所有帧已失效，只能作为历史对比，不得作为当前源码验收。**
 - 用户 16:28 附件 `/tmp/codex-clipboard-6597baf4-a86f-437d-9540-b82068f3875b.png` 第一次 stat 为 933 × 229、非全帧裁图；复核时文件已不存在。无论是否存在，它都晚于 16:20 WIP、无 run manifest、无 source fingerprint、无 400 × 800 全帧身份，**不得复用为任何判据**；按用户纪律应即时删除 / 不引用，也不得翻旧账。
-- 参考四图是长期外部输入，不受「本仓回执过期删除」约束；过期规则只作用于 `crates/infiltrator-slint/docs/screenshots/*.png`、发布 manifest 和用户临时裁图。
+- 参考四图是长期外部输入，不受「本仓回执过期删除」约束；过期规则只作用于 `.evidence/corpora/slint/*.png`、发布 manifest 和用户临时裁图。
 
 ### 4.2 四项对账方法
 
@@ -135,7 +135,7 @@
 | ① `source_fingerprint` | `python3 scripts/parity/visual_receipts.py --fingerprint` 的最新输出 vs 最新全量 run 的 `capture-metadata.txt` | 两个 64 位 hex 完全相等；且这一步在所有源码写入完成后执行 | 有差异即整批 stale，等 WIP 收口后重采，不修改 metadata 造同值 |
 | ② `binary_sha256` | `sha256sum` 归档 `product-build.json` 指向的 binary vs `capture-metadata.txt` / `visual_receipts.py` 的 run identity | 三者一致，binary 的 `file_identity` 在验证期间不变 | 二进制被替换 / 覆盖即重采；禁止只换 PNG |
 | ③ manifest 时间 / 身份 | 运行 `capture-manifest.tsv` 与发布 `manifest.tsv` 的 SHA-256、行数、`status=ok` 行集合、每行 PNG 哈希；`capture-metadata.txt` 的 `captured_at` 与 run 目录时间 | 发布 manifest 与最新全量 run 完全相同；`scenario_count=197`；所有 `ok` PNG 存在且哈希一致；无额外 PNG；`captured_at` 不早于最后一项影响二进制的源码写入 | 任一不符则拒绝结论；由发布链整批重发并自动 sweep 旧 PNG；诊断过滤批次不得发布 |
-| ④ `docs/screenshots` mtime / 用户附件 mtime | `stat` 发布目录 PNG / manifest；`stat` `/tmp/codex-clipboard-*.png` 或用户附件；与最后一次源码写入时间比较 | 发布 PNG mtime ≥ manifest 发布时刻且属于同一 run；用户附件只要不是 400 × 800 全帧、没有 run 身份，或 mtime 早于 / 晚于但无法绑定指纹，一律删除 / 不引用 | 删除过期裁图；把唯一有效批次路径写入台账；禁止把附件贴进发布目录 |
+| ④ `.evidence/corpora/slint` mtime / 用户附件 mtime | `stat` 发布目录 PNG / manifest；`stat` `/tmp/codex-clipboard-*.png` 或用户附件；与最后一次源码写入时间比较 | 发布 PNG mtime ≥ manifest 发布时刻且属于同一 run；用户附件只要不是 400 × 800 全帧、没有 run 身份，或 mtime 早于 / 晚于但无法绑定指纹，一律删除 / 不引用 | 删除过期裁图；把唯一有效批次路径写入台账；禁止把附件贴进发布目录 |
 
 建议主收口方按顺序执行（**这些命令本审计未执行**）：
 
@@ -155,8 +155,8 @@ PY
 )
 grep -E '^(captured_at|source_fingerprint|binary_sha256|scenario_count)=' "$run/capture-metadata.txt"
 printf 'live source_fingerprint=%s\n' "$current"
-sha256sum "$run/capture-manifest.tsv" crates/infiltrator-slint/docs/screenshots/manifest.tsv
-stat -c '%n %y %s' "$run/capture-metadata.txt" "$run/capture-manifest.tsv" crates/infiltrator-slint/docs/screenshots/manifest.tsv crates/infiltrator-slint/docs/screenshots/*-mobile-*.png
+sha256sum "$run/capture-manifest.tsv" .evidence/corpora/slint/manifest.tsv
+stat -c '%n %y %s' "$run/capture-metadata.txt" "$run/capture-manifest.tsv" .evidence/corpora/slint/manifest.tsv .evidence/corpora/slint/*-mobile-*.png
 stat -c '%n %y %s' /tmp/codex-clipboard-*.png 2>/dev/null || true
 python3 scripts/quality/receipt-freshness-guard.py --mode enforce
 ```
@@ -187,7 +187,7 @@ bash scripts/quality/check-structure.sh
 
 ### 4.3 长效删除 / 引用纪律
 
-- 每次全量发布后，由 `capture-slint-matrix.sh` 先发布全部 PNG、再发布 manifest、最后 sweep 未被本批发布的 PNG；任何用户裁图 / 诊断帧 / 旧批次像素不得手工复制进 `docs/screenshots`。
+- 每次全量发布后，由 `capture-slint-matrix.sh` 先发布全部 PNG、再发布 manifest、最后 sweep 未被本批发布的 PNG；任何用户裁图 / 诊断帧 / 旧批次像素不得手工复制进 `.evidence/corpora/slint`。
 - 任何文档、台账、回复引用移动端像素时，必须同时给出最新全量 run 的 `source_fingerprint` 与 manifest 时间；只写「见截图」或「上一批曾通过」无效。
 - 发现活源码指纹变化：立即把旧发布帧标为历史对比，停止引用；等并行流全部落地后统一重采，禁止逐页重试或只替换几张 PNG。
 - `docs/reference/flclash-mobile/` 四张外部参考图保留；`/tmp/codex-clipboard-*` 等非全帧附件随用随删，不纳入发布目录，不进入证据台账。

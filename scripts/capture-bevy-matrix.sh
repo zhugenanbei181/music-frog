@@ -7,7 +7,7 @@
 # nested niri inside that host -> launch one demo scenario at a time -> wait
 # for the app's CAPTURE_READY marker -> bind the screenshot to the exact
 # PID/app-id/window-id via niri IPC -> publish the PNG plus a manifest into
-# crates/infiltrator-bevy-ui/docs/screenshots/bevy/. The operator's Wayland session is never contacted:
+# .evidence/corpora/bevy/. The operator's Wayland session is never contacted:
 # the nested niri's winit window lives inside the invisible
 # `kwin_wayland --virtual` host, so nothing can pop up on or steal focus from
 # the operator's desktop, and no compositor UI chrome (hotkey overlay etc.)
@@ -61,7 +61,7 @@ APP="${CARGO_TARGET_DIR:-$REPO/target}/debug/infiltrator-bevy-ui"
 ASSET_ROOT="$REPO/crates/infiltrator-bevy-widgets"
 CANONICAL_MATRIX="$REPO/scripts/capture_bevy_scenarios.tsv"
 MATRIX_SRC="${INFILTRATOR_CAPTURE_MATRIX:-$CANONICAL_MATRIX}"
-OUT_DIR="${INFILTRATOR_CAPTURE_OUT_DIR:-$REPO/crates/infiltrator-bevy-ui/docs/screenshots/bevy}"
+OUT_DIR="${INFILTRATOR_CAPTURE_OUT_DIR:-$REPO/.evidence/corpora/bevy}"
 MANIFEST_PUBLISHED="$OUT_DIR/manifest.tsv"
 EVIDENCE_ROOT="$REPO/.evidence/captures/bevy"
 RUN_STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -500,7 +500,6 @@ capture_one() {
   local windows_error="$scenario_dir/windows.err"
   local action="$scenario_dir/action.log"
   local image="$scenario_dir/image.png"
-  local published="crates/infiltrator-bevy-ui/docs/screenshots/bevy/$name.png"
   local exp_w="${window_size%x*}" exp_h="${window_size#*x}"
   local window_id="" window_ready=0 marker_ready=0 action_status=failed
   local width=0 height=0 bytes=0 hash="-"

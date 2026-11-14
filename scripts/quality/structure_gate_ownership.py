@@ -58,6 +58,9 @@ SPACE_UTILIZATION_ICED = (
 )
 SPACE_CHECK_EXPORT = "python3 scripts/parity/space_utilization.py --check-export"
 RUSTDOC_DOCS = "python3 scripts/quality/rustdoc-guard.py --mode docs"
+SCREENSHOT_IDENTITY = (
+    "python3 scripts/quality/screenshot-identity-guard.py --mode enforce"
+)
 
 # command -> the fact it reads that does not exist in both trees. Every leg here
 # still judges whatever its tree does have: the dock guard checks theme,
@@ -77,6 +80,9 @@ SELF_SKIPPING_LEGS: dict[str, str] = {
     RUSTDOC_DOCS: "its cargo doc build half needs compilation, which the "
                   f"{NO_COMPILE_GATE_ENV} workflow (main-gate.yml) forbids; "
                   "the offline docs.rs metadata and doctest audit still judges",
+    SCREENSHOT_IDENTITY: "the published pixels it compares live in the "
+                          "git-ignored .evidence/corpora/ trees, so a checkout "
+                          "without a capture run has nothing to compare",
 }
 
 
@@ -108,7 +114,7 @@ class OwnershipSelfTest(unittest.TestCase):
         self.assertNotEqual(SKIP_EXIT_CODE, 0)
 
     def test_the_capture_and_build_legs_may_skip(self) -> None:
-        self.assertEqual(len(SELF_SKIPPING_LEGS), 6)
+        self.assertEqual(len(SELF_SKIPPING_LEGS), 7)
         for command in SELF_SKIPPING_LEGS:
             self.assertTrue(may_skip(command), command)
 

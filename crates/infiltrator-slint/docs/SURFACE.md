@@ -40,7 +40,7 @@
    - 配合 `scripts/capture-slint-matrix.sh` 与 `scripts/capture_slint_scenarios.tsv`，在私有虚拟 Wayland 合成器（KWin + Niri IPC）内实现无弹窗、不夺焦点、绑定二进制与源码指纹的自动化像素级取证。
    - **用户缩放现在可被取证**：`INFILTRATOR_PAGE_SCALE=85…115` 让采集宿主走 `set_page_scale_percent` 这条真实入口（与缩放弹层「应用」按钮同一条路径），85%–115% 的排版第一次有了可比帧。实测结论：105% 与 100% 的字形锐度没有可测差异（实心笔画中位宽恒 2.0px，AA/实心比 1.493 vs 1.662，1.05× 只带来更多实心像素），因此**不得**把「字体发虚」归因于分数字号取整，`Math.round(size / 1px) * 1px` 这类改动已被实测否决；
    - **回执里不会出现悬停态**：悬停是「有指点设备」的表现事实，真源是 `MaterialWindow.disable-hover`（Android 触摸无悬停；采集宿主由 `AppWindow.capture-pointer-absent` 置真，因为嵌套合成器把光标停在输出正中）。所有表面控件的悬停状态一律经 `LumenTheme.hovered(...)` 读取该事实，因此既不会在手机上残留假高亮，也不会把没人悬停过的控件截进像素；
-   - **发布目录只保留最新一批像素，且发布是整批的**：完整批次运行时，图片先落到发布目录、manifest 随后发布、脚本立即删除 `docs/screenshots/` 中不属于本轮 `status=ok` 场景的 PNG，过期像素不可能再被引用；带场景过滤的运行只算诊断，像素只留在 `.evidence/captures/slint/<run-id>/`，既不写发布目录也不改发布索引，所以单场景重试不会把整幅语料删掉。复核入口是 `scripts/quality/receipt-freshness-guard.py`（结构门内 `--self-test` + `--mode report`），它按最新一次采集 run 的 manifest 校验存在性与哈希，因此「重跑一次完整采集」本身就是清除过期回执的动作。
+   - **发布目录只保留最新一批像素，且发布是整批的**：完整批次运行时，图片先落到发布目录、manifest 随后发布、脚本立即删除 `.evidence/corpora/slint/` 中不属于本轮 `status=ok` 场景的 PNG，过期像素不可能再被引用；带场景过滤的运行只算诊断，像素只留在 `.evidence/captures/slint/<run-id>/`，既不写发布目录也不改发布索引，所以单场景重试不会把整幅语料删掉。复核入口是 `scripts/quality/receipt-freshness-guard.py`（结构门内 `--self-test` + `--mode report`），它按最新一次采集 run 的 manifest 校验存在性与哈希，因此「重跑一次完整采集」本身就是清除过期回执的动作。
    - **视口上限与像素保真度**：嵌套 niri 宿主窗口固定为 1280 × 800，任何单张回执的高度上限是 800px，因此 400 × 800 竖屏手机视口只能在 @1x 设备缩放下取证。真机（@2x/@3x）上的字形锐度高于该回执；小字号 CJK 在 @1x 截图里偏软是取证链路的分辨率上限，不是表面在设备上的实际表现。要出 @2x 手机回执，必须先让采集宿主能提供 ≥1600px 高的输出（`LumenUiScale.unit` 是表面唯一的缩放真源，放大它即可等比放大整棵树）。
 
 2. **平价场景取证（Parity Scenario Capture）**：
@@ -51,9 +51,9 @@
    - **弹层取证走用户的开法**：添加配置弹层由 `open-profile-add()` 打开（与「添加配置」磁贴同一条路径），因此弹层记住的 profile 数量与 owner 发布的一致，不会被随后的快照发布误关；
    - surface 能承载的业务集合是**封闭且带类型**的：`infiltrator_slint::capture_scenario::CarriedScenario` 是唯一真源，`activate` 只认识这些变体；集合之外的业务名一律返回 `false`，标记因此永远不会为 surface 没有的业务背书；
    - 标记格式为 `CAPTURE_READY page=<p> skin=<s> scenario=<feature> activated=true bounds=<x>,<y>,<w>,<h>\n`。`bounds` 是被激活界面在窗口中的真实像素矩形，surface 未打开该界面时写 `activated=false` 且不带 `bounds`，因此截图链路无法为 surface 未实现的业务背书；
-   - 视口沿用平价约定：`<feature>-standard` 为 1180×780，`<feature>-compact` 为 720×480；场景矩阵见 `docs/capture/parity_scenarios.tsv`，已发布的像素回执见 `docs/screenshots/parity/`；
+   - 视口沿用平价约定：`<feature>-standard` 为 1180×780，`<feature>-compact` 为 720×480；场景矩阵见 `docs/capture/parity_scenarios.tsv`，已发布的像素回执见 `.evidence/corpora/slint/parity/`；
    - 单个业务的取证命令：`INFILTRATOR_CAPTURE_MATRIX=crates/infiltrator-slint/docs/capture/parity_scenarios.tsv bash scripts/capture-slint-matrix.sh <feature>-standard,<feature>-compact`；
-   - 全部 18 个承载业务的取证命令：`INFILTRATOR_CAPTURE_MATRIX=crates/infiltrator-slint/docs/capture/parity_scenarios.tsv INFILTRATOR_CAPTURE_OUT_DIR=crates/infiltrator-slint/docs/screenshots/parity bash scripts/capture-slint-matrix.sh`。
+   - 全部 18 个承载业务的取证命令：`INFILTRATOR_CAPTURE_MATRIX=crates/infiltrator-slint/docs/capture/parity_scenarios.tsv INFILTRATOR_CAPTURE_OUT_DIR=.evidence/corpora/slint/parity bash scripts/capture-slint-matrix.sh`。
 
 3. **行为测试矩阵覆盖**：
    - 所有行为用例都通过 `infiltrator_slint::surface::harness::SurfaceHarness` 驱动**真实 Slint 回调**：harness 在无头软件渲染平台上注册生产回调、派发真实手势，并回报 surface 实际发出的 typed `CommandIntent`、typed `Failure` 与 owner 可见投影（notice、列表行、待定状态）。测试不再本地复刻路由映射、网络模式时序、主题白名单、十六进制解析或连接排序；

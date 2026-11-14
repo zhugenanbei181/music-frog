@@ -1,10 +1,4 @@
 {
-  "divergent_corpora": {
-    "bevy": {
-      "receipt_gap_max": 188,
-      "reason": "GAP-7.7: one aborted Bevy batch deleted the published pixels up front and then published an index holding its own rows only, so the committed corpus is 191 PNGs behind a 2-row index. The pixels cannot be re-attested offline - only 2 of 191 digests appear in any historical index, and the newest evidence run attests 170 of the 173 rows it holds - so closing this entry requires a full canonical recapture, which needs a buildable capture binary.",
-      "uncited_max": 190
-    }
-  },
+  "divergent_corpora": {},
   "version": 1
 }

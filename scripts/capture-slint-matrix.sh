@@ -7,7 +7,7 @@
 # nested niri inside that host -> launch one demo scenario at a time -> wait
 # for the app's CAPTURE_READY marker -> bind the screenshot to the exact
 # PID/app-id/window-id via niri IPC -> publish the PNG plus a manifest into
-# crates/infiltrator-slint/docs/screenshots/. The operator's Wayland session is never contacted:
+# .evidence/corpora/slint/. The operator's Wayland session is never contacted:
 # the nested niri's winit window lives inside the invisible
 # `kwin_wayland --virtual` host, so nothing can pop up on or steal focus from
 # the operator's desktop, and no compositor UI chrome (hotkey overlay etc.)
@@ -46,7 +46,7 @@ esac
 APP="${CARGO_TARGET_DIR:-$REPO/target}/$SLINT_CAPTURE_PROFILE/infiltrator-slint"
 CANONICAL_MATRIX="$REPO/scripts/capture_slint_scenarios.tsv"
 MATRIX_SRC="${INFILTRATOR_CAPTURE_MATRIX:-$CANONICAL_MATRIX}"
-OUT_DIR="${INFILTRATOR_CAPTURE_OUT_DIR:-$REPO/crates/infiltrator-slint/docs/screenshots}"
+OUT_DIR="${INFILTRATOR_CAPTURE_OUT_DIR:-$REPO/.evidence/corpora/slint}"
 MANIFEST_PUBLISHED="$OUT_DIR/manifest.tsv"
 EVIDENCE_ROOT="$REPO/.evidence/captures/slint"
 RUN_STAMP="$(date -u +%Y%m%dT%H%M%SZ)"

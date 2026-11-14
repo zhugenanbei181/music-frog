@@ -40,6 +40,9 @@ import tempfile
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts" / "parity"))
+from corpus_layout import SURFACE_CORPORA
+
 LEDGER = pathlib.Path("scripts/quality/capture_corpus_debt.json")
 MANIFEST_FIELDS = ("scenario", "page", "skin", "requested_window", "app_pid",
                    "window_id", "width", "height", "bytes", "sha256", "status")
@@ -57,11 +60,11 @@ class Surface:
 
 
 SURFACES = (
-    Surface("slint", pathlib.Path("crates/infiltrator-slint/docs/screenshots"),
+    Surface("slint", SURFACE_CORPORA["slint"],
             pathlib.Path("scripts/capture_slint_scenarios.tsv"), 0),
-    Surface("iced", pathlib.Path("crates/infiltrator-iced/docs/screenshots"),
+    Surface("iced", SURFACE_CORPORA["iced"],
             pathlib.Path("scripts/capture_iced_scenarios.tsv"), 0),
-    Surface("bevy", pathlib.Path("crates/infiltrator-bevy-ui/docs/screenshots/bevy"),
+    Surface("bevy", SURFACE_CORPORA["bevy"],
             pathlib.Path("scripts/capture_bevy_scenarios.tsv"), 0),
 )
 CAPTURE_HARNESS = pathlib.Path("scripts/parity/capture_attempt.sh")
@@ -70,6 +73,16 @@ CAPTURE_MATRICES = (
     pathlib.Path("scripts/capture-iced-matrix.sh"),
     pathlib.Path("scripts/capture-bevy-matrix.sh"),
 )
+# The corpus path has one Python truth (`scripts/parity/corpus_layout.py`) and
+# three shell literals. The Python readers must import that truth instead of
+# keeping their own copy, and the shell writers must carry the same path.
+CORPUS_LAYOUT_MODULE = pathlib.Path("scripts/parity/corpus_layout.py")
+CORPUS_LAYOUT_CONSUMERS = (
+    pathlib.Path("scripts/quality/capture-corpus-integrity-guard.py"),
+    pathlib.Path("scripts/quality/screenshot-identity-guard.py"),
+    pathlib.Path("scripts/quality/receipt-freshness-guard.py"),
+)
+CORPUS_PATH_LITERAL = ".evidence/corpora"
 # Readers that must agree on how many scenarios a full batch owes. Each of them
 # used to keep its own copy of the number - two typed `= 211` literals and one
 # inference from "the largest count ever published" - so growing the matrix
@@ -142,16 +155,54 @@ def load_debt(root: pathlib.Path) -> dict[str, dict[str, object]]:
 
 def corpus_findings(surface: Surface, root: pathlib.Path,
                     debt: dict[str, dict[str, object]]) -> list[str]:
-    """Findings for one published corpus, against its index and its matrix."""
+    """Findings for one published corpus, against its index and its matrix.
+
+    A corpus has two halves: the pixels (local evidence, never in git) and the
+    index that names them (tracked). A checkout that never captured has the
+    index alone, and the index is still enough to hold the surface to its
+    canonical matrix — so the matrix legs run everywhere, while the pixel legs
+    (digest, size, dimensions, uncited files) run only where the pixels are.
+    A tree without pixels must never be judged as a corpus with broken pixels.
+    """
     out = root / surface.out_dir
     index_path = out / "manifest.tsv"
+    pixels = {path.stem: path for path in out.glob("*.png")}
     if not index_path.is_file():
+        if pixels:
+            return [f"{surface.name}: published pixels without an index at "
+                    f"{surface.out_dir}/manifest.tsv"]
+        # The index is tracked, so a missing one means this tree lost a tracked
+        # file — never a verdict about the corpus.
         return [f"{surface.name}: no published index at {surface.out_dir}/manifest.tsv"]
     rows = read_index(index_path)
     indexed = {row["scenario"]: row for row in rows if row.get("status") == "ok"}
     problems: list[str] = []
 
-    pixels = {path.stem: path for path in out.glob("*.png")}
+    matrix_names = set(read_matrix_names(surface, root))
+    # Every canonical matrix scenario needs a receipt in the published index.
+    missing = sorted(matrix_names - set(indexed))
+
+    # A published scenario may not leave the canonical matrix silently. The
+    # matrix is the source of truth for what a batch owes, so deleting a row
+    # from it would make the deletion invisible: the receipt would still be on
+    # disk and still indexed, and the "missing receipt" direction would only
+    # get shorter. The curated portrait rows of the Bevy matrix were deleted
+    # exactly that way once, by a generator run, and the corpus stayed green
+    # while eight published scenarios quietly stopped being owed.
+    retired = sorted(set(indexed) - matrix_names)
+    for name in retired:
+        problems.append(
+            f"{surface.name}: published scenario {name} is no longer in the canonical "
+            f"matrix; a published scenario may not leave the matrix without a real "
+            f"full batch and an explicit retirement record")
+
+    if not pixels:
+        # Index-only tree: the matrix coverage is judgeable, the pixels are not
+        # in this checkout at all, so no pixel leg may be claimed of it.
+        for name in missing:
+            problems.append(f"{surface.name}: matrix scenario {name} has no published receipt")
+        return problems
+
     uncited = sorted(set(pixels) - set(indexed))
     unindexed = sorted(set(indexed) - set(pixels))
 
@@ -179,25 +230,6 @@ def corpus_findings(surface: Surface, root: pathlib.Path,
         if expected and actual != expected:
             problems.append(f"{surface.name}: {name}.png is {actual}, "
                             f"index requested {expected}")
-
-    matrix_names = set(read_matrix_names(surface, root))
-
-    # Every canonical matrix scenario needs a receipt in the published index.
-    missing = sorted(matrix_names - set(indexed))
-
-    # A published scenario may not leave the canonical matrix silently. The
-    # matrix is the source of truth for what a batch owes, so deleting a row
-    # from it would make the deletion invisible: the receipt would still be on
-    # disk and still indexed, and the "missing receipt" direction would only
-    # get shorter. The curated portrait rows of the Bevy matrix were deleted
-    # exactly that way once, by a generator run, and the corpus stayed green
-    # while eight published scenarios quietly stopped being owed.
-    retired = sorted(set(indexed) - matrix_names)
-    for name in retired:
-        problems.append(
-            f"{surface.name}: published scenario {name} is no longer in the canonical "
-            f"matrix; a published scenario may not leave the matrix without a real "
-            f"full batch and an explicit retirement record")
 
     # Ratcheted: an index that under-describes its own corpus can only be fixed
     # by a real full batch, so the two counts may shrink and never grow.
@@ -279,9 +311,30 @@ def matrix_size_findings(root: pathlib.Path) -> list[str]:
     return problems
 
 
+def layout_findings(root: pathlib.Path) -> list[str]:
+    """One truth for the corpus path: readers import it, writers carry it."""
+    problems: list[str] = []
+    shared = root / CORPUS_LAYOUT_MODULE
+    if not shared.is_file():
+        return [f"{CORPUS_LAYOUT_MODULE}: the shared corpus layout is missing"]
+    for consumer in CORPUS_LAYOUT_CONSUMERS:
+        text = (root / consumer).read_text(encoding="utf-8")
+        if "corpus_layout" not in text:
+            problems.append(f"{consumer}: does not read the shared corpus layout")
+    for script in CAPTURE_MATRICES:
+        text = (root / script).read_text(encoding="utf-8")
+        label = script.name
+        if CORPUS_PATH_LITERAL not in text:
+            problems.append(f"{label}: does not publish into {CORPUS_PATH_LITERAL}")
+        if "docs/screenshots" in text:
+            problems.append(f"{label}: still publishes into a docs/ corpus directory")
+    return problems
+
+
 def violations(root: pathlib.Path) -> list[str]:
     debt = load_debt(root)
-    problems = harness_findings(root) + matrix_size_findings(root)
+    problems = (harness_findings(root) + matrix_size_findings(root)
+                + layout_findings(root))
     for surface in SURFACES:
         problems.extend(corpus_findings(surface, root, debt))
     return problems
@@ -314,8 +367,17 @@ def tighten_debt(root: pathlib.Path) -> int:
     path = root / LEDGER
     debt = load_debt(root)
     counts = corpus_counts(root)
+    out_dirs = {surface.name: root / surface.out_dir for surface in SURFACES}
     changed: list[str] = []
     for surface, (uncited, gap) in counts.items():
+        out = out_dirs[surface]
+        if not any(out.glob("*.png")):
+            # No local pixels: the divergence cannot be measured here, so the
+            # bound must not move. A tree without the corpus says nothing about
+            # how far the corpus has healed.
+            print(f"capture-corpus-integrity: {surface} has no local pixels; "
+                  f"bound untouched")
+            continue
         entry = debt.get(surface)
         if not uncited and not gap:
             if entry is not None:
@@ -467,11 +529,28 @@ class Harness(unittest.TestCase):
 
     def test_an_index_row_without_a_pixel_is_rejected(self) -> None:
         alpha = self.pixel("alpha")
+        self.pixel("beta")
         self.index([("alpha", "1180x780", alpha.stat().st_size, self.digest(alpha)),
                     ("missing", "1180x780", alpha.stat().st_size, self.digest(alpha))])
         alpha.unlink()
         problems = corpus_findings(self.surface, self.root, {})
         self.assertTrue(any("not on disk" in problem for problem in problems), problems)
+
+    def test_a_tree_without_pixels_is_judged_on_its_index_only(self) -> None:
+        """A checkout that never captured holds the index but no pixels.
+
+        The index is the tracked half of the corpus, so the matrix legs still
+        run there. The pixel legs must not claim anything about pixels that
+        are not in this tree at all: a corpus that was never published is not
+        a corpus with broken pixels.
+        """
+        alpha = self.pixel("alpha")
+        self.index([("alpha", "1180x780", alpha.stat().st_size, self.digest(alpha))])
+        alpha.unlink()
+        problems = corpus_findings(self.surface, self.root, {})
+        self.assertFalse(any("not on disk" in problem for problem in problems), problems)
+        self.assertTrue(any("matrix scenario beta has no published receipt" in problem
+                            for problem in problems), problems)
 
     def test_a_matrix_scenario_without_a_receipt_is_rejected(self) -> None:
         alpha = self.pixel("alpha")

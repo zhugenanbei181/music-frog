@@ -1,4 +1,8 @@
-"""The legacy repository snapshot is audit provenance, never an acceptance freshness gate."""
+"""The legacy repository snapshot is audit provenance, never an acceptance freshness gate.
+
+The published receipt lives outside the scanned source tree, so republishing a
+corpus never changes the fingerprint of the source it attests.
+"""
 from pathlib import Path
 import subprocess
 import tempfile
@@ -18,7 +22,7 @@ class CaptureSourceTests(unittest.TestCase):
             matrix = root / 'scripts/scenarios.tsv'
             matrix.parent.mkdir(parents=True)
             matrix.write_text('first scene\n')
-            receipt = root / 'crates/widgets/docs/screenshots/manifest.tsv'
+            receipt = root / '.evidence/corpora/widgets/manifest.tsv'
             receipt.parent.mkdir(parents=True)
             receipt.write_text('first process receipt\n')
             initial = source_fingerprint(root)

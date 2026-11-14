@@ -29,6 +29,7 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts" / "parity"))
 from matrix_size import matrix_scenario_count
+from corpus_layout import SURFACE_CORPORA
 
 sys.path.insert(0, str(ROOT / "scripts" / "quality"))
 from structure_gate_ownership import SKIP_EXIT_CODE
@@ -38,7 +39,7 @@ class NoPublishedRun(Exception):
     """This checkout has no capture run to compare the published corpus to."""
 
 
-OUT_DIR = pathlib.Path("crates/infiltrator-slint/docs/screenshots")
+OUT_DIR = SURFACE_CORPORA["slint"]
 EVIDENCE_ROOT = pathlib.Path(".evidence/captures/slint")
 FIELDS = ("scenario", "page", "skin", "requested_window", "app_pid", "window_id",
           "width", "height", "bytes", "sha256", "status", "locale")
@@ -150,7 +151,13 @@ def latest_run(root: pathlib.Path) -> pathlib.Path | None:
 
 def violations(root: pathlib.Path) -> list[str]:
     out = root / OUT_DIR
-    published = read_manifest(out / "manifest.tsv")
+    index_path = out / "manifest.tsv"
+    if not index_path.is_file():
+        if any(out.glob("*.png")):
+            return [f"{OUT_DIR}: published pixels without an index at {OUT_DIR}/manifest.tsv"]
+        # Neither half of the corpus is here: this tree never published.
+        raise NoPublishedRun(f"{OUT_DIR}: this tree has no published corpus")
+    published = read_manifest(index_path)
     run = latest_run(root)
     if run is None:
         # "No published run" is not a stale corpus: this tree has no capture

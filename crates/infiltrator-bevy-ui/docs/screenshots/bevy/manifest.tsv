@@ -1,3 +1,0 @@
-scenario	page	skin	requested_window	app_pid	window_id	width	height	bytes	sha256	status
-overview-card-reorder-standard	overview	forest	1180x780	2417051	2	1180	780	139682	8e4eaae1e9f624ae5116674655fded371399f7d09325da6b8f5b495aeaf51b1a	ok
-overview-card-reorder-compact	overview	forest	720x480	2417565	3	720	480	57057	2c9c0e3f7ce9e20e05e439a623b5a0d225ed1ae3fb776710c68f11203fe82dd5	ok

@@ -38,10 +38,6 @@ def source_fingerprint(root):
                             check=True, stdout=subprocess.PIPE).stdout
     digest = hashlib.sha256()
     for name in sorted(set(output.decode().split("\0")) - {""}):
-        parts = Path(name).parts
-        if any(parts[index:index + 2] == ("docs", "screenshots")
-               for index in range(len(parts) - 1)):
-            continue
         path = root / name
         if not path.is_file():
             continue
