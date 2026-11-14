@@ -131,6 +131,10 @@ pub struct AppSettings {
     /// reads and mutates this only through the typed intent owner.
     #[serde(default)]
     pub connection_view: ConnectionViewPreference,
+    /// User-owned visibility of the Logs destination, matching FlClash's
+    /// `openLogs` navigation mode. Surfaces only read the resolved capability.
+    #[serde(default = "default_open_logs")]
+    pub open_logs: bool,
 }
 
 fn default_notifications_enabled() -> bool {
@@ -143,6 +147,10 @@ fn default_close_to_tray() -> bool {
 
 fn default_tray_icon_color_mode() -> String {
     "colored".to_string()
+}
+
+fn default_open_logs() -> bool {
+    true
 }
 
 impl Default for AppSettings {
@@ -171,6 +179,7 @@ impl Default for AppSettings {
             tray_icon_color_mode: default_tray_icon_color_mode(),
             sidebar_expansion: SidebarExpansionPreference::default(),
             connection_view: ConnectionViewPreference::default(),
+            open_logs: default_open_logs(),
         }
     }
 }
@@ -208,6 +217,7 @@ mod tests {
             ConnectionViewPreference::default()
         );
         assert_eq!(settings.connection_view.mode, Default::default());
+        assert!(settings.open_logs);
         assert_eq!(
             settings.connection_view.visible_columns.wire_ids(),
             ConnectionViewPreference::default()

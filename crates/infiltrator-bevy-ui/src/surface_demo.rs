@@ -9,6 +9,7 @@ use crate::pages::rules::RulesProjection;
 use crate::pages::settings::settings_core::SettingsProjection;
 use crate::pages::sync::SyncProjection;
 use crate::projection::DemoOverviewSource;
+use infiltrator_contract::surface_snapshot::pages::SurfacePages;
 use infiltrator_contract::capability::CapabilitySnapshot;
 use infiltrator_contract::controller::ControllerAuthSnapshot;
 use infiltrator_contract::dns_cache::DnsCacheSnapshot;
@@ -116,7 +117,7 @@ fn snapshot_from_overview_fixture(
     };
     let pages = match fixture {
         OverviewFixture::DemoPages => demo_pages_with_overview(overview_data),
-        OverviewFixture::OverviewOnly => surface_snapshot::SurfacePages {
+        OverviewFixture::OverviewOnly => SurfacePages {
             overview: PageData::ready(overview_data),
             profiles: PageData::unavailable(page_not_composed()),
             rules: PageData::unavailable(page_not_composed()),
@@ -187,6 +188,11 @@ fn snapshot_from_overview_fixture(
         versions: CoreVersionSnapshot::for_engine(
             EngineId::new("mihomo").expect("demo Mihomo engine ID is valid"),
         ),
+        navigation_capability: PageData::unavailable(Failure::new(
+            ErrorCode::NotReady,
+            "demo navigation capability owner has not published an observation",
+            true,
+        )),
         controller_auth: ControllerAuthSnapshot::default(),
         service_mode: ServiceModeSnapshot::default(),
         port_conflicts: PortConflictSnapshot::default(),
@@ -309,6 +315,11 @@ pub(crate) fn demo_snapshot() -> surface_snapshot::SurfaceSnapshot {
         versions: CoreVersionSnapshot::for_engine(
             EngineId::new("mihomo").expect("demo Mihomo engine ID is valid"),
         ),
+        navigation_capability: PageData::unavailable(Failure::new(
+            ErrorCode::NotReady,
+            "demo navigation capability owner has not published an observation",
+            true,
+        )),
         controller_auth: ControllerAuthSnapshot::default(),
         service_mode: ServiceModeSnapshot::default(),
         port_conflicts: PortConflictSnapshot::default(),
@@ -590,9 +601,7 @@ fn demo_outbound_preferences() -> OutboundUiPreferencesSnapshot {
     .expect("demo outbound preferences are valid")
 }
 
-fn demo_pages_with_overview(
-    overview: surface_snapshot::OverviewPageSnapshot,
-) -> surface_snapshot::SurfacePages {
+fn demo_pages_with_overview(overview: surface_snapshot::OverviewPageSnapshot) -> SurfacePages {
     let profiles: surface_snapshot::ProfilesPageSnapshot = ProfilesProjection::demo().into();
     let rules: surface_snapshot::RulesPageSnapshot = RulesProjection::demo().into();
     let connections: surface_snapshot::ConnectionsPageSnapshot =
@@ -603,7 +612,7 @@ fn demo_pages_with_overview(
     let app_routing: surface_snapshot::AppRoutingPageSnapshot = AppRoutingProjection::demo().into();
     let sync: SyncPageSnapshot = SyncProjection::demo().into();
     let settings: surface_snapshot::SettingsPageSnapshot = SettingsProjection::demo().into();
-    surface_snapshot::SurfacePages {
+    SurfacePages {
         overview: PageData::ready(overview),
         profiles: PageData::ready(profiles),
         rules: PageData::ready(rules),

@@ -78,6 +78,42 @@ fn typed_outbound_details_and_preferences_are_required_surface_fields() {
 }
 
 #[test]
+fn navigation_capability_starts_unobserved_and_round_trips_a_ready_owner() {
+    use crate::navigation_capability::{NavigationCapabilitySnapshot, NavigationFeatureState};
+
+    let mut snapshot = SurfaceSnapshot::unavailable(
+        SurfaceKind::SlintDesktop,
+        HostKind::Desktop,
+        Failure::unsupported("not composed"),
+    );
+    assert!(snapshot.navigation_capability.data.is_none());
+    assert!(matches!(
+        snapshot.navigation_capability.status,
+        PageStatus::Unavailable { .. }
+    ));
+
+    snapshot.navigation_capability = PageData::ready(NavigationCapabilitySnapshot::resolve(
+        SurfaceKind::SlintDesktop,
+        NavigationFeatureState::new(false, false),
+        "logs",
+    ));
+    let encoded = serde_json::to_string(&snapshot).expect("surface snapshot serializes");
+    let decoded: SurfaceSnapshot = serde_json::from_str(&encoded).expect("decode snapshot");
+    assert_eq!(
+        decoded.navigation_capability,
+        snapshot.navigation_capability
+    );
+    assert_eq!(
+        decoded
+            .navigation_capability
+            .data
+            .unwrap()
+            .active_destination,
+        "overview"
+    );
+}
+
+#[test]
 fn theme_readback_publishes_the_cold_start_authority_and_round_trips() {
     use crate::surface_snapshot::theme_readback_cold_start;
     use crate::theme::AppearanceMode;

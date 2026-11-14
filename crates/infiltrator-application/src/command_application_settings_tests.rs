@@ -89,6 +89,31 @@ async fn theme_writes_are_validated_and_canonicalised() {
 }
 
 #[tokio::test]
+async fn open_logs_writes_the_persisted_navigation_capability_owner() {
+    let (application, store) = settings_application();
+    assert!(store.settings.lock().expect("lock").open_logs);
+
+    application
+        .execute(CommandIntent::UpdateSetting {
+            key: "open_logs".to_owned(),
+            value: "false".to_owned(),
+        })
+        .await
+        .expect("open_logs is a persisted boolean");
+    assert!(!store.settings.lock().expect("lock").open_logs);
+
+    let failure = application
+        .execute(CommandIntent::UpdateSetting {
+            key: "open_logs".to_owned(),
+            value: "maybe".to_owned(),
+        })
+        .await
+        .expect_err("non-boolean values are rejected");
+    assert_eq!(failure.code, ErrorCode::InvalidInput);
+    assert!(!store.settings.lock().expect("lock").open_logs);
+}
+
+#[tokio::test]
 async fn shortcut_capture_persists_and_rejects_conflicts() {
     let (application, store) = settings_application();
 

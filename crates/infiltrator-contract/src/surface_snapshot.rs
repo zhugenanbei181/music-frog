@@ -39,6 +39,7 @@ use crate::mini_hud::MiniHudPlacement;
 use crate::mrs_acceleration::MrsAccelerationSnapshot;
 use crate::mtu::MtuNegotiationSnapshot;
 use crate::named_override::NamedOverrideCatalog;
+use crate::navigation_capability::NavigationCapabilitySnapshot;
 use crate::network_roaming::NetworkRoamingSnapshot;
 use crate::offline_startup::OfflineStartupSnapshot;
 use crate::overview_layout::OverviewLayoutSnapshot;
@@ -76,6 +77,7 @@ use crate::stun_probe::StunProbeReport;
 use crate::subscription_import::SubscriptionFilterDraft;
 use crate::subscription_quota::SubscriptionQuotaSnapshot;
 use crate::surface::{HostKind, SurfaceKind};
+use crate::surface_snapshot::pages::SurfacePages;
 use crate::sync_snapshot::SyncPageSnapshot;
 use crate::system_proxy::{SystemProxyRecoverySnapshot, SystemProxySnapshot};
 use crate::theme::SystemAppearance;
@@ -596,62 +598,17 @@ fn default_theme_preference() -> String {
     "system".into()
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct SurfacePages {
-    pub overview: PageData<OverviewPageSnapshot>,
-    pub profiles: PageData<ProfilesPageSnapshot>,
-    pub rules: PageData<RulesPageSnapshot>,
-    pub connections: PageData<ConnectionsPageSnapshot>,
-    pub logs: PageData<LogsPageSnapshot>,
-    pub dns: PageData<DnsPageSnapshot>,
-    pub doctor: PageData<DoctorPageSnapshot>,
-    pub app_routing: PageData<AppRoutingPageSnapshot>,
-    pub sync: PageData<SyncPageSnapshot>,
-    pub settings: PageData<SettingsPageSnapshot>,
-}
-
-impl SurfacePages {
-    pub fn unavailable(failure: Failure) -> Self {
-        Self {
-            overview: PageData::unavailable(failure.clone()),
-            profiles: PageData::unavailable(failure.clone()),
-            rules: PageData::unavailable(failure.clone()),
-            connections: PageData::unavailable(failure.clone()),
-            logs: PageData::unavailable(failure.clone()),
-            dns: PageData::unavailable(failure.clone()),
-            doctor: PageData::unavailable(failure.clone()),
-            app_routing: PageData::unavailable(failure.clone()),
-            sync: PageData::unavailable(failure.clone()),
-            settings: PageData::unavailable(failure),
-        }
-    }
-
-    fn status(&self, page: PageId) -> Option<&PageStatus> {
-        match page {
-            PageId::Overview => Some(&self.overview.status),
-            PageId::Proxies
-            | PageId::Tools
-            | PageId::About
-            | PageId::Disclaimer
-            | PageId::Licenses => None,
-            PageId::Profiles => Some(&self.profiles.status),
-            PageId::Rules => Some(&self.rules.status),
-            PageId::Connections => Some(&self.connections.status),
-            PageId::Logs => Some(&self.logs.status),
-            PageId::Dns => Some(&self.dns.status),
-            PageId::Doctor => Some(&self.doctor.status),
-            PageId::AppRouting => Some(&self.app_routing.status),
-            PageId::Sync => Some(&self.sync.status),
-            PageId::Settings => Some(&self.settings.status),
-        }
-    }
-}
-
 pub fn unobserved_hosts() -> PageData<DnsHostsProfile> {
     PageData::unavailable(Failure::unsupported(
         "no profile-backed Hosts reader is configured",
     ))
 }
+
+#[path = "surface_snapshot/navigation_capability.rs"]
+mod navigation_capability_readback;
+
+#[path = "surface_snapshot/pages.rs"]
+pub mod pages;
 
 /// Cold-start readback: system preference, unobserved host facts, built-in
 /// dark skin. Matches the documented shell cold-start policy.
@@ -723,6 +680,12 @@ pub struct SurfaceSnapshot {
     pub protocol_studio: PageData<ProtocolStudioSnapshot>,
     /// Independent online core-channel probe results shared by both UIs.
     pub versions: CoreVersionSnapshot,
+    /// The one typed answer to which destinations and Tools entries are
+    /// reachable under the current runtime capability facts. An older wire
+    /// without this observation is `PageData::unavailable`, never a guessed
+    /// capability set.
+    #[serde(default = "navigation_capability_readback::unobserved_navigation_capability")]
+    pub navigation_capability: PageData<NavigationCapabilitySnapshot>,
     /// Controller authentication status without exposing the secret.
     #[serde(default)]
     pub controller_auth: ControllerAuthSnapshot,
@@ -844,6 +807,8 @@ impl SurfaceSnapshot {
             rule_trace: RuleTraceExecution::default(),
             dns_hosts: unobserved_hosts(),
             surface,
+            navigation_capability: navigation_capability_readback::unobserved_navigation_capability(
+            ),
             origin: SurfaceOrigin::Live,
             generation: 0,
             revision: 0,

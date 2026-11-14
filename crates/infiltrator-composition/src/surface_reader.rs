@@ -5,6 +5,7 @@
 //! turns their results into the one contract read model consumed by Iced and
 //! Bevy.
 
+use self::navigation_capability::navigation_capability_readback;
 use infiltrator_application::active_exit_application::ActiveExitApplication;
 use infiltrator_application::backup_restore_application::BackupRestoreApplication;
 use infiltrator_application::configuration_application::ConfigurationApplication;
@@ -80,6 +81,7 @@ use infiltrator_contract::public_ip::PublicIpProbeSnapshot;
 use infiltrator_contract::snapshot::CoreSnapshot;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot;
+use infiltrator_contract::surface_snapshot::pages::SurfacePages;
 use infiltrator_contract::theme::ThemePreference;
 use infiltrator_contract::theme_palette::ResolvedThemePalette;
 use infiltrator_contract::version::CoreVersionSnapshot;
@@ -346,7 +348,7 @@ impl SurfaceReader for ProductSurfaceReader {
                 true,
             ))
         });
-        let mut pages = surface_snapshot::SurfacePages::unavailable(missing("surface reader"));
+        let mut pages = SurfacePages::unavailable(missing("surface reader"));
 
         pages.overview = PageData::ready(surface_snapshot::OverviewPageSnapshot {
             routing_intent: core.routing_intent.clone(),
@@ -478,135 +480,13 @@ impl SurfaceReader for ProductSurfaceReader {
         let snapshot_views = self.read_snapshot_views().await;
         let (snapshot_history, yaml_ast_diff) =
             snapshot_views.as_ref().cloned().unwrap_or_default();
-        if self.profiles.is_some() {
-            // DUAL-08-13: the template library sidecar. A store without one
-            // answers with a typed unsupported, published as `available =
-            // false` rather than as a fake empty library.
-            let (aggregation_templates, aggregation_templates_available) = match &self.profiles {
-                Some(profiles) => match profiles.load_aggregation_templates().await {
-                    Ok(templates) => (templates, true),
-                    Err(_) => (Vec::new(), false),
-                },
-                None => (Vec::new(), false),
-            };
-            let named_overrides = match &self.profiles {
-                Some(profiles) => profiles
-                    .load_named_override_catalog()
-                    .await
-                    .unwrap_or_default(),
-                None => NamedOverrideCatalog::default(),
-            };
-            pages.profiles = match profile_result {
-                Some(Ok(items)) if items.is_empty() => {
-                    PageData::empty(surface_snapshot::ProfilesPageSnapshot {
-                        profiles: Vec::new(),
-                        auto_update_interval_hours: 0,
-                        updating: false,
-                        aggregation: last_aggregation_report(),
-                        aggregation_templates,
-                        aggregation_templates_available,
-                        snapshot_history: snapshot_history.clone(),
-                        apply_transaction: apply_transaction.clone(),
-                        named_overrides,
-                    })
-                }
-                Some(Ok(items)) => {
-                    let mut snapshots = Vec::with_capacity(items.len());
-                    // DUAL-07-14: the page-level interval is the shortest fixed
-                    // interval actually scheduled; cron-only profiles are not
-                    // counted, so the header can stay honest.
-                    let auto_update_interval_hours = items
-                        .iter()
-                        .filter(|item| item.auto_update_enabled)
-                        .filter_map(|item| item.update_interval_hours)
-                        .min()
-                        .unwrap_or(0);
-                    for item in items {
-                        // DUAL-07-08: surface the stored node-keyword filter so
-                        // both surfaces can prefill the editor.
-                        let (filter, filter_source) = match &self.profiles {
-                            Some(profiles) => match ProfileId::new(item.name.clone()) {
-                                Ok(profile_id) => {
-                                    match profiles.load_workspace(&profile_id).await {
-                                        Ok(workspace) => match profiles.inspect_profile_options(
-                                            &workspace.document.identity,
-                                            workspace.sidecar_bytes.as_deref(),
-                                        ) {
-                                            Ok(options) => {
-                                                (options.filter, Ok(workspace.identity()))
-                                            }
-                                            Err(error) => (Default::default(), Err(error)),
-                                        },
-                                        Err(failure) => (Default::default(), Err(failure)),
-                                    }
-                                }
-                                Err(error) => (
-                                    Default::default(),
-                                    Err(Failure::new(
-                                        ErrorCode::InvalidInput,
-                                        error.to_string(),
-                                        false,
-                                    )),
-                                ),
-                            },
-                            None => (
-                                Default::default(),
-                                Err(Failure::unsupported(
-                                    "profile workspace reader is unavailable",
-                                )),
-                            ),
-                        };
-                        // DUAL-09-12: the same classification the write guard
-                        // enforces, derived from the real subscription source.
-                        let write_protection = ProfileWriteProtection::from_subscription_url(
-                            item.subscription_url.as_deref().unwrap_or_default(),
-                        );
-                        snapshots.push(surface_snapshot::ProfileSnapshot {
-                            id: item.name.clone(),
-                            name: item.name,
-                            url: item.subscription_url.unwrap_or_default(),
-                            updated_at: item
-                                .last_updated
-                                .map(|value| value.to_rfc3339())
-                                .unwrap_or_default(),
-                            upload_bytes: item.traffic_upload,
-                            download_bytes: item.traffic_download,
-                            total_bytes: item.traffic_total,
-                            is_active: item.active,
-                            user_agent: item.user_agent.unwrap_or_default(),
-                            insecure_skip_verify: item.insecure_skip_verify,
-                            etag: item.etag,
-                            last_modified: item.last_modified,
-                            has_backup: item.has_backup,
-                            cron_expression: item.cron_expression,
-                            auto_update_enabled: item.auto_update_enabled,
-                            update_interval_hours: item.update_interval_hours,
-                            next_update: item.next_update.map(|value| value.to_rfc3339()),
-                            auto_reload_core: item.auto_reload_core,
-                            filter,
-                            filter_source,
-                            write_protection,
-                        });
-                    }
-                    PageData::ready(surface_snapshot::ProfilesPageSnapshot {
-                        profiles: snapshots,
-                        auto_update_interval_hours,
-                        updating: false,
-                        aggregation: last_aggregation_report(),
-                        aggregation_templates,
-                        aggregation_templates_available,
-                        // DUAL-09-06/11/14: the shared history, the host apply
-                        // transaction and loaded editor document are separate observations.
-                        // History comes from this product instance and active profile.
-                        snapshot_history: snapshot_history.clone(),
-                        apply_transaction: apply_transaction.clone(),
-                        named_overrides,
-                    })
-                }
-                Some(Err(failure)) => PageData::failed(failure),
-                None => PageData::unavailable(missing("profile application")),
-            };
-        }
+        pages.profiles = page_builders::build_profiles_page(
+            self.profiles.as_ref(),
+            profile_result,
+            apply_transaction,
+            snapshot_history.clone(),
+        )
+        .await;
 
         if let Err(failure) = snapshot_views {
             pages.profiles.status = PageStatus::Failed { failure };
@@ -698,6 +578,16 @@ impl SurfaceReader for ProductSurfaceReader {
             pac,
         );
 
+        let navigation_capability = navigation_capability_readback(
+            self.surface,
+            "overview",
+            hydrated_settings
+                .as_ref()
+                .and_then(|settings| settings.as_ref().ok()),
+            pages.profiles.data.as_ref(),
+            outbound_inventory.data.as_ref(),
+        );
+
         let mut snapshot = surface_snapshot::SurfaceSnapshot {
             profile_editor,
             runtime_control,
@@ -760,6 +650,7 @@ impl SurfaceReader for ProductSurfaceReader {
             pages,
             protocol_studio,
             versions,
+            navigation_capability,
             controller_auth,
             service_mode,
             port_conflicts,
@@ -826,6 +717,8 @@ impl SurfaceReader for ProductSurfaceReader {
         Ok(snapshot)
     }
 }
+
+mod navigation_capability;
 
 #[cfg(test)]
 #[path = "surface_reader_test_support.rs"]

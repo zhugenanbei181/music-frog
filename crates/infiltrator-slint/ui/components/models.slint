@@ -130,6 +130,16 @@ export struct NavigationSlot {
     icon: string,
 }
 
+// One compact dock destination. The projection publishes the typed registry,
+// including this surface's compact route vocabulary, so the bar owns no second
+// destination list, label, icon path or active-page comparison.
+export struct DockSlot {
+    route: string,
+    destination: string,
+    label: string,
+    icon: string,
+}
+
 // The chrome geometry one captured frame paints, as the contract types it
 // The chrome one captured frame paints, as the contract types it
 // (`infiltrator_contract::shell_receipt::ShellChromeFacts`). The preference

@@ -423,6 +423,7 @@ impl CommandApplication {
                 | "theme"
                 | "notifications_enabled"
                 | "close_to_tray"
+                | "open_logs"
                 | "refresh_current_profile_on_start"
                 | "refresh_profile_on_start"
                 | "custom_accent_color"
@@ -437,6 +438,7 @@ impl CommandApplication {
         let parsed_bool = match key {
             "notifications_enabled"
             | "close_to_tray"
+            | "open_logs"
             | "refresh_current_profile_on_start"
             | "refresh_profile_on_start" => Some(value.parse::<bool>().map_err(|_| {
                 Failure::new(
@@ -502,6 +504,7 @@ impl CommandApplication {
                     settings.notifications_enabled = parsed_bool.unwrap_or(false)
                 }
                 "close_to_tray" => settings.close_to_tray = parsed_bool.unwrap_or(false),
+                "open_logs" => settings.open_logs = parsed_bool.unwrap_or(false),
                 "refresh_current_profile_on_start" | "refresh_profile_on_start" => {
                     settings.refresh_current_profile_on_start = parsed_bool.unwrap_or(false);
                 }

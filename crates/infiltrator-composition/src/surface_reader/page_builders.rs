@@ -16,16 +16,19 @@ use infiltrator_application::dns_workbench_application::{
 };
 use infiltrator_application::runtime_configuration_application::RuntimeConfigurationReadout;
 use infiltrator_application::stun_probe_application::StunProbeApplication;
+use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
 use infiltrator_contract::dns::DnsEnhancedMode;
 use infiltrator_contract::pac::PacSnapshot;
 use infiltrator_contract::port_conflict::PortConflictSnapshot;
 use infiltrator_contract::runtime_control::RuntimeControlSnapshot;
+use infiltrator_contract::snapshot_history::SnapshotHistorySnapshot;
 use infiltrator_contract::sync::SyncStatus;
 use infiltrator_contract::sync_snapshot::{SnapshotItemSnapshot, SyncPageSnapshot};
 use infiltrator_contract::system_proxy::SystemProxySnapshot;
 use infiltrator_contract::tray_status::TrayIconColorMode;
 use infiltrator_contract::uwp::UwpLoopbackSnapshot;
 use infiltrator_domain::app_routing::AppRoutingConfig;
+use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_ports::connection::ConnectionObservationSnapshot;
 use infiltrator_ports::runtime_configuration::ObservedValue;
@@ -240,4 +243,144 @@ pub(super) fn build_settings_page(
         sidebar_expansion: settings.sidebar_expansion,
         connection_view: settings.connection_view.clone(),
     })
+}
+
+/// The profiles page, assembled from the profile application's own answers.
+///
+/// The reader gathers the facts; this builder owns the page's shape, so the
+/// reader does not carry a second copy of the profile page's rules.
+#[allow(clippy::too_many_arguments)]
+pub(super) async fn build_profiles_page(
+    profiles_app: Option<&ProfileApplication>,
+    profile_result: Option<Result<Vec<ProfileInfo>, Failure>>,
+    apply_transaction: Option<ApplyTransactionSnapshot>,
+    snapshot_history: Option<SnapshotHistorySnapshot>,
+) -> PageData<surface_snapshot::ProfilesPageSnapshot> {
+    if profiles_app.is_some() {
+        // DUAL-08-13: the template library sidecar. A store without one
+        // answers with a typed unsupported, published as `available =
+        // false` rather than as a fake empty library.
+        let (aggregation_templates, aggregation_templates_available) = match profiles_app {
+            Some(profiles) => match profiles.load_aggregation_templates().await {
+                Ok(templates) => (templates, true),
+                Err(_) => (Vec::new(), false),
+            },
+            None => (Vec::new(), false),
+        };
+        let named_overrides = match profiles_app {
+            Some(profiles) => profiles
+                .load_named_override_catalog()
+                .await
+                .unwrap_or_default(),
+            None => NamedOverrideCatalog::default(),
+        };
+        match profile_result {
+            Some(Ok(items)) if items.is_empty() => {
+                PageData::empty(surface_snapshot::ProfilesPageSnapshot {
+                    profiles: Vec::new(),
+                    auto_update_interval_hours: 0,
+                    updating: false,
+                    aggregation: last_aggregation_report(),
+                    aggregation_templates,
+                    aggregation_templates_available,
+                    snapshot_history: snapshot_history.clone(),
+                    apply_transaction: apply_transaction.clone(),
+                    named_overrides,
+                })
+            }
+            Some(Ok(items)) => {
+                let mut snapshots = Vec::with_capacity(items.len());
+                // DUAL-07-14: the page-level interval is the shortest fixed
+                // interval actually scheduled; cron-only profiles are not
+                // counted, so the header can stay honest.
+                let auto_update_interval_hours = items
+                    .iter()
+                    .filter(|item| item.auto_update_enabled)
+                    .filter_map(|item| item.update_interval_hours)
+                    .min()
+                    .unwrap_or(0);
+                for item in items {
+                    // DUAL-07-08: surface the stored node-keyword filter so
+                    // both surfaces can prefill the editor.
+                    let (filter, filter_source) = match profiles_app {
+                        Some(profiles) => match ProfileId::new(item.name.clone()) {
+                            Ok(profile_id) => match profiles.load_workspace(&profile_id).await {
+                                Ok(workspace) => match profiles.inspect_profile_options(
+                                    &workspace.document.identity,
+                                    workspace.sidecar_bytes.as_deref(),
+                                ) {
+                                    Ok(options) => (options.filter, Ok(workspace.identity())),
+                                    Err(error) => (Default::default(), Err(error)),
+                                },
+                                Err(failure) => (Default::default(), Err(failure)),
+                            },
+                            Err(error) => (
+                                Default::default(),
+                                Err(Failure::new(
+                                    ErrorCode::InvalidInput,
+                                    error.to_string(),
+                                    false,
+                                )),
+                            ),
+                        },
+                        None => (
+                            Default::default(),
+                            Err(Failure::unsupported(
+                                "profile workspace reader is unavailable",
+                            )),
+                        ),
+                    };
+                    // DUAL-09-12: the same classification the write guard
+                    // enforces, derived from the real subscription source.
+                    let write_protection = ProfileWriteProtection::from_subscription_url(
+                        item.subscription_url.as_deref().unwrap_or_default(),
+                    );
+                    snapshots.push(surface_snapshot::ProfileSnapshot {
+                        id: item.name.clone(),
+                        name: item.name,
+                        url: item.subscription_url.unwrap_or_default(),
+                        updated_at: item
+                            .last_updated
+                            .map(|value| value.to_rfc3339())
+                            .unwrap_or_default(),
+                        upload_bytes: item.traffic_upload,
+                        download_bytes: item.traffic_download,
+                        total_bytes: item.traffic_total,
+                        is_active: item.active,
+                        user_agent: item.user_agent.unwrap_or_default(),
+                        insecure_skip_verify: item.insecure_skip_verify,
+                        etag: item.etag,
+                        last_modified: item.last_modified,
+                        has_backup: item.has_backup,
+                        cron_expression: item.cron_expression,
+                        auto_update_enabled: item.auto_update_enabled,
+                        update_interval_hours: item.update_interval_hours,
+                        next_update: item.next_update.map(|value| value.to_rfc3339()),
+                        auto_reload_core: item.auto_reload_core,
+                        filter,
+                        filter_source,
+                        write_protection,
+                    });
+                }
+                PageData::ready(surface_snapshot::ProfilesPageSnapshot {
+                    profiles: snapshots,
+                    auto_update_interval_hours,
+                    updating: false,
+                    aggregation: last_aggregation_report(),
+                    aggregation_templates,
+                    aggregation_templates_available,
+                    // DUAL-09-06/11/14: the shared history, the host apply
+                    // transaction and loaded editor document are separate observations.
+                    // History comes from this product instance and active profile.
+                    snapshot_history: snapshot_history.clone(),
+                    apply_transaction: apply_transaction.clone(),
+                    named_overrides,
+                })
+            }
+            Some(Err(failure)) => PageData::failed(failure),
+            None => PageData::unavailable(missing("profile application")),
+        }
+    } else {
+        PageData::unavailable(missing("profile application"))
+    }
 }

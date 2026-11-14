@@ -255,6 +255,8 @@ gate python3 scripts/quality/parity-coverage-guard.py --self-test
 gate python3 scripts/quality/parity-coverage-guard.py --mode enforce
 gate python3 scripts/quality/flclash-core-parity-guard.py --self-test
 gate python3 scripts/quality/flclash-core-parity-guard.py --mode enforce
+gate python3 scripts/quality/navigation-capability-owner-guard.py --mode enforce
+gate python3 scripts/quality/navigation-capability-owner-guard.py --self-test
 gate python3 scripts/quality/flclash-dashboard-widget-guard.py --self-test
 gate python3 scripts/quality/flclash-dashboard-widget-guard.py --mode enforce
 gate python3 scripts/quality/flclash-sidebar-expansion-guard.py --self-test

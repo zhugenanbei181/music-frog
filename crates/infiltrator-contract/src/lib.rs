@@ -87,6 +87,7 @@ pub mod motion_spec;
 pub mod mrs_acceleration;
 pub mod mtu;
 pub mod named_override;
+pub mod navigation_capability;
 pub mod network_roaming;
 pub mod offline_startup;
 pub mod overview_layout;

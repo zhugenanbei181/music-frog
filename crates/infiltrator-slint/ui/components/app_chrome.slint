@@ -4,7 +4,8 @@ import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { LumenTheme } from "./theme.slint";
 import { NavButton, NavButtonMetrics, PillButton } from "./base_widgets.slint";
 import { ViewportTier } from "./viewport_tier.slint";
-import { PageTitles } from "./page_titles.slint";
+import { DockSlot } from "./models.slint";
+import { NavigationIcons } from "./navigation_icons.slint";
 import { MobileDockBandState, MobileDockBandProjection } from "./mobile_dock_state.slint";
 
 // The reserved band's page ground. This is the window's own bottom background,
@@ -27,6 +28,8 @@ export component MobileDockPageGround inherits Rectangle {
 export component AppBottomBar inherits Rectangle {
     in property <MobileDockBandState> mobile-dock-band-state;
     in property <string> page;
+    in property <[DockSlot]> dock-items;
+    in property <string> active-destination;
     in property <length> window-width;
     in property <length> window-height;
     in property <length> safe-left;
@@ -50,10 +53,10 @@ export component AppBottomBar inherits Rectangle {
     // into a stretched pill on a tablet-width window.
     private property <length> dock-width: min(LumenTheme.bottom-bar-max-width, max(0 * LumenUiScale.unit, root.window-width - root.safe-left - root.safe-right - 2 * LumenTheme.page-padding));
     private property <length> dock-x: root.safe-left + (root.window-width - root.safe-left - root.safe-right - self.dock-width) / 2;
-    // The four equal tabs share the dock's content box. Keeping the geometry
-    // here lets the tab centers and the active pill derive from one width,
-    // without changing the band, top air or bottom inset.
-    private property <length> tab-width: (self.dock-width - 2 * LumenTheme.bottom-bar-padding) / 4;
+    // Equal tabs share the dock's content box. Their count comes from the
+    // typed registry, not from a second four-item literal in the bar.
+    private property <length> tab-width:
+        (self.dock-width - 2 * LumenTheme.bottom-bar-padding) / root.dock-items.length;
 
     dock := Rectangle {
         x: root.dock-x;
@@ -88,49 +91,16 @@ export component AppBottomBar inherits Rectangle {
             cross-axis-alignment: center;
             padding-left: LumenTheme.bottom-bar-padding;
             padding-right: LumenTheme.bottom-bar-padding;
-            NavButton {
+            for item in root.dock-items: NavButton {
                 width: root.tab-width;
                 horizontal-stretch: 0;
-                label: PageTitles.phone-title("Home");
-                target: "Home";
-                active: root.page == "Home";
+                label: item.label;
+                target: item.route;
+                active: item.destination == root.active-destination;
                 compact: true;
-                icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/layout-grid.svg");
-                active-icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/layout-grid.svg");
-                clicked => { root.select-page("Home"); }
-            }
-            NavButton {
-                width: root.tab-width;
-                horizontal-stretch: 0;
-                label: PageTitles.phone-title("Proxy");
-                target: "Proxy";
-                active: root.page == "Proxy";
-                compact: true;
-                icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/globe.svg");
-                active-icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/globe.svg");
-                clicked => { root.select-page("Proxy"); }
-            }
-            NavButton {
-                width: root.tab-width;
-                horizontal-stretch: 0;
-                label: PageTitles.phone-title("Config");
-                target: "Config";
-                active: root.page == "Config";
-                compact: true;
-                icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/file-text.svg");
-                active-icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/file-text.svg");
-                clicked => { root.select-page("Config"); }
-            }
-            NavButton {
-                width: root.tab-width;
-                horizontal-stretch: 0;
-                label: PageTitles.phone-title("Settings");
-                target: "Settings";
-                active: root.page != "Home" && root.page != "Proxy" && root.page != "Config";
-                compact: true;
-                icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/settings.svg");
-                active-icon: @image-url("../../../infiltrator-shared/assets/ui/iced/svg/settings.svg");
-                clicked => { root.select-page("Settings"); }
+                icon: NavigationIcons.icon(item.icon);
+                active-icon: NavigationIcons.icon(item.icon);
+                clicked => { root.select-page(item.route); }
             }
         }
     }

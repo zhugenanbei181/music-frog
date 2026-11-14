@@ -15,7 +15,7 @@ import { MobileDockBandState, MobileDockBandProjection } from "components/mobile
 export { MobileDockBandState, MobileDockBandProjection }
 
 import { LumenUiScale } from "lumen-ui-scale.slint";
-import { ProfileCard, OverrideCard, ProfileOverrideChoice, ObservationRow, ConnectionRow, ProxyGroup, TrafficBar, HomeTrafficPoint, LicenseRow, WorkbenchItem, OverviewCardSlot, NavigationSlot, DashboardFacts, DashboardFactsDefaults, ReceiptChrome } from "components/models.slint";
+import { ProfileCard, OverrideCard, ProfileOverrideChoice, ObservationRow, ConnectionRow, ProxyGroup, TrafficBar, HomeTrafficPoint, LicenseRow, WorkbenchItem, OverviewCardSlot, NavigationSlot, DockSlot, DashboardFacts, DashboardFactsDefaults, ReceiptChrome } from "components/models.slint";
 import { ProfileOverlays } from "components/profile_overlays.slint";
 import { OverviewOrderOverlay } from "components/overview_order.slint";
 import { SettingsOverlays } from "components/settings_overlays.slint";
@@ -153,7 +153,7 @@ export component AppWindow inherits MaterialWindow {
         // popup owns the open/close lifecycle and this property only reads it.
         out property <bool> clear-traffic-dialog-open: clear-traffic-dialog.is-open; in-out property <[ObservationRow]> traffic-samples: []; in-out property <[ObservationRow]> rules: [];
         in-out property <[ObservationRow]> providers: []; in-out property <[ObservationRow]> logs: []; in-out property <[ObservationRow]> connections: []; in-out property <[ConnectionRow]> home-connection-table: [];
-        in-out property <[ProxyGroup]> proxy-groups: []; in-out property <[ObservationRow]> proxy-nodes: []; in-out property <[NavigationSlot]> navigation-items: []; in-out property <string> active-destination: "";
+        in-out property <[ProxyGroup]> proxy-groups: []; in-out property <[ObservationRow]> proxy-nodes: []; in-out property <[NavigationSlot]> navigation-items: []; in-out property <[DockSlot]> dock-items: []; in-out property <string> active-destination: "";
         in-out property <bool> proxy-recovery-pending: false; in-out property <string> proxy-sort-mode: "name_asc"; in-out property <string> proxy-testing-group: ""; in-out property <string> proxy-testing-node: "";
         in-out property <string> selected-group: ""; in-out property <length> proxy-active-node-position: 0 * LumenUiScale.unit; in-out property <bool> proxy-current-node-available: false;
         in-out property <[ProfileCard]> profiles: []; in-out property <string> profile-action-id: ""; in-out property <string> profile-action-name: ""; in-out property <bool> profile-action-open: false;
@@ -430,6 +430,7 @@ export component AppWindow inherits MaterialWindow {
 
         if MobileDockBandProjection.draws_dock(root.mobile-dock-band-state): AppBottomBar {
         mobile-dock-band-state: root.mobile-dock-band-state; page: root.page; window-width: root.width; window-height: root.height;
+        dock-items: root.dock-items; active-destination: root.active-destination;
         safe-left: root.safe-area-insets.left; safe-right: root.safe-area-insets.right; safe-bottom: root.safe-area-insets.bottom; layout-debug-bounds: root.layout-debug-bounds;
         select-page(p) => {
             root.selected-group = "";

@@ -3,6 +3,18 @@
   "note": "Every implicit-state candidate needs a human verdict. 'legitimate' means the fields are independent facts; 'fixed' means the type now carries one typed stage; 'open' means a confirmed violation that still has to be rewritten.",
   "candidates": [
     {
+      "key": "crates/infiltrator-contract/src/navigation_capability.rs::NavigationFeatureState::multi-bool",
+      "file": "crates/infiltrator-contract/src/navigation_capability.rs",
+      "type": "NavigationFeatureState",
+      "kind": "multi-bool",
+      "fields": [
+        "open_logs",
+        "has_proxies"
+      ],
+      "verdict": "legitimate",
+      "reason": "`open_logs` is a persisted user preference and `has_proxies` is an observed inventory fact; neither is a phase. They are two independent binary facts that the typed capability resolver consumes, and no combination selects a lifecycle transition."
+    },
+    {
       "key": "crates/infiltrator-admin/src/scheduler/job_scheduler.rs::JobState::option-as-stage",
       "file": "crates/infiltrator-admin/src/scheduler/job_scheduler.rs",
       "type": "JobState",

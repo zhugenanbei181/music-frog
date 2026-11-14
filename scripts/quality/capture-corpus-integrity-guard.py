@@ -180,8 +180,24 @@ def corpus_findings(surface: Surface, root: pathlib.Path,
             problems.append(f"{surface.name}: {name}.png is {actual}, "
                             f"index requested {expected}")
 
+    matrix_names = set(read_matrix_names(surface, root))
+
     # Every canonical matrix scenario needs a receipt in the published index.
-    missing = sorted(set(read_matrix_names(surface, root)) - set(indexed))
+    missing = sorted(matrix_names - set(indexed))
+
+    # A published scenario may not leave the canonical matrix silently. The
+    # matrix is the source of truth for what a batch owes, so deleting a row
+    # from it would make the deletion invisible: the receipt would still be on
+    # disk and still indexed, and the "missing receipt" direction would only
+    # get shorter. The curated portrait rows of the Bevy matrix were deleted
+    # exactly that way once, by a generator run, and the corpus stayed green
+    # while eight published scenarios quietly stopped being owed.
+    retired = sorted(set(indexed) - matrix_names)
+    for name in retired:
+        problems.append(
+            f"{surface.name}: published scenario {name} is no longer in the canonical "
+            f"matrix; a published scenario may not leave the matrix without a real "
+            f"full batch and an explicit retirement record")
 
     # Ratcheted: an index that under-describes its own corpus can only be fixed
     # by a real full batch, so the two counts may shrink and never grow.
@@ -462,6 +478,23 @@ class Harness(unittest.TestCase):
         self.index([("alpha", "1180x780", alpha.stat().st_size, self.digest(alpha))])
         problems = corpus_findings(self.surface, self.root, {})
         self.assertTrue(any("matrix scenario beta has no published receipt" in problem
+                            for problem in problems), problems)
+
+    def test_a_published_scenario_that_leaves_the_matrix_is_rejected(self) -> None:
+        """The matrix may not shrink a published scenario away silently.
+
+        The matrix is the source of truth for what a batch owes, so a deleted
+        row used to make the deletion invisible: the receipt stayed on disk
+        and stayed indexed, and the "missing receipt" direction only got
+        shorter. Eight curated Bevy portrait rows were deleted exactly that
+        way by a generator run while the corpus stayed green.
+        """
+        alpha = self.pixel("alpha")
+        self.index([("alpha", "1180x780", alpha.stat().st_size, self.digest(alpha))])
+        (self.root / "matrix.tsv").write_text(
+            "name\tpage\nbeta\tlogs\n", encoding="utf-8")
+        problems = corpus_findings(self.surface, self.root, {})
+        self.assertTrue(any("no longer in the canonical" in problem
                             for problem in problems), problems)
 
     def test_a_reader_that_re_types_the_matrix_size_is_rejected(self) -> None:

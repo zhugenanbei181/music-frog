@@ -7,6 +7,7 @@
 
 pub(super) mod collections;
 pub(super) mod dashboard;
+pub(super) mod dock;
 pub(super) mod lan;
 pub(super) mod token_ink;
 pub(super) mod workbench;
@@ -74,6 +75,7 @@ pub(super) fn project_initial(
     window.set_title_bar_upload("0 B/s".into());
     window.set_title_bar_download("0 B/s".into());
     project_navigation(window, &lang, surface);
+    dock::project_dock(window, &lang);
 }
 
 /// Publish the desktop sidebar destinations from the shared typed registry.
@@ -208,6 +210,7 @@ pub(super) fn project_snapshot(
     let language = snapshot_language(snapshot);
     let lang = Lang(&language);
     project_navigation(window, &lang, snapshot.surface);
+    dock::project_dock(window, &lang);
     // The theme fact is projected first: `theme-mode` and
     // `application-dark-mode` are the two window facts every theme-dependent
     // binding in the tree reads, including the rail's surface tier. Getting

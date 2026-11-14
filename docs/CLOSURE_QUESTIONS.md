@@ -24,7 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-14 第二百五十六批次：孤儿会话的 1.100.0 工具链 bump 按单真源收口；b111–b255 见下方批次八问摘要）
+## 当前状态（2026-11-14 第二百五十七批次：模块化落地（Slint 底栏组件化 + Core 导航能力真源）+ 补上「采集矩阵可静默删行」的门禁洞；b111–b256 见下方批次八问摘要）
+
+| # | 结论 | 等级 | 缺口 / owner |
+| --- | --- | --- | --- |
+| 1 | 部分 | L | 本批改契约/组合/Slint 三个层的 Rust、两个 owner 守卫、1 条语料守卫与批次文档，零平台 API；定向六包 nextest **2622/2622**、六包 clippy `--all-targets -D warnings` RC=0、`line-guard` 3008/**0**、`import-guard` 3008/**0** 为 `L`。aarch64 交叉目标产物未复跑（GAP-1.1） |
+| 2 | 部分 | L | Linux 本机完成三包到六包的定向验收；本批零 workflow 改动，CI 工具链仍是上一批钉的 1.100.0。Windows/macOS 构建腿未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
+| 3 | 部分 | L | 零 Android/iOS 代码、资源或脚本改动；`AppSettings.open_logs` 落在共享 domain 设置上，Android 侧未消费该偏好（本批不冒充移动端能力） |
+| 4 | 部分 | L | **本批零重采像素**：Slint 底栏只改「行集从哪来」，不改任何布局、字体、图标或几何，发布回执沿用；b255 的 Iced 表头变化同样沿用旧回执。Bevy 侧只改 `SurfacePages` 的路径（纯搬运），三 flavor 实机与双视口新像素未推进 → 部分（L） |
+| 5 | 完整 | L | 底栏行集、路由词表、紧凑文案、活动页判据全部来自 `NavigationSurface::Dock` typed 注册表；`.slint` 里四个硬写页签、@image-url 字面量与页名比较链全部删除。导航可达性由契约 `navigation_capability` 一处发布（typed modes + 两个独立能力事实 + 活动页回退），composition 只派生并发布 `Ready`，`AppSettings.open_logs` 是唯一持久化 owner |
+| 6 | 部分 | L | 新增 Core 能力一处（导航可达性真源）+ Slint 底栏消费该注册表；新增门禁判据一条（已发布场景不得离开规范矩阵）。Bevy/Slint 的能力消费面、iOS/Android 证据未推进 → 部分（L） |
+| 7 | 完整 | L | 组件化落到文件级：Slint dock 投影独立模块、契约 `SurfacePages` 独立模块（`surface_snapshot::pages::SurfacePages` 唯一路径，import 守卫禁 re-export）、profiles 页装配归 `page_builders`；三个越线文件被拆回 800 行以内。第一次拆分把 `if` 块写成语句导致页面永远 `unavailable`，由既有回归测试当场抓住并修回——未为过门加布尔或 UI 私有推导 |
+| 8 | 部分 | L | 语料守卫自测 **10 → 11/11**（新增「已发布场景不得离开规范矩阵」一条 planted 负例），三份已发布语料 findings=0；两条 owner 守卫随代码搬家但判据不变（6/6、4/4 + enforce 0）；结构门静态 218 腿 0。`--workspace` nextest、结构门动态全腿与 `resolve_surface_evidence.py` ready cells 留统一批次 |
+
+## 最近一批问答（2026-11-14 第二百五十七批次：底栏组件化 + 导航能力真源）
+
+1. x86_64/aarch64：契约/组合/Slint 三层 Rust + 两个 owner 守卫 + 一条语料守卫；定向六包 nextest **2622/2622 PASS / 5 skipped**、六包 clippy `--all-targets -D warnings` **RC=0**、`line-guard` 3008/0、`import-guard` 3008/0、`typed-state` 0、`implicit-state` 24 candidates/0 undecided/0 open 为 `L`。aarch64 交叉目标产物未复跑（GAP-1.1）→ 部分（L）。
+2. Windows/Linux/macOS：Linux 本机完成六包定向验收与两包 clippy；本批零 workflow 改动，CI 仍用上一批钉的 1.100.0。Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）→ 部分（L）。
+3. Android/iOS：零 Android/iOS 代码、资源或脚本改动；`open_logs` 落在共享 domain 设置，Android 侧本批不消费，如实不冒充移动端能力 → 部分（L）。
+4. 各 UI：**本批零可见像素变化、零重采**——底栏只换「行集来源」，几何不动，Slint 211 / Iced 194 发布回执沿用；Bevy 侧 `SurfacePages` 路径变更是纯搬运。三 flavor 实机与双视口新像素未推进 → 部分（L）。
+5. 复用：底栏行集、路由词表、紧凑文案、活动判据全部来自 typed `NavigationSurface::Dock` 注册表，`.slint` 里的四份硬写字面量与页名比较链已删；导航可达性由契约 `navigation_capability` 一处发布，`AppSettings.open_logs` 是唯一持久化 owner，composition 只派生不重算 → 完整（L）。
+6. 各处界面的功能接入：新增 Core 能力一处（导航可达性真源）与 Slint 底栏消费；新增门禁判据一条：已发布场景不得离开规范矩阵（orphan 的生成器误跑删掉 8 条 curated 竖屏行，正是这条洞让删除不可见）。Bevy 能力消费面与真机证据未推进 → 部分（L）。
+7. 模块化：三处组件化落到文件级（Slint dock 模块、契约 `SurfaceSnapshot` 的 `pages` 模块、composition 的 `page_builders`），三个越 800 行硬上限的文件被拆回线内；两条 owner 守卫的判据不变、只跟随代码搬家；第一次拆分把 `if` 块写成语句导致页面永远 `unavailable`，被既有回归测试当场抓住并修回 → 完整（L）。
+8. CI 与批次效率：语料守卫自测 **11/11**（含新增 planted 负例）+ 三语料 findings=0；`structure-gate-guard` 218 腿 0、`ci-trigger` 0、`doc-governance OK`、`closure` 8/8、`todo-status-freshness` 0、`capture-corpus-integrity` 0。`--workspace` nextest、动态全腿与 ready cells 留统一批次 → 部分（L）。
+
+## 历史状态（2026-11-14 第二百五十六批次；b111–b255 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
@@ -37,7 +61,7 @@
 | 7 | 完整 | L | 工具链事实一条链：pin → `toolchain-consistency-guard` → workflow / manifest / Android checker / 证据文案；`Cargo.lock` 只随 workspace 依赖变更做一次 `[[patch.unused]]` 清理，未把身份改动拆成半批。未在 UI 层加开关或私有版本推导 |
 | 8 | 部分 | L | 一次 `cargo clean` 后集中跑全仓 check/clippy（不分批重编），`rustdoc-guard --mode docs`、`toolchain-consistency`、`android-toolchain`、`document/structure/import` 守卫均 0；结构门静态 218 腿 findings=0（含待整合的 2 条 navigation-capability 腿）。定向五包 nextest **2231/2231 PASS / 5 skipped**；`--workspace` nextest、结构门动态全腿与像素重采留统一批次 |
 
-## 最近一批问答（2026-11-14 第二百五十六批次：一个仓库只钉一个编译器）
+## 历史问答（2026-11-14 第二百五十六批次：一个仓库只钉一个编译器）
 
 1. x86_64/aarch64：`rust-toolchain.toml` 与 `Cargo.toml rust-version` 统一为 1.100.0，8 个 workflow 全部换钉；`toolchain-consistency-guard`、Android 工具链检查、7 个 neutral crate `cargo doc --all-features --no-deps -D warnings`、全仓 `cargo check/clippy --all-targets -- -D warnings` 均 **RC=0** 为 `L`。aarch64 交叉目标产物未复跑（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：Linux 本机在 1.100.0 下完成 docs 与全仓构建腿；workflow 同步换钉，消除「CI 1.99.1 / 本机 1.100.0」的同仓两编译器分裂。Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）→ 部分（L）。
