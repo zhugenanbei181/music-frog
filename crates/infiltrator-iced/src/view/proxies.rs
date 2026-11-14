@@ -9,8 +9,8 @@ use crate::state::outbound_inventory::{
 use crate::state::proxy_probe::OutboundProbeBatchState;
 use crate::types::message::Message;
 use crate::view::components::{
-    BadgeKind, badge, card_surface, chip, empty_state, icon_button, modern_scrollable,
-    section_header,
+    BadgeKind, badge, card_surface, chip, empty_state, icon_button, icon_button_maybe,
+    modern_scrollable, section_header,
 };
 use crate::view::proxy_history_card::proxy_history_card;
 use crate::view::proxy_latency::latency_badge;
@@ -200,18 +200,12 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 .padding(6)
                 .into()
             } else {
-                icon_button(
+                icon_button_maybe(
                     Icon::Target,
                     15.0,
-                    group_info
-                        .id
-                        .clone()
-                        .and_then(|id| {
-                            state.outbound_probe_batch_message(OutboundProbeBatchScope::Collection(
-                                id,
-                            ))
-                        })
-                        .unwrap_or(Message::Noop),
+                    group_info.id.clone().and_then(|id| {
+                        state.outbound_probe_batch_message(OutboundProbeBatchScope::Collection(id))
+                    }),
                 )
             };
 
@@ -234,33 +228,24 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             .spacing(2),
             Space::new().width(Length::Fill),
             badge(total_count.to_string(), BadgeKind::Neutral),
-            icon_button(
+            icon_button_maybe(
                 Icon::ArrowUp,
                 12.0,
-                group_info
-                    .id
-                    .clone()
-                    .map(Message::MoveProxyGroupUp)
-                    .unwrap_or(Message::Noop),
+                group_info.id.clone().map(Message::MoveProxyGroupUp),
             ),
-            icon_button(
+            icon_button_maybe(
                 Icon::ArrowDown,
                 12.0,
-                group_info
-                    .id
-                    .clone()
-                    .map(Message::MoveProxyGroupDown)
-                    .unwrap_or(Message::Noop),
+                group_info.id.clone().map(Message::MoveProxyGroupDown),
             ),
             test_group_btn,
-            icon_button(
+            icon_button_maybe(
                 chevron_icon,
                 15.0,
                 group_info
                     .id
                     .clone()
-                    .map(Message::ToggleOutboundGroupExpanded)
-                    .unwrap_or(Message::Noop),
+                    .map(Message::ToggleOutboundGroupExpanded),
             ),
         ]
         .spacing(theme::SP_MD)

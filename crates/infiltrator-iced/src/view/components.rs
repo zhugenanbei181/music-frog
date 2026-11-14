@@ -560,26 +560,39 @@ pub fn icon_button<'a, Message: 'a + Clone>(
     size: f32,
     on_press: Message,
 ) -> Element<'a, Message> {
+    icon_button_maybe(icon, size, Some(on_press))
+}
+
+/// The same ghost icon button, but it may carry no action at all.
+///
+/// A control the owner has not authorized is drawn disabled instead of
+/// swallowing the click: a button that always accepts the press and then
+/// does nothing tells the user nothing about why the action is unavailable.
+pub fn icon_button_maybe<'a, Message: 'a + Clone>(
+    icon: Icon,
+    size: f32,
+    on_press: Option<Message>,
+) -> Element<'a, Message> {
     let glyph = svg_icons::icon_themed(icon, size, |t: &Theme| theme::tokens(t).text_secondary);
-    button(glyph)
-        .padding(6)
-        .style(|t: &Theme, status| {
-            let tk = theme::tokens(t);
-            button::Style {
-                background: match status {
-                    button::Status::Hovered => Some(tk.hover.into()),
-                    button::Status::Pressed => Some(tk.pressed.into()),
-                    _ => None,
-                },
-                border: Border {
-                    radius: border::Radius::from(theme::R_CONTROL),
-                    ..Default::default()
-                },
+    let control = button(glyph).padding(6).style(|t: &Theme, status| {
+        let tk = theme::tokens(t);
+        button::Style {
+            background: match status {
+                button::Status::Hovered => Some(tk.hover.into()),
+                button::Status::Pressed => Some(tk.pressed.into()),
+                _ => None,
+            },
+            border: Border {
+                radius: border::Radius::from(theme::R_CONTROL),
                 ..Default::default()
-            }
-        })
-        .on_press(on_press)
-        .into()
+            },
+            ..Default::default()
+        }
+    });
+    match on_press {
+        Some(message) => control.on_press(message).into(),
+        None => control.on_press_maybe(None::<Message>).into(),
+    }
 }
 
 /// The switch geometry.

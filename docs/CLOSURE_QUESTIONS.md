@@ -24,7 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-14 第二百六十二批次：Slint 211 帧整批重采——网格缝按契约 8/12/16 落地、侧栏按统一页名换词，判定器逐帧 0 违规；`FLPARITY-051` 转 `Integrated`；本批只换语料与回执期望，零业务代码；b111–b261 见下方批次八问摘要）
+## 当前状态（2026-11-14 第二百六十三批次：Iced 七个「已启用却点不动」的控件收口——静默 no-op 全部退役，欠账库存 7 → 0；owner 其实早已发布全部事实，故不新造契约词汇；本批改 Iced 表面，零像素重采；b111–b262 见下方批次八问摘要）
+
+| # | 结论 | 等级 | 缺口 / owner |
+| --- | --- | --- | --- |
+| 1 | 部分 | L | 本批改 Iced 表面 5 个文件 + 1 个测试文件 + 共享目录 2 条文案 + 欠账库存 1 个 JSON，零契约/零 Core/零平台 API；`cargo nextest -p infiltrator-iced` **574/574 PASS**（新增 3 条 typed 可用性用例）、`cargo clippy -p infiltrator-iced --all-targets -D warnings` **RC=0**、`iced-dead-input-guard` findings=0 registered=0、`i18n-guard` total 0 为 `L`。aarch64 交叉目标产物未复跑（GAP-1.1） |
+| 2 | 部分 | L | Linux 本机完成定向 nextest 与守卫核对；本批零 workflow、零构建面改动。Windows/macOS 构建腿未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
+| 3 | 部分 | L | 零 Android/iOS 代码、资源或脚本改动；本批只收 Iced 表面的控件可用性，Android 同类控件未查 |
+| 4 | 部分 | L | **本批零像素重采**：改的是控件行为（不再静默空转）与两处 picker 在作用域未观察时的**不可用文案**（此前「按下没反应」，现在说清楚）；Iced 语料本就因 b261 页名换词待重采（`FLPARITY-052`），本批不夹带重采 → 部分（L） |
+| 5 | 完整 | L | 重复实现清零：b259 计划新造的「typed 动作 + typed 不可用理由 + 读回」整套契约词汇**没有落地也不会落地**——owner 早已发布身份、可选择性与作用域三类事实，缺的是表面把「不可能为空」当成「可能为空」；表面改为消费 owner 的 typed 事实，`iced_dead_input_inventory` 的 7 条全部失效并收紧到 **0** |
+| 6 | 部分 | L | 七个控件从「可点空转」变为「无动作即禁用 / 明确不可用文案」；未新增业务能力（本批是可见性收口，不是功能新增）→ 部分（L） |
+| 7 | 完整 | L | 可用性由 owner 的 typed 事实（`SelectionAvailability`、已观察 `CoreScope`、库存身份）决定，表面只消费；新增 `icon_button_maybe` 与 `RuntimeOutboundSelectionAvailability` 两个 typed 表达，无布尔组合、无 UI 私有推导 → 完整（L） |
+| 8 | 部分 | L | 定向 nextest 只跑受影响包（`infiltrator-iced`），零像素重采、零全仓重编；`--workspace` nextest、结构门动态全腿与 `resolve_surface_evidence.py` ready cells 留统一批次 → 部分（L） |
+
+## 最近一批问答（2026-11-14 第二百六十三批次：控件不再静默空转）
+
+1. x86_64/aarch64：本批只改 Iced 表面、共享目录 2 条文案与 1 个欠账 JSON，零契约/零 Core/零平台 API；`cargo nextest -p infiltrator-iced` 574/574、`cargo clippy -p infiltrator-iced --all-targets -D warnings` RC=0、`iced-dead-input-guard` findings=0 registered=0、`i18n-guard` total 0 为 `L`。aarch64 交叉目标产物未复跑（GAP-1.1）→ 部分（L）。
+2. Windows/Linux/macOS：Linux 本机完成定向 nextest 与守卫核对，本批零 workflow、零构建面改动。Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）→ 部分（L）。
+3. Android/iOS：零 Android/iOS 代码、资源或脚本改动；Android 的同类控件未查 → 部分（L）。
+4. 各 UI：**本批零像素重采**——七个控件从可点空转变为无动作即禁用/明确不可用文案（可见文案变化在「作用域未观察」态）；Iced 语料本就待重采（`FLPARITY-052`）→ 部分（L）。
+5. 复用：owner 早已发布的身份/可选择性/作用域三类事实被直接消费，**b259 计划的那套新契约词汇没有落地**（未造第二份真源）；欠账库存 7 → 0，`iced-dead-input-guard` 继续充当「已启用控件不得回落 `Message::Noop`」的门禁 → 完整（L）。
+6. 各处界面的功能接入：七个控件的可见性收口完成；Slint / Bevy / Android 的同类控件未查（各表面控件词表不同）→ 部分（L）。
+7. 模块化：新增 `icon_button_maybe`（与 `vpn_card` / `tun_stack_card` 同形态）与状态层的 typed 可用性枚举；界面层不新增布尔、不自推导可用性 → 完整（L）。
+8. CI 与批次效率：定向 nextest 只跑受影响包，零像素重采、零全仓重编；`iced-dead-input-guard` 0/0、`i18n-guard` total 0、`todo-status-freshness` 0、`doc-governance OK`、`closure` 8/8。`--workspace` nextest、动态全腿与 ready cells 留统一批次 → 部分（L）。
+
+## 历史状态（2026-11-14 第二百六十二批次：Slint 211 帧整批重采——网格缝按契约 8/12/16 落地、侧栏按统一页名换词，判定器逐帧 0 违规；`FLPARITY-051` 转 `Integrated`；本批只换语料与回执期望，零业务代码；b111–b261 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
@@ -37,7 +61,7 @@
 | 7 | 完整 | L | 缝价与页名各有唯一 owner（契约导出 / 共享词表），界面与语料只消费；零布尔、零 UI 私有推导 → 完整（L） |
 | 8 | 部分 | L | 一次整批重采（556s）换 211 帧回执，未逐帧重复构建；判定与门禁一次跑完。`--workspace` nextest 与结构门动态全腿留统一批次 → 部分（L） |
 
-## 最近一批问答（2026-11-14 第二百六十二批次：把欠下的像素一次采完）
+## 历史问答（2026-11-14 第二百六十二批次：把欠下的像素一次采完）
 
 1. x86_64/aarch64：本批零业务代码改动，只换语料与回执期望；空间判定器 211 帧 `violations=0`、`receipt-freshness` 0、`capture-corpus-integrity` findings=0、`screenshot-identity` violations=0、`resolve_surface_evidence` status=pass 为 `L`。aarch64 交叉目标产物未复跑（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：Linux 本机完成整批重采与全部像素判定，本批零 workflow、零构建面改动。Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）→ 部分（L）。

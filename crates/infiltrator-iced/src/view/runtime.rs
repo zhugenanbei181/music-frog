@@ -19,7 +19,7 @@ pub(crate) mod logs_controls;
 pub(crate) mod traffic;
 pub(crate) mod traffic_legend;
 
-use crate::state::AppState;
+use crate::state::{AppState, RuntimeOutboundSelectionAvailability};
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
 use crate::view::component_card::card;
@@ -41,6 +41,29 @@ use lurker_core_contract::outbound::inventory::SelectionAvailability;
 struct RoutingIntentOption {
     intent: RoutingIntent,
     label: String,
+}
+
+/// One runtime outbound the picker may offer.
+///
+/// The option carries the typed request it would dispatch, so the pick list
+/// never invents a message at press time and never swallows a refusal the
+/// owner published.
+#[derive(Clone)]
+struct RuntimeOutboundOption {
+    name: String,
+    message: Message,
+}
+
+impl PartialEq for RuntimeOutboundOption {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+    }
+}
+
+impl Display for RuntimeOutboundOption {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.name)
+    }
 }
 
 impl Display for RoutingIntentOption {
@@ -114,20 +137,36 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     } else {
         Some(&state.runtime.runtime_selected_group)
     };
-    let runtime_proxy_options: Vec<String> = state
-        .runtime
-        .proxy_groups
-        .iter()
-        .find(|group| {
-            group.name == state.runtime.runtime_selected_group
-                && group.availability == SelectionAvailability::Selectable
-        })
-        .map(|group| group.proxies.iter().map(|node| node.name.clone()).collect())
-        .unwrap_or_default();
+    // The owner publishes whether the selection can be built at all. The
+    // picker only offers members whose typed request is ready; when the scope
+    // is unobserved or the collection refuses manual selection the control is
+    // drawn unavailable instead of swallowing the press.
+    let runtime_outbound_availability = state.runtime_outbound_selection_availability();
+    let runtime_proxy_options: Vec<RuntimeOutboundOption> = match &runtime_outbound_availability {
+        RuntimeOutboundSelectionAvailability::Available(selections) => selections
+            .iter()
+            .map(|selection| RuntimeOutboundOption {
+                name: selection.name.clone(),
+                message: Message::PrepareRuntimeOutboundSelection {
+                    scope: selection.scope.clone(),
+                    request: selection.request.clone(),
+                },
+            })
+            .collect(),
+        RuntimeOutboundSelectionAvailability::ScopeUnobserved
+        | RuntimeOutboundSelectionAvailability::SelectionNotSelectable => Vec::new(),
+    };
+    let runtime_outbound_selectable = matches!(
+        runtime_outbound_availability,
+        RuntimeOutboundSelectionAvailability::Available(_)
+    );
     let selected_runtime_proxy = if state.runtime.runtime_selected_proxy.trim().is_empty() {
         None
     } else {
-        Some(&state.runtime.runtime_selected_proxy)
+        runtime_proxy_options
+            .iter()
+            .find(|option| option.name == state.runtime.runtime_selected_proxy)
+            .cloned()
     };
 
     let runtime_action_btn: Element<'_, Message> =
@@ -209,6 +248,28 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         apply_proxy_enabled.then_some(Message::ApplyRuntimeSelectedProxy),
     );
 
+    let runtime_outbound_picker = |width: Length| -> Element<'_, Message> {
+        if runtime_outbound_selectable {
+            pick_list(
+                runtime_proxy_options.clone(),
+                selected_runtime_proxy.clone(),
+                |option: RuntimeOutboundOption| option.message.clone(),
+            )
+            .width(width)
+            .text_size(12)
+            .style(form_pick_style)
+            .into()
+        } else {
+            theme::role_body_text(
+                lang.tr("runtime_outbound_selection_unavailable")
+                    .to_string(),
+            )
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary),
+            })
+            .into()
+        }
+    };
     let selector_body: Element<'_, Message> = if state.shell.viewport.tier.is_compact() {
         column![
             column![
@@ -234,17 +295,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                     }
                 ),
                 Space::new().height(theme::SP_XS),
-                pick_list(runtime_proxy_options, selected_runtime_proxy, |outbound| {
-                    state
-                        .prepare_runtime_outbound_selection_message(
-                            &state.runtime.runtime_selected_group,
-                            &outbound,
-                        )
-                        .unwrap_or(Message::Noop)
-                },)
-                .width(Length::Fill)
-                .text_size(12)
-                .style(form_pick_style),
+                runtime_outbound_picker(Length::Fill),
             ],
             container(apply_proxy_btn).width(Length::Fill),
         ]
@@ -277,17 +328,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                     }
                 ),
                 Space::new().height(theme::SP_XS),
-                pick_list(runtime_proxy_options, selected_runtime_proxy, |outbound| {
-                    state
-                        .prepare_runtime_outbound_selection_message(
-                            &state.runtime.runtime_selected_group,
-                            &outbound,
-                        )
-                        .unwrap_or(Message::Noop)
-                },)
-                .width(Length::FillPortion(1))
-                .text_size(12)
-                .style(form_pick_style),
+                runtime_outbound_picker(Length::FillPortion(1)),
             ]
             .width(Length::FillPortion(1)),
             Space::new().width(theme::SP_MD),

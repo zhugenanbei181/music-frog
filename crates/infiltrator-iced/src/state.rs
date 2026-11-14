@@ -101,6 +101,30 @@ pub struct AppState {
     pub exit_cleanup: Option<Arc<dyn Fn() + Send + Sync>>,
 }
 
+/// Whether the runtime outbound picker may offer the collection's members.
+///
+/// The variants are the owner's own facts, not widget states: a picker that
+/// cannot build a selection request has no options to offer, and the reason
+/// is published instead of a silent no-op.
+pub(crate) enum RuntimeOutboundSelectionAvailability {
+    /// Every offered member carries a typed selection request.
+    Available(Vec<RuntimeOutboundSelection>),
+    /// The owner has not published an observed scope for this surface.
+    ScopeUnobserved,
+    /// The observed collection does not allow manual selection.
+    SelectionNotSelectable,
+}
+
+/// One runtime outbound the picker may offer.
+pub(crate) struct RuntimeOutboundSelection {
+    /// The member's display name.
+    pub(crate) name: String,
+    /// The scope the request is fenced to.
+    pub(crate) scope: CoreScope,
+    /// The typed selection request this member would dispatch.
+    pub(crate) request: OutboundSelectionRequest,
+}
+
 impl AppState {
     /// Rebuild the command catalogue from the stored profile list. Called when
     /// the palette opens and after the profile list changes, so the palette
@@ -616,13 +640,38 @@ impl AppState {
         })
     }
 
-    pub(crate) fn prepare_runtime_outbound_selection_message(
+    /// Whether the runtime outbound picker may offer the collection's members.
+    ///
+    /// The owner publishes the observed scope and the collection's selection
+    /// availability. When either is missing the selection request cannot be
+    /// built, so the control is drawn unavailable instead of accepting a press
+    /// that changes nothing.
+    pub(crate) fn runtime_outbound_selection_availability(
         &self,
-        collection_value: &str,
-        outbound_value: &str,
-    ) -> Option<Message> {
-        let (scope, request) = self.outbound_selection_request(collection_value, outbound_value)?;
-        Some(Message::PrepareRuntimeOutboundSelection { scope, request })
+    ) -> RuntimeOutboundSelectionAvailability {
+        let group = self.runtime.proxy_groups.iter().find(|group| {
+            group.name == self.runtime.runtime_selected_group
+                && group.availability == SelectionAvailability::Selectable
+        });
+        let Some(group) = group else {
+            return RuntimeOutboundSelectionAvailability::SelectionNotSelectable;
+        };
+        if self.current_outbound_scope().is_none() {
+            return RuntimeOutboundSelectionAvailability::ScopeUnobserved;
+        }
+        let mut selections = Vec::new();
+        for node in &group.proxies {
+            let Some((scope, request)) = self.outbound_selection_request(&group.name, &node.name)
+            else {
+                continue;
+            };
+            selections.push(RuntimeOutboundSelection {
+                name: node.name.clone(),
+                scope,
+                request,
+            });
+        }
+        RuntimeOutboundSelectionAvailability::Available(selections)
     }
 
     fn outbound_selection_request(

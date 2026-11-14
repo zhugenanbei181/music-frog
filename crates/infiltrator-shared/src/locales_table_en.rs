@@ -283,6 +283,7 @@ fn translate_en_primary(key: &str) -> Cow<'static, str> {
         "runtime_delay_title" => "Proxy Delay".into(),
         "runtime_delay_empty" => "No delay nodes".into(),
         "runtime_proxy_group" => "Group".into(),
+        "runtime_outbound_selection_unavailable" => "Runtime outbound selection is unavailable".into(),
         "runtime_proxy_node" => "Proxy".into(),
         "runtime_apply_proxy" => "Apply".into(),
         "runtime_conn_sort" => "Connection Sort".into(),

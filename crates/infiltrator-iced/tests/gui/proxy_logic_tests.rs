@@ -3,7 +3,8 @@
 //! Mounted via `src/test_mounts.rs` (crate root).
 //! test-intent: behavior
 
-use crate::state::AppState;
+use crate::command_ingress::ObservedCoreScope;
+use crate::state::{AppState, RuntimeOutboundSelectionAvailability};
 use crate::test_mounts::command_harness::{
     RecordingHandler, install_test_core_capabilities, recording_application,
 };
@@ -153,17 +154,76 @@ fn test_connection_query_state() {
 }
 
 #[test]
+fn test_runtime_outbound_selection_publishes_a_typed_availability() {
+    let (state, _, _, _) = product_state();
+    let availability = state.runtime_outbound_selection_availability();
+    let RuntimeOutboundSelectionAvailability::Available(selections) = availability else {
+        panic!("the product fixture publishes an observed scope and a selectable collection");
+    };
+    assert!(
+        selections
+            .iter()
+            .any(|selection| selection.name == "proxy-a"),
+        "the picker offers every member of the selected collection"
+    );
+    for selection in &selections {
+        assert_eq!(
+            selection.request.collection_id().value(),
+            "GLOBAL",
+            "the request names the collection the picker shows"
+        );
+    }
+}
+
+#[test]
+fn test_runtime_outbound_selection_is_unavailable_without_an_observed_scope() {
+    let (mut state, _, _, _) = product_state();
+    // The demo surface has no product command ingress, so the owner has not
+    // published an observed scope and the picker must say so instead of
+    // accepting a press that changes nothing.
+    state.shell.demo = true;
+    state.command_scope = ObservedCoreScope::Unavailable;
+    let availability = state.runtime_outbound_selection_availability();
+    assert!(
+        matches!(
+            availability,
+            RuntimeOutboundSelectionAvailability::ScopeUnobserved
+        ),
+        "an unobserved scope never offers a picker option"
+    );
+}
+
+#[test]
+fn test_runtime_outbound_selection_is_unavailable_for_an_unselectable_group() {
+    let (mut state, _, _, _) = product_state();
+    state.runtime.runtime_selected_group = "NOT-A-GROUP".into();
+    let availability = state.runtime_outbound_selection_availability();
+    assert!(
+        matches!(
+            availability,
+            RuntimeOutboundSelectionAvailability::SelectionNotSelectable
+        ),
+        "a collection that refuses manual selection offers no picker option"
+    );
+}
+
+#[test]
 fn test_runtime_proxy_selector_sync_and_apply() {
     let (mut state, _, handler, fixture) = product_state();
     assert_eq!(state.runtime.runtime_selected_group, "GLOBAL");
     assert_eq!(state.runtime.runtime_selected_proxy, "proxy-a");
-    let prepare = state
-        .prepare_runtime_outbound_selection_message("GLOBAL", "proxy-b")
-        .expect("selection is formed from the accepted inventory");
-    assert!(matches!(
-        prepare,
-        Message::PrepareRuntimeOutboundSelection { .. }
-    ));
+    let availability = state.runtime_outbound_selection_availability();
+    let RuntimeOutboundSelectionAvailability::Available(selections) = availability else {
+        panic!("the product fixture publishes an observed scope and a selectable collection");
+    };
+    let selection = selections
+        .iter()
+        .find(|selection| selection.name == "proxy-b")
+        .expect("the collection offers the member the picker lists");
+    let prepare = Message::PrepareRuntimeOutboundSelection {
+        scope: selection.scope.clone(),
+        request: selection.request.clone(),
+    };
     let _ = state.update(prepare);
     assert_eq!(state.runtime.runtime_selected_proxy, "proxy-b");
     let changed = OutboundFixture::new(OutboundFixtureInput {

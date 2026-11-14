@@ -288,6 +288,7 @@ fn translate_zh_cn_primary(key: &str) -> Cow<'static, str> {
         "runtime_delay_title" => "节点延迟".into(),
         "runtime_delay_empty" => "暂无可测速节点".into(),
         "runtime_proxy_group" => "策略组".into(),
+        "runtime_outbound_selection_unavailable" => "运行时出站选择不可用".into(),
         "runtime_proxy_node" => "节点".into(),
         "runtime_apply_proxy" => "应用节点".into(),
         "runtime_conn_sort" => "连接排序".into(),

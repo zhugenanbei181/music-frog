@@ -1,4 +1,5 @@
 use super::*;
+use crate::view::components::icon_button_maybe;
 use crate::view::flag_plate::flag_plate;
 use crate::view::theme;
 use iced::widget;
@@ -7,11 +8,14 @@ use infiltrator_presentation::proxies_page_model::proxy_protocol_chip;
 use infiltrator_shared::country_flags::node_flag_code;
 use lurker_core_contract::outbound::preferences::OutboundLayout;
 
-fn favorite_message(state: &AppState, member_name: &str) -> Message {
+/// The favourite action of one node, when the owner published its identity.
+///
+/// The action stays absent when the identity was not observed: the control
+/// is then drawn disabled instead of accepting a press that changes nothing.
+fn favorite_message(state: &AppState, member_name: &str) -> Option<Message> {
     member_view(state, member_name)
         .and_then(|node| node.id.clone())
         .map(Message::ToggleFavoriteOutbound)
-        .unwrap_or(Message::Noop)
 }
 
 fn inspect_message(state: &AppState, member_name: &str) -> Option<Message> {
@@ -228,7 +232,7 @@ fn node_card<'a>(
         chips = chips.push(chip("xudp"));
     }
 
-    let star_btn = icon_button(Icon::Pin, 13.0, favorite_message(state, member_name));
+    let star_btn = icon_button_maybe(Icon::Pin, 13.0, favorite_message(state, member_name));
     let info_btn: Element<'a, Message> = inspect_message(state, member_name).map_or_else(
         || Space::new().width(0).into(),
         |message| icon_button(Icon::Activity, 13.0, message),
@@ -302,7 +306,7 @@ fn node_compact_row<'a>(
         chips = chips.push(chip("xudp"));
     }
 
-    let star_btn = icon_button(Icon::Pin, 12.0, favorite_message(state, member_name));
+    let star_btn = icon_button_maybe(Icon::Pin, 12.0, favorite_message(state, member_name));
     let info_btn: Element<'a, Message> = inspect_message(state, member_name).map_or_else(
         || Space::new().width(0).into(),
         |message| icon_button(Icon::Activity, 12.0, message),
