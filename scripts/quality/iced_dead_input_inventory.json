@@ -6,8 +6,8 @@
       "handler": "enabled",
       "kind": "unwrap_or_noop",
       "line": 214,
-      "owner": "b246 G1 proxy action availability (separate session)",
-      "reason": "group delay-test icon_button is always on_press; missing typed group id or refused probe produces Message::Noop",
+      "owner": "b259 G1 proxy action availability (this session; the b246 session is gone)",
+      "reason": "group delay-test icon_button is always on_press; the owner publishes no typed verdict for this action yet, so the surface falls back to Message::Noop",
       "widget": "icon_button"
     },
     {
@@ -16,7 +16,7 @@
       "handler": "enabled",
       "kind": "unwrap_or_noop",
       "line": 244,
-      "owner": "b246 G1 proxy action availability (separate session)",
+      "owner": "b259 G1 proxy action availability (this session; the b246 session is gone)",
       "reason": "move-group-up icon_button is always on_press; missing typed group id produces Message::Noop",
       "widget": "icon_button"
     },
@@ -26,7 +26,7 @@
       "handler": "enabled",
       "kind": "unwrap_or_noop",
       "line": 253,
-      "owner": "b246 G1 proxy action availability (separate session)",
+      "owner": "b259 G1 proxy action availability (this session; the b246 session is gone)",
       "reason": "move-group-down icon_button is always on_press; missing typed group id produces Message::Noop",
       "widget": "icon_button"
     },
@@ -36,7 +36,7 @@
       "handler": "enabled",
       "kind": "unwrap_or_noop",
       "line": 263,
-      "owner": "b246 G1 proxy action availability (separate session)",
+      "owner": "b259 G1 proxy action availability (this session; the b246 session is gone)",
       "reason": "expand/collapse icon_button is always on_press; missing typed group id produces Message::Noop",
       "widget": "icon_button"
     },
@@ -46,7 +46,7 @@
       "handler": "enabled",
       "kind": "unwrap_or_noop",
       "line": 14,
-      "owner": "b246 G1 proxy action availability (separate session)",
+      "owner": "b259 G1 proxy action availability (this session; the b246 session is gone)",
       "reason": "favorite_message builds an always-on icon_button message; missing typed OutboundId produces Message::Noop",
       "widget": "icon_button"
     },
@@ -56,7 +56,7 @@
       "handler": "enabled",
       "kind": "unwrap_or_noop",
       "line": 243,
-      "owner": "b246 G1 proxy action availability (separate session)",
+      "owner": "b259 G1 proxy action availability (this session; the b246 session is gone)",
       "reason": "compact runtime node pick_list stays enabled; refused selection produces Message::Noop",
       "widget": "pick_list"
     },
@@ -66,7 +66,7 @@
       "handler": "enabled",
       "kind": "unwrap_or_noop",
       "line": 286,
-      "owner": "b246 G1 proxy action availability (separate session)",
+      "owner": "b259 G1 proxy action availability (this session; the b246 session is gone)",
       "reason": "standard runtime node pick_list stays enabled; refused selection produces Message::Noop",
       "widget": "pick_list"
     }

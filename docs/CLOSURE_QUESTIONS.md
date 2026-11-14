@@ -24,7 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-14 第二百五十八批次：`FLPARITY-051` 的缝从两个价收归一个价（契约 → 生成器 → Slint），像素取证同右沿；整批重采仍未做，条目仍 `Planned`；b111–b257 见下方批次八问摘要）
+## 当前状态（2026-11-14 第二百五十九批次：接管孤儿会话的「代理组动作可用性」欠账——7 个已启用却点不动的控件逐条读回根因、owner 改到活会话、收口顺序写定；本批未改 Iced 业务代码，欠账一条未修；b111–b258 见下方批次八问摘要）
+
+| # | 结论 | 等级 | 缺口 / owner |
+| --- | --- | --- | --- |
+| 1 | 部分 | L | 本批只改 1 个 JSON 台账（inventory 的 owner 与 reason）与两份台账文档，**零 Rust、零 `.slint`、零像素**；`iced-dead-input-guard --mode enforce` findings=0 registered=7、`structure-gate-guard` 218 腿 0、`import`/`line` 3008/0、`typed-state` 0、`implicit-state` 24/0/0、`doc-governance OK`、`closure` 8/8 为 `L`。aarch64 交叉目标产物未复跑（GAP-1.1） |
+| 2 | 部分 | L | Linux 本机完成守卫与台账核对；本批零 workflow、零构建面改动。Windows/macOS 构建腿未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
+| 3 | 部分 | L | 零 Android/iOS 代码、资源或脚本改动；本批是 Iced 代理页的欠账接管，7 个死控件仍只存在于 Iced |
+| 4 | 部分 | L | **本批零可见像素变化**：未改任何控件渲染，7 个死控件仍照旧可点空转（这是本批**不**声称修好的原因）；发布回执沿用 → 部分（L） |
+| 5 | 完整 | L | 欠账的**归属**回到活会话：inventory 的 7 条 owner 从「已结束的 b246 会话」改到本会话，reason 改成真实根因（owner 尚未发布 typed 判决，界面回落 `Message::Noop`）。孤儿草稿原样留在草稿区，**不进 `src/`**（契约与 application 尚不存在，搬进去会让全仓编译不过） |
+| 6 | 部分 | L | 未新增业务能力；新增的是**可执行的收口顺序**（契约 typed 动作与不可用理由 → application 意图与处理 → presentation 判决投影 → Iced 消费并把不可用动作画成禁用 → inventory 从 7 收紧到 0 → 新守卫「已启用控件不得回落 `Message::Noop`」）。7 条欠账一条未修，如实记账 → 部分（L） |
+| 7 | 完整 | L | 不用视图层的「有没有 id / 比一下名字」推导可用性——那是第二个业务真源；可用性由 owner 发布 typed 判决，界面只消费。未为过门加布尔或 UI 私有推导 → 完整（L） |
+| 8 | 部分 | L | 零编译、零像素、零全仓重编；全部证据秒级。`--workspace` nextest、结构门动态全腿与 `resolve_surface_evidence.py` ready cells 留统一批次；本条的实现批次留下一批 → 部分（L） |
+
+## 最近一批问答（2026-11-14 第二百五十九批次：把欠账接过来，写清怎么还）
+
+1. x86_64/aarch64：本批只改 1 个 JSON 台账与两份文档，零 Rust 零像素；`iced-dead-input-guard` 0/registered=7、`structure-gate-guard` 218 腿 0、`import`/`line` 3008/0、`typed-state` 0、`implicit-state` 24/0/0、`doc-governance OK`、`closure` 8/8 为 `L`。aarch64 交叉目标产物未复跑（GAP-1.1）→ 部分（L）。
+2. Windows/Linux/macOS：Linux 本机完成守卫与台账核对，本批零 workflow、零构建面改动。Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）→ 部分（L）。
+3. Android/iOS：零 Android/iOS 代码、资源或脚本改动；7 个死控件只在 Iced 代理页，Android 不受影响 → 部分（L）。
+4. 各 UI：**本批零可见像素变化**，7 个已启用却点不动的控件仍照旧空转——这正是本批不声称修好的原因；发布回执沿用 → 部分（L）。
+5. 复用：inventory 的 7 条欠账 owner 从已结束的会话改到活会话，reason 改成真实根因；孤儿的两份草稿（typed 动作 7 个 + typed 不可用理由 12 条 + 367 行测试）原样留在草稿区，不进 `src/`（搬进去会让全仓编译不过）→ 完整（L）。
+6. 各处界面的功能接入：本批**未新增任何功能**，只把「7 个死控件」这笔欠账接过来并写定自底向上的收口顺序（契约 → application → presentation → Iced → inventory 收紧到 0 → 新守卫）。欠账一条未修 → 部分（L）。
+7. 模块化：可用性是业务事实，归 owner 发布 typed 判决，界面只消费；明确禁止视图层用「有没有 id」或「比名字」推导可用性。未加布尔或 UI 私有推导 → 完整（L）。
+8. CI 与批次效率：零编译、零像素、零全仓重编，全部证据秒级；`structure-gate-guard` 218 腿 0、`import`/`line` 3008/0、`typed-state` 0、`implicit-state` 24/0/0、`todo-status-freshness` 0、`doc-governance OK`、`closure` 8/8。`--workspace` nextest、动态全腿与 ready cells 留统一批次 → 部分（L）。
+
+## 历史状态（2026-11-14 第二百五十八批次：`FLPARITY-051` 的缝从两个价收归一个价（契约 → 生成器 → Slint），像素取证同右沿；整批重采仍未做，条目仍 `Planned`；b111–b257 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
@@ -37,7 +61,7 @@
 | 7 | 完整 | L | 归属链一条：上游源码事实 → 契约常量与 `card_spacing_px()` → `page-structure.json` 导出 → 生成器 → `ViewportLadder.card_spacing` → 网格的分享数学与行间距。守卫随实现同步（判据不变、只多一条「不许第二个价」）；未为过门加布尔或 UI 私有推导 |
 | 8 | 部分 | L | 一次诊断重采（2 帧 / 131s）给出像素证据；结构门静态 218 腿 0、`import` 3008/0、`line` 3008/0、`typed-state` 0、`implicit-state` 0、`todo-status-freshness` 0、`doc-governance OK`、`closure` 8/8。**整批 211 帧重采**（与 `SPACEUTIL-020` 同批）留统一批次，`--workspace` nextest 与动态全腿同留 |
 
-## 最近一批问答（2026-11-14 第二百五十八批次：缝只有一个价）
+## 历史问答（2026-11-14 第二百五十八批次：缝只有一个价）
 
 1. x86_64/aarch64：契约/生成器/两个 `.slint`/一条守卫；契约 nextest **627/627**、守卫 **56/56** + enforce 0、生成器 `--check` fresh、导出 current、2 帧真实重采 PASS 为 `L`。aarch64 交叉目标产物未复跑（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：Linux 本机用 niri + kwin-wayland 虚拟合成器完成 2 帧真实重采并逐像素比对；本批零 workflow 改动。Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）→ 部分（L）。
