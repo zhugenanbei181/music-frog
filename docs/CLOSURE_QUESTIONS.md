@@ -24,7 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-14 第二百六十六批次：桌面外壳自留的底部保留带改读契约导出值（72u → 20u，参照物实测 20dp），判定器逐帧拒判超过导出上限的帧；`SPACEUTIL-020` 办结归档；本批改外壳几何并整批重采 Slint 语料；b111–b265 见下方批次八问摘要）
+## 当前状态（2026-11-14 第二百六十七批次：Iced 的节点延迟徽章可以点测速（对标 FlClash / Clash Party 的逐节点延迟测试），像素逐字节不变；三方只读审计实测立项 5 条对标缺口 +37 pt；b111–b266 见下方批次八问摘要）
+
+| # | 结论 | 等级 | 缺口 / owner |
+| --- | --- | --- | --- |
+| 1 | 部分 | L | 本批改 Iced 表面与状态层：`cargo nextest -p infiltrator-iced` **577/577 PASS**（新增 3 条）、`cargo clippy -p infiltrator-iced --all-targets -D warnings` RC=0、诊断重采三帧与发布语料**逐字节相同**（零像素重采、回执不变）、Iced 判定器 194 帧 violations=0 为 `L`。aarch64 交叉目标产物未复跑（GAP-1.1） |
+| 2 | 部分 | L | Linux 本机完成定向 nextest 与 clippy；本批零 workflow、零构建面改动。Windows/macOS 构建腿未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
+| 3 | 部分 | L | 零 Android/iOS 代码、资源或脚本改动 |
+| 4 | 部分 | L | Iced 代理页的逐节点延迟测试与两家参照物对齐（此前徽章按不动）；**其余 36 pt 对标缺口本批只立项未做** → 部分（L） |
+| 5 | 完整 | L | 重复实现清零：能力没有新造——`OutboundProbeBatchScope::One` 与成员的 `probe_availability` 都是 owner 已发布的事实，本批只补状态层的受理分支与一个可复用视图组件 |
+| 6 | 部分 | L | 新增可执行判据三条（单节点目标只认已观察条目 / 未观察节点不受理 / 徽章只在 owner 说可以测速时给出请求）；新增业务能力一项（逐节点测速入口）→ 部分（L） |
+| 7 | 完整 | L | 可用性由 owner 的 typed 事实决定（`probe_availability` + 引擎作用域身份），界面只消费；零新增布尔与私有推导 → 完整（L） |
+| 8 | 部分 | L | 一次诊断采集（3 帧，82s）+ 定向 nextest + clippy 跑完；全仓 `--workspace` nextest 与结构门动态全腿留统一批次 → 部分（L） |
+
+## 最近一批问答（2026-11-14 第二百六十七批次：徽章可以测速了）
+
+1. x86_64/aarch64：本批改 Iced 状态层与视图组件；`cargo nextest -p infiltrator-iced` 577/577 PASS（新增 3 条）、`cargo clippy -p infiltrator-iced --all-targets -D warnings` RC=0、诊断重采三帧与发布语料逐字节相同、Iced 判定器 194 帧 violations=0 为 `L`。aarch64 交叉目标产物未复跑（GAP-1.1）→ 部分（L）。
+2. Windows/Linux/macOS：Linux 本机完成定向 nextest 与 clippy，本批零 workflow、零构建面改动。Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）→ 部分（L）。
+3. Android/iOS：零 Android/iOS 代码、资源或脚本改动 → 部分（L）。
+4. 各 UI：Iced 代理页的节点延迟徽章现在可以在原地测速（两家参照物都有这个动作）；其余 36 pt 缺口本批只立项 → 部分（L）。
+5. 复用：能力没有新造——owner 早已发布的 `One` 范围与 `probe_availability` 被接通，一个可复用组件替两处调用 → 完整（L）。
+6. 各处界面的功能接入：本批新增业务能力一项（逐节点测速入口），其余对标缺口只立项未做 → 部分（L）。
+7. 模块化：可用性由 owner 的 typed 事实决定，界面只消费；零新增布尔与私有推导 → 完整（L）。
+8. CI 与批次效率：一次诊断采集（3 帧）+ 定向 nextest + clippy 跑完；全仓 `--workspace` nextest 与结构门动态全腿留统一批次 → 部分（L）。
+
+## 历史状态（2026-11-14 第二百六十六批次：桌面外壳自留的底部保留带改读契约导出值（72u → 20u，参照物实测 20dp），判定器逐帧拒判超过导出上限的帧；`SPACEUTIL-020` 办结归档；本批改外壳几何并整批重采 Slint 语料；b111–b265 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
@@ -37,7 +61,7 @@
 | 7 | 完整 | L | 外壳几何由契约导出决定，判定器只读导出，界面不推导第二个数；零新增布尔与私有推导 → 完整（L） |
 | 8 | 部分 | L | 一次整批重采（583s）+ 一次判定 + 定向守卫跑完；`--workspace` nextest 与 Clippy 留统一批次 → 部分（L） |
 
-## 最近一批问答（2026-11-14 第二百六十六批次：外壳的保留带归回契约）
+## 历史问答（2026-11-14 第二百六十六批次：外壳的保留带归回契约）
 
 1. x86_64/aarch64：本批改桌面外壳几何、判定器与守卫；空间判定器 Slint 211 帧 violations=0、Iced 194 帧 violations=0、`capture-corpus-integrity` findings=0、`screenshot-identity` violations=0、`receipt-freshness` violations=0、`--check-export` current、参照守卫 findings=0 + 14/14、`slint-viewport-tier-guard` findings=0 + 56/56 为 `L`。aarch64 交叉目标产物未复跑（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：Linux 本机完成整批重采与全部像素判定，本批零 workflow、零构建面改动。Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）→ 部分（L）。

@@ -13,7 +13,7 @@ use crate::view::components::{
     modern_scrollable, section_header,
 };
 use crate::view::proxy_history_card::proxy_history_card;
-use crate::view::proxy_latency::latency_badge;
+use crate::view::proxy_latency::probeable_latency_badge;
 use crate::view::proxy_search::node_name;
 use crate::view::speedtest_modal::speedtest_card;
 use crate::view::svg_icons::Icon;

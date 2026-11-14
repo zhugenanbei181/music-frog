@@ -262,7 +262,11 @@ fn node_card<'a>(
         ]
         .spacing(theme::SP_XS)
         .width(Length::Fill),
-        latency_badge(meta.delay, &Lang(&state.shell.lang)),
+        probeable_latency_badge(
+            meta.delay,
+            &Lang(&state.shell.lang),
+            state.member_probe_message(member_name),
+        ),
         star_btn,
         info_btn,
     ]
@@ -330,7 +334,11 @@ fn node_compact_row<'a>(
         Space::new().width(theme::SP_XS),
         chips,
         Space::new().width(Length::Fill),
-        latency_badge(meta.delay, &Lang(&state.shell.lang)),
+        probeable_latency_badge(
+            meta.delay,
+            &Lang(&state.shell.lang),
+            state.member_probe_message(member_name),
+        ),
         star_btn,
         info_btn,
     ]

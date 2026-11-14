@@ -3,6 +3,8 @@
 //! Product and demo rows are built from typed inventory, details and
 //! preference observations.
 
+use crate::state::AppState;
+use crate::types::message::Message;
 use infiltrator_presentation::proxies_page_model::{
     ProxiesPageModel, ProxyFilterTarget, proxy_name_runs,
 };
@@ -18,6 +20,7 @@ use lurker_core_contract::outbound::{
         OutboundInventorySnapshot, OutboundInventoryState, OutboundSelectionState,
         SelectionAvailability,
     },
+    probe::OutboundProbeBatchScope,
 };
 use lurker_core_contract::page::{PageData, PageStatus};
 use std::collections::BTreeMap;
@@ -229,6 +232,29 @@ pub(super) fn project_groups(
         });
     }
     groups
+}
+
+/// The typed request that tests exactly one node, when the owner says this
+/// node can be tested.
+///
+/// Two facts decide it, and both are the owner's: the member's probe
+/// availability and the member's engine-scoped identity. A demo row has no
+/// identity, and an engine that cannot probe says so, so the badge stays
+/// plain instead of offering a press that could not be answered.
+impl AppState {
+    pub(crate) fn member_probe_message(&self, member_name: &str) -> Option<Message> {
+        let member = self
+            .runtime
+            .proxy_groups
+            .iter()
+            .flat_map(|group| &group.proxies)
+            .find(|node| node.name == member_name)?;
+        if member.probe_availability != OutboundProbeAvailability::Supported {
+            return None;
+        }
+        let id = member.id.clone()?;
+        self.outbound_probe_batch_message(OutboundProbeBatchScope::One(id))
+    }
 }
 
 fn member_view(

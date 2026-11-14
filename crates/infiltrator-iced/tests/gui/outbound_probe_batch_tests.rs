@@ -484,3 +484,70 @@ fn batch_failure_stays_visible_and_can_be_retried_or_closed() {
         OutboundProbeBatchState::Idle
     );
 }
+
+/// One node is a scope the core already defines: `One(outbound)` probes
+/// exactly that outbound. The surface could not offer it before, because the
+/// state layer refused to build the request for a single member - the badge
+/// a reader presses to test one node was a number.
+#[test]
+fn one_batch_targets_exactly_one_observed_entry() {
+    let (state, _handler, fixture) = product_state();
+    let leaf = fixture.expected_all_members[0].clone();
+    let message = state
+        .outbound_probe_batch_message(OutboundProbeBatchScope::One(leaf.clone()))
+        .expect("an observed entry is a valid single-node target");
+    assert!(matches!(
+        message,
+        Message::StartOutboundProbeBatch {
+            target_scope: OutboundProbeBatchScope::One(id),
+            ..
+        } if id == leaf
+    ));
+}
+
+#[test]
+fn a_single_node_target_must_be_an_observed_entry() {
+    let (state, _handler, fixture) = product_state();
+    assert!(
+        state
+            .outbound_probe_batch_message(OutboundProbeBatchScope::Collection(
+                fixture.collection_id.clone()
+            ))
+            .is_some(),
+        "a group is a valid batch target"
+    );
+    assert!(
+        state
+            .outbound_probe_batch_message(OutboundProbeBatchScope::One(
+                fixture.expected_all_members[0].clone()
+            ))
+            .is_some(),
+        "an observed node is a valid single-node target"
+    );
+    let unknown = OutboundId::new(fixture.scope.identity.engine.clone(), "never-observed").unwrap();
+    assert!(
+        state
+            .outbound_probe_batch_message(OutboundProbeBatchScope::One(unknown))
+            .is_none(),
+        "a node the owner never published is not a target"
+    );
+}
+
+#[test]
+fn the_node_badge_offers_a_probe_only_when_the_owner_says_so() {
+    let (state, _handler, _fixture) = product_state();
+    let message = state
+        .member_probe_message("leaf-a")
+        .expect("the owner published a probeable member");
+    assert!(matches!(
+        message,
+        Message::StartOutboundProbeBatch {
+            target_scope: OutboundProbeBatchScope::One(_),
+            ..
+        }
+    ));
+    assert!(
+        state.member_probe_message("not-an-observed-node").is_none(),
+        "a node the owner never published carries no probe"
+    );
+}

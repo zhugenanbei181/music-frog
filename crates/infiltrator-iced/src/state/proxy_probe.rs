@@ -402,6 +402,13 @@ impl AppState {
             .filter(|inventory| inventory.scope() == &scope)?;
         match (inventory.inventory(), &target_scope) {
             (OutboundInventoryState::Ready { .. }, OutboundProbeBatchScope::All) => {}
+            (OutboundInventoryState::Ready { entries, .. }, OutboundProbeBatchScope::One(id)) => {
+                // One outbound, exactly as the core contract defines it: the
+                // target has to be an observed inventory entry. A collection
+                // is a group, not a node, and probing one is the group's own
+                // batch.
+                entries.iter().find(|entry| &entry.id == id)?;
+            }
             (
                 OutboundInventoryState::Ready { collections, .. },
                 OutboundProbeBatchScope::Collection(id),
