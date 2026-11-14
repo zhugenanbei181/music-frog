@@ -117,6 +117,7 @@
   - 阻塞方：受控 tag release runner（CI 侧同一核对尚未执行）。
   - 解锁条件：tag run 中 toolchain 核对步骤的回执；取得后同次迁回过去佛办结。
   - 本板停留期间：本机核对已闭环，无剩余本机可执行动作。
+  - **v0.68.3 tag CI 归属补记**：`release` run `43607216055` 的 `Release test gate` 唯一红腿是 `rustdoc-guard.py --mode docs` 对 7 个 neutral crate 跑 `cargo doc`，同样因 CI 无私有 `zhuge-ui-kit` Git 凭证（本机有）而失败；`main-gate` run `43607208285` 因 `MUSICFROG_NO_COMPILE_GATE=1` 依法跳过构建半并 **completed success**，结构门本机 221 腿 0 failed / 1 合法跳过。这两条 tag 红腿与 `v0.68.1`/`v0.68.2` 历史 tag 同因（历史红在 `CARGO_REGISTRY_TOKEN` 缺失），均属本板「用户 secrets / 受控 tag CI runner」外部阻塞，不新立本机可推条目、不冒充 CI 绿。
 
 ## 三、用户 secrets 与持久 keystore（3 条 / 6 pt）
 
@@ -136,7 +137,7 @@
   - 依赖：PUB-001.1、PUB-001.2。
   - 验收：单测覆盖活动租约锁竞争、并发 CAS 冲突、安全原子替换；零业务私有路径；`cargo package` 通过（dry-run 待 contract 上架）。
   - 当前证据（L）：`2a2726ba-f211-44e6-9986-9b28f6bd1977`；5205 passed；99/99 store tests。
-  - 阻塞方：crates.io 上架（`lurker-core-contract` 尚未实际发布，dry-run 需 registry 解析中性依赖）。
+  - 阻塞方：crates.io 上架（`lurker-core-contract` 尚未实际发布，dry-run 需 registry 解析中性依赖）；`v0.68.3` tag CI run `43607215836` 另实测 **7 个 neutral crate 的 `cargo package --dry-run` 全部因私有 `zhuge-ui-kit` Git rev 无 CI 凭证而失败**（`could not read Username` / `rev 3afbacee… not found`），本机因配置了私有 SSH `insteadOf` 可取该 rev，属同一类用户 secrets 前置，非代码缺陷。
   - 解锁条件：contract 上架后 `cargo publish --dry-run -p lurker-profile-store` 通过的回执；取得后同次迁回过去佛办结。
   - 本板停留期间：`cargo package` 与本地单测已闭环，无剩余本机可执行动作。
 - [ ] PUB-003.2 [kind: mechanism] [priority: P1] [points: 3] [owner: lurker-engine-runtime::switch] [status: Blocked] 双引擎原子切换抽象为 EngineSwitchCoordinator
