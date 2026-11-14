@@ -58,7 +58,7 @@ members = [
 [workspace.package]
 version = "0.68.2"
 edition = "2024"
-rust-version = "1.99.1"
+rust-version = "1.100.0"
 
 [workspace.lints.rust]
 # 编译器侧禁止项：只登记在 edition 2024 下构成硬错误、随任何成功构建天然为零违例的
@@ -137,7 +137,6 @@ sysinfo = "0.39"
 jni = "0.22"
 tokio-stream = "0.1"
 uniffi = "0.32"
-uniffi_bindgen = "0.32"
 # Linux uses the GTK-free ksni tray; native tray dependencies are target-gated
 # to Windows/macOS by infiltrator-iced and keep default features disabled.
 muda = { version = "0.19", default-features = false }

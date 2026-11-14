@@ -804,11 +804,15 @@ mod tests {
         );
         // The headroom exists so a surface may round to its own grid, not so a
         // reserve may double. It stays under half the measured reference.
-        assert!(SHELL_BOTTOM_AIR_HEADROOM_PX * 2 < SHELL_BOTTOM_AIR_REFERENCE_PX);
+        const {
+            assert!(SHELL_BOTTOM_AIR_HEADROOM_PX * 2 < SHELL_BOTTOM_AIR_REFERENCE_PX);
+        }
         // The reserve the desktop shell kept before this cap existed is now
         // outside the law, and this is the assertion that says so. If the cap
         // ever regrows to swallow it, this test has to be defended on record.
-        assert!(SHELL_BOTTOM_AIR_LIMIT_PX < 72);
+        const {
+            assert!(SHELL_BOTTOM_AIR_LIMIT_PX < 72);
+        }
     }
 
     #[test]

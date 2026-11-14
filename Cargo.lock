@@ -14210,19 +14210,3 @@ dependencies = [
  "syn 3.0.6",
  "winnow",
 ]
-
-[[patch.unused]]
-name = "zhuge-ui-core"
-version = "0.1.18"
-
-[[patch.unused]]
-name = "zhuge-ui-kit-bevy"
-version = "0.4.1"
-
-[[patch.unused]]
-name = "zhuge-ui-kit-iced"
-version = "0.2.0"
-
-[[patch.unused]]
-name = "zhuge-ui-tokens"
-version = "0.1.1"

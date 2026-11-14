@@ -24,7 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-14 第二百五十五批次：连接表表头排序接回参照物，排序事实收归一个 typed owner，孤儿会话的 CI 红腿声明退役；b111–b254 见下方批次八问摘要）
+## 当前状态（2026-11-14 第二百五十六批次：孤儿会话的 1.100.0 工具链 bump 按单真源收口；b111–b255 见下方批次八问摘要）
+
+| # | 结论 | 等级 | 缺口 / owner |
+| --- | --- | --- | --- |
+| 1 | 部分 | L | 统一 `rust-toolchain.toml` / `Cargo.toml rust-version` / 8 个 workflow / Android 工具链说明 / 斗战胜佛证据文案到 1.100.0；`toolchain-consistency-guard` 0、`android-toolchain.py check` 0（打印 Rust 1.100.0）、7 个 neutral crate `cargo doc -D warnings` 0、`cargo check --workspace --all-targets --locked --offline` **RC=0** 与全仓 clippy `--all-targets -- -D warnings` **RC=0** 为 `L`。aarch64 交叉目标产物未复跑（GAP-1.1） |
+| 2 | 部分 | L | Linux 本机在 1.100.0 下完成 docs 与全仓构建腿；8 个 workflow 同步换钉，避免 CI 与本机会话树各用一个编译器。Windows/macOS 安装包与构建腿未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
+| 3 | 部分 | L | 只改 workspace 工具链/依赖声明与 Android 工具链证据文案，零 Android/iOS 代码、资源或脚本改动；`android-toolchain.py check` 从 `rust-toolchain.toml` 读到 1.100.0 并通过，三 flavor 实机与 iOS 产物仍留外部环境看板 |
+| 4 | 部分 | L | 零可见像素变化、零 `.slint`、零契约导出变化，沿用 Slint 211 / Iced 194 发布回执；Slint Dock 组件化与 navigation-capability 两个孤儿切片按文件所有权留下一批，不冒充像素证据 |
+| 5 | 完整 | L | Rust release 的唯一真源仍为 `rust-toolchain.toml`：manifest、全部 `dtolnay/rust-toolchain@` 引用、Android 检查器与两份证据文案均与其一致；删除全仓无人通过 `workspace = true` 消费的 `uniffi_bindgen` 声明（`uniffi-bindgen.rs` 只用 `uniffi::uniffi_bindgen_main()`），没有第二份版本来源 |
+| 6 | 部分 | L | 未新增业务功能；修掉 1.100.0 的 `unused workspace dependency` 让 docs.rs 等价腿从 7 红转 0，并把 Android blocked 证据表同步到新 pin。真机、双视口新像素与 `resolve_surface_evidence.py` ready cells 未推进 → 部分（L） |
+| 7 | 完整 | L | 工具链事实一条链：pin → `toolchain-consistency-guard` → workflow / manifest / Android checker / 证据文案；`Cargo.lock` 只随 workspace 依赖变更做一次 `[[patch.unused]]` 清理，未把身份改动拆成半批。未在 UI 层加开关或私有版本推导 |
+| 8 | 部分 | L | 一次 `cargo clean` 后集中跑全仓 check/clippy（不分批重编），`rustdoc-guard --mode docs`、`toolchain-consistency`、`android-toolchain`、`document/structure/import` 守卫均 0；结构门静态 218 腿 findings=0（含待整合的 2 条 navigation-capability 腿）。定向五包 nextest **2231/2231 PASS / 5 skipped**；`--workspace` nextest、结构门动态全腿与像素重采留统一批次 |
+
+## 最近一批问答（2026-11-14 第二百五十六批次：一个仓库只钉一个编译器）
+
+1. x86_64/aarch64：`rust-toolchain.toml` 与 `Cargo.toml rust-version` 统一为 1.100.0，8 个 workflow 全部换钉；`toolchain-consistency-guard`、Android 工具链检查、7 个 neutral crate `cargo doc --all-features --no-deps -D warnings`、全仓 `cargo check/clippy --all-targets -- -D warnings` 均 **RC=0** 为 `L`。aarch64 交叉目标产物未复跑（GAP-1.1）→ 部分（L）。
+2. Windows/Linux/macOS：Linux 本机在 1.100.0 下完成 docs 与全仓构建腿；workflow 同步换钉，消除「CI 1.99.1 / 本机 1.100.0」的同仓两编译器分裂。Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）→ 部分（L）。
+3. Android/iOS：零 Android/iOS 代码与资源改动；`scripts/android-toolchain.py check` 从 pin 读到 Rust 1.100.0 并通过，斗战胜佛证据文案同步更正。三 flavor 实机与 iOS 产物仍留外部环境看板 → 部分（L）。
+4. 各 UI：本批零可见像素变化、零 `.slint`、零导出变化，沿用 211 / 194 发布回执；孤儿 Slint Dock 组件化与 navigation-capability 是两个独立业务切片，按文件所有权留下一批，不冒充实机/像素验收 → 部分（L）。
+5. 复用：Rust release 真源只有 `rust-toolchain.toml`；`toolchain-consistency-guard` 逐 workflow / manifest 校验，Android 检查器动态读 pin，两份证据文案按实测改写。删除无人 `workspace = true` 消费的 `uniffi_bindgen`（其 bin 仍只调 `uniffi::uniffi_bindgen_main()`），`Cargo.lock` 清理 4 条 `[[patch.unused]]` → 完整（L）。
+6. 各处界面的功能接入：未新增业务能力；1.100.0 的 `unused workspace dependency` lint 实测让 7 个 neutral crate 的 docs.rs 等价腿全红，删除该声明后 `rustdoc-guard --mode docs` 转绿；Android 工具链证据表同步。真机/双视口新像素未推进 → 部分（L）。
+7. 模块化：工具链事实一条链、依赖身份一次收口；不把 nav-capability / Dock / Bevy 场景表的孤儿 WIP 混进工具链提交，也不为过门加布尔或 UI 私有推导 → 完整（L）。
+8. CI 与批次效率：`cargo clean` 后把全仓 check/clippy 放到同一组一次性收口；结构门静态 218 腿、`ci-trigger`、`doc-governance`、`import 3006/0`、`todo-status-freshness` 全绿，docs 腿在无编译树仍按 typed rc=3 跳过。`--workspace` nextest、结构门动态全腿与 `resolve_surface_evidence.py` ready cells 留统一批次 → 部分（L）。
+
+## 历史状态（2026-11-14 第二百五十五批次；b111–b254 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
@@ -37,7 +61,7 @@
 | 7 | 完整 | L | 归属链一条：domain 键与方向 → presentation 列投影 → Iced `UpdateRuntimeConnectionSort` 写 `RuntimeState` → 两个页模型与 `AppSettings` 只读 owner → 表头/分段控件按投影渲染。孤儿 Slint Dock 组件化、navigation-capability 与 toolchain bump 按文件所有权不夹带；未为过门加布尔开关或 UI 私有推导 |
 | 8 | 部分 | L | `cargo clean` 一次（21066 文件 / 9.6GiB）后只跑受影响三包；`structure_gate_ledger.json` 删除一条在 CI 已转绿的过期红腿声明，并把孤儿会话不连贯的 Bevy `overview-dark` / `manifest.tsv` 像素备份到 `.evidence/wip/b255-orphan-bevy-pixels.patch` 后恢复 HEAD，消除本机/CI 两树分裂。全仓 `--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` ready cells 留统一批次 |
 
-## 最近一批问答（2026-11-14 第二百五十五批次：表头是排序控件，排序只有一个 owner）
+## 历史问答（2026-11-14 第二百五十五批次：表头是排序控件，排序只有一个 owner）
 
 1. x86_64/aarch64：`cargo clean` 后定向 `cargo nextest` 三包 **1651/1651**、1.99.1 等价树 `cargo check --all-targets` 与 `cargo clippy --all-targets -- -D warnings` exit 0 为 `L`；零平台 API。交叉架构与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：Linux 本机完成从零重建、三包定向测试与等价树 clippy；等价树保留 HEAD 的 1.99.1 工具链，孤儿会话 1.100.0 bump 不夹带。Windows/macOS 构建腿未复跑，macOS 沿用 `Unsupported`（GAP-2.2）→ 部分（L）。
