@@ -1012,9 +1012,50 @@ def violations(ui: pathlib.Path, dock_checks: bool = True,
         page = (ui / "pages" / name).read_text(encoding="utf-8")
         page_code = mask_comments(page)
         lines = page_code.splitlines()
-        if "LumenTheme.overview-card-gap" not in page_code:
+        # The seam is one fact, and the grid reads it from the one owner. The
+        # owner is the generated contract lookup (`ViewportLadder.card_spacing`,
+        # keyed on the page width the way the reference's `cardSpacingOf` is) or
+        # the theme token that publishes the same value.
+        seam_owners = ("ViewportLadder.card_spacing(", "LumenTheme.overview-card-gap")
+        if not any(owner in page_code for owner in seam_owners):
             found.append(f"pages/{name}: the card grid no longer reads the shared gap")
         if name == "home_desktop_grid.slint":
+            # FLPARITY-051: the seam must be priced once. The share arithmetic
+            # and the row spacing used to read two different answers - the
+            # theme's `overview-card-gap` (16u) against a `compact-metrics`
+            # spacing (12u) - so 12px was never allocated and the rows' card
+            # edges sat 4px out of line. When the grid reads the generated
+            # lookup, every row seam must read that same lookup.
+            if "ViewportLadder.card_spacing(" in page_code:
+                if "property <length> card-seam:" not in page_code:
+                    found.append(
+                        "pages/home_desktop_grid.slint: the grid reads the shared "
+                        "seam lookup without publishing one seam of its own"
+                    )
+                else:
+                    # The footer row pays the same seam under its own name.
+                    footer_is_seam = re.search(
+                        r"property <length> footer-row-gap:\s*root\.card-seam\s*;",
+                        page_code,
+                    )
+                    for line in lines:
+                        stripped = line.strip()
+                        if not stripped.startswith("spacing:"):
+                            continue
+                        # The grid's own layouts are the root column and the
+                        # rows of cards it lays out; a spacing deeper than that
+                        # belongs to a card's own content and is a density
+                        # choice, not the seam.
+                        if len(line) - len(line.lstrip()) > 8:
+                            continue
+                        if "card-seam" in stripped:
+                            continue
+                        if footer_is_seam and "footer-row-gap" in stripped:
+                            continue
+                        found.append(
+                            "pages/home_desktop_grid.slint: a card row pays a "
+                            f"private seam instead of the shared one: {stripped}"
+                        )
             # SPACEUTIL-008: the span grid reads the contract's exported share
             # lookup by page width. A private `compact-layout ? 2 : 4`, or the
             # wrapping flow's tier column count, would be a second answer to
@@ -1818,6 +1859,28 @@ class GuardSelfTest(unittest.TestCase):
             ],
             [],
         )
+
+    def test_a_grid_that_prices_the_seam_twice_is_caught(self) -> None:
+        """FLPARITY-051: the seam is one fact.
+
+        The share arithmetic and the row spacing used to read two different
+        answers - the theme's `overview-card-gap` against a `compact-metrics`
+        spacing - so 12px was never allocated and the rows' card edges sat
+        4px out of line. A grid that prices the seam twice is exactly that
+        defect, and it must be caught by name.
+        """
+        grid = (UI / "pages" / "home_desktop_grid.slint").read_text(encoding="utf-8")
+        planted = grid.replace(
+            "    spacing: root.card-seam;\n    alignment: start;",
+            "    spacing: root.compact-metrics ? LumenTheme.space-3 : LumenTheme.space-4;\n"
+            "    alignment: start;",
+            1,
+        )
+        self.assertNotEqual(grid, planted)
+        findings = self._findings_with({"home_desktop_grid.slint": planted})
+        self.assertTrue(
+            any("pays a private seam instead of the shared one" in item
+                for item in findings), findings)
 
     def test_column_authority_is_closed(self) -> None:
         self.assertEqual(generated_column_findings(UI), [])

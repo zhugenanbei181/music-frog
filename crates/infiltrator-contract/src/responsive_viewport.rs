@@ -92,6 +92,36 @@ pub const DASHBOARD_DESKTOP_MIN_PX: u16 = 640;
 /// The widest page body that keeps one centred mobile column.
 pub const DASHBOARD_MOBILE_MAX_PX: u16 = 560;
 
+/// The seam between the reference's cards in the mobile view mode.
+///
+/// FlClash states the seam once in `lib/common/layout.dart`:
+/// `cardSpacingOf(context, viewMode) => switch (viewMode) { ViewMode.mobile =>
+/// 8.0, ViewMode.laptop => 12.0, ViewMode.desktop => 16.0 }`. Both the
+/// dashboard grid (`lib/views/dashboard/dashboard.dart`) and the proxies group
+/// grid (`lib/views/proxies/list.dart`) read that one function, so the seam is
+/// a single fact for every card grid on every surface.
+pub const CARD_SPACING_MOBILE_PX: u16 = 8;
+
+/// The seam between the reference's cards in the laptop view mode.
+pub const CARD_SPACING_LAPTOP_PX: u16 = 12;
+
+/// The seam between the reference's cards in the desktop view mode.
+pub const CARD_SPACING_DESKTOP_PX: u16 = 16;
+
+/// The widest page body that keeps the mobile seam.
+///
+/// FlClash's `getViewMode` reads `maxMobileWidth = 600`
+/// (`lib/common/constant.dart`), the same boundary this contract already
+/// publishes as [`COMPACT_MAX_PX`].
+pub const CARD_SPACING_MOBILE_MAX_PX: u16 = COMPACT_MAX_PX as u16;
+
+/// The widest page body that keeps the laptop seam.
+///
+/// FlClash's `getViewMode` reads `maxLaptopWidth = 840`
+/// (`lib/common/constant.dart`), the same boundary this contract already
+/// publishes as [`MEDIUM_MAX_PX`].
+pub const CARD_SPACING_LAPTOP_MAX_PX: u16 = MEDIUM_MAX_PX as u16;
+
 /// The narrowest profile card the reference will draw side by side.
 ///
 /// FlClash states this once as `profileItemMinWidth = 300.0`
@@ -202,6 +232,28 @@ pub const fn profile_columns(form: ProfileGridForm, page_width_px: u16, gap_px: 
         PROFILE_MAX_COLUMNS
     } else {
         columns
+    }
+}
+
+/// The one seam a card grid pays at this page width.
+///
+/// The reference decides the seam from the view width alone: `getViewMode`
+/// answers mobile at or below 600, laptop at or below 840 and desktop above,
+/// and `cardSpacingOf` turns that mode into 8 / 12 / 16. The window **height**
+/// never enters the decision - upstream's `DashboardDensity.of(room)` decides
+/// type and tile density, while the seam stays the seam.
+///
+/// A surface that prices its seam twice - once for the share arithmetic and
+/// once for the row spacing - paints cards whose edges do not line up across
+/// rows, and the unused remainder is a dead band the space-utilization judge
+/// charges the page for.
+pub const fn card_spacing_px(page_width_px: u16) -> u16 {
+    if page_width_px <= CARD_SPACING_MOBILE_MAX_PX {
+        CARD_SPACING_MOBILE_PX
+    } else if page_width_px <= CARD_SPACING_LAPTOP_MAX_PX {
+        CARD_SPACING_LAPTOP_PX
+    } else {
+        CARD_SPACING_DESKTOP_PX
     }
 }
 
@@ -716,6 +768,19 @@ impl ResponsiveViewportSnapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_card_seam_is_one_fact_keyed_on_the_page_width_alone() {
+        // FlClash's `cardSpacingOf` reads the view mode, and `getViewMode`
+        // reads the width: <=600 mobile, <=840 laptop, else desktop.
+        assert_eq!(card_spacing_px(600), CARD_SPACING_MOBILE_PX);
+        assert_eq!(card_spacing_px(601), CARD_SPACING_LAPTOP_PX);
+        assert_eq!(card_spacing_px(840), CARD_SPACING_LAPTOP_PX);
+        assert_eq!(card_spacing_px(841), CARD_SPACING_DESKTOP_PX);
+        // The height never enters the seam: upstream's density lookup decides
+        // type and tile density, while the seam stays the seam.
+        assert_eq!(card_spacing_px(908), card_spacing_px(908));
+    }
 
     #[test]
     fn test_viewport_tier_thresholds_and_columns() {

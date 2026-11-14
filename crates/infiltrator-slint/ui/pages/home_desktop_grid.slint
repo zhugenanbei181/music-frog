@@ -28,11 +28,18 @@ export component HomeDesktopGrid inherits VerticalLayout {
     // never matched the row above them.
     property <int> card-columns:
         ViewportLadder.dashboard_grid_shares(root.width, LumenTheme.viewport-tier);
+    // The one seam this grid pays. FlClash states it once
+    // (`cardSpacingOf`) and keys it on the page width alone: 8 / 12 / 16 for
+    // mobile / laptop / desktop. The share arithmetic and the row spacing
+    // below both read this property, so the two can never price the seam
+    // differently - which is what left 12px unallocated and the rows' card
+    // edges 4px out of line on the published 908px-wide frame.
+    property <length> card-seam: ViewportLadder.card_spacing(root.width);
     property <length> card-column-width: max(0 * LumenUiScale.unit,
-        (self.width - (root.card-columns - 1) * LumenTheme.overview-card-gap)
+        (self.width - (root.card-columns - 1) * root.card-seam)
             / root.card-columns);
     property <length> card-span-width: 2 * root.card-column-width
-        + LumenTheme.overview-card-gap;
+        + root.card-seam;
     in property <string> home-exit-status;
     in property <string> home-exit-country-code;
     in property <int> home-exit-flag-index: -1;
@@ -59,7 +66,7 @@ export component HomeDesktopGrid inherits VerticalLayout {
     callback select-group(string);
 
     width: 100%;
-    spacing: root.compact-metrics ? LumenTheme.space-3 : LumenTheme.space-4;
+    spacing: root.card-seam;
     alignment: start;
 
     // FlClash publishes one `DashboardDensity` from the page body's own room
@@ -89,8 +96,7 @@ export component HomeDesktopGrid inherits VerticalLayout {
     // the policy grid's own room would depend on the grid's content - and the
     // old stretched row gave the group card 234px (its min-width floor) with
     // 96u tiles eliding every outbound name.
-    property <length> footer-row-gap:
-        root.compact-metrics ? LumenTheme.space-3 : LumenTheme.space-4;
+    property <length> footer-row-gap: root.card-seam;
     property <length> connections-card-width:
         (self.width - root.footer-row-gap) * 3 / 5;
     property <length> policy-card-width:
@@ -103,7 +109,7 @@ export component HomeDesktopGrid inherits VerticalLayout {
     // them onto their own row, the same way row 3 already wraps its four cards.
     GridLayout {
         width: parent.width;
-        spacing: root.compact-metrics ? LumenTheme.space-3 : LumenTheme.space-4;
+        spacing: root.card-seam;
 
         // Hero Card (FlClash Style)
         SurfaceCard {
@@ -272,7 +278,7 @@ export component HomeDesktopGrid inherits VerticalLayout {
     // off the right edge of a 720-wide window.
     GridLayout {
         width: parent.width;
-        spacing: root.compact-metrics ? LumenTheme.space-3 : LumenTheme.space-4;
+        spacing: root.card-seam;
 
         // Outbound Mode Selector Card
         SurfaceCard {
@@ -376,7 +382,7 @@ export component HomeDesktopGrid inherits VerticalLayout {
     // per row instead of shrinking type to make a broken row fit.
     GridLayout {
         width: parent.width;
-        spacing: root.compact-metrics ? LumenTheme.space-3 : LumenTheme.space-4;
+        spacing: root.card-seam;
 
         // LAN IP Card
         SurfaceCard {
@@ -462,7 +468,7 @@ export component HomeDesktopGrid inherits VerticalLayout {
             // service matrix legible.
             colspan: root.wrap-cards ? 2 : 1;
             width: root.wrap-cards
-                ? 2 * root.card-column-width + LumenTheme.overview-card-gap
+                ? 2 * root.card-column-width + root.card-seam
                 : root.card-column-width;
             HorizontalLayout {
                 spacing: LumenTheme.space-2;
@@ -535,7 +541,7 @@ export component HomeDesktopGrid inherits VerticalLayout {
             row: root.wrap-cards ? 2 : 0;
             colspan: root.wrap-cards ? 2 : 1;
             width: root.wrap-cards
-                ? 2 * root.card-column-width + LumenTheme.overview-card-gap
+                ? 2 * root.card-column-width + root.card-seam
                 : root.card-column-width;
             HorizontalLayout {
                 AppCardHeader {

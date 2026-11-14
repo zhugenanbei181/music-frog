@@ -24,7 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-14 第二百五十七批次：模块化落地（Slint 底栏组件化 + Core 导航能力真源）+ 补上「采集矩阵可静默删行」的门禁洞；b111–b256 见下方批次八问摘要）
+## 当前状态（2026-11-14 第二百五十八批次：`FLPARITY-051` 的缝从两个价收归一个价（契约 → 生成器 → Slint），像素取证同右沿；整批重采仍未做，条目仍 `Planned`；b111–b257 见下方批次八问摘要）
+
+| # | 结论 | 等级 | 缺口 / owner |
+| --- | --- | --- | --- |
+| 1 | 部分 | L | 本批改契约（`responsive_viewport.rs` / `page_structure.rs`）、生成器、导出 `page-structure.json`、生成的 `viewport-ladder.slint`、两个 `.slint` 页面与 1 条守卫，零平台 API；契约 nextest **627/627**、守卫自测 **56/56** + enforce 0、生成器 `--check` fresh、导出 `--check-export` current 为 `L`。aarch64 交叉目标产物未复跑（GAP-1.1） |
+| 2 | 部分 | L | Linux 本机完成契约定向测试与 2 帧真实重采（niri + kwin-wayland 虚拟合成器，`CAPTURE DIAGNOSTIC PASS`）；本批零 workflow 改动。Windows/macOS 构建腿未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
+| 3 | 部分 | L | 零 Android/iOS 代码、资源或脚本改动；本批裁决桌面网格的缝定价，移动端证据链未触碰，三 flavor 实机与 iOS 产物仍留外部环境看板 |
+| 4 | 部分 | L | **本批有 Slint 可见像素变化但只重采了 2 帧**（`overview-dark` / `overview-light`）：发布帧三行右沿 **1167 / 1163 / 1161**，新帧三行统一 **1175**；判定器读数 `band 3.9% / tail 0.0%` 前后逐字不变。**211 帧发布语料仍是旧像素**，故按截图认证硬门只写「部分」；`FLPARITY-051` 仍 `Planned` |
+| 5 | 完整 | L | 上游 `cardSpacingOf` 的一条缝进契约（8/12/16，宽度分档 600/840），经导出与生成器进 `ViewportLadder.card_spacing`，Slint 网格的分享数学与四处行间距读**同一个** `card-seam`；代理节点网格改付上游常量 `proxyGridSpacing = 8.0`。页面内不再有第二个缝价，也没有 UI 层私推导 |
+| 6 | 部分 | L | 新增门禁判据一条（网格自身的行间距必须读同一个 `card-seam`，并带 planted 负例）；契约新增 seam 单测与导出断言。整批 211 帧重采、双视口回执与真机证据未推进 → 部分（L） |
+| 7 | 完整 | L | 归属链一条：上游源码事实 → 契约常量与 `card_spacing_px()` → `page-structure.json` 导出 → 生成器 → `ViewportLadder.card_spacing` → 网格的分享数学与行间距。守卫随实现同步（判据不变、只多一条「不许第二个价」）；未为过门加布尔或 UI 私有推导 |
+| 8 | 部分 | L | 一次诊断重采（2 帧 / 131s）给出像素证据；结构门静态 218 腿 0、`import` 3008/0、`line` 3008/0、`typed-state` 0、`implicit-state` 0、`todo-status-freshness` 0、`doc-governance OK`、`closure` 8/8。**整批 211 帧重采**（与 `SPACEUTIL-020` 同批）留统一批次，`--workspace` nextest 与动态全腿同留 |
+
+## 最近一批问答（2026-11-14 第二百五十八批次：缝只有一个价）
+
+1. x86_64/aarch64：契约/生成器/两个 `.slint`/一条守卫；契约 nextest **627/627**、守卫 **56/56** + enforce 0、生成器 `--check` fresh、导出 current、2 帧真实重采 PASS 为 `L`。aarch64 交叉目标产物未复跑（GAP-1.1）→ 部分（L）。
+2. Windows/Linux/macOS：Linux 本机用 niri + kwin-wayland 虚拟合成器完成 2 帧真实重采并逐像素比对；本批零 workflow 改动。Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）→ 部分（L）。
+3. Android/iOS：零 Android/iOS 代码、资源或脚本改动；本批裁决桌面网格的缝定价，移动端三 flavor 实机与 iOS 产物仍留外部环境看板 → 部分（L）。
+4. 各 UI：Slint 仪表盘**有可见像素变化**且已用真实帧取证（发布帧三行右沿 1167/1163/1161 → 新帧统一 1175），但只重采 2 帧、211 帧发布语料仍旧，故按硬门只写「部分」；Iced/Bevy 仪表盘不是四列共享缝网格，本批未触及 → 部分（L）。
+5. 复用：上游 `cardSpacingOf`（8/12/16，宽度分档 600/840）进契约一处，经导出与生成器进 `ViewportLadder.card_spacing`，网格的分享数学与四处行间距读同一个 `card-seam`；代理节点网格用上游常量 8.0。页面内没有第二个缝价 → 完整（L）。
+6. 各处界面的功能接入：新增门禁判据「网格自身的行间距必须读同一个 seam」并带 planted 负例，契约新增 seam 单测与导出断言。整批 211 帧重采与双视口回执未做 → 部分（L）。
+7. 模块化：事实链自上游源码到生成器到页面只有一份；「不许第二个价」被门禁钉住而不是靠约定。未为过门加布尔或 UI 私有推导 → 完整（L）。
+8. CI 与批次效率：一次 2 帧诊断重采（131s）给出像素证据，结构门静态 218 腿 0、`import`/`line` 3008/0、`typed-state` 0、`implicit-state` 0、`todo-status-freshness` 0、`doc-governance OK`、`closure` 8/8。**整批 211 帧重采**（与 `SPACEUTIL-020` 同批）与 `--workspace` nextest、动态全腿留统一批次 → 部分（L）。
+
+## 历史状态（2026-11-14 第二百五十七批次：模块化落地（Slint 底栏组件化 + Core 导航能力真源）+ 补上「采集矩阵可静默删行」的门禁洞；b111–b256 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
@@ -37,7 +61,7 @@
 | 7 | 完整 | L | 组件化落到文件级：Slint dock 投影独立模块、契约 `SurfacePages` 独立模块（`surface_snapshot::pages::SurfacePages` 唯一路径，import 守卫禁 re-export）、profiles 页装配归 `page_builders`；三个越线文件被拆回 800 行以内。第一次拆分把 `if` 块写成语句导致页面永远 `unavailable`，由既有回归测试当场抓住并修回——未为过门加布尔或 UI 私有推导 |
 | 8 | 部分 | L | 语料守卫自测 **10 → 11/11**（新增「已发布场景不得离开规范矩阵」一条 planted 负例），三份已发布语料 findings=0；两条 owner 守卫随代码搬家但判据不变（6/6、4/4 + enforce 0）；结构门静态 218 腿 0。`--workspace` nextest、结构门动态全腿与 `resolve_surface_evidence.py` ready cells 留统一批次 |
 
-## 最近一批问答（2026-11-14 第二百五十七批次：底栏组件化 + 导航能力真源）
+## 历史问答（2026-11-14 第二百五十七批次：底栏组件化 + 导航能力真源）
 
 1. x86_64/aarch64：契约/组合/Slint 三层 Rust + 两个 owner 守卫 + 一条语料守卫；定向六包 nextest **2622/2622 PASS / 5 skipped**、六包 clippy `--all-targets -D warnings` **RC=0**、`line-guard` 3008/0、`import-guard` 3008/0、`typed-state` 0、`implicit-state` 24 candidates/0 undecided/0 open 为 `L`。aarch64 交叉目标产物未复跑（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：Linux 本机完成六包定向验收与两包 clippy；本批零 workflow 改动，CI 仍用上一批钉的 1.100.0。Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）→ 部分（L）。

@@ -18,11 +18,12 @@
 
 use crate::command_catalogue::ShellPage;
 use crate::responsive_viewport::{
-    DASHBOARD_DESKTOP_MIN_PX, DASHBOARD_FOUR_COLUMN_MIN_PX, DASHBOARD_MOBILE_MAX_PX,
-    DASHBOARD_STANDARD_FOUR_COLUMN_MIN_PX, DASHBOARD_STANDARD_HEIGHT_MIN_PX, DashboardColumns,
-    DashboardDensity, PAGE_PADDING_PX, PROFILE_MAX_COLUMNS, PROFILE_MIN_ITEM_WIDTH_PX,
-    PROXY_MIN_COLUMNS, PROXY_MIN_ITEM_WIDTH_PX, ProfileGridForm, ProxyGridForm, SidebarForm, TIERS,
-    ViewportTier,
+    CARD_SPACING_DESKTOP_PX, CARD_SPACING_LAPTOP_MAX_PX, CARD_SPACING_LAPTOP_PX,
+    CARD_SPACING_MOBILE_MAX_PX, CARD_SPACING_MOBILE_PX, DASHBOARD_DESKTOP_MIN_PX,
+    DASHBOARD_FOUR_COLUMN_MIN_PX, DASHBOARD_MOBILE_MAX_PX, DASHBOARD_STANDARD_FOUR_COLUMN_MIN_PX,
+    DASHBOARD_STANDARD_HEIGHT_MIN_PX, DashboardColumns, DashboardDensity, PAGE_PADDING_PX,
+    PROFILE_MAX_COLUMNS, PROFILE_MIN_ITEM_WIDTH_PX, PROXY_MIN_COLUMNS, PROXY_MIN_ITEM_WIDTH_PX,
+    ProfileGridForm, ProxyGridForm, SidebarForm, TIERS, ViewportTier,
 };
 use crate::shell_receipt::CHROME_KEYS;
 use crate::shell_sidebar_preference::{
@@ -185,10 +186,11 @@ pub fn page_structure_json() -> String {
     })
     .collect();
     format!(
-        "{{\"version\":{},\"dashboard_columns\":{},\"dashboard_density\":{},\"navigation_limits\":{},\"page_padding\":{},\"shell_air\":{},\"profile_grid\":{},\"proxy_grid\":{},\"pages\":[{}],\"slugs\":[{}],\"tiers\":{},\"sidebar_variants\":{},\"navigation_separators\":{},\"chrome_keys\":{}}}\n",
+        "{{\"version\":{},\"dashboard_columns\":{},\"dashboard_density\":{},\"card_spacing\":{},\"navigation_limits\":{},\"page_padding\":{},\"shell_air\":{},\"profile_grid\":{},\"proxy_grid\":{},\"pages\":[{}],\"slugs\":[{}],\"tiers\":{},\"sidebar_variants\":{},\"navigation_separators\":{},\"chrome_keys\":{}}}\n",
         PAGE_STRUCTURE_EXPORT_VERSION,
         dashboard_columns_json(),
         dashboard_density_json(),
+        card_spacing_json(),
         navigation_limits_json(),
         page_padding_json(),
         shell_air_json(),
@@ -200,6 +202,25 @@ pub fn page_structure_json() -> String {
         sidebar_variants_json(),
         navigation_separators_json(),
         chrome_keys_json()
+    )
+}
+
+/// The one seam a card grid pays, exported so the share arithmetic and the row
+/// spacing cannot price it twice.
+///
+/// The reference states the seam once (`lib/common/layout.dart`
+/// `cardSpacingOf`) and reads it from the view width alone; a surface that
+/// decides the seam again - or lets the window height decide it - paints rows
+/// whose card edges do not line up and leaves a dead band the judge charges
+/// the page for.
+fn card_spacing_json() -> String {
+    format!(
+        "{{\"mobile_px\":{},\"laptop_px\":{},\"desktop_px\":{},\"mobile_max_px\":{},\"laptop_max_px\":{}}}",
+        CARD_SPACING_MOBILE_PX,
+        CARD_SPACING_LAPTOP_PX,
+        CARD_SPACING_DESKTOP_PX,
+        CARD_SPACING_MOBILE_MAX_PX,
+        CARD_SPACING_LAPTOP_MAX_PX,
     )
 }
 
@@ -935,6 +956,14 @@ mod tests {
         assert_eq!(density["standard_four_column_min_px"], 1040);
         assert_eq!(density["standard_height_min_px"], 824);
         assert_eq!(density["mobile_max_px"], 560);
+        // The seam travels with the same export, so no surface can price the
+        // grid's seam a second time (FLPARITY-051).
+        let seam = &document["card_spacing"];
+        assert_eq!(seam["mobile_px"], 8);
+        assert_eq!(seam["laptop_px"], 12);
+        assert_eq!(seam["desktop_px"], 16);
+        assert_eq!(seam["mobile_max_px"], 600);
+        assert_eq!(seam["laptop_max_px"], 840);
         // The profile grid rule travels with the same export, so a surface
         // never has to keep the reference's 300px floor for itself.
         let profile = &document["profile_grid"];

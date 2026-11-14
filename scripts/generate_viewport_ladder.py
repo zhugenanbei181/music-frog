@@ -94,6 +94,22 @@ PROXY_GRID_DOC = [
     "`max(width - 32, 0)` *is* that gutter, not a second one.",
 ]
 
+CARD_SPACING_DOC = [
+    "The one seam between the cards of a grid, in design units.",
+    "",
+    "The reference states it once (`lib/common/layout.dart`",
+    "`cardSpacingOf`) and keys it on the view width alone: mobile at or",
+    "below 600, laptop at or below 840, desktop above - 8 / 12 / 16. The",
+    "dashboard grid and the proxies group grid both read that one function.",
+    "The window height never enters it: upstream's density lookup decides",
+    "type and tile density, while the seam stays the seam.",
+    "",
+    "A surface that prices the seam twice - once for the share arithmetic",
+    "and once for the row spacing - leaves a dead band between the rows and",
+    "paints card edges that do not line up across rows. Both callers read",
+    "this one function.",
+]
+
 PAGE_PADDING_DOC = [
     "The gutter every page body keeps on each side, in design units.",
     "",
@@ -318,6 +334,24 @@ def slint_ladder(document: dict) -> str:
         f"        if (page-width < {threshold} * LumenUiScale.unit) {{ return 2; }}"
     )
     body.append("        return 4;")
+    body.append("    }")
+    body.append("")
+    card_spacing = document["card_spacing"]
+    body += [f"    // {line}".rstrip() for line in CARD_SPACING_DOC]
+    body.append(
+        "    public pure function card_spacing(page-width: length) -> length {"
+    )
+    body.append(
+        f"        if (page-width <= {int(card_spacing['mobile_max_px'])} * LumenUiScale.unit) "
+        f"{{ return {int(card_spacing['mobile_px'])} * LumenUiScale.unit; }}"
+    )
+    body.append(
+        f"        if (page-width <= {int(card_spacing['laptop_max_px'])} * LumenUiScale.unit) "
+        f"{{ return {int(card_spacing['laptop_px'])} * LumenUiScale.unit; }}"
+    )
+    body.append(
+        f"        return {int(card_spacing['desktop_px'])} * LumenUiScale.unit;"
+    )
     body.append("    }")
     body.append("")
     body += [f"    // {line}".rstrip() for line in PROFILE_GRID_DOC]

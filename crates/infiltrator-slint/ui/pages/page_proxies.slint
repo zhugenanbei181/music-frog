@@ -183,8 +183,12 @@ export component PageProxies inherits VerticalLayout {
     }
     if root.selected-group != "": GridLayout {
         width: parent.width;
-        // The phone grid keeps the reference's 8dp seam; it used to spend 12dp.
-        spacing: root.compact-layout ? LumenTheme.space-mobile-card-gap : LumenTheme.space-3;
+        // The node grid keeps the reference's own seam: `proxyGridSpacing = 8.0`
+        // (`lib/views/proxies/common.dart`), a constant on both axes in every
+        // view mode. This grid used to pay 12u on a desktop window - a seam the
+        // reference never draws - and the comment above it claimed the
+        // opposite.
+        spacing: LumenTheme.space-mobile-card-gap;
         for node[index] in root.proxy-nodes: ProxyNodeCard {
             col: Math.mod(index, root.node-columns);
             row: index / root.node-columns;
