@@ -230,12 +230,12 @@ class GuardSelfTest(unittest.TestCase):
         planted = planted.replace(
             """    GridLayout {
         width: parent.width;
-        spacing: root.compact-metrics ? LumenTheme.space-3 : LumenTheme.space-4;
+        spacing: root.card-seam;
 
         // Hero Card (FlClash Style)""",
             """    HorizontalLayout {
         width: parent.width;
-        spacing: root.compact-metrics ? LumenTheme.space-3 : LumenTheme.space-4;
+        spacing: root.card-seam;
 
         // Hero Card (FlClash Style)""",
             1,

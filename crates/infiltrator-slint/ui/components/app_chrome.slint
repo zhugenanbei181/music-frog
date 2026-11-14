@@ -7,6 +7,7 @@ import { ViewportTier } from "./viewport_tier.slint";
 import { DockSlot } from "./models.slint";
 import { NavigationIcons } from "./navigation_icons.slint";
 import { MobileDockBandState, MobileDockBandProjection } from "./mobile_dock_state.slint";
+import { PageTitles } from "./page_titles.slint";
 
 // The reserved band's page ground. This is the window's own bottom background,
 // not a plinth or scrim: it paints no content, has no z-order and is mounted
@@ -94,7 +95,11 @@ export component AppBottomBar inherits Rectangle {
             for item in root.dock-items: NavButton {
                 width: root.tab-width;
                 horizontal-stretch: 0;
-                label: item.label;
+                // The word on a tab is copy, and the surface's compact
+                // vocabulary owns it - the same owner the compact page
+                // headers read. The projected row carries the destination,
+                // its route and its icon; the tab names that route.
+                label: PageTitles.phone-title(item.route);
                 target: item.route;
                 active: item.destination == root.active-destination;
                 compact: true;

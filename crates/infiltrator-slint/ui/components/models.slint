@@ -133,10 +133,16 @@ export struct NavigationSlot {
 // One compact dock destination. The projection publishes the typed registry,
 // including this surface's compact route vocabulary, so the bar owns no second
 // destination list, label, icon path or active-page comparison.
+//
+// The row carries navigation FACTS only: which destination it is, which
+// route it opens and which semantic icon it wears. The word on the tab is
+// copy, and copy has its own owner - the surface's compact vocabulary in
+// `PageTitles`, which is the same owner the compact page headers read. A
+// published word would be a second copy of that dialect, and the projection
+// would have to spell it in the host language to do it.
 export struct DockSlot {
     route: string,
     destination: string,
-    label: string,
     icon: string,
 }
 

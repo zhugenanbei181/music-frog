@@ -24,7 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-14 第二百五十九批次：接管孤儿会话的「代理组动作可用性」欠账——7 个已启用却点不动的控件逐条读回根因、owner 改到活会话、收口顺序写定；本批未改 Iced 业务代码，欠账一条未修；b111–b258 见下方批次八问摘要）
+## 当前状态（2026-11-14 第二百六十批次：底栏的「词」归回紧凑词表 owner——投影只发布事实、页签词由词表给；顺手修掉紧凑子页面被叫成「工具」的兜底，并让网格守卫的自测重新判真实代码；本批零像素变化；b111–b259 见下方批次八问摘要）
+
+| # | 结论 | 等级 | 缺口 / owner |
+| --- | --- | --- | --- |
+| 1 | 部分 | L | 本批改 Slint 表面 5 个文件（1 个 Rust 投影模块 + 4 个 `.slint`）、1 条守卫的判据、1 条守卫的 planted 自测、1 份表面手册与两份台账，零契约/零 application/零平台 API；定向 `cargo nextest run -p infiltrator-slint` 全绿，`i18n-guard` literal_errors 4→0（total 0）、`slint-navigation-owner-guard` 6→**9/9** + enforce 0、`slint-dashboard-grid-guard` **6/6** + enforce 0、`structure-gate-guard` 218 腿 0、`import`/`line` 3008/0、`typed-state` 0、`implicit-state` 24/0/0、`doc-governance OK`、`closure` 8/8 为 `L`。aarch64 交叉目标产物未复跑（GAP-1.1） |
+| 2 | 部分 | L | Linux 本机完成定向 nextest 与守卫核对；本批零 workflow、零构建面改动。Windows/macOS 构建腿未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
+| 3 | 部分 | L | 零 Android/iOS 代码、资源或脚本改动；本批只改桌面 Slint 的紧凑档底栏取词与词表兜底，Android 表面不受影响 |
+| 4 | 部分 | L | **本批零可见像素变化**：页签词一字未改（仍是仪表盘/代理/配置/工具，中英同词，词表读的是同一份共享 PO 目录），发布回执沿用；紧凑子页面标题的修复**没有任何发布帧覆盖**（本仓暂无紧凑子页面场景），按截图认证硬门只能写「部分」 |
+| 5 | 完整 | L | 紧凑方言从「宿主四个中文字面量 + 词表」两份收成词表一份：`DockSlot` 退回 `{route,destination,icon}`，投影不再发布词，底栏读 `PageTitles.phone-title(item.route)`；已知重复实现（宿主硬写 CJK）清零，并由门禁钉住 |
+| 6 | 部分 | L | 新增一条可执行判据（词归词表、事实归投影）+ 一条潜伏缺陷修复（紧凑子页面不再被叫成「工具」）+ 紧凑采集回执与桌面回执对齐；本仓**无紧凑子页面场景**，该修复没有对应业务能力新增 → 部分（L） |
+| 7 | 完整 | L | 事实（目的地/路由/图标/选中态）仍归 typed 注册表投影，词归紧凑词表；界面层没有新增布尔、没有自推导可用性、没有第二份导航事实；`DockSlot` 少一个字段而不是多一个 → 完整（L） |
+| 8 | 部分 | L | 定向 nextest 只跑受影响包（`infiltrator-slint`），零像素重采、零全仓重编；`--workspace` nextest、结构门动态全腿与 `resolve_surface_evidence.py` ready cells 留统一批次 → 部分（L） |
+
+## 最近一批问答（2026-11-14 第二百六十批次：底栏的词归词表，事实归投影）
+
+1. x86_64/aarch64：本批只改 1 个 Rust 投影模块、4 个 `.slint`、2 条守卫与 3 份文档，零契约/零 application/零平台 API；定向 `cargo nextest run -p infiltrator-slint` 全绿，`i18n-guard` total=0、`slint-navigation-owner-guard` 9/9 + enforce 0、`slint-dashboard-grid-guard` 6/6 + enforce 0、`structure-gate-guard` 218 腿 0、`import`/`line` 3008/0、`typed-state` 0、`implicit-state` 24/0/0、`doc-governance OK`、`closure` 8/8 为 `L`。aarch64 交叉目标产物未复跑（GAP-1.1）→ 部分（L）。
+2. Windows/Linux/macOS：Linux 本机完成定向 nextest 与守卫核对，本批零 workflow、零构建面改动。Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）→ 部分（L）。
+3. Android/iOS：零 Android/iOS 代码、资源或脚本改动；本批的取词与兜底只影响桌面 Slint 紧凑档 → 部分（L）。
+4. 各 UI：**本批零可见像素变化**——底栏四个页签的词一字未改（中英同词、同读一份共享 PO 目录），发布回执沿用；紧凑子页面标题修复没有发布帧覆盖（本仓暂无紧凑子页面场景）→ 部分（L）。
+5. 复用：紧凑方言的重复实现清零——宿主不再硬写四个中文字面量，`DockSlot` 退回 `{route,destination,icon}`，词只由 `PageTitles.phone-title` 给；已知的第二份实现（宿主硬写 CJK）由 `i18n-guard` 与 `slint-navigation-owner-guard` 双向钉死 → 完整（L）。
+6. 各处界面的功能接入：本批**未新增业务能力**，修的是「底栏与页头可能各说各话」的取词路径，并把紧凑词表的兜底从「一律叫工具」改成共享页名词表；本仓无紧凑子页面场景可演示 → 部分（L）。
+7. 模块化：事实（目的地/路由/图标/选中态）仍归 typed 注册表投影，词归表面词表；界面层没有新增布尔或私有推导，`DockSlot` 是减字段而不是加字段 → 完整（L）。
+8. CI 与批次效率：定向 nextest 只跑受影响包，零像素重采、零全仓重编；`structure-gate-guard` 218 腿 0、`import`/`line` 3008/0、`typed-state` 0、`implicit-state` 24/0/0、`todo-status-freshness` 0、`doc-governance OK`、`closure` 8/8。`--workspace` nextest、动态全腿与 ready cells 留统一批次 → 部分（L）。
+
+## 历史状态（2026-11-14 第二百五十九批次：接管孤儿会话的「代理组动作可用性」欠账——7 个已启用却点不动的控件逐条读回根因、owner 改到活会话、收口顺序写定；本批未改 Iced 业务代码，欠账一条未修；b111–b258 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
@@ -37,7 +61,7 @@
 | 7 | 完整 | L | 不用视图层的「有没有 id / 比一下名字」推导可用性——那是第二个业务真源；可用性由 owner 发布 typed 判决，界面只消费。未为过门加布尔或 UI 私有推导 → 完整（L） |
 | 8 | 部分 | L | 零编译、零像素、零全仓重编；全部证据秒级。`--workspace` nextest、结构门动态全腿与 `resolve_surface_evidence.py` ready cells 留统一批次；本条的实现批次留下一批 → 部分（L） |
 
-## 最近一批问答（2026-11-14 第二百五十九批次：把欠账接过来，写清怎么还）
+## 历史问答（2026-11-14 第二百五十九批次：把欠账接过来，写清怎么还）
 
 1. x86_64/aarch64：本批只改 1 个 JSON 台账与两份文档，零 Rust 零像素；`iced-dead-input-guard` 0/registered=7、`structure-gate-guard` 218 腿 0、`import`/`line` 3008/0、`typed-state` 0、`implicit-state` 24/0/0、`doc-governance OK`、`closure` 8/8 为 `L`。aarch64 交叉目标产物未复跑（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：Linux 本机完成守卫与台账核对，本批零 workflow、零构建面改动。Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）→ 部分（L）。

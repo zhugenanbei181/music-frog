@@ -8,8 +8,16 @@ Slint projection used to read the raw `NavigationSurface::Desktop` registry,
 which happened to produce the same eight rows but bypassed that owner.
 
 The compact dock has the same rule: `NavigationSurface::Dock` is the only row
-set a four-item bar may mount. Labels, routes, icons and active selection are
-published by the projection, never re-declared or re-derived by `AppBottomBar`.
+set a four-item bar may mount. Destinations, routes, icons and active
+selection are published by the projection, never re-declared or re-derived by
+`AppBottomBar`.
+
+The WORD on a dock tab is a different fact, and it has a different owner.
+Copy belongs to the surface's compact vocabulary (`PageTitles`), which is the
+same owner the compact page headers read, so a tab can never be named
+differently from the header of the page it opens. The projection therefore
+publishes no label: a published word would make the host spell a second copy
+of the dialect, in the host language.
 
 This bounded lexical reader checks the facts a re-edit is most likely to break:
 the host publishes a typed surface, the initial frame carries it, every
@@ -90,18 +98,37 @@ def findings(host: pathlib.Path = HOST,
         found.append(
             f"{dock_projection}: the dock rows no longer reach the Slint window"
         )
-    for call in ("dock::project_dock(window, &lang);",):
+    if "label:" in dock_projection_source:
+        found.append(
+            f"{dock_projection}: the dock projection publishes a word again; the "
+            "compact vocabulary owns the tab copy"
+        )
+    for call in ("dock::project_dock(window);",):
         if projection_source.count(call) != 2:
             found.append(
                 f"{projection}: initial and snapshot frames must both publish the typed dock"
             )
     if "export struct DockSlot {" not in models_source:
         found.append(f"{models}: the typed dock row model is missing")
+    dock_row = re.search(r"export struct DockSlot \{(?P<body>[^}]*)\}", models_source)
+    if dock_row is not None and re.search(r"\blabel\s*:", dock_row.group("body")):
+        found.append(
+            f"{models}: the dock row publishes a word again; the compact "
+            "vocabulary owns the tab copy"
+        )
     if "for item in root.dock-items: NavButton {" not in chrome_source:
         found.append(
             f"{chrome}: AppBottomBar no longer renders the projected dock rows"
         )
-    for retired in ("PageTitles.phone-title(", '@image-url("../../../infiltrator-shared/assets/ui/iced/svg/layout-grid.svg")'):
+    if "label: PageTitles.phone-title(item.route);" not in chrome_source:
+        found.append(
+            f"{chrome}: the dock no longer names its rows from the compact copy owner"
+        )
+    for retired in (
+        'PageTitles.phone-title("',
+        "label: item.label",
+        '@image-url("../../../infiltrator-shared/assets/ui/iced/svg/layout-grid.svg")',
+    ):
         if retired in chrome_source:
             found.append(f"{chrome}: the dock keeps a second navigation literal ({retired})")
     if "active: item.destination == root.active-destination;" not in chrome_source:
@@ -182,6 +209,51 @@ class GuardSelfTest(unittest.TestCase):
             self.assertTrue(
                 any("no longer renders the projected dock rows" in item
                     for item in findings(chrome=planted))
+            )
+
+    def test_a_dock_that_spell_its_own_word_is_caught(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            planted = pathlib.Path(directory) / "app_chrome.slint"
+            planted.write_text(
+                read(CHROME).replace(
+                    "label: PageTitles.phone-title(item.route);",
+                    'label: "Dashboard";',
+                ),
+                encoding="utf-8",
+            )
+            found = findings(chrome=planted)
+            self.assertTrue(
+                any("compact copy owner" in item for item in found), found
+            )
+
+    def test_a_dock_that_names_a_hardcoded_route_is_caught(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            planted = pathlib.Path(directory) / "app_chrome.slint"
+            planted.write_text(
+                read(CHROME).replace(
+                    "label: PageTitles.phone-title(item.route);",
+                    'label: PageTitles.phone-title("Home");',
+                ),
+                encoding="utf-8",
+            )
+            found = findings(chrome=planted)
+            self.assertTrue(
+                any("second navigation literal" in item for item in found), found
+            )
+
+    def test_a_projection_that_publishes_a_word_again_is_caught(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            planted = pathlib.Path(directory) / "dock.rs"
+            planted.write_text(
+                read(DOCK_PROJECTION).replace(
+                    "destination: item.id().into(),",
+                    "destination: item.id().into(),\n            label: item.id().into(),",
+                ),
+                encoding="utf-8",
+            )
+            found = findings(dock_projection=planted)
+            self.assertTrue(
+                any("publishes a word again" in item for item in found), found
             )
 
     def test_an_initial_frame_without_the_host_surface_is_caught(self) -> None:

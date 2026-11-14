@@ -1,25 +1,29 @@
 //! The compact dock projection of the Slint surface.
 //!
 //! The dock is a navigation surface, so it reads the one typed
-//! `NavigationSurface::Dock` registry. Its route vocabulary and its compact
-//! label dialect live here, next to the projection that owns them: the bar
-//! consumes the published rows and never derives an active row from a chain
-//! of page-string comparisons.
+//! `NavigationSurface::Dock` registry. Its route vocabulary lives here, next
+//! to the projection that owns them: the bar consumes the published rows and
+//! never derives an active row from a chain of page-string comparisons.
+//!
+//! The projection publishes navigation FACTS - destination, route and
+//! semantic icon - and no words. The word on a dock tab is copy, and the
+//! surface's compact vocabulary (`PageTitles`) is the one owner of it: the
+//! same owner the compact page headers read, so a tab can never be named
+//! differently from the header of the page it opens. Publishing a label
+//! here would make the host spell a second copy of that dialect.
 
 use crate::slint_model;
 use crate::{AppWindow, DockSlot};
 use infiltrator_contract::command_catalogue::ShellPage;
 use infiltrator_contract::shell_navigation::{NavigationItem, NavigationSurface, NavigationTarget};
-use infiltrator_shared::locales::{Lang, Localizer};
 
 /// Publish the compact dock rows the bar mounts.
-pub(super) fn project_dock(window: &AppWindow, lang: &Lang<'_>) {
+pub(super) fn project_dock(window: &AppWindow) {
     let rows = NavigationItem::items(NavigationSurface::Dock)
         .iter()
         .map(|item| DockSlot {
             route: dock_route(*item).into(),
             destination: item.id().into(),
-            label: dock_label(*item, lang).into(),
             icon: item.icon.canonical_name().into(),
         })
         .collect::<Vec<_>>();
@@ -37,33 +41,20 @@ fn dock_route(item: NavigationItem) -> &'static str {
     }
 }
 
-/// The compact label the dock paints for one destination.
-fn dock_label(item: NavigationItem, lang: &Lang<'_>) -> String {
-    let key = match item.target {
-        NavigationTarget::Shared(ShellPage::Overview) => "仪表盘",
-        NavigationTarget::Shared(ShellPage::Proxies) => "代理",
-        NavigationTarget::Shared(ShellPage::Profiles) => "配置",
-        NavigationTarget::Shared(ShellPage::Settings) => "工具",
-        _ => unreachable!("the dock registry carries only four primary destinations"),
-    };
-    lang.tr(key).into_owned()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use infiltrator_contract::shell_navigation::destination_for_route;
 
     #[test]
     fn the_dock_projection_is_the_registrys_four_typed_destinations() {
-        let lang = Lang("zh-CN");
-        let projected: Vec<(String, String, String, String)> =
+        let projected: Vec<(String, String, String)> =
             NavigationItem::items(NavigationSurface::Dock)
                 .iter()
                 .map(|item| {
                     (
                         dock_route(*item).to_owned(),
                         item.id().to_owned(),
-                        dock_label(*item, &lang),
                         item.icon.canonical_name().to_owned(),
                     )
                 })
@@ -74,38 +65,36 @@ mod tests {
                 (
                     "Home".to_owned(),
                     "overview".to_owned(),
-                    "仪表盘".to_owned(),
                     "layout-grid".to_owned()
                 ),
-                (
-                    "Proxy".to_owned(),
-                    "proxies".to_owned(),
-                    "代理".to_owned(),
-                    "globe".to_owned()
-                ),
+                ("Proxy".to_owned(), "proxies".to_owned(), "globe".to_owned()),
                 (
                     "Config".to_owned(),
                     "profiles".to_owned(),
-                    "配置".to_owned(),
                     "file-text".to_owned()
                 ),
                 (
                     "Settings".to_owned(),
                     "settings".to_owned(),
-                    "工具".to_owned(),
                     "settings".to_owned()
                 ),
             ]
         );
-        let english = Lang("en-US");
-        assert_eq!(
-            dock_label(
-                *NavigationItem::items(NavigationSurface::Dock)
-                    .first()
-                    .unwrap(),
-                &english,
-            ),
-            "Dashboard"
-        );
+    }
+
+    #[test]
+    fn every_dock_route_is_a_primary_page_the_surface_can_open() {
+        for item in NavigationItem::items(NavigationSurface::Dock) {
+            let route = dock_route(*item);
+            assert!(
+                matches!(route, "Home" | "Proxy" | "Config" | "Settings"),
+                "{route} is not a primary route"
+            );
+            assert!(
+                destination_for_route(route) == Some(item.target),
+                "{route} does not resolve back to {:?}",
+                item.target
+            );
+        }
     }
 }

@@ -98,10 +98,19 @@ export global PageTitles {
     // The desktop keeps the route names above (核心概览 / 代理策略 /
     // 配置订阅 / 系统设置) - the same names the Iced and Bevy shells print
     // for these routes - because a rail can afford them.
+    //
+    // The four words belong to the DOCK's destinations. Every other route
+    // keeps the shared page vocabulary, so a compact sub-page is never named
+    // after the dock: the old catch-all called every unknown route 工具,
+    // which would have titled a DNS or logs page "Tools". The two dynamic
+    // titles (the profile preview and the license detail) are named by the
+    // shell's sub-page header, which carries their arguments; they never
+    // reach this function.
     public pure function phone-title(page: string) -> string {
         if (page == "Home") { return @tr("仪表盘"); }
         if (page == "Proxy") { return @tr("代理"); }
         if (page == "Config") { return @tr("配置"); }
-        return @tr("工具");
+        if (page == "Settings" || page == "SettingsWorkbench") { return @tr("工具"); }
+        return PageTitles.title(page, "", "");
     }
 }
