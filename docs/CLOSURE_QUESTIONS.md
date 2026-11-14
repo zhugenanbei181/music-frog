@@ -24,7 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-14 第二百五十三批次：`dense` 上限第一次有了参照物执行器，四处「记录与像素分叉」按实测改写，实测新立 `FLPARITY-051`；b111–b252 见下方批次八问摘要）
+## 当前状态（2026-11-14 第二百五十五批次：连接表表头排序接回参照物，排序事实收归一个 typed owner，孤儿会话的 CI 红腿声明退役；b111–b254 见下方批次八问摘要）
+
+| # | 结论 | 等级 | 缺口 / owner |
+| --- | --- | --- | --- |
+| 1 | 部分 | L | 本批只改 Iced/presentation/domain 的 Rust、1 个结构门声明文件与批次文档，零平台 API；`cargo clean` 后 `cargo nextest -p infiltrator-iced -p infiltrator-presentation -p infiltrator-domain` **1651/1651**、1.99.1 等价树 `cargo check/clippy --all-targets -D warnings` 均 exit 0 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1） |
+| 2 | 部分 | L | Linux 本机完成 clean 重建与定向三包验收；等价树使用 HEAD 的 `rust-toolchain.toml`（1.99.1）验证，孤儿会话的 1.100.0 工具链 bump 不在本批。Windows/macOS 构建腿未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
+| 3 | 部分 | L | 零 Android/iOS 代码、资源或脚本改动；本批是桌面 Iced 连接表交互与 owner 收口，移动端三 flavor 实机与 iOS 产物仍留外部环境看板 |
+| 4 | 部分 | L | **本批有 Iced 可见变化**（可排序列的表头成为按钮、活动列带方向箭头），但未重采双视口真实像素回执；沿用发布回执只能写部分。Bevy/Slint/Android 未接入该表头交互（它们仍消费共享页模型自己的排序选择），如实记为跨表面差距；`FLPARITY-051` 与 `SPACEUTIL-020` 的整批重采仍留统一批次 |
+| 5 | 完整 | L | `ConnectionSortKey::direction()` 与 `connection_column_sort()` 在 domain/presentation 一处发布列→排序键→方向的事实；`RuntimeState::connection_sort` 是 Iced 两个页模型（活动/已关闭）与持久化的唯一 owner，表头只发 typed 意图。删除孤儿会话写而不读的 `rank_band_mounted`，无第二份排序真源、无本地字符串链猜测 |
+| 6 | 部分 | L | Iced 两种表形态（活动/已关闭）都从同一 runtime owner 读排序并即时生效，新回归测试钉住 Closed 页签表头排序立即重排历史行；分段排序控件、持久化读回与表头标记全部消费同一键。Bevy/Slint 的表头排序消费、双视口新像素与真机证据未推进 → 部分（L） |
+| 7 | 完整 | L | 归属链一条：domain 键与方向 → presentation 列投影 → Iced `UpdateRuntimeConnectionSort` 写 `RuntimeState` → 两个页模型与 `AppSettings` 只读 owner → 表头/分段控件按投影渲染。孤儿 Slint Dock 组件化、navigation-capability 与 toolchain bump 按文件所有权不夹带；未为过门加布尔开关或 UI 私有推导 |
+| 8 | 部分 | L | `cargo clean` 一次（21066 文件 / 9.6GiB）后只跑受影响三包；`structure_gate_ledger.json` 删除一条在 CI 已转绿的过期红腿声明，并把孤儿会话不连贯的 Bevy `overview-dark` / `manifest.tsv` 像素备份到 `.evidence/wip/b255-orphan-bevy-pixels.patch` 后恢复 HEAD，消除本机/CI 两树分裂。全仓 `--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` ready cells 留统一批次 |
+
+## 最近一批问答（2026-11-14 第二百五十五批次：表头是排序控件，排序只有一个 owner）
+
+1. x86_64/aarch64：`cargo clean` 后定向 `cargo nextest` 三包 **1651/1651**、1.99.1 等价树 `cargo check --all-targets` 与 `cargo clippy --all-targets -- -D warnings` exit 0 为 `L`；零平台 API。交叉架构与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
+2. Windows/Linux/macOS：Linux 本机完成从零重建、三包定向测试与等价树 clippy；等价树保留 HEAD 的 1.99.1 工具链，孤儿会话 1.100.0 bump 不夹带。Windows/macOS 构建腿未复跑，macOS 沿用 `Unsupported`（GAP-2.2）→ 部分（L）。
+3. Android/iOS：零 Android/iOS 代码、资源或脚本改动；本批是桌面 Iced 连接表交互与排序 owner 收口，移动端三 flavor 实机与 iOS 产物仍留外部环境看板 → 部分（L）。
+4. 各 UI：Iced 活动/已关闭表头已按共享投影渲染排序按钮与方向箭头（**有可见变化**），但本批未重采双视口真实像素回执，沿用旧回执只能写部分；Bevy/Slint/Android 未消费表头排序键，跨表面差距如实保留，`FLPARITY-051` / `SPACEUTIL-020` 的整批重采留统一批次 → 部分（L）。
+5. 复用：列→排序键→方向只在 presentation/domain 一处发布；Iced 两个页模型、分段控件、表头标记与持久化读回全部消费 `RuntimeState::connection_sort` 一个 typed owner。删掉孤儿会话写而不读的 `rank_band_mounted` 与 3 个缺失导入，工作树恢复可编译 → 完整（L）。
+6. 各处界面的功能接入：参照物把表头本身当排序控件，本批让六个可排序列发 `UpdateRuntimeConnectionSort`，活动列按 `direction()` 画上/下箭头，不可排序列保持纯文本；新回归测试在 Closed 页签注入两条历史并按上传量排序，证明两个目的地立即从同一 owner 生效。Bevy/Slint 表头消费与双视口新像素未推进 → 部分（L）。
+7. 模块化：domain 键/方向 → presentation 列投影 → Iced runtime owner → 页模型/持久化/两个表头控件，链条只有一份事实；孤儿 Slint Dock、navigation-capability 与 toolchain 文件按所有权不夹带，未为过门加布尔或 UI 私有推导 → 完整（L）。
+8. CI 与批次效率：`cargo clean` 一次（9.6GiB）后只跑受影响三包；定向守卫 `iced-dead-input 0 / iced-connection-view OK / typed-state 0 / import 3002/0 / test-layout 0 / rule-target-owner 0 / closure 8/8 / structure-gate-guard 216 腿 0`。删除过期红腿声明并恢复孤儿 Bevy 不连贯像素，消除 CI job 的唯一红腿；全仓 `--workspace` nextest/clippy、结构门动态全腿与 ready cells 留统一批次 → 部分（L）。
+
+## 历史状态（2026-11-14 第二百五十三批次；b111–b252 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
@@ -37,7 +61,7 @@
 | 7 | 完整 | L | 判据链一条且不新增第二份数字：tracked 像素 →（判定器尺子 + 保留带守卫）→ 契约常量 → 导出 → 参照守卫 → L2 §3.1/§4 与 L3 手册 → L4 `FLPARITY-051` / `SPACEUTIL-020`；缝的两个真源是**被测出来的缺陷**并登记 owner，本批没有在 UI 层就地二选一，也没为让测量通过而加布尔 |
 | 8 | 部分 | L | 零全仓编译；提交态结构门 **216 腿**（本线 +2）、静态 findings=0，`doc-governance OK`（本批自查时发现自己 ledger 文案引入 2 条 L4→L3 上引，已按层级改写而非放宽门）。**`GATERUN-003` 下半未完**：`structure_gate_ledger.json` 的 `screenshot-identity` 声明在 CI 树已转绿、在本机会话树仍红，两种树不能同时成立，留并行 Bevy 像素落地后由统一批次移除；并行 toolchain bump、2 条 `navigation-capability-owner-guard` 腿与 `surface_reader.rs` 804 行超限均不属本批 |
 
-## 最近一批问答（2026-11-14 第二百五十三批次：参照物的账用参照物的尺子重算）
+## 历史问答（2026-11-14 第二百五十三批次：参照物的账用参照物的尺子重算）
 
 1. x86_64/aarch64：改动面只有 2 个 Python 守卫（1 新 1 改）、契约 doc-comment、L2/L3/boards 文档；`py_compile` 全通过、新守卫 **10/10**、保留带 **14/14**、判定器 `--self-test` OK 为 `L`。交叉架构与 aarch64 目标产物未复跑（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：Linux 本机做两棵树——开发者树双表面 211 / 194 帧 `--enforce` violations=0 且读数与上批逐字相同；暂存树用 `git checkout-index` 重建后三条像素腿逐条 typed 跳过、其余实判 0 红。Windows/macOS 构建腿未复跑，macOS 仍 `Unsupported`（GAP-2.2）→ 部分（L）。
@@ -103,7 +127,7 @@
 3. Android/iOS：零 Android/iOS 代码与资源改动；本批裁决桌面外壳纵向保留，移动端 `page-content-padding-bottom` 恒 0（b150 实测收口），三 flavor 实机交互与 iOS 产物仍留在外部环境看板 → 部分（L）。
 4. 各 UI：本批零可见像素变化——不改 `.slint`、不改 `app_body.slint`、不重采，判定器净 diff 0 行，因此沿用 Slint 211 帧与 Iced 194 帧发布回执（两表面 `--enforce` 各 0 违规）；Bevy 语料与 192 帧仍归并行会话，按所有权不代改、不冒充 → 部分（L）。
 5. 复用：参照物 20dp、余量 8px、上限 28px 只在契约 `page_structure` 一处发布，导出 `shell_air` 三键是唯一送达通道，守卫同时比对参照像素、契约源码常量、导出值与 L2 文案；判定器不记保留带数字，本批曾加入的判定器辅助函数因无消费者已完全撤回（净 diff 0）→ 完整（L）。
-6. 各处界面的功能接入：未新增业务能力，新增一条判据——新守卫 planted 自测 **11/11** 且 `--mode enforce` findings=0，判定器 `--self-test` **73/73**、`--check-export` current、`--enforce` 211 帧 violations=0、生成器 `--check` fresh、`doc-governance OK`、`import 3006/0`、`typed-state 0`、contract nextest **626/626**；全仓 `--workspace` 与 `resolve_surface_evidence.py` ready cells 留统一批次。同批实测登记 `SPACEUTIL-021`（3 pt）：导出 `ultra` 档与 `nav_tail` tall/reference 两带零帧行使，模拟删整档像素后 enforce 仍 findings=0，取证与解锁条件写在该条内 → 部分（L）。
+6. 各处界面的功能接入：未新增业务能力，新增一条判据——新守卫 planted 自测 **11/11** 且 `--mode enforce` findings=0，判定器 `--self-test` **73/73**、`--check-export` current、`--enforce` 211 帧 violations=0、生成器 `--check` fresh、`doc-governance OK`、`import 3002/0`、`typed-state 0`、contract nextest **626/626**；全仓 `--workspace` 与 `resolve_surface_evidence.py` ready cells 留统一批次。同批实测登记 `SPACEUTIL-021`（3 pt）：导出 `ultra` 档与 `nav_tail` tall/reference 两带零帧行使，模拟删整档像素后 enforce 仍 findings=0，取证与解锁条件写在该条内 → 部分（L）。
 7. 模块化：判据链一条（tracked 像素 → 契约常量 → 导出 → 参照守卫 → L2 §3.6 → L4 台账），无跨 UI 私有真源、无第二份阈值；剩余一半（Slint 消费导出值 + 判定器逐帧拒判 + 整批重采）登记为 `SPACEUTIL-020` 而非就地半改，避免留下「上限已裁决、消费者仍写死 72u」的双轨 → 完整（L）。
 8. CI 与批次效率：本批按「开发期只跑受影响包」只编译 contract 与导出器，未触发全仓重编；应要求先 `cargo clean` 一次释放 **231.3 GiB**（该卷从 100% 满回到 49%，此前一次 presentation 编译因 `No space left on device` 失败），随后重建导出器并复跑全部证据腿；全仓 `--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` 留统一批次一次跑完 → 部分（L）。
 
@@ -116,7 +140,7 @@
 | 3 | 部分 | L | 零 Android/iOS 代码与资源改动；本批裁决的是桌面外壳纵向保留带，移动端 `compact-layout` 保留带恒 0（b150 已收口），三 flavor 实机与 iOS 产物仍留在外部环境看板 |
 | 4 | 部分 | L | **本批零可见像素变化**：不改任何 `.slint`、不改 `app_body.slint` padding、不重采语料；沿用 Slint 发布批 `20261112T213727Z_1ff41e54d1b1_dirty_2083100`（211 帧 `--enforce` violations=0）与 Iced `20261113T061503Z_ce869d71975c_dirty_1358480`（194 帧 0 违规）。判定器净 diff 为 **0 行**（曾加入的辅助函数已完全撤回），因此两表面读数逐字不变。Bevy 语料仍归并行会话 |
 | 5 | 完整 | L | 一条链只发一份数：参照物 20dp、余量 8px、上限 28px 只在 `infiltrator-contract::page_structure` 一处声明，经导出 v20 的 `shell_air` 三键送达 `flclash-shell-reserve-guard.py` 与 L2 §3.6；守卫要求「导出值 = 实测值 + 有界余量」且逐条比对契约源码常量，判定器不记任何保留带数字 |
-| 6 | 部分 | L | 未新增业务能力，只新增一条判据：新守卫 `--self-test` **11/11** + `--mode enforce` findings=0（含「参照摘要漂移」「余量越界」「导出与契约不一致」「标准丢失实测数字」「标准丢失 §3.6」「结构门缺腿」「§2 把超标保留带读成达标」七类 planted 负例）；判定器 `--self-test` **73/73**、`--check-export` current、`--enforce` 211 帧 0 违规、`generate_viewport_ladder.py --check` fresh、`doc-governance OK`、`import 3006/0`、`typed-state 0`、契约 nextest **626/626**。`--workspace` nextest/clippy 未跑（见本批⑦），结构门动态全腿留统一批次。**同批实测登记第二条盲区 `SPACEUTIL-021`（3 pt）**：导出四档中 `ultra` 与 `nav_tail` 的 tall/reference 两档**零帧行使**，模拟删除任一整档像素后 enforce 仍 `findings=0`；该腿未接入门禁的取证与解锁条件逐条写在现在佛 §0.2 该条，不用门禁掩盖缺陷 |
+| 6 | 部分 | L | 未新增业务能力，只新增一条判据：新守卫 `--self-test` **11/11** + `--mode enforce` findings=0（含「参照摘要漂移」「余量越界」「导出与契约不一致」「标准丢失实测数字」「标准丢失 §3.6」「结构门缺腿」「§2 把超标保留带读成达标」七类 planted 负例）；判定器 `--self-test` **73/73**、`--check-export` current、`--enforce` 211 帧 0 违规、`generate_viewport_ladder.py --check` fresh、`doc-governance OK`、`import 3002/0`、`typed-state 0`、契约 nextest **626/626**。`--workspace` nextest/clippy 未跑（见本批⑦），结构门动态全腿留统一批次。**同批实测登记第二条盲区 `SPACEUTIL-021`（3 pt）**：导出四档中 `ultra` 与 `nav_tail` 的 tall/reference 两档**零帧行使**，模拟删除任一整档像素后 enforce 仍 `findings=0`；该腿未接入门禁的取证与解锁条件逐条写在现在佛 §0.2 该条，不用门禁掩盖缺陷 |
 | 7 | 完整 | L | 判据链一条：tracked 像素 → 契约常量 → 导出 `shell_air` → 参照守卫 → L2 §3.6 → L4 `SPACEUTIL-020`；本批**没有**在判定器或 UI 层留下第二份数字或影子实现（撤回的辅助函数净 diff 0），`SPACEUTIL-020` 的剩余一半（外壳 padding 消费导出值 + 判定器逐帧拒判）按所有权与重采代价显式留在看板而非就地半改 |
 | 8 | 部分 | L | 按「开发期只跑受影响包」执行：本批只编译 contract 与导出器，未触发全仓重编；应要求先 `cargo clean` 一次（释放 **231.3 GiB**，卷用量 100% → 49%），再重建导出器并复跑全部证据腿。全仓 `--workspace` nextest/clippy、结构门动态全腿与 `resolve_surface_evidence.py` ready cells 仍留统一批次；`infiltrator-presentation` 在并行会话 WIP 上实测 3 个 `E0425`，按所有权不代改 |
 

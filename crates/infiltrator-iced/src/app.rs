@@ -52,6 +52,7 @@ use infiltrator_contract::vpn::{VpnSessionSnapshot, VpnSurfaceObservation};
 use infiltrator_domain::connection_activity::{
     ConnectionActivityTracker, DEFAULT_IDLE_TIMEOUT_SECS,
 };
+use infiltrator_domain::connection_view::ConnectionSortKey;
 use infiltrator_domain::rules::edit::DEFAULT_RULE_TARGET;
 use infiltrator_domain::rules::logical::default_logical_draft;
 use infiltrator_domain::rules::view::{RULE_DEFAULT_VIEWPORT_PX, RULE_PUBLISH_LIMIT};
@@ -201,6 +202,7 @@ impl AppState {
                 runtime_outbound_selection: None,
                 connection_tab: ConnectionTab::Active,
                 connection_query: String::new(),
+                connection_sort: ConnectionSortKey::default(),
                 runtime_auto_refresh: true,
                 runtime_poll_tick: 0,
                 runtime_prev_upload_total: None,

@@ -22,7 +22,9 @@ use chrono::DateTime;
 use infiltrator_contract::connection::ConnectionRateObservation;
 use infiltrator_contract::connection_view_preference::{ConnectionColumn, ConnectionColumnSupport};
 use infiltrator_domain::connection_observation::ConnectionObservationInstant;
-use infiltrator_domain::connection_view::{ConnectionView, RatedConnection, route_chain};
+use infiltrator_domain::connection_view::{
+    ConnectionSortKey, ConnectionView, RatedConnection, route_chain,
+};
 use infiltrator_shared::byte_units::format_bytes;
 use infiltrator_shared::effect_assets::text_width_em;
 use infiltrator_shared::elapsed_time::format_duration_ms;
@@ -136,6 +138,16 @@ pub struct ConnectionTableHeader {
     pub tone: ConnectionTableTone,
     /// Whether the kernel publishes this column's fact at all.
     pub support: ConnectionColumnSupport,
+    /// The rank this column's header applies when the reader presses it.
+    ///
+    /// The reference product's table header IS the sort affordance: a column
+    /// either publishes a sort key or it does not, and only a column with one
+    /// is pressable. Publishing the key here rather than in the surface keeps
+    /// "which fact can the table be ranked by" one answer for every surface,
+    /// and keeps the vocabulary the page model already owns.
+    pub sort: Option<ConnectionSortKey>,
+    /// Whether this column's sort is the order the rows arrive in.
+    pub sorted: bool,
 }
 
 /// One data row of the table.
@@ -166,6 +178,7 @@ pub fn project_connection_view_table<C: ConnectionView>(
     rows: &[RatedConnection<'_, C>],
     status: ConnectionTableStatus,
     instant: ConnectionObservationInstant,
+    sort: Option<ConnectionSortKey>,
 ) -> ConnectionTableProjection {
     let headers: Vec<ConnectionTableHeader> = columns
         .iter()
@@ -175,6 +188,8 @@ pub fn project_connection_view_table<C: ConnectionView>(
             width: connection_column_width(column.column),
             tone: connection_column_tone(column.column),
             support: column.column.support(),
+            sort: connection_column_sort(column.column),
+            sorted: sort.is_some_and(|key| connection_column_sort(column.column) == Some(key)),
         })
         .collect();
     let rows = rows
@@ -244,6 +259,41 @@ pub const fn connection_column_width(column: ConnectionColumn) -> ConnectionColu
         | ConnectionColumn::ProcessPath
         | ConnectionColumn::ProxyChain
         | ConnectionColumn::RemoteDestination => ConnectionColumnWidth::Wide,
+    }
+}
+
+/// The rank a column's header applies when the reader presses it.
+///
+/// The reference table puts its sort affordance in the header: a column that
+/// has a rank reads as pressable, one that has none does not. This is that
+/// answer in one place, expressed in the vocabulary the page model already
+/// owns, so a surface cannot decide on its own which facts are rankable and
+/// two surfaces cannot rank the same column by different facts.
+pub const fn connection_column_sort(column: ConnectionColumn) -> Option<ConnectionSortKey> {
+    match column {
+        ConnectionColumn::EstablishTime => Some(ConnectionSortKey::LatestDesc),
+        ConnectionColumn::Host => Some(ConnectionSortKey::HostAsc),
+        ConnectionColumn::Upload => Some(ConnectionSortKey::UploadDesc),
+        ConnectionColumn::Download => Some(ConnectionSortKey::DownloadDesc),
+        ConnectionColumn::UploadSpeed => Some(ConnectionSortKey::UploadRateDesc),
+        ConnectionColumn::DownloadSpeed => Some(ConnectionSortKey::DownloadRateDesc),
+        ConnectionColumn::Status
+        | ConnectionColumn::Type
+        | ConnectionColumn::SniffHost
+        | ConnectionColumn::Process
+        | ConnectionColumn::ProcessPath
+        | ConnectionColumn::Rule
+        | ConnectionColumn::ProxyChain
+        | ConnectionColumn::SourceIp
+        | ConnectionColumn::SourcePort
+        | ConnectionColumn::DestinationIp
+        | ConnectionColumn::DestinationPort
+        | ConnectionColumn::InboundIp
+        | ConnectionColumn::InboundPort
+        | ConnectionColumn::Dscp
+        | ConnectionColumn::RemoteDestination
+        | ConnectionColumn::DnsMode
+        | ConnectionColumn::Duration => None,
     }
 }
 

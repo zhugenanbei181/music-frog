@@ -90,6 +90,24 @@ impl ConnectionSortKey {
         }
     }
 
+    /// Which way the rank runs, so a surface marks the active column with the
+    /// direction the orderer actually applied.
+    ///
+    /// The alternative is every surface deciding on its own that "sorted" means
+    /// a down arrow, which draws an ascending column as descending. The key's
+    /// own name is the single source: the same match arms `sort_connections`
+    /// compares on.
+    pub const fn direction(self) -> ConnectionSortDirection {
+        match self {
+            Self::DownloadDesc
+            | Self::UploadDesc
+            | Self::DownloadRateDesc
+            | Self::UploadRateDesc
+            | Self::LatestDesc => ConnectionSortDirection::Descending,
+            Self::HostAsc => ConnectionSortDirection::Ascending,
+        }
+    }
+
     /// Parse an identifier produced by [`Self::as_str`], defaulting to
     /// download-descending.
     pub fn from_identifier(value: &str) -> Self {
@@ -102,6 +120,15 @@ impl ConnectionSortKey {
             _ => Self::DownloadDesc,
         }
     }
+}
+
+/// The direction one [`ConnectionSortKey`] ranks in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ConnectionSortDirection {
+    /// Bigger or newer first.
+    Descending,
+    /// Smaller or earlier first.
+    Ascending,
 }
 
 /// One aggregated bucket produced by [`aggregate_connections`].

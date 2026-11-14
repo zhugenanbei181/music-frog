@@ -47,16 +47,18 @@ impl AppState {
         self.runtime.core_channel = normalized_release_channel(&settings.core_channel);
         self.runtime.runtime_panel_delay_sort_order = settings.runtime_panel.delay_sort_order;
         self.runtime.connection_query = settings.runtime_panel.connection_filter;
+        self.runtime.connection_sort =
+            ConnectionSortKey::from_identifier(&settings.runtime_panel.connection_sort);
         self.diag
             .connections_model
             .edit_query(&self.runtime.connection_query);
-        // The persisted sort is the shared typed key's identifier; the page
-        // model owns the selection itself.
+        // Both page models only mirror the one typed owner's ranking.
         self.diag
             .connections_model
-            .select_sort(ConnectionSortKey::from_identifier(
-                &settings.runtime_panel.connection_sort,
-            ));
+            .select_sort(self.runtime.connection_sort);
+        self.diag
+            .closed_connections_model
+            .select_sort(self.runtime.connection_sort);
         self.shell.admin_enabled = settings.admin.enabled;
         self.shell.admin_port = settings.admin.port;
         self.shell.admin_port_input = settings.admin.port.to_string();

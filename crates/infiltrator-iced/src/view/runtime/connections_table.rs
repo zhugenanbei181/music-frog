@@ -13,16 +13,18 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
-use crate::view::component_forms::style_chip;
+use crate::view::component_forms::{style_chip, style_plain};
 use crate::view::components::icon_button;
 use crate::view::runtime::connection_search;
 use crate::view::scrollbar;
-use crate::view::svg_icons::Icon;
 use crate::view::theme;
+use crate::view::{svg_icons, svg_icons::Icon};
+use iced::advanced::widget::Id;
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Element, Length, Padding, Theme, border};
 use infiltrator_contract::connection_view_preference::ConnectionColumn;
 use infiltrator_contract::design_resources::{TextRole, typeface};
+use infiltrator_domain::connection_view::ConnectionSortDirection;
 use infiltrator_presentation::connection_search::ConnectionSearchRow;
 use infiltrator_presentation::connection_view_table_projection::{
     ConnectionColumnWidth, ConnectionTableCell, ConnectionTableHeader, ConnectionTableProjection,
@@ -130,18 +132,63 @@ pub(crate) fn connection_table<'a>(
         .into()
 }
 
+/// The stable id of one column's header sort affordance.
+fn header_sort_id(semantic_id: &str) -> Id {
+    Id::from(format!("connection-table-sort-{semantic_id}"))
+}
+
 /// One header cell.
+///
+/// A column the owner ranks reads as a control the reader can press, the way
+/// the reference product's header does; a column it cannot rank stays plain
+/// text, so no header is ever inert.
 fn header_cell<'a>(header: &ConnectionTableHeader, lang: Lang<'a>) -> Element<'a, Message> {
     let width = column_width(header.width);
     let label = lang.tr(header.semantic_id).to_string();
     let budget = text_budget_em(width, TextRole::Caption);
-    container(
-        theme::role_text(ellipsize(&label, budget), TextRole::Caption).style(|t: &Theme| {
+    let caption = |accent: bool| {
+        theme::role_text(ellipsize(&label, budget), TextRole::Caption).style(move |t: &Theme| {
             text::Style {
-                color: Some(theme::tokens(t).text_tertiary),
+                color: Some(if accent {
+                    theme::tokens(t).text_primary
+                } else {
+                    theme::tokens(t).text_tertiary
+                }),
             }
-        }),
+        })
+    };
+    let Some(sort_key) = header.sort else {
+        return container(caption(false))
+            .width(Length::Fixed(width))
+            .padding(cell_padding())
+            .align_x(Alignment::Start)
+            .into();
+    };
+    // The active rank is the only mark a header carries: an unpressed column
+    // shows no arrow at all, so the row never pays for a glyph that says
+    // nothing. iced's `Row` has no `push_maybe`, so the mark is appended on
+    // the one branch that has it.
+    let mut label = row![caption(header.sorted)]
+        .spacing(theme::SP_XS)
+        .align_y(Alignment::Center);
+    if header.sorted {
+        let glyph = match sort_key.direction() {
+            ConnectionSortDirection::Descending => Icon::ArrowDown,
+            ConnectionSortDirection::Ascending => Icon::ArrowUp,
+        };
+        label = label.push(container(svg_icons::icon_themed(
+            glyph,
+            11.0,
+            |t: &Theme| theme::tokens(t).text_primary,
+        )));
+    }
+    container(
+        button(label)
+            .padding([2, 0])
+            .style(style_plain)
+            .on_press(Message::UpdateRuntimeConnectionSort(sort_key)),
     )
+    .id(header_sort_id(header.semantic_id))
     .width(Length::Fixed(width))
     .padding(cell_padding())
     .align_x(Alignment::Start)

@@ -293,7 +293,7 @@ impl AppState {
         let auto_refresh = self.runtime.runtime_auto_refresh;
         let delay_sort_order = self.runtime.runtime_panel_delay_sort_order;
         let connection_query = self.runtime.connection_query.clone();
-        let connection_sort = self.diag.connections_model.sort_key().as_str().to_string();
+        let connection_sort = self.runtime.connection_sort.as_str().to_string();
         Task::perform(
             async move {
                 update(|settings| {
@@ -718,7 +718,9 @@ impl AppState {
                 )
             }
             Message::UpdateRuntimeConnectionSort(sort_key) => {
+                self.runtime.connection_sort = sort_key;
                 self.diag.connections_model.select_sort(sort_key);
+                self.diag.closed_connections_model.select_sort(sort_key);
                 self.diag.connections_page = 0;
                 self.persist_runtime_panel_settings_task()
             }

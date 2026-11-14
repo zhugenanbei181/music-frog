@@ -12,6 +12,7 @@ use infiltrator_contract::connection_view_preference::{
 use infiltrator_contract::traffic_history::ClosedConnectionSnapshot;
 use infiltrator_domain::connection_observation::ConnectionObservationInstant;
 use infiltrator_domain::connection_rate::ConnectionRate;
+use infiltrator_domain::connection_view::ConnectionSortKey;
 use infiltrator_domain::connection_view::RatedConnection;
 use infiltrator_domain::runtime::{Connection, ConnectionMetadata};
 use infiltrator_shared::byte_units::format_bytes;
@@ -74,7 +75,75 @@ fn table_of(
 ) -> super::ConnectionTableProjection {
     let columns = columns_of(visible);
     let rows = vec![RatedConnection::new(connection, measured_rate())];
-    project_connection_view_table(&columns, &rows, status, observed_instant())
+    project_connection_view_table(&columns, &rows, status, observed_instant(), None)
+}
+
+/// The header is the sort affordance: a rankable column publishes its key and
+/// reads as the active rank only when it is the key the owner ranked by.
+#[test]
+fn a_rankable_header_publishes_its_key_and_only_the_active_one_is_marked() {
+    let visible = [
+        ConnectionColumn::Host,
+        ConnectionColumn::Download,
+        ConnectionColumn::Status,
+    ];
+    let columns = columns_of(&visible);
+    let connection = full_connection();
+    let rows = vec![RatedConnection::new(&connection, measured_rate())];
+    let table = project_connection_view_table(
+        &columns,
+        &rows,
+        ConnectionTableStatus::Active,
+        observed_instant(),
+        Some(ConnectionSortKey::DownloadDesc),
+    );
+
+    let by_column = |want: ConnectionColumn| {
+        table
+            .headers
+            .iter()
+            .find(|header| header.column == want)
+            .unwrap_or_else(|| panic!("{want:?} missing from the header row"))
+    };
+    assert_eq!(
+        by_column(ConnectionColumn::Host).sort,
+        Some(ConnectionSortKey::HostAsc)
+    );
+    assert_eq!(
+        by_column(ConnectionColumn::Download).sort,
+        Some(ConnectionSortKey::DownloadDesc)
+    );
+    assert_eq!(by_column(ConnectionColumn::Status).sort, None);
+    assert!(!by_column(ConnectionColumn::Host).sorted);
+    assert!(by_column(ConnectionColumn::Download).sorted);
+    assert!(!by_column(ConnectionColumn::Status).sorted);
+}
+
+/// A column the table cannot rank must never read as the active rank, so no
+/// surface can paint a header that does nothing when pressed.
+#[test]
+fn an_unrankable_column_is_never_marked_sorted() {
+    let columns = columns_of(&[ConnectionColumn::Status, ConnectionColumn::Rule]);
+    let connection = full_connection();
+    let rows = vec![RatedConnection::new(&connection, measured_rate())];
+    let table = project_connection_view_table(
+        &columns,
+        &rows,
+        ConnectionTableStatus::Active,
+        observed_instant(),
+        Some(ConnectionSortKey::HostAsc),
+    );
+
+    assert!(
+        table.headers.iter().all(|header| header.sort.is_none()),
+        "{:?}",
+        table
+            .headers
+            .iter()
+            .map(|h| (h.column, h.sort))
+            .collect::<Vec<_>>()
+    );
+    assert!(table.headers.iter().all(|header| !header.sorted));
 }
 
 #[test]
@@ -179,6 +248,7 @@ fn an_unmeasured_rate_is_the_unknown_and_a_measured_rate_is_live() {
         &rows,
         ConnectionTableStatus::Active,
         observed_instant(),
+        None,
     );
     assert_eq!(table.rows[0].cells[0], ConnectionTableCell::Unavailable);
     assert_eq!(table.rows[0].cells[1], ConnectionTableCell::Unavailable);
@@ -189,6 +259,7 @@ fn an_unmeasured_rate_is_the_unknown_and_a_measured_rate_is_live() {
         &rows,
         ConnectionTableStatus::Active,
         observed_instant(),
+        None,
     );
     assert!(matches!(
         table.rows[0].cells[0],
@@ -306,6 +377,7 @@ fn a_live_row_without_an_owner_instant_stays_the_honest_unknown() {
         &rows,
         ConnectionTableStatus::Active,
         ConnectionObservationInstant::unobserved(),
+        None,
     );
 
     assert_eq!(table.rows[0].cells[0], ConnectionTableCell::Unavailable);
@@ -330,6 +402,7 @@ fn a_closed_row_publishes_the_length_it_lived() {
         &rows,
         ConnectionTableStatus::Closed,
         ConnectionObservationInstant::unobserved(),
+        None,
     );
 
     assert_eq!(table.rows[0].cells[0].text(), Some("3.4 min"));

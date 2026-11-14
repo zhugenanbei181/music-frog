@@ -34,6 +34,7 @@ use infiltrator_contract::version::{
     CoreArtifactVerification, CoreVersionSnapshot, InstalledCoreVersion,
 };
 use infiltrator_contract::vpn::{VpnSessionSnapshot, VpnSurfaceObservation};
+use infiltrator_domain::connection_view::ConnectionSortKey;
 use infiltrator_ports::host_runtime::{HostRuntime, TunServiceStatus};
 use infiltrator_ports::privileged_network::PrivilegedNetworkPort;
 use infiltrator_ports::rule_provider_cache::RuleProviderCachePort;
@@ -367,6 +368,9 @@ pub struct RuntimeState {
     pub connection_tab: ConnectionTab,
     /// The user's search text, independent of the selected destination.
     pub connection_query: String,
+    /// The ranking the connections page applies, one owner for both
+    /// destinations so the closed list cannot keep a stale key.
+    pub connection_sort: ConnectionSortKey,
     pub runtime_prev_upload_total: Option<u64>,
     pub runtime_prev_download_total: Option<u64>,
     pub runtime_prev_snapshot_at: Option<Instant>,

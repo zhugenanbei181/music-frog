@@ -108,3 +108,70 @@ fn typed_closed_tab_uses_the_surface_snapshot_history_without_string_prefixes() 
     assert!(!state.runtime.connection_query.contains("tab:closed"));
     drop(state.view());
 }
+
+#[test]
+fn header_sort_on_the_closed_tab_ranks_history_from_the_runtime_owner() {
+    use infiltrator_contract::traffic_history::{
+        ClosedConnectionSnapshot, ClosedConnectionsSnapshot,
+    };
+    use infiltrator_domain::connection_view::ConnectionSortKey;
+    use infiltrator_iced::state::runtime::ConnectionTab;
+
+    let (mut state, _) = AppState::demo(&demo_env(Route::Connections));
+    let mut snapshot = state
+        .surface
+        .latest()
+        .cloned()
+        .expect("demo state publishes a surface snapshot");
+    snapshot.revision = snapshot.revision.saturating_add(1);
+    snapshot.closed_connections = ClosedConnectionsSnapshot {
+        total_closed: 2,
+        records: vec![
+            ClosedConnectionSnapshot {
+                id: "download-heavy".to_owned(),
+                destination: "a.example".to_owned(),
+                duration_ms: 1_000,
+                upload_bytes: 10,
+                download_bytes: 900,
+                rule: "DOMAIN-SUFFIX".to_owned(),
+                outbound: "PROXY".to_owned(),
+                closed_at: "2026-11-12T05:00:00+00:00".to_owned(),
+            },
+            ClosedConnectionSnapshot {
+                id: "upload-heavy".to_owned(),
+                destination: "b.example".to_owned(),
+                duration_ms: 1_000,
+                upload_bytes: 900,
+                download_bytes: 10,
+                rule: "DOMAIN-SUFFIX".to_owned(),
+                outbound: "PROXY".to_owned(),
+                closed_at: "2026-11-12T05:00:00+00:00".to_owned(),
+            },
+        ],
+    };
+    assert!(state.apply_shared_surface_snapshot(snapshot));
+    let _ = state.update(Message::SetConnectionTab(ConnectionTab::Closed));
+
+    let _ = state.update(Message::UpdateRuntimeConnectionSort(
+        ConnectionSortKey::UploadDesc,
+    ));
+    assert_eq!(state.runtime.connection_sort, ConnectionSortKey::UploadDesc);
+    assert_eq!(
+        state.diag.connections_model.sort_key(),
+        ConnectionSortKey::UploadDesc
+    );
+    assert_eq!(
+        state.diag.closed_connections_model.sort_key(),
+        ConnectionSortKey::UploadDesc
+    );
+    let mut rows: Vec<_> = state
+        .diag
+        .closed_connections_model
+        .visible_rows()
+        .into_iter()
+        .cloned()
+        .collect();
+    state.diag.closed_connections_model.sort_rows(&mut rows);
+    assert_eq!(rows[0].id, "upload-heavy");
+    drop(state.view());
+}

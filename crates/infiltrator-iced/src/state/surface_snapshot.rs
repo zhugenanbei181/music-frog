@@ -287,7 +287,7 @@ impl AppState {
             .edit_query(&self.runtime.connection_query);
         self.diag
             .closed_connections_model
-            .select_sort(self.diag.connections_model.sort_key());
+            .select_sort(self.runtime.connection_sort);
         self.diag
             .closed_connections_model
             .observe(&snapshot.closed_connections.records);

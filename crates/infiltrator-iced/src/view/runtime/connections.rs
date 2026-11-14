@@ -37,7 +37,9 @@ use infiltrator_presentation::connection_grouping::sort_label_key;
 use infiltrator_presentation::connection_page_chrome::{
     self, ConnectionControlBand, ConnectionTrafficPlacement,
 };
-use infiltrator_presentation::connection_page_model::{CONNECTION_SORT_OPTIONS, sort_option_at};
+use infiltrator_presentation::connection_page_model::{
+    CONNECTION_SORT_OPTIONS, sort_option_at, sort_option_index,
+};
 use infiltrator_presentation::connection_view_table_projection::{
     ConnectionTableStatus, project_connection_view_table,
 };
@@ -141,12 +143,12 @@ fn connections_section_with_scroll_owner<'a>(
     // 1. Sort segmented control: cumulative download / cumulative upload /
     // instantaneous download / instantaneous upload / latest / host. The
     // instantaneous entries are DUAL-13-12; every position maps to the shared
-    // `ConnectionSortKey`, and the shared page model owns the selection.
+    // `ConnectionSortKey`, and the runtime state owns the selection.
     let sort_labels: Vec<String> = CONNECTION_SORT_OPTIONS
         .iter()
         .map(|key| lang.tr(sort_label_key(*key)).to_string())
         .collect();
-    let sort_index = state.diag.connections_model.sort_index();
+    let sort_index = sort_option_index(state.runtime.connection_sort);
     let conn_sort_control = segmented_control(&sort_labels, sort_index, |index| {
         Message::UpdateRuntimeConnectionSort(sort_option_at(index))
     });
@@ -421,6 +423,8 @@ fn connections_section_with_scroll_owner<'a>(
                     &rated,
                     ConnectionTableStatus::Closed,
                     ConnectionObservationInstant::unobserved(),
+                    // Both destinations rank from the one runtime owner.
+                    Some(state.runtime.connection_sort),
                 );
                 connections_section =
                     connections_section.push(connections_table::connection_table(
@@ -484,6 +488,9 @@ fn connections_section_with_scroll_owner<'a>(
                 &rated_rows,
                 ConnectionTableStatus::Active,
                 observed_instant(state),
+                // The header mark is the runtime owner's rank, never a second
+                // sort the surface decided for itself.
+                Some(state.runtime.connection_sort),
             );
             connections_section = connections_section.push(connections_table::connection_table(
                 state,

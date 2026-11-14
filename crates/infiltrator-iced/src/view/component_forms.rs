@@ -133,6 +133,28 @@ pub fn style_ghost(t: &Theme, status: button::Status) -> button::Style {
     }
 }
 
+/// A borderless press: the affordance sits in the text, not in a frame.
+///
+/// A table header label is the control the reference product uses to rank a
+/// column, and it must not look like a button bolted onto a header cell -
+/// only the press feedback and the active rank distinguish it.
+pub fn style_plain(t: &Theme, status: button::Status) -> button::Style {
+    let tk = theme::tokens(t);
+    button::Style {
+        background: match status {
+            button::Status::Hovered => Some(tk.hover.into()),
+            button::Status::Pressed => Some(tk.pressed.into()),
+            _ => None,
+        },
+        border: Border::default(),
+        text_color: match status {
+            button::Status::Disabled => tk.text_tertiary,
+            _ => tk.text_secondary,
+        },
+        ..Default::default()
+    }
+}
+
 /// A chip-shaped button: a small pill the reader can press.
 ///
 /// The reference product renders the connection's outbound as exactly this:
