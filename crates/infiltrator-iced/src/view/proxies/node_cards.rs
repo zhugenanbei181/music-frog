@@ -160,6 +160,7 @@ pub(super) fn node_grid<'a>(
     let mut grid = widget::column![].spacing(theme::SP_SM);
     let mut cells = row![].spacing(theme::SP_SM);
     let mut laid_out = 0usize;
+    let mut row_index = 0usize;
 
     for member in members {
         cells = cells.push(node_card(
@@ -170,8 +171,9 @@ pub(super) fn node_grid<'a>(
         ));
         laid_out += 1;
         if laid_out.is_multiple_of(columns) {
-            grid = grid.push(cells);
+            grid = grid.push(container(cells).id(group_row_id(group_name, row_index)));
             cells = row![].spacing(theme::SP_SM);
+            row_index += 1;
         }
     }
 
@@ -179,10 +181,10 @@ pub(super) fn node_grid<'a>(
         for _ in 0..(columns - laid_out % columns) {
             cells = cells.push(Space::new().width(Length::FillPortion(1)));
         }
-        grid = grid.push(cells);
+        grid = grid.push(container(cells).id(group_row_id(group_name, row_index)));
     }
 
-    grid.into()
+    container(grid).id(group_grid_id(group_name)).into()
 }
 
 /// Compact single-column list of nodes for high-density viewing.
@@ -201,15 +203,18 @@ pub(super) fn node_compact_list<'a>(
     };
 
     let mut list = widget::column![].spacing(theme::SP_XS);
-    for member in members {
-        list = list.push(node_compact_row(
-            state,
-            group_name,
-            member,
-            is_active(member.as_str()),
-        ));
+    for (index, member) in members.iter().enumerate() {
+        list = list.push(
+            container(node_compact_row(
+                state,
+                group_name,
+                member,
+                is_active(member.as_str()),
+            ))
+            .id(group_row_id(group_name, index)),
+        );
     }
-    list.into()
+    container(list).id(group_grid_id(group_name)).into()
 }
 
 /// One node card in grid view with flag emoji, protocol/feature chips, latency, and actions.
@@ -248,7 +253,7 @@ fn node_card<'a>(
         Space::new().width(theme::SP_XS),
         widget::column![
             row![
-                node_name(state, member_name, 13),
+                node_name(state, group_name, member_name, 13),
                 active_pill,
                 if meta.is_favorite {
                     Element::from(badge("★", BadgeKind::Warning))
@@ -324,7 +329,7 @@ fn node_compact_row<'a>(
     let body = row![
         flag_plate(meta.flag_code),
         Space::new().width(theme::SP_XS),
-        node_name(state, member_name, 12),
+        node_name(state, group_name, member_name, 12),
         active_pill,
         if meta.is_favorite {
             Element::from(badge("★", BadgeKind::Warning))

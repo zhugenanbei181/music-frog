@@ -15,6 +15,7 @@ use crate::pages::logs::logs_page;
 use crate::pages::overview::overview_page;
 use crate::pages::profiles::profiles_page;
 use crate::pages::proxies::scene::proxies_page;
+use crate::pages::requests::{RequestFeed, requests_page};
 use crate::pages::rules::rules_page;
 use crate::pages::settings::settings_page;
 use crate::pages::sync::sync_page;
@@ -142,6 +143,11 @@ pub(crate) fn page_scene(
         Route::Connections => {
             Box::new(connections_page(&connections_projection(snapshot), palette))
         }
+        Route::Requests => Box::new(requests_page(
+            &snapshot.requests,
+            RequestFeed::default(),
+            palette,
+        )),
         Route::Logs => Box::new(logs_page(&logs_projection(snapshot), palette)),
         Route::Dns => Box::new(dns_page(&dns_projection(snapshot), palette)),
         Route::Doctor => Box::new(doctor_page(&doctor_projection(snapshot), palette)),

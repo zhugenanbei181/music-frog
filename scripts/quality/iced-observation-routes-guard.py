@@ -99,7 +99,7 @@ def findings(
         found.append("app.rs: runtime route ownership is not resolved through the contract")
     if (
         '"Settings" | "Network" | "Runtime" | "AppSettings"' not in navigation
-        or '"Traffic" | "RuntimeWorkbench" => NavigationTarget::SurfaceLocal("traffic")'
+        or '"Traffic" | "RuntimeWorkbench" => NavigationTarget::SurfaceLocal(SURFACE_LOCAL_TRAFFIC)'
         not in navigation
     ):
         found.append("shell_navigation.rs: Runtime and Traffic do not have distinct owners")

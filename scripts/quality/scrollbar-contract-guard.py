@@ -25,7 +25,12 @@ ICED_SRC = ROOT / "crates/infiltrator-iced/src"
 BEVY_SRC = ROOT / "crates/infiltrator-bevy-ui/src"
 SLINT_UI = ROOT / "crates/infiltrator-slint/ui"
 
+# A widget construction is `scrollable(content)`; `fn scrollable(` is the
+# `Operation` trait's callback that *measures* an existing scrollable and must
+# not be mistaken for building a second, unstyled one (b268: `locate.rs`
+# implements that trait twice and painted no scrollbar at all).
 RAW_SCROLLBAR_CALL = re.compile(r"(?<![:\w])scrollable\(")
+OPERATION_METHOD = re.compile(r"\bfn\s+scrollable\s*\(")
 
 
 def iced_scrollbar_source() -> str:
@@ -60,7 +65,8 @@ def check() -> list[str]:
             continue
         source = path.read_text(encoding="utf-8")
         for number, line in enumerate(source.splitlines(), 1):
-            if RAW_SCROLLBAR_CALL.search(line):
+            if (RAW_SCROLLBAR_CALL.search(line)
+                    and not OPERATION_METHOD.search(line)):
                 violations.append(
                     f"{path.relative_to(ROOT)}:{number} builds a scrollbar outside the shared style"
                 )

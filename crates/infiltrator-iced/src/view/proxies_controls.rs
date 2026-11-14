@@ -35,7 +35,7 @@ pub fn controls<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Message
         .on_input(Message::FilterProxies)
         .padding([5, 9])
         .width(Length::Fixed(180.0))
-        .style(delay_input_style),
+        .style(proxies_input_style),
         if state.runtime.proxy_filter.is_empty() {
             Element::from(Space::new().width(0))
         } else {
@@ -229,8 +229,11 @@ fn delay_group_surface(t: &Theme) -> container::Style {
     }
 }
 
-/// Token-driven text-input style matching the runtime page's inputs.
-fn delay_input_style(t: &Theme, status: text_input::Status) -> text_input::Style {
+/// Token-driven text-input style of the proxies page.
+///
+/// The page-wide search box and every group's own filter box are the same
+/// control, so they share one style instead of two look-alikes.
+pub(crate) fn proxies_input_style(t: &Theme, status: text_input::Status) -> text_input::Style {
     let tk = tokens(t);
     let (border_color, border_width) = match status {
         text_input::Status::Focused { .. } => (tk.accent, 1.5),

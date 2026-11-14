@@ -52,22 +52,19 @@ fn nav_entries_mode_pills_and_content_region_carry_semantics() {
     // Settings, where the settings index reaches them.
     let rail = rail_entity(world);
     let nav_labels = named_in_painted_order::<SidebarNavItem>(world, rail);
-    let expected_nav_labels: Vec<Named> = desktop_items(SurfaceKind::BevyDesktop)
+    let mut expected_nav_labels: Vec<Named> = desktop_items(SurfaceKind::BevyDesktop)
         .iter()
-        .map(|item| {
-            let NavigationTarget::Shared(page) = item.target else {
-                panic!("Bevy owns no surface-local destination");
-            };
-            Named {
-                label: Lang("zh-CN").tr(page.sidebar_key()).to_string(),
-                disabled: false,
-                role: accesskit::Role::Button,
-            }
+        .map(|item| Named {
+            // The word comes from the target the registry publishes, so the
+            // Requests row is named by the shared copy table like every other.
+            label: Lang("zh-CN").tr(item.target.label_key()).to_string(),
+            disabled: false,
+            role: accesskit::Role::Button,
         })
         .collect();
     assert_eq!(
         nav_labels, expected_nav_labels,
-        "every nav entry is a named button labelled by the registry's copy key, in registry order"
+        "every nav entry is a named button, in the order the registry publishes them"
     );
 
     // The routing choices belong to the Overview page, not the shell: the

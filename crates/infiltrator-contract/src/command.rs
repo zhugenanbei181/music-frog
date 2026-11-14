@@ -55,6 +55,12 @@ impl RequestId {
 /// Shared canonical keys for live core log verbosity.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CoreLogLevel {
+    /// The engine's quietest rung: no log lines are emitted.
+    ///
+    /// The reference product ships this level and the admin API already
+    /// accepts `silent`, so the typed Core setting must be able to express
+    /// the same fact instead of silently degrading to `Unknown`.
+    Silent,
     Debug,
     #[default]
     Info,
@@ -63,10 +69,17 @@ pub enum CoreLogLevel {
 }
 
 impl CoreLogLevel {
-    pub const ALL: [Self; 4] = [Self::Debug, Self::Info, Self::Warn, Self::Error];
+    pub const ALL: [Self; 5] = [
+        Self::Silent,
+        Self::Debug,
+        Self::Info,
+        Self::Warn,
+        Self::Error,
+    ];
 
     pub const fn as_key(self) -> &'static str {
         match self {
+            Self::Silent => "silent",
             Self::Debug => "debug",
             Self::Info => "info",
             Self::Warn => "warn",
@@ -76,6 +89,7 @@ impl CoreLogLevel {
 
     pub fn from_key(raw: &str) -> Option<Self> {
         match raw.trim() {
+            "silent" => Some(Self::Silent),
             "debug" => Some(Self::Debug),
             "info" => Some(Self::Info),
             "warn" => Some(Self::Warn),

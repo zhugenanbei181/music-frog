@@ -81,7 +81,7 @@ fn the_proxy_search_narrows_the_shared_list_and_highlights_the_match() {
         state
             .runtime
             .proxy_name_runs
-            .get("HK-01")
+            .get(&("PROXIES".to_owned(), "HK-01".to_owned()))
             .is_some_and(|runs| runs.iter().any(|run| run.highlighted && run.text == "HK"))
     );
 }

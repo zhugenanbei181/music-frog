@@ -608,11 +608,17 @@ def page_density_findings(ui: pathlib.Path) -> list[str]:
     for page, lookup in (("page_proxies.slint", "ViewportLadder.proxy_columns("),
                          ("page_profiles.slint", "ViewportLadder.profile_columns(")):
         text = mask_comments((ui / "pages" / page).read_text(encoding="utf-8"))
-        anchor = f"{lookup}LumenTheme.desktop-page"
+        # The proxy grid reads the surface's one typed tier-to-form fact;
+        # the profiles grid still reads the tier-only page-density fact.
+        # Both must come from a named theme fact, never a width literal or
+        # the sidebar collapse preference.
+        form_fact = ("LumenTheme.proxy-grid-form" if page == "page_proxies.slint"
+                     else "LumenTheme.desktop-page")
+        anchor = f"{lookup}{form_fact}"
         if anchor not in text:
             found.append(
-                f"pages/{page}: the grid form no longer reads the tier-only "
-                "page-density fact"
+                f"pages/{page}: the grid form no longer reads its named "
+                "tier fact"
             )
         if f"{lookup}LumenTheme.labelled-sidebar" in text:
             found.append(
@@ -1373,7 +1379,7 @@ class GuardSelfTest(unittest.TestCase):
     def test_a_generated_lookup_nobody_reads_is_caught(self) -> None:
         """A generated table with no consumer is a dead knob wearing the ladder."""
         proxies = (UI / "pages/page_proxies.slint").read_text(encoding="utf-8")
-        anchor = "ViewportLadder.proxy_columns(LumenTheme.desktop-page"
+        anchor = "ViewportLadder.proxy_columns(LumenTheme.proxy-grid-form"
         assert anchor in proxies, anchor
         planted = proxies.replace(anchor, "2", 1)
         findings = self._findings_with({"page_proxies.slint": planted})
@@ -1384,7 +1390,7 @@ class GuardSelfTest(unittest.TestCase):
     def test_a_private_proxy_width_rule_is_caught(self) -> None:
         """The reference's 250/32 numbers belong to the exported rule."""
         proxies = (UI / "pages/page_proxies.slint").read_text(encoding="utf-8")
-        anchor = "ViewportLadder.proxy_columns(LumenTheme.desktop-page"
+        anchor = "ViewportLadder.proxy_columns(LumenTheme.proxy-grid-form"
         assert anchor in proxies, anchor
         planted = proxies.replace(anchor, "Math.max(2, Math.ceil((self.width - 32px) / 250px))", 1)
         self.assertNotEqual(proxies, planted)
@@ -1410,7 +1416,7 @@ class GuardSelfTest(unittest.TestCase):
         """The grid's column count is a tier fact, not a sidebar preference."""
         proxies = (UI / "pages/page_proxies.slint").read_text(encoding="utf-8")
         planted = proxies.replace(
-            "ViewportLadder.proxy_columns(LumenTheme.desktop-page",
+            "ViewportLadder.proxy_columns(LumenTheme.proxy-grid-form",
             "ViewportLadder.proxy_columns(LumenTheme.labelled-sidebar", 1)
         self.assertNotEqual(proxies, planted)
         findings = self._findings_with({"page_proxies.slint": planted})

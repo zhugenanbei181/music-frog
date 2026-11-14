@@ -38,7 +38,7 @@ use iced::widget::{Space, button, column, container, row, tooltip};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_contract::responsive_viewport::{SidebarForm, ViewportTier};
 use infiltrator_contract::shell_navigation::{
-    NavigationItem, NavigationSurface, NavigationTarget, desktop_items,
+    NavigationItem, NavigationSurface, NavigationTarget, SURFACE_LOCAL_TRAFFIC, desktop_items,
 };
 use infiltrator_contract::sidebar_material::SidebarMaterialKind;
 use infiltrator_contract::surface::SurfaceKind;
@@ -64,7 +64,7 @@ fn sidebar_rows() -> Vec<NavigationItem> {
 fn route_for_destination(target: NavigationTarget) -> Route {
     match target {
         NavigationTarget::Shared(page) => Route::from_shell_page(page),
-        NavigationTarget::SurfaceLocal("traffic") => Route::Traffic,
+        NavigationTarget::SurfaceLocal(SURFACE_LOCAL_TRAFFIC) => Route::Traffic,
         NavigationTarget::SurfaceLocal(id) => unreachable!(
             "the Iced desktop mounts no surface-local row except traffic, but `{id}` reached the pane"
         ),
@@ -99,15 +99,15 @@ pub(crate) fn selected_navigation_destination_count(route: Route) -> usize {
         .count()
 }
 
-/// The localized label of one row. A shared destination is named by the copy
-/// table the contract points at ([`ShellPage::sidebar_key`]); the surface-local
-/// traffic row has no shared key by design and is named by this surface's own
-/// entry for the page it opens.
+/// The localized label of one row.
+///
+/// The registry owns the copy key for every row it publishes, shared
+/// destinations and surface-local rows alike, so this surface names no word
+/// of its own: it asks the row. The surface-local traffic row used to be
+/// spelled here by hand, which put a second copy of the vocabulary in the
+/// surface and left any future local row unlabelled.
 fn label_for(item: NavigationItem, lang: &Lang<'_>) -> String {
-    match item.target {
-        NavigationTarget::Shared(page) => lang.tr(page.sidebar_key()).into_owned(),
-        NavigationTarget::SurfaceLocal(_) => lang.tr("nav_traffic").into_owned(),
-    }
+    lang.tr(item.target.label_key()).into_owned()
 }
 
 /// Full labelled sidebar at the default expanded width. Kept as a stable

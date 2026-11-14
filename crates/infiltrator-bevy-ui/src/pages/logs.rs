@@ -102,7 +102,10 @@ pub struct ExportLogsButton;
 /// Color for log level tag.
 pub fn log_level_color(level: LogLevel, palette: &UiPalette) -> Color {
     match level {
-        LogLevel::Debug | LogLevel::Unknown => palette.ink_dim,
+        // The quietest rung carries the quietest ink: a silent line is the
+        // engine saying no more than it had to, so it reads below the debug
+        // lines it sits under on the reference's own ladder.
+        LogLevel::Silent | LogLevel::Debug | LogLevel::Unknown => palette.ink_dim,
         LogLevel::Info => palette.accent,
         LogLevel::Warn => palette.warning,
         LogLevel::Error => palette.danger,

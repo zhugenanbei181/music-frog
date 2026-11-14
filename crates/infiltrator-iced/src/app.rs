@@ -229,6 +229,8 @@ impl AppState {
                 outbound_probe_token: 0,
                 proxy_groups: Vec::new(),
                 proxy_name_runs: Default::default(),
+                proxy_group_filters: Default::default(),
+                proxy_locator: Default::default(),
                 proxy_search: Default::default(),
                 proxy_preferences: Default::default(),
                 overview_model: Default::default(),

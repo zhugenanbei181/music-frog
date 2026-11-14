@@ -199,7 +199,7 @@ fn bottom_nav_item_scene(
 ) -> Box<dyn Scene> {
     let plate =
         plate_for_canonical_name(item.icon.canonical_name()).unwrap_or_else(|| route.icon());
-    let label_key = item.target.label_key().unwrap_or_else(|| route.label_key());
+    let label_key = item.target.label_key();
     let semantic = nav_semantic_node(&route.label(), false);
     let role = if active {
         design_resources::TextRole::BodyStrong

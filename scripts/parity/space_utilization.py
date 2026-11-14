@@ -79,13 +79,16 @@ DEBT_FILE = ROOT / "scripts/quality/space_utilization_debt.json"
 # pixels it measured before.
 SURFACE_SLINT = "slint"
 SURFACE_ICED = "iced"
+SURFACE_BEVY = "bevy"
 CAPTURES_ROOT = {
     SURFACE_SLINT: CAPTURES,
     SURFACE_ICED: ROOT / ".evidence/captures/iced",
+    SURFACE_BEVY: ROOT / ".evidence/captures/bevy",
 }
 DEBT_FILE_BY_SURFACE = {
     SURFACE_SLINT: DEBT_FILE,
     SURFACE_ICED: ROOT / "scripts/quality/space_utilization_debt_iced.json",
+    SURFACE_BEVY: ROOT / "scripts/quality/space_utilization_debt_bevy.json",
 }
 
 
@@ -2048,6 +2051,9 @@ class SelfTest(unittest.TestCase):
         self.assertEqual(surface_captures("iced"), ROOT / ".evidence/captures/iced")
         self.assertEqual(surface_debt("iced"),
                          ROOT / "scripts/quality/space_utilization_debt_iced.json")
+        self.assertEqual(surface_captures("bevy"), ROOT / ".evidence/captures/bevy")
+        self.assertEqual(surface_debt("bevy"),
+                         ROOT / "scripts/quality/space_utilization_debt_bevy.json")
         # Not the same root and not the same inventory: a shared one would let
         # one surface's frames or debt answer for the other's.
         self.assertNotEqual(surface_captures("iced"), CAPTURES)
@@ -2055,6 +2061,9 @@ class SelfTest(unittest.TestCase):
         args = build_parser().parse_args(["--surface", "iced"])
         self.assertEqual(surface_captures(args.surface), ROOT / ".evidence/captures/iced")
         self.assertEqual(build_parser().parse_args(["--surface", "iced"]).surface, "iced")
+        bevy_args = build_parser().parse_args(["--surface", "bevy"])
+        self.assertEqual(surface_captures(bevy_args.surface),
+                         ROOT / ".evidence/captures/bevy")
 
     def test_the_surface_selector_routes_the_root_and_the_debt(self) -> None:
         # End to end: the same scenario name is registered in the SLINT
@@ -2531,7 +2540,8 @@ def build_parser() -> argparse.ArgumentParser:
     """The judge's command line, so the default surface is testable."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--run", type=pathlib.Path)
-    parser.add_argument("--surface", choices=[SURFACE_SLINT, SURFACE_ICED],
+    parser.add_argument("--surface",
+                        choices=[SURFACE_SLINT, SURFACE_ICED, SURFACE_BEVY],
                         default=SURFACE_SLINT,
                         help="which surface's published batch to judge "
                              "(default: slint)")

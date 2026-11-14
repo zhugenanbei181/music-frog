@@ -175,6 +175,8 @@ pub enum Route {
     Rules,
     /// 连接审计 (Connections: active connections, bandwidth, disconnect).
     Connections,
+    /// 最近请求 (Requests: the tracker's recorded requests and live feed).
+    Requests,
     /// 运行日志 (Logs: level filter, ring buffer, regex search).
     Logs,
     /// 域名解析 (DNS: server table, fake-ip, dot/doh).
@@ -199,12 +201,13 @@ pub enum Route {
 
 impl Route {
     /// Every route in stable enumeration order.
-    pub const ALL: [Route; 15] = [
+    pub const ALL: [Route; 16] = [
         Route::Overview,
         Route::Proxies,
         Route::Profiles,
         Route::Rules,
         Route::Connections,
+        Route::Requests,
         Route::Logs,
         Route::Dns,
         Route::Doctor,
@@ -225,8 +228,15 @@ impl Route {
     /// second table beside the contract's, which is how a nav row could be
     /// labelled by the registry and named by the route with two answers that
     /// only happened to agree.
-    pub const fn label_key(self) -> &'static str {
-        page_id_for_route(self).nav_key()
+    pub fn label_key(self) -> &'static str {
+        match self {
+            // The registry owns this destination's word: the row is a
+            // surface-local destination and `shell_navigation` names it with
+            // the shared `nav_requests` entry, so the route cannot keep a
+            // private Chinese literal that the English locale would print.
+            Self::Requests => "nav_requests",
+            _ => page_id_for_route(self).nav_key(),
+        }
     }
 
     /// Initial copy for consumers without a mounted locale resource.
@@ -245,6 +255,7 @@ impl Route {
             Self::Profiles => IconId::FileText,
             Self::Rules => IconId::ListChecks,
             Self::Connections => IconId::Zap,
+            Self::Requests => IconId::Activity,
             Self::Logs => IconId::Code2,
             Self::Dns => IconId::Shield,
             Self::Doctor => IconId::Activity,
@@ -291,7 +302,12 @@ impl Route {
     /// for its own rows; no surface keeps a second table of which page nests
     /// where.
     pub const fn destination_page(self) -> ShellPage {
-        destination_for(page_id_for_route(self).nav_target())
+        match self {
+            // A Bevy-local destination until the contract publishes its own
+            // page id: the request tracker is a connections-family fact.
+            Self::Requests => ShellPage::Connections,
+            _ => destination_for(page_id_for_route(self).nav_target()),
+        }
     }
 }
 
@@ -856,6 +872,9 @@ pub(crate) const fn page_id_for_route(route: Route) -> PageId {
         Route::Profiles => PageId::Profiles,
         Route::Rules => PageId::Rules,
         Route::Connections => PageId::Connections,
+        // The shared request tracker's readback lives in the connections
+        // page family; no second page status exists for it.
+        Route::Requests => PageId::Connections,
         Route::Logs => PageId::Logs,
         Route::Dns => PageId::Dns,
         Route::Doctor => PageId::Doctor,

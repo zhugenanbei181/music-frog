@@ -30,46 +30,6 @@ use lurker_core_contract::outbound::{
 use lurker_core_contract::page::PageData;
 
 impl AppState {
-    fn read_outbound_inventory(&self) -> Task<Message> {
-        let Some(ingress) = self.command_ingress() else {
-            return Task::done(Message::ShowToast(
-                "Outbound inventory command is unavailable".to_owned(),
-                ToastStatus::Error,
-            ));
-        };
-        let Some(requested_scope) = ingress.observed_scope() else {
-            return Task::done(Message::ShowToast(
-                "Wait for an accepted Core scope before refreshing outbound inventory".to_owned(),
-                ToastStatus::Info,
-            ));
-        };
-        Task::perform(
-            async move {
-                let outcome = ingress
-                    .execute_outcome(CommandIntent::ReadOutboundInventory)
-                    .await;
-                let terminal_scope = outcome.scope;
-                let result = outcome
-                    .result
-                    .into_output()
-                    .and_then(|output| match output {
-                        CommandOutput::OutboundInventory(snapshot) => Ok(snapshot),
-                        _ => Err(Failure::new(
-                            ErrorCode::InvalidState,
-                            "outbound inventory command returned another output type",
-                            false,
-                        )),
-                    });
-                (terminal_scope, result)
-            },
-            move |(terminal_scope, result)| Message::OutboundInventoryReadFinished {
-                requested_scope: Some(requested_scope),
-                terminal_scope,
-                result,
-            },
-        )
-    }
-
     fn finish_outbound_inventory_read(
         &mut self,
         requested_scope: Option<CoreScope>,
@@ -386,8 +346,31 @@ impl AppState {
                 request,
                 terminal_scope,
                 result,
-            } => self.finish_outbound_ui_preference(token, scope, request, terminal_scope, result),
+            } => {
+                // The only readback a locate waits for is the group
+                // expansion that made its node visible. An unrelated
+                // preference write must not consume someone else's
+                // pending request.
+                let expansion_readback = matches!(
+                    request.intent(),
+                    OutboundUiPreferenceIntent::SetGroupExpansion { .. }
+                );
+                let next = self.finish_outbound_ui_preference(
+                    token,
+                    scope,
+                    request,
+                    terminal_scope,
+                    result,
+                );
+                let locate = if expansion_readback {
+                    self.take_outbound_group_locate_task()
+                } else {
+                    Task::none()
+                };
+                Task::batch([next, locate])
+            }
             Message::FilterProxies(filter) => self.update_proxy_search(filter),
+            Message::ProxyPageIntent(intent) => self.update_proxy_page_intent(intent),
             Message::ToggleFilterAlive(enabled) => {
                 if self.is_product_command_ingress() {
                     return self.submit_current_outbound_ui_preference(

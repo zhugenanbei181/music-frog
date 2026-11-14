@@ -1,6 +1,8 @@
 //! Runtime owner.
 use crate::state::core_operations::{CoreDownloadState, CoreUpdateCheckState};
 use crate::state::outbound_inventory::OutboundGroupView;
+use crate::state::proxy_group_filters::ProxyGroupFilterState;
+use crate::state::proxy_locator::ProxyLocator;
 use crate::state::proxy_preferences::ProxyPreferenceState;
 use crate::state::proxy_probe::{OutboundProbeActionAvailability, OutboundProbeBatchState};
 
@@ -347,7 +349,17 @@ pub struct RuntimeState {
     pub proxies_model: ProxiesPageModel,
     pub filtered_groups: Vec<(String, Vec<String>)>,
     pub(crate) proxy_groups: Vec<OutboundGroupView>,
-    pub proxy_name_runs: BTreeMap<String, Vec<SearchTextRun>>,
+    /// The highlighted name runs of every node the page shows.
+    ///
+    /// The key is the group and the node: a node can sit in more than one
+    /// group, and a group's own filter highlights the name by that group's
+    /// own query, so one run per node name would let one group overwrite
+    /// another's highlight.
+    pub proxy_name_runs: BTreeMap<(String, String), Vec<SearchTextRun>>,
+    /// The filter each proxy group owns.
+    pub proxy_group_filters: ProxyGroupFilterState,
+    /// The pending "locate the current node" request.
+    pub proxy_locator: ProxyLocator,
     pub proxy_search: ProxySearchState,
     pub proxy_preferences: ProxyPreferenceState,
     /// The raw text of the proxies search box.

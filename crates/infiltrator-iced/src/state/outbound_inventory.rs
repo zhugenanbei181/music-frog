@@ -4,6 +4,7 @@
 //! preference observations.
 
 use crate::state::AppState;
+use crate::state::proxy_group_filters::ProxyGroupFilterState;
 use crate::types::message::Message;
 use infiltrator_presentation::proxies_page_model::{
     ProxiesPageModel, ProxyFilterTarget, proxy_name_runs,
@@ -29,7 +30,7 @@ use zhuge_ui_core::text::SearchTextRun;
 
 pub(crate) type FilteredOutboundGroups = (
     Vec<(String, Vec<String>)>,
-    BTreeMap<String, Vec<SearchTextRun>>,
+    BTreeMap<(String, String), Vec<SearchTextRun>>,
 );
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -313,6 +314,7 @@ fn member_view(
 pub(crate) fn filtered_groups(
     model: &ProxiesPageModel,
     groups: &[OutboundGroupView],
+    group_filters: &ProxyGroupFilterState,
 ) -> FilteredOutboundGroups {
     let query = model.query();
     let mut visible = Vec::new();
@@ -320,18 +322,26 @@ pub(crate) fn filtered_groups(
 
     for group in groups {
         let group_matches = model.group_matches(&group.name);
+        // The group owns a filter of its own: the reference client filters
+        // every group with its own box, so a node is shown when it satisfies
+        // the page-wide query and the group's own query.
+        let group_query = group_filters.query(&group.name);
+        let highlight = group_query.unwrap_or(query);
         let mut members = Vec::new();
         for node in &group.proxies {
-            let matches = group_matches || model.matches(node);
+            let matches = (group_matches || model.matches(node))
+                && group_query.is_none_or(|group_query| group_query.matches(node));
             if matches {
                 members.push(node.name.clone());
             }
             name_runs.insert(
-                node.name.clone(),
-                proxy_name_runs(node.search_name(), query),
+                (group.name.clone(), node.name.clone()),
+                proxy_name_runs(node.search_name(), highlight),
             );
         }
-        if group_matches || !members.is_empty() {
+        // A group with a filter of its own stays on the page even when the
+        // filter hides every member: the user has to be able to clear it.
+        if group_matches || !members.is_empty() || group_filters.is_open(&group.name) {
             visible.push((group.name.clone(), members));
         }
     }

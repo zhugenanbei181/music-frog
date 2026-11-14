@@ -21,6 +21,53 @@ pub enum NavigationTarget {
     SurfaceLocal(&'static str),
 }
 
+/// The surface-local destination ids the registry knows.
+///
+/// A surface-local id is a page some surfaces own and others fold elsewhere;
+/// naming the closed set here is what lets [`owns_surface_local`] answer
+/// "who mounts it" in one place, instead of every surface keeping its own
+/// list of which local rows it happens to have today.
+pub const SURFACE_LOCAL_TRAFFIC: &str = "traffic";
+
+/// The recorded-request page (FlClash's 请求 desktop row).
+///
+/// The reference ships this as a first-class desktop destination
+/// (`lib/views/navigation.dart`: `NavigationItemMode.desktop`), and the
+/// tracker's facts are already published to every surface through
+/// `SurfaceSnapshot::requests`. A surface that renders its own request page
+/// owns the row; a surface that folds the records into another page does not,
+/// and must not be handed a row that navigates nowhere.
+pub const SURFACE_LOCAL_REQUESTS: &str = "requests";
+
+pub const SURFACE_LOCAL_IDS: [&str; 2] = [SURFACE_LOCAL_TRAFFIC, SURFACE_LOCAL_REQUESTS];
+
+/// The shared copy-table key that names one surface-local row.
+///
+/// A local row has no [`ShellPage`], so it cannot borrow a page's
+/// `sidebar_key`; before this, every surface kept its own chain naming the
+/// traffic row. The row's *word* is still one shared entry, and which row
+/// owns which word is decided here once.
+/// The registry answers this for every id it can publish: [`DESKTOP`] holds
+/// only ids from [`SURFACE_LOCAL_IDS`], and [`owns_surface_local`] refuses an
+/// id outside that set, so a surface can never be handed a row whose word is
+/// undecided. An unknown id therefore names itself, which is what the row's
+/// identity already is; the registry's own test is what keeps that arm dead.
+/// The id is `&'static str` because every row the registry publishes is a
+/// const, so a caller can never hand this a borrowed temporary.
+pub fn surface_local_nav_key(id: &'static str) -> &'static str {
+    match id {
+        SURFACE_LOCAL_TRAFFIC => "nav_traffic",
+        SURFACE_LOCAL_REQUESTS => "nav_requests",
+        other => {
+            debug_assert!(
+                SURFACE_LOCAL_IDS.contains(&other),
+                "`{other}` is not a registry surface-local id"
+            );
+            other
+        }
+    }
+}
+
 impl NavigationTarget {
     pub const fn id(self) -> &'static str {
         match self {
@@ -29,10 +76,17 @@ impl NavigationTarget {
         }
     }
 
-    pub const fn label_key(self) -> Option<&'static str> {
+    /// The shared copy-table entry that names this destination, always one.
+    ///
+    /// Every row the registry publishes has one, including the surface-local
+    /// rows: a local page owns no `ShellPage`, so its word comes from
+    /// [`surface_local_nav_key`] instead. A surface that cannot resolve this
+    /// key has a row the registry never named, which is a bug the registry's
+    /// own test refuses to publish.
+    pub fn label_key(self) -> &'static str {
         match self {
-            Self::Shared(page) => Some(page.sidebar_key()),
-            Self::SurfaceLocal(_) => None,
+            Self::Shared(page) => page.sidebar_key(),
+            Self::SurfaceLocal(id) => surface_local_nav_key(id),
         }
     }
 }
@@ -94,11 +148,22 @@ pub enum NavigationSurface {
 /// surface owns no traffic route — its `runtime-*` capture scenarios render
 /// its overview page — so it mounts the shared destinations alone.
 pub fn owns_surface_local(surface: SurfaceKind, id: &str) -> bool {
-    id == "traffic"
-        && matches!(
+    match id {
+        SURFACE_LOCAL_TRAFFIC => matches!(
             surface,
             SurfaceKind::SlintDesktop | SurfaceKind::IcedDesktop
-        )
+        ),
+        SURFACE_LOCAL_REQUESTS => matches!(surface, SurfaceKind::BevyDesktop),
+        // An id outside the closed set owns nothing: a row that navigates
+        // nowhere is a lie the shell tells the user, so the answer is "no".
+        other => {
+            debug_assert!(
+                false,
+                "`{other}` is not a registry surface-local id ({SURFACE_LOCAL_IDS:?})"
+            );
+            false
+        }
+    }
 }
 
 /// The destinations one desktop surface mounts as its sidebar rows.
@@ -126,8 +191,13 @@ pub fn desktop_items(surface: SurfaceKind) -> Vec<NavigationItem> {
 }
 
 impl NavigationItem {
-    /// Cross-surface destinations plus the one documented surface-local row.
-    pub const DESKTOP: [Self; 8] = [
+    /// Cross-surface destinations plus the documented surface-local rows.
+    ///
+    /// The shared rows come first, in registry order, and the surface-local
+    /// rows follow: a surface mounts the shared set and then only the local
+    /// rows it owns, so the order of the rows every surface shares never
+    /// depends on which local page a surface happens to have.
+    pub const DESKTOP: [Self; 9] = [
         Self::shared(
             ShellPage::Overview,
             NavigationGroup::Primary,
@@ -164,9 +234,14 @@ impl NavigationItem {
             IconSemantic::Rules,
         ),
         Self::new(
-            NavigationTarget::SurfaceLocal("traffic"),
+            NavigationTarget::SurfaceLocal(SURFACE_LOCAL_TRAFFIC),
             NavigationGroup::Observation,
             IconSemantic::Traffic,
+        ),
+        Self::new(
+            NavigationTarget::SurfaceLocal(SURFACE_LOCAL_REQUESTS),
+            NavigationGroup::Observation,
+            IconSemantic::Activity,
         ),
     ];
 
@@ -282,7 +357,8 @@ pub fn destination_for_route(route: &str) -> Option<NavigationTarget> {
         }
         "Logs" | "LogsWorkbench" => NavigationTarget::Shared(ShellPage::Logs),
         "Rules" | "Providers" | "RulesWorkbench" => NavigationTarget::Shared(ShellPage::Rules),
-        "Traffic" | "RuntimeWorkbench" => NavigationTarget::SurfaceLocal("traffic"),
+        "Traffic" | "RuntimeWorkbench" => NavigationTarget::SurfaceLocal(SURFACE_LOCAL_TRAFFIC),
+        "Requests" => NavigationTarget::SurfaceLocal(SURFACE_LOCAL_REQUESTS),
         _ => return None,
     };
     Some(target)
@@ -374,7 +450,33 @@ mod tests {
                 "{surface:?} must keep the shared rows in registry order"
             );
         }
-        assert_eq!(desktop_items(SurfaceKind::BevyDesktop).len(), shared.len());
+        // Bevy owns the request page and folds traffic into its overview;
+        // Slint and Iced own traffic and have no request page. Each surface
+        // therefore mounts the shared rows plus exactly one local row.
+        assert_eq!(
+            desktop_items(SurfaceKind::BevyDesktop).len(),
+            shared.len() + 1
+        );
+        assert!(
+            desktop_items(SurfaceKind::BevyDesktop)
+                .iter()
+                .any(|item| item.id() == SURFACE_LOCAL_REQUESTS),
+            "Bevy owns the request page, so the registry must hand it the row"
+        );
+        assert!(
+            !desktop_items(SurfaceKind::BevyDesktop)
+                .iter()
+                .any(|item| item.id() == SURFACE_LOCAL_TRAFFIC),
+            "Bevy folds traffic into its overview and must not be handed a row that navigates nowhere"
+        );
+        for surface in [SurfaceKind::SlintDesktop, SurfaceKind::IcedDesktop] {
+            assert!(
+                !desktop_items(surface)
+                    .iter()
+                    .any(|item| item.id() == SURFACE_LOCAL_REQUESTS),
+                "{surface:?} publishes no request page, so it must not mount its row"
+            );
+        }
         assert_eq!(
             desktop_items(SurfaceKind::SlintDesktop).len(),
             shared.len() + 1
@@ -383,10 +485,18 @@ mod tests {
             desktop_items(SurfaceKind::IcedDesktop).len(),
             shared.len() + 1
         );
-        assert!(
-            !owns_surface_local(SurfaceKind::BevyDesktop, "traffic"),
-            "Bevy folds traffic into its overview and must not be handed a row that navigates nowhere"
-        );
+        assert!(owns_surface_local(
+            SurfaceKind::BevyDesktop,
+            SURFACE_LOCAL_REQUESTS
+        ));
+        assert!(!owns_surface_local(
+            SurfaceKind::SlintDesktop,
+            SURFACE_LOCAL_REQUESTS
+        ));
+        assert!(!owns_surface_local(
+            SurfaceKind::IcedDesktop,
+            SURFACE_LOCAL_REQUESTS
+        ));
     }
 
     /// Every row a surface mounts *is* a destination: a shared row's page is
@@ -462,9 +572,31 @@ mod tests {
             .iter()
             .filter(|item| matches!(item.target, NavigationTarget::SurfaceLocal(_)))
             .collect();
-        assert_eq!(local.len(), 1);
-        assert_eq!(local[0].id(), "traffic");
-        assert_eq!(local[0].target.label_key(), None);
+        // The closed set of local rows, in registry order. A local row names
+        // a page some surfaces own and others fold elsewhere, so it carries
+        // no shared label key: the surface that owns the page names the row.
+        assert_eq!(
+            local.iter().map(|item| item.id()).collect::<Vec<_>>(),
+            SURFACE_LOCAL_IDS.to_vec()
+        );
+        for item in local {
+            // A local row never borrows a `ShellPage`'s sidebar key - it owns
+            // no shared page - but its word is still one shared entry the
+            // registry names, so no surface keeps a private copy of it.
+            let NavigationTarget::SurfaceLocal(id) = item.target else {
+                unreachable!("filtered for surface-local rows");
+            };
+            assert_eq!(item.target.label_key(), surface_local_nav_key(id));
+            let shared_keys: Vec<_> = ShellPage::ALL
+                .into_iter()
+                .map(|page| page.sidebar_key())
+                .collect();
+            assert!(
+                !shared_keys.contains(&item.target.label_key()),
+                "{} claims the label of a shared page",
+                item.id()
+            );
+        }
     }
 
     #[test]
@@ -482,7 +614,7 @@ mod tests {
             ("RulesWorkbench", NavigationTarget::Shared(ShellPage::Rules)),
             (
                 "RuntimeWorkbench",
-                NavigationTarget::SurfaceLocal("traffic"),
+                NavigationTarget::SurfaceLocal(SURFACE_LOCAL_TRAFFIC),
             ),
             ("Runtime", NavigationTarget::Shared(ShellPage::Settings)),
             (

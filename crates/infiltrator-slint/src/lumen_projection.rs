@@ -25,9 +25,7 @@ use infiltrator_contract::language::LanguagePreference;
 use infiltrator_contract::overview_layout::{OverviewCardKind, OverviewLayoutSnapshot};
 use infiltrator_contract::profile_editor_read::ProfileReadStatus;
 use infiltrator_contract::public_ip::PublicIpProbeStatus;
-use infiltrator_contract::shell_navigation::{
-    NavigationGroup, NavigationItem, NavigationTarget, desktop_items,
-};
+use infiltrator_contract::shell_navigation::{NavigationGroup, NavigationItem, desktop_items};
 use infiltrator_contract::sidebar_label::SidebarLabelGeometry;
 use infiltrator_contract::surface::SurfaceKind;
 use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
@@ -109,11 +107,12 @@ fn project_navigation(window: &AppWindow, lang: &Lang<'_>, surface: SurfaceKind)
 }
 
 fn navigation_label(item: NavigationItem, lang: &Lang<'_>) -> String {
-    match item.target {
-        NavigationTarget::Shared(page) => lang.tr(page.sidebar_key()).into_owned(),
-        NavigationTarget::SurfaceLocal("traffic") => lang.tr("nav_traffic").into_owned(),
-        NavigationTarget::SurfaceLocal(id) => id.to_owned(),
-    }
+    // Every row the registry publishes carries one shared copy-table key,
+    // including the surface-local rows, so this surface never keeps its own
+    // list of which local page is spelled which way. A row the registry
+    // never named is a bug, not a state to fall back around: it is reported
+    // by publishing no word rather than by inventing one.
+    lang.tr(item.target.label_key()).into_owned()
 }
 
 /// The word the desktop rail actually paints. The projection publishes the
@@ -799,6 +798,7 @@ fn project_profiles(window: &AppWindow, snapshot: &SurfaceSnapshot, language: &s
 mod sidebar_label_tests {
     use super::*;
     use infiltrator_contract::command_catalogue::ShellPage;
+    use infiltrator_contract::shell_navigation::NavigationTarget;
 
     fn desktop_item(page: ShellPage) -> NavigationItem {
         desktop_items(SurfaceKind::SlintDesktop)

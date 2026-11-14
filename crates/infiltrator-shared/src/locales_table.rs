@@ -31,6 +31,7 @@ fn translate_zh_cn_primary(key: &str) -> Cow<'static, str> {
         "app_title" => SurfaceKind::IcedDesktop.product_name().into(),
         "nav_overview" => "核心概览".into(),
         "nav_traffic" => "流量统计".into(),
+        "nav_requests" => "最近请求".into(),
         "nav_group_primary" => "主导航".into(),
         "nav_group_observation" => "运行观测".into(),
         "nav_profiles" => "配置订阅".into(),

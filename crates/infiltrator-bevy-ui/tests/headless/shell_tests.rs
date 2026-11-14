@@ -6,7 +6,7 @@
 //! token-filled sidebar surface (rail, nav items, routing intent pills)
 //! without changing a single entity id.
 
-use crate::support::{subtree_in_tree_order, subtree_with};
+use crate::support::subtree_with;
 use bevy::MinimalPlugins;
 use bevy::a11y::AccessibilityNode;
 use bevy::app::App;
@@ -29,9 +29,8 @@ use infiltrator_bevy_ui::app::{
 use infiltrator_bevy_ui::pages::overview_cards::OverviewRoutingIntentSegmentPill;
 use infiltrator_bevy_ui::route::{ActiveRoute, Route};
 use infiltrator_bevy_ui::shell_scene::nav::{NavGroupHeading, NavIndicator};
-use infiltrator_bevy_widgets::button::ControlVisual;
 use infiltrator_bevy_widgets::icon::IconTint;
-use infiltrator_bevy_widgets::nav::{NavActive, NavItem, NavRowKind};
+use infiltrator_bevy_widgets::nav::{NavActive, NavRowKind};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::text::TextRole;

@@ -33,8 +33,21 @@ from interaction_delta import changed_pixels, corroborate
 from resolve_surface_evidence import ROOT, command_json, read_table, EVIDENCE_FIELDS
 from visual_receipts import (build_receipts_tolerant, interaction_bounds, manifest_rows,
                               source_fingerprint, verified_receipts_tolerant)
+from generate_unified_matrix import business_shape, shape_for_selector
 
 SURFACE_PACKAGES = {"iced": "infiltrator-iced", "bevy": "infiltrator-bevy-ui", "slint": "infiltrator-slint"}
+# The column layout each surface's own capture script demands. The harness
+# writes a filtered matrix and hands it to that script, so the header here is
+# the script's requirement and not a preference: a four-column file makes the
+# Iced and Bevy capture scripts refuse the run before they build anything.
+MATRIX_HEADER = {
+    "iced": ["name", "page", "shape", "skin", "window_size", "interaction",
+             "sidebar_expansion", "traffic_audit", "connection_view_mode",
+             "connection_columns"],
+    "bevy": ["name", "page", "shape", "skin", "window_size"],
+    "slint": ["name", "page", "skin", "window_size", "scroll", "mascot_frame",
+              "mascot_millis", "sidebar_expansion", "interaction", "locale"],
+}
 VIEWPORT_SIZES = {"standard": (1180, 780), "compact": (720, 480)}
 VIEWPORTS = tuple(VIEWPORT_SIZES)
 # The catalogue names the business page; the capture marker publishes the
@@ -175,30 +188,67 @@ def run_anchors(output, wanted, owners):
     return results
 
 
-def capture_matrix(features, pages, replicates):
-    """The rows of one capture matrix: every business scenario plus route-only baselines."""
+def capture_matrix(features, pages, replicates, surface="iced", specs=None):
+    """The rows of one capture matrix: every business scenario plus route-only baselines.
+
+    A capture matrix names two facts per row beyond the skin and the window: the
+    selector the surface opens and, on the desktop surfaces that carry a shape
+    column, the contract page shape the frame is judged by. The shape comes from
+    the same functions that fill the canonical matrix, so a filtered acceptance
+    run can never measure a business against a looser budget than the full
+    corpus gives it. Slint has no shape column because its selector already is a
+    shape. The interaction column names the parity fixture the row must open:
+    every capture script reads it from the column, because deriving it from the
+    scenario name made a shell-form row ask the demo for a business it never
+    named.
+    """
     rows = []
+
+    def business_row(name: str, feature: str, page: str, window: str) -> dict:
+        row = {"name": name, "page": page, "skin": "dark", "window_size": window,
+               "interaction": feature}
+        if surface != "slint":
+            spec = (specs or {}).get(feature, {})
+            row["shape"] = business_shape(spec.get("iced_page", ""),
+                                          spec.get("bevy_page", ""),
+                                          spec.get("slint_page", ""))
+        return row
+
+    def baseline_row(name: str, page: str, window: str) -> dict:
+        row = {"name": name, "page": page, "skin": "dark", "window_size": window,
+               "interaction": ""}
+        if surface != "slint":
+            # A baseline opens a page, not a business, so its shape is the shape
+            # of the selector it names.
+            row["shape"] = shape_for_selector(surface, page)
+        return row
+
     for feature in sorted(features):
         for viewport, (width, height) in VIEWPORT_SIZES.items():
-            rows.append({"name": f"{feature}-{viewport}", "page": pages[feature], "skin": "dark",
-                         "window_size": f"{width}x{height}"})
+            rows.append(business_row(f"{feature}-{viewport}", feature, pages[feature],
+                                     f"{width}x{height}"))
     for page in sorted(set(pages.values())):
         for viewport, (width, height) in VIEWPORT_SIZES.items():
             for replicate in range(1, replicates + 1):
                 prefix = BASELINE_PREFIX if replicate == 1 else f"{BASELINE_PREFIX}-r{replicate}"
-                rows.append({"name": f"{prefix}-{page}-{width}x{height}", "page": page, "skin": "dark",
-                             "window_size": f"{width}x{height}"})
+                rows.append(baseline_row(f"{prefix}-{page}-{width}x{height}", page,
+                                         f"{width}x{height}"))
     return rows
 
 
 def run_capture(surface, rows, output, attempts=2):
     """Capture one surface matrix in the private compositor stack."""
     matrix = output / f"{surface}-scenarios.tsv"
+    # The header is the one the surface's own capture script validates, so a
+    # matrix the harness writes has the same columns as the canonical one its
+    # rows are filtered from. A row that names none of the surface's remaining
+    # columns keeps that reader's default.
+    header = MATRIX_HEADER[surface]
     with matrix.open("w") as file:
         writer = csv.writer(file, delimiter="\t", lineterminator="\n")
-        writer.writerow(["name", "page", "skin", "window_size"])
+        writer.writerow(header)
         for row in rows:
-            writer.writerow([row["name"], row["page"], row["skin"], row["window_size"]])
+            writer.writerow([row.get(name, "") for name in header])
     env = dict(os.environ,
                INFILTRATOR_CAPTURE_MATRIX=str(matrix),
                INFILTRATOR_CAPTURE_OUT_DIR=str(output / f"{surface}-published"),
@@ -220,20 +270,40 @@ def run_capture(surface, rows, output, attempts=2):
     return None, completed
 
 
+def baseline_page(name: str) -> str:
+    """The matrix selector a route-only baseline row opened.
+
+    A baseline is named `baseline[-rN]-<page>-<width>x<height>`, so the page it
+    opened is recoverable from the name alone. The manifest's `page` column
+    cannot answer this: it carries the contract page *shape* a frame is judged
+    by, and a section row mounts a different surface word than the shape it is
+    measured against (`editor`/`mixin`/`filter` paint the profiles page on
+    Bevy, `about` the settings page, and on Iced `mixin`/`filter` both paint the
+    `editor` page). Keying a baseline by the shape would file those frames under
+    a page no caller asks for, and the cell would then report a real capture as
+    "no route-only baseline".
+    """
+    match = re.match(rf"^{BASELINE_PREFIX}(?:-r\d+)?-(.+)-\d+x\d+$", name)
+    if match is None:
+        raise ValueError(f"not a baseline scenario name: {name!r}")
+    return match.group(1)
+
+
 def baseline_images(run, rows):
     """The route-only captures of every page and viewport, plus their noise floor.
 
     The rows are the capture manifest rows: they name the page and the
-    requested window of every captured scenario.
+    requested window of every captured scenario. The page a baseline is filed
+    under comes from [`baseline_page`], never from the manifest's shape column.
     """
     baselines = {}
     for row in rows:
         name = row["scenario"]
         if not name.startswith(BASELINE_PREFIX):
             continue
-        page = row["page"]
         width, height = (int(value) for value in row["requested_window"].split("x"))
         viewport = "standard" if (width, height) == VIEWPORT_SIZES["standard"] else "compact"
+        page = baseline_page(name)
         image = run / name / "image.png"
         if not image.is_file():
             continue
@@ -467,7 +537,7 @@ def main():
             capture_reports[surface] = {"status": "no-carrier",
                                         "reason": "no selected business has a carrier page on this surface"}
             continue
-        rows = capture_matrix(sorted(carried), carried, args.replicates)
+        rows = capture_matrix(sorted(carried), carried, args.replicates, surface, specs)
         run, completed = run_capture(surface, rows, output)
         if run is None:
             capture_reports[surface] = {"status": "capture-failed", "returncode": completed.returncode,
@@ -718,7 +788,7 @@ def reclassify(previous, output=None, surfaces=None, rerun_anchors=False):
                 continue
             # The earlier run never captured this surface: capture it now so
             # the scope is complete.
-            rows = capture_matrix(sorted(carried), carried, report.get("replicates", 2))
+            rows = capture_matrix(sorted(carried), carried, report.get("replicates", 2), surface, specs)
             run, _ = run_capture(surface, rows, output)
             if run is None:
                 capture_reports[surface] = {"status": "capture-failed",

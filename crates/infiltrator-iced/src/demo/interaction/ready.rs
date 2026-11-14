@@ -357,7 +357,7 @@ pub(crate) fn ready(state: &AppState, feature: FeatureId) -> bool {
                 && state
                     .runtime
                     .proxy_name_runs
-                    .get(HK_PRIMARY)
+                    .get(&("PROXIES".to_owned(), HK_PRIMARY.to_owned()))
                     .is_some_and(|runs| runs.iter().any(|run| run.highlighted && run.text == "HK"))
         }
         FeatureId::ProxiesNodeDetailDrawer => state

@@ -1,5 +1,5 @@
 //! Behavior tests for scoped raw-log display projection.
-use super::{page_from_log_records, parse_structured_log, project_log_facts};
+use super::{page_from_log_records, parse_structured_log, project_log_facts, project_log_rows};
 use infiltrator_contract::logs::{
     LogBindingSnapshot, LogFactsSnapshot, LogLevel, LogObservationSnapshot, LogSession,
     LogStreamState, RawLogRecord,
@@ -144,4 +144,37 @@ fn current_scope_rejects_foreign_observation_and_connecting_is_not_empty() {
 
     let empty = page_from_log_records(empty::<&str>());
     assert_eq!(empty.status, PageStatus::Empty);
+}
+
+#[test]
+fn a_level_filter_shows_the_lines_at_or_above_its_rung() {
+    // The reference ladder: silent < error < warning < info < debug. A reader
+    // who picks "warn" wants warnings AND errors, not a single rung.
+    let mut facts = LogFactsSnapshot::default();
+    facts.active_level = Some(LogLevel::Warn);
+    let records = vec![
+        RawLogRecord {
+            id: 1,
+            raw: "ERROR[0000] failed".into(),
+        },
+        RawLogRecord {
+            id: 2,
+            raw: "WARN[0000] slow".into(),
+        },
+        RawLogRecord {
+            id: 3,
+            raw: "INFO[0000] ok".into(),
+        },
+        RawLogRecord {
+            id: 4,
+            raw: "SILENT[0000] muted".into(),
+        },
+    ];
+    let page = project_log_rows(&records, &facts);
+    assert_eq!(page.total_entries, 4);
+    assert_eq!(page.entries.len(), 3, "warn shows itself, error and silent");
+    assert!(page.entries.iter().any(|entry| entry.level == "ERROR"));
+    assert!(page.entries.iter().any(|entry| entry.level == "WARN"));
+    assert!(page.entries.iter().any(|entry| entry.level == "SILENT"));
+    assert!(!page.entries.iter().any(|entry| entry.level == "INFO"));
 }

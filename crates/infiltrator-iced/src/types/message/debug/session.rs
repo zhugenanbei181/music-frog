@@ -216,6 +216,7 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
             "OutboundUiPreferenceFinished(token={token}, scope={scope:?}, request={request:?}, terminal={terminal_scope:?}, {result:?})"
         ),
         Message::FilterProxies(s) => write!(f, "FilterProxies({})", s),
+        Message::ProxyPageIntent(intent) => write!(f, "ProxyPageIntent({intent:?})"),
         Message::ToggleFilterAlive(v) => write!(f, "ToggleFilterAlive({v})"),
         Message::ToggleProxyCompactView => write!(f, "ToggleProxyCompactView"),
         Message::InspectOutbound(id) => write!(f, "InspectOutbound({id:?})"),

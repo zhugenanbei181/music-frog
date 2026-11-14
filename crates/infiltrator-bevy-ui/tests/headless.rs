@@ -207,3 +207,6 @@ mod acceptance_list_tests;
 
 #[path = "headless/interaction_capture_tests.rs"]
 mod interaction_capture_tests;
+
+#[path = "headless/requests_page_tests.rs"]
+mod requests_page_tests;

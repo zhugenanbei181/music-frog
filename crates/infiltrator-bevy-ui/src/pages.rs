@@ -131,6 +131,7 @@ pub mod proxy_group_order;
 pub mod proxy_inspection;
 pub mod proxy_probe;
 pub mod proxy_probe_settings;
+pub mod requests;
 pub mod rules;
 pub mod rules_builder;
 pub mod rules_builder_input;

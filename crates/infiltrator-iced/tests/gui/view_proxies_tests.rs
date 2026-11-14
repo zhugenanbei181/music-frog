@@ -55,3 +55,18 @@ fn test_sort_options_use_the_shared_typed_order() {
         ]
     );
 }
+
+/// test-intent: behavior
+/// The Core lane's new quietest rung stays visible in both Iced pick lists.
+#[test]
+fn the_log_level_ladders_show_their_silent_rung() {
+    use infiltrator_contract::command::CoreLogLevel;
+    use infiltrator_contract::logs::LogLevel;
+
+    assert!(LogLevel::ALL.contains(&LogLevel::Silent));
+    assert_eq!(LogLevel::ALL.len(), 6);
+    assert_eq!(LogLevel::Silent.label(), "SILENT");
+    assert!(CoreLogLevel::ALL.contains(&CoreLogLevel::Silent));
+    assert_eq!(CoreLogLevel::ALL.len(), 5);
+    assert_eq!(CoreLogLevel::Silent.as_key(), "silent");
+}

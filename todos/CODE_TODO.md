@@ -21,6 +21,8 @@
 - **不可解依赖不阻塞：**仅受缺失物理设备、受控 CI tag、用户 secrets/keystore 等外部不可解依赖约束的条目整条在[斗战胜佛](CODE_TODO_BLOCKED.md)；它们不阻塞其它条目选取、统一验证批次执行与已达标条目办结登记。
 
 <!-- POINT_LEDGER:BEGIN -->
+- 2026-11-14 第二百六十八批次（Bevy 第一次说出自己画了什么：随帧发布 `CAPTURE_CHROME` 外壳几何回执（诊断批 3/3 帧实测有回执，190 帧整批未重采），三表面判定改读契约页形 `shape`；实测立项 `SPACEUTIL-024` 4 pt + `SPACEUTIL-025` 3 pt；`SPACEUTIL-022` 的 ①②③ 三段据实标注已交付；不办结、不注销）：① **真正找到的问题（不是「Bevy 少一个像素腿」，是它从来没有能力说自己画了什么）**：`--surface bevy` 一加通，第一件事不是变绿而是**逐帧拒判 190 条**——已发布语料一帧 `CAPTURE_CHROME` 都没有，判定器的测量盒（侧栏列宽、页身留白、外壳上下空气、底栏带）在 Bevy 侧从未被发布过，b146～b267 二十多批裁出的所有阈值对它一条都不生效（`SPACEUTIL-022` 立的正是这条）。第二件事是**页面形态有两份词汇**：`page-structure.json` 的 `slugs[]` 是唯一页形真源，但 Bevy 与 Iced 的采集矩阵里那一列写的是**表面自己开的选择器**（`editor` / `mixin` / `filter` / `policy-groups`），判定器因此需要在 Python 里再存一份别名表才能读懂索引——我上一半真的写了 `PAGE_SLUG_ALIASES`，本批按「每个事实只有一个真源」把它**删掉**，改为矩阵自己带 `shape` 列、发布索引的 `page` 一律写契约页形。第三件事是**验收矩阵与采集脚本早已分叉**：`capture-iced-matrix.sh` 自 `ce869d7` 起要求 10 列（`awk NF != 10` 直接 exit 2），而 `accept_surface_interactions.py` 还手写 4 列表头——tag CI 的 `full surface parity` 那条腿一旦被调用就会在构建前死掉；本批用 `MATRIX_HEADER[surface]` 把它收归与生成器同一份列布局，并让 `shape` / `interaction` 都由生成器的同一个函数导出（`business_shape` 原名 `iced_shape`，因为它现在同时服务 Iced 与 Bevy）。② **按事实收口（自底向上，不在 UI 层加布尔让测量通过）**：**契约**——`shell_navigation` 一处发布 `SURFACE_LOCAL_TRAFFIC` / `SURFACE_LOCAL_REQUESTS` / `SURFACE_LOCAL_IDS` 与 `owns_surface_local(surface,id)`，`label_key()` 从 `Option<&'static str>` 改成**全函数** `&'static str`（表面局部行的词也在共享 copy table：`nav_requests` = 最近请求/Requests），Bevy 侧私有 `requests_nav_item_scene` 与其 `rows.push` 同批退役，行集只剩 `desktop_items(SurfaceKind::BevyDesktop)` 一个来源；**生成器**——`bevy_shape` / `iced_shape` / `shape_for_selector(surface,selector)` 三个纯函数，选择器→页形一处裁决（`editor`/`mixin`/`filter` 量的是它们挂载的那一页 `profiles`，`policy-*` 量 `overview`，`about` 量导出自己的 `about` 页形），任何解析结果不在导出表内直接 raise；**采集脚本**——Bevy 矩阵升到 5 列并逐行按导出 `slugs` 拒判未知页形（与 Iced 同一条规则），发布索引写 shape；**判定器**——`SURFACE_BEVY` + `--surface bevy` + Bevy 专属欠账台账路径，删掉 Python 私有别名表；**Bevy 表面**——`shell_receipt.rs` 测量同一棵 Scene 画出的盒（列 / 栈尾 / 第一个字形 / 页身 / 底栏），任一盒未量到就**不发布回执**而不是补一个记来的数。③ **同批修掉的三处门禁与工具缺陷**：`bevy_rem_guard` 报的 `Val::Px(px)` 与两处 `rem(0.0)` 不是格式噪声——回执读取器属于「量出来的物理像素」那一类，按守卫自己声明的合法通道登记进 `MEASUREMENT_SOURCES`（共享空间阶梯新增具名 `space::S0`，零尺寸从此有名），而不是把读器改成 `Val::ZERO` 守卫来骗过正则；`iced-observation-routes-guard` 的锚点仍钉着契约里已被常量取代的字面量 `"traffic"`（重钉到 `SURFACE_LOCAL_TRAFFIC`，判据不变）；`accept_surface_interactions.baseline_images` 用发布索引的 `page` 当键，而那一列从此是**页形**——基线会被登记到没人查询的键下，把真实捕获报成「没有 demo 交互」，改为从基线名反解选择器并新增两条 planted 测试（`baseline_page` 对 `editor`/`mixin`/`app-routing` 与两个表面 `shape≠page` 的分叉各自钉死）。④ **实测立项 7 pt**：`SPACEUTIL-024`（4 pt，Bevy 外壳四项几何缺陷：折叠钮缺失且 owner 的 `sidebar_expansion` 从不驱动形态（`resolve_sidebar_expansion` 在 Bevy 两个 crate 命中 **0** 处，回执抄了一个不改变布局的字段）、带标签列 leading 声明 20px > 导出预算 19px 且像素起点在 x23、手机档页身留白实测 13px ≠ 导出 16px、根节点圆角+1px 边框画出 0.1% 的 `chrome_band`，逐条附帧名与像素读数）；`SPACEUTIL-025`（3 pt，节点网格形态在三个表面各写一遍：Slint 已按上游「只按页身宽」改成 compact→stacked / 其余→desktop（Rust 侧由新增的 `proxy_grid_column_rule_tests.rs` **7/7** 钉住），Iced 与 Bevy 仍按「侧栏有没有标签」判，同一窗口三种规则）。`SPACEUTIL-022` 的 ①②③ 三段改为**据实标注已交付/未交付**，其中「新增 Bevy 欠账台账文件」本批**故意不做**——空表等于给一个还没量过的表面发通行证，首版必须由 `--bootstrap` 从达标批次写。⑤ **证据（L）**：应要求 `cargo clean` 一次（40,227 文件 / **43.4 GiB**，卷 54% → 52%）后 clean 树复跑：`cargo nextest -p infiltrator-bevy-ui --features capture-tools` **848/848 PASS**、`cargo clippy -p infiltrator-bevy-ui -p infiltrator-bevy-widgets --all-targets -- -D warnings` RC=0、`cargo fmt --all --check` RC=0；clean 前另有 contract **629/629**、shared **82/82**、mihomo-api **53/53**、presentation **435/435**、slint **399/399**、iced **590/590**、bevy plain **203/203**；判定器 `--self-test` **77/77**（含 Bevy 路由三条新断言）、`scripts/parity` 生成器 **9/9** 与验收 **19/19**；`generate_unified_matrix.py --check` 三表面全绿（Bevy 自 b257 起第一次回到门外那条腿的内侧），190 行逐行与旧文件比对**零选择器漂移**；`bevy_rem_guard` 自测 PASS + enforce 0、`bevy_bsn_guard` 417/0、`bevy-sidebar-nav` / `iced-sidebar-nav` / `slint-navigation-owner` / `page-name` / `i18n` total=0、`implicit-state-audit` candidates=24 undecided=0 open=0、`structure-gate-guard` **222 腿 findings=0**、`capture-corpus-integrity` findings=0 across 3 corpora、`receipt-freshness` 0、`screenshot-identity` scanned=599 aliases=22 violations=0、双表面 `--enforce` Slint 211 / Iced 194 violations=0、`closure 8/8`、`doc-governance OK`、`todo-status-freshness` 0。⑥ **诚实边界**：**零 Bevy 像素重采**（本批只跑 3 帧诊断，发布语料仍是无回执旧批，故 Bevy 空间 enforce 腿不入结构门、不建立空欠账台账，四项缺陷一律写「实测未修」），Slint 从 `eaa8b73` 整批重采 **211 帧**（run `20261114T124431Z_eaa8b73173b1_dirty_286422`，514s）：与 b266 发布批（`20261114T055753Z_a2bb06fdfd62_dirty_184125`）逐帧比摘要 **209 帧逐字节相同**、另 2 帧最大色差仅 **1–2/255**（噪声级），判定器 211 帧 violations=0、`receipt-freshness` 0、`capture-corpus-integrity` 0、`screenshot-identity` 599/22/0。**一处被像素推翻的自我判断（据实记录）**：我曾把本批带上的 Slint 网格形态改动写成「720 帧 1 列 → 3 列的可见变化」，整批重采证伪了它——节点网格只在 `selected-group != ""` 时渲染，而发布矩阵在 720×480 的 proxies 帧停在**组列表**，medium 档**零张发布帧**画过那张网格（唯一画过的 `proxies-medium-diagnostic` 实测两列、且不在规范矩阵内），故该改动今天只有 Rust 单测回执、**没有像素回执**，已并入 `SPACEUTIL-025` 的「像素覆盖」段与其收口要求；Iced 17 帧因两个新表头图标变像素，**未重采**，沿用旧回执只能写「部分」；`FLPARITY-053`（余 5 项）/ `054`（余 5 项）/ `055`（silent 级别已交付，其余 4 项未动）本批只推进不办结；`--workspace` nextest 与结构门动态全腿因本机 cargo lane 只有两条、另一会话正在同机编译而留下一批。⑦ **台账**：`SPACEUTIL-024` 4 pt / `Planned` 与 `SPACEUTIL-025` 3 pt / `Planned` 入现在佛 §0.2；现在佛 **28 → 30 条 / 94 → 101 pt**、过去佛 **21 条 / 46 pt**、斗战胜佛 **20 条 / 62 pt**、未来佛 **15 条 / 26 pt**；未办结 **84 → 86 条 / 228 → 235 pt**、已归档 **1,265 pt / 466 条** 保持、累计 **1,493 → 1,500 pt**、严格交付率 **84.7% → 84.3%**（如实登记 7 pt 新缺陷让分母变大，是如实记账而非倒退）。
+- 2026-11-14 **v0.68.3 收口补记（同属第二百六十八批次，不新增交付点）**：① 按用户「收口 + 停线 + 迭代小版本 + 推送」把 `[workspace.package].version` **0.68.2 → 0.68.3**，同步 24 个 crate manifest、两份 Cargo.lock、`product-identity.slint`、`semver-baseline.json`、迁移指南 与 `slint-syntax-guard.py` 的版本断言；`android-product-identity-guard --release-tag v0.68.3` 0、`semver-compat-guard --mode check` OK（1 条 additive）、`neutral-release-guard` 自测 PASS、`cargo check --workspace --all-targets --locked` RC=0。② 最后四条门禁红腿全部按根因收口：**13 处内联长路径**改为文件头 `use`；**scrollbar 守卫**把 `Operation::scrollable` 的 trait 回调误判为「自建滚动条」修掉（判据改为只匹配构造调用，planted 自测仍 PASS）；**两个超 800 行文件**按业务缝拔出（`update/core/proxies_locate.rs`、`update/core/proxies_inventory_read.rs`、`types/message/proxy_page_intent.rs` 的 typed `ProxyPageIntent` 三变体家族），`Message` 只留一个携带 typed 意图的变体并穷尽分派；**禁止偷奸耍滑**写进 L2 代码质量底线 并新增 `scripts/quality/line-budget-integrity-guard.py`（自测 5/5：真实树 0、`mod.rs` 拒、`include!` 拒、改预算拒、文档删条款拒；enforce 0），双腿入结构门。③ 最终证据（L）：Iced+Bevy `nextest` **1531/1531**、八包 clippy `-D warnings`、fmt、`check --locked`、**结构门 221 腿 0 failed / 1 合法跳过**（`--check-export` 因 clean 后导出器未构建 typed 跳过）、`structure-gate-guard` **222 腿 0**、Slint 判定器 211 帧 0 违规、`receipt-freshness` 0、`capture-corpus-integrity` 0、`screenshot-identity` 599/22/0、`closure 8/8`、`doc-governance OK`、`todo-status-freshness` 0。④ 本补记后**停工**，只推送 commit + `v0.68.3` tag。
 - 2026-11-14 第二百六十七批次（Iced 的节点延迟徽章可以点测速（对标 FlClash / Clash Party 的逐节点延迟测试）；三方只读审计实测立项 5 条对标缺口 `FLPARITY-053`–`057` +37 pt；不办结、不注销）：① **真正找到的问题（不是「少一个按钮」，是能力早已发布却没人接）**：参照物两家的代理页都允许**在延迟数字所在处测速这一个节点**（Clash Party `components/proxies/proxy-item.tsx` 的 `onDelay` 按钮），本仓 Iced 的延迟徽章只是一段文字；而 **Core 其实早已把能力发布出来**——`OutboundProbeBatchScope::One(outbound)` 与每个成员的 `probe_availability`（Supported / Unsupported / Unknown）都在 lurker-core-contract 里，**缺的是 Iced 的状态层不受理 `One` 这个范围**：`outbound_probe_batch_message` 只认 All / Collection / Selected，于是徽章按不动。Slint 侧早就有逐节点测速入口（未测速节点带闪电图标），Bevy 侧有独立的测速页，**只有 Iced 落后**。② **按事实收口（不新造词汇、不在界面层推导）**：**状态层**补 `One` 分支——目标必须是被观察到的库存条目（`One` 与 `Collection` 都只校验引擎作用域，因为一个策略组本身也是一个 outbound）；新增 `member_probe_message()`：**只有当 owner 说该成员 `Supported` 且它有引擎作用域身份时才给出 typed 请求**，否则徽章保持普通文字（演示行没有身份、引擎不能测速时 owner 说 Unsupported，两者落到同一个诚实结果）。**视图侧**新增可复用组件 `probeable_latency_badge`（零 padding、无底色、无描边），节点卡与紧凑行都用它——同一处组件，不是两处各画一遍。③ **像素逐字节不变（本批的诚实边界）**：徽章被按钮包住后**不画任何底色**（iced 的 button 只在 background / border / shadow 存在时才填 quad），padding 归零，因此诊断重采（run `20261114T063921Z_ee097adc3c80_dirty_445517`）的 `proxies-dark` / `proxies-light` / `proxies-search-highlight-standard` 三帧与发布语料**逐字节相同**（sha256 一致）→ **零像素重采、发布回执不变、空间判定读数不变**。④ **证据（L）**：`cargo nextest -p infiltrator-iced` **577/577 PASS**（新增 3 条：单节点目标只认已观察的库存条目 / 未观察到的节点不受理 / 徽章只在 owner 说可以测速时才给出请求）；`cargo clippy -p infiltrator-iced --all-targets -D warnings` RC=0；Iced 判定器 194 帧 violations=0（语料未动，沿用上一批回执）。⑤ **三方只读审计立项 5 条 / 37 pt（`FLPARITY-053`–`057`）**：用三个并行只读审计分别对着 pinned FlClash 源码 `be847366`、本机装的 Clash Party（Mihomo Party React 码）与本仓三表面逐行复核，结论是**缺口集中在 Iced 与 Bevy 两面**：Iced 代理页 6 项（每组独立搜索 / 定位当前节点 / 隐藏组 / 默认排序 / 代理组编辑器 / 取消固定）、连接与日志 5 项、规则与配置订阅 7 项、流量与设置 9 项；Bevy 8 项（Requests 与资源两个导航行、DNS 查询记录表在 presentation 里已存在却零消费、仪表盘订阅表、能力驱动导航、工具页六个不可点的硬编码行）。**Slint 面的结构性缺口在 b258–b266 已基本收口**（网格缝一个价、页名一份词表、外壳保留带读契约导出）。这些新条目必须自底向上：缺的读回与命令要在 contract/application 先裁决，界面只消费 typed 事实。⑥ **台账**：现在佛 **23 → 28 条 / 57 → 94 pt**、过去佛 **21 条 / 46 pt**、斗战胜佛 **20 条 / 62 pt**、未来佛 **15 条 / 26 pt**；未办结 **79 → 84 条 / 191 → 228 pt**、已归档 **1,265 pt / 466 条**、累计 **1,456 → 1,493 pt**、严格交付率 **86.9% → 84.7%**（如实登记新增欠账让分母变大）。
 - 2026-11-14 第二百六十六批次（`SPACEUTIL-020` 收口：桌面外壳自留的底部保留带从私有的 72u 收窄到契约导出的 20u（参照物实测 20dp），判定器逐帧拒判超过导出上限的帧；`SPACEUTIL-020` 办结归档 +2 pt）：① **真正找到的问题（这条带从来没有任何判据量过）**：§2 把外壳自留的空气排除在测量盒之外——对**页面的账**是对的（填满视口的列表卡不得替外壳的呼吸位买单），却留下一个两侧都不付账、两侧也都不被量的区域：**外壳自己那一条底部保留带**。本仓桌面档硬写 **72u**（`app_body.slint` 的 `page-content-padding-bottom`），是参照物实测的 20dp 的 **3.6 倍**，在 1180×780 帧上即窗口的 **9.2%**——而 §3.1 给 `framed` 页形的整页预算才 4%。契约早就在 b244 裁决了上限（导出 `shell_air`：参考 20 + 有界余量 8 = 28），但**没有任何一帧会因为它超限而变红**：判定器只把它排除在盒外，从不因它超限而拒判——130 个桌面帧的账都在一个比窗口小 44px 的房间里算的。② **自底向上收口（四段同批接通，没有 UI 层补丁）**：**契约**（`page_structure` 的 `shell_air` 三键，本批无需改）→ **生成器**（`generate_viewport_ladder.py` 把参考值与上限写进生成的 `viewport-ladder.slint`：`shell-bottom-air` = 20u / `shell-bottom-air-limit` = 28u）→ **表面**（`app_body.slint` 的桌面 padding 改读 `ViewportLadder.shell-bottom-air`，紧凑档仍是 0——它的底部空间属于浮动底栏）→ **判定器**（新增逐帧拒判：回执里的 `shell_bottom_air_px` 超过导出上限即违规，缺 `shell_air` 键同样拒判）→ **守卫**（`slint-viewport-tier-guard` 的 chrome air 腿改写为「必须读导出值、不得留字面量长度」，planted 负例随之改写；参照守卫新增「§2 必须把保留带写成契约导出值」）。收口走的是 §5 的**按参照物收窄**，没有加布尔开关让测量通过。③ **语料重采（几何变了，回执必须跟上）**：从 `a2bb06f` 整批重采 **211 帧**（`CAPTURE MATRIX PASS: 211 scenario(s) in 583s`，run `20261114T055753Z_a2bb06fdfd62_dirty_184125`），发布批里的 `shell_bottom_air_px` 现在只有 **0（紧凑）与 20（桌面）** 两个值，**0 帧**达到或超过 28px 上限。④ **证据（L）**：空间判定器 Slint **211 帧 violations=0**、Iced **194 帧 violations=0**；`capture-corpus-integrity` findings=0；`screenshot-identity` scanned=599 aliases=22 violations=0（8 条 Slint 别名摘要随像素刷新）；`receipt-freshness` violations=0；`--check-export` current；参照守卫 findings=0 + 自测 14/14；`slint-viewport-tier-guard` findings=0 + 自测 56/56；`slint-list-page-guard` / `slint-surface-ladder-guard` / `slint-dock-material-guard` / `slint-flag-shape-guard` 均 findings=0。⑤ **诚实边界**：这条上限约束的是**几何**不是每一帧的滚动位置——`page-content-padding-bottom` 是 `ScrollView` 内容里的 padding，只在**滚到底**时才显形，所以判据只钉「外壳声明并保留多少」，不得写成「每帧底部必须有 20px 地面」。本批**只改桌面外壳**：Iced / Bevy / Android 的外壳底部保留本批未查（各表面的外壳事实不同）。framed 页框因此变高 52px（页身盒 654 → 706px），列表页的卡是 `page-body` 高度，**跟着长高填满**，所以 framed 页的空地占比从 97.5% 的预算降到 87.5%；`content` 页形（代理/关于/配置等）尾部按定义止于最后一块，比例上升但仍在其 82% 预算内（最紧的 `proxies-search-highlight-standard` 65.80% = 预算的 80.2%）。⑥ **台账**：现在佛 **24 → 23 条 / 59 → 57 pt**、过去佛 **21 条 / 46 pt**、斗战胜佛 **20 条 / 62 pt**、未来佛 **15 条 / 26 pt**；未办结 **80 → 79 条 / 193 → 191 pt**、已归档 **1,263 → 1,265 pt / 465 → 466 条**、累计 **1,456 pt**、严格交付率 **86.7% → 86.9%**。
 - 2026-11-14 第二百六十五批次（发布语料移出版本库、落到专用目录：三张语料整批重采收口，`GAP-7.7` 与 `FLPARITY-052` 办结归档 +5 pt）：① **真正找到的问题（用户指令：「截图证据不要被 git 管理，否则会导致仓库迅速膨胀；应安排专门的目录，而不是放在 docs 下」）**：三张发布语料（Slint 211 + Iced 194 + Bevy 190 + Slint 平价 4 = **599 张 PNG、约 60 MB**）一直躺在 `crates/*/docs/screenshots/` 里**进 git**，而**没有任何产品代码读这些像素**——它们是本机验收证据，不是产品源码；`.git` 因此长到 **1.3 GB**，每次整批重采都是几百兆的二进制 churn。**像素与索引必须分开**：像素会变、占空间、无人读；索引会变、但只有 30 KB 且**是唯一能钉住「这个表面交了哪一批」的东西**。② **按事实收口（像素出库、索引入库）**：像素搬到专用目录 `.evidence/corpora/<surface>/`（git 忽略），**索引 `manifest.tsv` 留在同目录并继续进 git**——CI 仍能用索引把每个表面钉在它的规范矩阵上（场景齐备 / 无场景静默离开矩阵），像素级判定（摘要 / 字节 / 尺寸 / 重复像素）留在有语料的机器上跑；「这个树没有像素」是**跳过**不是通过（像素身份守卫新增自跳过资格，登记在结构门的三态协议里）。③ **单一真源**：新增 `scripts/parity/corpus_layout.py` 声明唯一语料路径；三个 Python 读者（收据新鲜度 / 语料完整性 / 像素身份）改为读它，shell 采集脚本携带同一字面量；`capture-corpus-integrity-guard` 新增**布局一致性**判据：读者必须 import 这份真源、写者必须带同一路径、谁再写回 `docs/` 语料目录谁就是 finding；源码指纹的「回执豁免」规则同批退役（回执已不在源码树内，扫描范围天然不含它）。④ **Bevy 语料整批重采（`GAP-7.7` 的语料重建）**：整批 **190 帧**（`CAPTURE MATRIX PASS: 190 scenario(s) in 1589s`，run `20261114T050958Z_0372febde30e_dirty_13809`），索引 190 行与 190 张像素逐行相符 → 旧欠账 `capture_corpus_debt.json` 的 Bevy 两条上界（uncited 190 / receipt gap 188）**随真实批次归零而退役**（`--tighten-debt` 记 `bevy: retired`）。⑤ **两条办结（证据 L）**：`GAP-7.7`（3 pt）的验收三条全部达成（`capture-corpus-integrity --mode enforce` findings=0 且 bevy 欠账条目**已删除**、`receipt-freshness` violations=0、`screenshot-identity` violations=0）；`FLPARITY-052`（2 pt）的两张语料整批重采（Iced 194 帧 run `20261114T044106Z_f5d2839223b7_clean_3951607`、Bevy 190 帧 run `20261114T050958Z_0372febde30e_dirty_13809`）+ 4 条别名摘要刷新达成 → 两条同次迁出看板并登记 archived（+5 pt）。⑥ **门禁与证据（L）**：空间判定器 Slint **211 帧 violations=0**（run `20261114T040322Z_90a6df17a2dd_clean_3699528`）、Iced **194 帧 violations=0**（run `20261114T044106Z_f5d2839223b7_clean_3951607`）；`capture-corpus-integrity` **findings=0 across 3 published corpora**（summarize：slint index=211 png=211 / iced index=194 png=194 / bevy index=190 png=190，uncited=0、matrix_without_receipt=0）+ 自测 **12/12**；`screenshot-identity` **scanned=599 aliases=22 violations=0**；`receipt-freshness` **violations=0**；`scripts/quality/tests` 全套 **398 条全绿**；**结构门 220 腿 0 failed 0 skipped** + `structure-gate-guard` findings=0；`doc-governance OK`、`todo-status-freshness` 0、`closure` 8/8。⑦ **诚实边界**：本批**零业务代码改动**（只改采集脚本、判定器/守卫与文档）；**Bevy 语料没有像素判定腿**（`SPACEUTIL-022`：Bevy 不在空间判定范围），所以 Bevy 的「0 违规」只由语料完整性与像素身份两条腿背书，不冒充像素判定；CI 树上像素腿会**跳过**（无像素），索引腿照跑；`.git` 的 1.3 GB 是**历史**体积，本批不再新增像素，但历史对象要靠 `git gc` 才回收（另批处理）。⑧ **台账**：现在佛 **26 → 24 条 / 64 → 59 pt**、过去佛 **21 条 / 46 pt**、斗战胜佛 **20 条 / 62 pt**、未来佛 **15 条 / 26 pt**；未办结 **82 → 80 条 / 198 → 193 pt**、已归档 **1,258 → 1,263 pt / 463 → 465 条**、累计 **1,456 pt**、严格交付率 **86.4% → 86.7%**。
@@ -355,7 +357,7 @@
 
 **诚实边界**：用户提供的参考图是第三方插画，抠图为派生作品，许可与分发范围需用户确认后方可写入产品发行资产清单；本批先落本地证据与代码链，不宣称可再分发。
 
-## 0.2 空间利用率达标整改（第一百四十四批立项，标准见 L2 空间利用率强制标准；现存 5 条新增/未办结条目 `SPACEUTIL-019`–`023`；`SPACEUTIL-018` 已由 b218 迁入过去佛 §12.83）
+## 0.2 空间利用率达标整改（第一百四十四批立项，标准见 L2 空间利用率强制标准；现存 5 条未办结条目 `SPACEUTIL-019`、`021`、`022`、`024`、`025`；`SPACEUTIL-018` 已由 b218 迁入过去佛 §12.83，`020` 已由 b266 办结，`023` 已由 b245 交付迁入过去佛 §12.94，`001`–`004` 见 §151 统一验证批次）
 
 判据唯一：`python3 scripts/parity/space_utilization.py --report`。每完成一条即从
 `scripts/quality/space_utilization_debt.json` 删除对应行（台账只减不增），并随批重采像素。
@@ -796,15 +798,94 @@ status=pass（registry=True、discovery=True、anchors=360、cells=180）；
   「应当共享」当成「已经共享」，属于 L2 与执行器互相矛盾的又一实例（同 b207、b244 续二）。
   收口要求（顺序不可颠倒，按自底向上铁律）：① Bevy 侧把外壳几何事实发布成与 Slint/Iced **同一套
   typed 键**（复用 `infiltrator_contract::shell_receipt`，不在 Bevy 里另发明第二份字段名），随
-  capture 批写 `CAPTURE_CHROME` 行；② 判定器 `--surface` 加 `bevy` 并新增
-  `scripts/quality/space_utilization_debt_bevy.json`（首版按实测登记，之后只减不增）；
+  capture 批写 `CAPTURE_CHROME` 行——**b268 已交付**：`crates/infiltrator-bevy-ui/src/shell_receipt.rs`
+  测量同一棵树画出的盒，与 `CAPTURE_READY` 同批随帧发布；**实测只覆盖 3 帧诊断批**（桌面帧
+  `nav_column_px=240 / page_margin_px=16 / shell_bottom_air_px=17`，手机帧
+  `nav_form=bottom_nav / dock_band_px=58`）；② 判定器 `--surface` 加 `bevy` 并新增
+  `scripts/quality/space_utilization_debt_bevy.json`（首版按实测登记，之后只减不增）——**b268 已交付**
+  判定器一侧的 `SURFACE_BEVY` / 路由 / 选择器自测（77/77），但**结构门 enforce 腿尚未接入**，
+  因为它量的是尚未重采的旧 190 帧（无回执 → 逐帧拒判 190 条），且实测有 4 项外壳缺陷未修，
+  见 `SPACEUTIL-024`；欠账台账文件因此**故意不预先创建**（空表等于给一个从未量过的表面发通行证）；
   ③ L2 空间利用率强制标准第 5 行的表面清单改为**逐表面标注执行状态**，未接入门禁的表面必须写明「未判定」，
-  不许再用「共享标准」掩盖「只有一个表面被判过」；④ 整批重采 Bevy 像素（与 `GAP-7.7` 的
-  canonical 重采合批做，避免为同一表面重采两次）。验收：`--surface bevy --enforce` 可跑且
+  不许再用「共享标准」掩盖「只有一个表面被判过」——**b268 已交付**（§0 表逐表面发布
+  回执 / 判定器 / enforce 腿 / 欠账台账四列状态，与 `--surface` 的 `choices` 逐项一致）；
+  同批 Bevy 矩阵补上 `shape` 列，发布索引的 `page` 自此写**契约页形**而非表面选择器
+  （`editor`/`mixin`/`filter` 量的是 `profiles`，`policy-*` 量的是 `overview`），
+  判定器不再需要任何 Python 私有的别名表；④ 整批重采 Bevy 像素（与 `GAP-7.7` 的
+  canonical 重采合批做，避免为同一表面重采两次）——**未做**。验收：`--surface bevy --enforce` 可跑且
   findings 有台账依据、三表面各有独立欠账台账、L2 表面清单与判定器 `choices` 逐字一致
   （由同一条守卫比对，杜绝再次漂移）。**本批为何不顺手把 L2 第 5 行改成「两表面」**：那行描述的是
   **标准的适用范围**（裁决就是四类），缺陷在于执行器少一面；改窄文档等于用文字掩盖缺口，
   与本批刚立的「语料与索引必须一致、不许用记录代替证据」是同一条规矩。
+
+- `SPACEUTIL-024` **Bevy 外壳的四项几何缺陷（b268 整批发布 `CAPTURE_CHROME` 后首次被判定器量到，实测立项）**：
+  `--surface bevy` 这条腿一通，Bevy 自己的账就露出来了。诊断批（`20261114T103038Z_eaa8b73173b1_dirty_1748181`，
+  3 帧逐帧实测）读数：页身留白本身**达标**（`unused` 2.5% / 2.6%，帧式与密铺档上限内），
+  但 `chrome_findings` + `leading_findings` + `rail_findings` 共 **4 项**违规，全部是外壳事实，不是页面事实：
+  ① **折叠钮缺失，且 owner 的偏好从不驱动形态**：导出 `sidebar_variants` 对 `expanded` 档 +
+  `preference=expanded` 声明 `toggle_available=true`，判定器要求「声明的 toggle 带 ⇔ 导出的可用性」
+  同真同假，而 Bevy 的 `shell_receipt.rs` 硬写 `sidebar_toggle_px: 0`，`shell_scene.rs` 的侧栏树里
+  **没有任何折叠入口**（Iced 有 `sidebar_toggle()`、Slint 有 `if LumenTheme.sidebar-toggle-available`）。
+  根因不是漏画一个按钮：实测 `SettingsPageSnapshot::sidebar_expansion` 在 Bevy 只有**一个**消费者
+  （`capture.rs:697` 把它抄进回执），`ShellLayoutState::from_width` 只按宽度定形态，
+  `resolve_sidebar_expansion` 在 `crates/infiltrator-bevy-ui/src/` + `crates/infiltrator-bevy-desktop-host/src/`
+  命中 **0** 处，`SidebarExpansionIntent` 同样 **0** 处，`UiCommand` 没有对应臂——
+  即回执会声称「用户偏好=展开」而外壳从不按偏好画：把偏好改成折叠，Bevy 仍旧画 240px 带标签列，
+  回执也跟着撒谎。按自底向上铁律收口顺序：契约侧无需新增（`SidebarExpansionIntent` /
+  `resolve_sidebar_expansion` 已在），补 `UiCommand` 臂 + `DesktopCommandSink` 分支 +
+  `ShellLayoutState` 消费 typed 形态，再画那一个图标并把它自己的盒量进 `sidebar_toggle_px`；
+  禁止在 UI 层塞本地 bool 或让回执继续抄一个不驱动布局的字段。
+  ② **leading 超预算**：实测 `nav_content_offset_px=20`（侧栏面板 `UiRect::all(rem(space::S12))` 12
+  + 目的地行 `NAV_CONTENT_LEADING_PX` 8），而契约给 `expanded` 档的 `nav_leading_limit_px=19`
+  （`MAX_NAV_LEADING_SHARE_PCT` 8% × 240px），超 1px；像素复量的第一个字形起点更在 **x23**。
+  Slint 同档读的是生成器送的 `rail-content-leading: space-2`，两侧各让一份是同一个事实付两遍。
+  ③ **手机档页身留白**：400×800 帧实测 `page_margin_px=13`，而契约 `page_padding.px=16` 是**每档同一个**
+  留白（Slint 三张手机帧实测一律 16）。13 的来源是 `space::S12` 在 15px `REM_BASE` 下被缩放，
+  加上根 `ShellRoot` 那圈 `UiRect::all(Val::Px(palette.hairline_px))` 边框的 1px；
+  Bevy 因此**没有消费导出留白**，与 `SPACEUTIL-018` 收口前的 Slint 同型。
+  ④ **`chrome_band` 0.1% > 0% 上限**：最后一行 y779 在整窗宽度上是一条被**圆角 + 1px 边框**
+  画出来的暗带（森林皮肤下逐像素复核：x0–9 是页底色、x10 起转暗、x240 之后仍暗到 x1164），
+  `band_is_window_overlay` 的「越过列右缘即视为窗覆层」几何判据在这里不成立——侧栏右缘之内之外都暗，
+  它确实是外壳自己画的。收口只能改外壳（无边框档或不再给根节点画圆角边），
+  **不得**为此在判定器加白名单或把上限放宽。
+  ①②③④ 各自还需要一次整批重采才算像素收口（与 `SPACEUTIL-022` 的 ④ 合批做，别为一个表面采两次）。
+  验收：`--surface bevy --enforce` 对**新**整批 190 帧 findings=0（首版欠账台账由 `--bootstrap` 从该批写），
+  折叠钮读 owner 的 typed 偏好且 `sidebar_expansion` 只有一个真源，`page_margin_px` 逐帧 = 导出 16，
+  `nav_content_offset_px` ≤ 该档导出预算且与像素读数差 ≤4，`chrome_band` 归零。
+
+- `SPACEUTIL-025` **同一窗口下代理节点网格在三个表面给三种答案（b268 实测立项）**：
+  Slint 在 b268 把「哪个档用哪种网格形态」收成 `LumenTheme.proxy-grid-form`
+  （`viewport-tier == compact ? stacked : desktop`，`crates/infiltrator-slint/ui/components/theme.slint:391`），
+  理由是 pinned 上游 `getProxiesColumns(max(width - 32, 0))` 只按**页身宽**连续给列数、
+  从不按「侧栏是否有标签」分支（`lib/views/proxies/tab.dart`）。Rust 侧该规则由本批新增的
+  `crates/infiltrator-slint/tests/proxy_grid_column_rule_tests.rs`（**7/7**）钉住；
+  **像素侧目前没有任何发布帧行使它**（见本条末「像素覆盖」）。而 Iced
+  （`crates/infiltrator-iced/src/view/proxies/node_cards.rs:131`）与 Bevy
+  （`crates/infiltrator-bevy-ui/src/pages/proxy_grid_geometry.rs:26`）仍然用
+  `!tier.has_labelled_sidebar() → Stacked`，同一窗口同一 owner 快照各自画 1 列。
+  三份真源同存意味着：跨表面对齐同一业务时，比的不是「契约规则」而是「谁的字面量」。
+  `profiles` 网格同型（`crates/infiltrator-slint/ui/pages/page_profiles.slint:39` 的
+  `compact-layout` 兜底与 `ProfileGridForm` 的宽度规则并行存在）。
+  收口顺序（自底向上，不许在 UI 层各写一遍）：① **契约** `responsive_viewport` 一处发布
+  `ProxyGridForm::of_tier(tier)` 与 `ProfileGridForm::of_tier(tier)`（谁 stacked 谁 desktop
+  是页形事实，不是表面事实），并写明它与 `proxy_node_columns(form, page_width)` 的先后；
+  ② **判定器/守卫**读该导出，`bevy-proxy-grid-owner-guard` 与 `slint-viewport-tier-guard`
+  各加一条「表面不得自己判断档→形态」的 planted 负例；③ **三表面同批**改为消费 typed 形态，
+  `OutboundLayout::CompactList` 仍是用户显式高密度档（单列）不变；④ 整批重采三表面双视口，
+  与 `SPACEUTIL-024` ⑤ / `SPACEUTIL-022` ④ 的 Bevy 重采合批。
+  **像素覆盖（b268 整批重采实测，防后来者以为这条已经有回执）**：本批从 `eaa8b73` 整批重采
+  Slint **211 帧**（run `20261114T124431Z_eaa8b73173b1_dirty_286422`，514s），与上一发布批 b266 逐帧
+  比摘要：**209 帧逐字节相同**，只有 `proxies-search-highlight-standard` / `-compact` 两帧不同，
+  而这两帧的最大色差是 **1–2/255**（面板/抗锯齿级噪声，非布局变化）。根因：**节点网格只在
+  `selected-group != ""` 时渲染**，而发布矩阵在 720×480 的 proxies 帧停在**组列表**（`GridLayout`
+  不出现），medium 档因此**零张发布帧**画过节点网格；唯一画出该网格的是
+  `proxies-medium-diagnostic`（实测两列，`min_columns=2`），它**不在规范矩阵里**。
+  这与 `SPACEUTIL-021`（导出的档/带零像素消费者）是同一类缺陷的新实例：**代码改了、单测钉了、
+  像素上没有这一页**。收口必须包含「把一张 medium 档**下钻到节点网格**的场景加入规范矩阵并整批重采」，
+  否则本条的跨表面统一永远只能在无回执状态下宣称完成。
+  验收：三表面在同一窗口宽度的节点列数逐帧相等（判定器新增一条跨表面列数对照，或守卫钉住
+  形态函数唯一入口）、契约 nextest 覆盖四档、medium 档节点网格至少各一张发布帧、
+  三张语料整批重采后 `--enforce` 各自 0 违规。
 
 ## 0.3 门禁可达性与英文 locale 文案真源（现存 2 条 / 5 pt；`GATERUN-002` 由 b243 实测立项，`GATERUN-003` 由 b245 续二实测立项）
 
@@ -907,18 +988,24 @@ b181 实测立项的 `SLINT-022` 已由 b196 把明暗事实收归一个 owner�
 | `FLPARITY-049` | `Integrated` / P1（b183 实测立项、b184 交付，待统一验收） | 2 | infiltrator-slint（`pages/home_widgets.slint` 的 `HomePolicyGroupGrid` 列数裁决与 `HomeConnectionMiniTable.table-content-width`、`pages/home_desktop_grid.slint` 第 4 行份额、`ui/components/theme.slint` 的 `policy-tile-min-width`） | `FLPARITY-003`（仪表盘卡片密度）、`SPACEUTIL-001`（空间利用率标准） |
 | `FLPARITY-050` | `Planned` / P1（b207 上游源码复核立项） | 3 | infiltrator-contract（`window_chrome` 平台高度策略）+ infiltrator-desktop（`window_chrome::plan_window_chrome`）+ Iced / Bevy / Slint 的桌面 chrome 消费者与三份矩阵回执 + `scripts/parity/space_utilization.py` fixture | `SPACEUTIL-015`（回执的页身原点）、`FLPARITY-018`（CSD 标题栏） |
 | `FLPARITY-051` | `Integrated` / P1（b258 实现交付、b262 整批 211 帧重采与判定 0 违规，待统一验收批次办结） | 3 | infiltrator-contract（网格缝 owner）+ `scripts/generate_viewport_ladder.py` / `viewport-ladder.slint` + infiltrator-slint（`theme.slint` 的 `overview-card-gap`、`home_desktop_grid.slint` 四处 `spacing`、`page_proxies.slint:187`）+ Iced / Bevy 同规则 + 整批双视口重采 | `SPACEUTIL-008`（份额网格）、`FLPROXY-001`（列数规则）、`SPACEUTIL-020`（同一重采批次） |
-| `FLPARITY-053` | `Planned` / P1（b267 三方只读审计实测立项；逐节点延迟可点测已由 b267 交付，余 6 项待做） | 7 | infiltrator-iced（`view/proxies/node_cards.rs` / `state/proxy_probe.rs` / `view/proxy_latency.rs`）+ 参照物 FlClash 与 Clash Party 的代理页 | `FLPARITY-052`（同批语料）、`FLCLASH-001`（core 方法面） |
-| `FLPARITY-054` | `Planned` / P1（b267 三方只读审计实测立项） | 8 | infiltrator-bevy-ui（`route.rs` 的 Requests 路由、资源页、DNS 查询记录表、仪表盘订阅表、能力驱动导航、工具页可交互）+ `infiltrator-presentation`（`project_dns_history_page` 已被消费零次） | `SPACEUTIL-022`（Bevy 不在空间判定范围） |
-| `FLPARITY-055` | `Planned` / P2（b267 三方只读审计实测立项） | 5 | infiltrator-iced（连接流暂停、单条删除已关闭连接、可调列宽、拥有应用图标、日志静默级别） | `CPPARITY-006-UI`（连接页已交付） |
+| `FLPARITY-053` | `Planned` / P1（b267 立项；b267 交付逐节点延迟可点测，**b268 交付每组独立搜索 + 定位当前节点**，余 4 项待做；17 帧变像素未重采） | 7 | infiltrator-iced（`view/proxies/node_cards.rs` / `state/proxy_probe.rs` / `view/proxy_latency.rs`）+ 参照物 FlClash 与 Clash Party 的代理页 | `FLPARITY-052`（同批语料）、`FLCLASH-001`（core 方法面） |
+| `FLPARITY-054` | `Planned` / P1（b267 立项；**b268 交付 Requests 路由 + 注册表导航行 + 全帧外壳回执**，余 7 项待做） | 8 | infiltrator-bevy-ui（`route.rs` 的 Requests 路由、资源页、DNS 查询记录表、仪表盘订阅表、能力驱动导航、工具页可交互）+ `infiltrator-presentation`（`project_dns_history_page` 已被消费零次） | `SPACEUTIL-022`（Bevy 不在空间判定范围） |
+| `FLPARITY-055` | `Planned` / P2（b267 立项；**b268 交付日志「静默」级别的契约/adapter/presentation 一层**，按钮与像素另批，余 4 项） | 5 | infiltrator-iced（连接流暂停、单条删除已关闭连接、可调列宽、拥有应用图标、日志静默级别） | `CPPARITY-006-UI`（连接页已交付） |
 | `FLPARITY-056` | `Planned` / P2（b267 三方只读审计实测立项） | 8 | infiltrator-iced（规则行编辑/删除/按位插入、订阅卡刷新、导入走代理、剪贴板粘贴、二维码导出、拖拽排序、编辑订阅信息） | `FLCLASH-001`（core 方法面 wire 对照） |
 | `FLPARITY-057` | `Planned` / P2（b267 三方只读审计实测立项） | 9 | infiltrator-iced（流量记录清空、下钻明细表、会话数统计、静默启动与无核心退出、外部控制器与端口策略、MCP 配置、Sub-Store 集成、本地备份、侧栏排序与锁定）+ `infiltrator-core` 对应读回 | `FLCLASH-001`（core 方法面 wire 对照） |
 **b267 三方只读审计实测立项的 5 条对标缺口（`FLPARITY-053`–`057`，37 pt）**：本批用三个并行只读审计分别对着 pinned FlClash 源码（`be847366`）、本机装的 Clash Party（Mihomo Party React 码）与本仓三表面逐行复核，结论是**缺口集中在 Iced 与 Bevy 两面，Slint 侧的结构性缺口在 b258–b266 已基本收口**。
-① `FLPARITY-053`（7 pt，Iced 代理页）：FlClash 与 Clash Party 都允许**在延迟数字所在处测速这一个节点**（`proxy-item.tsx` 的 `onDelay`），本仓的延迟徽章此前只是文字；**Core 其实早已发布能力**——`OutboundProbeBatchScope::One(outbound)` 与成员的 `probe_availability` 都在，只是 Iced 的状态层不受理 `One` 这个范围，于是徽章按不动（b267 已交付这一项，余 6 项：每组独立搜索、定位当前节点、隐藏组开关、默认排序、代理组编辑器、取消固定节点）。
-② `FLPARITY-054`（8 pt，Bevy 路由与页面）：FlClash 桌面导航有 **Requests** 与**资源**两行，Bevy 的 `Route::ALL` 15 个变体里都没有；`project_dns_history_page` 在 presentation 里已存在却**零消费者**；工具页是六个不可点的硬编码行；导航是静态表而不是能力读回。
-③ `FLPARITY-055`（5 pt，Iced 连接与日志）：流式连接不能暂停、已关闭连接不能单条删除、列宽写死三档、连接行没有拥有应用图标、日志级别没有「静默」。
+① `FLPARITY-053`（7 pt，Iced 代理页）：FlClash 与 Clash Party 都允许**在延迟数字所在处测速这一个节点**（`proxy-item.tsx` 的 `onDelay`），本仓的延迟徽章此前只是文字；**Core 其实早已发布能力**——`OutboundProbeBatchScope::One(outbound)` 与成员的 `probe_availability` 都在，只是 Iced 的状态层不受理 `One` 这个范围，于是徽章按不动（b267 交付逐节点测速；**b268 交付每组独立搜索与定位当前节点**——typed `GroupFilter{Closed,Open}`（`state/proxy_group_filters.rs`，按 (group,node) 键控，不再一个搜索框管整页）与 typed `ProxyLocator{Idle,Pending}`（`state/proxy_locator.rs` + `view/proxies/locate.rs`，量活布局的真实位置、折叠组先展开再定位）。**余 4 项**：隐藏组开关、默认排序、代理组编辑器、取消固定节点。像素：两枚新表头图标使 **17 张 proxies-\* 帧变像素，未重采**，本条只能写「部分」。
+② `FLPARITY-054`（8 pt，Bevy 路由与页面）：**b268 交付 Requests 一项**（契约注册表发布 `SURFACE_LOCAL_REQUESTS` 行 + `Route::Requests` + `pages/requests.rs` 的 typed `RequestFeed::{Recent,Live}` + 全帧 `CAPTURE_CHROME` 回执；上游的 5 条 facet 过滤与「关闭实时」需契约先给 `RequestHistoryFilter` facet 身份，未在界面层猜）。**余 7 项**：资源行、DNS 查询记录表消费、仪表盘订阅表、能力驱动导航、工具页可交互、Requests 的 facet 过滤。原描述：FlClash 桌面导航有 **Requests** 与**资源**两行；`project_dns_history_page` 在 presentation 里已存在却**零消费者**；工具页是六个不可点的硬编码行；导航是静态表而不是能力读回。
+③ `FLPARITY-055`（5 pt，Iced 连接与日志）：**b268 交付「静默」级别一项**（契约 `LogLevel::Silent` + `severity()`/`passes_filter()` 阈值阶梯 silent<error<warn<info<debug<unknown，`CoreLogLevel::Silent` 五处同批改，mihomo adapter 编解码往返，presentation `LogLevelFilter::passes()`，Slint 词表/`domain_enums.slint` 补 rung——按钮与像素另批，因它是身份改动）。**余 4 项**：流式连接不能暂停、已关闭连接不能单条删除、列宽写死三档、连接行没有拥有应用图标。
 ④ `FLPARITY-056`（8 pt，Iced 规则与配置订阅）：规则只能开关与排序（不能改、不能删、不能按位插入）、订阅卡没有单项刷新、导入不走上游代理、没有剪贴板粘贴与二维码导出、卡片不能拖拽排序、订阅信息不能编辑。
 ⑤ `FLPARITY-057`（9 pt，Iced 流量与设置）：流量记录不能清空、排名行不能下钻、没有会话数统计、没有静默启动与无核心退出、没有外部控制器/端口/日志策略、没有 MCP 与 Sub-Store、没有本地配置备份、侧栏不能排序与锁定。**这些条目必须自底向上**：缺的读回与命令要在 contract/application 里先裁决，界面只消费 typed 事实，禁止在 UI 层加布尔开关或自行推导。
 **诚实边界**：本批只交付 `FLPARITY-053` 的第一项（逐节点延迟可点测），其余 36 pt 未动；审计报告全文留在本批会话记录里，未入库。
+
+**b268 追记（不改写 b267 那句当时的事实）**：b268 又交付了 `FLPARITY-053` 的**每组独立搜索**与
+**定位当前节点**、`FLPARITY-054` 的 **Requests 路由 + 注册表导航行 + 全帧外壳回执**、
+`FLPARITY-055` 的**日志「静默」级别**（契约 / adapter / presentation / Slint 词表四层，
+按钮与像素另批）；本节合计仍 37 pt 未办结（1 pt 交付随下一条统一验收批次登记），
+其中 Iced 的 17 张 proxies-\* 帧因两枚新表头图标变像素**尚未重采**。
 
 **`FLPARITY-051` 网格缝有两个真源：份额数学按 16u 计价、布局实际支付 12u（b253 实测立项，3 pt / `Planned`）**：
 pinned FlClash 把卡距发布成**一个随窗口宽度走的函数**——`lib/common/layout.dart:73-78`

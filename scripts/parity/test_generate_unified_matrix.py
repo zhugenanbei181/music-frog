@@ -57,34 +57,53 @@ class UnifiedMatrixTests(unittest.TestCase):
             {feature[0] for feature in matrix.parse_features()},
         )
 
-    def test_only_the_iced_matrix_carries_a_shape_column(self):
-        for surface in ("slint", "bevy"):
+    def test_the_desktop_matrices_carry_a_shape_and_slint_needs_none(self):
+        # Slint's capture selector already IS the contract page shape, so its
+        # matrix carries no shape column. The two desktop surfaces open routes
+        # and sections, so each names the shape its frames are judged by, and
+        # every one of those shapes comes from the exported table.
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "slint.tsv"
+            matrix.generate_surface_tsv("slint", output)
+            header = output.read_text(encoding="utf-8").splitlines()[0].split("\t")
+        self.assertEqual(header[:4], ["name", "page", "skin", "window_size"])
+        self.assertNotIn("shape", header)
+        self.assertNotIn("traffic_audit", header)
+        for surface in ("bevy", "iced"):
             with tempfile.TemporaryDirectory() as directory:
                 output = Path(directory) / f"{surface}.tsv"
                 matrix.generate_surface_tsv(surface, output)
-                header = output.read_text(encoding="utf-8").splitlines()[0].split("\t")
-            self.assertEqual(header, ["name", "page", "skin", "window_size"])
-            self.assertNotIn("traffic_audit", header)
-        with tempfile.TemporaryDirectory() as directory:
-            output = Path(directory) / "iced.tsv"
-            matrix.generate_surface_tsv("iced", output)
-            header = output.read_text(encoding="utf-8").splitlines()[0].split("\t")
-        self.assertEqual(
-            header,
-            [
-                "name",
-                "page",
-                "shape",
-                "skin",
-                "window_size",
-                "interaction",
-                "sidebar_expansion",
-                "traffic_audit",
-                "connection_view_mode",
-                "connection_columns",
-            ],
-        )
-        self.assertEqual(header[-1], "connection_columns")
+                rows = list(csv.DictReader(output.open(encoding="utf-8", newline=""),
+                                           delimiter="\t"))
+            self.assertEqual(rows[0]["shape"] in matrix.exported_shapes(), True, surface)
+            self.assertTrue(all(row["shape"] in matrix.exported_shapes() for row in rows),
+                            f"{surface}: a shape the contract does not own")
+
+    def test_a_bevy_section_selector_borrows_the_shape_of_the_route_it_mounts(self):
+        # `editor`, `mixin` and `filter` open the profiles page's editor card,
+        # `about` opens the settings page's attribution dialog, and the four
+        # overview card selectors stay on the overview: none of them is a page
+        # morphology, so none may borrow a looser budget than its route.
+        self.assertEqual(matrix.bevy_shape("editor"), "profiles")
+        self.assertEqual(matrix.bevy_shape("mixin"), "profiles")
+        self.assertEqual(matrix.bevy_shape("filter"), "profiles")
+        self.assertEqual(matrix.bevy_shape("about"), "about")
+        self.assertEqual(matrix.bevy_shape("policy-groups"), "overview")
+        self.assertEqual(matrix.bevy_shape("app-routing"), "app_routing")
+        self.assertEqual(matrix.bevy_shape("proxies"), "proxies")
+        with self.assertRaises(ValueError):
+            matrix.bevy_shape("no-such-page")
+
+    def test_shape_for_selector_answers_for_every_surface(self):
+        # The harness writes a filtered matrix for a surface it did not
+        # generate, so one resolver must answer for all three.
+        self.assertEqual(matrix.shape_for_selector("bevy", "mixin"), "profiles")
+        self.assertEqual(matrix.shape_for_selector("iced", "mixin"), "editor")
+        self.assertEqual(matrix.shape_for_selector("iced", "profiles-grid"), "profiles")
+        self.assertEqual(matrix.shape_for_selector("slint", "proxies_workbench"),
+                         "proxies_workbench")
+        with self.assertRaises(ValueError):
+            matrix.shape_for_selector("android", "proxies")
 
     def test_a_surface_owned_row_keeps_its_place_and_its_columns(self):
         """Twelve of the Slint rows sit inside the generated block, not after it."""

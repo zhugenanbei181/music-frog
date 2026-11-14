@@ -235,3 +235,24 @@ fn a_long_record_wraps_into_more_than_one_line() {
     let narrow = project_log_wrap_metrics("abc", 0.0);
     assert_eq!(narrow.lines, 1);
 }
+
+#[test]
+fn a_level_filter_is_a_severity_threshold_not_an_equality() {
+    let warn = LogLevelFilter::Level(LogLevel::Warn);
+    assert!(warn.passes(LogLevel::Warn));
+    assert!(warn.passes(LogLevel::Error));
+    assert!(!warn.passes(LogLevel::Info));
+    assert!(!warn.passes(LogLevel::Debug));
+
+    let silent = LogLevelFilter::from_identifier("silent");
+    assert_eq!(silent, LogLevelFilter::Level(LogLevel::Silent));
+    assert!(silent.passes(LogLevel::Silent));
+    assert!(!silent.passes(LogLevel::Error));
+
+    let debug = LogLevelFilter::Level(LogLevel::Debug);
+    assert!(debug.passes(LogLevel::Debug));
+    assert!(debug.passes(LogLevel::Silent));
+    // An unclassified line is never claimed to be a debug line.
+    assert!(!debug.passes(LogLevel::Unknown));
+    assert!(LogLevelFilter::All.passes(LogLevel::Unknown));
+}

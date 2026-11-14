@@ -8,6 +8,20 @@
 判定入口唯一：`scripts/parity/space_utilization.py`。本文只裁决规则与阈值；
 任何表面、任何页面都不得自行声明「这页留白是合理的」而绕过测量。
 
+**逐表面执行状态（b268 起，与判定器 `--surface` 的 `choices` 逐项一致）**：适用范围与
+执行状态是两件事，写在一起会再次把「应当共享」当成「已经共享」（`SPACEUTIL-022` 立的正是
+这条规矩）。
+
+| 表面 | 回执 | 判定器 | 结构门 enforce 腿 | 独立欠账台账 |
+| --- | --- | --- | --- | --- |
+| Slint | `CAPTURE_CHROME` | `--surface slint` | 已接入 | `space_utilization_debt.json` |
+| Iced | `CAPTURE_CHROME` | `--surface iced` | 已接入 | `space_utilization_debt_iced.json` |
+| Bevy | `CAPTURE_CHROME`（b268 起随帧发布，**实测 3/3 诊断帧**；已发布 190 帧是改动前采的无回执旧批，待整批重采） | `--surface bevy` | **未接入**（本批实测四项外壳几何未达标，见 `SPACEUTIL-022` ⑤） | **未建立**（首版必须由 `--bootstrap` 从达标批次写，不得先造空表） |
+| Android Compose | 不适用（无桌面页身盒；三 flavor 回执另按截图认证硬门） | 不参与 | 不参与 | 不参与 |
+
+Bevy 的矩阵自 b268 起携带 `shape` 列（与 Iced 同规则：`page` 是表面自己开的选择器，
+`shape` 是判它用的契约页形），发布索引的 `page` 列写的是 **shape**。
+
 ## 1. 为什么必须有比例上限
 
 留白不是缺陷，超标留白才是。本仓过去只能逐页争论「这块空地是不是合理」，

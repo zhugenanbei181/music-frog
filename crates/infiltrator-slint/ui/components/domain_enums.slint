@@ -50,6 +50,11 @@ export enum ThemeMode {
 // `unknown`, so a page that keeps it shows no selected level.
 export enum LogLevel {
     all,
+    // The owner can confirm the reference's quietest rung. The page has not
+    // yet been given a button for it (that is an identity change with its own
+    // pixel receipt), so a page holding this level shows no selected button —
+    // it never misreports the owner's filter as "all".
+    silent,
     debug,
     info,
     warning,

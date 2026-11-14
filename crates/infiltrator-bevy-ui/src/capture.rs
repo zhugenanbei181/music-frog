@@ -40,6 +40,9 @@ use crate::pages::profiles_editor_panes::ProfileEditorOptionsState;
 use crate::pages::profiles_editor_panes::ProfileEditorPane;
 use crate::pages::settings::settings_dialogs::FontLicenseButton;
 use crate::route::{ActiveRoute, PageRoot, Route};
+use crate::shell_receipt::{ShellChromePlugin, measure_shell_chrome};
+use crate::shell_receipt::{ShellChromeReceipt, page_scale_percent, shell_chrome_facts};
+use crate::surface::LatestSurfaceSnapshot;
 use bevy::app::{App, Plugin, PostUpdate, Update};
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::ChildOf;
@@ -49,6 +52,7 @@ use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::Local;
 use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::ecs::{event::Event, observer::On};
+use bevy::text::RemSize;
 use bevy::ui_widgets::{Activate, ScrollArea};
 use bevy::window::{PrimaryWindow, Window};
 use infiltrator_bevy_widgets::theme::ThemeSkin;
@@ -132,6 +136,7 @@ pub fn parse_page(raw: &str) -> Option<Route> {
         "editor" | "mixin" | "filter" => Some(Route::Profiles),
         "rules" => Some(Route::Rules),
         "connections" => Some(Route::Connections),
+        "requests" => Some(Route::Requests),
         "logs" => Some(Route::Logs),
         "dns" => Some(Route::Dns),
         "doctor" => Some(Route::Doctor),
@@ -205,6 +210,7 @@ pub fn route_slug(route: Route) -> &'static str {
         Route::Profiles => "profiles",
         Route::Rules => "rules",
         Route::Connections => "connections",
+        Route::Requests => "requests",
         Route::Logs => "logs",
         Route::Dns => "dns",
         Route::Doctor => "doctor",
@@ -294,10 +300,13 @@ impl Plugin for CapturePlugin {
         app.insert_resource(CaptureInteractionGate);
         app.insert_resource(WaitForLiveSnapshot(self.waiting_for_first_snapshot));
         app.init_resource::<CaptureProgress>();
+        app.add_plugins(ShellChromePlugin);
         app.add_observer(write_interaction_marker);
         app.add_systems(
             PostUpdate,
-            write_capture_marker.after(CaptureObservationSet),
+            write_capture_marker
+                .after(CaptureObservationSet)
+                .after(measure_shell_chrome),
         );
         if let Some(section) = section_from_env() {
             app.init_resource::<GeometryRejections>();
@@ -564,6 +573,9 @@ pub struct MarkerInputs<'w, 's> {
     route: Option<Res<'w, ActiveRoute>>,
     section: Option<Res<'w, CaptureSectionTarget>>,
     scroll_settled: Option<Res<'w, CaptureScrollSettled>>,
+    chrome: Option<Res<'w, ShellChromeReceipt>>,
+    rem_size: Option<Res<'w, RemSize>>,
+    snapshot: Option<Res<'w, LatestSurfaceSnapshot>>,
 }
 fn write_capture_marker(mut marker: MarkerInputs) {
     if marker.progress.done {
@@ -655,9 +667,45 @@ fn write_capture_marker(mut marker: MarkerInputs) {
         }
         line.push('\n');
     }
+    line.push_str(&chrome_line(&marker));
     if fs::write(&marker.path.0, line).is_ok() {
         marker.progress.done = true;
     }
+}
+
+/// The chrome line for this frame: the geometry the shell really painted.
+///
+/// The receipt is what the space-utilization judge measures a frame against,
+/// so it travels with the frame: a judge that had to remember the page
+/// margin or the shell air would be measuring a box no surface drew. A frame
+/// whose layout has not been measured yet publishes no line, and the judge
+/// reports it rather than measuring it against a number the shell kept.
+fn chrome_line(marker: &MarkerInputs) -> String {
+    let (Some(receipt), Some(window)) = (marker.chrome.as_ref(), marker.windows.single().ok())
+    else {
+        return String::new();
+    };
+    let expansion = marker
+        .snapshot
+        .as_ref()
+        .and_then(|snapshot| {
+            snapshot
+                .0
+                .pages
+                .settings
+                .data
+                .as_ref()
+                .map(|settings| settings.sidebar_expansion)
+        })
+        .unwrap_or_default();
+    shell_chrome_facts(
+        (window.width(), window.height()),
+        page_scale_percent(marker.rem_size.as_deref()),
+        expansion,
+        &receipt.0,
+    )
+    .map(|facts| facts.to_marker_line())
+    .unwrap_or_default()
 }
 
 fn write_interaction_marker(

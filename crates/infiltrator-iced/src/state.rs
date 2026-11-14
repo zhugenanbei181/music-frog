@@ -64,7 +64,9 @@ mod editor_observation;
 pub mod language;
 pub mod outbound_inventory;
 pub mod profiles;
+pub mod proxy_group_filters;
 pub mod proxy_group_order;
+pub mod proxy_locator;
 pub mod proxy_preferences;
 pub mod proxy_probe;
 pub mod proxy_probe_settings;
@@ -512,6 +514,7 @@ impl AppState {
         let (filtered, name_runs) = outbound_inventory::filtered_groups(
             &self.runtime.proxies_model,
             &self.runtime.proxy_groups,
+            &self.runtime.proxy_group_filters,
         );
         self.runtime.filtered_groups = filtered;
         self.runtime.proxy_name_runs = name_runs;

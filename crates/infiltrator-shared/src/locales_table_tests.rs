@@ -65,6 +65,7 @@ fn test_locales_table_key_parity() {
         "nav_profiles",
         "nav_proxies",
         "nav_traffic",
+        "nav_requests",
         "nav_rules",
         "nav_dns",
         "nav_sync",

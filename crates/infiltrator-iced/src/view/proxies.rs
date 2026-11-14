@@ -8,6 +8,7 @@ use crate::state::outbound_inventory::{
 };
 use crate::state::proxy_probe::OutboundProbeBatchState;
 use crate::types::message::Message;
+use crate::types::message::proxy_page_intent::ProxyPageIntent;
 use crate::view::components::{
     BadgeKind, badge, card_surface, chip, empty_state, icon_button, icon_button_maybe,
     modern_scrollable, section_header,
@@ -33,7 +34,11 @@ use lurker_core_contract::outbound::{
 };
 use lurker_core_contract::page::PageStatus;
 
+pub mod group_filter;
+pub mod locate;
 pub mod node_cards;
+use group_filter::group_filter;
+use locate::{PROXIES_PAGE_SCROLL_ID, group_body_id, group_card_id, group_grid_id, group_row_id};
 use node_cards::{node_compact_list, node_grid};
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
@@ -194,14 +199,14 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
         let test_group_btn: Element<'_, Message> =
             if state.runtime.outbound_probe_batch.is_running() {
-                container(svg_icons::icon_themed(Icon::Target, 15.0, |t: &Theme| {
+                container(svg_icons::icon_themed(Icon::Zap, 15.0, |t: &Theme| {
                     tokens(t).text_tertiary
                 }))
                 .padding(6)
                 .into()
             } else {
                 icon_button_maybe(
-                    Icon::Target,
+                    Icon::Zap,
                     15.0,
                     group_info.id.clone().and_then(|id| {
                         state.outbound_probe_batch_message(OutboundProbeBatchScope::Collection(id))
@@ -228,6 +233,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             .spacing(2),
             Space::new().width(Length::Fill),
             badge(total_count.to_string(), BadgeKind::Neutral),
+            group_filter(state, group_name, &lang),
+            locate_button(state, group_name),
             icon_button_maybe(
                 Icon::ArrowUp,
                 12.0,
@@ -264,10 +271,11 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         }
 
         groups_col = groups_col.push(
-            container(card_body)
+            container(container(card_body).id(group_body_id(group_name)))
                 .width(Length::Fill)
                 .padding(theme::SP_LG)
-                .style(card_surface),
+                .style(card_surface)
+                .id(group_card_id(group_name)),
         );
     }
 
@@ -289,9 +297,28 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         Space::new().height(theme::SP_MD),
         controls,
         Space::new().height(theme::SP_LG),
-        modern_scrollable(body).height(Length::Fill),
+        modern_scrollable(body)
+            .height(Length::Fill)
+            .id(Id::from(PROXIES_PAGE_SCROLL_ID.to_owned())),
     ]
     .into()
+}
+
+/// The control that brings the group's current node into view.
+///
+/// The reference client scrolls its group list to the node the group has
+/// selected. The control appears only when the owner published a selection
+/// for the group: a group without a current node has nothing to locate, so
+/// the control is drawn disabled instead of accepting a press that changes
+/// nothing.
+fn locate_button<'a>(state: &'a AppState, group: &'a str) -> Element<'a, Message> {
+    icon_button_maybe(
+        Icon::Target,
+        14.0,
+        state
+            .outbound_group_current_node(group)
+            .map(|_| Message::ProxyPageIntent(ProxyPageIntent::LocateGroupNode(group.to_owned()))),
+    )
 }
 
 fn outbound_probe_batch_card(state: &AppState) -> Option<Element<'_, Message>> {

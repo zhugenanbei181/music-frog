@@ -129,6 +129,10 @@ MEASUREMENT_SOURCES = (
     "crates/infiltrator-bevy-widgets/src/shader_fx.rs",
     "crates/infiltrator-bevy-widgets/src/telemetry_gpu.rs",
     "crates/infiltrator-bevy-ui/src/host_insets.rs",
+    # The chrome receipt reads the boxes the layout measured and answers in
+    # physical pixels; it paints nothing, so it holds no style size that the
+    # rem channel could have scaled wrongly.
+    "crates/infiltrator-bevy-ui/src/shell_receipt.rs",
 )
 
 #: A font size that is not relative to the root font size.

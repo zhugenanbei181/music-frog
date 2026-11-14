@@ -118,6 +118,8 @@ gate python3 scripts/quality/test_easing_owner_gate.py
 gate python3 scripts/quality/bevy_shader_guard.py --mode enforce
 gate python3 scripts/quality/line-guard.py --self-test
 gate python3 scripts/quality/line-guard.py --mode enforce
+gate python3 scripts/quality/line-budget-integrity-guard.py --self-test
+gate python3 scripts/quality/line-budget-integrity-guard.py --mode enforce
 gate python3 scripts/quality/kt-line-guard.py --self-test
 gate python3 scripts/quality/kt-line-guard.py --mode enforce
 gate python3 scripts/quality/doc-governance-guard.py --self-test
@@ -219,9 +221,10 @@ gate python3 scripts/parity/space_utilization.py --check-export
 gate python3 scripts/parity/space_utilization.py --enforce
 gate python3 scripts/parity/space_utilization.py --surface iced --enforce
 # The unified matrix is a committed artifact: this leg proves the generated
-# rows are still there, in generated order, with the columns they own. The
-# Bevy matrix is left out until its own session lands the current rewrite.
-gate python3 scripts/parity/generate_unified_matrix.py --check --surface=slint --surface=iced
+# rows are still there, in generated order, with the columns they own. Bevy
+# joined this check when its matrix gained the shape column that names the
+# contract page its frames are judged by.
+gate python3 scripts/parity/generate_unified_matrix.py --check
 gate python3 scripts/quality/slint-workbench-row-guard.py --mode enforce
 gate python3 scripts/quality/slint-workbench-row-guard.py --self-test
 gate python3 scripts/quality/slint-selector-segment-guard.py --mode enforce

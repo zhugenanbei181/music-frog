@@ -95,7 +95,89 @@ ICED_PAGE_SHAPES = {
     "filter": "filters",
     "rules-providers": "rules",
     "sync-restore-confirm": "sync",
+    # The two rows the Iced corpus owns besides the generated block: a traffic
+    # page opened on a non-default audit selection, and the profiles page
+    # opened in its grid morphology. Both paint the page they are named after.
+    "traffic-audit": "traffic",
+    "profiles-grid": "profiles",
 }
+
+# The shape of a Bevy capture selector.
+#
+# A Bevy selector may name a section *inside* a mounted route (`editor`,
+# `mixin` and `filter` open the profiles page's editor card with that pane
+# active, `about` opens the settings page's attribution dialog, the four
+# `*-card`/`policy-*` selectors open an overview card) and a section is not a
+# page morphology. The shape of such a frame is the shape of the route it
+# mounts, read off the same table the capture binary's `parse_page` uses, so a
+# section selector can never borrow a looser budget than the page it paints.
+BEVY_PAGE_SHAPES = {
+    "app-routing": "app_routing",
+    "editor": "profiles",
+    "mixin": "profiles",
+    "filter": "profiles",
+    "globe": "overview",
+    "service-health": "overview",
+    "resource-gauges": "overview",
+    "policy-groups": "overview",
+    "policy-picker": "overview",
+}
+
+# The Bevy selector a theme-inspection row opens. The registry's Bevy column
+# names the mounted route, but a theme row exists to see one surface in four
+# skins, so the four section surfaces keep their own selector and the traffic
+# page keeps the overview route that carries Bevy's traffic cards.
+BEVY_THEME_SELECTORS = {
+    "editor": "editor",
+    "mixin": "mixin",
+    "filter": "filter",
+    "about": "about",
+    "app-routing": "app_routing",
+}
+
+
+def bevy_shape(selector: str) -> str:
+    """The exported page shape a Bevy selector paints."""
+    shape = BEVY_PAGE_SHAPES.get(selector, selector)
+    shapes = exported_shapes()
+    if shape not in shapes:
+        raise ValueError(
+            f"no exported page shape for Bevy selector {selector!r} (resolved {shape!r})"
+        )
+    return shape
+
+
+def iced_shape(selector: str) -> str:
+    """The exported page shape an Iced selector paints.
+
+    The Iced half of [`bevy_shape`]: an Iced selector may name a route variant
+    (`mixin`/`filter` open the editor with another pane active,
+    `rules-providers` opens the rules page), and a route variant is not a page
+    morphology. A business row does not use this — it is judged by the shape of
+    the same business's Slint page, which is the stricter fact — so this is the
+    answer for a row that names a selector and no business.
+    """
+    shape = ICED_PAGE_SHAPES.get(selector, selector)
+    shapes = exported_shapes()
+    if shape not in shapes:
+        raise ValueError(
+            f"no exported page shape for Iced selector {selector!r} (resolved {shape!r})"
+        )
+    return shape
+
+
+def shape_for_selector(surface: str, selector: str) -> str:
+    """The exported page shape one surface's capture selector paints."""
+    if surface == "bevy":
+        return bevy_shape(selector)
+    if surface == "iced":
+        return iced_shape(selector)
+    if surface == "slint":
+        # The Slint matrix has no shape column because its selector already is
+        # the shape; saying so here is what stops a caller from reading an
+        # empty column as "no shape declared".
+        return selector
+    raise ValueError(f"unknown surface: {surface}")
 
 
 def exported_shapes() -> set[str]:
@@ -104,15 +186,15 @@ def exported_shapes() -> set[str]:
     return {entry["slug"] for entry in document.get("slugs", [])}
 
 
-def iced_shape(iced: str, bevy: str, slint: str) -> str:
-    """The contract page shape an Iced capture of this feature paints.
+def business_shape(iced: str, bevy: str, slint: str) -> str:
+    """The contract page shape a desktop capture of this business paints.
 
     The same business view has one body shape: the Slint column of the very
     same registry row already names it (that column IS the shape the Slint
-    frame is judged by), so an Iced capture of that feature is judged by the
-    same fact. A feature Slint does not carry falls back to the shape of the
-    Iced page it opens, and a feature neither surface implements to the
-    overview page's shape - never to a shape the export does not own.
+    frame is judged by), so an Iced or Bevy capture of that feature is judged
+    by the same fact. A feature Slint does not carry falls back to the shape of
+    the page it opens, and a feature neither surface implements to the overview
+    page's shape - never to a shape the export does not own.
     """
     shapes = exported_shapes()
     if slint in shapes:
@@ -138,6 +220,8 @@ def generate_surface_tsv(surface: str, out_path: Path):
             "name\tpage\tshape\tskin\twindow_size\tinteraction\tsidebar_expansion"
             "\ttraffic_audit\tconnection_view_mode\tconnection_columns\n"
         ]
+    elif surface == "bevy":
+        lines = ["name\tpage\tshape\tskin\twindow_size\n"]
     else:
         lines = ["name\tpage\tskin\twindow_size\n"]
 
@@ -151,6 +235,8 @@ def generate_surface_tsv(surface: str, out_path: Path):
             # published. A row that names none of them keeps the reader's
             # default.
             return f"{name}\t{page}\t{shape}\t{skin}\t{window}\t{interaction}\t\t\t\t\n"
+        if surface == "bevy":
+            return f"{name}\t{page}\t{shape}\t{skin}\t{window}\n"
         return f"{name}\t{page}\t{skin}\t{window}\n"
 
     # 1. 118 Business scenarios (alphabetical by feature id)
@@ -159,10 +245,15 @@ def generate_surface_tsv(surface: str, out_path: Path):
         if surface == "iced":
             page = "editor" if fid == "sync-restore-confirm" else (iced if iced else "overview")
             std_dim = "1180x780"
-            shape = iced_shape(iced, bevy, slint)
+            shape = business_shape(iced, bevy, slint)
         elif surface == "bevy":
             page = bevy if bevy else "overview"
             std_dim = "1180x780"
+            # The same business paints one body shape on every desktop surface:
+            # the Bevy frame of `proxies-group-expanded` is judged by the same
+            # shape as the Iced and Slint frames of it, not by whatever route
+            # word its selector happens to spell.
+            shape = business_shape(iced, bevy, slint)
         elif surface == "slint":
             page = slint if slint else "Home"
             std_dim = "1180x780"
@@ -180,7 +271,8 @@ def generate_surface_tsv(surface: str, out_path: Path):
                 p = iced_p
                 std_dim = "1180x780"
             elif surface == "bevy":
-                p = bevy_p
+                p = BEVY_THEME_SELECTORS.get(page_name, bevy_p)
+                shape = bevy_shape(p)
                 std_dim = "1180x780"
             elif surface == "slint":
                 p = slint_p

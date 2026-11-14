@@ -43,6 +43,7 @@ pub fn connection_sort_key(value: ConnectionSort) -> ConnectionSortKey {
 pub fn log_level_filter(value: crate::LogLevel) -> LogLevelFilter {
     match value {
         crate::LogLevel::All => LogLevelFilter::All,
+        crate::LogLevel::Silent => LogLevelFilter::Level(LogLevel::Silent),
         crate::LogLevel::Debug => LogLevelFilter::Level(LogLevel::Debug),
         crate::LogLevel::Info => LogLevelFilter::Level(LogLevel::Info),
         crate::LogLevel::Warning => LogLevelFilter::Level(LogLevel::Warn),
@@ -59,6 +60,7 @@ pub fn log_level_filter(value: crate::LogLevel) -> LogLevelFilter {
 pub fn log_level_value(level: Option<LogLevel>) -> crate::LogLevel {
     match level {
         None => crate::LogLevel::All,
+        Some(LogLevel::Silent) => crate::LogLevel::Silent,
         Some(LogLevel::Debug) => crate::LogLevel::Debug,
         Some(LogLevel::Info) => crate::LogLevel::Info,
         Some(LogLevel::Warn) => crate::LogLevel::Warning,
@@ -253,6 +255,7 @@ pub fn log_level_from_action_name(value: &str) -> crate::LogLevel {
 pub fn log_level_action_name(value: crate::LogLevel) -> &'static str {
     match value {
         crate::LogLevel::All => "all",
+        crate::LogLevel::Silent => "silent",
         crate::LogLevel::Debug => "debug",
         crate::LogLevel::Info => "info",
         crate::LogLevel::Warning => "warn",
@@ -340,8 +343,9 @@ pub fn overview_card_kind(value: &str) -> Option<OverviewCardKind> {
 #[cfg(test)]
 mod tests {
     use super::{
-        connection_sort_key, log_level_filter, log_level_value, network_mode_setting,
-        overview_card_kind, proxy_sort_order, proxy_sort_value, route_intent, theme_mode_setting,
+        connection_sort_key, log_level_action_name, log_level_filter, log_level_value,
+        network_mode_setting, overview_card_kind, proxy_sort_order, proxy_sort_value, route_intent,
+        theme_mode_setting,
     };
     use crate::{ConnectionSort, NetworkMode, RouteMode, ThemeMode};
     use infiltrator_contract::logs::LogLevel;
@@ -439,6 +443,15 @@ mod tests {
     #[test]
     fn the_shared_level_reads_back_as_the_widget_level() {
         assert_eq!(log_level_value(None), crate::LogLevel::All);
+        assert_eq!(
+            log_level_value(Some(LogLevel::Silent)),
+            crate::LogLevel::Silent
+        );
+        assert_eq!(
+            log_level_filter(crate::LogLevel::Silent),
+            LogLevelFilter::Level(LogLevel::Silent)
+        );
+        assert_eq!(log_level_action_name(crate::LogLevel::Silent), "silent");
         assert_eq!(log_level_value(Some(LogLevel::Info)), crate::LogLevel::Info);
         assert_eq!(
             log_level_value(Some(LogLevel::Unknown)),

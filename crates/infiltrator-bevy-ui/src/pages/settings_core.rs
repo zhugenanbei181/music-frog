@@ -353,6 +353,8 @@ pub(super) fn core_log_level_row_scene(
             Node {
                 align_items: AlignItems::Center,
                 column_gap: rem(space::S4),
+                flex_wrap: FlexWrap::Wrap,
+                row_gap: rem(space::S4),
             }
             Children [
                 { buttons }

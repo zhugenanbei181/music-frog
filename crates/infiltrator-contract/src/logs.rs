@@ -7,6 +7,13 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum LogLevel {
+    /// The quietest rung: the engine logged the line without saying more.
+    ///
+    /// The reference product's level ladder starts here
+    /// (`logLevelOrder` in its logs page: silent, error, warning, info,
+    /// debug), so a filter that cannot name this rung cannot express the
+    /// reference's own "only the quietest lines" view.
+    Silent,
     Debug,
     Info,
     Warn,
@@ -15,7 +22,8 @@ pub enum LogLevel {
     Unknown,
 }
 impl LogLevel {
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 6] = [
+        Self::Silent,
         Self::Debug,
         Self::Info,
         Self::Warn,
@@ -24,6 +32,7 @@ impl LogLevel {
     ];
     pub fn from_identifier(value: &str) -> Self {
         match value.trim().to_ascii_lowercase().as_str() {
+            "silent" => Self::Silent,
             "debug" | "dbg" => Self::Debug,
             "info" | "inf" => Self::Info,
             "warn" | "warning" | "wrn" => Self::Warn,
@@ -33,12 +42,42 @@ impl LogLevel {
     }
     pub const fn label(self) -> &'static str {
         match self {
+            Self::Silent => "SILENT",
             Self::Debug => "DEBUG",
             Self::Info => "INFO",
             Self::Warn => "WARN",
             Self::Error => "ERROR",
             Self::Unknown => "UNKNOWN",
         }
+    }
+
+    /// Where this level sits on the severity ladder.
+    ///
+    /// The numbers are the reference product's own (`logLevelOrder`): zero is
+    /// the quietest rung and the highest number is the most verbose one, so
+    /// "at least as severe as the filter" is "not above the filter's rung".
+    /// `Unknown` sits above `Debug` because an unclassified line is not
+    /// claimed to be a debug line - it is only shown when the reader asks for
+    /// the unclassified lines themselves.
+    pub const fn severity(self) -> u8 {
+        match self {
+            Self::Silent => 0,
+            Self::Error => 1,
+            Self::Warn => 2,
+            Self::Info => 3,
+            Self::Debug => 4,
+            Self::Unknown => 5,
+        }
+    }
+
+    /// Whether a line of this level belongs under a filter on `filter`.
+    ///
+    /// The filter is a threshold, not an equality: picking "warn" shows the
+    /// warnings **and** the errors above them, exactly like the reference
+    /// product's ladder does. Only the unclassified lines stay out until the
+    /// reader asks for them by name.
+    pub const fn passes_filter(self, filter: Self) -> bool {
+        self.severity() <= filter.severity()
     }
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -168,11 +207,41 @@ pub struct LogFactsSnapshot {
 
 #[cfg(test)]
 mod tests {
-    use super::LogSession;
+    use super::{LogLevel, LogSession};
     use lurker_core_contract::identity::{
         CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, EngineId,
     };
     use lurker_core_contract::session::SessionToken;
+
+    #[test]
+    fn the_silent_rung_is_part_of_the_level_vocabulary() {
+        assert_eq!(LogLevel::from_identifier("SILENT"), LogLevel::Silent);
+        assert_eq!(LogLevel::Silent.label(), "SILENT");
+        assert!(LogLevel::ALL.contains(&LogLevel::Silent));
+        let encoded = serde_json::to_string(&LogLevel::Silent).expect("serialize level");
+        assert_eq!(encoded, "\"silent\"");
+        assert_eq!(
+            serde_json::from_str::<LogLevel>(&encoded).expect("deserialize level"),
+            LogLevel::Silent
+        );
+    }
+
+    #[test]
+    fn a_level_filter_is_a_severity_threshold_not_an_equality() {
+        // The reference ladder is silent < error < warning < info < debug;
+        // picking "warn" must show warnings AND the errors above them.
+        assert!(LogLevel::Error.passes_filter(LogLevel::Warn));
+        assert!(LogLevel::Warn.passes_filter(LogLevel::Warn));
+        assert!(!LogLevel::Info.passes_filter(LogLevel::Warn));
+        assert!(!LogLevel::Debug.passes_filter(LogLevel::Warn));
+        // "silent" shows only the quietest lines; "debug" shows every real
+        // level. An unclassified line is never claimed to be a debug line.
+        assert!(LogLevel::Silent.passes_filter(LogLevel::Silent));
+        assert!(!LogLevel::Error.passes_filter(LogLevel::Silent));
+        assert!(LogLevel::Debug.passes_filter(LogLevel::Debug));
+        assert!(!LogLevel::Unknown.passes_filter(LogLevel::Debug));
+        assert!(LogLevel::Unknown.passes_filter(LogLevel::Unknown));
+    }
 
     #[test]
     fn log_session_round_trips_engine_instance_and_generation_identity() {

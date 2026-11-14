@@ -24,7 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-14 第二百六十七批次：Iced 的节点延迟徽章可以点测速（对标 FlClash / Clash Party 的逐节点延迟测试），像素逐字节不变；三方只读审计实测立项 5 条对标缺口 +37 pt；b111–b266 见下方批次八问摘要）
+## 当前状态（2026-11-14 第二百六十八批次 = **v0.68.3 收口批次**：Bevy 随帧发布 `CAPTURE_CHROME` 外壳几何回执，判定器与三张矩阵改读契约页形 `shape`；超预算按业务缝拔出而非压行，并立守卫 + 写入 L2；实测立项 `SPACEUTIL-024` 4 pt + `SPACEUTIL-025` 3 pt；b111–b267 见下方批次八问摘要）
+
+| # | 结论 | 等级 | 缺口 / owner |
+| --- | --- | --- | --- |
+| 1 | 部分 | L | 本批改 Bevy 表面 + 判定器/矩阵脚本（Python/shell）+ 契约导航注册表：`cargo nextest -p infiltrator-bevy-ui --features capture-tools` **848/848 PASS**、`cargo clippy -p infiltrator-bevy-ui -p infiltrator-bevy-widgets --all-targets -- -D warnings` RC=0、`cargo fmt --all --check` RC=0、结构门 **220 腿 findings=0** 为 `L`；应要求 `cargo clean` 一次（40,227 文件 / **43.4 GiB**）后复跑取证。aarch64 交叉目标产物未复跑（GAP-1.1） |
+| 2 | 部分 | L | Linux 本机完成 clean 后定向 nextest / clippy / 全部门禁与 Slint 整批重采；本批零 workflow、零构建面改动。Windows/macOS 构建腿未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
+| 3 | 部分 | L | 零 Android/iOS 代码、资源或脚本改动；Bevy 回执机制与 Android 无关 |
+| 4 | 部分 | L | **Bevy 第一次进入空间判定的可视范围**：`--surface bevy` 判定器侧接通、Bevy 随帧发布 `CAPTURE_CHROME`（**实测覆盖 3 帧诊断批**：桌面 `nav_column_px=240 / page_margin_px=16 / shell_bottom_air_px=17`，手机 `nav_form=bottom_nav / dock_band_px=58`；发布语料的 190 帧仍是改动前采的无回执旧批，本批未重采）；但结构门 enforce 腿**故意未接入**——已发布 190 帧仍是无回执旧批，且实测四项外壳几何缺陷未修 → 部分（L，`SPACEUTIL-024` ①–④ / `SPACEUTIL-022` ④） |
+| 5 | 完整 | L | 重复实现清零三处：① 页面形态词汇——Bevy 矩阵补 `shape` 列，三表面发布索引的 `page` 一律写**契约导出页形**，判定器删除 Python 私有别名表 `PAGE_SLUG_ALIASES` 与 `resolve_page_slug`（不留第二份词表）；② 导航行——Bevy 私有的 `requests_nav_item_scene` 与其 `rows.push` 退役，行集/分组/图标/词由契约 `desktop_items(surface)` + `owns_surface_local` 一处发布；③ 验收矩阵——`accept_surface_interactions.py` 不再手写四列表头，改读 `MATRIX_HEADER[surface]` 与生成器同一个 `business_shape` / `shape_for_selector` |
+| 6 | 部分 | L | 新增可执行判据两条（判定器接受 `--surface bevy` 并逐帧拒判无回执帧；`generate_unified_matrix.py --check` 恢复对 Bevy 生效，提交态该矩阵此前被显式排除在门外），新增业务能力零项（Requests 路由属 `FLPARITY-054` 的部分交付）→ 部分（L） |
+| 7 | 完整 | L | 模块化：`RequestFeed::{Recent,Live}` 与 `ProxyPageIntent` 都是 typed 枚举而非布尔/裸变体；`update/core/proxies.rs` 与 `types/message.rs` 两个超预算文件按业务缝拔出到 `proxies_locate.rs` / `proxies_inventory_read.rs` / `message/proxy_page_intent.rs`（零 `mod.rs`、零 `include!`、零合并 use 压行），新 `line-budget-integrity-guard.py` 自测 5/5 + enforce 0 并把规则写进 [CODE_QUALITY_BASELINE.md](CODE_QUALITY_BASELINE.md)；`sidebar_expansion` 只有一个真源（owner 的 `SettingsPageSnapshot`），实测 Bevy 目前只在回执里抄它、外壳从不按它画，这条分叉按自底向上写成 `SPACEUTIL-024` ① 的收口顺序，未在 UI 层塞布尔让它「看起来通过」→ 完整（L） |
+| 8 | 完整 | L | 一次整批 Slint 重采（211 帧 / 514s）+ 一次 3 帧 Bevy 诊断重采；`cargo clean` 40,227 文件 / 43.4 GiB；clean 后 Iced+Bevy `nextest` **1531/1531**、八包 clippy `-D warnings` RC=0、`cargo check --workspace --all-targets --locked` RC=0、fmt 0、结构门 **221 腿 0 failed / 1 合法跳过**（`--check-export` 因导出器未构建 typed 跳过）、`structure-gate-guard` 222 腿 0；`--workspace` nextest 留统一批次（本机 cargo lane 与另一会话共享）→ 完整（L） |
+
+## 最近一批问答（2026-11-14 第二百六十八批次：Bevy 第一次说出自己画了什么）
+
+1. x86_64/aarch64：本批改 Bevy 表面 + 判定器/矩阵脚本 + 契约导航注册表；clean 后 `cargo nextest -p infiltrator-bevy-ui --features capture-tools` **848/848**、两包 clippy `--all-targets -- -D warnings` RC=0、`cargo fmt --all --check` RC=0、结构门 220 腿 findings=0 为 `L`。aarch64 交叉目标产物未复跑（GAP-1.1）→ 部分（L）。
+2. Windows/Linux/macOS：Linux 本机完成 clean 后取证与 Slint 整批重采，本批零 workflow / 零构建面改动；Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）→ 部分（L）。
+3. Android/iOS：零 Android/iOS 代码、资源或脚本改动 → 部分（L）。
+4. 各 UI：Bevy 首次随帧发布外壳几何回执并被判定器量到，实测**四项外壳几何缺陷**（折叠钮与 owner 偏好从不驱动形态 / 带标签列 leading 20px 超导出预算 19px 且像素读数 23px / 手机档页身留白 13px ≠ 导出 16px / 根节点圆角边框画出一条 0.1% 的 `chrome_band`）；结构门 enforce 腿因此**故意不接**，不拿旧批像素冒充达标 → 部分（L）。
+5. 复用：三处第二真源同批清零（页形词表、Bevy 私有导航行、验收矩阵手打表头）；`bevy-proxy-grid-owner-guard` / `slint-viewport-tier-guard` 判据不动，只随代码搬家重钉锚点 → 完整（L）。
+6. 各处界面的功能接入：新增判据两条、业务能力零新增（`Route::Requests` 是 `FLPARITY-054` 8 pt 中的一项，其余 5 项未动）→ 部分（L）。
+7. 模块化：回执量的是同一棵树画出的盒（`ShellChromeMeasurement` → `shell_chrome_facts`），量不到的盒就不发布回执而不是猜一个数；`sidebar_expansion` 未被外壳消费这一事实如实立为 `SPACEUTIL-024` ①，禁止 UI 层布尔；两个超预算文件按业务缝真正拔出（`proxies_locate.rs` / `proxies_inventory_read.rs` / `message/proxy_page_intent.rs`），不用 `mod.rs` / `include!` / 合并 use / 删注释压行，并由 `line-budget-integrity-guard.py`（自测 5/5 + enforce 0）与 L2 文档双向钉死 → 完整（L）。
+8. CI 与批次效率：应要求 clean 后一次跑完取证，Slint 一次整批重采（211 帧）、Bevy 一次 3 帧诊断（未动发布语料）；结构门 221 腿 0 failed / 1 合法跳过、`structure-gate-guard` 222 腿 0；`--workspace` nextest 因共享 cargo lane 留统一批次错峰 → 完整（L）。
+
+## 历史状态（2026-11-14 第二百六十七批次：Iced 的节点延迟徽章可以点测速（对标 FlClash / Clash Party 的逐节点延迟测试），像素逐字节不变；三方只读审计实测立项 5 条对标缺口 +37 pt；b111–b266 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
@@ -37,7 +61,7 @@
 | 7 | 完整 | L | 可用性由 owner 的 typed 事实决定（`probe_availability` + 引擎作用域身份），界面只消费；零新增布尔与私有推导 → 完整（L） |
 | 8 | 部分 | L | 一次诊断采集（3 帧，82s）+ 定向 nextest + clippy 跑完；全仓 `--workspace` nextest 与结构门动态全腿留统一批次 → 部分（L） |
 
-## 最近一批问答（2026-11-14 第二百六十七批次：徽章可以测速了）
+## 历史问答（2026-11-14 第二百六十七批次：徽章可以测速了）
 
 1. x86_64/aarch64：本批改 Iced 状态层与视图组件；`cargo nextest -p infiltrator-iced` 577/577 PASS（新增 3 条）、`cargo clippy -p infiltrator-iced --all-targets -D warnings` RC=0、诊断重采三帧与发布语料逐字节相同、Iced 判定器 194 帧 violations=0 为 `L`。aarch64 交叉目标产物未复跑（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：Linux 本机完成定向 nextest 与 clippy，本批零 workflow、零构建面改动。Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）→ 部分（L）。

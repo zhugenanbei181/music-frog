@@ -7,6 +7,7 @@
 ## 源码与职责
 
 - Rust、Kotlin 生产代码、测试、示例和构建辅助源码均按单文件 **800 行**预算执行；不压行、不提高阈值、不加白名单或用源码拼接绕过。
+- **超预算必须按业务缝拔出，不得压缩表现**：禁止用合并 `use`、删除解释性注释/空行、合并枚举变体、把若干变体写成一行、`mod.rs` 旧式布局或 `include!` 源码拼接来让行数达标；这些都只让同一个巨石在纸上变小，没有移走任何职责。正确做法是把一个内聚的**业务家族**抽到真正的兄弟模块（`foo.rs` + `foo/`，禁止 `mod.rs`），由 typed 意图枚举承载，父总线只留一个携带该意图的变体并穷尽分派（`crates/infiltrator-iced/src/types/message/proxy_page_intent.rs` 是落地范例）。`scripts/quality/line-budget-integrity-guard.py` 钉住 800 行计数规则、`mod.rs`/`include!` 禁令、接近预算的总线必须把新家族交给 typed 意图模块，以及本文必须同时发布这些词；`scripts/quality/line-guard.py` 继续逐文件执行预算。
 - 导入使用定义模块；禁止长路径代替导入、命名导入别名、`pub use` 转发和纯类型转发。
 - 外部能力、缺失观测、失败、取消和不支持使用明确类型表达；不得用默认值、空数据或静默 no-op 冒充成功。
 - 文案由 `infiltrator-contract::shared_copy` 定义 key，`infiltrator-shared` 与产品 `.po`/Android `strings.xml` 统一维护描述。所有 UI 视图、状态和异步结果强制经共享本地化资源解析；禁止 UI 自带第二份用户可见文案。

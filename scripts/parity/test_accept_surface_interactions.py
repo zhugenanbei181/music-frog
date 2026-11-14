@@ -6,8 +6,9 @@ import unittest
 from pathlib import Path
 
 from accept_surface_interactions import (BASELINE_PREFIX, MARKER_ROUTES, anchor_reason,
-                                         anchor_selection, baseline_images, capture_matrix,
-                                         classify_cell, surface_registry_state)
+                                         anchor_selection, baseline_images, baseline_page,
+                                         capture_matrix, classify_cell,
+                                         surface_registry_state)
 from interaction_delta import changed_pixels, corroborate
 
 try:
@@ -33,6 +34,27 @@ class MatrixTests(unittest.TestCase):
             if row["name"].startswith(BASELINE_PREFIX):
                 self.assertFalse(row["name"].endswith("-standard"))
                 self.assertFalse(row["name"].endswith("-compact"))
+
+    def test_a_business_row_names_the_shape_and_the_selector_it_opened(self):
+        # The desktop capture scripts validate both facts: the selector the
+        # surface opens and the contract page shape the frame is judged by. A
+        # four-column row would be refused before the build starts.
+        rows = capture_matrix(["alpha"], {"alpha": "mixin"}, 1, "bevy",
+                              {"alpha": {"iced_page": "mixin", "bevy_page": "mixin",
+                                         "slint_page": "editor"}})
+        business = [row for row in rows if row["name"] == "alpha-standard"][0]
+        self.assertEqual(business["page"], "mixin", "the selector the surface opens")
+        self.assertEqual(business["shape"], "editor", "the shape the frame is judged by")
+        self.assertNotIn("shape", capture_matrix(["alpha"], {"alpha": "editor"}, 1, "slint")[0])
+
+    def test_the_baseline_page_survives_the_selector_shape_split(self):
+        # A section row paints a different shape than the word it opens; the
+        # baseline key is the opened selector, or no caller would find it.
+        self.assertEqual(baseline_page("baseline-editor-1180x780"), "editor")
+        self.assertEqual(baseline_page("baseline-r2-editor-720x480"), "editor")
+        self.assertEqual(baseline_page("baseline-app-routing-1180x780"), "app-routing")
+        with self.assertRaises(ValueError):
+            baseline_page("alpha-standard")
 
 
 class AnchorTests(unittest.TestCase):

@@ -5,9 +5,17 @@ use crate::view::theme::tokens;
 use iced::widget::{rich_text, span};
 use iced::{Element, Renderer, Theme};
 
-pub fn node_name<'a>(state: &'a AppState, name: &'a str, size: u32) -> Element<'a, Message> {
+pub fn node_name<'a>(
+    state: &'a AppState,
+    group: &str,
+    name: &'a str,
+    size: u32,
+) -> Element<'a, Message> {
     let palette = tokens(&state.shell.theme);
-    let runs = state.runtime.proxy_name_runs.get(name);
+    let runs = state
+        .runtime
+        .proxy_name_runs
+        .get(&(group.to_owned(), name.to_owned()));
     let spans: Vec<_> = if let Some(runs) = runs {
         runs.iter()
             .map(|run| {

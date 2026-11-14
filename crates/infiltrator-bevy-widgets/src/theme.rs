@@ -283,6 +283,9 @@ impl Theme {
 /// depend on contract, so the mirror is enforced by
 /// `tests/headless/design_token_tests.rs`.
 pub mod space {
+    /// The zero extent: a flex basis or minimum that owns no room at all.
+    /// Named so a zero never reads as an unscaled literal in a rem-only tree.
+    pub const S0: f32 = 0.0;
     pub const S2: f32 = 2.0;
     pub const S4: f32 = 4.0;
     pub const S6: f32 = 6.0;

@@ -8,7 +8,6 @@ import { ProxyGroupCard, SurfaceCard } from "../components/cards.slint";
 import { RouteMode, RuntimeStatus } from "../components/domain_enums.slint";
 import { ProxyGroupPillBar, ProxyNodeCard } from "../components/proxy_picker.slint";
 import { ViewportLadder } from "../components/viewport-ladder.slint";
-import { ProxyGridForm } from "../components/viewport_tier.slint";
 
 export component PageProxies inherits VerticalLayout {
     in property <bool> compact-layout;
@@ -27,16 +26,20 @@ export component PageProxies inherits VerticalLayout {
     property <bool> show-search: !root.compact-layout;
 
     // FlClash answers "how many node cards fit" from the page-body width, not
-    // a window tier: `getProxiesColumns(max(width - 32, 0))` uses a 250dp
-    // floor and keeps at least two columns. The generated lookup reads those
-    // exported constants, while the grid passes its own width to the owner.
-    // The form is the tier's own (`LumenTheme.desktop-page`), not the collapse
-    // preference: a desktop window that hides its labels still has a desktop
-    // page body, and Iced's grid already divides the same tier's page width.
+    // from a window tier: `getProxiesColumns(max(width - 32, 0))` uses a 250dp
+    // floor and keeps at least two columns (`lib/common/layout.dart`), and the
+    // caller hands it the width the grid was given
+    // (`lib/views/proxies/tab.dart`). The generated lookup reads those exported
+    // constants, and the grid passes its own page-body width to the owner.
+    //
+    // The form is the surface's one tier fact, `LumenTheme.proxy-grid-form`:
+    // the phone tier keeps its single readable column and every tier with a
+    // page body asks the width rule. It used to read `LumenTheme.desktop-page`,
+    // which answers a different question - whether the tier owns a labelled
+    // navigation column - so the laptop range (an icon rail, a 624dp body)
+    // was stacked one node per row where the reference draws three columns.
     in property <int> node-columns:
-        ViewportLadder.proxy_columns(LumenTheme.desktop-page
-            ? ProxyGridForm.desktop
-            : ProxyGridForm.stacked, self.width);
+        ViewportLadder.proxy_columns(LumenTheme.proxy-grid-form, self.width);
 
     callback set-route-mode(RouteMode);
     callback select-group(string);

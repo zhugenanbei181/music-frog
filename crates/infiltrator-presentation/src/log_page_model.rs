@@ -152,7 +152,12 @@ pub enum LogLevelFilter {
     /// Every level is shown.
     #[default]
     All,
-    /// Only records of this level are shown.
+    /// Records at least as severe as this level are shown.
+    ///
+    /// The filter is a threshold, not an equality: the reader who picks
+    /// "warn" wants the warnings **and** the errors above them, which is the
+    /// severity ladder the reference product uses. The contract's
+    /// [`LogLevel::passes_filter`] owns the comparison.
     Level(LogLevel),
 }
 
@@ -164,6 +169,7 @@ impl LogLevelFilter {
     /// must not stand in for a filter nobody asked for.
     pub fn from_identifier(value: &str) -> Self {
         match value.trim().to_ascii_lowercase().as_str() {
+            "silent" => Self::Level(LogLevel::Silent),
             "debug" | "dbg" => Self::Level(LogLevel::Debug),
             "info" | "inf" => Self::Level(LogLevel::Info),
             "warn" | "warning" | "wrn" => Self::Level(LogLevel::Warn),
@@ -192,6 +198,14 @@ impl LogLevelFilter {
     /// The owner-facing identifier of this filter.
     pub fn identifier(self) -> Option<String> {
         self.level().map(|level| level.label().to_string())
+    }
+
+    /// Whether a record of `level` belongs under this filter.
+    pub fn passes(self, level: LogLevel) -> bool {
+        match self {
+            Self::All => true,
+            Self::Level(filter) => level.passes_filter(filter),
+        }
     }
 }
 

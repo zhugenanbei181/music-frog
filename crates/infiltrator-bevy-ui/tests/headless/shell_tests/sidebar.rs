@@ -24,7 +24,9 @@ use infiltrator_bevy_ui::shell_scene::nav::{
 };
 use infiltrator_bevy_widgets::palette::{NAV_SELECTION_WASH_ALPHA, rem};
 use infiltrator_contract::responsive_viewport::SidebarForm;
-use infiltrator_contract::shell_navigation::{NavigationTarget, desktop_items};
+use infiltrator_contract::shell_navigation::{
+    NavigationTarget, SURFACE_LOCAL_REQUESTS, desktop_items,
+};
 use infiltrator_contract::shell_sidebar_presentation::separator_for_form;
 use infiltrator_contract::surface::SurfaceKind;
 
@@ -120,10 +122,11 @@ fn the_rail_mounts_the_registry_rows_and_the_group_headings_only() {
         .into_iter()
         .map(|row| row.route)
         .collect();
-    let wanted: Vec<Route> = expected
+    let mut wanted: Vec<Route> = expected
         .iter()
         .map(|item| match item.target {
             NavigationTarget::Shared(page) => Route::from_shell_page(page),
+            NavigationTarget::SurfaceLocal(SURFACE_LOCAL_REQUESTS) => Route::Requests,
             NavigationTarget::SurfaceLocal(id) => {
                 panic!("the registry handed {id} to a surface that does not own it")
             }
@@ -131,12 +134,12 @@ fn the_rail_mounts_the_registry_rows_and_the_group_headings_only() {
         .collect();
     assert_eq!(
         mounted, wanted,
-        "the rows are the registry's, painted in registry order top to bottom"
+        "the rows the registry grants this surface are painted in order"
     );
     assert_eq!(
         mounted.len(),
-        7,
-        "Bevy folds traffic into its overview, so it mounts the seven shared destinations"
+        8,
+        "seven shared destinations plus the Requests row the registry grants this surface"
     );
 
     let world = app.world_mut();
@@ -167,7 +170,7 @@ fn the_rail_mounts_the_registry_rows_and_the_group_headings_only() {
 fn the_row_geometry_is_the_reference_measurement() {
     let mut app = mounted_shell();
     let rows = rail_rows(&mut app);
-    assert_eq!(rows.len(), 7);
+    assert_eq!(rows.len(), 8);
     let row_height = rem(NAV_ROW_HEIGHT_PX);
     let icon = rem(NAV_ROW_ICON_PX);
     for row in &rows {

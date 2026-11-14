@@ -64,6 +64,8 @@ pub mod projection;
 pub mod route;
 pub mod shell_rail;
 pub mod shell_readout;
+#[cfg(feature = "capture-tools")]
+pub mod shell_receipt;
 pub mod shell_routing_intent;
 pub mod shell_routing_intent_issue;
 pub mod shell_scene;

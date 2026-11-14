@@ -2,7 +2,7 @@ import { MaterialSchemes } from "@material";
 import { MaterialWindowAdapter } from "@material";
 import { LumenUiScale } from "../lumen-ui-scale.slint";
 import { DesignType } from "./design-type.slint";
-import { NavigationForm, SidebarExpansionPreference, ViewportTier } from "./viewport_tier.slint";
+import { NavigationForm, ProxyGridForm, SidebarExpansionPreference, ViewportTier } from "./viewport_tier.slint";
 import { ViewportLadder } from "./viewport-ladder.slint";
 
 export global LumenTheme {
@@ -366,6 +366,30 @@ export global LumenTheme {
     // than turning it into the phone layout. The grid pages read this one.
     out property <bool> desktop-page:
         ViewportLadder.labelled_sidebar(root.viewport-tier);
+    // Which proxy grid rule owns this page.
+    //
+    // FlClash splits its pages by `getViewMode` (`lib/common/layout.dart`):
+    // `viewWidth <= 600` is the mobile view, and the laptop range above it is
+    // still the desktop page - only the navigation column collapses to icons
+    // (`canExpandSidebar` is desktop-only). The node grid then asks the page
+    // body's own width for its columns: `getProxiesColumns(max(width - 32, 0))`
+    // divides that body by the 250dp floor and keeps at least two columns,
+    // with no view-mode branch anywhere in it (`lib/views/proxies/tab.dart`).
+    //
+    // `desktop-page` above is a *card metrics* fact, and it answers "does the
+    // tier own a labelled column" - false for the laptop range. Reading it for
+    // the grid therefore stacked FlClash's laptop range one node per row,
+    // while the reference draws three columns in the same 624dp body. This
+    // fact is the tier's phone/desktop page boundary instead: the phone tier
+    // keeps its one readable column, and every tier with a page body asks the
+    // exported width rule.
+    //
+    // The shared contract owns `ProxyGridForm` and
+    // `proxy_node_columns(form, page_width)` but publishes no tier-to-form
+    // resolver, so this surface states that mapping once, here, rather than
+    // letting a page derive it from whatever nearby fact it can reach.
+    out property <ProxyGridForm> proxy-grid-form:
+        root.viewport-tier == ViewportTier.compact ? ProxyGridForm.stacked : ProxyGridForm.desktop;
     out property <bool> sidebar-toggle-available:
         ViewportLadder.sidebar_toggle_available(root.sidebar-expansion, root.viewport-tier, root.touch-surface);
     out property <length> rail-vertical-inset: 18 * LumenUiScale.unit;

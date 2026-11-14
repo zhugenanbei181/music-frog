@@ -50,7 +50,7 @@ use infiltrator_contract::a11y::ShellA11yNode;
 use infiltrator_contract::design_resources;
 use infiltrator_contract::responsive_viewport::SidebarForm;
 use infiltrator_contract::shell_navigation::{
-    NavigationGroup, NavigationItem, NavigationTarget, desktop_items,
+    NavigationGroup, NavigationItem, NavigationTarget, SURFACE_LOCAL_REQUESTS, desktop_items,
 };
 use infiltrator_contract::shell_sidebar_presentation::{NavigationSeparator, separator_for_form};
 use infiltrator_contract::surface::SurfaceKind;
@@ -201,7 +201,7 @@ pub fn sidebar_nav_item_scene(
     active: bool,
     palette: &UiPalette,
 ) -> Box<dyn Scene> {
-    let label_key = item.target.label_key().unwrap_or_else(|| route.label_key());
+    let label_key = item.target.label_key();
     let semantic = nav_semantic_node(&route.label(), false);
     let plate =
         plate_for_canonical_name(item.icon.canonical_name()).unwrap_or_else(|| route.icon());
@@ -347,7 +347,7 @@ pub fn nav_column_scene(palette: &UiPalette) -> Box<dyn Scene> {
     let nav_node = semantic_node(ShellA11yNode::SidebarNav);
     let items = desktop_items(SurfaceKind::BevyDesktop);
     let paints_headings = separator_for_labelled_form().paints_heading();
-    let mut rows: Vec<Box<dyn Scene>> = Vec::with_capacity(items.len() + 2);
+    let mut rows: Vec<Box<dyn Scene>> = Vec::with_capacity(items.len() + 3);
     for (index, item) in items.iter().enumerate() {
         if paints_headings && (index == 0 || item.group != items[index - 1].group) {
             rows.push(nav_group_heading_scene(item.group));
@@ -360,7 +360,6 @@ pub fn nav_column_scene(palette: &UiPalette) -> Box<dyn Scene> {
             palette,
         ));
     }
-
     Box::new(bsn! {
             Node {
                 width: percent(100),
@@ -401,6 +400,10 @@ pub fn nav_column_scene(palette: &UiPalette) -> Box<dyn Scene> {
 pub(crate) fn route_for_destination(target: NavigationTarget) -> Route {
     match target {
         NavigationTarget::Shared(page) => Route::from_shell_page(page),
+        // Bevy owns the request page and folds traffic into its overview, so
+        // the registry hands it exactly the local id below; any other local
+        // row reaching this surface is a registry/surface disagreement.
+        NavigationTarget::SurfaceLocal(SURFACE_LOCAL_REQUESTS) => Route::Requests,
         NavigationTarget::SurfaceLocal(id) => {
             unreachable!("the registry offered {id} to a surface that does not own it")
         }

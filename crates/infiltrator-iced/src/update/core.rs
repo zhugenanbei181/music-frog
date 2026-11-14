@@ -25,6 +25,8 @@ mod monitoring;
 mod mrs;
 pub(crate) mod profile_apply;
 mod proxies;
+mod proxies_inventory_read;
+mod proxies_locate;
 mod routing_intent;
 mod rule_list;
 mod rules;

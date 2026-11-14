@@ -136,7 +136,7 @@ fn native_search_submits_the_typed_owner_preference_and_recovers_from_a_refused_
     let runs = state
         .runtime
         .proxy_name_runs
-        .get("hong-kong")
+        .get(&("GLOBAL".to_owned(), "hong-kong".to_owned()))
         .expect("the matched member publishes its text runs");
     assert!(
         runs.iter()

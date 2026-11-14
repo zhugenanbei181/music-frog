@@ -79,9 +79,7 @@ fn the_dock_is_a_subset_of_the_desktop_rows() {
 #[test]
 fn every_mounted_label_resolves_in_the_shared_copy_table() {
     for item in desktop_items(SurfaceKind::IcedDesktop) {
-        let Some(key) = item.target.label_key() else {
-            continue;
-        };
+        let key = item.target.label_key();
         for locale in ["zh-CN", "en-US"] {
             let lang = Lang(locale);
             assert_ne!(

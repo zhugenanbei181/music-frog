@@ -217,7 +217,9 @@ fn native_navigation_labels_and_title_follow_locale_without_remounting() {
     use crate::support::{headless_plugins, subtree_in_tree_order};
     use infiltrator_bevy_ui::app::{ContentTitleLabel, ShellPlugin, SidebarNavItem, SidebarPanel};
     use infiltrator_bevy_ui::route::{ActiveRoute, Route};
-    use infiltrator_contract::shell_navigation::{NavigationTarget, desktop_items};
+    use infiltrator_contract::shell_navigation::{
+        NavigationTarget, SURFACE_LOCAL_REQUESTS, desktop_items,
+    };
     use infiltrator_contract::surface::SurfaceKind;
     let mut app = App::new();
     headless_plugins(&mut app);
@@ -248,6 +250,9 @@ fn native_navigation_labels_and_title_follow_locale_without_remounting() {
         .iter()
         .map(|item| match item.target {
             NavigationTarget::Shared(page) => Route::from_shell_page(page),
+            // The registry publishes this surface's own local rows; traffic is
+            // absent because Bevy folds it into the overview.
+            NavigationTarget::SurfaceLocal(SURFACE_LOCAL_REQUESTS) => Route::Requests,
             NavigationTarget::SurfaceLocal(id) => {
                 panic!("the registry handed {id} to a surface that does not own it")
             }
@@ -256,12 +261,12 @@ fn native_navigation_labels_and_title_follow_locale_without_remounting() {
     assert_eq!(
         nav.iter().map(|(_, route)| *route).collect::<Vec<_>>(),
         expected,
-        "the rows are the registry's, painted in registry order"
+        "the rows are the registry's for this surface, in painted order"
     );
     assert_eq!(
         nav.len(),
-        7,
-        "Bevy folds traffic into its overview, so seven shared destinations mount"
+        8,
+        "seven shared destinations plus the Requests row the registry grants this surface"
     );
     let title = app
         .world_mut()

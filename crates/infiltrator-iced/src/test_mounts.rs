@@ -131,6 +131,9 @@ mod page_model_migration_tests;
 #[path = "../tests/gui/proxy_scope_tests.rs"]
 mod proxy_scope_tests;
 
+#[path = "../tests/gui/proxy_group_filter_projection_tests.rs"]
+mod proxy_group_filter_projection_tests;
+
 #[path = "../tests/gui/traffic_observation_tests.rs"]
 mod traffic_observation_tests;
 

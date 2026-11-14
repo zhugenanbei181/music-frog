@@ -126,7 +126,10 @@ fn project_log_rows(records: &[RawLogRecord], facts: &LogFactsSnapshot) -> LogsP
         .filter(|entry| {
             facts
                 .active_level
-                .is_none_or(|level| LogLevel::from_identifier(&entry.level) == level)
+                // The filter is a severity threshold, not an equality: the
+                // reader who picks "warn" wants the warnings *and* the errors
+                // above them, which is the ladder the reference product uses.
+                .is_none_or(|level| LogLevel::from_identifier(&entry.level).passes_filter(level))
         })
         .cloned()
         .collect();
@@ -178,6 +181,7 @@ pub fn parse_structured_log(raw: &str) -> StructuredLogLine {
             let bracket_content = &rest[bracket_idx + 1..close_idx];
 
             let detected_level = match prefix.as_str() {
+                "SILENT" => Some(LogLevel::Silent),
                 "INFO" | "INF" => Some(LogLevel::Info),
                 "WARN" | "WARNING" | "WRN" => Some(LogLevel::Warn),
                 "ERROR" | "ERR" | "FATAL" => Some(LogLevel::Error),

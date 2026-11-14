@@ -107,7 +107,7 @@ fn theme_flip_repaints_every_sidebar_surface_in_place() {
         );
         painted += 1;
     }
-    assert_eq!(painted, 7, "the rail's seven rows all repainted");
+    assert_eq!(painted, 8, "the rail's eight rows all repainted");
 
     // The routing selector is no longer a sidebar surface: the rail mounts
     // navigation alone, so the shell paints no mode pill and the dashboard's

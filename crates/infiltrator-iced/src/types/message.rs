@@ -8,8 +8,10 @@ use super::dns::AdvancedConfigsBundle;
 use super::runtime::{IpProbeResult, RuntimeStreamKind, RuntimeStreamState};
 use crate::admin_server::AdminHostCommand;
 use crate::sidebar_chrome::SidebarChromeReceipt;
-use crate::state::core_operations::{CoreDownloadRunId, CoreUpdateCheckId};
-use crate::state::runtime::ConnectionTab;
+use crate::state::{
+    core_operations::{CoreDownloadRunId, CoreUpdateCheckId},
+    runtime::ConnectionTab,
+};
 use crate::types::{
     app::SnapshotDiffMode,
     dns_query::QueryAction,
@@ -57,7 +59,9 @@ use lurker_core_contract::{profile_protection, routing_intent};
 use lurker_ui_presentation::routing_intent_actions::PendingRoutingIntentChange;
 use std::{path::PathBuf, time::Instant};
 pub mod mtu_probe;
+pub mod proxy_page_intent;
 use mtu_probe::MtuProbeCompletion;
+use proxy_page_intent::ProxyPageIntent;
 
 #[derive(Clone)]
 pub enum Message {
@@ -193,6 +197,8 @@ pub enum Message {
         result: Result<preferences::OutboundUiPreferencesSnapshot, Failure>,
     },
     FilterProxies(String),
+    /// An intent from the proxies page's per-group controls.
+    ProxyPageIntent(ProxyPageIntent),
     ToggleFilterAlive(bool),
     ToggleFavoriteOutbound(identity::OutboundId),
     ToggleOutboundGroupExpanded(identity::OutboundId),

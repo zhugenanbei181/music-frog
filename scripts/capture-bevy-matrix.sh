@@ -220,13 +220,40 @@ if [ -n "$SCENARIO_FILTER" ]; then
   }
 fi
 
-while IFS=$'\t' read -r name page skin window_size; do
+SHAPES="$(python3 - <<'PYSHAPES'
+import json, pathlib
+document = json.loads(
+    pathlib.Path("crates/infiltrator-contract/assets/page-structure.json").read_text(encoding="utf-8")
+)
+print(" ".join(sorted(entry["slug"] for entry in document["slugs"])))
+PYSHAPES
+)"
+
+# A row is `name page shape skin window_size`: the surface's route or section
+# selector, and the contract page shape the frame is judged by.
+# `space_utilization.py` reads the shape out of the published index to pick the
+# frame's density budget, and a selector (`editor`, `mixin`, `policy-groups`) is
+# not a shape.
+awk -F '\t' 'NR > 1 && $1 != "" && NF != 5 {
+  printf "invalid scenario row (expected 5 columns, found %d): %s\n", NF, $0 > "/dev/stderr"
+  bad = 1
+} END { exit bad + 0 }' "$MATRIX" || exit 2
+
+while IFS=$'\t' read -r name page shape skin window_size; do
   [ "$name" = name ] && continue
   [ -n "$name" ] || continue
   [[ "$window_size" =~ ^[0-9]+x[0-9]+$ ]] || {
     printf 'invalid scenario row (bad window_size): %s\n' "$name" >&2
     exit 2
   }
+  case " $SHAPES " in
+  *" $shape "*) ;;
+  *)
+    printf 'invalid scenario row (page shape the contract does not own): %s -> %s\n' \
+      "$name" "$shape" >&2
+    exit 2
+    ;;
+  esac
   case "$page" in
   overview | globe | service-health | service_health | resource-gauges | resource_gauges | policy-groups | policy_groups | policy-picker | policy_picker | proxies | profiles | rules | connections | logs | dns | doctor | app_routing | app-routing | sync | settings | editor | mixin | filter | about) ;;
   *)
@@ -302,6 +329,11 @@ CAPTURED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   printf 'niri_host=kwin-wayland-virtual\n'
   printf 'command=bash scripts/capture-bevy-matrix.sh\n'
 } >"$METADATA"
+# The manifest's `page` column is the contract page SHAPE the frame is judged
+# by, not the selector the surface opened: `space_utilization.py` reads it to
+# pick the shape's density budget, and a section selector (`editor`,
+# `policy-groups`) is not a shape. The matrix carries both columns, so the
+# selector stays in the run log.
 printf 'scenario\tpage\tskin\trequested_window\tapp_pid\twindow_id\twidth\theight\tbytes\tsha256\tstatus\n' >"$MANIFEST"
 
 # ------------------------------------------------------- niri config (KDL) --
@@ -468,7 +500,7 @@ printf 'compositor: ready (wayland=%s ipc=%s)\n' "$NIRI_SOCK" "$NIRI_IPC"
 
 # -------------------------------------------------------------- per scenario --
 capture_one() {
-  local name="$1" page="$2" skin="$3" window_size="$4"
+  local name="$1" page="$2" shape="$3" skin="$4" window_size="$5"
   local interaction=""
   case "$name" in
     *-standard) interaction="${name%-standard}" ;;
@@ -540,8 +572,8 @@ capture_one() {
     bytes=0
     hash="-"
 
-    printf '  start %-22s page=%-8s skin=%-5s window=%s %s\n' \
-      "$name" "$page" "$skin" "$window_size" "$attempt_note"
+    printf '  start %-22s page=%-8s shape=%-14s skin=%-5s window=%s %s\n' \
+      "$name" "$page" "$shape" "$skin" "$window_size" "$attempt_note"
     if [ -n "$wgpu_backend" ]; then
       XDG_RUNTIME_DIR="$RUNTIME_DIR" WAYLAND_DISPLAY="$NIRI_SOCK" DISPLAY= \
         LIBGL_ALWAYS_SOFTWARE=1 WGPU_BACKEND="$wgpu_backend" \
@@ -714,7 +746,7 @@ capture_one() {
   grep 'CAPTURE_READY' "$marker" 2>/dev/null | sed "s/^/$name\t/" \
     >>"$RUN_DIR/capture-markers.log" || true
   printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-    "$name" "$page" "$skin" "$window_size" \
+    "$name" "$shape" "$skin" "$window_size" \
     "$APP_PID" "$window_id" "$width" "$height" "$bytes" "$hash" "$action_status" \
     >>"$MANIFEST"
 
@@ -732,10 +764,10 @@ capture_one() {
 : >"$RUN_DIR/capture-markers.log"
 FAILURES=0
 FAILED_NAMES=""
-while IFS=$'\t' read -r name page skin window_size; do
+while IFS=$'\t' read -r name page shape skin window_size; do
   [ "$name" = name ] && continue
   [ -n "$name" ] || continue
-  if ! capture_one "$name" "$page" "$skin" "$window_size"; then
+  if ! capture_one "$name" "$page" "$shape" "$skin" "$window_size"; then
     FAILURES=$((FAILURES + 1))
     FAILED_NAMES="$FAILED_NAMES $name"
   fi
