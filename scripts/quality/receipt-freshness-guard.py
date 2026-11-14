@@ -65,7 +65,7 @@ LOCALE_ROWS = (
     "page-locale-settings-en-compact",
 )
 EXPECTED_NAV_LABELS = {
-    "zh-CN": {"overview": "核心概览", "proxies": "代理节点", "profiles": "配置管理", "settings": "系统设置"},
+    "zh-CN": {"overview": "核心概览", "proxies": "代理策略", "profiles": "配置订阅", "settings": "系统设置"},
     "en-US": {"overview": "Overview", "proxies": "Proxies", "profiles": "Profiles", "settings": "Settings"},
 }
 EXPECTED_LOCALE_COPY = {

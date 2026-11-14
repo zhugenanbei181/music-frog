@@ -24,7 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-14 第二百六十一批次：一个页面一个名字——侧栏、命令面板、契约词表与 Slint app bar 的页面名收归一份词表，并立 `page-name-guard` 钉住；本批**改了像素**（三张桌面语料的侧栏换词），发布回执全部过期；b111–b260 见下方批次八问摘要）
+## 当前状态（2026-11-14 第二百六十二批次：Slint 211 帧整批重采——网格缝按契约 8/12/16 落地、侧栏按统一页名换词，判定器逐帧 0 违规；`FLPARITY-051` 转 `Integrated`；本批只换语料与回执期望，零业务代码；b111–b261 见下方批次八问摘要）
+
+| # | 结论 | 等级 | 缺口 / owner |
+| --- | --- | --- | --- |
+| 1 | 部分 | L | 本批**零业务代码改动**：只重采 211 帧 Slint 语料、刷新 12 条别名摘要、把 `receipt-freshness` 的页名期望钉到新词；判定器逐帧 `violations=0`（run `20261114T040322Z_90a6df17a2dd_clean_3699528`）、`receipt-freshness` 0、`capture-corpus-integrity` findings=0、`screenshot-identity` scanned=600 aliases=22 violations=0、`resolve_surface_evidence` status=pass 为 `L`。aarch64 交叉目标产物未复跑（GAP-1.1） |
+| 2 | 部分 | L | Linux 本机完成整批重采与全部像素判定；本批零 workflow、零构建面改动。Windows/macOS 构建腿未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
+| 3 | 部分 | L | 零 Android/iOS 代码、资源或脚本改动；本批只重采桌面 Slint 语料，Android 证据链未触碰 |
+| 4 | 部分 | L | **本批交付的正是欠下的像素**：211 帧整批重采完成（140 帧像素变化），网格缝按契约 8/12/16 落到一价、侧栏按统一页名换词，判定器逐帧 0 违规；**Iced / Bevy 两张语料仍待重采**（页名换词同样改了它们的侧栏），新立 `FLPARITY-052` → 部分（L） |
+| 5 | 完整 | L | 重复实现清零：网格缝从两个价收成一个价（b258）、页名从两套词表收成一份（b261）、别名摘要与回执期望随语料同步刷新，无第二份影子副本 |
+| 6 | 部分 | L | 新增可执行判据一条（判定器逐帧 0 违规 + 别名摘要钉住 + 回执期望钉住）；未新增业务能力，只把已实现的缝与页名落到像素 → 部分（L） |
+| 7 | 完整 | L | 缝价与页名各有唯一 owner（契约导出 / 共享词表），界面与语料只消费；零布尔、零 UI 私有推导 → 完整（L） |
+| 8 | 部分 | L | 一次整批重采（556s）换 211 帧回执，未逐帧重复构建；判定与门禁一次跑完。`--workspace` nextest 与结构门动态全腿留统一批次 → 部分（L） |
+
+## 最近一批问答（2026-11-14 第二百六十二批次：把欠下的像素一次采完）
+
+1. x86_64/aarch64：本批零业务代码改动，只换语料与回执期望；空间判定器 211 帧 `violations=0`、`receipt-freshness` 0、`capture-corpus-integrity` findings=0、`screenshot-identity` violations=0、`resolve_surface_evidence` status=pass 为 `L`。aarch64 交叉目标产物未复跑（GAP-1.1）→ 部分（L）。
+2. Windows/Linux/macOS：Linux 本机完成整批重采与全部像素判定，本批零 workflow、零构建面改动。Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）→ 部分（L）。
+3. Android/iOS：零 Android/iOS 代码、资源或脚本改动；本批只重采桌面 Slint 语料 → 部分（L）。
+4. 各 UI：**211 帧整批重采完成**（`CAPTURE MATRIX PASS: 211 scenario(s) in 556s`），网格缝与页名落到像素，判定器 0 违规；**Iced / Bevy 两张语料仍待重采**（新立 `FLPARITY-052`）→ 部分（L）。
+5. 复用：缝价、页名、别名摘要与回执期望各归一处（契约导出 / 共享词表 / 别名清单 / 守卫期望），随语料同步刷新，不留影子副本 → 完整（L）。
+6. 各处界面的功能接入：本批未新增功能，只把已交付的缝与页名落成像素；Iced / Bevy 的同批重采登记为 `FLPARITY-052` → 部分（L）。
+7. 模块化：契约导出与共享词表是唯一 owner，界面与语料只消费；零新增布尔与私有推导 → 完整（L）。
+8. CI 与批次效率：一次整批重采（556s）+ 一次判定 + 一次门禁跑完；`--workspace` nextest 与结构门动态全腿留统一批次 → 部分（L）。
+
+## 历史状态（2026-11-14 第二百六十一批次：一个页面一个名字——侧栏、命令面板、契约词表与 Slint app bar 的页面名收归一份词表，并立 `page-name-guard` 钉住；本批**改了像素**（三张桌面语料的侧栏换词），发布回执全部过期；b111–b260 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
@@ -37,7 +61,7 @@
 | 7 | 完整 | L | 词表真源在共享目录与契约词表，界面只消费；没有新增布尔、没有 UI 私有推导、没有第二份影子页名表；`canonical_title_zh` 零消费者同片退役 → 完整（L） |
 | 8 | 部分 | L | 定向 nextest 只跑受影响包（contract/shared/slint/bevy-ui），零像素重采、零全仓重编；`--workspace` nextest、结构门动态全腿与 `resolve_surface_evidence.py` ready cells 留统一批次 → 部分（L） |
 
-## 最近一批问答（2026-11-14 第二百六十一批次：页面名只有一份）
+## 历史问答（2026-11-14 第二百六十一批次：页面名只有一份）
 
 1. x86_64/aarch64：本批只改共享目录、产品 PO、契约 2 个文件、2 处断言与 1 条新守卫，零平台 API；定向 `cargo nextest`（contract/shared/slint/bevy-ui）全绿，`page-name-guard` 6/6 + enforce 0、`i18n-guard` total 0、`structure-gate-guard` 220 腿 0、`import`/`line` 3008/0、`typed-state` 0、`implicit-state` 24/0/0、`doc-governance OK`、`closure` 8/8 为 `L`。aarch64 交叉目标产物未复跑（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：Linux 本机完成定向 nextest 与守卫核对，本批零 workflow、零构建面改动。Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）→ 部分（L）。
