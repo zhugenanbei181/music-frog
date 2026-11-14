@@ -9,7 +9,6 @@ use crate::pages::rules::RulesProjection;
 use crate::pages::settings::settings_core::SettingsProjection;
 use crate::pages::sync::SyncProjection;
 use crate::projection::DemoOverviewSource;
-use infiltrator_contract::surface_snapshot::pages::SurfacePages;
 use infiltrator_contract::capability::CapabilitySnapshot;
 use infiltrator_contract::controller::ControllerAuthSnapshot;
 use infiltrator_contract::dns_cache::DnsCacheSnapshot;
@@ -28,6 +27,7 @@ use infiltrator_contract::resources::{
 use infiltrator_contract::runtime_control::{RuntimeControlSnapshot, RuntimeControlStatus};
 use infiltrator_contract::service_mode::ServiceModeSnapshot;
 use infiltrator_contract::snapshot::{CoreSessionObservation, CoreSnapshot};
+use infiltrator_contract::surface_snapshot::pages::SurfacePages;
 use infiltrator_contract::sync_snapshot::SyncPageSnapshot;
 use infiltrator_contract::system_proxy::{
     SystemProxyObservation, SystemProxyRecoverySnapshot, SystemProxySnapshot,
