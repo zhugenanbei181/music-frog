@@ -25,7 +25,10 @@ class IcedDeadInputGuardTests(unittest.TestCase):
         new, stale = guard.audit(guard.VIEW, guard.read_inventory())
         self.assertEqual(new, [])
         self.assertEqual(stale, [])
-        self.assertEqual(len(guard.read_inventory()), 7)
+        # The ledger may only shrink: the seven inert controls are gone
+        # (b263), so the live inventory is empty and any new site must be
+        # registered before it can pass the gate.
+        self.assertEqual(len(guard.read_inventory()), 0)
 
     def test_inventory_is_tighten_only_at_exact_sites(self):
         sites = guard.read_inventory()

@@ -24,7 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-14 第二百六十三批次：Iced 七个「已启用却点不动」的控件收口——静默 no-op 全部退役，欠账库存 7 → 0；owner 其实早已发布全部事实，故不新造契约词汇；本批改 Iced 表面，零像素重采；b111–b262 见下方批次八问摘要）
+## 当前状态（2026-11-14 第二百六十四批次：死控件门禁的自测跟随空账本——Iced 七个静默 no-op 控件退役后，账本已是空账本，门禁自测必须钉住空账本而不是一个已经不存在的数字；CI 修复批，零业务代码、零像素、零 cargo；b111–b263 见下方批次八问摘要）
+
+| # | 结论 | 等级 | 缺口 / owner |
+| --- | --- | --- | --- |
+| 1 | 部分 | L | 本批只改门禁期望：`iced-dead-input-guard --self-test` **8/8**、`scripts/quality/tests` 对应用例 **3/3**、`--mode enforce` findings=0 registered=0 为 `L`；零 Rust 源码改动，aarch64 交叉目标产物未复跑（GAP-1.1） |
+| 2 | 部分 | L | Linux 本机完成门禁核对；本批零 workflow、零构建面改动。Windows/macOS 构建腿未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
+| 3 | 部分 | L | 零 Android/iOS 代码、资源或脚本改动 |
+| 4 | 部分 | L | 门禁的判据未变（已启用控件不得回落 `Message::Noop`、账本只能收紧），变的只是自测钉住的那个数字；本批**零像素重采**，Iced / Bevy 两张语料的重采与像素判定属下一批 → 部分（L） |
+| 5 | 完整 | L | 重复实现清零：没有新造守卫，也没有第二份账本；自测跟随空账本 |
+| 6 | 部分 | L | 新增可执行判据一条（空账本自测 + 「已登记但控件已消失」的负例）；未新增业务能力 → 部分（L） |
+| 7 | 完整 | L | 门禁期望、账本与控件代码各归一处，界面不动；零新增布尔与私有推导 → 完整（L） |
+| 8 | 部分 | L | 本批零 cargo 调用、零全仓重编、零像素重采；统一验收批次留待下一批 → 部分（L） |
+
+## 最近一批问答（2026-11-14 第二百六十四批次：门禁自测跟随空账本）
+
+1. x86_64/aarch64：本批零 Rust 源码改动，只改门禁自测的期望值；`iced-dead-input-guard --self-test` 8/8、`scripts/quality/tests` 3/3、`--mode enforce` findings=0 registered=0 为 `L`。aarch64 交叉目标产物未复跑（GAP-1.1）→ 部分（L）。
+2. Windows/Linux/macOS：Linux 本机完成门禁核对，本批零 workflow、零构建面改动。Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）→ 部分（L）。
+3. Android/iOS：零 Android/iOS 代码、资源或脚本改动 → 部分（L）。
+4. 各 UI：本批**不动任何界面**：门禁只审 Iced 源码里的空转控件写法；两张语料的重采与像素判定属下一批 → 部分（L）。
+5. 复用：没有新造守卫，也没有第二份账本；自测跟随空账本 → 完整（L）。
+6. 各处界面的功能接入：本批未新增功能，只把门禁的期望跟上一个已经改变的事实 → 部分（L）。
+7. 模块化：门禁期望、账本与控件代码各归一处，界面不动；零新增布尔与私有推导 → 完整（L）。
+8. CI 与批次效率：本批零 cargo、零采集，只跑门禁自测与用例 → 部分（L）。
+
+## 历史状态（2026-11-14 第二百六十三批次：Iced 七个「已启用却点不动」的控件收口——静默 no-op 全部退役，欠账库存 7 → 0；owner 其实早已发布全部事实，故不新造契约词汇；本批改 Iced 表面，零像素重采；b111–b262 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
@@ -37,7 +61,7 @@
 | 7 | 完整 | L | 可用性由 owner 的 typed 事实（`SelectionAvailability`、已观察 `CoreScope`、库存身份）决定，表面只消费；新增 `icon_button_maybe` 与 `RuntimeOutboundSelectionAvailability` 两个 typed 表达，无布尔组合、无 UI 私有推导 → 完整（L） |
 | 8 | 部分 | L | 定向 nextest 只跑受影响包（`infiltrator-iced`），零像素重采、零全仓重编；`--workspace` nextest、结构门动态全腿与 `resolve_surface_evidence.py` ready cells 留统一批次 → 部分（L） |
 
-## 最近一批问答（2026-11-14 第二百六十三批次：控件不再静默空转）
+## 历史问答（2026-11-14 第二百六十三批次：控件不再静默空转）
 
 1. x86_64/aarch64：本批只改 Iced 表面、共享目录 2 条文案与 1 个欠账 JSON，零契约/零 Core/零平台 API；`cargo nextest -p infiltrator-iced` 574/574、`cargo clippy -p infiltrator-iced --all-targets -D warnings` RC=0、`iced-dead-input-guard` findings=0 registered=0、`i18n-guard` total 0 为 `L`。aarch64 交叉目标产物未复跑（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：Linux 本机完成定向 nextest 与守卫核对，本批零 workflow、零构建面改动。Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）→ 部分（L）。

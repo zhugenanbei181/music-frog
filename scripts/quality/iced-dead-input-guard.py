@@ -526,7 +526,10 @@ class GuardSelfTest(unittest.TestCase):
         found = detect(VIEW)
         registered = {entry_key(entry) for entry in read_inventory()}
         self.assertEqual(set(found), registered)
-        self.assertEqual(len(registered), 7)
+        # The inventory may only shrink, so the live count is pinned: the
+        # seven inert controls are gone (b263) and any new site must be
+        # registered here before it can pass the gate.
+        self.assertEqual(len(registered), 0)
 
     def test_new_site_and_disappearing_registered_site_both_fail(self) -> None:
         global REPO
@@ -553,11 +556,20 @@ class GuardSelfTest(unittest.TestCase):
             root = tree / "crates/infiltrator-iced/src"
             shutil.copytree(VIEW, root)
             try:
-                proxies = root / "view/proxies.rs"
-                proxies.write_text(proxies.read_text(encoding="utf-8").replace(
-                    "unwrap_or(Message::Noop)", "unwrap_or(Message::Apply)", 1
-                ), encoding="utf-8")
-                new, stale = audit(root, registered)
+                # A registered site that is gone is a finding too: the
+                # ledger may only shrink, so an entry that no longer has a
+                # control behind it must be dropped.
+                gone = {
+                    "file": "crates/infiltrator-iced/src/view/proxies.rs",
+                    "form": "enabled_handler",
+                    "handler": "enabled",
+                    "kind": "unwrap_or_noop",
+                    "line": 9999,
+                    "owner": "self-test",
+                    "reason": "planted",
+                    "widget": "icon_button",
+                }
+                new, stale = audit(root, [gone])
                 self.assertEqual(new, [])
                 self.assertEqual(len(stale), 1)
             finally:
