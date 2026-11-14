@@ -24,7 +24,31 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-14 第二百六十批次：底栏的「词」归回紧凑词表 owner——投影只发布事实、页签词由词表给；顺手修掉紧凑子页面被叫成「工具」的兜底，并让网格守卫的自测重新判真实代码；本批零像素变化；b111–b259 见下方批次八问摘要）
+## 当前状态（2026-11-14 第二百六十一批次：一个页面一个名字——侧栏、命令面板、契约词表与 Slint app bar 的页面名收归一份词表，并立 `page-name-guard` 钉住；本批**改了像素**（三张桌面语料的侧栏换词），发布回执全部过期；b111–b260 见下方批次八问摘要）
+
+| # | 结论 | 等级 | 缺口 / owner |
+| --- | --- | --- | --- |
+| 1 | 部分 | L | 本批改共享目录（zh/en 各 1 张表）、产品 PO（en 1 条）、契约 `command_catalogue.rs` / `surface_snapshot.rs`、2 处断言与 1 条新守卫，零平台 API、零 UI 布局改动；定向 `cargo nextest`（contract/shared/slint/bevy-ui）与 `page-name-guard` 6/6 + enforce 0、`i18n-guard` total 0、`structure-gate-guard` 218→**220** 腿 0、`import`/`line` 3008/0、`typed-state` 0、`implicit-state` 24/0/0、`doc-governance OK`、`closure` 8/8 为 `L`。aarch64 交叉目标产物未复跑（GAP-1.1） |
+| 2 | 部分 | L | Linux 本机完成定向 nextest 与守卫核对；本批零 workflow、零构建面改动。Windows/macOS 构建腿未复跑，macOS 沿用 `Unsupported`（GAP-2.2） |
+| 3 | 部分 | L | 零 Android/iOS 代码、资源或脚本改动；Android 的页名走自己的 `strings.xml`，未触及 |
+| 4 | 部分 | L | **本批有可见像素变化**：桌面侧栏三行换词（代理节点→代理策略 / 配置管理→配置订阅 / 规则管理→分流规则，Slint/Iced/Bevy 三张语料，中英皆改）；发布回执因此全部过期，按截图认证硬门只写「部分」，整批重采与 `FLPARITY-051`/`SPACEUTIL-020` 同批 |
+| 5 | 完整 | L | 页面名的第二份词表清零：共享目录 `nav_*` / `cmd_nav_*` 收归产品词表，契约第三份中文页名表（零消费者）同片退役；命令面板的「应用分流」补上前缀与同类行同形；英文侧栏与产品 PO 同词 |
+| 6 | 部分 | L | 新增一条可执行判据（一个页面一个名字：`page-name-guard` 钉住契约词表 = 侧栏词 = 命令面板词 = PO 译名，且 app bar 不得用词表外的旧写法）；未新增业务能力，页面名一致化不改任何功能 → 部分（L） |
+| 7 | 完整 | L | 词表真源在共享目录与契约词表，界面只消费；没有新增布尔、没有 UI 私有推导、没有第二份影子页名表；`canonical_title_zh` 零消费者同片退役 → 完整（L） |
+| 8 | 部分 | L | 定向 nextest 只跑受影响包（contract/shared/slint/bevy-ui），零像素重采、零全仓重编；`--workspace` nextest、结构门动态全腿与 `resolve_surface_evidence.py` ready cells 留统一批次 → 部分（L） |
+
+## 最近一批问答（2026-11-14 第二百六十一批次：页面名只有一份）
+
+1. x86_64/aarch64：本批只改共享目录、产品 PO、契约 2 个文件、2 处断言与 1 条新守卫，零平台 API；定向 `cargo nextest`（contract/shared/slint/bevy-ui）全绿，`page-name-guard` 6/6 + enforce 0、`i18n-guard` total 0、`structure-gate-guard` 220 腿 0、`import`/`line` 3008/0、`typed-state` 0、`implicit-state` 24/0/0、`doc-governance OK`、`closure` 8/8 为 `L`。aarch64 交叉目标产物未复跑（GAP-1.1）→ 部分（L）。
+2. Windows/Linux/macOS：Linux 本机完成定向 nextest 与守卫核对，本批零 workflow、零构建面改动。Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）→ 部分（L）。
+3. Android/iOS：零 Android/iOS 代码、资源或脚本改动；Android 的页名走自己的 `strings.xml`，本批不触及 → 部分（L）。
+4. 各 UI：**本批有可见像素变化**——三张桌面语料的侧栏三行换词（中英皆改），发布回执全部过期，按截图认证硬门只写「部分」；整批重采与 `FLPARITY-051`/`SPACEUTIL-020` 同批 → 部分（L）。
+5. 复用：页面名的第二份词表清零——共享目录 `nav_*`/`cmd_nav_*` 收归产品词表，契约第三份中文页名表（零消费者）同片退役，命令面板的「应用分流」补上前缀与同类行同形 → 完整（L）。
+6. 各处界面的功能接入：本批**未新增业务能力**，修的是「同一页在同一屏有两个名字」；三张桌面表面（Slint/Iced/Bevy）的侧栏一起改口，行为一致 → 部分（L）。
+7. 模块化：词表真源在共享目录与契约词表，界面只消费；新守卫把「契约 = 侧栏 = 命令面板 = PO」写成判据，零布尔、零 UI 私有推导 → 完整（L）。
+8. CI 与批次效率：定向 nextest 只跑受影响包，零像素重采、零全仓重编；`structure-gate-guard` 220 腿 0、`import`/`line` 3008/0、`typed-state` 0、`implicit-state` 24/0/0、`todo-status-freshness` 0、`doc-governance OK`、`closure` 8/8。`--workspace` nextest、动态全腿与 ready cells 留统一批次 → 部分（L）。
+
+## 历史状态（2026-11-14 第二百六十批次：底栏的「词」归回紧凑词表 owner——投影只发布事实、页签词由词表给；顺手修掉紧凑子页面被叫成「工具」的兜底，并让网格守卫的自测重新判真实代码；本批零像素变化；b111–b259 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
@@ -37,7 +61,7 @@
 | 7 | 完整 | L | 事实（目的地/路由/图标/选中态）仍归 typed 注册表投影，词归紧凑词表；界面层没有新增布尔、没有自推导可用性、没有第二份导航事实；`DockSlot` 少一个字段而不是多一个 → 完整（L） |
 | 8 | 部分 | L | 定向 nextest 只跑受影响包（`infiltrator-slint`），零像素重采、零全仓重编；`--workspace` nextest、结构门动态全腿与 `resolve_surface_evidence.py` ready cells 留统一批次 → 部分（L） |
 
-## 最近一批问答（2026-11-14 第二百六十批次：底栏的词归词表，事实归投影）
+## 历史问答（2026-11-14 第二百六十批次：底栏的词归词表，事实归投影）
 
 1. x86_64/aarch64：本批只改 1 个 Rust 投影模块、4 个 `.slint`、2 条守卫与 3 份文档，零契约/零 application/零平台 API；定向 `cargo nextest run -p infiltrator-slint` 全绿，`i18n-guard` total=0、`slint-navigation-owner-guard` 9/9 + enforce 0、`slint-dashboard-grid-guard` 6/6 + enforce 0、`structure-gate-guard` 218 腿 0、`import`/`line` 3008/0、`typed-state` 0、`implicit-state` 24/0/0、`doc-governance OK`、`closure` 8/8 为 `L`。aarch64 交叉目标产物未复跑（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：Linux 本机完成定向 nextest 与守卫核对，本批零 workflow、零构建面改动。Windows/macOS 构建腿与安装包未复跑，macOS 沿用 `Unsupported`（GAP-2.2）→ 部分（L）。

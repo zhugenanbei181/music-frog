@@ -811,7 +811,7 @@ mod sidebar_label_tests {
     #[test]
     fn both_locales_publish_the_same_word_the_rail_paints() {
         for (language, expected) in [
-            ("zh-CN", ["核心概览", "代理节点", "配置管理", "系统设置"]),
+            ("zh-CN", ["核心概览", "代理策略", "配置订阅", "系统设置"]),
             ("en-US", ["Overview", "Proxies", "Profiles", "Settings"]),
         ] {
             let lang = Lang(language);

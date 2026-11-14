@@ -188,11 +188,6 @@ impl PageId {
     pub const fn nav_key(self) -> &'static str {
         self.nav_target().sidebar_key()
     }
-
-    /// Canonical short Chinese display title (GAP-7.6).
-    pub const fn canonical_title_zh(self) -> &'static str {
-        self.nav_target().canonical_title_zh()
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

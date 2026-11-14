@@ -30,7 +30,7 @@ fn content_title_syncs_with_active_route() {
         let world = app.world_mut();
         let mut titles = world.query::<(&Text, &ContentTitleLabel)>();
         let (text, _) = titles.single(world).expect("title text");
-        assert_eq!(text.0, "代理节点");
+        assert_eq!(text.0, "代理策略");
     }
 
     // Set active route to Settings

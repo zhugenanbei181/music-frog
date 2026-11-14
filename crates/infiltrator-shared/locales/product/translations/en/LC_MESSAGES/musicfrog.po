@@ -368,7 +368,7 @@ msgid "开始时间："
 msgstr "Started: "
 
 msgid "开源许可"
-msgstr "Open-source licenses"
+msgstr "Licenses"
 
 msgid "控制 API 绑定 127.0.0.1，随机密钥仅驻留内存；未实现或未确认的系统接管能力不会报告为已生效。"
 msgstr "The control API binds to 127.0.0.1 and its random secret stays in memory. Unimplemented or unverified system control is never reported as active."
@@ -1761,7 +1761,7 @@ msgid "出站模式"
 msgstr "Outbound mode"
 
 msgid "分流规则"
-msgstr "Routing rules"
+msgstr "Rules"
 
 msgid "刷新当前配置"
 msgstr "Refresh current profile"
@@ -1815,7 +1815,7 @@ msgid "已用"
 msgstr "Used"
 
 msgid "应用分流"
-msgstr "App routing"
+msgstr "App Routing"
 
 msgid "开始时间"
 msgstr "Started"

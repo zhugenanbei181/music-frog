@@ -89,7 +89,7 @@ impl ShellPage {
             Self::Logs => "cmd_nav_logs",
             Self::Dns => "cmd_nav_dns",
             Self::Doctor => "cmd_nav_doctor",
-            Self::AppRouting => "nav_app_routing",
+            Self::AppRouting => "cmd_nav_app_routing",
             Self::Sync => "cmd_nav_sync",
             Self::Settings => "cmd_nav_settings",
             Self::Tools => "cmd_nav_tools",
@@ -117,27 +117,6 @@ impl ShellPage {
             Self::About => "前往 关于软件",
             Self::Disclaimer => "前往 免责声明",
             Self::Licenses => "前往 开源许可",
-        }
-    }
-
-    /// Canonical short title for page headings and navigation labels (GAP-7.6).
-    pub const fn canonical_title_zh(self) -> &'static str {
-        match self {
-            Self::Overview => "核心概览",
-            Self::Proxies => "代理策略",
-            Self::Profiles => "配置订阅",
-            Self::Rules => "分流规则",
-            Self::Connections => "连接审计",
-            Self::Logs => "运行日志",
-            Self::Dns => "域名解析",
-            Self::Doctor => "自愈诊断",
-            Self::AppRouting => "应用分流",
-            Self::Sync => "数据同步",
-            Self::Settings => "系统设置",
-            Self::Tools => "工具箱",
-            Self::About => "关于软件",
-            Self::Disclaimer => "免责声明",
-            Self::Licenses => "开源许可",
         }
     }
 

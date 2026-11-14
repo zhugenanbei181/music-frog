@@ -236,6 +236,8 @@ gate python3 scripts/quality/slint-sidebar-separator-guard.py --mode enforce
 gate python3 scripts/quality/slint-sidebar-separator-guard.py --self-test
 gate python3 scripts/quality/slint-navigation-owner-guard.py --mode enforce
 gate python3 scripts/quality/slint-navigation-owner-guard.py --self-test
+gate python3 scripts/quality/page-name-guard.py --mode enforce
+gate python3 scripts/quality/page-name-guard.py --self-test
 gate python3 scripts/quality/slint-flag-shape-guard.py --mode enforce
 gate python3 scripts/quality/slint-flag-shape-guard.py --self-test
 gate python3 scripts/quality/flag-plate-guard.py --mode enforce
