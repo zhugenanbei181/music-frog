@@ -319,6 +319,8 @@ gate python3 scripts/quality/journey-rehearsal-guard.py --mode enforce
 # ---------------------------------------------------------------------------
 gate python3 scripts/quality/dependency-policy-guard.py --self-test
 gate python3 scripts/quality/dependency-policy-guard.py --mode enforce
+gate python3 scripts/quality/public-registry-dependency-guard.py --self-test
+gate python3 scripts/quality/public-registry-dependency-guard.py --mode enforce
 gate python3 scripts/quality/toolchain-consistency-guard.py --self-test
 gate python3 scripts/quality/toolchain-consistency-guard.py --mode enforce
 gate python3 scripts/quality/lint-inheritance-guard.py --self-test
