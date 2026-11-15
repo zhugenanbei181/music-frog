@@ -57,12 +57,15 @@ import argparse
 import importlib.util
 import json
 import os
+import re
 import subprocess
 import sys
 import time
 import tomllib
 import urllib.error
 import urllib.request
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -90,6 +93,7 @@ STATUS_OK = "ok"
 STATUS_ORDER_GATE = "order-gate"
 STATUS_ALREADY_PUBLISHED = "already-published"
 STATUS_PACKAGING_FAILURE = "packaging-failure"
+STATUS_RATE_LIMITED = "rate-limited"
 STATUS_PUBLISHED = "published"
 STATUS_MISSING = "missing"
 
@@ -104,6 +108,16 @@ ORDER_GATE_SIGNATURES = (
     "unable to find crate",
 )
 
+# Cargo wording that means crates.io refused the upload for a while: the
+# registry limits how many *new* crates one account may publish in a short
+# window. That is not a packaging defect and not a missing dependency - the
+# upload is correct and has to wait for the window to reopen.
+RATE_LIMIT_SIGNATURES = (
+    "429 too many requests",
+    "too many new crates in a short period",
+    "you have published too many new crates",
+)
+
 # Cargo wording that means "this exact version is already on crates.io".
 ALREADY_PUBLISHED_SIGNATURES = (
     "already exists",
@@ -114,6 +128,27 @@ ALREADY_PUBLISHED_SIGNATURES = (
 DEFAULT_COMMAND_TIMEOUT = 1800
 DEFAULT_INDEX_TIMEOUT = 600
 DEFAULT_PUBLISH_RETRIES = 3
+# How long to wait before retrying a rate-limited upload. crates.io's window
+# for new crates is measured in minutes, so the backoff grows with the
+# attempt instead of retrying immediately. This is the fallback for a reply
+# that carries no deadline of its own.
+RATE_LIMIT_BACKOFF_SECONDS = 120
+# crates.io states the exact moment the window reopens ("Please try again
+# after Sun, 15 Nov 2026 03:53:28 GMT"). Honouring that deadline beats a
+# blind backoff: the guard sleeps exactly until the registry says it will
+# accept the upload, plus a small margin for the clock skew between the
+# registry and this machine.
+RATE_LIMIT_SAFETY_MARGIN_SECONDS = 15
+# A rate-limited upload may have to wait out a multi-minute publish window,
+# so it gets its own retry budget instead of sharing the short order-gate
+# budget.
+DEFAULT_RATE_LIMIT_RETRIES = 8
+
+RATE_LIMIT_RETRY_AT_PATTERN = re.compile(
+    r"try again after\s+(?P<stamp>[A-Za-z]{3},\s*\d{1,2}\s+[A-Za-z]{3}\s+\d{4}"
+    r"\s+\d{2}:\d{2}:\d{2}\s+GMT)",
+    re.IGNORECASE,
+)
 
 
 class ReleaseError(RuntimeError):
@@ -373,6 +408,37 @@ def _unpublished_dependencies(row: dict, probe) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
+def rate_limit_retry_at(output: str) -> datetime | None:
+    """Read the deadline crates.io announced for the refused upload.
+
+    crates.io answers a rate-limited upload with the exact moment the
+    publish window reopens. That deadline is the only authoritative answer
+    about how long to wait, so it is parsed out of the reply instead of
+    guessing. `None` means the reply carried no deadline.
+    """
+    match = RATE_LIMIT_RETRY_AT_PATTERN.search(output)
+    if match is None:
+        return None
+    try:
+        stamp = parsedate_to_datetime(match.group("stamp"))
+    except (TypeError, ValueError):
+        return None
+    if stamp is None:
+        return None
+    if stamp.tzinfo is None:
+        stamp = stamp.replace(tzinfo=timezone.utc)
+    return stamp.astimezone(timezone.utc)
+
+
+def rate_limit_wait_seconds(output: str, attempt: int) -> float:
+    """How long to wait before the next attempt at a rate-limited upload."""
+    deadline = rate_limit_retry_at(output)
+    if deadline is not None:
+        remaining = (deadline - datetime.now(timezone.utc)).total_seconds()
+        return max(0.0, remaining) + RATE_LIMIT_SAFETY_MARGIN_SECONDS
+    return float(RATE_LIMIT_BACKOFF_SECONDS * attempt)
+
+
 def classify_failure(
     output: str, dependencies: list[str], crate: str
 ) -> tuple[str, str]:
@@ -385,6 +451,16 @@ def classify_failure(
     release. A missing third-party dependency is never an order gate.
     """
     lowered = output.lower()
+    for signature in RATE_LIMIT_SIGNATURES:
+        if signature in lowered:
+            deadline = rate_limit_retry_at(output)
+            return (
+                STATUS_RATE_LIMITED,
+                "crates.io rate-limited this account; the upload is correct and "
+                "has to wait for the publish window to reopen"
+                + (f" (window reopens at {deadline:%Y-%m-%d %H:%M:%S} UTC)" if deadline else ""),
+            )
+
     for signature in ALREADY_PUBLISHED_SIGNATURES:
         if signature in lowered:
             return STATUS_ALREADY_PUBLISHED, "crates.io already holds this version"
@@ -542,6 +618,7 @@ def publish_chain(
     sleeper=time.sleep,
     timeout: int = DEFAULT_COMMAND_TIMEOUT,
     retries: int = DEFAULT_PUBLISH_RETRIES,
+    rate_limit_retries: int = DEFAULT_RATE_LIMIT_RETRIES,
     index_timeout: int = DEFAULT_INDEX_TIMEOUT,
 ) -> list[dict]:
     """Publish every crate in the enforced order, waiting for the registry."""
@@ -553,9 +630,9 @@ def publish_chain(
         version = row.get("version")
         result = dict(row)
         result["output"] = ""
-        attempts = 0
+        order_attempts = 0
+        rate_attempts = 0
         while True:
-            attempts += 1
             code, output = runner(crate, False, root, timeout, token)
             result["output"] = output
             if code == 0:
@@ -567,9 +644,19 @@ def publish_chain(
                 missing = _unpublished_dependencies(row, probe)
                 if missing:
                     reason += " (" + ", ".join(f"`{name}`" for name in missing) + " not indexed)"
-            if status == STATUS_ORDER_GATE and attempts < retries:
+            if status == STATUS_RATE_LIMITED and rate_attempts < rate_limit_retries:
+                # The registry window reopens on its own; the upload is
+                # already correct, so wait exactly until the announced
+                # deadline and try the same crate again.
+                rate_attempts += 1
+                result["status"] = STATUS_RATE_LIMITED
+                result["reason"] = reason
+                sleeper(rate_limit_wait_seconds(output, rate_attempts))
+                continue
+            if status == STATUS_ORDER_GATE and order_attempts < retries:
                 # The predecessor was published a moment ago: wait for the
                 # registry to index it and try again.
+                order_attempts += 1
                 result["status"] = STATUS_ORDER_GATE
                 result["reason"] = reason
                 sleeper(10)
@@ -592,7 +679,10 @@ def publish_chain(
                     "the next crate in the chain cannot resolve it"
                 )
         results.append(result)
-        if result["status"] not in (STATUS_PUBLISHED, STATUS_ALREADY_PUBLISHED):
+        if result["status"] not in (
+            STATUS_PUBLISHED,
+            STATUS_ALREADY_PUBLISHED,
+        ):
             break
     return results
 

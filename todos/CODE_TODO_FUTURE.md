@@ -147,7 +147,11 @@
   - 产物：`v1.0.0` tag、release notes、crates.io 七个中性 crate（contract/ports/profile-store/mihomo-driver/singbox-driver/engine-runtime/ui-presentation）顺序发布回执与 docs.rs 构建链接。
   - 依赖：PUB-006.1、PUB-006.3、PUB-006.4、PUB-006.12。
   - 验收：crates.io 七 crate 版本严格对齐；docs.rs 七页构建成功；回执绑定 tag 与 commit。
-  - 当前证据：无。
-  - 阻塞方：crates.io 上架凭证、受控 tag 与 PUB-006.12 基线冻结。
+  - 当前证据：0.68.4 阶段回执已取得（b270，L）：七个中性 crate 已按强制顺序上架 crates.io
+    （`lurker-core-contract` / `lurker-core-ports` / `lurker-engine-runtime` / `lurker-profile-store` /
+    `lurker-ui-presentation` / `mihomo-driver` / `singbox-driver` 全部 0.68.4 在库），
+    `cargo publish --dry-run` 全链 `ok=7 / order-gate=0 / packaging-failure=0`。
+  - 阻塞方：受控 tag 与 `PUB-006.12` 的 1.0-RC 基线冻结（**crates.io 上架凭证已不是阻塞方**——
+    b270 已在本机用本地 token 完成 0.68.4 全链上架）。
   - 解锁条件：`v1.0.0` tag 发布回执与 docs.rs 构建链接；取得后同次迁回过去佛办结。
-  - 本板停留期间：本条无独立本机动作。
+  - 本板停留期间：本条无独立本机动作（0.68.4 上架已闭环，1.0.0 需 RC 基线冻结先行）。

@@ -16,10 +16,15 @@ Slint 当前复用共享 contract、application 与纯 presentation 投影；共
 module owner，再由产品接入；不得在本 crate 先复制通用算法或创建同义 facade。产品专属
 视图、主题与宿主适配仍由各产品持有。
 
-共享包源码托管于私有仓库 `YellowWhiteBlackCat/zhuge-ui-kit` 单 workspace，四个包独立版本。
-产品根 Cargo.toml 统一声明同一个完整 Git `rev` 与兼容版本范围；子 crate 通过 workspace 继承。
-产品各自提交 Cargo.lock，锁文件必须解析到该 Git 源，保留独立升级周期；
-其他设备只需该私有仓库的只读权限，无须固定的兄弟目录布局。
+共享包源码维护在本机 `rustdev/libs/zhuge-ui-kit` 单 workspace，四个包独立版本，
+并已发布为 crates.io 上的公开包：`zhuge-ui-core 0.1.19`、`zhuge-ui-tokens 0.1.2`、
+`zhuge-ui-kit-iced 0.3.0`、`zhuge-ui-kit-bevy 0.4.2`。
+产品根 Cargo.toml 以**精确版本**声明这四个公开包（`=0.1.19` / `=0.1.2` / `=0.3.0` / `=0.4.2`），
+子 crate 通过 workspace 继承；产品各自提交 Cargo.lock，锁文件解析到 registry 源，
+不再含任何 Git 源条目，保留独立升级周期。
+任何设备只需 crates.io 的公开读权限即可构建，无须私有仓库凭证，也无须固定的兄弟目录布局。
+`scripts/quality/public-registry-dependency-guard.py` 钉住这四个精确版本，
+并拒绝重新引入 `git`/`rev`/`branch`/`tag`/`path` 声明与 lock 里的 `git+` 源。
 本机 `[patch]` 只用于联调，不提交产品 path 锁文件；提交前用 `--locked` 重新解析。
 
 ## 依赖方向：toolkit-neutral 契约可直达 core

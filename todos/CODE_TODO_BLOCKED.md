@@ -14,7 +14,7 @@
 - 本板不重复记录已经在过去佛/未来佛登记的条目正文；迁入时必须整条迁入（含 ID、owner、points、依赖、验收、当前证据），不得只留摘要。
 - **并行工流与验证纪律（2026-10-20 起强制）：** 并行开发按文件所有权切分，编译不通过的半成品不得放进会被 `cargo nextest --workspace`、结构门或 capture 构建扫到的路径（WIP 先放草稿或 `.evidence/wip/`）；开发期只跑受影响包，全仓 `cargo nextest --workspace` 与全量结构门统一放到收尾批次只跑一次；共享 `/tmp` 配额、cargo lane 争用与合成器起栈失败等外部故障先判定归属，只修本切片能修的那一类。
 
-## 一、ARM64 真机取证（无物理设备，12 条 / 38 pt）
+## 一、ARM64 真机取证（无物理设备，11 条 / 36 pt）
 
 - [ ] PARITY-001.6 [kind: evidence] [priority: P0] [points: 5] [owner: infiltrator-slint + infiltrator-bevy-ui + infiltrator-iced + scripts/android] [status: Blocked] 四表面四主题当前构建像素回执与 FlClash 同场景复核 —— 桌面 192 张主题实图已于第九十三批次闭环交付；余 Android 36 张实机截图外部设备腿
   - 产物：三桌面 16 页 × 4 themes standard 视口及 Android Compose 三 flavor 核心页四主题图，均绑定当前 binary/source/build、PNG SHA、视口与 theme marker；附逐页并排差距索引。
@@ -105,9 +105,9 @@
   - 解锁条件：真机实际运行证据；取得后同次迁回过去佛。
   - 本板停留期间：行为覆盖已闭环，无剩余本机可执行动作。
 
-## 二、受控 tag CI 回执（`v0.51.0` tag 已打，5 条 / 7 pt）
+## 二、受控 tag CI 回执（`v0.51.0` tag 已打，1 条 / 2 pt）
 
-> 本节的共同前置已满足：**`v0.51.0` tag 已于 2026-10-21 推到远端，指向 `60ad2ed`**（页面模型收编批次的收口提交），`main` 同步在该提交。三条流水线同时起跑：`release` run `39561908722`（tag-only）、`release-neutral-crates` run `39561908671`、`main-gate` run `39561877283`（绿）。**tag 回执现状**：`release` 的 validate 与 **test-gate 全绿**（全仓 nextest 在网络隔离命名空间里跑完），**四条桌面构建腿全绿**（x86_64/aarch64 Linux 与 x86_64/aarch64 Windows），**Android 腿按设计 fail closed**（`Resolve the release signing material` 缺四个用户 keystore secret），因此 `Generate Manifest & Publish Release` 被跳过——**没有产出未签名的发布件**。`release-neutral-crates` 也按设计 fail closed（缺 `CARGO_REGISTRY_TOKEN`，未发布任何 crate）。两次前置失败已修并复跑：parity 证据解析的锚点名（`logs-search-highlight/iced/scenario` 指向了被迁移改回的测试名）与 runner 磁盘（测试门禁的构建写爆根分区，改为只保留行号表并回收镜像里用不到的工具链）。**Android 腿按设计 fail closed**：`release.yml` 的签名前置要求四个用户 keystore secret（`RELEASE_KEYSTORE_BASE64`／`RELEASE_KEYSTORE_PASSWORD`／`RELEASE_KEY_ALIAS`／`RELEASE_KEY_PASSWORD`），缺失时在 Gradle 配置期即以缺失清单失败，debug key 不再为任何 release 产物背书。因此本节条目的剩余阻塞方是**用户 secrets 与受控 runner 的真实产物**，而不是「尚未打 tag」。既有 `v0.50.0` tag 仍指向旧提交 `58158da6`，其 run 回执绑定的是旧代码，不覆盖当前代码。
+> 本节的共同前置已满足：**`v0.51.0` tag 已于 2026-10-21 推到远端，指向 `60ad2ed`**（页面模型收编批次的收口提交），`main` 同步在该提交。三条流水线同时起跑：`release` run `39561908722`（tag-only）、`release-neutral-crates` run `39561908671`、`main-gate` run `39561877283`（绿）。**tag 回执现状**：`release` 的 validate 与 **test-gate 全绿**（全仓 nextest 在网络隔离命名空间里跑完），**四条桌面构建腿全绿**（x86_64/aarch64 Linux 与 x86_64/aarch64 Windows），**Android 腿按设计 fail closed**（`Resolve the release signing material` 缺四个用户 keystore secret），因此 `Generate Manifest & Publish Release` 被跳过——**没有产出未签名的发布件**。`release-neutral-crates` 当时也按设计 fail closed（缺 `CARGO_REGISTRY_TOKEN`，未发布任何 crate）；**b270 已解除**：七个 neutral crate 已在本机按强制顺序上架 crates.io 0.68.4，该流水线的凭证与依赖两侧都不再是阻塞。两次前置失败已修并复跑：parity 证据解析的锚点名（`logs-search-highlight/iced/scenario` 指向了被迁移改回的测试名）与 runner 磁盘（测试门禁的构建写爆根分区，改为只保留行号表并回收镜像里用不到的工具链）。**Android 腿按设计 fail closed**：`release.yml` 的签名前置要求四个用户 keystore secret（`RELEASE_KEYSTORE_BASE64`／`RELEASE_KEYSTORE_PASSWORD`／`RELEASE_KEY_ALIAS`／`RELEASE_KEY_PASSWORD`），缺失时在 Gradle 配置期即以缺失清单失败，debug key 不再为任何 release 产物背书。因此本节条目的剩余阻塞方是**用户 secrets 与受控 runner 的真实产物**，而不是「尚未打 tag」。既有 `v0.50.0` tag 仍指向旧提交 `58158da6`，其 run 回执绑定的是旧代码，不覆盖当前代码。
 
 - [ ] BANDROID-020.1 [kind: infra] [priority: P0] [points: 2] [owner: toolchain baseline] [status: Blocked] Android SDK/NDK/Gradle/JDK 基线与核对
   - 产物：SDK/NDK/JDK 值统一由 `android/toolchain.properties` 提供给 Gradle、CI、模拟器与 Bevy 诊断构建；wrapper 和 Rust 使用各自唯一版本文件；本机/CI 核对由 `scripts/android-toolchain.py check` 执行。
@@ -117,9 +117,10 @@
   - 阻塞方：受控 tag release runner（CI 侧同一核对尚未执行）。
   - 解锁条件：tag run 中 toolchain 核对步骤的回执；取得后同次迁回过去佛办结。
   - 本板停留期间：本机核对已闭环，无剩余本机可执行动作。
-  - **b269 更正**：v0.68.3 的 `release` run `43607216055` 红在 `rustdoc-guard.py --mode docs`，根因同样是私有 `zhuge-ui-kit` Git 依赖；该依赖已退役，本机 7 个 neutral crate 的 `cargo doc` 实测转绿。`CARGO_REGISTRY_TOKEN` 只阻塞真实 publish，保留在 crates.io 上架条目；不再把构建/打包/dry-run 冒充 secrets 阻塞。
+  - **b269 更正**：v0.68.3 的 `release` run `43607216055` 红在 `rustdoc-guard.py --mode docs`，根因同样是私有 `zhuge-ui-kit` Git 依赖；该依赖已退役，本机 7 个 neutral crate 的 `cargo doc` 实测转绿。
+  - **b270 更正**：`CARGO_REGISTRY_TOKEN` 也已不再是任何条目的阻塞——七个 neutral crate 已在本机按强制顺序上架 crates.io 0.68.4（顺序门与 dry-run 全绿 `ok=7 / order-gate=0`），本条剩余的阻塞方只有**受控 tag runner 自身的 toolchain 核对回执**。
 
-## 三、用户 secrets 与持久 keystore（3 条 / 6 pt）
+## 三、用户 secrets 与持久 keystore（1 条 / 3 pt）
 
 - [ ] BANDROID-039.1 [kind: infra] [priority: P0] [points: 3] [owner: release.yml + build.gradle.kts] [status: Blocked] 持久 release keystore 接入
   - 产物：用户/组织持有的 release keystore 与受保护 CI secrets；无 secret 时发布 job 清晰失败，禁止静默退回 debug key。
@@ -130,42 +131,19 @@
   - 解锁条件：用户下发 keystore/alias/password 并完成 secret 配置后的发布 job 回执；取得后同次迁回过去佛办结。
   - 本板停留期间：仓库侧 fail-closed 路径已闭环并实测，剩余闭环只依赖用户 secrets。
 
-## 四、crates.io 上架与发布顺序门（5 条 / 11 pt）
+## 四、crates.io 上架与发布顺序门（0 条 / 0 pt，已清空）
 
-- [ ] PUB-001.3 [kind: mechanism] [priority: P1] [points: 3] [owner: profile-store] [status: Blocked] 抽象通用 lurker-profile-store 与租约并发接口
-  - 产物：基于 CAS 与版本租约锁的通用存储/事务接口；剥离产品私有 Age 凭据、平台依赖与硬编码路径；CAS/租约/owner-switch/reset 完整下沉 `lurker-profile-store::owner_switch`。
-  - 依赖：PUB-001.1、PUB-001.2。
-  - 验收：单测覆盖活动租约锁竞争、并发 CAS 冲突、安全原子替换；零业务私有路径；`cargo package` 通过（dry-run 待 contract 上架）。
-  - 当前证据（L）：`2a2726ba-f211-44e6-9986-9b28f6bd1977`；5205 passed；99/99 store tests。
-  - 阻塞方：crates.io 上架（`lurker-core-contract` 尚未实际发布，dry-run 需 registry 解析中性依赖）。**b269 更正**：v0.68.3 tag CI run `43607215836` 的 7 个 neutral crate dry-run 失败，根因是主仓当时仍把 `zhuge-ui-*` 钉在私有 Git rev，而不是 crates.io 凭证；该私有 Git 依赖已由第二百六十九批次退役并改接公开 registry，此项不再算外部阻塞。
-  - 解锁条件：contract 上架后 `cargo publish --dry-run -p lurker-profile-store` 通过的回执；取得后同次迁回过去佛办结。
-  - 本板停留期间：`cargo package` 与本地单测已闭环，无剩余本机可执行动作。
-- [ ] PUB-003.2 [kind: mechanism] [priority: P1] [points: 3] [owner: lurker-engine-runtime::switch] [status: Blocked] 双引擎原子切换抽象为 EngineSwitchCoordinator
-  - 产物：中立契约/端口/协调器 + 内存 journal 与产品迁移；基于 CAS 租约与 Generation/Revision 围栏的无缝切换组件；失败时原主自动恢复。
-  - 依赖：PUB-003.1。
-  - 验收：nextest 覆盖正常切换与注入故障回滚，证明新旧进程生命周期严格互斥且终态可查。
-  - 当前证据（L）：`2a2726ba-f211-44e6-9986-9b28f6bd1977`；5205 passed；29/29 composition tests。
-  - 阻塞方：统一发布批次（crates.io 顺序上架门）。
-  - 解锁条件：中性 crate 顺序发布批次回执；取得后同次迁回过去佛办结。
-  - 本板停留期间：本地切换与回滚批次已闭环，无剩余本机可执行动作。
-- [ ] PUB-003.3 [kind: mechanism] [priority: P1] [points: 3] [owner: runtime facade] [status: Blocked] 高层 Facade SDK lurker-engine-runtime
-  - 产物：`LurkerRuntimeBuilder` / `LurkerRuntime`，封装 Token/Generation 细节与单并发控制租约；提供 start/stop/switch_engine/wait_ready 与状态流。
-  - 依赖：PUB-003.2。
-  - 验收：第三方 10 行内完成初始化并监听状态流；单测与文档示例验证；`cargo publish --dry-run` 通过。
-  - 当前证据（L）：`2a2726ba-f211-44e6-9986-9b28f6bd1977`；28/28 runtime tests；5205 passed。
-  - 阻塞方：1.0-M1 crates.io 发布顺序门。
-  - 解锁条件：contract 上架后 `cargo publish --dry-run -p lurker-engine-runtime` 通过的回执；取得后同次迁回过去佛办结。
-  - 本板停留期间：本地单测与示例已闭环，无剩余本机可执行动作。
-- [ ] PUB-006.12 [kind: release] [priority: P1] [points: 1] [owner: release] [status: Blocked] 1.0-RC 候选版本基线冻结与预发布
-  - 产物：锁定七大中性 crate 版本为 `1.0.0-rc.1`；生成首个 release candidate 校验和清单、GPG 签名草案与预发布发布说明（Release Notes）。
-  - 依赖：PUB-006.1～PUB-006.11。
-  - 验收：七个中性 crate API 签名完全冻结；预发布打包 dry-run 100% 成功；0.6x 开源发布与生态体系完备收官，正式进入 0.7x 质量与安装包阶段。
-  - 当前证据：无。
-  - 阻塞方：crates.io 上架凭证与 GPG 签名材料（依赖链 PUB-006.1～006.11 仍在本板外推进中）。
-  - 解锁条件：RC 版本基线冻结、校验和清单与签名草案归档回执；取得后同次迁回过去佛办结。
-  - 本板停留期间：依赖链尚未完成，本条无独立本机动作。
+> 本节的外部阻塞已全部解除，条目同次迁出：**`PUB-001.3` / `PUB-003.2` / `PUB-003.3`
+> 三条办结归档**（第二百七十批次，L 级回执：crates.io 上 `lurker-core-contract 0.68.4` →
+> `lurker-core-ports` → `lurker-engine-runtime` → `lurker-profile-store` →
+> `lurker-ui-presentation` → `mihomo-driver 0.68.4` → `singbox-driver 0.68.4` 顺序上架完成，
+> 七个 crate 的 `cargo publish --dry-run` 全绿 `ok=7 / order-gate=0 / packaging-failure=0`）；
+> **`PUB-006.12` 迁回[现在佛](CODE_TODO.md)**——它不再是环境阻塞条目：依赖链
+> `PUB-006.1`～`PUB-006.11` 早已全部归档，crates.io 上架凭证的阻塞已消失，
+> 剩下的「版本基线冻结 + 校验和清单 + 签名草案 + Release Notes」全部是本机可执行动作，
+> 按「可推条目禁止留在本板」必须迁到可推看板。
 
-## 五、异构目标机与被禁平台 target（5 条 / 15 pt）
+## 五、异构目标机与被禁平台 target（1 条 / 5 pt）
 
 - [ ] GAP-3.2 [kind: mechanism] [priority: P2] [points: 5] [owner: ios] [status: Blocked] iOS target 与应用骨架
   - 产物：`aarch64-apple-ios` 构建、应用包与 NetworkExtension 骨架。
@@ -208,7 +186,10 @@
 
 | 迁出日期 | 条目 | 原阻塞方 | 迁回看板 | 证据身份 |
 | --- | --- | --- | --- | --- |
-| — | 暂无 | — | — | — |
+| 2026-11-15 | `PUB-001.3` | crates.io 上架（`lurker-core-contract` 未发布） | 办结归档 | crates.io `lurker-profile-store 0.68.4` + `cargo publish --dry-run` 全链 `ok=7 / order-gate=0`（L） |
+| 2026-11-15 | `PUB-003.2` | 统一发布批次（crates.io 顺序上架门） | 办结归档 | crates.io 七包按强制顺序上架完成（`mihomo-driver` / `singbox-driver` 0.68.4 实际在库）（L） |
+| 2026-11-15 | `PUB-003.3` | 1.0-M1 crates.io 发布顺序门 | 办结归档 | crates.io `lurker-engine-runtime 0.68.4` + `cargo publish --dry-run` 通过（L） |
+| 2026-11-15 | `PUB-006.12` | crates.io 上架凭证与 GPG 签名材料 | [现在佛](CODE_TODO.md) §0.4 | 依赖链 `PUB-006.1`～`PUB-006.11` 早已全部归档；上架凭证阻塞消失，剩余动作本机可执行（L） |
 
 ## 九、登记说明
 

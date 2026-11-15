@@ -210,6 +210,58 @@ class DryRunClassificationTests(unittest.TestCase):
         )
         self.assertEqual(status, GUARD.STATUS_PACKAGING_FAILURE)
 
+    def test_a_rate_limited_upload_is_not_a_packaging_failure(self) -> None:
+        # crates.io refuses too many *new* crates for a short window. The
+        # upload is correct; it has to wait, so the guard must not call it a
+        # packaging defect (which would stop the chain and hide the cause).
+        status, reason = GUARD.classify_failure(
+            "error: failed to publish mihomo-driver v0.68.4 to registry at "
+            "https://crates.io\n  the remote server responded with an error "
+            "(status 429 Too Many Requests): You have published too many new "
+            "crates in a short period\n",
+            [],
+            "mihomo-driver",
+        )
+        self.assertEqual(status, GUARD.STATUS_RATE_LIMITED)
+        self.assertIn("rate-limited", reason)
+
+    def test_the_announced_retry_deadline_is_read(self) -> None:
+        # crates.io states the exact moment the publish window reopens. The
+        # guard must use that deadline instead of guessing a backoff.
+        deadline = GUARD.rate_limit_retry_at(
+            "error: failed to publish singbox-driver v0.68.4 to registry at "
+            "https://crates.io\n  the remote server responded with an error "
+            "(status 429 Too Many Requests): You have published too many new "
+            "crates in a short period of time. Please try again after "
+            "Sun, 15 Nov 2026 03:53:28 GMT and see "
+            "https://crates.io/docs/rate-limits for more details.\n"
+        )
+        self.assertIsNotNone(deadline)
+        assert deadline is not None
+        self.assertEqual(
+            (deadline.year, deadline.month, deadline.day),
+            (2026, 11, 15),
+        )
+        self.assertEqual(
+            (deadline.hour, deadline.minute, deadline.second),
+            (3, 53, 28),
+        )
+
+    def test_a_reply_without_a_deadline_falls_back_to_a_growing_backoff(self) -> None:
+        self.assertIsNone(GUARD.rate_limit_retry_at("429 Too Many Requests\n"))
+        self.assertEqual(
+            GUARD.rate_limit_wait_seconds("429 Too Many Requests\n", 2),
+            float(GUARD.RATE_LIMIT_BACKOFF_SECONDS * 2),
+        )
+
+    def test_the_wait_covers_the_announced_deadline(self) -> None:
+        # A deadline in the past must not produce a negative sleep.
+        wait = GUARD.rate_limit_wait_seconds(
+            "Please try again after Sun, 15 Nov 2026 03:53:28 GMT\n",
+            1,
+        )
+        self.assertGreaterEqual(wait, GUARD.RATE_LIMIT_SAFETY_MARGIN_SECONDS)
+
     def test_already_published_version_is_reported(self) -> None:
         status, _ = GUARD.classify_failure(
             "error: crate `lurker-core-contract v0.50.0` already exists\n",
@@ -336,6 +388,49 @@ class PublishContractTests(unittest.TestCase):
             sleeper=lambda seconds: None,
         )
         self.assertEqual(attempts["lurker-core-ports"], 2)
+        self.assertEqual(
+            {row["status"] for row in results}, {GUARD.STATUS_PUBLISHED}
+        )
+
+    def test_publish_chain_waits_out_a_rate_limited_window(self) -> None:
+        # A rate-limited upload is correct; the chain must wait for the
+        # announced deadline and then publish, instead of calling the upload
+        # a packaging defect and stopping the chain.
+        with tempfile.TemporaryDirectory() as directory:
+            root = write_workspace(Path(directory))
+            _, rows = GUARD.topology_problems(root)
+
+        attempts: dict[str, int] = {}
+        waits: list[float] = []
+
+        def runner(crate: str, dry_run: bool, root: Path, timeout: int, token=None):
+            attempts[crate] = attempts.get(crate, 0) + 1
+            if crate == "lurker-core-contract" and attempts[crate] == 1:
+                return 101, (
+                    "error: failed to publish lurker-core-contract v0.50.0 "
+                    "to registry at https://crates.io\n  the remote server "
+                    "responded with an error (status 429 Too Many Requests): "
+                    "You have published too many new crates in a short period "
+                    "of time. Please try again after Sun, 15 Nov 2026 "
+                    "03:53:28 GMT and see "
+                    "https://crates.io/docs/rate-limits for more details.\n"
+                )
+            return 0, "published"
+
+        def probe(name: str) -> set[str]:
+            return {"0.50.0"}
+
+        results = GUARD.publish_chain(
+            ROOT,
+            rows,
+            "token",
+            runner=runner,
+            probe=probe,
+            sleeper=waits.append,
+        )
+        self.assertEqual(attempts["lurker-core-contract"], 2)
+        self.assertEqual(len(waits), 1)
+        self.assertGreaterEqual(waits[0], GUARD.RATE_LIMIT_SAFETY_MARGIN_SECONDS)
         self.assertEqual(
             {row["status"] for row in results}, {GUARD.STATUS_PUBLISHED}
         )
