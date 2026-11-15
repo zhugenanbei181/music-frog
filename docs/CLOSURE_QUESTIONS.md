@@ -24,29 +24,29 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-15 第二百七十一批次 = **tag CI 第一次真跑到 Android 构建就挖出的缺陷批次**：host 测试的「包已卸载」业务事实说成了框架异常类型 + `:core-host-tests` 的 test 编译类路径缺平台 jar；迭代小版本 v0.68.6；本批零 Rust 改动、零像素重采；b111–b270 见下方批次八问摘要）
+## 当前状态（2026-11-15 第二百七十二批次 = **工作流把签名材料删在了构建之前批次**：Android 腿第二次真跑又挖出的步骤顺序缺陷；立守卫钉死「keystore 必须活过签名构建」；迭代小版本 v0.68.7；本批零 Rust 改动、零 Kotlin 改动、零像素重采；b111–b271 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | 本批**零 Rust 改动**（只改 Android 宿主 Kotlin、`:core-host-tests` 的 Gradle 依赖、版本身份与四板台账）；新增证据：`:core-host-tests:test` **BUILD SUCCESSFUL（196 条 0 失败）**、`:app` 三 flavor 单测**各 412 条 0 失败** + `testDebugUnitTest` 20 条 0 失败、`javap` 实测 android.jar stub 构造器 `athrow new RuntimeException("Stub!")`。aarch64 交叉目标产物未复跑（GAP-1.1） |
-| 2 | 部分 | L | 零构建面改动；v0.68.5 的 `release` run `43678107292` 里**四条桌面构建腿全 success**（x86_64/aarch64 Linux + x86_64/aarch64 Windows），本批未复跑 Windows/macOS 构建腿，macOS 沿用 `Unsupported`（GAP-2.2） |
-| 3 | 部分 | L | **本批改的就是 Android 宿主**：typed 领域信号 `VpnPackageUninstalledException` + 平台边界的框架异常翻译 + 日志归位；`android/bevy-host/driver/Cargo.lock` 随版本迭代落到 0.68.6、`source = "git+"` 实测 **0 条**；**未在本机跑 release 变体的 `assemble*Release`**（需要用户的持久 keystore secrets，本机没有），该腿由 CI 承担 |
-| 4 | 部分 | L | 零 UI 表面改动、**零像素重采**；本批改的 `:core-host-tests` 不参与任何桌面表面的像素回执；`PUB-006.12` 仍**只登记未施工** |
-| 5 | 完整 | L | 零新造重复实现：业务事实「包已卸载」现在有**唯一 typed 信号**（`VpnPackageUninstalledException`），框架异常类型 `PackageManager.NameNotFoundException` 只留在平台边界那一处翻译里；测试与生产共用**同一个** `applyVpnPackageRouting` 决策函数，不复制规则 |
-| 6 | 部分 | L | 本批**零新增业务能力**；新增的是一条**此前从未在 CI 跑过的 host 测试腿**的可用性——Android 腿第一次真正走到构建阶段就红在这条腿上，根因收口后它才第一次能跑 |
-| 7 | 完整 | L | 「业务事实 ↔ 框架类型」的翻译集中在平台边界一个 catch 里（组合优于继承，跨域行为用显式依赖表达）；`Log.i` 从纯决策函数移到生产重载（表现归表现，决策函数对平台零依赖）；`:core-host-tests` 的 test 编译类路径与它本来就有的运行期类路径对齐（同一模块两条类路径一致） |
-| 8 | 部分 | L | 一次本机 Gradle 批次（`:core-host-tests:test` + 三 flavor 单测）、一次版本迭代、一次结构门 **223 腿 0 failed / 1 合法跳过**（`--check-export` 因 clean 后导出器未构建 typed 跳过）、`structure-gate-guard` **224 腿 0**；**新 tag `v0.68.6`** 让 Android 腿在带修复的代码上重跑（`gh run rerun` 需管理员权限，只能靠新 tag）；`--workspace` nextest 本批零 Rust 改动且 cargo lane 与另一会话共享，留给统一批次 |
+| 1 | 部分 | L | 本批**零 Rust 改动、零 Kotlin 改动**（只改工作流步骤顺序、新增一条 Python 守卫、迭代版本身份与台账）；新增证据：`release-signing-material-guard.py --self-test` **5/5**、enforce 0、`bash -n check-structure.sh` OK、`py_compile` 通过、`android-product-identity-guard --release-tag v0.68.7` OK、`semver-compat-guard --mode check` OK、`cargo fmt --all --check` 0。aarch64 交叉目标产物未复跑（GAP-1.1） |
+| 2 | 部分 | L | 零构建面改动；v0.68.6 的 `release` run `43687161753` 里**四条桌面构建腿全 success**（x86_64/aarch64 Linux + x86_64/aarch64 Windows），本批未复跑 Windows/macOS 构建腿，macOS 沿用 `Unsupported`（GAP-2.2） |
+| 3 | 部分 | L | **本批改的就是 Android 发布流程**：把 `Remove the release keystore` 从**构建之前**移到**构建之后**（`if: always()` 保留，构建失败也清理）；**不放松** `app/build.gradle.kts` 的 fail-closed 守卫（release 变体缺 keystore 仍硬失败，debug key 不得替正式签名背书）；**正式签名的 APK 产物本批仍未产出**，回执以新 tag 的 CI 为准 |
+| 4 | 部分 | L | 零 UI 表面改动、**零像素重采**；`PUB-006.12` 仍**只登记未施工** |
+| 5 | 完整 | L | 零新造重复实现：「签名材料在 runner 上的生命周期」现在有**唯一真源**——工作流里 resolve → build → remove 三个步骤的顺序由 `release-signing-material-guard.py` 一处钉住；守卫与工作流读同一个文件，不留第二份步骤清单 |
+| 6 | 部分 | L | 本批**零新增业务能力**；新增的是**发布流程本身**的一条可执行腿（此前 Android 腿在 CI 里从未真正构建过，两批连续挖出两个真实缺陷）；产物回执待新 tag 的 CI |
+| 7 | 完整 | L | 「步骤顺序」这类事实用**守卫**表达而不是靠注释与自觉：守卫自测 5/5（含「清理排在构建前拒」「缺清理步骤拒」「清理丢了 `always` 拒」三个负例），双腿入结构门；成因注释写在守卫与工作流里，避免下一个 Agent 把这条红腿误归因为「缺用户 secrets」 |
+| 8 | 部分 | L | 一次守卫自测、一次版本迭代、一次结构门 **225 腿 0 failed / 1 合法跳过**（新增本批的两条守卫腿；`--check-export` 因 clean 后导出器未构建 typed 跳过）、`structure-gate-guard` **226 腿 0**；**新 tag `v0.68.7`** 让 Android 腿在带顺序修复的代码上重跑（`gh run rerun` 需管理员权限，只能靠新 tag）；`--workspace` nextest 本批零代码改动且 cargo lane 与另一会话共享，留给统一批次 |
 
-## 最近一批问答（2026-11-15 第二百七十一批次：Android 腿第一次真跑到构建，就挖出它从来没有被构建过）
+## 最近一批问答（2026-11-15 第二百七十二批次：签名材料被清理步骤删在了构建之前）
 
-1. x86_64/aarch64：本批零 Rust 改动（只改 Android 宿主 Kotlin、Gradle 依赖、版本身份与台账）；新增证据全为本机 L——`:core-host-tests:test` BUILD SUCCESSFUL（196 条 0 失败）、`:app` 三 flavor 单测各 412 条 0 失败、`testDebugUnitTest` 20 条 0 失败、`javap` 实测 android.jar stub 构造器抛 `Stub!`。aarch64 交叉目标产物未复跑（GAP-1.1）→ 部分（L）。
-2. Windows/Linux/macOS：零构建面改动；v0.68.5 的 `release` run `43678107292` 里四条桌面构建腿全 success（x86_64/aarch64 Linux + x86_64/aarch64 Windows），本批未复跑 Windows/macOS 构建腿，macOS 沿用 `Unsupported`（GAP-2.2）→ 部分（L）。
-3. Android/iOS：本批改的就是 Android 宿主——typed 领域信号 `VpnPackageUninstalledException`、平台边界的框架异常翻译、日志归位、`:core-host-tests` 的 `testCompileOnly` 类路径对齐；`android/bevy-host/driver/Cargo.lock` 落到 0.68.6 且 `source = "git+"` 实测 0 条；未在本机跑 release 变体的 `assemble*Release`（需要用户 keystore secrets，本机没有），该腿由 CI 承担；iOS 本批零改动 → 部分（L）。
-4. 各 UI：零 UI 表面改动、零像素重采；`:core-host-tests` 不参与任何桌面表面的像素回执；`PUB-006.12` 仍只登记未施工 → 部分（L）。
-5. 复用：零新造重复实现。「包已卸载」现在只有一个 typed 信号，框架异常类型只留在平台边界的一处翻译里；测试与生产共用同一个 `applyVpnPackageRouting` 决策函数 → 完整（L）。
-6. 各处界面的功能接入：本批零新增业务能力；新增的是一条此前从未在 CI 跑过的 host 测试腿的可用性——Android 腿第一次真正走到构建阶段就红在这条腿上 → 部分（L）。
-7. 模块化：「业务事实 ↔ 框架类型」的翻译集中在平台边界一个 catch；`Log.i` 从纯决策函数移到生产重载（决策函数对平台零依赖）；`:core-host-tests` 的 test 编译类路径与运行期类路径对齐 → 完整（L）。
-8. CI 与批次效率：一次本机 Gradle 批次、一次版本迭代、一次结构门 **223 腿 0 failed / 1 合法跳过**（`--check-export` 因 clean 后导出器未构建 typed 跳过）、`structure-gate-guard` **224 腿 0**；新 tag `v0.68.6` 让 Android 腿在带修复的代码上重跑（`gh run rerun` 需管理员权限，只能靠新 tag）；`--workspace` nextest 留给统一批次（本批零 Rust 改动且 cargo lane 共享）→ 部分（L）。
+1. x86_64/aarch64：本批零 Rust 改动、零 Kotlin 改动（只改工作流步骤顺序、新增 Python 守卫、迭代版本身份与台账）；新增证据全为本机 L——守卫自测 5/5 + enforce 0、`bash -n`/`py_compile` 通过、`android-product-identity-guard --release-tag v0.68.7` OK、`semver-compat-guard --mode check` OK、`cargo fmt --all --check` 0。aarch64 交叉目标产物未复跑（GAP-1.1）→ 部分（L）。
+2. Windows/Linux/macOS：零构建面改动；v0.68.6 的 `release` run `43687161753` 里四条桌面构建腿全 success（x86_64/aarch64 Linux + x86_64/aarch64 Windows），本批未复跑 Windows/macOS 构建腿，macOS 沿用 `Unsupported`（GAP-2.2）→ 部分（L）。
+3. Android/iOS：本批改的就是 Android 发布流程——`Remove the release keystore` 从构建之前移到构建之后（`if: always()` 保留）；不放松 release 变体的 fail-closed 签名守卫；正式签名的 APK 产物本批仍未产出，回执以新 tag 的 CI 为准；iOS 本批零改动 → 部分（L）。
+4. 各 UI：零 UI 表面改动、零像素重采；`PUB-006.12` 仍只登记未施工 → 部分（L）。
+5. 复用：零新造重复实现。「签名材料在 runner 上的生命周期」由守卫一处钉住，工作流与守卫读同一个文件 → 完整（L）。
+6. 各处界面的功能接入：本批零新增业务能力；新增的是发布流程本身的一条可执行腿（Android 腿此前从未在 CI 真正构建过，两批连续挖出两个真实缺陷）→ 部分（L）。
+7. 模块化：步骤顺序这类事实用守卫表达，自测 5/5 含三个负例，双腿入结构门；成因注释写在守卫与工作流里 → 完整（L）。
+8. CI 与批次效率：一次守卫自测、一次版本迭代、一次结构门 **225 腿 0 failed / 1 合法跳过**（新增本批的两条守卫腿；`--check-export` 因 clean 后导出器未构建 typed 跳过）、`structure-gate-guard` **226 腿 0**；新 tag `v0.68.7` 让 Android 腿在带顺序修复的代码上重跑（`gh run rerun` 需管理员权限，只能靠新 tag）；`--workspace` nextest 留给统一批次（本批零代码改动且 cargo lane 共享）→ 部分（L）。
 
 ## 历史状态（2026-11-14 第二百六十八批次 = **v0.68.3 收口批次**：Bevy 随帧发布 `CAPTURE_CHROME` 外壳几何回执，判定器与三张矩阵改读契约页形 `shape`；超预算按业务缝拔出而非压行，并立守卫 + 写入 L2；实测立项 `SPACEUTIL-024` 4 pt + `SPACEUTIL-025` 3 pt；b111–b267 见下方批次八问摘要）
 

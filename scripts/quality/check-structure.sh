@@ -251,6 +251,8 @@ gate python3 scripts/quality/slint-theme-channel-guard.py --self-test
 gate python3 scripts/quality/android-product-identity-guard.py
 gate python3 scripts/quality/release-build-target-guard.py --self-test
 gate python3 scripts/quality/release-build-target-guard.py
+gate python3 scripts/quality/release-signing-material-guard.py --self-test
+gate python3 scripts/quality/release-signing-material-guard.py --mode enforce
 gate python3 scripts/quality/android-mihomo-assets-guard.py
 gate python3 scripts/quality/apple-ci-deferral-guard.py
 gate python3 scripts/quality/ci-trigger-guard.py

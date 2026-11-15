@@ -550,13 +550,6 @@ jobs:
             } >> "$GITHUB_ENV"
           fi
 
-      - name: Remove the release keystore
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -rf "${RUNNER_TEMP:?}/infiltrator-release-keystore"
-
       - name: Build all Android release flavors
         shell: bash
         run: |
@@ -567,6 +560,17 @@ jobs:
           ( cd android && ./gradlew --no-daemon --stacktrace :app:assembleComposeRelease )
           ( cd android && ./gradlew --no-daemon --stacktrace :app:assembleBevyRelease )
           ( cd android && ./gradlew --no-daemon --stacktrace :app:assembleSlintRelease )
+
+      # The keystore has to outlive the build that signs with it, and only then
+      # leave the runner. Scrubbing it before the build deleted the very file
+      # the release variant requires, so the leg failed with "Release artifacts
+      # require the persistent release keystore" instead of producing an APK.
+      - name: Remove the release keystore
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "${RUNNER_TEMP:?}/infiltrator-release-keystore"
 
       - name: Verify and collect registered Android APKs
         shell: bash
