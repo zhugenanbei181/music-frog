@@ -94,6 +94,7 @@ STATUS_ORDER_GATE = "order-gate"
 STATUS_ALREADY_PUBLISHED = "already-published"
 STATUS_PACKAGING_FAILURE = "packaging-failure"
 STATUS_RATE_LIMITED = "rate-limited"
+STATUS_DIRTY_TREE = "dirty-tree"
 STATUS_PUBLISHED = "published"
 STATUS_MISSING = "missing"
 
@@ -116,6 +117,18 @@ RATE_LIMIT_SIGNATURES = (
     "429 too many requests",
     "too many new crates in a short period",
     "you have published too many new crates",
+)
+
+# Cargo wording that means "the tree you are publishing from is not the tree
+# that is committed". That is a precondition of the rehearsal, not a defect
+# of the crate: the package may be perfectly publishable and the only thing
+# missing is a commit.
+DIRTY_TREE_SIGNATURES = (
+    "include the uncommitted changes",
+    "pass the `--allow-dirty` flag",
+    "pass the --allow-dirty flag",
+    "working directory contains uncommitted changes",
+    "working directory has uncommitted changes",
 )
 
 # Cargo wording that means "this exact version is already on crates.io".
@@ -461,6 +474,15 @@ def classify_failure(
                 + (f" (window reopens at {deadline:%Y-%m-%d %H:%M:%S} UTC)" if deadline else ""),
             )
 
+    for signature in DIRTY_TREE_SIGNATURES:
+        if signature in lowered:
+            return (
+                STATUS_DIRTY_TREE,
+                "the tree under release is not committed; cargo refuses to "
+                "package uncommitted changes, and that is a precondition of "
+                "the rehearsal rather than a defect of the crate",
+            )
+
     for signature in ALREADY_PUBLISHED_SIGNATURES:
         if signature in lowered:
             return STATUS_ALREADY_PUBLISHED, "crates.io already holds this version"
@@ -749,20 +771,30 @@ def run_dry_run(
         _write_summary(summary, results, "Neutral crate dry-run")
     failures = [row for row in results if row["status"] == STATUS_PACKAGING_FAILURE]
     gates = [row for row in results if row["status"] == STATUS_ORDER_GATE]
+    dirty = [row for row in results if row["status"] == STATUS_DIRTY_TREE]
     print(
         f"neutral release guard: dry-run finished "
         f"(ok={len([r for r in results if r['status'] == STATUS_OK])}, "
-        f"order-gate={len(gates)}, packaging-failure={len(failures)})"
+        f"order-gate={len(gates)}, dirty-tree={len(dirty)}, "
+        f"packaging-failure={len(failures)})"
     )
     if gates:
         print(
             "order-gate crates depend on a neutral crate that is not on "
             "crates.io yet — publish the chain in order and re-run."
         )
+    if dirty:
+        print(
+            "the tree under release is not committed, so cargo refused to "
+            "package it; commit the tree and re-run the rehearsal.",
+            file=sys.stderr,
+        )
     if failures:
         for row in failures:
             print(f"packaging failure: {row['crate']}: {row['reason']}", file=sys.stderr)
             _print_cargo_output(row)
+        return 1
+    if dirty:
         return 1
     return 0
 
@@ -788,6 +820,13 @@ def run_publish(
     if failures:
         for row in failures:
             print(f"publish failed: {row['crate']}: {row['reason']}", file=sys.stderr)
+            if row["status"] == STATUS_DIRTY_TREE:
+                print(
+                    "the tree under release is not committed, so cargo refused "
+                    "to package it; commit the tree and re-run the publish.",
+                    file=sys.stderr,
+                )
+                continue
             _print_cargo_output(row)
         return 1
     print("neutral release guard: publish finished")

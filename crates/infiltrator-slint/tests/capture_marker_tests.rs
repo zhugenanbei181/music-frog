@@ -16,6 +16,7 @@ use infiltrator_contract::shell_sidebar_preference::SidebarExpansionPreference;
 use infiltrator_slint::capture_scenario::CaptureBounds;
 use infiltrator_slint::demo::DemoSettings;
 use infiltrator_slint::demo::capture_marker::write_capture_marker;
+use infiltrator_slint::surface::harness::SurfaceHarness;
 use std::fs;
 use std::path::PathBuf;
 
@@ -50,10 +51,14 @@ fn the_marker_publishes_the_activated_scenario_with_its_real_bounds() {
         width: 640.0,
         height: 416.0,
     };
+    // The headless harness owns the window: a real one would need a display,
+    // and a capture marker is written from the surface's bindings, not from
+    // a compositor.
+    let surface = SurfaceHarness::new(None).expect("the headless shell builds");
 
     write_capture_marker(
         &settings(marker.clone(), Some("profiles-import-modal")),
-        &infiltrator_slint::AppWindow::new().unwrap(),
+        surface.window(),
         true,
         Some(bounds),
     );
@@ -74,10 +79,11 @@ fn the_marker_publishes_the_activated_scenario_with_its_real_bounds() {
 fn the_marker_never_claims_a_scenario_the_surface_did_not_open() {
     let directory = tempfile::tempdir().unwrap();
     let marker = directory.path().join("marker.log");
+    let surface = SurfaceHarness::new(None).expect("the headless shell builds");
 
     write_capture_marker(
         &settings(marker.clone(), Some("dns-leak-alert")),
-        &infiltrator_slint::AppWindow::new().unwrap(),
+        surface.window(),
         false,
         None,
     );

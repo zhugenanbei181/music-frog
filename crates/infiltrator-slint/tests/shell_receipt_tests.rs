@@ -14,6 +14,7 @@ use infiltrator_contract::responsive_viewport::SidebarForm;
 use infiltrator_contract::shell_receipt::ShellChromeFacts;
 use infiltrator_slint::AppWindow;
 use infiltrator_slint::shell_receipt_host::shell_chrome_facts;
+use infiltrator_slint::surface::harness::SurfaceHarness;
 
 fn chrome_of(window: &AppWindow) -> ShellChromeFacts {
     let facts = shell_chrome_facts(window);
@@ -33,8 +34,15 @@ fn a_cold_frame_states_the_bar_it_mounts_and_the_band_it_reserves() {
     // navigation, no column, and the dock band the shell reserves for it. That
     // pairing is the invariant SPACEUTIL-006 was written for, checked here on
     // the projection rather than only in the judge.
-    let window = AppWindow::new().expect("the shell builds");
-    let facts = chrome_of(&window);
+    //
+    // The window comes from the headless harness, the same owner every other
+    // Slint test uses: a real window would need a display, and the release
+    // tag runner has none (winit: "neither WAYLAND_DISPLAY nor
+    // WAYLAND_SOCKET nor DISPLAY is set"). This test asserts about the
+    // projection of a cold frame, so what it needs is a window that exists
+    // without a compositor - not a compositor.
+    let surface = SurfaceHarness::new(None).expect("the headless shell builds");
+    let facts = chrome_of(surface.window());
     assert_eq!(facts.nav_form, SidebarForm::BottomNav, "{facts:?}");
     assert_eq!(facts.nav_column_px, 0, "a bar reserves no side column");
     assert_eq!(

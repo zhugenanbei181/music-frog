@@ -24,29 +24,29 @@
 | 7 | 各处界面是否模块化了？ | 文件/模块分割 + 「无跨 UI 私有业务真源」的检查结果 |
 | 8 | CI 打包是否最高效？ | 缓存、`--locked`、触发策略、单批耗时；不高效处必须立项 |
 
-## 当前状态（2026-11-15 第二百七十批次 = **crates.io 真上架批次**：七个 neutral crate 全部在库 0.68.4；发布守卫改为遵守注册表公布的窗口重开时刻；斗战胜佛 §四 清零三条办结归档 +9 pt，`PUB-006.12` 迁回可推看板；本批零 Rust 源码改动、零像素重采；b111–b269 见下方批次八问摘要）
+## 当前状态（2026-11-15 第二百七十批次 = **crates.io 真上架批次**：七个 neutral crate 全部在库 0.68.4；发布守卫改为遵守注册表公布的窗口重开时刻；斗战胜佛 §四 清零三条办结归档 +9 pt，`PUB-006.12` 迁回可推看板；在 tag CI 回执里挖出并修掉一条绑在显示器上的 Slint 测试；迭代小版本 v0.68.5；b111–b269 见下方批次八问摘要）
 
 | # | 结论 | 等级 | 缺口 / owner |
 | --- | --- | --- | --- |
-| 1 | 部分 | L | 本批**零 Rust 源码改动**（只改 Python 发布守卫与其单测、L2 共享包文档、四板台账），不引入新的架构面；新增证据全是本机 L：crates.io API 复核七个包 `max_version=0.68.4`、`cargo publish --dry-run` 全链 `ok=7 / order-gate=0 / packaging-failure=0`、发布守卫单测 **29/29**（新增 5 条）。aarch64 交叉目标产物未复跑（GAP-1.1） |
+| 1 | 部分 | L | 本批的**唯一 Rust 改动是两条 Slint 集成测试**（各改用仓库既有的 `SurfaceHarness` headless owner），零产品源码改动；新增证据全是本机 L：crates.io API 复核七个包 `max_version=0.68.4`、`cargo publish --dry-run` 全链 `ok=7 / order-gate=0 / packaging-failure=0`、发布守卫单测 **30/30**、**无显示器**（`env -u DISPLAY -u WAYLAND_DISPLAY -u WAYLAND_SOCKET`）下 Slint 全包 **407/407**、`cargo check --workspace --all-targets --locked` RC=0。aarch64 交叉目标产物未复跑（GAP-1.1） |
 | 2 | 部分 | L | 零构建面改动；七个 neutral crate 的发布元数据保留 Linux/Windows 双 target，但本批**未复跑 Windows/macOS 构建腿**，macOS 沿用 `Unsupported`（GAP-2.2） |
-| 3 | 部分 | L | 零 Android/iOS 代码、资源或脚本改动；共享包改走 registry 后 `android/bevy-host/driver/Cargo.lock` 的 `source = "git+"` 实测 **0 条**（Android driver 侧也不再解析任何私有 Git 源） |
+| 3 | 部分 | L | 零 Android/iOS 代码、资源或脚本改动；共享包改走 registry 后 `android/bevy-host/driver/Cargo.lock` 的 `source = "git+"` 实测 **0 条**，且该 lock 随版本迭代落到 0.68.5 |
 | 4 | 部分 | L | 零 UI 表面改动、**零像素重采**；本批对三表面共享的四个 `zhuge-ui-*` 包只改**依赖来源**不改 API（b269 实测旧 pinned rev `3afbacee` 是发布提交 `7bbe78d` 的直系祖先，`crates/*/src/**` 零差异），故三表面行为不变；`PUB-006.12`（1.0-RC 基线冻结）本批**只迁回看板未施工** |
-| 5 | 完整 | L | 零新造重复实现：「已发布」的唯一真源是 crates.io registry + 守卫的 `CANONICAL_ORDER`，不再有第二份发布名单；429 处理从「固定 120s 空转」改为「读注册表公布的时刻再睡」是**修判据**而不是加第二份状态（新增两个纯函数 `rate_limit_retry_at()` / `rate_limit_wait_seconds()`） |
+| 5 | 完整 | L | 零新造重复实现：「已发布」的唯一真源是 crates.io registry + 守卫的 `CANONICAL_ORDER`，没有第二份发布名单；429 处理从「固定 120s 空转」改为「读注册表公布的时刻再睡」、未提交的树判为 `dirty-tree` 而非打包缺陷，都是**修判据**；Slint 的无头窗口复用仓库既有的 `HeadlessPlatform`/`SurfaceHarness`，**不新建第二套无头后端**、不引入 `i_slint_backend_testing` 新依赖 |
 | 6 | 部分 | L | 本批**零新增业务能力**；新增的是发布流水线的一条真实可执行腿（crates.io 上架），并逐条解锁斗战胜佛 §四 三条条目的**自身写明的解锁条件**（`PUB-001.3` / `PUB-003.2` / `PUB-003.3` 办结归档 +9 pt）；`PUB-006.12` 迁回现在佛 §0.4 待施工 |
 | 7 | 完整 | L | 限流是与「打包失败」分开的独立状态 `rate-limited`，有自己的重试预算（8 次）而不是复用 order-gate 的 3 次（本批实测：3 次预算必然撞死 429，8 次 + 读注册表时刻才传得上去）；零 Rust 文件超预算、零 `mod.rs`、零 `include!`；发布守卫单测 29/29 |
-| 8 | 部分 | L | 一次发布链跑完（7 包两次尝试，第二次按注册表公布时刻退避后成功）、一次 dry-run 全链、一次结构门 __GATE_LEGS__；**v0.68.4 的 `release-neutral-crates` run `43673008540` 仍是红的**（记录的是限流失败而非绿色上架回执），本批已安排复跑取绿；`--workspace` nextest 未复跑（本批零 Rust 改动且本机 cargo lane 与另一会话共享，按错峰纪律留给统一批次） |
+| 8 | 部分 | L | 一次发布链跑完（7 包两次尝试，第二次按注册表公布时刻退避后成功）、一次 dry-run 全链、一次结构门 **223 腿 0 failed / 1 合法跳过**（`--check-export` 因 clean 后导出器未构建 typed 跳过）、`structure-gate-guard` **224 腿 0**；**新 tag `v0.68.5`** 让两条 tag 流水线在带修复的代码上重跑——v0.68.4 的 `release` run `43673008613` 红在一条绑在显示器的 Slint 测试（已修），`release-neutral-crates` run `43673008540` 红在 crates.io 限流（本地已传完，但 `gh run rerun` 需管理员权限，只能靠新 tag 取绿色回执）；`--workspace` nextest 未复跑（Rust 改动只在两条 Slint 集成测试，已用 `-p infiltrator-slint --features capture-tools` 407/407 无显示器覆盖） |
 
-## 最近一批问答（2026-11-15 第二百七十批次：crates.io 真上架，限流按注册表公布的时刻退避）
+## 最近一批问答（2026-11-15 第二百七十批次：crates.io 真上架，限流按注册表公布的时刻退避，tag CI 里挖出绑在显示器上的测试）
 
-1. x86_64/aarch64：本批零 Rust 源码改动（只改 Python 发布守卫与其单测、L2 文档与四板台账），不引入新的架构面；本批新增证据全为本机 L——crates.io API 复核七个包 `max_version=0.68.4`、`cargo publish --dry-run` 全链 `ok=7 / order-gate=0 / packaging-failure=0`、发布守卫单测 **29/29**。aarch64 交叉目标产物未复跑（GAP-1.1）→ 部分（L）。
+1. x86_64/aarch64：本批唯一的 Rust 改动是两条 Slint 集成测试（各改用既有 headless owner），零产品源码改动；新增证据全为本机 L——crates.io API 复核七个包 `max_version=0.68.4`、`cargo publish --dry-run` 全链 `ok=7 / order-gate=0 / packaging-failure=0`、发布守卫单测 **30/30**、**无显示器**下 Slint 全包 **407/407**、`cargo check --workspace --all-targets --locked` RC=0。aarch64 交叉目标产物未复跑（GAP-1.1）→ 部分（L）。
 2. Windows/Linux/macOS：零构建面改动；七个 neutral crate 的发布元数据保留 Linux/Windows 双 target，但本批未复跑 Windows/macOS 构建腿，macOS 沿用 `Unsupported`（GAP-2.2）→ 部分（L）。
-3. Android/iOS：零 Android/iOS 代码、资源或脚本改动；共享包改走公开 registry 后 `android/bevy-host/driver/Cargo.lock` 的 `source = "git+"` 实测 0 条，Android driver 侧不再解析任何私有 Git 源 → 部分（L）。
+3. Android/iOS：零 Android/iOS 代码、资源或脚本改动；共享包改走公开 registry 后 `android/bevy-host/driver/Cargo.lock` 的 `source = "git+"` 实测 0 条，该 lock 随版本迭代落到 0.68.5 → 部分（L）。
 4. 各 UI：零 UI 表面改动、零像素重采。本批对三表面共享的四个 `zhuge-ui-*` 包只改依赖来源不改 API（b269 已实测旧 pinned rev 是发布提交的直系祖先、`crates/*/src/**` 零差异），三表面行为不变；`PUB-006.12` 只迁回可推看板未施工 → 部分（L）。
-5. 复用：零新造重复实现。「已发布」的唯一真源是 crates.io registry 加守卫的 `CANONICAL_ORDER`，没有第二份发布名单；429 处理是修判据（读注册表公布的时刻）而不是新增第二份状态 → 完整（L）。
+5. 复用：零新造重复实现。「已发布」的唯一真源是 crates.io registry 加守卫的 `CANONICAL_ORDER`；429 处理与 dirty-tree 分类都是修判据（读注册表公布的时刻、区分前置条件与缺陷）而不是新增第二份状态；Slint 的无头窗口复用仓库既有的 `HeadlessPlatform`/`SurfaceHarness`，不新建第二套无头后端 → 完整（L）。
 6. 各处界面的功能接入：本批零新增业务能力；新增的是发布流水线的一条真实可执行腿，并逐条解锁斗战胜佛 §四 三条条目各自写明的解锁条件（+9 pt 办结归档）；`PUB-006.12` 迁回现在佛待施工 → 部分（L）。
 7. 模块化：限流是与「打包失败」分开的独立状态 `rate-limited`，带自己的重试预算（8 次）而不是复用 order-gate 的 3 次——本批实测 3 次预算必然撞死 429；新增两个纯函数（`rate_limit_retry_at()` / `rate_limit_wait_seconds()`）各司其职；零 Rust 文件超预算、零 `mod.rs`、零 `include!`；守卫单测 29/29 → 完整（L）。
-8. CI 与批次效率：一次发布链跑完、一次 dry-run 全链、一次结构门 __GATE_LEGS__；v0.68.4 的发布流水线 run `43673008540` 仍是红的（记录的是限流失败而非绿色上架回执），本批已安排复跑取绿；`--workspace` nextest 留给统一批次（本批零 Rust 改动且 cargo lane 共享）→ 部分（L）。
+8. CI 与批次效率：一次发布链跑完、一次 dry-run 全链、一次结构门 **223 腿 0 failed / 1 合法跳过**（`--check-export` 因 clean 后导出器未构建 typed 跳过）、`structure-gate-guard` **224 腿 0**。**新 tag `v0.68.5`** 让两条 tag 流水线在带修复的代码上重跑：v0.68.4 的 `release` run `43673008613` 红在一条绑在显示器的 Slint 测试（本批已修并实测无显示器 407/407），`release-neutral-crates` run `43673008540` 红在 crates.io 限流（本地已传完；`gh run rerun` 需管理员权限，只能靠新 tag 取绿色回执）；`--workspace` nextest 留给 CI 的 release 腿与统一批次 → 部分（L）。
 
 ## 历史状态（2026-11-14 第二百六十八批次 = **v0.68.3 收口批次**：Bevy 随帧发布 `CAPTURE_CHROME` 外壳几何回执，判定器与三张矩阵改读契约页形 `shape`；超预算按业务缝拔出而非压行，并立守卫 + 写入 L2；实测立项 `SPACEUTIL-024` 4 pt + `SPACEUTIL-025` 3 pt；b111–b267 见下方批次八问摘要）
 

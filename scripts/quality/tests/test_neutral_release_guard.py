@@ -262,6 +262,23 @@ class DryRunClassificationTests(unittest.TestCase):
         )
         self.assertGreaterEqual(wait, GUARD.RATE_LIMIT_SAFETY_MARGIN_SECONDS)
 
+    def test_a_dirty_tree_is_not_a_packaging_failure(self) -> None:
+        # cargo refuses to package a tree that is not committed. That is a
+        # precondition of the rehearsal, not a defect of the crate, so the
+        # guard must not report it as a packaging failure.
+        status, reason = GUARD.classify_failure(
+            "error: failed to publish to registry at https://crates.io\n\n"
+            "Caused by:\n  the local working directory contains uncommitted "
+            "changes, and `cargo publish` will not package them\n\n"
+            "to proceed despite this and include the uncommitted changes, pass "
+            "the `--allow-dirty` flag\n",
+            [],
+            "lurker-core-contract",
+        )
+        self.assertEqual(status, GUARD.STATUS_DIRTY_TREE)
+        self.assertNotEqual(status, GUARD.STATUS_PACKAGING_FAILURE)
+        self.assertIn("not committed", reason)
+
     def test_already_published_version_is_reported(self) -> None:
         status, _ = GUARD.classify_failure(
             "error: crate `lurker-core-contract v0.50.0` already exists\n",
