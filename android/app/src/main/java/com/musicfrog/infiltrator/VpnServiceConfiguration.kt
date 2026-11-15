@@ -323,7 +323,7 @@ internal sealed interface VpnPackageRoutingPlan {
  * Result of wiring a [VpnPackageRoutingPlan] into a VPN builder.
  *
  * `addAllowedApplication`/`addDisallowedApplication` resolve the package against the
- * device's installed packages and throw `NameNotFoundException` when it is gone. A
+ * device's installed packages and report [VpnPackageUninstalledException] when it is gone. A
  * package the user selected and later uninstalled is stale data, not a reason to
  * refuse the whole tunnel, so it is reported in `skippedUninstalled` instead of
  * aborting establish. Anything else that can fail is a real contract violation and
@@ -336,6 +336,20 @@ internal sealed interface VpnPackageRoutingApply {
 
     data class Rejected(val message: String) : VpnPackageRoutingApply
 }
+
+/**
+ * The device no longer has [packageName] installed.
+ *
+ * The platform reports that as `PackageManager.NameNotFoundException`, and the
+ * production seam translates it into this typed signal. The routing rule is a
+ * business fact ("the user selected a package and later uninstalled it"), so it
+ * is spoken in the host's own vocabulary: the framework exception stays at the
+ * platform boundary, where only a real device can raise it. A host test can
+ * then model an uninstalled package without a device, and the android.jar stub
+ * - whose constructors throw `RuntimeException("Stub!")` - never has to be
+ * executed to model it.
+ */
+internal class VpnPackageUninstalledException(packageName: String) : Exception(packageName)
 
 @Suppress("NewApi")
 private fun addVpnPackageRule(builder: VpnService.Builder, rule: VpnPackageRule) {
@@ -434,7 +448,7 @@ internal fun applyVpnPackageRouting(
         try {
             applyRule(rule)
             applied.add(rule)
-        } catch (_: PackageManager.NameNotFoundException) {
+        } catch (_: VpnPackageUninstalledException) {
             if (rule.packageName == ownPackageName) {
                 return VpnPackageRoutingApply.Rejected(
                     "The VPN host package ${rule.packageName} is not installed on this device",
@@ -446,9 +460,6 @@ internal fun applyVpnPackageRouting(
                 "VPN app routing could not be configured: ${error.message ?: error.javaClass.simpleName}",
             )
         }
-    }
-    if (skipped.isNotEmpty()) {
-        Log.i(TAG, "Skipped ${skipped.size} uninstalled app-routing package(s): $skipped")
     }
     // A whitelist with no entries is not "nothing tunnels", it is "everything
     // tunnels": the platform only restricts the tunnel once at least one
@@ -467,6 +478,27 @@ internal fun applyVpnPackageRouting(
     builder: VpnService.Builder,
     plan: VpnPackageRoutingPlan,
     ownPackageName: String,
-): VpnPackageRoutingApply = applyVpnPackageRouting(plan, ownPackageName) { rule ->
-    addVpnPackageRule(builder, rule)
+): VpnPackageRoutingApply {
+    val result = applyVpnPackageRouting(plan, ownPackageName) { rule ->
+        try {
+            addVpnPackageRule(builder, rule)
+        } catch (_: PackageManager.NameNotFoundException) {
+            // The platform's own vocabulary stops here: the rule above speaks
+            // the host's typed signal, so the routing logic never depends on a
+            // framework exception type it cannot be tested against off-device.
+            throw VpnPackageUninstalledException(rule.packageName)
+        }
+    }
+    if (result is VpnPackageRoutingApply.Applied && result.skippedUninstalled.isNotEmpty()) {
+        // The decision function stays free of the framework: it is exercised
+        // by host tests that have no device, and the platform jar's stubs
+        // throw on every call. Reporting the skipped packages is presentation,
+        // so it belongs to the platform side of the seam.
+        Log.i(
+            TAG,
+            "Skipped ${result.skippedUninstalled.size} uninstalled app-routing package(s): " +
+                result.skippedUninstalled,
+        )
+    }
+    return result
 }

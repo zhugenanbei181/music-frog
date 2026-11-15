@@ -140,6 +140,12 @@ kotlin {
 
 dependencies {
     compileOnly(files(androidApiJar))
+    // The test source set compiles host tests that may name an Android type
+    // (the runtime classpath already carries the platform jar). `compileOnly`
+    // reaches the main source set alone, so without this the test compile
+    // classpath is missing a jar the test runtime has, and a host test fails
+    // to compile on "Unresolved reference 'android'".
+    testCompileOnly(files(androidApiJar))
     // The shared credential store uses the AndroidX KTX extension, so the
     // shared source set needs the same library on its compile classpath.
     androidXCoreKtx("androidx.core:core:1.19.1")

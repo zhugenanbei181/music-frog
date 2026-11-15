@@ -216,7 +216,7 @@ def self_test() -> int:
     assert not PINNED_WRAPPING_ROW.search(
         "content-layout := VerticalLayout { Text { wrap: word-wrap; } }"
     )
-    assert VERSION_LITERAL.search('in property <string> product-version: "0.68.5";')
+    assert VERSION_LITERAL.search('in property <string> product-version: "0.68.6";')
     assert not VERSION_LITERAL.search('in property <string> product-version: ProductIdentity.version;')
     return 0
 

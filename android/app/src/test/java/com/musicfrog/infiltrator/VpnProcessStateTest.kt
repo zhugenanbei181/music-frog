@@ -1,6 +1,5 @@
 package com.musicfrog.infiltrator
 
-import android.content.pm.PackageManager
 import infiltrator_android.AndroidAppRoutingMode
 import infiltrator_android.AndroidHostReply
 import infiltrator_android.AndroidVpnRoutingActivationLease
@@ -210,7 +209,7 @@ class VpnProcessStateTest {
         )
         val wired = applyVpnPackageRouting(plan, own) { rule ->
             if (rule.packageName == "com.gone") {
-                throw PackageManager.NameNotFoundException(rule.packageName)
+                throw VpnPackageUninstalledException(rule.packageName)
             }
         }
 
@@ -228,7 +227,7 @@ class VpnProcessStateTest {
         val own = "com.musicfrog.infiltrator"
         val plan = VpnPackageRoutingPlan.Ready(listOf(VpnPackageRule.Allow("com.gone")))
         val wired = applyVpnPackageRouting(plan, own) { rule ->
-            throw PackageManager.NameNotFoundException(rule.packageName)
+            throw VpnPackageUninstalledException(rule.packageName)
         }
 
         assertTrue(
@@ -246,7 +245,7 @@ class VpnProcessStateTest {
         )
         val wired = applyVpnPackageRouting(plan, own) { rule ->
             if (rule.packageName != own) {
-                throw PackageManager.NameNotFoundException(rule.packageName)
+                throw VpnPackageUninstalledException(rule.packageName)
             }
         }
 
